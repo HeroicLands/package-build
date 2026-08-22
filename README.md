@@ -56,6 +56,104 @@ The whole of assemble → validate → ship, one subpath each:
 - **`text`** — locating a literal inside a file, so a finding names the line and
   column it is about.
 
+## Configure
+
+A repository declares its build in **one** file — `content-build.config.yaml`,
+the same one `content-build` reads — and this package takes its settings from
+the reserved `packageBuild:` section:
+
+```yaml
+# Read from the top level, not restated below.
+packageKind: modules
+foundryPackage: sohl-thalorna
+
+packageBuild:
+  # Where the package is assembled. Every `to:` below is relative to it, so a
+  # table reads `lang`, not `build/stage/lang`.
+  stageDir: build/stage
+
+  assets:
+    - { from: lang, to: lang }
+    - { from: assets/icons, to: assets/icons }
+    - { from: LICENSE.md, to: LICENSE.md }
+
+  # Optional. A module exporting `transform(sourcePath) -> string | null`,
+  # applied to every staged file — `null` copies it verbatim. This is the one
+  # genuine piece of code in staging, and it stays the repository's: SoHL
+  # rewrites each SVG's hard-coded fill so icons follow the Foundry theme.
+  assetTransform: ./utils/svg-theme.mjs
+
+  clean:
+    # Beyond the conventional build artifacts, which the library already knows.
+    extra: [site/content, site/public, site/resources]
+
+  lang:
+    sources: lang/*.json
+    # Printed after a failure — where this repository documents its key rules.
+    help: See kb/dev-docs/reference/localization-keys.md.
+
+  deploy:
+    # Prefix of the shared SFTP override variables. Default `SOHL`.
+    envPrefix: SOHL
+```
+
+**Why one file and not two.** Two of the values this package needs —
+`packageKind` and `foundryPackage` — are already declared for `content-build`. A
+second config file would restate them, which is two places for one fact; that is
+exactly what every consumer's `push-stage.mjs` did, hard-coding
+`packageKind: "systems"` and `packageId: "sohl"` beside a configuration that
+already said both.
+
+`content-build` checks only that `packageBuild:` is a mapping and hands it back
+frozen. Everything inside it is validated here, so neither package learns the
+other's schema — they split by input, and the dependency runs one way.
+
+**What is derived, not stated:**
+
+| Field                      | Derived from                                                         |
+| -------------------------- | -------------------------------------------------------------------- |
+| the repository root        | the configuration file's own location                                |
+| `packageKind`, `packageId` | the shared configuration's top level                                 |
+| the release artifact       | `packageKind` — a system ships `system.json`, a module `module.json` |
+
+## Command line
+
+```
+npx package-build clean [--distclean]
+npx package-build assets
+npx package-build lang check
+npx package-build release
+npx package-build deploy <stage>
+```
+
+Wrapped as npm scripts — SoHL spells them:
+
+```json
+{
+  "clean": "package-build clean",
+  "distclean": "package-build clean --distclean",
+  "build:assets": "package-build assets",
+  "lint:lang": "package-build lang check",
+  "build:pack-release": "package-build release",
+  "push:qa": "package-build deploy qa"
+}
+```
+
+**Why the CLI exists.** This package was library-only, so every consuming
+repository wrote a wrapper script per job — six of them in the SoHL repository,
+441 lines that between them contained no logic. `clean.mjs` was 47 lines that
+computed a `repoRoot` from `import.meta.url`, read one flag, and made one call.
+Every copy had drifted from its sibling in the other repositories, because
+copies do: `clean.mjs` was 47 lines in one and 48 in another, `copy-assets.mjs`
+71 and 76.
+
+It is the same shape the configuration had before it became data — not logic,
+but the boilerplate a code file needs in order to state a literal. The literals
+moved into configuration; the boilerplate lives in the CLI, once.
+
+`--version` and `--help` answer in a directory with no configuration at all.
+Running an actual command resolves it, and fails loudly when it is missing.
+
 ## Design
 
 **The rules are pure, and I/O is confined to functions named for it.** A rule
