@@ -1,25 +1,52 @@
 name: Publish to npm
 
-# Publishing is deliberately explicit: cutting a GitHub Release publishes the
-# version currently in package.json. There is no changesets pipeline here — the
-# package is hand-versioned, as it was when it lived in the system repository.
+# The whole release process, from a merged pull request to a version on the
+# registry. Nothing here is started by hand.
+#
+#   1. A pull request declares its bump as a `.changeset/*.md` file (CI fails it
+#      otherwise — see the "Changeset declared" job in build.yml).
+#   2. Merging it to `main` runs this workflow, which opens or updates the
+#      **Version Packages** pull request: the version bump plus the rewritten
+#      CHANGELOG.md. An unreleased state is therefore a pull request sitting in
+#      the queue, not an absence nobody can see (#4).
+#   3. Merging *that* runs this workflow again with no changesets left, so it
+#      falls through to `changeset publish`: npm publish, the `v<version>` tag,
+#      and the GitHub Release with the changelog section as its body.
+#
+# The file name is load-bearing. npm Trusted Publishing binds the publisher to
+# this repository *and this workflow path*, so renaming the file revokes the
+# credential until the trusted publisher is reconfigured on npm.
 on:
-    release:
-        types: [published]
+    push:
+        branches: [main]
+    # Manual recovery: re-runs the publish for a version that is merged and
+    # versioned but not on the registry. `changeset publish` is idempotent, so
+    # running it against an already-published version is a no-op.
     workflow_dispatch:
 
 permissions:
-    # id-token: write is what npm Trusted Publishing (OIDC) exchanges for a
-    # short-lived credential. There is no NPM_TOKEN in this repository.
-    contents: read
+    # contents: write      -> push the version branch, create the tag and Release
+    # pull-requests: write -> open and update the Version Packages pull request
+    # id-token: write      -> npm Trusted Publishing (OIDC). There is no NPM_TOKEN.
+    contents: write
+    pull-requests: write
     id-token: write
+    statuses: write
+
+# Two pushes to main must never race on the version pull request or the tag.
+concurrency:
+    group: release
+    cancel-in-progress: false
 
 jobs:
-    publish:
-        name: Publish @heroiclands/package-build
+    release:
+        name: Version and publish @heroiclands/package-build
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+
             - uses: actions/setup-node@v4
               with:
                   node-version: 24
@@ -28,22 +55,63 @@ jobs:
 
             - run: npm ci
 
-            # Guard the release path with the same checks `main` gets, so a
-            # tag cut from a red commit cannot publish.
+            # Guard the release path with the same checks `main` gets, so a red
+            # commit cannot reach the registry. These run before the publish
+            # step, not after it — a package that fails here is never published.
             - run: npm test
             - run: npm run build:types
 
             # OIDC Trusted Publishing needs npm >= 11.5; the runner ships older.
+            # `changeset publish` shells out to this npm, so it must be upgraded
+            # before the action runs, not inside it.
             - name: Upgrade npm for OIDC
               run: npm install -g npm@latest
 
-            # Idempotent: re-running the workflow on an already-published
-            # version is a no-op rather than an error.
-            - name: Publish if the version is new
+            # With changesets pending: opens or updates the Version Packages PR
+            # and stops. With none pending — the state right after that PR
+            # merges — runs `changeset publish`, which publishes every package
+            # whose version is not yet on the registry, tags it, and (because
+            # `publish` is set) creates the GitHub Release from its CHANGELOG.md
+            # section. Both halves are no-ops when there is nothing to do, so an
+            # ordinary push to `main` releases nothing.
+            - name: Version, or publish
+              id: changesets
+              uses: changesets/action@v1
+              with:
+                  version: npx changeset version
+                  publish: npx changeset publish
+                  commit: "chore(release): version packages"
+                  title: "chore(release): version packages"
+              env:
+                  GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+            # The Version Packages pull request is opened by GITHUB_TOKEN, and
+            # GitHub deliberately does not start workflow runs from that token —
+            # so the `pull_request` checks never run on it and a required check
+            # would leave it unmergeable forever. Report the one required
+            # context here instead. It is not a rubber stamp: that pull request
+            # *is* the declared bump, consuming the changesets the gate exists
+            # to require.
+            - name: Mark the version pull request as having declared its bump
+              if: steps.changesets.outputs.pullRequestNumber != ''
+              env:
+                  GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+              run: |
+                  SHA=$(gh api "repos/${{ github.repository }}/pulls/${{ steps.changesets.outputs.pullRequestNumber }}" --jq .head.sha)
+                  gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
+                      -f state=success \
+                      -f context='Changeset declared' \
+                      -f description='This pull request is the bump; it consumes the changesets.'
+
+            # Report what reached the registry. `npm view <pkg> version` lags a
+            # successful publish by up to a minute or so, which reads as a
+            # failed release to anyone checking; `dist-tags` is correct
+            # immediately.
+            - name: Confirm the published version
+              if: steps.changesets.outputs.published == 'true'
               run: |
                   VERSION=$(node -p "require('./package.json').version")
-                  if npm view "@heroiclands/package-build@$VERSION" version >/dev/null 2>&1; then
-                      echo "@heroiclands/package-build@$VERSION already published — skipping."
-                  else
-                      npm publish
-                  fi
+                  echo "Published @heroiclands/package-build@$VERSION"
+                  npm view @heroiclands/package-build dist-tags --json
+                  echo "Note: 'npm view @heroiclands/package-build version' may report the"
+                  echo "previous version for up to a minute. dist-tags above is authoritative."
