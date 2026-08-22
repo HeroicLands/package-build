@@ -34,3 +34,32 @@ jobs:
             # failure here would otherwise only surface during a release.
             - name: Declaration emit
               run: npm run build:types
+
+    # Every pull request declares the release it intends — a bump, or an empty
+    # changeset saying it needs none. This is the gate that keeps a version from
+    # being merged and then forgotten: the release pipeline versions from
+    # changesets, so a change that adds none ships nothing.
+    #
+    # This job's name is the required status context. The Version Packages pull
+    # request cannot run it (GITHUB_TOKEN does not start workflow runs), so
+    # release.yml reports the same context on it directly.
+    changeset:
+        name: Changeset declared
+        if: github.event_name == 'pull_request'
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            # `changeset status --since` compares against a ref, so `main` has
+            # to exist locally: a pull-request checkout is a detached merge
+            # commit with no branches.
+            - name: Fetch main
+              run: git fetch --no-tags origin main:refs/remotes/origin/main
+            - name: Changeset present
+              run: npx changeset status --since=origin/main

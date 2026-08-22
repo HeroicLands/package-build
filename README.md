@@ -198,6 +198,43 @@ would let something reach for one.
 declared `dependency`. Inside a workspace a missing declaration is invisible;
 installed from npm it fails on the first import.
 
+## Releasing
+
+Releasing is not a command anyone runs. It is a consequence of merging, in two
+steps, and each step is visible while it is pending.
+
+**Every pull request declares its bump.** Run `npx changeset` and pick
+major/minor/patch; the summary you write becomes the changelog entry and the
+release note. If the change ships nothing a consumer can see, say so explicitly
+with `npx changeset add --empty`. CI's **Changeset declared** job fails a pull
+request that declares neither — `npm run changeset:check` is the same check,
+locally.
+
+**Merging to `main` opens a Version Packages pull request** carrying the version
+bump and the rewritten `CHANGELOG.md`. That pull request _is_ the pending
+release: as long as something is merged but unpublished, there is an open pull
+request saying so. The previous, hand-driven process failed by leaving _nothing_
+behind when its final step was forgotten (#4).
+
+**Merging that publishes.** `changeset publish` puts the version on npm through
+Trusted Publishing (OIDC — there is no `NPM_TOKEN`), tags the commit `v<version>`
+and cuts the GitHub Release with the changelog section as its body. It publishes
+only versions that are not already on the registry, so re-running it is a no-op;
+`workflow_dispatch` on **Publish to npm** is the recovery path if a run fails
+after versioning.
+
+A changeset is also where a **raised dependency floor** gets recorded. 0.2.0 began
+requiring `@heroiclands/content-build >= 0.15.0` and announced it nowhere; a
+changeset is the place that now happens.
+
+Below 1.0.0, `^0.x` never crosses a minor — a consumer on `^0.2.0` will not see
+`0.3.0` until it bumps the pin deliberately, and Dependabot raises that as its own
+pull request.
+
+> After a successful publish, `npm view @heroiclands/package-build version` can
+> report the _previous_ version for a minute or so. `dist-tags` is correct
+> immediately, and is what the workflow prints.
+
 ## Licence
 
 GPL-3.0-or-later.
