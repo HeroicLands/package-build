@@ -1,0 +1,8 @@
+node_modules/
+
+# Declaration output. Regenerated from the JSDoc by `npm run build:types`, which
+# `prepack` runs, so the published tarball carries them and the tree does not.
+types/
+
+*.tgz
+.DS_Store

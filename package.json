@@ -1,0 +1,99 @@
+{
+    "name": "@heroiclands/package-build",
+    "version": "0.1.0",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — manifest, localization, staging, bundle, release and deployment.",
+    "license": "GPL-3.0-or-later",
+    "type": "module",
+    "main": "./index.mjs",
+    "types": "./types/index.d.mts",
+    "exports": {
+        ".": {
+            "types": "./types/index.d.mts",
+            "import": "./index.mjs"
+        },
+        "./bundle": {
+            "types": "./types/bundle.d.mts",
+            "import": "./bundle.mjs"
+        },
+        "./deploy": {
+            "types": "./types/deploy.d.mts",
+            "import": "./deploy.mjs"
+        },
+        "./lang": {
+            "types": "./types/lang.d.mts",
+            "import": "./lang.mjs"
+        },
+        "./manifest": {
+            "types": "./types/manifest.d.mts",
+            "import": "./manifest.mjs"
+        },
+        "./release": {
+            "types": "./types/release.d.mts",
+            "import": "./release.mjs"
+        },
+        "./stage": {
+            "types": "./types/stage.d.mts",
+            "import": "./stage.mjs"
+        },
+        "./text": {
+            "types": "./types/text.d.mts",
+            "import": "./text.mjs"
+        },
+        "./package.json": "./package.json"
+    },
+    "files": [
+        "bundle.mjs",
+        "deploy.mjs",
+        "index.mjs",
+        "lang.mjs",
+        "manifest.mjs",
+        "release.mjs",
+        "stage.mjs",
+        "text.mjs",
+        "types",
+        "README.md"
+    ],
+    "scripts": {
+        "test": "vitest run",
+        "test:watch": "vitest",
+        "prepack": "npm run build:types",
+        "build:types": "tsc -p tsconfig.dts.json",
+        "format": "prettier --write .",
+        "format:check": "prettier --check .",
+        "prepare": "git config core.hooksPath .githooks || true"
+    },
+    "dependencies": {
+        "acorn": "^8.18.0",
+        "archiver": "^8.0.0",
+        "ssh2-sftp-client": "^12.1.1"
+    },
+    "devDependencies": {
+        "@types/node": "^26.2.0",
+        "prettier": "^3.9.6",
+        "typescript": "^6.0.3",
+        "vitest": "^4.1.10"
+    },
+    "engines": {
+        "node": ">=24.0.0"
+    },
+    "publishConfig": {
+        "access": "public",
+        "provenance": true
+    },
+    "keywords": [
+        "foundry-vtt",
+        "foundryvtt",
+        "heroiclands",
+        "sohl",
+        "song-of-heroic-lands",
+        "build"
+    ],
+    "homepage": "https://heroiclands.org",
+    "repository": {
+        "type": "git",
+        "url": "git+https://github.com/HeroicLands/package-build.git"
+    },
+    "bugs": {
+        "url": "https://github.com/HeroicLands/package-build/issues"
+    }
+}

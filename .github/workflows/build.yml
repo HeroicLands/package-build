@@ -1,0 +1,36 @@
+name: Build and Test
+
+on:
+    pull_request:
+        branches: [main]
+    push:
+        branches: [main]
+
+# A second push to the same branch supersedes the first; nothing here needs the
+# older run to finish.
+concurrency:
+    group: ${{ github.workflow }}-${{ github.ref }}
+    cancel-in-progress: true
+
+permissions:
+    contents: read
+
+jobs:
+    test-build:
+        name: Build & Test
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+            - run: npm ci
+            - name: Formatting
+              run: npm run format:check
+            - name: Tests
+              run: npm test
+            # Declaration emit is what `prepack` runs at publish time, so a
+            # failure here would otherwise only surface during a release.
+            - name: Declaration emit
+              run: npm run build:types

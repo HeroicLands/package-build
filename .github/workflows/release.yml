@@ -1,0 +1,49 @@
+name: Publish to npm
+
+# Publishing is deliberately explicit: cutting a GitHub Release publishes the
+# version currently in package.json. There is no changesets pipeline here — the
+# package is hand-versioned, as it was when it lived in the system repository.
+on:
+    release:
+        types: [published]
+    workflow_dispatch:
+
+permissions:
+    # id-token: write is what npm Trusted Publishing (OIDC) exchanges for a
+    # short-lived credential. There is no NPM_TOKEN in this repository.
+    contents: read
+    id-token: write
+
+jobs:
+    publish:
+        name: Publish @heroiclands/package-build
+        runs-on: ubuntu-latest
+        steps:
+            - uses: actions/checkout@v4
+            - uses: actions/setup-node@v4
+              with:
+                  node-version: 24
+                  cache: npm
+                  registry-url: https://registry.npmjs.org
+
+            - run: npm ci
+
+            # Guard the release path with the same checks `main` gets, so a
+            # tag cut from a red commit cannot publish.
+            - run: npm test
+            - run: npm run build:types
+
+            # OIDC Trusted Publishing needs npm >= 11.5; the runner ships older.
+            - name: Upgrade npm for OIDC
+              run: npm install -g npm@latest
+
+            # Idempotent: re-running the workflow on an already-published
+            # version is a no-op rather than an error.
+            - name: Publish if the version is new
+              run: |
+                  VERSION=$(node -p "require('./package.json').version")
+                  if npm view "@heroiclands/package-build@$VERSION" version >/dev/null 2>&1; then
+                      echo "@heroiclands/package-build@$VERSION already published — skipping."
+                  else
+                      npm publish
+                  fi
