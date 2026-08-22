@@ -29,6 +29,7 @@
         "manifest.mjs",
         "release.mjs",
         "stage.mjs",
-        "text.mjs"
+        "text.mjs",
+        "config.mjs"
     ]
 }
