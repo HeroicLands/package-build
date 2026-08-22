@@ -1,7 +1,7 @@
 {
     "name": "@heroiclands/package-build",
-    "version": "0.1.0",
-    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package \u2014 manifest, localization, staging, bundle, release and deployment.",
+    "version": "0.2.0",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
     "main": "./index.mjs",
