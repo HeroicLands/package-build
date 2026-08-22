@@ -40,9 +40,18 @@ jobs:
     # being merged and then forgotten: the release pipeline versions from
     # changesets, so a change that adds none ships nothing.
     #
-    # This job's name is the required status context. The Version Packages pull
-    # request cannot run it (GITHUB_TOKEN does not start workflow runs), so
-    # release.yml reports the same context on it directly.
+    # This job's name is the required status context, so it has to *report* on
+    # every pull request — including the Version Packages one, which is the one
+    # pull request that legitimately carries no changeset: consuming them is
+    # precisely what it does. The check step is skipped there and the job still
+    # succeeds, rather than the job being skipped, because a skipped job reports
+    # a skipped check and a required context wants a passing one.
+    #
+    # It was previously left to not run at all there, on the assumption that a
+    # branch pushed with GITHUB_TOKEN starts no workflow runs. That assumption
+    # did not hold — build.yml ran on #43 and failed it — and a gate whose
+    # correctness depends on a workflow *not* triggering is one bad assumption
+    # away from blocking every release.
     changeset:
         name: Changeset declared
         if: github.event_name == 'pull_request'
@@ -61,5 +70,13 @@ jobs:
             # commit with no branches.
             - name: Fetch main
               run: git fetch --no-tags origin main:refs/remotes/origin/main
+            # `changeset-release/*` is the branch the changesets action opens
+            # the Version Packages pull request from.
             - name: Changeset present
+              if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
               run: npx changeset status --since=origin/main
+            - name: This pull request is the bump
+              if: ${{ startsWith(github.head_ref, 'changeset-release/') }}
+              run: >-
+                  echo 'Version Packages pull request: it consumes the
+                  changesets rather than declaring one.'
