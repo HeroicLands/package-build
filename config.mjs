@@ -69,6 +69,7 @@ const SECTION_KEYS = [
     "lang",
     "deploy",
     "release",
+    "bundle",
 ];
 
 /**
@@ -98,6 +99,7 @@ const CLEAN_KEYS = ["extra"];
 const LANG_KEYS = ["sources", "help"];
 const DEPLOY_KEYS = ["envPrefix"];
 const RELEASE_KEYS = ["artifact"];
+const BUNDLE_KEYS = ["entry"];
 
 /**
  * The artifact name each package kind ships, so no repository states it.
@@ -240,6 +242,8 @@ function normalizeManifest(value) {
  * @property {string} langSources    Glob for the localization files to check.
  * @property {string|null} langHelp  Extra guidance printed after a failure.
  * @property {string} envPrefix      Prefix of the deploy environment variables.
+ * @property {string} bundleEntry   The bundle file Foundry loads, as the
+ *   manifest spells it. Derived from the package id.
  */
 
 /**
@@ -308,6 +312,15 @@ export function resolvePackageBuildConfig(shared) {
     );
     const releaseInput = /** @type {Record<string, unknown>} */ (release);
 
+    const bundle = section.bundle ?? {};
+    if (!isMapping(bundle)) fail("packageBuild.bundle", "must be a mapping");
+    rejectUnknownKeys(
+        /** @type {Record<string, unknown>} */ (bundle),
+        BUNDLE_KEYS,
+        "packageBuild.bundle.",
+    );
+    const bundleInput = /** @type {Record<string, unknown>} */ (bundle);
+
     return Object.freeze({
         rootDir: shared.rootDir,
         // Where the package is assembled before it is zipped or deployed. Every
@@ -374,6 +387,22 @@ export function resolvePackageBuildConfig(shared) {
             :   requireNonEmptyString(
                     deployInput.envPrefix,
                     "packageBuild.deploy.envPrefix",
+                ),
+        // The file Foundry loads, as the manifest spells it. Named after the
+        // package by convention, and the id is already derived from
+        // package.json `name` — so a repository states this only when its
+        // bundler emits something else.
+        //
+        // Deliberately *not* read back out of the generated manifest: the
+        // check's question is whether the manifest declares this file the way
+        // Foundry needs it, and a value taken from the manifest could never
+        // answer that — it would agree with itself by construction.
+        bundleEntry:
+            bundleInput.entry === undefined ?
+                `${shared.foundryPackage}.mjs`
+            :   requireNonEmptyString(
+                    bundleInput.entry,
+                    "packageBuild.bundle.entry",
                 ),
     });
 }
