@@ -1,5 +1,91 @@
 # @heroiclands/package-build
 
+## 0.6.0
+
+### Minor Changes
+
+- 53dd83b: **Commands for the Foundry container and the end-to-end harness** (#18).
+  
+  A package that declares a `compatibility` range is making a promise, and until
+  now exactly one repository could defend it: container lifecycle, world seeding
+  and the browser harness all lived in `SoHL/utils/`, so two of three HeroicLands
+  module repositories declared a range nothing could test.
+  
+  Two new commands:
+  
+  ```
+  package-build container <stage> <start|stop|restart|recreate|rm|status|logs|pull>
+  package-build e2e <seed|run|open|fast|sweep>
+  ```
+  
+  **Nothing about the destination is restated.** A container mounts
+  `FOUNDRYVTT_<STAGE>_DATA` — the variable `deploy` already writes into — so
+  serving what was just deployed is the next step from one variable rather than a
+  second configuration. Stage ports, the container name, the world id and the GM
+  credentials all derive from what the repository already declares.
+  
+  **The end-to-end stage is pinned to `compatibility.minimum`.** The claim and the
+  evidence for it are now literally the same number, so raising the pin is what it
+  should be: a decision to raise the supported floor. `FOUNDRYVTT_<STAGE>_VERSION`
+  still wins for a one-off, and `e2e sweep <build>` runs the full suite against a
+  build the repository does _not_ pin, so `compatibility.verified` can be evidence.
+  
+  **The wait is for an active world, not an open port.** Foundry answers on its
+  port long before a world is serving, and a suite started then fails every spec
+  for no visible reason. A licence failure — which never recovers — is read out of
+  the container log and reported at once.
+  
+  **What the suite _is_ stays the consumer's**, named in `packageBuild.e2e.suite`
+  the way `assetTransform` and `manifestFlags` are named. So does the seed world's
+  extra content, in `packageBuild.e2e.documents`. A **module** package additionally
+  gets `core.moduleConfiguration` seeded, without which its suite would run against
+  a world that never loaded it.
+  
+  New configuration, all optional: `packageBuild.container.{image,stages}` and
+  `packageBuild.e2e.{stage,suite,build,world,gm,documents}`. New subpath exports
+  `./container` and `./e2e`. Adds `@foundryvtt/foundryvtt-cli` as a dependency —
+  seeding a world means compiling its LevelDB collections.
+- 3c631c3: Add the two localization guards that keep a package translated: `lang coverage`
+  and `lang hardcoded` (#19).
+  
+  `lang check` already asked whether a localization file is _shippable_. Neither
+  of the questions that decide whether it is _translated_ was asked anywhere but
+  in the Song of Heroic Lands repository, in two scripts of its own — and both
+  satellites ship `lang/` files with no guard at all.
+  
+  **`lang coverage`** — every key the package references exists, and every key it
+  declares is referenced. The two halves are not the same severity: a referenced
+  key that is missing renders to a player as its own raw key string and fails the
+  run; a declared key nothing references is reported and does not, because no scan
+  sees every way a key is reached and a guard that fails over one teaches people
+  to switch it off.
+  
+  **`lang hardcoded`** — every user-visible literal in the templates goes through
+  localization, and every template still compiles once it does. This is the
+  _reverse_ walk, and it is the reason both exist: coverage walks key → file and
+  is blind to a template that names no key whatsoever. Before the work that
+  prompted this guard, SoHL had 516 hardcoded English literals across 61
+  templates, and translating every key in `en.json` would have left every one of
+  them in English.
+  
+  **What a repository states.** Which files to scan is configuration and defaults
+  to the conventional layout, so a repository that follows it declares nothing.
+  The escape hatches — a key retained despite looking unreferenced, a literal
+  allowed despite looking like prose — each carry a required `reason`, because
+  each is a claim a reviewer has to be able to check.
+  
+  **What stays the repository's.** `packageBuild.lang.references` names a module
+  exporting `references(context) -> ReferenceSet`, contributing the keys only that
+  repository's conventions can find — SoHL's `defineType(prefix, def)` mints one
+  key per member of an enum by a rule of its own. Everything Foundry-shaped is
+  built in: `{{localize}}`, `game.i18n.localize` / `format`, keys in string and
+  template literals, a DataModel's `LOCALIZATION_PREFIXES`, and the field
+  `label` / `hint` keys Foundry mints off one.
+  
+  Scripts are read through the **AST**, so a key named in a JSDoc `@example` is
+  neither required to exist nor able to keep a dead key alive. `typescript` and
+  `handlebars` become runtime dependencies for that reason.
+
 ## 0.5.0
 
 ### Minor Changes
