@@ -95,7 +95,73 @@ packageBuild:
   deploy:
     # Prefix of the shared SFTP override variables. Default `SOHL`.
     envPrefix: SOHL
+
+  # Optional. A module exporting `flags(config)` returning namespaced Foundry
+  # flags the repository has to *compute* — an address that only exists once
+  # the content tree has been walked, say. Merged over any declared below.
+  manifestFlags: ./utils/manifest-flags.mjs
+
+  # The Foundry package manifest. Emitted as declared, so a key Foundry adds in
+  # a later version needs no release of this package.
+  manifest:
+    title: Song of Heroic Lands
+    description: <p>…</p>
+    license: LICENSE.md
+    readme: README.md
+    authors:
+      - { name: Toasty, discord: "toasty#8538" }
+    esmodules: [sohl.js]
+    styles: [css/sohl.css]
+    languages:
+      - { lang: en, name: English, path: lang/en.json }
+    documentTypes:
+      Item:
+        skill: { htmlFields: [notes, docHtml] }
+    packFolders:
+      - name: Song of Heroic Lands
+        sorting: m
+        color: "#094fcb"
+        packs: [items, journals, actors, macros, scenes, adventures]
+    media:
+      - { type: logo, url: systems/sohl/assets/ui/logo.webp }
+    socket: true
+    grid: { distance: 5, units: ft }
+    primaryTokenAttribute: health
 ```
+
+### The manifest is generated, not stamped
+
+`package-build manifest` writes `system.json` / `module.json` into the stage.
+**There is no template file.** A manifest used to be hand-authored JSON that the
+build stamped a few fields into — the one build input still written by hand, per
+repository, with no schema and nothing checking it. It also declared facts the
+configuration already declared: the pack list twice, in two formats, with
+nothing checking the pairs agreed.
+
+Three kinds of key end up in the result:
+
+| Kind         | Where it comes from                                                                               |
+| ------------ | ------------------------------------------------------------------------------------------------- |
+| **Declared** | `packageBuild.manifest`, emitted unchanged                                                        |
+| **Derived**  | `id`, `version`, `url`, `bugs`, `manifest`, `download`, `compatibility`, `relationships`, `packs` |
+| **Computed** | namespaced `flags` from `manifestFlags`, merged over any declared                                 |
+
+**Declaring a derived key is an error, not an override.** An authored `version`
+would look authoritative, sit there unread, and disagree with the shipped
+package forever; the build says so, naming the key and where the value actually
+comes from.
+
+`packs` is derived from the **one** pack list at the top level of
+`content-build.config.yaml` — each entry's `label`, `type`, `name` and
+`private`, plus a `system` from `stats.systemId` and a `path` of
+`packs/<name>`. Companions are flattened in, because Foundry sees no difference:
+a companion is only a pack written by another pass rather than one of its own.
+Give each pack the `label` you want Foundry to show.
+
+`compatibility` and `relationships` are read from the **top level** of the
+shared configuration, not from this section — content-build consumes them
+(`supportedCoreVersion`, and a module'''s `stats.systemVersion`) and the
+dependency runs one way.
 
 **Why one file and not two.** Two of the values this package needs —
 `packageKind` and `foundryPackage` — are already declared for `content-build`. A
@@ -121,6 +187,7 @@ other's schema — they split by input, and the dependency runs one way.
 ```
 npx package-build clean [--distclean]
 npx package-build assets
+npx package-build manifest
 npx package-build lang check
 npx package-build release
 npx package-build deploy <stage>

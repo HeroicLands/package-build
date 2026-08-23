@@ -15,26 +15,35 @@
  * Building the Foundry package manifest — `system.json` or `module.json`.
  *
  * Foundry defines exactly two package kinds, and a repository is one of them,
- * so there is one job here with two spellings: read the repository's manifest
- * *template*, stamp the facts that must not be transcribed, and write the
- * result into the build stage.
+ * so there is one job here with two spellings: assemble the manifest from the
+ * repository's configuration and write it into the build stage.
  *
- * **The stamped fields are the ones a human copy rots.** A manifest carries the
- * version, the repository addresses, and the two release URLs Foundry fetches
- * to check for and install an update. Every one of them is already stated
- * somewhere that owns it — `package.json` — and a second, hand-maintained copy
- * in the template drifts the moment a release is cut. `sohl-kethira-basic`
- * hand-maintains its whole `module.json`, and its `download` still names an
- * older version than the module claims.
+ * **There is no template any more.** A manifest used to be a hand-authored
+ * `system.template.json` that this module stamped a few fields into — which
+ * made it the one build input still written as JSON, by hand, per repository,
+ * with no schema and nothing checking it. Worse, it declared facts the
+ * configuration also declared: the pack list twice, in two formats, with
+ * nothing checking that the pairs agreed. `sohl-kethira-basic` hand-maintained
+ * its whole `module.json`, and its `download` named an older version than the
+ * module claimed.
+ *
+ * So the manifest is generated (#9). Three kinds of key end up in it:
+ *
+ * - **Declared** — the `packageBuild.manifest` block, emitted unchanged, so a
+ *   key Foundry adds in a later version needs no release of this package.
+ * - **Derived** — the identity, the version, the release addresses, the
+ *   compatibility ranges and the pack list. Declaring one of these is an error
+ *   rather than an override: the authored copy would be silently overwritten.
+ * - **Computed** — namespaced `flags` a repository works out for itself.
  *
  * **Nothing here invents an address.** The repository URL is read from
- * `package.json`'s `repository` field, normalised, and everything else is
- * derived from it. A manifest that advertised another package's URLs would send
- * Foundry to the wrong release on every update check — which is exactly what a
- * template copied between repositories produces.
+ * `package.json`'s `repository` field, normalised, and everything else derived
+ * from it. A manifest advertising another package's URLs would send Foundry to
+ * the wrong release on every update check — exactly what a template copied
+ * between repositories produced.
  *
  * The rules are pure functions over data. I/O is confined to
- * {@link writeFoundryManifest}, which is the only export that touches disk.
+ * {@link writeManifest}, which is the only export that touches disk.
  *
  * @module
  */
@@ -51,34 +60,6 @@ import path from "node:path";
  * convention this project is free to choose.
  */
 export const ARTIFACTS = Object.freeze(["system", "module"]);
-
-/**
- * Which artifact a template file builds.
- *
- * Inferred from the template's own name so the usual case takes no
- * configuration: a repository that ships `system.template.json` is a system,
- * and one that ships `module.template.json` is a module. That is the same pair
- * `@heroiclands/content-build` resolves a package manifest from, so the two
- * cannot disagree about what a repository is.
- *
- * @param {string} templatePath - Path to the manifest template.
- * @returns {"system"|"module"} The artifact name.
- * @throws {TypeError} When the name identifies neither kind — a template called
- *   something else leaves nothing to infer from, and guessing would silently
- *   emit a manifest Foundry never looks for.
- */
-export function artifactFromTemplate(templatePath) {
-    const base = path.basename(String(templatePath ?? ""));
-    const artifact = ARTIFACTS.find((a) => base.startsWith(`${a}.`));
-    if (!artifact) {
-        throw new TypeError(
-            `Cannot tell whether "${base}" builds a system or a module. ` +
-                `Name it system.template.json or module.template.json, or pass ` +
-                `\`artifact\` explicitly.`,
-        );
-    }
-    return artifact;
-}
 
 /**
  * The repository's web address, from whatever spelling `package.json` carries.
@@ -138,80 +119,155 @@ export function releaseUrls({ repoUrl, version, artifact }) {
 }
 
 /**
- * Stamp a manifest template with the facts that must not be transcribed.
+ * The order the manifest's keys are written in.
  *
- * Pure: the template is not mutated, and the result is a new object.
+ * Foundry does not care, but a human reading a diff does, and the generated
+ * file has to be comparable against the hand-authored template it replaces —
+ * which is only possible if the order is fixed rather than incidental to which
+ * keys a repository happened to declare. Anything not listed keeps its declared
+ * order, after these.
  *
- * `flags` is merged **per namespace**, not wholesale, so a template may carry
- * its own keys under the same namespace and keep them. A caller supplies
- * whatever its package needs there — the credits journal's UUID, the settings
- * sidebar's links — because those are facts about one package, not about being
- * a Foundry package.
- *
- * @param {object} template - The parsed manifest template.
- * @param {object} opts
- * @param {string} opts.version - The version being built.
- * @param {string} opts.repoUrl - Normalised repository URL.
- * @param {"system"|"module"} opts.artifact - Which artifact is shipped.
- * @param {Record<string, object>} [opts.flags] - Namespaced flags to merge.
- * @returns {object} The stamped manifest.
+ * @type {readonly string[]}
  */
-export function stampManifest(template, { version, repoUrl, artifact, flags }) {
-    const stamped = {
-        ...template,
-        version,
-        ...releaseUrls({ repoUrl, version, artifact }),
+const MANIFEST_KEY_ORDER = Object.freeze([
+    "id",
+    "title",
+    "description",
+    "version",
+    "authors",
+    "license",
+    "readme",
+    "changelog",
+    "flags",
+    "compatibility",
+    "relationships",
+    "esmodules",
+    "styles",
+    "languages",
+    "documentTypes",
+    "packFolders",
+    "packs",
+    "media",
+    "socket",
+    "grid",
+    "primaryTokenAttribute",
+    "url",
+    "bugs",
+    "manifest",
+    "download",
+]);
+
+/**
+ * The manifest's `packs`, derived from the one pack list the build already has.
+ *
+ * The two used to be written separately — `content-build.config.yaml` declared
+ * a pack's name and type, and the manifest template declared them again beside
+ * a label, a path and a system id, with nothing checking that the pairs agreed.
+ * They are one list now.
+ *
+ * Companions are flattened in, because Foundry sees no difference: a companion
+ * is only a pack written by another pass rather than one of its own, and it
+ * ships as an ordinary compendium. The order matches `packDirectories`, so the
+ * manifest lists packs in the order the build compiles them.
+ *
+ * @param {object} config - The resolved content-build configuration.
+ * @returns {object[]} The manifest's `packs` array.
+ */
+export function manifestPacks(config) {
+    const flatten = (pack) => [
+        pack,
+        ...(pack.companions ?? []).flatMap(flatten),
+    ];
+    return config.packs.flatMap(flatten).map((pack) => ({
+        label: pack.label,
+        type: pack.type,
+        name: pack.name,
+        system: config.stats.systemId,
+        path: `packs/${pack.name}`,
+        private: pack.private,
+    }));
+}
+
+/**
+ * Build a Foundry package manifest from the resolved configuration.
+ *
+ * Three kinds of key end up in the result:
+ *
+ * - **Declared** — everything in `packageBuild.manifest`, emitted unchanged, so
+ *   a key Foundry adds later needs no release of this package.
+ * - **Derived** — the identity, the release addresses, the version, the Foundry
+ *   and system compatibility ranges, and the pack list. These are refused if
+ *   also declared: an authored copy would be overwritten and the two would
+ *   disagree with nothing to say so.
+ * - **Computed** — namespaced `flags` a repository works out for itself, merged
+ *   over any it declared.
+ *
+ * @param {object} options - Inputs.
+ * @param {object} options.config - The resolved content-build configuration.
+ * @param {object} options.packageJson - The repository's `package.json`.
+ * @param {string} options.artifact - `system` or `module`.
+ * @param {Record<string, object>} [options.flags] - Namespaced flags to merge.
+ * @returns {object} The manifest, ready to serialise.
+ */
+export function buildManifest({ config, packageJson, artifact, flags }) {
+    const declared = config.packageBuild?.manifest ?? {};
+    const repoUrl = normalizeRepoUrl(packageJson.repository);
+
+    const derived = {
+        id: config.foundryPackage,
+        version: packageJson.version,
+        packs: manifestPacks(config),
+        ...releaseUrls({ repoUrl, version: packageJson.version, artifact }),
     };
+    if (config.compatibility) derived.compatibility = config.compatibility;
+    if (config.relationships && Object.keys(config.relationships).length) {
+        derived.relationships = config.relationships;
+    }
+
+    const merged = { ...declared, ...derived };
 
     if (flags && Object.keys(flags).length) {
-        stamped.flags = { ...(template.flags ?? {}) };
+        merged.flags = { ...(declared.flags ?? {}) };
         for (const [namespace, values] of Object.entries(flags)) {
-            stamped.flags[namespace] = {
-                ...(template.flags?.[namespace] ?? {}),
+            merged.flags[namespace] = {
+                ...(declared.flags?.[namespace] ?? {}),
                 ...values,
             };
         }
     }
 
-    return stamped;
+    // Ordered, so the generated file diffs against the template it replaces.
+    const ordered = {};
+    for (const key of MANIFEST_KEY_ORDER) {
+        if (merged[key] !== undefined) ordered[key] = merged[key];
+    }
+    for (const [key, value] of Object.entries(merged)) {
+        if (!(key in ordered)) ordered[key] = value;
+    }
+    return ordered;
 }
 
 /**
- * Read a manifest template, stamp it, and write the result into the stage.
+ * Write the generated manifest into the staged package.
  *
- * The only export here that touches disk. Everything it decides is decided by
- * the pure functions above, so the rules stay testable without a filesystem.
- *
- * @param {object} opts
- * @param {string} opts.templatePath - The manifest template to read.
- * @param {object} opts.packageJson - The parsed `package.json`, which owns the
- *   version and the repository address.
- * @param {string} opts.outDir - Directory to write the manifest into, created
- *   if absent.
- * @param {"system"|"module"} [opts.artifact] - Overrides the artifact inferred
- *   from the template's name.
- * @param {Record<string, object>} [opts.flags] - Namespaced flags to merge.
- * @returns {Promise<{path: string, manifest: object}>} Where it was written,
- *   and what was written.
+ * @param {object} options - As {@link buildManifest}, plus where to write.
+ * @param {object} options.config - The resolved content-build configuration.
+ * @param {object} options.packageJson - The repository's `package.json`.
+ * @param {string} options.artifact - `system` or `module`.
+ * @param {string} options.outDir - Directory to write into.
+ * @param {Record<string, object>} [options.flags] - Namespaced flags to merge.
+ * @returns {Promise<{path: string, manifest: object}>} Where it went, and what.
  */
-export async function writeFoundryManifest({
-    templatePath,
+export async function writeManifest({
+    config,
     packageJson,
+    artifact,
     outDir,
-    artifact = undefined,
-    flags = undefined,
+    flags,
 }) {
-    const kind = artifact ?? artifactFromTemplate(templatePath);
-    const template = JSON.parse(await fs.readFile(templatePath, "utf8"));
-    const manifest = stampManifest(template, {
-        version: packageJson.version,
-        repoUrl: normalizeRepoUrl(packageJson.repository),
-        artifact: kind,
-        flags,
-    });
-
+    const manifest = buildManifest({ config, packageJson, artifact, flags });
     await fs.mkdir(outDir, { recursive: true });
-    const outPath = path.join(outDir, `${kind}.json`);
+    const outPath = path.join(outDir, `${artifact}.json`);
     // Trailing newline: the file is committed to a release archive and read by
     // humans as often as by Foundry.
     await fs.writeFile(
