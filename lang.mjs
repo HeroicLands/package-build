@@ -45,7 +45,7 @@
  * @module
  */
 
-import { positionOf } from "./text.mjs";
+import { positionOfLiteral } from "@heroiclands/content-build/engine/diagnostics";
 
 /**
  * A single finding, in the fields the shared diagnostic format takes.
@@ -140,7 +140,7 @@ export function validateLangSource(raw) {
      * @param {string} key - The localization key.
      * @returns {{line?: number, column?: number}} Spreadable position fields.
      */
-    const at = (key) => positionOf(raw, `"${key}"`);
+    const at = (key) => positionOfLiteral(raw, `"${key}"`);
 
     for (const [key, value] of Object.entries(json)) {
         if (typeof value !== "string") continue;

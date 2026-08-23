@@ -35,10 +35,6 @@
             "types": "./types/stage.d.mts",
             "import": "./stage.mjs"
         },
-        "./text": {
-            "types": "./types/text.d.mts",
-            "import": "./text.mjs"
-        },
         "./package.json": "./package.json",
         "./config": {
             "types": "./types/config.d.mts",
@@ -53,7 +49,6 @@
         "manifest.mjs",
         "release.mjs",
         "stage.mjs",
-        "text.mjs",
         "types",
         "CHANGELOG.md",
         "README.md",

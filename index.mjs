@@ -58,4 +58,3 @@ export * as deploy from "./deploy.mjs";
 export * as lang from "./lang.mjs";
 
 /** Locating a literal inside an arbitrary text file, for positioned findings. */
-export * as text from "./text.mjs";
