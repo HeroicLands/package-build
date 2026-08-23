@@ -1,7 +1,7 @@
 {
     "name": "@heroiclands/package-build",
     "version": "0.5.0",
-    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package \u2014 manifest, localization, staging, bundle, release and deployment.",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
     "main": "./index.mjs",
@@ -14,6 +14,10 @@
         "./bundle": {
             "types": "./types/bundle.d.mts",
             "import": "./bundle.mjs"
+        },
+        "./coverage": {
+            "types": "./types/coverage.d.mts",
+            "import": "./coverage.mjs"
         },
         "./deploy": {
             "types": "./types/deploy.d.mts",
@@ -35,6 +39,10 @@
             "types": "./types/stage.d.mts",
             "import": "./stage.mjs"
         },
+        "./templates": {
+            "types": "./types/templates.d.mts",
+            "import": "./templates.mjs"
+        },
         "./package.json": "./package.json",
         "./config": {
             "types": "./types/config.d.mts",
@@ -43,10 +51,12 @@
     },
     "files": [
         "bundle.mjs",
+        "coverage.mjs",
         "deploy.mjs",
         "index.mjs",
         "lang.mjs",
         "manifest.mjs",
+        "templates.mjs",
         "release.mjs",
         "stage.mjs",
         "types",
@@ -72,14 +82,15 @@
         "archiver": "^8.0.0",
         "dotenv": "^17.2.3",
         "glob": "^11.0.3",
+        "handlebars": "^4.7.9",
         "ssh2-sftp-client": "^12.1.1",
+        "typescript": "^6.0.3",
         "yargs": "^18.1.0"
     },
     "devDependencies": {
         "@changesets/cli": "^3.0.0",
         "@types/node": "^26.2.0",
         "prettier": "^3.9.6",
-        "typescript": "^6.0.3",
         "vitest": "^4.1.10"
     },
     "engines": {

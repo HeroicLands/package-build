@@ -242,6 +242,106 @@ describe("the bundle entry", () => {
     });
 });
 
+describe("the localization guards", () => {
+    it("defaults to the conventional layout", () => {
+        const config = resolvePackageBuildConfig(shared());
+
+        expect(config.langPrimary).toBe("lang/en.json");
+        expect(config.langScripts).toEqual(["src/**/*.{ts,mjs}"]);
+        expect(config.langTemplates).toEqual(["templates/**/*.hbs"]);
+        expect(config.langKeyRoots).toBeNull();
+        expect(config.langReferences).toBeNull();
+        expect(config.langRetained).toEqual([]);
+        expect(config.langAllow).toEqual([]);
+    });
+
+    it("takes a single glob or a list of them", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({ lang: { scripts: "src/**/*.ts" } }),
+            ).langScripts,
+        ).toEqual(["src/**/*.ts"]);
+        expect(
+            resolvePackageBuildConfig(
+                shared({ lang: { templates: ["a/**/*.hbs", "b/**/*.hbs"] } }),
+            ).langTemplates,
+        ).toEqual(["a/**/*.hbs", "b/**/*.hbs"]);
+    });
+
+    it("resolves the reference contributor against the repository root", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({ lang: { references: "./utils/lang-refs.mjs" } }),
+            ).langReferences,
+        ).toBe(path.resolve("/repo", "./utils/lang-refs.mjs"));
+    });
+
+    it("takes the key roots when a package references one it does not declare", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({ lang: { keyRoots: ["SOHL", "TYPES"] } }),
+            ).langKeyRoots,
+        ).toEqual(["SOHL", "TYPES"]);
+    });
+
+    // Both escape hatches carry a reason, because both are a claim a reviewer
+    // has to be able to check: that a key really is reachable, that a literal
+    // really is not prose. A bare list would collect entries nobody can audit.
+    it("requires a reason beside every retained prefix", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({
+                    lang: {
+                        retained: [
+                            {
+                                prefix: "SOHL.Gear.Action.",
+                                reason: "Built from a variable prefix.",
+                            },
+                        ],
+                    },
+                }),
+            ).langRetained,
+        ).toEqual(["SOHL.Gear.Action."]);
+
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ lang: { retained: [{ prefix: "SOHL.a." }] } }),
+            ),
+        ).toThrow(/packageBuild\.lang\.retained\[0\]\.reason/);
+    });
+
+    it("requires a reason beside every allowed literal", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({
+                    lang: {
+                        allow: [
+                            {
+                                literal: "a === 'b'",
+                                reason: "A code sample, not prose.",
+                            },
+                        ],
+                    },
+                }),
+            ).langAllow,
+        ).toEqual(["a === 'b'"]);
+
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ lang: { allow: [{ literal: "x" }] } }),
+            ),
+        ).toThrow(/packageBuild\.lang\.allow\[0\]\.reason/);
+    });
+
+    it("rejects an unknown key in the section", () => {
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ lang: { source: "lang/*.json" } }),
+            ),
+        ).toThrow(/packageBuild\.lang\./);
+    });
+});
+
 describe("the result is frozen", () => {
     it("cannot be mutated by whoever reads it", () => {
         const config = resolvePackageBuildConfig(shared());

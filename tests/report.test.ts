@@ -95,6 +95,27 @@ describe("toDiagnostics", () => {
         });
         expect(d.severity).toBe("warning");
     });
+
+    // A rule that reads one file at a time cannot name it; a rule that spans a
+    // whole repository — every source that references a localization key — can
+    // name nothing else, since one path could not be right for all of them.
+    it("lets a finding that knows its own file keep it", () => {
+        expect(
+            toDiagnostics(
+                [
+                    { message: "declared here", file: "lang/en.json", line: 4 },
+                    { message: "used here", file: "src/a.ts", line: 9 },
+                ],
+                { file: "lang/en.json" },
+            ).map((d) => d.file),
+        ).toEqual(["lang/en.json", "src/a.ts"]);
+    });
+
+    it("needs no default file when every finding carries one", () => {
+        expect(
+            toDiagnostics([{ message: "x", file: "src/a.ts" }], {})[0].file,
+        ).toBe("src/a.ts");
+    });
 });
 
 describe("reportFindings", () => {

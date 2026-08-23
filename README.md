@@ -41,6 +41,14 @@ The whole of assemble → validate → ship, one subpath each:
 - **`lang`** — what a shippable Foundry localization file must satisfy: it
   parses, its top level is an object, no key is both a leaf and a dotted prefix
   of another, placeholders are single-braced, and key segments carry no data.
+- **`coverage`** — whether the keys a package references and the keys it
+  declares are the same set. A referenced key that is missing renders to a
+  player as its own raw key string, so it fails the run; a declared key nothing
+  references is reported and does not.
+- **`templates`** — the opposite question, which coverage cannot ask: whether
+  the markup's user-visible text goes through localization at all, rather than
+  sitting in the file in English — and whether each template still compiles once
+  it does.
 - **`bundle`** — whether the manifest agrees with the file it points at.
   Declared under `"esmodules"` the bundle must parse as a module; declared under
   `"scripts"` it must declare **nothing** at top level, because every top-level
@@ -89,8 +97,39 @@ packageBuild:
 
   lang:
     sources: lang/*.json
-    # Printed after a failure — where this repository documents its key rules.
+    # Printed after a `lang check` failure — where this repository documents its
+    # key rules.
     help: See kb/dev-docs/reference/localization-keys.md.
+
+    # `lang coverage` and `lang hardcoded`. Every one of these defaults to the
+    # conventional layout, so a repository that follows it states none of them.
+    primary: lang/en.json # the file coverage is measured against
+    scripts: src/**/*.{ts,mjs} # scanned for key references
+    templates: templates/**/*.hbs # scanned for references and for English
+
+    # Only when the package references a root its file does not yet declare;
+    # otherwise the roots are read from the file's own keys.
+    keyRoots: [SOHL, TYPES, TYPE]
+
+    # Optional. A module exporting `references(context) -> ReferenceSet`,
+    # contributing the keys only this repository's conventions can find. SoHL's
+    # `defineType(prefix, def)` mints one key per member of an enum by a rule of
+    # its own; no shared guard can know it, and no repository can compare the
+    # result against the file. See "Contributing generated keys" below.
+    references: ./utils/lang-references.mjs
+
+    # Keys reached in a way no scan can see, exempt from the unreferenced
+    # advisory. The reason is required: it is a claim a reviewer has to be able
+    # to check, and the honest fix for an unreferenced key is to delete it.
+    retained:
+      - prefix: SOHL.Gear.Action.
+        reason: Titles built as `${titlePrefix}.${shortcode}` — the prefix is a parameter.
+
+    # Template literals that are deliberately not localization keys. The escape
+    # hatch, not the rule.
+    allow:
+      - literal: item.system.code === 'pyrn'
+        reason: An expression example shown as a placeholder — code, not prose.
 
   deploy:
     # Prefix of the shared SFTP override variables. Default `SOHL`.
@@ -198,6 +237,8 @@ npx package-build clean [--distclean]
 npx package-build assets
 npx package-build manifest
 npx package-build lang check
+npx package-build lang coverage [--unused]
+npx package-build lang hardcoded
 npx package-build bundle check
 npx package-build release
 npx package-build deploy <stage>
@@ -211,6 +252,8 @@ Wrapped as npm scripts — SoHL spells them:
   "distclean": "package-build clean --distclean",
   "build:assets": "package-build assets",
   "lint:lang": "package-build lang check",
+  "lint:lang-coverage": "package-build lang coverage",
+  "lint:lang-hardcoded": "package-build lang hardcoded",
   "lint:bundle-globals": "package-build bundle check",
   "build:pack-release": "package-build release",
   "push:qa": "package-build deploy qa"
@@ -223,6 +266,46 @@ more than a single operation takes a positional action, so a second can be added
 without renaming the first (`lang check`, `bundle check`). Flat `lang:check`
 names would make every operation a new top-level command and hide which ones
 belong together.
+
+**What the two localization guards ask.** They are deliberate opposites, and
+neither can answer the other's question. `lang coverage` walks _key → file_, so
+it is completely blind to a template that names no key whatsoever; `lang
+hardcoded` walks _text → key_, and catches exactly that. Before the work that
+prompted the second, Song of Heroic Lands had **516 hardcoded English literals
+across 61 templates** — translating every key in `en.json` would have left every
+one of them in English.
+
+**Contributing generated keys.** `packageBuild.lang.references` names a module
+exporting `references(context)`, called once with
+`{ config, rootDir, roots, files }` — `files` being the scanned sources as
+`{ path, text }`, already read, so the contributor sees exactly the text the
+built-in scan saw. It returns a reference set:
+
+```js
+export function references({ files }) {
+  return {
+    keys: [
+      // `exact` when the key is minted whole, so keys sitting beneath it do
+      // not vouch for it; `origin` is the verb phrase the message reads with.
+      {
+        key: "SOHL.Skill.CODE.lore",
+        file: "src/utils/constants.ts",
+        line: 42,
+        exact: true,
+        origin: "defineType generates",
+      },
+    ],
+    namespaces: ["SOHL.Skill.CODE"], // families whose leaves are never named
+    patterns: ["SOHL.Skill.*.label"], // shapes, `*` standing for one segment
+    findings: [], // whatever the contributor could not resolve
+  };
+}
+```
+
+Everything Foundry-shaped is already built in — `{{localize}}`,
+`game.i18n.localize` / `format`, keys in string and template literals, a
+DataModel's `LOCALIZATION_PREFIXES`, the `FIELDS.<field>.label` / `.hint` keys Foundry
+mints off one. A contributor is for what only the repository knows.
 
 **What `bundle check` checks.** Three ways a package builds successfully and
 still does not load, none of which a bundler can see, because each is a
