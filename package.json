@@ -1,7 +1,7 @@
 {
     "name": "@heroiclands/package-build",
     "version": "0.5.0",
-    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package \u2014 manifest, localization, staging, bundle, release and deployment.",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
     "main": "./index.mjs",
@@ -15,9 +15,21 @@
             "types": "./types/bundle.d.mts",
             "import": "./bundle.mjs"
         },
+        "./config": {
+            "types": "./types/config.d.mts",
+            "import": "./config.mjs"
+        },
+        "./container": {
+            "types": "./types/container.d.mts",
+            "import": "./container.mjs"
+        },
         "./deploy": {
             "types": "./types/deploy.d.mts",
             "import": "./deploy.mjs"
+        },
+        "./e2e": {
+            "types": "./types/e2e.d.mts",
+            "import": "./e2e.mjs"
         },
         "./lang": {
             "types": "./types/lang.d.mts",
@@ -27,6 +39,7 @@
             "types": "./types/manifest.d.mts",
             "import": "./manifest.mjs"
         },
+        "./package.json": "./package.json",
         "./release": {
             "types": "./types/release.d.mts",
             "import": "./release.mjs"
@@ -34,26 +47,23 @@
         "./stage": {
             "types": "./types/stage.d.mts",
             "import": "./stage.mjs"
-        },
-        "./package.json": "./package.json",
-        "./config": {
-            "types": "./types/config.d.mts",
-            "import": "./config.mjs"
         }
     },
     "files": [
+        "CHANGELOG.md",
+        "README.md",
+        "bin",
         "bundle.mjs",
+        "config.mjs",
+        "container.mjs",
         "deploy.mjs",
+        "e2e.mjs",
         "index.mjs",
         "lang.mjs",
         "manifest.mjs",
         "release.mjs",
         "stage.mjs",
-        "types",
-        "CHANGELOG.md",
-        "README.md",
-        "bin",
-        "config.mjs"
+        "types"
     ],
     "scripts": {
         "test": "vitest run",
@@ -67,6 +77,7 @@
         "prepare": "git config core.hooksPath .githooks || true"
     },
     "dependencies": {
+        "@foundryvtt/foundryvtt-cli": "^3.0.4",
         "@heroiclands/content-build": "^1.0.0",
         "acorn": "^8.18.0",
         "archiver": "^8.0.0",

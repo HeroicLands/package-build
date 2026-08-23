@@ -54,5 +54,11 @@ export * as release from "./release.mjs";
 /** Deploying a staged package into a Foundry data directory. */
 export * as deploy from "./deploy.mjs";
 
+/** Running a built package inside a Foundry VTT container. */
+export * as container from "./container.mjs";
+
+/** The end-to-end harness: a disposable world, served, with a suite driven at it. */
+export * as e2e from "./e2e.mjs";
+
 /** Localization files: what a shippable `lang/*.json` must satisfy. */
 export * as lang from "./lang.mjs";

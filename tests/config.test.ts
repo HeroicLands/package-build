@@ -248,3 +248,146 @@ describe("the result is frozen", () => {
         expect(Object.isFrozen(config)).toBe(true);
     });
 });
+
+describe("the container stages", () => {
+    it("declares none by default — the four conventional ones need no entry", () => {
+        expect(resolvePackageBuildConfig(shared()).containerStages).toEqual({});
+        expect(resolvePackageBuildConfig(shared()).containerImage).toBeNull();
+    });
+
+    it("carries a stage the repository runs beyond the conventional four", () => {
+        // SoHL keeps a `leg` stage: the previous, pre-TypeScript system on an
+        // older Foundry, whose world is managed by hand.
+        const config = resolvePackageBuildConfig(
+            shared({
+                container: {
+                    stages: {
+                        leg: { port: 30010, world: "", version: "12.331" },
+                    },
+                },
+            }),
+        );
+
+        expect(config.containerStages.leg).toEqual({
+            port: 30010,
+            world: "",
+            version: "12.331",
+        });
+    });
+
+    it("rejects an unknown key in a stage entry", () => {
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ container: { stages: { leg: { prt: 1 } } } }),
+            ),
+        ).toThrow(/packageBuild\.container\.stages\.leg\.prt/);
+    });
+
+    it("rejects a port that is not a number", () => {
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ container: { stages: { leg: { port: "30010" } } } }),
+            ),
+        ).toThrow(/port/);
+    });
+});
+
+describe("the end-to-end harness", () => {
+    it("runs against the test stage unless told otherwise", () => {
+        expect(resolvePackageBuildConfig(shared()).e2eStage).toBe("test");
+    });
+
+    it("carries no suite of its own", () => {
+        // The harness does not care what runs, only that something does.
+        const config = resolvePackageBuildConfig(shared());
+
+        expect(config.e2eSuite).toBeNull();
+        expect(config.e2eBuild).toEqual({});
+        expect(config.e2eDocuments).toEqual({});
+    });
+
+    it("takes the suite command from the repository", () => {
+        const config = resolvePackageBuildConfig(
+            shared({
+                e2e: {
+                    suite: {
+                        run: ["npx", "cypress", "run"],
+                        open: ["npx", "cypress", "open"],
+                    },
+                },
+            }),
+        );
+
+        expect(config.e2eSuite).toEqual({
+            run: ["npx", "cypress", "run"],
+            open: ["npx", "cypress", "open"],
+        });
+    });
+
+    it("requires a suite to name a program to run", () => {
+        expect(() =>
+            resolvePackageBuildConfig(shared({ e2e: { suite: { run: [] } } })),
+        ).toThrow(/packageBuild\.e2e\.suite\.run/);
+    });
+
+    it("normalizes a build target given as a bare script name", () => {
+        const config = resolvePackageBuildConfig(
+            shared({
+                e2e: {
+                    build: {
+                        code: "build:code",
+                        system: { script: "build:system", recreate: true },
+                    },
+                },
+            }),
+        );
+
+        expect(config.e2eBuild).toEqual({
+            code: { script: "build:code", recreate: false },
+            system: { script: "build:system", recreate: true },
+        });
+        // Declaration order is build order: the bundler empties the stage.
+        expect(Object.keys(config.e2eBuild)).toEqual(["code", "system"]);
+    });
+
+    it("carries the world and GM a repository wants seeded", () => {
+        const config = resolvePackageBuildConfig(
+            shared({
+                e2e: {
+                    world: { id: "sohl-e2e", title: "SoHL E2E" },
+                    gm: { name: "Gamemaster", password: "sohl-e2e" },
+                    documents: { actors: "cypress/fixtures/actors" },
+                },
+            }),
+        );
+
+        expect(config.e2eWorld.id).toBe("sohl-e2e");
+        expect(config.e2eGm.password).toBe("sohl-e2e");
+        expect(config.e2eDocuments.actors).toBe("cypress/fixtures/actors");
+    });
+
+    it("rejects an unknown key, so a typo is not silently ignored", () => {
+        expect(() =>
+            resolvePackageBuildConfig(shared({ e2e: { wrld: {} } })),
+        ).toThrow(/packageBuild\.e2e\.wrld/);
+    });
+});
+
+describe("the compatibility floor", () => {
+    it("reads the claim the package already makes", () => {
+        // The e2e pin and `compatibility.minimum` are the same number, so the
+        // claim and the evidence cannot drift apart.
+        const config = resolvePackageBuildConfig({
+            ...shared(),
+            compatibility: { minimum: "14.359", verified: "14.364" },
+        });
+
+        expect(config.compatibilityMinimum).toBe("14.359");
+    });
+
+    it("is null when the package claims none", () => {
+        expect(
+            resolvePackageBuildConfig(shared()).compatibilityMinimum,
+        ).toBeNull();
+    });
+});
