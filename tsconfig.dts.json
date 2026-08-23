@@ -29,6 +29,8 @@
         "manifest.mjs",
         "release.mjs",
         "stage.mjs",
-        "config.mjs"
+        "config.mjs",
+        "container.mjs",
+        "e2e.mjs"
     ]
 }
