@@ -1,5 +1,5 @@
 ---
-"@heroiclands/package-build": major
+"@heroiclands/package-build": minor
 ---
 
 **The Foundry manifest is generated from configuration. The template is
