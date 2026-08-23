@@ -204,6 +204,44 @@ describe("what it refuses", () => {
     });
 });
 
+describe("the bundle entry", () => {
+    it("derives the entry from the package id", () => {
+        // A Foundry package's bundle is conventionally named after the package,
+        // and the id is already derived from package.json `name`. Stating it
+        // again would be a third spelling of one fact.
+        expect(resolvePackageBuildConfig(shared()).bundleEntry).toBe(
+            "sohl.mjs",
+        );
+    });
+
+    it("still honours a stated entry", () => {
+        expect(
+            resolvePackageBuildConfig(shared({ bundle: { entry: "main.mjs" } }))
+                .bundleEntry,
+        ).toBe("main.mjs");
+    });
+
+    it("rejects an entry that is not a non-empty string", () => {
+        expect(() =>
+            resolvePackageBuildConfig(shared({ bundle: { entry: "" } })),
+        ).toThrow(/packageBuild\.bundle\.entry/);
+    });
+
+    it("rejects an unknown key in the section", () => {
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ bundle: { entrypoint: "main.mjs" } }),
+            ),
+        ).toThrow(/packageBuild\.bundle\./);
+    });
+
+    it("rejects a section that is not a mapping", () => {
+        expect(() =>
+            resolvePackageBuildConfig(shared({ bundle: "main.mjs" })),
+        ).toThrow(/packageBuild\.bundle/);
+    });
+});
+
 describe("the result is frozen", () => {
     it("cannot be mutated by whoever reads it", () => {
         const config = resolvePackageBuildConfig(shared());

@@ -34,6 +34,13 @@
  * stay import-safe, so a consuming repository's build — or a test — can call
  * them without any of it happening.
  *
+ * **The shape of the command surface.** A capability with a single operation is
+ * a bare command (`clean`, `assets`, `manifest`, `release`, `deploy <stage>`);
+ * one with more than a single operation takes a positional action, so it can
+ * grow another without renaming the first (`lang check`, `bundle check`). The
+ * alternative — flat `lang:check`-style names — makes the second operation a
+ * new top-level command and the relationship between them invisible.
+ *
  * The side effects that need *configuration* live inside the command handlers,
  * never at module scope, so `--version` and `--help` answer in a directory with
  * no configuration at all. Running an actual command still resolves it, and
@@ -44,6 +51,7 @@
  *   npx package-build assets
  *   npx package-build manifest
  *   npx package-build lang check
+ *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
  *
@@ -51,6 +59,7 @@
  *   npm run clean                          // → … clean
  *   npm run build:assets                   // → … assets
  *   npm run lint:lang                      // → … lang check
+ *   npm run lint:bundle-globals            // → … bundle check
  *   npm run build:pack-release             // → … release
  *   npm run push:qa                        // → … deploy qa
  */
@@ -66,9 +75,11 @@ import { loadPackageBuildConfig } from "../config.mjs";
 import { loadPackConfig } from "@heroiclands/content-build/engine/pack-config";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { validateLangSource } from "../lang.mjs";
+import { checkBundleLoading } from "../bundle.mjs";
 import { packRelease } from "../release.mjs";
 import { writeManifest } from "../manifest.mjs";
 import { deployStage } from "../deploy.mjs";
+import { reportFindings } from "./report.mjs";
 
 /**
  * This package's own version, for `--version`.
@@ -312,20 +323,10 @@ function langCommand() {
 
             let total = 0;
             for (const file of files.sort()) {
-                const relative = path.relative(config.rootDir, file);
-                for (const finding of validateLangSource(
-                    fs.readFileSync(file, "utf8"),
-                )) {
-                    total++;
-                    // The diagnostics contract: the path starts the line, and a
-                    // field is dropped rather than guessed.
-                    const at = [relative, finding.line, finding.column]
-                        .filter((part) => part !== undefined && part !== null)
-                        .join(":");
-                    console.error(
-                        `${at}: ${finding.severity ?? "error"}: ${finding.message}`,
-                    );
-                }
+                total += reportFindings(
+                    validateLangSource(fs.readFileSync(file, "utf8")),
+                    { file: path.relative(config.rootDir, file) },
+                );
             }
 
             if (total) {
@@ -335,6 +336,72 @@ function langCommand() {
             console.log(
                 `package-build: ${files.length} localization file(s) are ` +
                     `expandObject-safe.`,
+            );
+        }),
+    };
+}
+
+/**
+ * `bundle check` — does the manifest agree with the bundle it points at?
+ *
+ * Three ways a package can be built successfully and still not load, none of
+ * which the bundler can see because each is a disagreement between two files:
+ * the entry listed under both `esmodules` and `scripts` (Foundry loads it
+ * twice), under neither (Foundry never loads it), or under `esmodules` while
+ * the emitted file only parses as a classic script. The last fails at runtime
+ * with a message about whichever `import` came first and says nothing about the
+ * manifest, which is the kind of error that costs an afternoon.
+ *
+ * Both files are read from the stage, because the stage is what ships. Checking
+ * sources would answer for a package nobody installs.
+ *
+ * @returns {object} The yargs command module.
+ */
+function bundleCommand() {
+    return {
+        command: "bundle <action>",
+        describe: "Code-bundle checks",
+        builder: (y) =>
+            y.positional("action", {
+                choices: ["check"],
+                describe:
+                    "check: verify the manifest and the staged bundle agree",
+            }),
+        handler: handler(() => {
+            const config = loadPackageBuildConfig();
+            const stageDir = path.join(config.rootDir, config.stageDir);
+            const manifestPath = path.join(stageDir, `${config.artifact}.json`);
+            const bundlePath = path.join(stageDir, config.bundleEntry);
+
+            // Named explicitly rather than left to a missing-file stack trace:
+            // both absences mean "the stage was not built", and a reader who
+            // sees the path knows which step to run.
+            for (const [what, where] of [
+                ["manifest", manifestPath],
+                ["bundle", bundlePath],
+            ]) {
+                if (!fs.existsSync(where)) {
+                    die(
+                        `no staged ${what} at ` +
+                            `${path.relative(config.rootDir, where)} — build ` +
+                            `the stage before checking it.`,
+                    );
+                }
+            }
+
+            const relative = path.relative(config.rootDir, bundlePath);
+            const { findings, declaredAs } = checkBundleLoading({
+                manifest: JSON.parse(fs.readFileSync(manifestPath, "utf8")),
+                source: fs.readFileSync(bundlePath, "utf8"),
+                entry: config.bundleEntry,
+                manifestName: path.relative(config.rootDir, manifestPath),
+            });
+
+            if (reportFindings(findings, { file: relative })) process.exit(1);
+
+            console.log(
+                `package-build: ${config.bundleEntry} is declared under ` +
+                    `"${declaredAs}" and loads as one.`,
             );
         }),
     };
@@ -421,6 +488,7 @@ yargs(hideBin(process.argv))
     .command(assetsCommand())
     .command(manifestCommand())
     .command(langCommand())
+    .command(bundleCommand())
     .command(releaseCommand())
     .command(deployCommand())
     .demandCommand(1, "Name a command.")

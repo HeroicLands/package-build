@@ -96,6 +96,14 @@ packageBuild:
     # Prefix of the shared SFTP override variables. Default `SOHL`.
     envPrefix: SOHL
 
+  bundle:
+    # The file Foundry loads, as the manifest spells it, relative to the stage.
+    # Defaults to `<packageId>.mjs`; state it only when the bundler emits
+    # something else. Deliberately not read back out of the manifest — a value
+    # taken from there would agree with itself by construction, and `bundle
+    # check` asks whether the manifest declares this file correctly.
+    entry: sohl.mjs
+
   # Optional. A module exporting `flags(config)` returning namespaced Foundry
   # flags the repository has to *compute* — an address that only exists once
   # the content tree has been walked, say. Merged over any declared below.
@@ -176,11 +184,12 @@ other's schema — they split by input, and the dependency runs one way.
 
 **What is derived, not stated:**
 
-| Field                      | Derived from                                                         |
-| -------------------------- | -------------------------------------------------------------------- |
-| the repository root        | the configuration file's own location                                |
-| `packageKind`, `packageId` | the shared configuration's top level                                 |
-| the release artifact       | `packageKind` — a system ships `system.json`, a module `module.json` |
+| Field                      | Derived from                                                                |
+| -------------------------- | --------------------------------------------------------------------------- |
+| the repository root        | the configuration file's own location                                       |
+| `packageKind`, `packageId` | the shared configuration's top level                                        |
+| the release artifact       | `packageKind` — a system ships `system.json`, a module `module.json`        |
+| the bundle entry           | `packageId` — `<id>.mjs`, unless `packageBuild.bundle.entry` says otherwise |
 
 ## Command line
 
@@ -189,6 +198,7 @@ npx package-build clean [--distclean]
 npx package-build assets
 npx package-build manifest
 npx package-build lang check
+npx package-build bundle check
 npx package-build release
 npx package-build deploy <stage>
 ```
@@ -201,10 +211,33 @@ Wrapped as npm scripts — SoHL spells them:
   "distclean": "package-build clean --distclean",
   "build:assets": "package-build assets",
   "lint:lang": "package-build lang check",
+  "lint:bundle-globals": "package-build bundle check",
   "build:pack-release": "package-build release",
   "push:qa": "package-build deploy qa"
 }
 ```
+
+**The shape of the surface.** A capability with a single operation is a bare
+command (`clean`, `assets`, `manifest`, `release`, `deploy <stage>`); one with
+more than a single operation takes a positional action, so a second can be added
+without renaming the first (`lang check`, `bundle check`). Flat `lang:check`
+names would make every operation a new top-level command and hide which ones
+belong together.
+
+**What `bundle check` checks.** Three ways a package builds successfully and
+still does not load, none of which a bundler can see, because each is a
+disagreement between two files rather than a fault in either:
+
+| The manifest says                                                         | What Foundry does                                                                  |
+| ------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| the entry under both `esmodules` and `scripts`                            | loads the bundle twice                                                             |
+| the entry under neither                                                   | never loads it at all                                                              |
+| the entry under `esmodules`, but the file only parses as a classic script | fails at load, naming whichever `import` came first and nothing about the manifest |
+
+It reads both files from the stage, because the stage is what ships — checking
+sources would answer for a package nobody installs. Findings are emitted as
+`file:line:column: severity: message`, and the command exits non-zero when any
+of them is an error.
 
 **Why the CLI exists.** This package was library-only, so every consuming
 repository wrote a wrapper script per job — six of them in the SoHL repository,
