@@ -12,7 +12,7 @@ module repositories declared a range nothing could test.
 Two new commands:
 
 ```
-package-build container <start|stop|restart|recreate|rm|status|logs|pull> <stage>
+package-build container <stage> <start|stop|restart|recreate|rm|status|logs|pull>
 package-build e2e <seed|run|open|fast|sweep>
 ```
 

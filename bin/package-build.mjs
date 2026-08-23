@@ -54,7 +54,7 @@
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
- *   npx package-build container <action> <stage>
+ *   npx package-build container <stage> <action>
  *   npx package-build e2e <seed|run|open|fast|sweep>
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
@@ -527,30 +527,32 @@ function deployCommand() {
 }
 
 /**
- * `container <action> <stage>` — run a stage's Foundry in a container.
+ * `container <stage> <action>` — run a stage's Foundry in a container.
  *
  * The seam is the deploy's own: `deploy <stage>` installs the staged package
  * into `FOUNDRYVTT_<STAGE>_DATA`, and this mounts that same directory and
  * serves it. Nothing about the destination is stated twice.
  *
- * Every action shares one shape — an action and a stage — so this is a single
- * command with a closed set of choices rather than eight of them.
+ * Every action shares one shape — a stage and an action — so this is a single
+ * command with a closed set of choices rather than eight of them. The stage
+ * leads, as it does in `deploy <stage>`, which is also what lets a consumer
+ * wrap it once per stage: `npm run container:dev start`.
  *
  * @returns {object} The yargs command module.
  */
 function containerCommand() {
     return {
-        command: "container <action> <stage>",
+        command: "container <stage> <action>",
         describe: "Run a stage's Foundry in a container",
         builder: (y) =>
             y
-                .positional("action", {
-                    choices: [...CONTAINER_ACTIONS],
-                    describe: "What to do with the stage's container",
-                })
                 .positional("stage", {
                     type: "string",
                     describe: "Target stage (e.g. dev, qa, prod, test)",
+                })
+                .positional("action", {
+                    choices: [...CONTAINER_ACTIONS],
+                    describe: "What to do with the stage's container",
                 }),
         handler: handler(async (args) => {
             const config = loadPackageBuildConfig();

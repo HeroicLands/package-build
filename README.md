@@ -241,7 +241,7 @@ npx package-build lang check
 npx package-build bundle check
 npx package-build release
 npx package-build deploy <stage>
-npx package-build container <start|stop|restart|recreate|rm|status|logs|pull> <stage>
+npx package-build container <stage> <start|stop|restart|recreate|rm|status|logs|pull>
 npx package-build e2e <seed|run|open|fast|sweep>
 ```
 
@@ -256,7 +256,7 @@ Wrapped as npm scripts — SoHL spells them:
   "lint:bundle-globals": "package-build bundle check",
   "build:pack-release": "package-build release",
   "push:qa": "package-build deploy qa",
-  "container:dev": "package-build container start dev",
+  "container:dev": "package-build container dev",
   "e2e:full": "package-build e2e run",
   "e2e:fast": "package-build e2e fast",
   "e2e:sweep": "package-build e2e sweep"
