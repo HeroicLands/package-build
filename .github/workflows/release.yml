@@ -78,7 +78,13 @@ jobs:
               id: changesets
               uses: changesets/action@v1
               with:
-                  version: npx changeset version
+                  # `changeset version` rewrites package.json and the
+                  # CHANGELOG but never the lockfile, so its root `version`
+                  # kept the previous release's number every time — this
+                  # repository and content-build were each one release behind.
+                  # Refreshing it here keeps the two in step by construction
+                  # rather than by someone noticing.
+                  version: npx changeset version && npm install --package-lock-only
                   publish: npx changeset publish
                   commit: "chore(release): version packages"
                   title: "chore(release): version packages"
