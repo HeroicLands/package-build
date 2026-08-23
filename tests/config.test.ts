@@ -123,6 +123,58 @@ describe("what a repository states", () => {
     });
 });
 
+describe("the manifest specification", () => {
+    it("passes an arbitrary block through, so Foundry can add keys", () => {
+        const manifest = {
+            title: "Song of Heroic Lands",
+            documentTypes: { Actor: { being: { htmlFields: ["dossier"] } } },
+            somethingFoundryAddsLater: true,
+        };
+
+        expect(
+            resolvePackageBuildConfig(shared({ manifest })).manifest,
+        ).toEqual(manifest);
+    });
+
+    it("defaults to an empty block", () => {
+        expect(resolvePackageBuildConfig(shared()).manifest).toEqual({});
+    });
+
+    it.each([
+        ["id", "foundryPackage"],
+        ["version", "package.json"],
+        ["url", "package.json"],
+        ["bugs", "package.json"],
+        ["manifest", "package.json"],
+        ["download", "package.json"],
+        ["compatibility", "the top level"],
+        ["relationships", "the top level"],
+        ["packs", "the top level"],
+    ])("refuses a declared %s, which the build derives", (key) => {
+        // An override would be silently overwritten, and the two would disagree
+        // with nothing to say so.
+        expect(() =>
+            resolvePackageBuildConfig(shared({ manifest: { [key]: "x" } })),
+        ).toThrow(new RegExp(`packageBuild\\.manifest\\.${key}`));
+    });
+
+    it("names where the value actually comes from", () => {
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ manifest: { version: "9.9.9" } }),
+            ),
+        ).toThrow(/package\.json/);
+    });
+
+    it("resolves the flags module against the repository root", () => {
+        expect(
+            resolvePackageBuildConfig(
+                shared({ manifestFlags: "./utils/manifest-flags.mjs" }),
+            ).manifestFlags,
+        ).toBe(path.resolve("/repo", "./utils/manifest-flags.mjs"));
+    });
+});
+
 describe("what it refuses", () => {
     it.each([
         ["an unknown section key", { notAKey: true }, /notAKey/],

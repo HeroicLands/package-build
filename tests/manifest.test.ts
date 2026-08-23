@@ -12,36 +12,12 @@ import os from "node:os";
 import path from "node:path";
 
 import {
-    artifactFromTemplate,
+    buildManifest,
+    manifestPacks,
     normalizeRepoUrl,
     releaseUrls,
-    stampManifest,
-    writeFoundryManifest,
+    writeManifest,
 } from "../manifest.mjs";
-
-describe("artifactFromTemplate", () => {
-    it("reads the kind off the template's name", () => {
-        expect(
-            artifactFromTemplate("assets/templates/system.template.json"),
-        ).toBe("system");
-        expect(
-            artifactFromTemplate("assets/templates/module.template.json"),
-        ).toBe("module");
-    });
-
-    // Guessing would emit a manifest under a name Foundry never fetches.
-    it("refuses a name that identifies neither kind", () => {
-        expect(() => artifactFromTemplate("assets/templates/pkg.json")).toThrow(
-            /system\.template\.json or module\.template\.json/,
-        );
-        expect(() => artifactFromTemplate(undefined as never)).toThrow();
-    });
-
-    // `systems.template.json` is not `system.` — the dot is part of the test.
-    it("does not match a name that merely starts with the word", () => {
-        expect(() => artifactFromTemplate("systemic.template.json")).toThrow();
-    });
-});
 
 describe("normalizeRepoUrl", () => {
     it("passes through the plain form", () => {
@@ -119,143 +95,248 @@ describe("releaseUrls", () => {
     });
 });
 
-describe("stampManifest", () => {
-    const template = {
-        id: "sohl",
-        title: "Song of Heroic Lands",
-        version: "0.0.0-template",
-        compatibility: { minimum: "14" },
+describe("manifestPacks — one pack list, not two", () => {
+    // The manifest used to restate every pack's name and type beside a label,
+    // a path and a system id, with nothing checking that the pairs agreed.
+    const config = {
+        stats: { systemId: "sohl" },
+        packs: [
+            {
+                name: "items",
+                type: "Item",
+                label: "Items",
+                private: false,
+                companions: [],
+            },
+            {
+                name: "scenes",
+                type: "Scene",
+                label: "Maps",
+                private: false,
+                companions: [
+                    {
+                        name: "adventures",
+                        type: "Adventure",
+                        label: "Adventures",
+                        private: false,
+                        companions: [],
+                    },
+                ],
+            },
+        ],
     };
 
-    const stamp = (extra = {}) =>
-        stampManifest(template, {
-            version: "0.8.2",
-            repoUrl: "https://github.com/HeroicLands/sohl",
-            artifact: "system",
-            ...extra,
-        });
-
-    it("overwrites the version and the four addresses", () => {
-        const out = stamp();
-        expect(out.version).toBe("0.8.2");
-        expect(out.manifest).toContain("releases/latest");
-        expect(out.download).toContain("v0.8.2");
+    it("derives each entry from the configured pack", () => {
+        expect(manifestPacks(config)).toEqual([
+            {
+                label: "Items",
+                type: "Item",
+                name: "items",
+                system: "sohl",
+                path: "packs/items",
+                private: false,
+            },
+            {
+                label: "Maps",
+                type: "Scene",
+                name: "scenes",
+                system: "sohl",
+                path: "packs/scenes",
+                private: false,
+            },
+            {
+                label: "Adventures",
+                type: "Adventure",
+                name: "adventures",
+                system: "sohl",
+                path: "packs/adventures",
+                private: false,
+            },
+        ]);
     });
 
-    it("keeps every field the template owns", () => {
-        const out = stamp();
-        expect(out.id).toBe("sohl");
-        expect(out.title).toBe("Song of Heroic Lands");
-        expect(out.compatibility).toEqual({ minimum: "14" });
-    });
-
-    it("does not mutate the template", () => {
-        stamp();
-        expect(template.version).toBe("0.0.0-template");
-        expect(template).not.toHaveProperty("manifest");
-    });
-
-    it("merges flags per namespace, keeping the template's own keys", () => {
-        const withFlags = {
-            ...template,
-            flags: { sohl: { keep: "me" }, other: { untouched: true } },
-        };
-        const out = stampManifest(withFlags, {
-            version: "1.0.0",
-            repoUrl: "https://github.com/a/b",
-            artifact: "system",
-            flags: { sohl: { creditsUuid: "Compendium.sohl.journals.x" } },
-        });
-        expect(out.flags.sohl).toEqual({
-            keep: "me",
-            creditsUuid: "Compendium.sohl.journals.x",
-        });
-        // A namespace the caller said nothing about survives untouched.
-        expect(out.flags.other).toEqual({ untouched: true });
-    });
-
-    it("leaves flags alone when none are supplied", () => {
-        const withFlags = { ...template, flags: { sohl: { keep: "me" } } };
-        expect(
-            stampManifest(withFlags, {
-                version: "1.0.0",
-                repoUrl: "https://github.com/a/b",
-                artifact: "system",
-            }).flags,
-        ).toEqual({ sohl: { keep: "me" } });
+    it("flattens companions, which Foundry sees no difference in", () => {
+        // A companion is only a pack written by another pass rather than one of
+        // its own; it ships as an ordinary compendium.
+        expect(manifestPacks(config).map((p) => p.name)).toEqual([
+            "items",
+            "scenes",
+            "adventures",
+        ]);
     });
 });
 
-describe("writeFoundryManifest", () => {
-    /** A throwaway template on disk, and a stage to write into. */
-    function fixture(name: string, template: object) {
-        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pkg-manifest-"));
-        const templatePath = path.join(root, name);
-        fs.writeFileSync(templatePath, JSON.stringify(template, null, 4));
-        return { root, templatePath, outDir: path.join(root, "stage") };
+describe("buildManifest", () => {
+    /** A resolved configuration, with only what the manifest reads. */
+    function config(over: Record<string, unknown> = {}) {
+        return {
+            foundryPackage: "sohl",
+            stats: { systemId: "sohl" },
+            compatibility: { minimum: "14.359", verified: "14.364" },
+            relationships: {},
+            packs: [
+                {
+                    name: "items",
+                    type: "Item",
+                    label: "Items",
+                    private: false,
+                    companions: [],
+                },
+            ],
+            packageBuild: { manifest: { title: "Song of Heroic Lands" } },
+            ...over,
+        };
     }
 
-    it("writes <artifact>.json into the stage, creating it", async () => {
-        const { templatePath, outDir } = fixture("system.template.json", {
-            id: "sohl",
-        });
-        const { path: written, manifest } = await writeFoundryManifest({
-            templatePath,
-            packageJson: {
-                version: "1.2.3",
-                repository: { url: "git+https://github.com/a/b.git" },
-            },
-            outDir,
+    const packageJson = {
+        version: "1.2.3",
+        repository: { url: "git+https://github.com/HeroicLands/sohl.git" },
+    };
+
+    const build = (over = {}, flags?: Record<string, object>) =>
+        buildManifest({
+            config: config(over) as never,
+            packageJson,
+            artifact: "system",
+            flags,
         });
 
-        expect(path.basename(written)).toBe("system.json");
-        expect(JSON.parse(fs.readFileSync(written, "utf8"))).toEqual(manifest);
+    it("emits what the repository declared, unchanged", () => {
+        // Pass-through is the point: a key Foundry adds in a later version can
+        // be declared without waiting for a release of this package.
+        const manifest = build({
+            packageBuild: {
+                manifest: {
+                    title: "Song of Heroic Lands",
+                    somethingFoundryAddsLater: { nested: [1, 2] },
+                },
+            },
+        });
+
+        expect(manifest.title).toBe("Song of Heroic Lands");
+        expect(manifest.somethingFoundryAddsLater).toEqual({ nested: [1, 2] });
+    });
+
+    it("derives the identity, the version and the release addresses", () => {
+        const manifest = build();
+
+        expect(manifest.id).toBe("sohl");
+        expect(manifest.version).toBe("1.2.3");
+        expect(manifest.url).toBe("https://github.com/HeroicLands/sohl");
+        expect(manifest.bugs).toBe(
+            "https://github.com/HeroicLands/sohl/issues",
+        );
+        expect(manifest.manifest).toBe(
+            "https://github.com/HeroicLands/sohl/releases/latest/download/system.json",
+        );
         expect(manifest.download).toBe(
-            "https://github.com/a/b/releases/download/v1.2.3/system.zip",
+            "https://github.com/HeroicLands/sohl/releases/download/v1.2.3/system.zip",
         );
     });
 
-    it("writes module.json for a module template", async () => {
-        const { templatePath, outDir } = fixture("module.template.json", {
-            id: "sohl-thalorna",
+    it("carries the compatibility range from the shared configuration", () => {
+        expect(build().compatibility).toEqual({
+            minimum: "14.359",
+            verified: "14.364",
         });
-        const { path: written } = await writeFoundryManifest({
-            templatePath,
+    });
+
+    it("omits relationships when none are declared", () => {
+        // An empty block in a manifest is noise; Foundry treats absent and
+        // empty alike.
+        expect(build()).not.toHaveProperty("relationships");
+
+        const withOne = build({
+            relationships: { systems: [{ id: "sohl" }] },
+        });
+        expect(withOne.relationships).toEqual({ systems: [{ id: "sohl" }] });
+    });
+
+    it("merges computed flags over the declared ones, per namespace", () => {
+        const manifest = build(
+            {
+                packageBuild: {
+                    manifest: {
+                        flags: {
+                            allowBugReporter: true,
+                            sohl: { keep: "me" },
+                        },
+                    },
+                },
+            },
+            { sohl: { creditsUuid: "Compendium.sohl.journals.x" } },
+        );
+
+        expect(manifest.flags).toEqual({
+            allowBugReporter: true,
+            sohl: { keep: "me", creditsUuid: "Compendium.sohl.journals.x" },
+        });
+    });
+
+    it("leaves declared flags alone when nothing is computed", () => {
+        const manifest = build({
+            packageBuild: { manifest: { flags: { allowBugReporter: true } } },
+        });
+
+        expect(manifest.flags).toEqual({ allowBugReporter: true });
+    });
+
+    it("writes its keys in a fixed order, so the file diffs", () => {
+        // Not for Foundry's sake — for the human reading a diff, and so the
+        // generated file is comparable against the template it replaced.
+        const keys = Object.keys(build());
+
+        expect(keys.indexOf("id")).toBeLessThan(keys.indexOf("title"));
+        expect(keys.indexOf("title")).toBeLessThan(keys.indexOf("version"));
+        expect(keys.indexOf("compatibility")).toBeLessThan(
+            keys.indexOf("packs"),
+        );
+        expect(keys.indexOf("packs")).toBeLessThan(keys.indexOf("url"));
+    });
+
+    it("puts an undeclared key after the ones it knows", () => {
+        const keys = Object.keys(
+            build({
+                packageBuild: {
+                    manifest: { title: "x", inventedLater: true },
+                },
+            }),
+        );
+
+        expect(keys.at(-1)).toBe("inventedLater");
+    });
+});
+
+describe("writeManifest", () => {
+    it("writes <artifact>.json into the stage, creating it", async () => {
+        const outDir = path.join(
+            fs.mkdtempSync(path.join(os.tmpdir(), "pb-manifest-")),
+            "stage",
+        );
+        const { path: written, manifest } = await writeManifest({
+            config: {
+                foundryPackage: "sohl-thalorna",
+                stats: { systemId: "sohl" },
+                compatibility: { minimum: "14.359" },
+                relationships: {},
+                packs: [],
+                packageBuild: { manifest: { title: "Thalorna" } },
+            } as never,
             packageJson: {
                 version: "0.1.0",
-                repository: { url: "https://github.com/a/thalorna" },
+                repository: "https://github.com/HeroicLands/sohl-thalorna",
             },
-            outDir,
-        });
-        expect(path.basename(written)).toBe("module.json");
-    });
-
-    it("honours an explicit artifact over the template's name", async () => {
-        const { templatePath, outDir } = fixture("anything.json", { id: "x" });
-        const { path: written } = await writeFoundryManifest({
-            templatePath,
-            packageJson: {
-                version: "1.0.0",
-                repository: { url: "https://github.com/a/b" },
-            },
-            outDir,
             artifact: "module",
-        });
-        expect(path.basename(written)).toBe("module.json");
-    });
-
-    it("ends the file with a newline", async () => {
-        const { templatePath, outDir } = fixture("system.template.json", {
-            id: "x",
-        });
-        const { path: written } = await writeFoundryManifest({
-            templatePath,
-            packageJson: {
-                version: "1.0.0",
-                repository: { url: "https://github.com/a/b" },
-            },
             outDir,
         });
-        expect(fs.readFileSync(written, "utf8").endsWith("}\n")).toBe(true);
+
+        expect(written).toBe(path.join(outDir, "module.json"));
+        expect(manifest.id).toBe("sohl-thalorna");
+
+        const onDisk = fs.readFileSync(written, "utf8");
+        expect(JSON.parse(onDisk).title).toBe("Thalorna");
+        // The file is committed to a release archive and read by humans as
+        // often as by Foundry.
+        expect(onDisk.endsWith("\n")).toBe(true);
     });
 });

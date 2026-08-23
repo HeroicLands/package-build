@@ -42,6 +42,7 @@
  * Usage:
  *   npx package-build clean [--distclean]
  *   npx package-build assets
+ *   npx package-build manifest
  *   npx package-build lang check
  *   npx package-build release
  *   npx package-build deploy <stage>
@@ -62,9 +63,11 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
+import { loadPackConfig } from "@heroiclands/content-build/engine/pack-config";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { packRelease } from "../release.mjs";
+import { writeManifest } from "../manifest.mjs";
 import { deployStage } from "../deploy.mjs";
 
 /**
@@ -213,6 +216,70 @@ function assetsCommand() {
 }
 
 /**
+ * `manifest` — generate `system.json` / `module.json` into the build stage.
+ *
+ * There is no template to read. Everything the manifest needs is either
+ * declared in `packageBuild.manifest`, derived from configuration this
+ * repository already carries, or computed by a module the repository names in
+ * `packageBuild.manifestFlags` — for a namespaced flag it has to work out, such
+ * as the compendium address of a document that only exists once the content
+ * tree has been walked.
+ *
+ * @returns {object} The yargs command module.
+ */
+function manifestCommand() {
+    return {
+        command: "manifest",
+        describe: "Generate the Foundry package manifest",
+        builder: (y) => y,
+        handler: handler(async () => {
+            const config = loadPackageBuildConfig();
+            const shared = loadPackConfig();
+            const packageJson = JSON.parse(
+                fs.readFileSync(
+                    path.join(config.rootDir, "package.json"),
+                    "utf8",
+                ),
+            );
+
+            let flags;
+            if (config.manifestFlags) {
+                const module = await import(
+                    `file://${config.manifestFlags}`
+                ).catch((err) =>
+                    die(
+                        `cannot load \`packageBuild.manifestFlags\` ` +
+                            `(${config.manifestFlags}): ${err.message}`,
+                    ),
+                );
+                if (typeof module.flags !== "function") {
+                    die(
+                        `\`packageBuild.manifestFlags\` ` +
+                            `(${config.manifestFlags}) exports no \`flags\` ` +
+                            `function. It must export ` +
+                            `\`flags(config) -> Record<string, object>\`.`,
+                    );
+                }
+                flags = await module.flags(shared);
+            }
+
+            const { path: written, manifest } = await writeManifest({
+                config: shared,
+                packageJson,
+                artifact: config.artifact,
+                outDir: path.join(config.rootDir, config.stageDir),
+                flags,
+            });
+            console.log(
+                `✅ Wrote ${path.relative(config.rootDir, written)} ` +
+                    `(${Object.keys(manifest).length} keys, ` +
+                    `${manifest.packs.length} packs).`,
+            );
+        }),
+    };
+}
+
+/**
  * `lang check` — verify every localization file survives `expandObject`.
  *
  * A dotted-prefix collision makes `foundry.utils.expandObject` throw, and
@@ -352,6 +419,7 @@ yargs(hideBin(process.argv))
     .scriptName("package-build")
     .command(cleanCommand())
     .command(assetsCommand())
+    .command(manifestCommand())
     .command(langCommand())
     .command(releaseCommand())
     .command(deployCommand())

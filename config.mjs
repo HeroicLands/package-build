@@ -63,11 +63,36 @@ const SECTION_KEYS = [
     "stageDir",
     "assets",
     "assetTransform",
+    "manifest",
+    "manifestFlags",
     "clean",
     "lang",
     "deploy",
     "release",
 ];
+
+/**
+ * Manifest keys a repository may **not** declare, because the build derives
+ * them and would only overwrite what was written.
+ *
+ * Silently overwriting is the failure this list exists to prevent: a
+ * `version` typed into the configuration would look authoritative, sit there
+ * unread, and disagree with the shipped package forever. Declaring one is an
+ * error naming the key and where the value actually comes from.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const DERIVED_MANIFEST_KEYS = Object.freeze({
+    id: "`foundryPackage`, itself derived from package.json `name`",
+    version: "package.json `version`",
+    url: "package.json `repository`",
+    bugs: "package.json `repository`",
+    manifest: "package.json `repository` and the release tag",
+    download: "package.json `repository` and the release tag",
+    compatibility: "the top level of content-build.config.yaml",
+    relationships: "the top level of content-build.config.yaml",
+    packs: "the `packs` list at the top level of content-build.config.yaml",
+});
 const ASSET_KEYS = ["from", "to"];
 const CLEAN_KEYS = ["extra"];
 const LANG_KEYS = ["sources", "help"];
@@ -157,6 +182,41 @@ function normalizeAsset(value, index) {
 }
 
 /**
+ * Validate the manifest specification.
+ *
+ * **Deliberately not key-checked.** Everything a repository declares here is
+ * emitted into the manifest unchanged, so a key Foundry adds in a later version
+ * can be declared without waiting for a release of this package. The only rule
+ * is the one that has a wrong answer rather than an unknown one: a key the
+ * build *derives* must not also be authored, because the authored value would
+ * be silently overwritten.
+ *
+ * That is also why it is its own block rather than being spread across
+ * `packageBuild:` directly — pass-through and unknown-key checking cannot
+ * coexist in one mapping, and the keys around it are worth checking.
+ *
+ * @param {unknown} value - The `manifest` block, or `undefined`.
+ * @returns {Readonly<Record<string, unknown>>} It, frozen; `{}` when absent.
+ */
+function normalizeManifest(value) {
+    if (value === undefined) return Object.freeze({});
+    if (!isMapping(value)) fail("packageBuild.manifest", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+
+    for (const [key, source] of Object.entries(DERIVED_MANIFEST_KEYS)) {
+        if (input[key] !== undefined) {
+            fail(
+                `packageBuild.manifest.${key}`,
+                `is derived from ${source} and must not be declared — it ` +
+                    `would be overwritten, and the two would disagree with ` +
+                    `nothing to say so`,
+            );
+        }
+    }
+    return Object.freeze(structuredClone(input));
+}
+
+/**
  * The resolved `packageBuild` section, every optional half filled in.
  *
  * @typedef {object} PackageBuildConfig
@@ -167,6 +227,11 @@ function normalizeAsset(value, index) {
  * @property {string} stageDir      The staged package root, relative to
  *                                   `rootDir`. Every asset `to:` lands under it.
  * @property {readonly Readonly<AssetSpec>[]} assets
+ * @property {Readonly<Record<string, unknown>>} manifest  The manifest
+ *                                   specification, emitted as declared.
+ * @property {string|null} manifestFlags  Module to load a `flags` function
+ *                                   from, for namespaced flags a repository has
+ *                                   to compute. `null` when it declares none.
  * @property {string|null} assetTransform  Module to load a `transform` from,
  *                                   resolved against `rootDir`. `null` when
  *                                   the repository stages assets verbatim.
@@ -278,6 +343,17 @@ export function resolvePackageBuildConfig(shared) {
                     requireNonEmptyString(
                         section.assetTransform,
                         "packageBuild.assetTransform",
+                    ),
+                ),
+        manifest: normalizeManifest(section.manifest),
+        manifestFlags:
+            section.manifestFlags === undefined ?
+                null
+            :   path.resolve(
+                    shared.rootDir,
+                    requireNonEmptyString(
+                        section.manifestFlags,
+                        "packageBuild.manifestFlags",
                     ),
                 ),
         cleanExtra: Object.freeze(cleanExtra),
