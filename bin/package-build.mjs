@@ -51,6 +51,8 @@
  *   npx package-build assets
  *   npx package-build manifest
  *   npx package-build lang check
+ *   npx package-build lang coverage [--unused]
+ *   npx package-build lang hardcoded
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
@@ -61,6 +63,8 @@
  *   npm run clean                          // → … clean
  *   npm run build:assets                   // → … assets
  *   npm run lint:lang                      // → … lang check
+ *   npm run lint:lang-coverage             // → … lang coverage
+ *   npm run lint:lang-hardcoded            // → … lang hardcoded
  *   npm run lint:bundle-globals            // → … bundle check
  *   npm run build:pack-release             // → … release
  *   npm run push:qa                        // → … deploy qa
@@ -77,6 +81,14 @@ import { loadPackageBuildConfig } from "../config.mjs";
 import { loadPackConfig } from "@heroiclands/content-build/engine/pack-config";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { validateLangSource } from "../lang.mjs";
+import {
+    analyzeCoverage,
+    collectScriptReferences,
+    collectTemplateReferences,
+    keyRootsOf,
+    mergeReferences,
+} from "../coverage.mjs";
+import { findHardcodedText, findTemplateSyntaxErrors } from "../templates.mjs";
 import { checkBundleLoading } from "../bundle.mjs";
 import { packRelease } from "../release.mjs";
 import { writeManifest } from "../manifest.mjs";
@@ -90,6 +102,14 @@ import {
     seedTestWorld,
 } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
+
+/**
+ * How many unreferenced keys a run prints before it summarizes the rest.
+ *
+ * Enough to see the shape of the problem, few enough that the errors above
+ * them are still on the screen.
+ */
+const ADVISORY_PREVIEW = 20;
 
 /**
  * This package's own version, for `--version`.
@@ -345,11 +365,276 @@ function manifestCommand() {
 }
 
 /**
+ * Every file matching a glob, as `{ path, text }` with the path relative to the
+ * repository root — the form both the rules and the findings want.
+ *
+ * @param {string|readonly string[]} globs - Glob or globs, relative to the root.
+ * @param {string} rootDir - The repository root.
+ * @returns {{path: string, text: string}[]} The files, in path order.
+ */
+function readMatching(globs, rootDir) {
+    return globSync([...(Array.isArray(globs) ? globs : [globs])], {
+        cwd: rootDir,
+        absolute: true,
+    })
+        .sort()
+        .map((file) => ({
+            path: path.relative(rootDir, file),
+            text: fs.readFileSync(file, "utf8"),
+        }));
+}
+
+/**
  * `lang check` — verify every localization file survives `expandObject`.
  *
  * A dotted-prefix collision makes `foundry.utils.expandObject` throw, and
  * Foundry then drops the whole translation file silently. The rule is the
  * library's; the glob and any repository-specific guidance are data.
+ *
+ * @param {Readonly<import("../config.mjs").PackageBuildConfig>} config
+ * @returns {void}
+ */
+function langCheck(config) {
+    const files = readMatching(config.langSources, config.rootDir);
+    if (!files.length) {
+        die(
+            `no localization files matched \`${config.langSources}\` under ` +
+                `${config.rootDir}.`,
+        );
+    }
+
+    let total = 0;
+    for (const file of files) {
+        total += reportFindings(validateLangSource(file.text), {
+            file: file.path,
+        });
+    }
+
+    if (total) {
+        if (config.langHelp) console.error(`\n${config.langHelp}`);
+        process.exit(1);
+    }
+    console.log(
+        `package-build: ${files.length} localization file(s) are ` +
+            `expandObject-safe.`,
+    );
+}
+
+/**
+ * `lang coverage` — does every key the package references exist, and is every
+ * key it declares referenced?
+ *
+ * The two halves are not the same severity. A referenced key that is missing
+ * renders to a player as its own raw key string, so it fails the run; a key
+ * nothing references is reported and does not, because no scan can see every
+ * way a key is reached and a guard that fails over one teaches people to switch
+ * it off.
+ *
+ * A repository that *generates* keys by a convention of its own names a module
+ * in `packageBuild.lang.references`, exporting
+ * `references(context) -> ReferenceSet`. That is the same shape as
+ * `assetTransform` and `manifestFlags`, and for the same reason: only that
+ * repository can know its rule, and only this package can compare the result
+ * against the file.
+ *
+ * @param {Readonly<import("../config.mjs").PackageBuildConfig>} config
+ * @param {object} args - The parsed argv.
+ * @returns {Promise<void>}
+ */
+async function langCoverage(config, args) {
+    const langFile = config.langPrimary;
+    const langPath = path.join(config.rootDir, langFile);
+    if (!fs.existsSync(langPath)) {
+        die(
+            `no localization file at ${langFile} — name the one this package ` +
+                `authors in \`packageBuild.lang.primary\`.`,
+        );
+    }
+    const langSource = fs.readFileSync(langPath, "utf8");
+
+    /**
+     * Report and exit, so the two exits — nothing to compare against, and a
+     * comparison that failed — read the same way.
+     *
+     * @param {object} analysis - What {@link analyzeCoverage} returned.
+     * @returns {void}
+     */
+    const finish = ({ findings, unreferenced, stats }) => {
+        const errors = reportFindings(findings, {});
+        // Capped by default: the advisory half of a large package is pages
+        // long, and pages of warnings on every build is how a guard stops being
+        // read at all. The count is always stated, so nothing is hidden.
+        const shown =
+            args.unused ? unreferenced : (
+                unreferenced.slice(0, ADVISORY_PREVIEW)
+            );
+        reportFindings(shown, {});
+        if (shown.length < unreferenced.length) {
+            console.error(
+                `package-build: ${unreferenced.length - shown.length} further ` +
+                    `unreferenced key(s) not shown — run with --unused.`,
+            );
+        }
+
+        console.log(
+            `package-build: ${stats.declared} key(s) declared in ${langFile} · ` +
+                `${stats.referenced} referenced · ` +
+                `${stats.namespaces} namespace(s) · ` +
+                `${stats.patterns} dynamic shape(s) · ` +
+                `${stats.missing} missing · ` +
+                `${stats.unreferenced} unreferenced`,
+        );
+        if (errors) process.exit(1);
+    };
+
+    let declaredKeys;
+    try {
+        declaredKeys = Object.keys(JSON.parse(langSource));
+    } catch {
+        // Scanning would be pointless: with nothing to compare against, every
+        // key the package references reports as missing. `analyzeCoverage`
+        // says the one true thing instead.
+        finish(
+            analyzeCoverage({
+                langSource,
+                langFile,
+                references: {
+                    keys: [],
+                    namespaces: [],
+                    patterns: [],
+                    findings: [],
+                },
+            }),
+        );
+        return;
+    }
+
+    const roots = config.langKeyRoots ?? keyRootsOf(declaredKeys);
+    const scripts = readMatching(config.langScripts, config.rootDir);
+    const templates = readMatching(config.langTemplates, config.rootDir);
+    // Named rather than left to pass: with nothing scanned, every key reports
+    // as unreferenced and nothing reports as missing, so a run that looked at
+    // no files at all would exit zero and prove nothing.
+    if (!scripts.length && !templates.length) {
+        die(
+            `no sources matched \`${config.langScripts.join("`, `")}\` or ` +
+                `\`${config.langTemplates.join("`, `")}\` under ` +
+                `${config.rootDir}.`,
+        );
+    }
+    const sets = [
+        ...scripts.map((file) =>
+            collectScriptReferences(file.text, { file: file.path, roots }),
+        ),
+        ...templates.map((file) =>
+            collectTemplateReferences(file.text, { file: file.path, roots }),
+        ),
+    ];
+
+    if (config.langReferences) {
+        const module = await import(`file://${config.langReferences}`).catch(
+            (err) =>
+                die(
+                    `cannot load \`packageBuild.lang.references\` ` +
+                        `(${config.langReferences}): ${err.message}`,
+                ),
+        );
+        if (typeof module.references !== "function") {
+            die(
+                `\`packageBuild.lang.references\` ` +
+                    `(${config.langReferences}) exports no \`references\` ` +
+                    `function. It must export ` +
+                    `\`references(context) -> ReferenceSet\`.`,
+            );
+        }
+        sets.push(
+            await module.references({
+                config: loadPackConfig(),
+                rootDir: config.rootDir,
+                roots,
+                // The sources, already read, so the contributor sees exactly
+                // the text the built-in scan saw.
+                files: scripts,
+            }),
+        );
+    }
+
+    finish(
+        analyzeCoverage({
+            langSource,
+            langFile,
+            references: mergeReferences(sets),
+            retained: config.langRetained,
+            roots,
+        }),
+    );
+}
+
+/**
+ * `lang hardcoded` — does the markup's user-visible text go through
+ * localization, and does each template still compile?
+ *
+ * The reverse of `lang coverage`, which walks key → file and is blind to a
+ * template that mentions no key at all.
+ *
+ * @param {Readonly<import("../config.mjs").PackageBuildConfig>} config
+ * @returns {void}
+ */
+function langHardcoded(config) {
+    const templates = readMatching(config.langTemplates, config.rootDir);
+    if (!templates.length) {
+        die(
+            `no templates matched ` +
+                `\`${config.langTemplates.join("`, `")}\` under ` +
+                `${config.rootDir}.`,
+        );
+    }
+
+    let literals = 0;
+    let broken = 0;
+    for (const file of templates) {
+        literals += reportFindings(
+            findHardcodedText(file.text, { allow: config.langAllow }),
+            { file: file.path },
+        );
+        broken += reportFindings(findTemplateSyntaxErrors(file.text), {
+            file: file.path,
+        });
+    }
+
+    if (literals || broken) {
+        if (literals) {
+            console.error(
+                `\npackage-build: ${literals} user-visible literal(s) are not ` +
+                    `localized. Replace each with a {{localize}} call and add ` +
+                    `the key, or record it in \`packageBuild.lang.allow\` with ` +
+                    `the reason it is not prose.`,
+            );
+        }
+        if (broken) {
+            console.error(
+                `\npackage-build: ${broken} template(s) do not compile. A ` +
+                    `{{localize …}} nested inside another mustache is legal in ` +
+                    `an HTML attribute but a parse error inside a helper's ` +
+                    `hash — use a (localize …) subexpression there.`,
+            );
+        }
+        process.exit(1);
+    }
+
+    console.log(
+        `package-build: ${templates.length} template(s) fully localized and ` +
+            `compiling.`,
+    );
+}
+
+/**
+ * `lang <action>` — the three localization guards.
+ *
+ * They are three questions about one subject, and each is blind to what the
+ * others see: `check` asks whether the file will load at all, `coverage`
+ * whether the keys and the code agree, `hardcoded` whether the markup ever
+ * asks for a key in the first place.
  *
  * @returns {object} The yargs command module.
  */
@@ -358,39 +643,25 @@ function langCommand() {
         command: "lang <action>",
         describe: "Localization checks",
         builder: (y) =>
-            y.positional("action", {
-                choices: ["check"],
-                describe: "check: verify the files are expandObject-safe",
-            }),
-        handler: handler(() => {
+            y
+                .positional("action", {
+                    choices: ["check", "coverage", "hardcoded"],
+                    describe:
+                        "check: the files are expandObject-safe · " +
+                        "coverage: keys and code agree · " +
+                        "hardcoded: templates localize their text",
+                })
+                .option("unused", {
+                    type: "boolean",
+                    default: false,
+                    describe:
+                        "coverage: list every unreferenced key, not a preview",
+                }),
+        handler: handler(async (args) => {
             const config = loadPackageBuildConfig();
-            const files = globSync(config.langSources, {
-                cwd: config.rootDir,
-                absolute: true,
-            });
-            if (!files.length) {
-                die(
-                    `no localization files matched ` +
-                        `\`${config.langSources}\` under ${config.rootDir}.`,
-                );
-            }
-
-            let total = 0;
-            for (const file of files.sort()) {
-                total += reportFindings(
-                    validateLangSource(fs.readFileSync(file, "utf8")),
-                    { file: path.relative(config.rootDir, file) },
-                );
-            }
-
-            if (total) {
-                if (config.langHelp) console.error(`\n${config.langHelp}`);
-                process.exit(1);
-            }
-            console.log(
-                `package-build: ${files.length} localization file(s) are ` +
-                    `expandObject-safe.`,
-            );
+            if (args.action === "check") return langCheck(config);
+            if (args.action === "hardcoded") return langHardcoded(config);
+            return langCoverage(config, args);
         }),
     };
 }

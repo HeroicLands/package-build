@@ -62,3 +62,9 @@ export * as e2e from "./e2e.mjs";
 
 /** Localization files: what a shippable `lang/*.json` must satisfy. */
 export * as lang from "./lang.mjs";
+
+/** Localization coverage: the keys a package references against the keys it declares. */
+export * as coverage from "./coverage.mjs";
+
+/** Templates: whether their user-visible text is localized, and whether they compile. */
+export * as templates from "./templates.mjs";

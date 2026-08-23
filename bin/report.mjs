@@ -42,6 +42,9 @@ import { emitDiagnostic } from "@heroiclands/content-build/engine/diagnostics";
  *
  * @typedef {object} Finding
  * @property {string} message                 What is wrong, in one sentence.
+ * @property {string} [file]                  The file it is about, when the
+ *   rule knows — a rule spanning many files does, and one handed a single
+ *   file's text does not.
  * @property {"warning"|"error"} [severity]   Defaults to `error`.
  * @property {number} [line]                  1-based line, when known.
  * @property {number} [column]                1-based column, when known.
@@ -59,11 +62,16 @@ import { emitDiagnostic } from "@heroiclands/content-build/engine/diagnostics";
  * top of the file every time and reads exactly like a real position. A column
  * without a line is dropped for the same reason: it locates nothing on its own.
  *
+ * **Unless the finding names its own.** A rule handed one file's text cannot;
+ * a rule handed a whole repository — coverage, which compares the localization
+ * file against every source that references it — can name nothing else, since
+ * no single path is right for both halves of what it found.
+ *
  * @param {Finding[]} findings - What the rule returned.
  * @param {object} opts
- * @param {string} opts.file - Path to the file, relative to the working
+ * @param {string} [opts.file] - Path to the file, relative to the working
  *   directory, so the emitted line is one an editor or `cc`-style parser can
- *   open.
+ *   open. Optional only for a rule whose every finding carries its own.
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "warning"|"error", message: string}>} The diagnostics, in the
  *   order the rule reported them.
@@ -74,7 +82,7 @@ export function toDiagnostics(findings, { file }) {
         const hasColumn =
             finding.column !== undefined && finding.column !== null;
         return {
-            file,
+            file: finding.file ?? file,
             ...(hasLine ? { line: finding.line } : {}),
             // Only alongside a line: `formatLocator` ignores a lone column, and
             // carrying it anyway would invite a reader to trust it.
@@ -93,7 +101,8 @@ export function toDiagnostics(findings, { file }) {
  *
  * @param {Finding[]} findings - What the rule returned.
  * @param {object} opts
- * @param {string} opts.file - Path to the file, relative to the working dir.
+ * @param {string} [opts.file] - Path to the file, relative to the working dir.
+ *   Optional only when every finding carries its own.
  * @param {(d: object) => void} [opts.emit] - How to emit one diagnostic.
  *   Injectable so a test can capture the emitted shape without reaching for
  *   the console; defaults to content-build's `emitDiagnostic`, which writes

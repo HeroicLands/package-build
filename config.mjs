@@ -98,7 +98,17 @@ export const DERIVED_MANIFEST_KEYS = Object.freeze({
 });
 const ASSET_KEYS = ["from", "to"];
 const CLEAN_KEYS = ["extra"];
-const LANG_KEYS = ["sources", "help"];
+const LANG_KEYS = [
+    "sources",
+    "help",
+    "primary",
+    "scripts",
+    "templates",
+    "keyRoots",
+    "references",
+    "retained",
+    "allow",
+];
 const DEPLOY_KEYS = ["envPrefix"];
 const RELEASE_KEYS = ["artifact"];
 const CONTAINER_KEYS = ["image", "stages"];
@@ -225,6 +235,31 @@ function normalizeManifest(value) {
         }
     }
     return Object.freeze(structuredClone(input));
+}
+
+/**
+ * Normalize a setting that is one glob or several.
+ *
+ * A repository with a single conventional directory writes a string and a
+ * repository with two writes a list; requiring the list form from both would
+ * make the common case read like the exception.
+ *
+ * @param {unknown} value - What was declared, or `undefined`.
+ * @param {string[]} fallback - The conventional layout.
+ * @param {string} where - Dotted path, for the error.
+ * @returns {readonly string[]} The globs, frozen.
+ */
+function normalizeGlobs(value, fallback, where) {
+    if (value === undefined) return Object.freeze(fallback);
+    const list = Array.isArray(value) ? value : [value];
+    return Object.freeze(
+        list.map((glob, index) =>
+            requireNonEmptyString(
+                glob,
+                Array.isArray(value) ? `${where}[${index}]` : where,
+            ),
+        ),
+    );
 }
 
 /**
@@ -362,6 +397,35 @@ function normalizeStringMap(value, where, allowed) {
 }
 
 /**
+ * Normalize an escape-hatch list: entries of `{ <field>, reason }`.
+ *
+ * Both escape hatches — a key kept despite looking unreferenced, a literal kept
+ * despite looking like prose — are a claim about something no scan can see, so
+ * each entry states the claim in prose a reviewer can check. Requiring the
+ * reason is what keeps the list from silently becoming the place unexplained
+ * exceptions accumulate.
+ *
+ * @param {unknown} value - The declared list, or `undefined`.
+ * @param {string} field - The name of the entry's own field.
+ * @param {string} where - Dotted path, for the error.
+ * @returns {readonly string[]} The field values, frozen; `[]` when absent.
+ */
+function normalizeExceptions(value, field, where) {
+    if (value === undefined) return Object.freeze([]);
+    if (!Array.isArray(value)) fail(where, "must be a list");
+    return Object.freeze(
+        value.map((entry, index) => {
+            const at = `${where}[${index}]`;
+            if (!isMapping(entry)) fail(at, "must be a mapping");
+            const item = /** @type {Record<string, unknown>} */ (entry);
+            rejectUnknownKeys(item, [field, "reason"], `${at}.`);
+            requireNonEmptyString(item.reason, `${at}.reason`);
+            return requireNonEmptyString(item[field], `${at}.${field}`);
+        }),
+    );
+}
+
+/**
  * The resolved `packageBuild` section, every optional half filled in.
  *
  * @typedef {object} PackageBuildConfig
@@ -384,6 +448,22 @@ function normalizeStringMap(value, where, allowed) {
  *                                   conventional build artifacts.
  * @property {string} langSources    Glob for the localization files to check.
  * @property {string|null} langHelp  Extra guidance printed after a failure.
+ * @property {string} langPrimary    The localization file coverage is measured
+ *                                   against — the one the package authors.
+ * @property {readonly string[]} langScripts    Globs for the sources scanned
+ *                                   for key references.
+ * @property {readonly string[]} langTemplates  Globs for the templates scanned
+ *                                   for references and for hardcoded text.
+ * @property {readonly string[]|null} langKeyRoots  The key roots, when the
+ *                                   package references one its file does not
+ *                                   yet declare. `null` derives them.
+ * @property {string|null} langReferences  Module to load a `references`
+ *                                   function from, contributing the keys only
+ *                                   this repository's conventions can find.
+ * @property {readonly string[]} langRetained  Key prefixes exempt from the
+ *                                   unreferenced advisory.
+ * @property {readonly string[]} langAllow  Template literals that are
+ *                                   deliberately not localization keys.
  * @property {string} envPrefix      Prefix of the deploy environment variables.
  * @property {string} bundleEntry   The bundle file Foundry loads, as the
  *   manifest spells it. Derived from the package id.
@@ -592,6 +672,57 @@ export function resolvePackageBuildConfig(shared) {
             langInput.help === undefined ?
                 null
             :   requireNonEmptyString(langInput.help, "packageBuild.lang.help"),
+        // The file the package authors, and the one every other translation is
+        // measured against. Coverage is a question about *this* file: another
+        // language missing a key is a translation in progress, not a defect.
+        langPrimary:
+            langInput.primary === undefined ?
+                "lang/en.json"
+            :   requireNonEmptyString(
+                    langInput.primary,
+                    "packageBuild.lang.primary",
+                ),
+        langScripts: normalizeGlobs(
+            langInput.scripts,
+            ["src/**/*.{ts,mjs}"],
+            "packageBuild.lang.scripts",
+        ),
+        langTemplates: normalizeGlobs(
+            langInput.templates,
+            ["templates/**/*.hbs"],
+            "packageBuild.lang.templates",
+        ),
+        // Derived from the file's own keys unless stated — a package states
+        // them only when it references a root the file does not yet declare at
+        // all, which is the one case deriving them cannot cover.
+        langKeyRoots:
+            langInput.keyRoots === undefined ?
+                null
+            :   normalizeGlobs(
+                    langInput.keyRoots,
+                    [],
+                    "packageBuild.lang.keyRoots",
+                ),
+        langReferences:
+            langInput.references === undefined ?
+                null
+            :   path.resolve(
+                    shared.rootDir,
+                    requireNonEmptyString(
+                        langInput.references,
+                        "packageBuild.lang.references",
+                    ),
+                ),
+        langRetained: normalizeExceptions(
+            langInput.retained,
+            "prefix",
+            "packageBuild.lang.retained",
+        ),
+        langAllow: normalizeExceptions(
+            langInput.allow,
+            "literal",
+            "packageBuild.lang.allow",
+        ),
         envPrefix:
             deployInput.envPrefix === undefined ?
                 "SOHL"
