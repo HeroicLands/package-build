@@ -56,6 +56,8 @@
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
+ *   npx package-build container <stage> <action>
+ *   npx package-build e2e <seed|run|open|fast|sweep>
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
  *   npm run clean                          // → … clean
@@ -91,6 +93,14 @@ import { checkBundleLoading } from "../bundle.mjs";
 import { packRelease } from "../release.mjs";
 import { writeManifest } from "../manifest.mjs";
 import { deployStage } from "../deploy.mjs";
+import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
+import {
+    E2E_MODES,
+    e2eFast,
+    e2eRun,
+    e2eSweep,
+    seedTestWorld,
+} from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
 
 /**
@@ -148,6 +158,55 @@ function handler(run) {
             die(err);
         }
     };
+}
+
+/**
+ * Load the repository's environment files.
+ *
+ * Done inside a handler rather than at module scope: `--help` and `--version`
+ * must answer in a directory with no environment file — or no configuration —
+ * at all.
+ *
+ * @param {object} config - The resolved package-build configuration.
+ * @returns {Promise<void>} Once `.env.local` and `.env` have been applied.
+ */
+async function loadEnvironment(config) {
+    const dotenv = await import("dotenv");
+    dotenv.config({
+        path: path.join(config.rootDir, ".env.local"),
+        quiet: true,
+    });
+    dotenv.config({ path: path.join(config.rootDir, ".env"), quiet: true });
+}
+
+/**
+ * The repository's own `package.json`.
+ *
+ * @param {object} config - The resolved package-build configuration.
+ * @returns {object} The parsed manifest.
+ */
+function readPackageJson(config) {
+    return JSON.parse(
+        fs.readFileSync(path.join(config.rootDir, "package.json"), "utf8"),
+    );
+}
+
+/**
+ * Everything the user typed after an `e2e` action, verbatim.
+ *
+ * Read from the raw arguments rather than from yargs, because most of it is not
+ * this command line's to interpret: `--spec`, `--browser`, a `--` passthrough
+ * and whatever else belongs to the repository's suite. Parsing it here would
+ * mean this package learning the flags of a runner it deliberately knows
+ * nothing about.
+ *
+ * @param {string} action - The action that was run.
+ * @returns {string[]} The arguments after it.
+ */
+function e2eTail(action) {
+    const raw = hideBin(process.argv);
+    const at = raw.indexOf(action);
+    return at === -1 ? [] : raw.slice(at + 1);
 }
 
 /**
@@ -266,12 +325,7 @@ function manifestCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
-            const packageJson = JSON.parse(
-                fs.readFileSync(
-                    path.join(config.rootDir, "package.json"),
-                    "utf8",
-                ),
-            );
+            const packageJson = readPackageJson(config);
 
             let flags;
             if (config.manifestFlags) {
@@ -728,17 +782,7 @@ function deployCommand() {
         handler: handler(async (args) => {
             const config = loadPackageBuildConfig();
 
-            // Loaded here rather than at module scope: `--help` must answer in
-            // a repository that has no environment file at all.
-            const dotenv = await import("dotenv");
-            dotenv.config({
-                path: path.join(config.rootDir, ".env.local"),
-                quiet: true,
-            });
-            dotenv.config({
-                path: path.join(config.rootDir, ".env"),
-                quiet: true,
-            });
+            await loadEnvironment(config);
 
             const { stage } = await deployStage({
                 stage: args.stage,
@@ -753,6 +797,122 @@ function deployCommand() {
     };
 }
 
+/**
+ * `container <stage> <action>` — run a stage's Foundry in a container.
+ *
+ * The seam is the deploy's own: `deploy <stage>` installs the staged package
+ * into `FOUNDRYVTT_<STAGE>_DATA`, and this mounts that same directory and
+ * serves it. Nothing about the destination is stated twice.
+ *
+ * Every action shares one shape — a stage and an action — so this is a single
+ * command with a closed set of choices rather than eight of them. The stage
+ * leads, as it does in `deploy <stage>`, which is also what lets a consumer
+ * wrap it once per stage: `npm run container:dev start`.
+ *
+ * @returns {object} The yargs command module.
+ */
+function containerCommand() {
+    return {
+        command: "container <stage> <action>",
+        describe: "Run a stage's Foundry in a container",
+        builder: (y) =>
+            y
+                .positional("stage", {
+                    type: "string",
+                    describe: "Target stage (e.g. dev, qa, prod, test)",
+                })
+                .positional("action", {
+                    choices: [...CONTAINER_ACTIONS],
+                    describe: "What to do with the stage's container",
+                }),
+        handler: handler(async (args) => {
+            const config = loadPackageBuildConfig();
+            await loadEnvironment(config);
+            const status = containerAction({
+                action: String(args.action),
+                stage: String(args.stage).trim().toLowerCase(),
+                config,
+                log: (message) => console.log(message),
+            });
+            process.exit(status);
+        }),
+    };
+}
+
+/** What `package-build e2e` can be asked to do. */
+const E2E_ACTIONS = ["seed", ...E2E_MODES, "fast", "sweep"];
+
+/**
+ * `e2e <action>` — stand a Foundry world up and drive a suite against it.
+ *
+ * **The suite itself is never this package's.** Seeding a disposable world,
+ * waiting for it to become *active* rather than merely reachable, and tearing
+ * it down again are nobody's local problem; what runs against it is entirely
+ * the repository's, and is named in `packageBuild.e2e.suite`.
+ *
+ * The actions answer different questions. `seed` writes the world.
+ * `run` and `open` are the from-scratch path — deploy, reseed, recreate, wait,
+ * run — and are the only ones that may change Foundry build, because a seeded
+ * world is stamped with the build that created it. `fast` is the iteration
+ * loop. `sweep` is the same full run against a build the repository does not
+ * pin, so `compatibility.verified` can be evidence rather than hope.
+ *
+ * Everything after the action is the suite's, and is passed through untouched.
+ *
+ * @returns {object} The yargs command module.
+ */
+function e2eCommand() {
+    return {
+        command: "e2e <action>",
+        describe: "Run a suite against a served Foundry world",
+        builder: (y) =>
+            y
+                .positional("action", {
+                    choices: E2E_ACTIONS,
+                    describe:
+                        "seed: write the world · run/open: from scratch · " +
+                        "fast: rebuild and re-run · sweep: another Foundry build",
+                })
+                // Everything after the action belongs to the suite or to the
+                // fast loop, so this command line must not judge it.
+                .strict(false),
+        handler: handler(async (args) => {
+            const action = String(args.action);
+            const config = loadPackageBuildConfig();
+            await loadEnvironment(config);
+            const log = (message) => console.log(message);
+            const tail = e2eTail(action);
+
+            if (action === "seed") {
+                await seedTestWorld({
+                    config,
+                    packageJson: readPackageJson(config),
+                    log,
+                });
+                return;
+            }
+
+            const status =
+                action === "fast" ? await e2eFast({ config, argv: tail, log })
+                : action === "sweep" ?
+                    await e2eSweep({
+                        config,
+                        packageJson: readPackageJson(config),
+                        argv: tail,
+                        log,
+                    })
+                :   await e2eRun({
+                        config,
+                        packageJson: readPackageJson(config),
+                        mode: /** @type {"run"|"open"} */ (action),
+                        suiteArgs: tail,
+                        log,
+                    });
+            process.exit(status);
+        }),
+    };
+}
+
 yargs(hideBin(process.argv))
     .scriptName("package-build")
     .command(cleanCommand())
@@ -762,6 +922,8 @@ yargs(hideBin(process.argv))
     .command(bundleCommand())
     .command(releaseCommand())
     .command(deployCommand())
+    .command(containerCommand())
+    .command(e2eCommand())
     .demandCommand(1, "Name a command.")
     .strict()
     .version(ownVersion())

@@ -15,6 +15,14 @@
             "types": "./types/bundle.d.mts",
             "import": "./bundle.mjs"
         },
+        "./config": {
+            "types": "./types/config.d.mts",
+            "import": "./config.mjs"
+        },
+        "./container": {
+            "types": "./types/container.d.mts",
+            "import": "./container.mjs"
+        },
         "./coverage": {
             "types": "./types/coverage.d.mts",
             "import": "./coverage.mjs"
@@ -22,6 +30,10 @@
         "./deploy": {
             "types": "./types/deploy.d.mts",
             "import": "./deploy.mjs"
+        },
+        "./e2e": {
+            "types": "./types/e2e.d.mts",
+            "import": "./e2e.mjs"
         },
         "./lang": {
             "types": "./types/lang.d.mts",
@@ -31,6 +43,7 @@
             "types": "./types/manifest.d.mts",
             "import": "./manifest.mjs"
         },
+        "./package.json": "./package.json",
         "./release": {
             "types": "./types/release.d.mts",
             "import": "./release.mjs"
@@ -42,28 +55,25 @@
         "./templates": {
             "types": "./types/templates.d.mts",
             "import": "./templates.mjs"
-        },
-        "./package.json": "./package.json",
-        "./config": {
-            "types": "./types/config.d.mts",
-            "import": "./config.mjs"
         }
     },
     "files": [
-        "bundle.mjs",
-        "coverage.mjs",
-        "deploy.mjs",
-        "index.mjs",
-        "lang.mjs",
-        "manifest.mjs",
-        "templates.mjs",
-        "release.mjs",
-        "stage.mjs",
-        "types",
         "CHANGELOG.md",
         "README.md",
         "bin",
-        "config.mjs"
+        "bundle.mjs",
+        "config.mjs",
+        "container.mjs",
+        "coverage.mjs",
+        "deploy.mjs",
+        "e2e.mjs",
+        "index.mjs",
+        "lang.mjs",
+        "manifest.mjs",
+        "release.mjs",
+        "stage.mjs",
+        "templates.mjs",
+        "types"
     ],
     "scripts": {
         "test": "vitest run",
@@ -77,6 +87,7 @@
         "prepare": "git config core.hooksPath .githooks || true"
     },
     "dependencies": {
+        "@foundryvtt/foundryvtt-cli": "^3.0.4",
         "@heroiclands/content-build": "^1.0.0",
         "acorn": "^8.18.0",
         "archiver": "^8.0.0",

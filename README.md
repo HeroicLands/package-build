@@ -61,6 +61,12 @@ The whole of assemble → validate → ship, one subpath each:
   a local copy or SFTP. Always a staged, atomic swap: a running Foundry holds
   its LevelDB packs open, and replacing them in place leaves a directory LevelDB
   "repairs" to zero.
+- **`container`** — running what was just deployed. The Foundry data root a
+  deploy writes into is the directory a container mounts, so serving the result
+  is the next step from one variable rather than a second configuration.
+- **`e2e`** — a disposable world, seeded with a Gamemaster whose password is
+  known, served until it is genuinely **active**, and a suite driven against it.
+  What the suite _is_ stays the repository's.
 - **`text`** — locating a literal inside a file, so a finding names the line and
   column it is about.
 
@@ -174,6 +180,40 @@ packageBuild:
     socket: true
     grid: { distance: 5, units: ft }
     primaryTokenAttribute: health
+
+  # Running the deployed package in a Foundry container. The four conventional
+  # stages — dev, qa, prod, test — need no entry at all: their data root is
+  # `FOUNDRYVTT_<STAGE>_DATA`, the same variable `deploy` writes into, and their
+  # ports are conventional. Declare a stage only when it is genuinely yours.
+  container:
+    stages:
+      # SoHL keeps the previous, pre-TypeScript system on an older Foundry.
+      # An empty `world` declares "never auto-launch" — it is managed by hand.
+      leg: { port: 30000, world: "", version: "12.331" }
+
+  e2e:
+    # The one thing the harness does not own. Standing Foundry up and seeding a
+    # world is nobody's local problem; what runs against it is entirely yours.
+    suite:
+      run: [npx, cypress, run]
+      open: [npx, cypress, open]
+
+    # What the fast loop can rebuild, in the order it must be built: the
+    # bundler empties the stage, so it goes first. `recreate` marks a target
+    # whose output Foundry reads once, at world launch.
+    build:
+      code: build:code
+      assets: build:assets
+      db: build:db
+      system: { script: build:system, recreate: true }
+
+    # Everything here is optional — it derives from the package id otherwise.
+    world: { id: sohl-e2e, title: SoHL E2E }
+    gm: { name: Gamemaster, password: sohl-e2e }
+
+    # Extra world collections, compiled from directories of JSON documents.
+    documents:
+      actors: cypress/fixtures/actors
 ```
 
 ### The manifest is generated, not stamped
@@ -242,6 +282,8 @@ npx package-build lang hardcoded
 npx package-build bundle check
 npx package-build release
 npx package-build deploy <stage>
+npx package-build container <stage> <start|stop|restart|recreate|rm|status|logs|pull>
+npx package-build e2e <seed|run|open|fast|sweep>
 ```
 
 Wrapped as npm scripts — SoHL spells them:
@@ -256,7 +298,11 @@ Wrapped as npm scripts — SoHL spells them:
   "lint:lang-hardcoded": "package-build lang hardcoded",
   "lint:bundle-globals": "package-build bundle check",
   "build:pack-release": "package-build release",
-  "push:qa": "package-build deploy qa"
+  "push:qa": "package-build deploy qa",
+  "container:dev": "package-build container dev",
+  "e2e:full": "package-build e2e run",
+  "e2e:fast": "package-build e2e fast",
+  "e2e:sweep": "package-build e2e sweep"
 }
 ```
 
@@ -336,6 +382,113 @@ moved into configuration; the boilerplate lives in the CLI, once.
 
 `--version` and `--help` answer in a directory with no configuration at all.
 Running an actual command resolves it, and fails loudly when it is missing.
+
+## Standing Foundry up, and running a suite against it
+
+A package that claims a `compatibility` range is making a promise, and a
+promise is only defended if something exercises it. Until now exactly one
+repository could: the container lifecycle, the world seeding and the browser
+harness all lived in `SoHL/utils/`, so two of the three HeroicLands module
+repositories declared a range nothing could test.
+
+**The seam already existed.** `package-build deploy <stage>` installs a staged
+package into `FOUNDRYVTT_<STAGE>_DATA`; a container mounts that same directory
+at `/data` and serves it. Running Foundry against what was just deployed is the
+next step from one variable, not a second configuration — so nothing about the
+destination, the stage, or the package identity is restated.
+
+### Which Foundry build a run pins
+
+`compatibility.minimum` is the oldest Foundry a package claims to run on, and
+that claim is what the suite exists to defend. Testing above the floor tests a
+configuration no user is promised while leaving the promised one unverified: a
+regression that breaks the floor but works on a newer build passes in silence.
+
+So **the end-to-end stage is pinned to `compatibility.minimum` itself**, read
+from the top level of the shared configuration. The claim and the evidence are
+the same number and cannot drift apart, and raising the pin is what it should
+be — a decision to raise the supported floor, made by editing the claim.
+
+`FOUNDRYVTT_<STAGE>_VERSION` still wins, so a contributor can sit on another
+build without touching committed configuration. A floor that names no build
+(`"14"`) cannot pin one; the run floats on the major tag, visibly, rather than
+pretending to a precision it lacks.
+
+### The sweep
+
+Routine runs go against the floor, which leaves the other direction untested: a
+new Foundry release can break a package and nothing notices until a user does.
+
+```
+npx package-build e2e sweep 14.367
+```
+
+That is the full suite — reseeded world and all — against a build the
+repository does not pin. It must be the full path rather than the fast one: a
+seeded world is stamped with the build that created it, and Foundry refuses to
+auto-launch a world stamped by another. It takes the build as an argument and
+has **no default**, because the product of a sweep is a citable result ("the
+full suite passed on 14.367") and "the newest release" is not a constant any
+repository can hold without rotting.
+
+A green sweep is what licenses moving `compatibility.verified` to that build. A
+red one is the early warning the sweep exists to produce.
+
+### Waiting for a world, not for a port
+
+Foundry answers on its port long before a world is serving. A suite started at
+that moment fails every spec for no visible reason, which is the single most
+expensive way an integration harness wastes an afternoon. So the wait is for
+the join screen — the form a world renders only once it is **active** — and a
+licence failure, which never recovers, is read out of the container log and
+reported at once rather than after a three-minute timeout that explains
+nothing.
+
+### The fast loop
+
+```
+npx package-build e2e fast -- --spec cypress/e2e/skill.cy.js
+```
+
+Rebuild what changed, redeploy, cycle the world, wait for it, re-run. It is one
+command because every step of it has a quiet failure mode:
+
+| Step       | What goes wrong by hand                                                                                                             |
+| ---------- | ----------------------------------------------------------------------------------------------------------------------------------- |
+| Build      | The container serves the **built** package, not the source tree.                                                                    |
+| Order      | A bundler empties the stage, so building it after the asset and pack passes silently discards them — and the deploy is a mirror.    |
+| Manifest   | Read once at world launch, so it needs a container **recreate**, not a restart. A target declaring `recreate: true` forces one.     |
+| Restart    | A running Foundry holds its packs open, so a content change is invisible until the world reopens them.                              |
+| Stale lock | A container that died holding the data-root lock makes every later boot fail with a message that names no owner.                    |
+| Readiness  | `docker start` returns long before Foundry serves.                                                                                  |
+| The suite  | Editor and agent shells export `ELECTRON_RUN_AS_NODE`, which makes an Electron runner start as plain Node and die on its own flags. |
+
+`--build` takes a comma-separated list of declared targets, `all`, or `none`;
+an unrecognised one fails fast rather than half-deploying. `--recreate` forces
+a recreate, `--no-run` stops once the environment is current, and everything
+else — including anything after a bare `--` — is handed to the suite verbatim.
+
+### What the seeded world holds
+
+A world Foundry will launch without a migration prompt: `world.json`, and one
+Gamemaster whose password is known, so a spec can log in deterministically. It
+also carries one **active** scene, because an empty world auto-starts Foundry's
+welcome tour (whose callout overlays sheets) and a world with no active scene
+has no ready canvas.
+
+For a **module** package it additionally writes `core.moduleConfiguration`,
+switching the module on. A system is the world's own and `world.json` names it;
+a module is not, and without that setting a module repository would stand its
+suite up against a world that never loaded the thing under test.
+
+Anything else — which actors, which journals — is the repository's, declared as
+`packageBuild.e2e.documents` and compiled in beside the built-ins.
+
+The world directory is wiped and rewritten on every seed. That is what makes a
+run repeatable, and it is why `FOUNDRYVTT_<E2E_STAGE>_DATA` must be a separate,
+empty directory: pointing it at a working stage would let the seed delete
+worlds there, and would make the image reuse that stage's `Config/license.json`
+in place of the key dedicated to the suite.
 
 ## Design
 
