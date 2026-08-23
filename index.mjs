@@ -56,6 +56,3 @@ export * as deploy from "./deploy.mjs";
 
 /** Localization files: what a shippable `lang/*.json` must satisfy. */
 export * as lang from "./lang.mjs";
-
-/** Locating a literal inside an arbitrary text file, for positioned findings. */
-export * as text from "./text.mjs";
