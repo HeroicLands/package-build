@@ -84,7 +84,18 @@ jobs:
                   # repository and content-build were each one release behind.
                   # Refreshing it here keeps the two in step by construction
                   # rather than by someone noticing.
-                  version: npx changeset version && npm install --package-lock-only
+                  #
+                  # It must be ONE command, not a `&&` chain. This input is
+                  # tokenized and exec'd, never handed to a shell, so a chain
+                  # is read as arguments to the first command: `changeset`
+                  # receives `--package-lock-only` and cac rejects it as an
+                  # unknown `packageLockOnly` option. content-build shipped the
+                  # identical chain and **every release after it failed** —
+                  # three merged pull requests published nothing — while
+                  # looking fine, because the step is skipped entirely when the
+                  # only pending changesets are empty. An npm script is the
+                  # seam that does get a shell.
+                  version: npm run changeset:version
                   publish: npx changeset publish
                   commit: "chore(release): version packages"
                   title: "chore(release): version packages"

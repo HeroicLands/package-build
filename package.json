@@ -84,6 +84,7 @@
         "format:check": "prettier --check .",
         "changeset": "changeset",
         "changeset:check": "changeset status --since=origin/main",
+        "changeset:version": "changeset version && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true"
     },
     "dependencies": {
