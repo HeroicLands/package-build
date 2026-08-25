@@ -250,6 +250,15 @@ shared configuration, not from this section — content-build consumes them
 (`supportedCoreVersion`, and a module'''s `stats.systemVersion`) and the
 dependency runs one way.
 
+**A relationship's build-only keys are not published.** `relationships` is the
+one block with a second reader, and content-build takes directives there:
+`itemCatalog: true` on a dependency selects that package's Item packs as a
+resolution source for the actors pass. That says how the package is _built_, not
+what it depends on, so it is dropped on the way into the manifest — Foundry's
+relationship schema does not define it, and someone reading a published manifest
+cannot tell a build directive from a declaration. Every other key is copied,
+including one this package has never heard of.
+
 **Why one file and not two.** Two of the values this package needs —
 `packageKind` and `foundryPackage` — are already declared for `content-build`. A
 second config file would restate them, which is two places for one fact; that is
