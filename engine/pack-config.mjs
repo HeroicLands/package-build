@@ -94,7 +94,7 @@ export const CONFIG_BASENAME = "package-build.config";
  * reach for them: YAML first, `.mjs` last.
  *
  * The `content-build.config.*` stem this package read before the two toolchains
- * merged is **not** resolved. 2.0.0 renames the file rather than accepting both:
+ * merged is **not** resolved. 3.0.0 renames the file rather than accepting both:
  * a deprecation window here would mean a repository could sit indefinitely on a
  * name for a package that no longer exists, and the upgrade already requires
  * touching the consumer's manifest and imports.
