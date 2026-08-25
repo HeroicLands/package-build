@@ -13,58 +13,75 @@
 
 /**
  * `@heroiclands/package-build` — the shared toolchain for building and shipping
- * a HeroicLands **Foundry package**.
+ * a HeroicLands **Foundry package**, content and all.
  *
- * It is the counterpart to `@heroiclands/content-build`, and the two split by
- * **input**, not by repository:
+ * This package was two: `content-build`, which read `assets/content/**` and
+ * produced compendium packs, site content and the link manifest, and this one,
+ * which read `lang/`, `styles/`, `src/` and the manifest template. They were
+ * split by *input* on the theory that a module would use either — an adventure
+ * shipping only notes needs no bundler, a variant shipping only behavior needs
+ * no Markdown pipeline.
  *
- * - content-build reads `assets/content/**` and produces compendium packs, site
- *   content and the link manifest. It answers for what a package *says*.
- * - this package reads `lang/`, `styles/`, `src/`, `assets/` and the manifest
- *   template. It answers for what a package *is* — the parts Foundry loads
- *   whether or not the package ships any content at all.
- *
- * A module uses either, or both. An adventure module that ships only notes
- * needs no bundler; a variant module that ships only behavior needs no Markdown
- * pipeline. The coupling between the two packages runs one way — this one asks
- * content-build for the compiled `packs[]` block, never the reverse.
+ * **No consumer ever used one alone.** All three installed both, and this
+ * package depended on the other besides, so the packaging half dragged the
+ * content half in regardless. What the boundary actually cost was a
+ * configuration file with two owners, two CLIs with a colliding `manifest`
+ * command, and a two-repository dance for changes that touched one idea. The
+ * two halves are now one package; the split survives as the shape of this
+ * barrel and nothing more.
  *
  * **Everything exported here is pure.** Functions take source text and return
  * findings or values; discovery, I/O and reporting stay with the caller. That
  * is what lets one rule set serve a `lint` script, a build step and a unit test
  * without any of them having to agree on how files are found or how findings
- * are printed — and it is what makes the rules testable at all, which the
- * scripts these were extracted from were not.
+ * are printed.
  *
  * @module
  */
 
-/** The Foundry package manifest: `system.json` / `module.json`. */
+// ── Content: notes to compendium packs, site content, link manifests ────────
+
+/** The configuration contract a consuming repository declares its build with. */
+export {
+    defineConfig,
+    PACKAGE_KINDS,
+    PACK_DOCUMENT_TYPES,
+} from "./content-config.mjs";
+
+/** The content pipeline — walking, compiling, linking, emitting. */
+export * as engine from "./engine/index.mjs";
+
+/** The `sohl` system's own item and actor builders. */
+export * as sohl from "./sohl/index.mjs";
+
+// ── Package: manifest, localization, staging, bundle, release, deployment ───
+
+/** Foundry package manifest generation. */
 export * as manifest from "./manifest.mjs";
 
-/** The code bundle, and whether the manifest agrees with how it parses. */
+/** Bundle construction and the bundle-loading check. */
 export * as bundle from "./bundle.mjs";
 
-/** Assembling the build stage, and clearing it away again. */
+/** Staging a built package into a Foundry data directory. */
 export * as stage from "./stage.mjs";
 
-/** The release archive a GitHub Release carries. */
+/** The changesets-driven release pipeline. */
 export * as release from "./release.mjs";
 
-/** Deploying a staged package into a Foundry data directory. */
+/** Deployment to a remote host. */
 export * as deploy from "./deploy.mjs";
 
-/** Running a built package inside a Foundry VTT container. */
+/** Container stages for a reproducible Foundry environment. */
 export * as container from "./container.mjs";
 
-/** The end-to-end harness: a disposable world, served, with a suite driven at it. */
+/** The end-to-end harness. */
 export * as e2e from "./e2e.mjs";
 
-/** Localization files: what a shippable `lang/*.json` must satisfy. */
+/** Localization shape and coverage rules. */
 export * as lang from "./lang.mjs";
 
-/** Localization coverage: the keys a package references against the keys it declares. */
+/** Coverage reporting. */
 export * as coverage from "./coverage.mjs";
 
-/** Templates: whether their user-visible text is localized, and whether they compile. */
+/** Handlebars template rules. */
 export * as templates from "./templates.mjs";

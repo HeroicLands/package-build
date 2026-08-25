@@ -14,8 +14,13 @@
  * the root's `devDependencies` into the workspace root's `node_modules/`, so
  * `acorn` or `archiver` resolves whether or not this package ever asked for it.
  * Installed from npm by another repository nothing hoists, and the first import
- * fails. `@heroiclands/content-build` shipped exactly that way once (#1557), and
- * an extraction is precisely the moment the defect becomes reachable.
+ * fails. The content half shipped exactly that way once (#1557), and an
+ * extraction is precisely the moment the defect becomes reachable — the same
+ * class of "passes in situ, fails when installed" defect that
+ * `suite-is-self-contained.test.ts` guards from the other direction.
+ *
+ * The content half carried an identical copy of this check until the two
+ * packages merged; one package needs one.
  *
  * So the check is a manifest-completeness one, run against the files the
  * package actually ships (its `files` field), and it is deliberately blunt: a

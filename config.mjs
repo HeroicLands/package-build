@@ -15,26 +15,29 @@
  * The per-repository configuration this package reads.
  *
  * **One repository, one configuration file.** A repository already declares
- * itself in `content-build.config.yaml`, and two of the values this package
+ * itself in `package-build.config.yaml`, and two of the values this package
  * needs — `packageKind` and `foundryPackage` — are already in it. A second file
  * would restate them, which is two places for one fact; that is precisely what
  * every consumer's `push-stage.mjs` did, hard-coding `packageKind: "systems"`
  * and `packageId: "sohl"` beside a config that already said both.
  *
- * So this package reads the *same* file, through content-build's loader, and
- * takes its own settings from the reserved `packageBuild:` section. The two
- * packages split by **input** — content-build reads the content tree, this one
- * reads `lang/`, `styles/`, `src/`, the assets and the manifest template — and
- * neither validates the other's keys. content-build checks that the section is
- * a mapping and hands it back frozen; everything inside it is validated here.
+ * So the packaging half reads the *same* file, through the content half's
+ * loader (`engine/pack-config.mjs`), and takes its own settings from the
+ * `packageBuild:` section. The two halves split by **input** — the content half
+ * reads the content tree, this one reads `lang/`, `styles/`, `src/`, the assets
+ * and the manifest template — and neither validates the other's keys. The
+ * loader checks that the section is a mapping and hands it back frozen;
+ * everything inside it is validated here.
  *
- * **The dependency runs one way.** This package depends on content-build;
- * content-build must never depend on this one. It is the same direction the
- * loader already implies, and keeping it means content-build stays usable by a
- * repository that ships content and no Foundry package at all.
+ * **That section used to be a reservation.** Until 2.0.0 these were two
+ * packages, and `packageBuild:` was a block `@heroiclands/content-build`
+ * carried on behalf of a toolchain it knew nothing about. One package now owns
+ * the whole file, so it is an ordinary section — but the validation split is
+ * kept, because it is what stops a key being checked twice against two
+ * disagreeing ideas of what it means.
  *
  * ```yaml
- * # content-build.config.yaml
+ * # package-build.config.yaml
  * packageKind: systems       # read from the top level, not restated below
  * foundryPackage: sohl
  *
@@ -56,7 +59,7 @@
  */
 
 import path from "node:path";
-import { loadPackConfig } from "@heroiclands/content-build/engine/pack-config";
+import { loadPackConfig } from "./engine/pack-config.mjs";
 
 /** Keys the reserved section may declare. */
 const SECTION_KEYS = [
@@ -92,9 +95,9 @@ export const DERIVED_MANIFEST_KEYS = Object.freeze({
     bugs: "package.json `repository`",
     manifest: "package.json `repository` and the release tag",
     download: "package.json `repository` and the release tag",
-    compatibility: "the top level of content-build.config.yaml",
-    relationships: "the top level of content-build.config.yaml",
-    packs: "the `packs` list at the top level of content-build.config.yaml",
+    compatibility: "the top level of package-build.config.yaml",
+    relationships: "the top level of package-build.config.yaml",
+    packs: "the `packs` list at the top level of package-build.config.yaml",
 });
 const ASSET_KEYS = ["from", "to"];
 const CLEAN_KEYS = ["extra"];
@@ -496,7 +499,7 @@ function normalizeExceptions(value, field, where) {
  * disk. {@link loadPackageBuildConfig} is the same function with the loading
  * put back.
  *
- * @param {object} shared - The resolved content-build configuration.
+ * @param {object} shared - The resolved content configuration.
  * @returns {Readonly<PackageBuildConfig>} The frozen configuration.
  * @throws {TypeError} When the reserved section declares something malformed.
  */

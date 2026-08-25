@@ -44,7 +44,7 @@
  */
 
 import ts from "typescript";
-import { positionOfLiteral } from "@heroiclands/content-build/engine/diagnostics";
+import { positionOfLiteral } from "./engine/diagnostics.mjs";
 
 /**
  * One place a key is referenced, and how firmly.

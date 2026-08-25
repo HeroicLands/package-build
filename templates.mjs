@@ -40,7 +40,7 @@
  */
 
 import Handlebars from "handlebars";
-import { positionOfLiteral } from "@heroiclands/content-build/engine/diagnostics";
+import { positionOfLiteral } from "./engine/diagnostics.mjs";
 
 /**
  * A single finding, in the fields the shared diagnostic format takes.

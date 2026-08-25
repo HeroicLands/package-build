@@ -160,7 +160,7 @@ const MANIFEST_KEY_ORDER = Object.freeze([
 /**
  * The manifest's `packs`, derived from the one pack list the build already has.
  *
- * The two used to be written separately — `content-build.config.yaml` declared
+ * The two used to be written separately — `package-build.config.yaml` declared
  * a pack's name and type, and the manifest template declared them again beside
  * a label, a path and a system id, with nothing checking that the pairs agreed.
  * They are one list now.
@@ -170,7 +170,7 @@ const MANIFEST_KEY_ORDER = Object.freeze([
  * ships as an ordinary compendium. The order matches `packDirectories`, so the
  * manifest lists packs in the order the build compiles them.
  *
- * @param {object} config - The resolved content-build configuration.
+ * @param {object} config - The resolved content configuration.
  * @returns {object[]} The manifest's `packs` array.
  */
 export function manifestPacks(config) {
@@ -203,7 +203,7 @@ export function manifestPacks(config) {
  *   over any it declared.
  *
  * @param {object} options - Inputs.
- * @param {object} options.config - The resolved content-build configuration.
+ * @param {object} options.config - The resolved content configuration.
  * @param {object} options.packageJson - The repository's `package.json`.
  * @param {string} options.artifact - `system` or `module`.
  * @param {Record<string, object>} [options.flags] - Namespaced flags to merge.
@@ -251,7 +251,7 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
  * Write the generated manifest into the staged package.
  *
  * @param {object} options - As {@link buildManifest}, plus where to write.
- * @param {object} options.config - The resolved content-build configuration.
+ * @param {object} options.config - The resolved content configuration.
  * @param {object} options.packageJson - The repository's `package.json`.
  * @param {string} options.artifact - `system` or `module`.
  * @param {string} options.outDir - Directory to write into.

@@ -406,7 +406,7 @@ export async function seedTestWorld({
         throw new Error(
             "Cannot seed a world without knowing which Foundry generation it " +
                 "is for. Declare `compatibility.minimum` at the top level of " +
-                "content-build.config.yaml.",
+                "package-build.config.yaml.",
         );
     }
 

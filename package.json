@@ -1,7 +1,7 @@
 {
     "name": "@heroiclands/package-build",
-    "version": "0.6.1",
-    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — manifest, localization, staging, bundle, release and deployment.",
+    "version": "2.0.0",
+    "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — content compilation, manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
     "main": "./index.mjs",
@@ -11,13 +11,41 @@
             "types": "./types/index.d.mts",
             "import": "./index.mjs"
         },
-        "./bundle": {
-            "types": "./types/bundle.d.mts",
-            "import": "./bundle.mjs"
+        "./engine": {
+            "types": "./types/engine/index.d.mts",
+            "import": "./engine/index.mjs"
+        },
+        "./engine/*": {
+            "types": "./types/engine/*.d.mts",
+            "import": "./engine/*.mjs"
+        },
+        "./sohl": {
+            "types": "./types/sohl/index.d.mts",
+            "import": "./sohl/index.mjs"
+        },
+        "./sohl/*": {
+            "types": "./types/sohl/*.d.mts",
+            "import": "./sohl/*.mjs"
+        },
+        "./content-config": {
+            "types": "./types/content-config.d.mts",
+            "import": "./content-config.mjs"
         },
         "./config": {
             "types": "./types/config.d.mts",
             "import": "./config.mjs"
+        },
+        "./prettier": {
+            "types": "./types/prettier-config.d.mts",
+            "import": "./prettier-config.mjs"
+        },
+        "./markdownlint": {
+            "types": "./types/markdownlint-config.d.mts",
+            "import": "./markdownlint-config.mjs"
+        },
+        "./bundle": {
+            "types": "./types/bundle.d.mts",
+            "import": "./bundle.mjs"
         },
         "./container": {
             "types": "./types/container.d.mts",
@@ -43,7 +71,6 @@
             "types": "./types/manifest.d.mts",
             "import": "./manifest.mjs"
         },
-        "./package.json": "./package.json",
         "./release": {
             "types": "./types/release.d.mts",
             "import": "./release.mjs"
@@ -55,26 +82,65 @@
         "./templates": {
             "types": "./types/templates.d.mts",
             "import": "./templates.mjs"
-        }
+        },
+        "./package.json": "./package.json"
+    },
+    "bin": {
+        "package-build": "./bin/package-build.mjs",
+        "content-build": "./bin/content-build.mjs"
     },
     "files": [
+        "CHANGELOG-content-build.md",
         "CHANGELOG.md",
+        "CONTENT.md",
+        "MIGRATING.md",
         "README.md",
         "bin",
         "bundle.mjs",
         "config.mjs",
         "container.mjs",
+        "content-config.mjs",
         "coverage.mjs",
         "deploy.mjs",
         "e2e.mjs",
+        "engine",
         "index.mjs",
         "lang.mjs",
         "manifest.mjs",
+        "markdownlint-config.mjs",
+        "prettier-config.mjs",
         "release.mjs",
+        "sohl",
         "stage.mjs",
         "templates.mjs",
         "types"
     ],
+    "dependencies": {
+        "@foundryvtt/foundryvtt-cli": "^3.0.4",
+        "acorn": "^8.18.0",
+        "archiver": "^8.0.0",
+        "classic-level": "^3.0.0",
+        "dotenv": "^17.2.3",
+        "fflate": "^0.8.3",
+        "glob": "^11.0.3",
+        "gray-matter": "^4.0.3",
+        "handlebars": "^4.7.9",
+        "loglevel": "^1.9.2",
+        "loglevel-plugin-prefix": "^0.8.4",
+        "markdown-it": "^14.1.0",
+        "markdownlint-cli2": "^0.23.2",
+        "prettier": "^3.9.6",
+        "ssh2-sftp-client": "^12.1.1",
+        "typescript": "^6.0.3",
+        "unidecode": "^1.1.0",
+        "yaml": "^2.8.1",
+        "yargs": "^18.1.0"
+    },
+    "devDependencies": {
+        "@changesets/cli": "^3.0.0",
+        "@types/node": "^26.2.0",
+        "vitest": "^4.1.10"
+    },
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest",
@@ -82,28 +148,11 @@
         "build:types": "tsc -p tsconfig.dts.json",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
+        "lint:markdown": "node bin/content-build.mjs markdown",
         "changeset": "changeset",
         "changeset:check": "changeset status --since=origin/main",
         "changeset:version": "changeset version && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true"
-    },
-    "dependencies": {
-        "@foundryvtt/foundryvtt-cli": "^3.0.4",
-        "@heroiclands/content-build": "^1.8.2",
-        "acorn": "^8.18.0",
-        "archiver": "^8.0.0",
-        "dotenv": "^17.2.3",
-        "glob": "^11.0.3",
-        "handlebars": "^4.7.9",
-        "ssh2-sftp-client": "^12.1.1",
-        "typescript": "^6.0.3",
-        "yargs": "^18.1.0"
-    },
-    "devDependencies": {
-        "@changesets/cli": "^3.0.0",
-        "@types/node": "^26.2.0",
-        "prettier": "^3.9.6",
-        "vitest": "^4.1.10"
     },
     "engines": {
         "node": ">=24.0.0"
@@ -112,23 +161,17 @@
         "access": "public",
         "provenance": true
     },
-    "keywords": [
-        "foundry-vtt",
-        "foundryvtt",
-        "heroiclands",
-        "sohl",
-        "song-of-heroic-lands",
-        "build"
-    ],
-    "homepage": "https://heroiclands.org",
     "repository": {
         "type": "git",
         "url": "git+https://github.com/HeroicLands/package-build.git"
     },
-    "bugs": {
-        "url": "https://github.com/HeroicLands/package-build/issues"
-    },
-    "bin": {
-        "package-build": "./bin/package-build.mjs"
-    }
+    "keywords": [
+        "build",
+        "compendium",
+        "foundry-vtt",
+        "foundryvtt",
+        "heroiclands",
+        "sohl",
+        "song-of-heroic-lands"
+    ]
 }

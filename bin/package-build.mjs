@@ -26,7 +26,7 @@
  *
  * It is the same shape the configuration had before it became data: not logic,
  * but the boilerplate a code file needs in order to state a literal. So the
- * literals move into `content-build.config.yaml`'s reserved `packageBuild:`
+ * literals move into `package-build.config.yaml`'s reserved `packageBuild:`
  * section, and the boilerplate lives here, once.
  *
  * **Every side effect lives in this file.** argv parsing, the environment,
@@ -78,7 +78,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
-import { loadPackConfig } from "@heroiclands/content-build/engine/pack-config";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { validateLangSource } from "../lang.mjs";
 import {
