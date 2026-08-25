@@ -76,7 +76,7 @@ jobs:
             # ordinary push to `main` releases nothing.
             - name: Version, or publish
               id: changesets
-              uses: changesets/action@v1
+              uses: changesets/action@v2
               with:
                   # `changeset version` rewrites package.json and the
                   # CHANGELOG but never the lockfile, so its root `version`
@@ -86,7 +86,8 @@ jobs:
                   # rather than by someone noticing.
                   #
                   # It must be ONE command, not a `&&` chain. This input is
-                  # tokenized and exec'd, never handed to a shell, so a chain
+                  # tokenized and exec'd by both v1 and v2, never handed to a
+                  # shell, so a chain
                   # is read as arguments to the first command: `changeset`
                   # receives `--package-lock-only` and cac rejects it as an
                   # unknown `packageLockOnly` option. content-build shipped the
@@ -95,10 +96,10 @@ jobs:
                   # looking fine, because the step is skipped entirely when the
                   # only pending changesets are empty. An npm script is the
                   # seam that does get a shell.
-                  version: npm run changeset:version
-                  publish: npx changeset publish
-                  commit: "chore(release): version packages"
-                  title: "chore(release): version packages"
+                  version-script: npm run changeset:version
+                  publish-script: npx changeset publish
+                  commit-message: "chore(release): version packages"
+                  pr-title: "chore(release): version packages"
               env:
                   GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
