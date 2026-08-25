@@ -1,5 +1,63 @@
 # @heroiclands/package-build
 
+## 3.0.0
+
+### Major Changes
+
+- 3e6a6d7: Absorb `@heroiclands/content-build`. The two packages are one.
+  
+  They split by input — content-build read `assets/content/**`, this package read
+  `lang/`, `styles/`, `src/` and the manifest template — on the theory that a
+  module would use one or the other. No consumer ever did: all three installed
+  both, and this package depended on the other besides. What the boundary cost was
+  a configuration file with two owners, two CLIs with a colliding `manifest`
+  command, and a two-repository dance for changes that touched a single idea.
+  
+  Nothing about how a build works changed. Same modules, same CLI commands, same
+  configuration keys, one name.
+  
+  **Breaking:**
+  
+  - `@heroiclands/content-build/*` specifiers become `@heroiclands/package-build/*`.
+  - The content configuration contract moves from `./config` to `./content-config`,
+    because both packages exported a `./config` meaning different things. This
+    package's own `./config` is unchanged.
+  - **The configuration file is renamed**: `content-build.config.{yaml,yml,mjs}`
+    becomes `package-build.config.{yaml,yml,mjs}`, matching the one package that
+    now reads it. The old stem is not accepted — a deprecation window would let a
+    repository sit on a filename naming a package that no longer exists. Every key
+    inside the file is unchanged.
+  - `CONTENT_BUILD_CONFIG` becomes `PACKAGE_BUILD_CONFIG`. The old name is not read.
+  - `@heroiclands/content-build` is deprecated and gets no further releases.
+  
+  **Unchanged:** every configuration key, every CLI command and flag — `content-build`
+  and `package-build` are both bin entries of the merged package — every engine and
+  `sohl` module export, and every compiled document id.
+  
+  See `MIGRATING.md`.
+
+### Patch Changes
+
+- 968fed8: Stop publishing a relationship's build-only keys into the manifest.
+  
+  `relationships` was copied verbatim out of `content-build.config.yaml`, and that
+  block now has a second reader: content-build 1.8.0 added `itemCatalog: true` as
+  an opt-in on a declared dependency, selecting that package's Item packs as a
+  resolution source for the actors pass. It is a directive to the build, not a
+  fact about the shipped package — so `sohl-kethira-basic` shipped a `module.json`
+  whose `relationships.systems[0]` carried `"itemCatalog": true` beside `id`,
+  `manifest` and `compatibility`, with nothing to tell a consumer which was which.
+  Foundry's relationship schema does not define the key; nothing broke, because
+  Foundry ignores what it does not know.
+  
+  The fix is the distinction rather than the one name: `BUILD_ONLY_RELATIONSHIP_KEYS`
+  lists the keys that answer _how is this built?_, and `publishedRelationships`
+  drops them on the way into the manifest. Everything else is copied — including a
+  key this package has never heard of, on the same reasoning that lets a declared
+  manifest key through unread. A list is enough here, and needs no prefix agreed
+  between the two packages, because content-build already normalises a
+  relationship to a closed set of keys and rejects the rest at configuration time.
+
 ## 0.6.1
 
 ### Patch Changes
