@@ -189,6 +189,76 @@ export function manifestPacks(config) {
 }
 
 /**
+ * Relationship keys that direct the **build**, rather than describe the
+ * package.
+ *
+ * `relationships` is the one manifest block with a second reader.
+ * `@heroiclands/content-build` consumes it too, and v1.8.0 added
+ * `itemCatalog: true` as an opt-in on a declared dependency
+ * (content-build#82): it selects that package's Item packs as a resolution
+ * source for the actors pass. That is an instruction to the build, not a fact
+ * about the shipped package — Foundry's relationship schema does not define
+ * it, and someone reading a published manifest cannot tell a build directive
+ * from a declaration about what the package needs.
+ *
+ * So the block is filtered rather than copied whole (#29). The rule is the
+ * distinction, not the name: a key listed here answers *how is this built?*,
+ * and every key that survives answers *what does this package depend on?*.
+ * `itemCatalog` is the first build-time key to land on a relationship and is
+ * unlikely to be the last.
+ *
+ * A list is enough, and needs no prefix agreed between the two packages,
+ * because the input is already closed: content-build normalises a relationship
+ * to `id`, `type`, `manifest`, `compatibility` and its own build keys, and
+ * rejects anything else at configuration time. A key that reaches here is one
+ * the toolchain itself put there.
+ *
+ * @type {readonly string[]}
+ */
+export const BUILD_ONLY_RELATIONSHIP_KEYS = Object.freeze(["itemCatalog"]);
+
+/**
+ * The `relationships` block as published — every declared dependency, with the
+ * build's own keys dropped.
+ *
+ * Shape is otherwise preserved: kinds keep their order and their entries, an
+ * entry keeps its remaining keys in the order it declared them, and a block
+ * carrying no build-only key comes back equal to what went in. Only
+ * {@link BUILD_ONLY_RELATIONSHIP_KEYS} are removed — an unrecognised key is
+ * left alone, on the same reasoning that lets a declared manifest key through
+ * unread: a key Foundry adds later should not need a release of this package.
+ *
+ * @param {Record<string, unknown>} relationships - The declared block, as
+ *   content-build resolved it.
+ * @returns {Record<string, unknown>} It, without the build-only keys.
+ */
+export function publishedRelationships(relationships) {
+    const published = {};
+    for (const [kind, entries] of Object.entries(relationships)) {
+        published[kind] =
+            Array.isArray(entries) ? entries.map(withoutBuildKeys) : entries;
+    }
+    return published;
+}
+
+/**
+ * One relationship entry, minus the build-only keys.
+ *
+ * @param {unknown} entry - A declared dependency.
+ * @returns {unknown} It, filtered; anything that is not a mapping unchanged.
+ */
+function withoutBuildKeys(entry) {
+    if (typeof entry !== "object" || entry === null || Array.isArray(entry)) {
+        return entry;
+    }
+    return Object.fromEntries(
+        Object.entries(entry).filter(
+            ([key]) => !BUILD_ONLY_RELATIONSHIP_KEYS.includes(key),
+        ),
+    );
+}
+
+/**
  * Build a Foundry package manifest from the resolved configuration.
  *
  * Three kinds of key end up in the result:
@@ -201,6 +271,10 @@ export function manifestPacks(config) {
  *   disagree with nothing to say so.
  * - **Computed** — namespaced `flags` a repository works out for itself, merged
  *   over any it declared.
+ *
+ * `relationships` is derived but not copied whole: the keys that direct the
+ * build rather than describe the package are dropped first — see
+ * {@link publishedRelationships}.
  *
  * @param {object} options - Inputs.
  * @param {object} options.config - The resolved content configuration.
@@ -221,7 +295,7 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     };
     if (config.compatibility) derived.compatibility = config.compatibility;
     if (config.relationships && Object.keys(config.relationships).length) {
-        derived.relationships = config.relationships;
+        derived.relationships = publishedRelationships(config.relationships);
     }
 
     const merged = { ...declared, ...derived };
