@@ -15,6 +15,7 @@ import {
     buildManifest,
     manifestPacks,
     normalizeRepoUrl,
+    publishedRelationships,
     releaseUrls,
     writeManifest,
 } from "../manifest.mjs";
@@ -166,6 +167,41 @@ describe("manifestPacks — one pack list, not two", () => {
     });
 });
 
+describe("publishedRelationships", () => {
+    it("filters every kind, not just systems", () => {
+        expect(
+            publishedRelationships({
+                systems: [{ id: "sohl", itemCatalog: true }],
+                requires: [{ id: "a", itemCatalog: true }],
+                recommends: [{ id: "b" }],
+            }),
+        ).toEqual({
+            systems: [{ id: "sohl" }],
+            requires: [{ id: "a" }],
+            recommends: [{ id: "b" }],
+        });
+    });
+
+    // Same reasoning as a declared manifest key: a key Foundry adds later
+    // should not need a release of this package to be publishable.
+    it("leaves a key it does not recognise alone", () => {
+        expect(
+            publishedRelationships({
+                requires: [{ id: "a", somethingFoundryAddsLater: "yes" }],
+            }),
+        ).toEqual({
+            requires: [{ id: "a", somethingFoundryAddsLater: "yes" }],
+        });
+    });
+
+    it("returns a block with nothing build-only equal to what went in", () => {
+        const declared = {
+            systems: [{ id: "sohl", compatibility: { minimum: "0.8.0" } }],
+        };
+        expect(publishedRelationships(declared)).toEqual(declared);
+    });
+});
+
 describe("buildManifest", () => {
     /** A resolved configuration, with only what the manifest reads. */
     function config(over: Record<string, unknown> = {}) {
@@ -250,6 +286,48 @@ describe("buildManifest", () => {
             relationships: { systems: [{ id: "sohl" }] },
         });
         expect(withOne.relationships).toEqual({ systems: [{ id: "sohl" }] });
+    });
+
+    // A manifest is a published contract, and `itemCatalog` is a directive to
+    // the build — Foundry's relationship schema does not define it, and a
+    // consumer reading it cannot tell it from a fact about the package.
+    it("does not publish the build-only keys of a relationship", () => {
+        const manifest = build({
+            relationships: {
+                systems: [
+                    {
+                        id: "sohl",
+                        type: "system",
+                        manifest:
+                            "https://github.com/HeroicLands/sohl/releases/latest/download/system.json",
+                        compatibility: { minimum: "0.8.0", verified: "0.8.2" },
+                        itemCatalog: true,
+                    },
+                ],
+            },
+        });
+
+        expect(manifest.relationships).toEqual({
+            systems: [
+                {
+                    id: "sohl",
+                    type: "system",
+                    manifest:
+                        "https://github.com/HeroicLands/sohl/releases/latest/download/system.json",
+                    compatibility: { minimum: "0.8.0", verified: "0.8.2" },
+                },
+            ],
+        });
+    });
+
+    // Dropping the whole relationship, or the kind it sits under, would take a
+    // declared dependency out of the manifest with it.
+    it("keeps a relationship whose only other key was build-only", () => {
+        const manifest = build({
+            relationships: { requires: [{ id: "x", itemCatalog: false }] },
+        });
+
+        expect(manifest.relationships).toEqual({ requires: [{ id: "x" }] });
     });
 
     it("merges computed flags over the declared ones, per namespace", () => {
