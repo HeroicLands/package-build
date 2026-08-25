@@ -1,7 +1,7 @@
-# Migrating to `@heroiclands/package-build` 2.0.0
+# Migrating to `@heroiclands/package-build` 3.0.0
 
 `@heroiclands/content-build` and `@heroiclands/package-build` are one package.
-The content half now ships inside `@heroiclands/package-build` at 2.0.0;
+The content half now ships inside `@heroiclands/package-build` at 3.0.0;
 `@heroiclands/content-build` is deprecated and receives no further releases.
 
 Nothing about how a build _works_ changed. This is a packaging change: the same
@@ -22,13 +22,13 @@ that touched a single idea.
 
 ## 1. Dependencies
 
-Drop `@heroiclands/content-build` and move to 2.0.0:
+Drop `@heroiclands/content-build` and move to 3.0.0:
 
 ```diff
  "devDependencies": {
 -  "@heroiclands/content-build": "^1.8.2",
 -  "@heroiclands/package-build": "^0.6.1"
-+  "@heroiclands/package-build": "^2.0.0"
++  "@heroiclands/package-build": "^3.0.0"
  }
 ```
 

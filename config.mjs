@@ -29,7 +29,7 @@
  * loader checks that the section is a mapping and hands it back frozen;
  * everything inside it is validated here.
  *
- * **That section used to be a reservation.** Until 2.0.0 these were two
+ * **That section used to be a reservation.** Until 3.0.0 these were two
  * packages, and `packageBuild:` was a block `@heroiclands/content-build`
  * carried on behalf of a toolchain it knew nothing about. One package now owns
  * the whole file, so it is an ordinary section — but the validation split is

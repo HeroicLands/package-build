@@ -14,7 +14,7 @@ The content half is documented separately in **[CONTENT.md](CONTENT.md)** — th
 note format, the pack pipeline, and the configuration contract a content tree
 declares itself with.
 
-> **This package was two.** Until 2.0.0 the content half shipped as
+> **This package was two.** Until 3.0.0 the content half shipped as
 > `@heroiclands/content-build`. No consumer ever installed one without the
 > other, and the packaging half depended on the content half besides, so the
 > boundary bought nothing and cost a configuration file with two owners and a
