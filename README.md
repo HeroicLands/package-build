@@ -1,22 +1,25 @@
 # @heroiclands/package-build
 
 The shared toolchain for building and shipping a HeroicLands **Foundry
-package** — the parts Foundry loads whether or not the package ships any
-content.
+package** — its compendium content and the parts Foundry loads besides.
 
-It is the counterpart to
-[`@heroiclands/content-build`](https://github.com/HeroicLands/content-build), and
-the two split by **input**:
+It has two halves, split by **input**:
 
-| Package         | Reads                                                        | Produces                                                       |
-| --------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
-| `content-build` | `assets/content/**`                                          | compendium packs, site content, link manifest                  |
-| `package-build` | `lang/`, `styles/`, `src/`, `assets/`, the manifest template | `system.json` / `module.json`, styles, bundle, release archive |
+| Half          | Reads                                                        | Produces                                                       |
+| ------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
+| **content**   | `assets/content/**`                                          | compendium packs, site content, link manifest                  |
+| **packaging** | `lang/`, `styles/`, `src/`, `assets/`, the manifest template | `system.json` / `module.json`, styles, bundle, release archive |
 
-A module uses either, or both. An adventure module that ships only notes needs
-no bundler; a variant module that ships only behavior needs no Markdown
-pipeline. The coupling runs one way — `package-build` asks `content-build` for
-the compiled `packs[]` block, never the reverse.
+The content half is documented separately in **[CONTENT.md](CONTENT.md)** — the
+note format, the pack pipeline, and the configuration contract a content tree
+declares itself with.
+
+> **This package was two.** Until 2.0.0 the content half shipped as
+> `@heroiclands/content-build`. No consumer ever installed one without the
+> other, and the packaging half depended on the content half besides, so the
+> boundary bought nothing and cost a configuration file with two owners and a
+> two-repository dance for single changes. See
+> [MIGRATING.md](MIGRATING.md) to move a consumer from 1.x.
 
 ## Install
 
@@ -72,9 +75,9 @@ The whole of assemble → validate → ship, one subpath each:
 
 ## Configure
 
-A repository declares its build in **one** file — `content-build.config.yaml`,
-the same one `content-build` reads — and this package takes its settings from
-the reserved `packageBuild:` section:
+A repository declares its build in **one** file — `package-build.config.yaml`.
+The content half reads its top level; the packaging half takes its settings from
+the `packageBuild:` section:
 
 ```yaml
 # Read from the top level, not restated below.
@@ -239,7 +242,7 @@ package forever; the build says so, naming the key and where the value actually
 comes from.
 
 `packs` is derived from the **one** pack list at the top level of
-`content-build.config.yaml` — each entry's `label`, `type`, `name` and
+`package-build.config.yaml` — each entry's `label`, `type`, `name` and
 `private`, plus a `system` from `stats.systemId` and a `path` of
 `packs/<name>`. Companions are flattened in, because Foundry sees no difference:
 a companion is only a pack written by another pass rather than one of its own.

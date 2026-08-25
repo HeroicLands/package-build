@@ -1,0 +1,6 @@
+{
+    "name": "sohl",
+    "version": "0.0.0",
+    "private": true,
+    "description": "Not a real package. It exists so the development configuration beside it has a `package.json` to derive its Foundry package id and system version from, exactly as a consuming repository's does. The values are placeholders the test suite describes; `name` is `sohl` because that is what the suite's assertions call the package, and `version` is `0.0.0` so those assertions do not move every time this toolchain is released."
+}

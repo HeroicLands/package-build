@@ -28,14 +28,14 @@
  *
  * The emitted form is the toolchain's diagnostic contract —
  * `file:line:column: severity: message`, the path starting the line, a field
- * dropped rather than guessed — which `@heroiclands/content-build` already
+ * dropped rather than guessed — which `@heroiclands/package-build` already
  * owns. This module maps findings onto it rather than restating it, so the two
  * packages cannot drift into two nearly-identical formats.
  *
  * @module
  */
 
-import { emitDiagnostic } from "@heroiclands/content-build/engine/diagnostics";
+import { emitDiagnostic } from "../engine/diagnostics.mjs";
 
 /**
  * A finding as the pure rules report one.

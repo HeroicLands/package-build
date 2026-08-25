@@ -33,6 +33,11 @@
         "container.mjs",
         "coverage.mjs",
         "e2e.mjs",
-        "templates.mjs"
+        "templates.mjs",
+        "content-config.mjs",
+        "prettier-config.mjs",
+        "markdownlint-config.mjs",
+        "engine/**/*.mjs",
+        "sohl/**/*.mjs"
     ]
 }

@@ -1,0 +1,62 @@
+# Development-only configuration for this package's OWN test suite.
+#
+# It is not published — `files` in package.json does not list `tests` — so an
+# installed copy under `node_modules/@heroiclands/content-build/` never shadows
+# a consuming repository's config.
+#
+# WHY THIS FILE EXISTS: the suite has cases *about configured behaviour* — that
+# a path resolves where configuration says, that `_stats` is stamped from it,
+# that a pack routes by it — and those need a configuration to describe. It is
+# no longer needed merely to *import* a module: resolution is lazy as of #2, and
+# `tests/import-needs-no-config.test.ts` proves it by working from a copy of the
+# shipped files placed where this file cannot be found.
+#
+# WHY IT LIVES HERE rather than at the repository root: the Foundry package id
+# and the system version are derived from the `package.json` beside the
+# configuration (#50). At the root, that is *this toolchain's* manifest —
+# `@heroiclands/content-build`, which is not a Foundry package id and not a game
+# system version. So the configuration sits in a fixture directory with a
+# `package.json` shaped like a consumer's, which is both what makes the
+# derivation meaningful and a more honest fixture than a placeholder pretending
+# to be `sohl` at the root of a package that is not. `vitest.config.ts` points
+# `CONTENT_BUILD_CONFIG` here.
+#
+# The values below are deliberately generic placeholders. Nothing here should
+# be read as the shape a real consumer must adopt — see the README for that.
+#
+# Absent because they are derived, never authored: `rootDir` (the directory
+# this file sits in), `foundryPackage` (the adjacent `package.json` `name`) and
+# `stats.systemVersion` (its `version`, for a system).
+
+contentPackage: sohl
+packageKind: systems
+
+# The Foundry core range this package supports. `minimum` is stamped into every
+# compiled document as `_stats.coreVersion`; `verified` names the newest build
+# the suite has actually passed on — never an aspiration.
+compatibility:
+    minimum: "14.359"
+    verified: "14.359"
+
+stats:
+    systemId: sohl
+    lastModifiedBy: contentbuild0000
+
+# Named, not supplied: the item-type registry is code, and a data configuration
+# names one of the registries this package ships.
+itemBuilders: sohl
+
+# A content tree opened as an Obsidian vault keeps its templater scaffolding in
+# `Templates/`, which is never compendium content.
+skipDirectories: [Templates]
+
+packs:
+    - { name: items, type: Item, folders: item-folders.yaml }
+    - { name: journals, type: JournalEntry, folders: journal-folders.yaml }
+    - { name: actors, type: Actor, folders: actor-folders.yaml }
+    - { name: macros, type: Macro, folders: macro-folders.yaml }
+    - name: scenes
+      type: Scene
+      folders: scene-folders.yaml
+      companions:
+          - { name: adventures, type: Adventure }
