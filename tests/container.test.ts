@@ -25,6 +25,7 @@ import {
     dataEnvVar,
     dockerRunArgs,
     passthroughEnv,
+    resolveContainer,
     resolveDataRoot,
     resolveFoundryVersion,
     resolveImage,
@@ -37,6 +38,26 @@ describe("what a stage resolves to", () => {
         expect(containerName("sohl", "test")).toBe("sohl-foundry-test");
         expect(containerName("sohl-thalorna", "dev")).toBe(
             "sohl-thalorna-foundry-dev",
+        );
+    });
+
+    it("takes a declared name, so packages can share one licence", () => {
+        // A signed licence is bound to the hostname, which follows the name.
+        // Two packages naming the same container are one instance, and one
+        // signature covers both.
+        expect(containerName("sohl", "test", "heroiclands-foundry")).toBe(
+            "heroiclands-foundry-test",
+        );
+        expect(containerName("hm3", "test", "heroiclands-foundry")).toBe(
+            "heroiclands-foundry-test",
+        );
+    });
+
+    it("keeps the stage in a declared name, so two stages stay two", () => {
+        // Used whole, `container dev` would find the test container already
+        // there and serve the test data root on the dev port.
+        expect(containerName("sohl", "dev", "heroiclands-foundry")).not.toBe(
+            containerName("sohl", "test", "heroiclands-foundry"),
         );
     });
 
@@ -263,5 +284,42 @@ describe("the docker run argument vector", () => {
             .filter((i) => i >= 0);
         const shared = args.indexOf("FOUNDRY_LICENSE_KEY=SHARED");
         expect(keys[0]).toBeGreaterThan(shared);
+    });
+});
+
+describe("resolving a stage from configuration", () => {
+    /** The fields `resolveContainer` reads, at their defaults. */
+    function config(extra: Record<string, unknown> = {}) {
+        return {
+            packageId: "hm3",
+            containerImage: null,
+            containerName: null,
+            containerStages: {},
+            compatibilityMinimum: null,
+            e2eStage: "test",
+            ...extra,
+        };
+    }
+
+    it("names the container after the package by default", () => {
+        const resolved = resolveContainer({
+            stage: "test",
+            config: config(),
+            env: {},
+        });
+
+        expect(resolved.name).toBe("hm3-foundry-test");
+    });
+
+    it("carries a declared name through to the container", () => {
+        // The point of declaring one: the hostname docker runs under is what
+        // the signed licence in the shared data root was issued for.
+        const resolved = resolveContainer({
+            stage: "test",
+            config: config({ containerName: "heroiclands-foundry" }),
+            env: {},
+        });
+
+        expect(resolved.name).toBe("heroiclands-foundry-test");
     });
 });

@@ -110,16 +110,27 @@ export function dataEnvVar(stage) {
 /**
  * The container name for a package's stage.
  *
- * Named after the package so two HeroicLands packages can run their own
- * containers side by side, and stable so Foundry's signed licence — which is
- * bound to the container hostname — survives a recreate.
+ * Stable, so Foundry's signed licence — which is bound to the container
+ * hostname — survives a recreate. Named after the package by default, so two
+ * HeroicLands packages run their own containers side by side.
+ *
+ * A declared `base` replaces the package-scoped half, which is what lets
+ * several packages share one container and so one signed licence: a signature
+ * is issued for a hostname, not for a package, and a package that cannot name
+ * the host cannot be pointed at a signature that already exists.
+ *
+ * The stage stays in the name either way. Two stages are two containers over
+ * two data roots, and docker names are unique: were a declared name used
+ * whole, `container dev` would find the `test` container already there, start
+ * it, and serve the test data root on the dev port.
  *
  * @param {string} packageId - The Foundry package id.
  * @param {string} stage - The stage name.
+ * @param {string|null} [base] - Declared name, shareable between packages.
  * @returns {string} The container name.
  */
-export function containerName(packageId, stage) {
-    return `${packageId}-foundry-${stage}`;
+export function containerName(packageId, stage, base = null) {
+    return `${base ?? `${packageId}-foundry`}-${stage}`;
 }
 
 /**
@@ -522,7 +533,7 @@ export function resolveContainer({ stage, config, env = process.env }) {
     const port = resolveStagePort(stage, { env, stages });
     return {
         stage,
-        name: containerName(config.packageId, stage),
+        name: containerName(config.packageId, stage, config.containerName),
         port,
         image: resolveImage({
             env,

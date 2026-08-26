@@ -114,7 +114,16 @@ const LANG_KEYS = [
 ];
 const DEPLOY_KEYS = ["envPrefix"];
 const RELEASE_KEYS = ["artifact"];
-const CONTAINER_KEYS = ["image", "stages"];
+const CONTAINER_KEYS = ["image", "name", "stages"];
+
+/**
+ * What docker accepts as the head of a container name.
+ *
+ * Checked here rather than left to `docker run`, because the stage is appended
+ * to it: a rejected name surfaces as a failure to create a container whose name
+ * the repository never wrote down.
+ */
+const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 const CONTAINER_STAGE_KEYS = ["port", "world", "version"];
 const E2E_KEYS = ["stage", "suite", "build", "world", "gm", "documents"];
 const E2E_SUITE_KEYS = ["run", "open"];
@@ -263,6 +272,30 @@ function normalizeGlobs(value, fallback, where) {
             ),
         ),
     );
+}
+
+/**
+ * A container name several packages may share.
+ *
+ * Foundry binds a signed licence to the container hostname, and the hostname
+ * follows the name. Declaring the same one in two repositories is how they come
+ * to be one instance covered by one signature — so this is a name that must
+ * survive being retyped elsewhere, and the stage is still appended to it.
+ *
+ * @param {unknown} value - The declared name.
+ * @returns {string} The name, minus the stage.
+ */
+function requireContainerName(value) {
+    const where = "packageBuild.container.name";
+    const name = requireNonEmptyString(value, where);
+    if (!CONTAINER_NAME.test(name)) {
+        fail(
+            where,
+            "must be a container name docker accepts — a letter or digit, " +
+                "then letters, digits, underscores, periods or hyphens",
+        );
+    }
+    return name;
 }
 
 /**
@@ -477,6 +510,9 @@ function normalizeExceptions(value, field, where) {
  * @property {string|null} systemVersion  That system's version, when the shared
  *   configuration stamps one.
  * @property {string|null} containerImage  Image override for every stage.
+ * @property {string|null} containerName  Container name, minus the stage,
+ *   shared with the packages that declare the same one so a single signed
+ *   Foundry licence covers them all. `null` names it after the package.
  * @property {Readonly<Record<string, Readonly<{port: number|null, world: string|null, version: string|null}>>>} containerStages
  *   Container stages beyond the conventional four.
  * @property {string} e2eStage       Which stage the suite runs against.
@@ -575,6 +611,10 @@ export function resolvePackageBuildConfig(shared) {
         "packageBuild.container.",
     );
     const containerInput = /** @type {Record<string, unknown>} */ (container);
+    const containerName =
+        containerInput.name === undefined ?
+            null
+        :   requireContainerName(containerInput.name);
     const declaredStages = containerInput.stages ?? {};
     if (!isMapping(declaredStages)) {
         fail("packageBuild.container.stages", "must be a mapping");
@@ -765,6 +805,7 @@ export function resolvePackageBuildConfig(shared) {
                     containerInput.image,
                     "packageBuild.container.image",
                 ),
+        containerName,
         containerStages,
         e2eStage:
             e2eInput.stage === undefined ?
