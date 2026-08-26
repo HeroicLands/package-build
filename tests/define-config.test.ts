@@ -64,6 +64,8 @@ describe("defineConfig", () => {
                 companions: [],
                 mayBeEmpty: false,
                 default: false,
+                prebuilt: null,
+                system: null,
             },
         ]);
         // Passed through uninterpreted: the shape is package-build's, and
@@ -147,13 +149,6 @@ describe("defineConfig", () => {
         ["a missing rootDir", { ...minimal(), rootDir: undefined }],
         ["a relative rootDir", { ...minimal(), rootDir: "packages/x" }],
         ["a missing stats block", { ...minimal(), stats: undefined }],
-        [
-            "a stats block with no systemId",
-            {
-                ...minimal(),
-                stats: { systemVersion: "1", lastModifiedBy: "a" },
-            },
-        ],
         ["a non-object paths block", { ...minimal(), paths: "build" }],
         ["an unknown path key", { ...minimal(), paths: { nope: "build" } }],
         [
@@ -290,6 +285,8 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
                 companions: [],
                 mayBeEmpty: false,
                 default: false,
+                prebuilt: null,
+                system: null,
             },
         ]);
     });
@@ -558,5 +555,111 @@ describe("the address scheme a repository publishes at (#58)", () => {
 
     it("rejects an unknown key, as every other section does", () => {
         expect(() => address({ mount: "kb/" })).toThrow(/not a recognized/);
+    });
+});
+
+describe("prebuilt packs and per-pack systems (#40)", () => {
+    it("accepts a pack whose JSON is already built, and records where it lives", () => {
+        const config = defineConfig({
+            ...minimal(),
+            packs: [
+                {
+                    name: "adventures",
+                    type: "Adventure",
+                    prebuilt: "assets/packs/adventure",
+                },
+            ],
+        });
+        expect(config.packs[0].prebuilt).toBe("assets/packs/adventure");
+        expect(config.packs[0].system).toBeNull();
+    });
+
+    it("defaults prebuilt and system to null on an ordinary pack", () => {
+        const config = defineConfig(minimal());
+        expect(config.packs[0].prebuilt).toBeNull();
+        expect(config.packs[0].system).toBeNull();
+    });
+
+    it("records a per-pack system", () => {
+        const config = defineConfig({
+            ...minimal(),
+            packs: [{ name: "actors-hm3", type: "Actor", system: "hm3" }],
+        });
+        expect(config.packs[0].system).toBe("hm3");
+    });
+
+    // `stats.systemId` was required, which forced one answer on every pack. A
+    // package whose packs are not all for one system needs none at that level.
+    it("allows a stats block with no systemId", () => {
+        const config = defineConfig({
+            ...minimal(),
+            stats: { systemVersion: "1", lastModifiedBy: "a" },
+        });
+        expect(config.stats.systemId).toBeNull();
+    });
+
+    // Each of these describes a generation pass, and a prebuilt pack has none.
+    it.each([
+        [
+            "folders",
+            {
+                name: "adventures",
+                type: "Adventure",
+                prebuilt: "assets/packs/adventure",
+                folders: "adventure-folders.yaml",
+            },
+        ],
+        [
+            "default",
+            {
+                name: "adventures",
+                type: "Adventure",
+                prebuilt: "assets/packs/adventure",
+                default: true,
+            },
+        ],
+        [
+            "companions",
+            {
+                name: "adventures",
+                type: "Adventure",
+                prebuilt: "assets/packs/adventure",
+                companions: [{ name: "extra", type: "Scene" }],
+            },
+        ],
+    ])("rejects prebuilt alongside %s", (_label, pack) => {
+        expect(() => defineConfig({ ...minimal(), packs: [pack] })).toThrow();
+    });
+
+    it("rejects prebuilt on a companion", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [
+                    {
+                        name: "scenes",
+                        type: "Scene",
+                        companions: [
+                            {
+                                name: "adventures",
+                                type: "Adventure",
+                                prebuilt: "assets/packs/adventure",
+                            },
+                        ],
+                    },
+                ],
+            }),
+        ).toThrow();
+    });
+
+    it("rejects an empty prebuilt path", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [
+                    { name: "adventures", type: "Adventure", prebuilt: "" },
+                ],
+            }),
+        ).toThrow();
     });
 });

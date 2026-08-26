@@ -91,21 +91,41 @@ export async function compilePacks({
         (name) => !packName || name === packName,
     );
 
+    // A prebuilt pack's JSON is checked in rather than generated, so it is
+    // compiled from where it lives. Anything else comes from the build-only
+    // intermediate the generation pass writes.
+    const prebuiltDirs = new Map(
+        config.packs
+            .filter((pack) => pack.prebuilt)
+            .map((pack) => [pack.name, pack.prebuilt]),
+    );
+    const needsGeneration = packNames.some((name) => !prebuiltDirs.has(name));
+
     // Generate the per-entry JSON from the content tree into the build-only
     // JSON intermediate. The package-id guard runs first, inside this call,
     // before any pack is written.
-    const errors = await generatePacksJson({ only: packName, config });
-    if (errors > 0) {
-        throw new Error(
-            `Pack JSON generation reported ${errors} error(s); refusing to ` +
-                `compile packs from incomplete output.`,
-        );
+    //
+    // Skipped when every selected pack is prebuilt: generation refuses an empty
+    // content tree, and a package that ships only prebuilt packs has none at
+    // all — so running it would fail the build over a tree nothing reads.
+    if (needsGeneration) {
+        const errors = await generatePacksJson({ only: packName, config });
+        if (errors > 0) {
+            throw new Error(
+                `Pack JSON generation reported ${errors} error(s); refusing to ` +
+                    `compile packs from incomplete output.`,
+            );
+        }
     }
 
     for (const name of packNames) {
-        const source = packJsonDir(name, config);
+        const source = prebuiltDirs.get(name) ?? packJsonDir(name, config);
         if (!fs.existsSync(source)) {
-            log.error(`Pack ${name}: generated JSON not found at ${source}.`);
+            log.error(
+                prebuiltDirs.has(name) ?
+                    `Pack ${name}: prebuilt JSON not found at ${source}.`
+                :   `Pack ${name}: generated JSON not found at ${source}.`,
+            );
             continue;
         }
 

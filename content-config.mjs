@@ -181,6 +181,14 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  * @property {string|null} [folders]    The pack's folder-hierarchy file, relative
  *                                      to `paths.content`. Default `null` — no
  *                                      folder documents are emitted.
+ * @property {string} [prebuilt]        Directory holding this pack's per-document
+ *                                     JSON, already built. Declaring it skips
+ *                                     generation for the pack and compiles from
+ *                                     there instead.
+ * @property {string} [system]          The system this pack depends on, written
+ *                                     to the manifest. Defaults to
+ *                                     `stats.systemId`; omitted when neither is
+ *                                     set.
  * @property {PackSpec[]} [companions]  Packs written by this pack's own compiler
  *                                      pass rather than a pass of their own (the
  *                                      scenes pass also emits the adventures
@@ -208,6 +216,8 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  * @property {string} label
  * @property {boolean} private
  * @property {string|null} folders
+ * @property {string|null} prebuilt
+ * @property {string|null} system
  * @property {readonly Readonly<ResolvedPackSpec>[]} companions
  * @property {boolean} mayBeEmpty
  * @property {boolean} default
@@ -546,6 +556,8 @@ const PACK_KEYS = [
     "companions",
     "mayBeEmpty",
     "default",
+    "prebuilt",
+    "system",
 ];
 const PATH_KEYS = Object.keys(DEFAULT_PATHS);
 const STATS_KEYS = ["systemId", "systemVersion", "lastModifiedBy"];
@@ -673,6 +685,54 @@ function normalizePack(value, where, nested = false) {
         normalizePack(companion, `${where}.companions[${index}]`, true),
     );
 
+    // A prebuilt pack's per-document JSON already exists, so it has no
+    // generation pass. Every key below describes one, which is why none of them
+    // may accompany it: silently ignoring a `folders` file that can never be
+    // read is worse than refusing the configuration that declares it.
+    const prebuilt =
+        pack.prebuilt === undefined || pack.prebuilt === null ?
+            null
+        :   requireNonEmptyString(pack.prebuilt, `${where}.prebuilt`);
+    if (prebuilt !== null) {
+        if (nested) {
+            fail(
+                `${where}.prebuilt`,
+                "may not be declared on a companion: a companion is written by " +
+                    "another pack's pass, and a prebuilt pack has no pass",
+            );
+        }
+        if (pack.folders !== undefined && pack.folders !== null) {
+            fail(
+                `${where}.folders`,
+                "may not accompany `prebuilt`: the folder hierarchy is built " +
+                    "during generation, which a prebuilt pack skips",
+            );
+        }
+        if (Array.isArray(companionsInput) && companionsInput.length) {
+            fail(
+                `${where}.companions`,
+                "may not accompany `prebuilt`: a companion is written by this " +
+                    "pack's pass, and a prebuilt pack has none",
+            );
+        }
+        if (pack.default === true) {
+            fail(
+                `${where}.default`,
+                "may not accompany `prebuilt`: the default pack receives notes " +
+                    "declaring no `pack:`, and no note is routed into a prebuilt one",
+            );
+        }
+    }
+
+    // Foundry requires `system` on ActiveEffect, Actor and Item packs and on no
+    // others (CONST.SYSTEM_SPECIFIC_COMPENDIUM_TYPES), so a package may need a
+    // different answer per pack. Unset here falls back to `stats.systemId`, and
+    // unset in both omits the key from the manifest.
+    const system =
+        pack.system === undefined || pack.system === null ?
+            null
+        :   requireNonEmptyString(pack.system, `${where}.system`);
+
     /** @type {ResolvedPackSpec} */
     const normalized = {
         name,
@@ -695,6 +755,8 @@ function normalizePack(value, where, nested = false) {
         // Which pack of a type receives a note that declares none. Validated
         // across the whole list in `defineConfig` — at most one per type.
         default: optionalBoolean(pack.default, `${where}.default`, false),
+        prebuilt,
+        system,
     };
     return Object.freeze(normalized);
 }
@@ -747,7 +809,13 @@ function normalizeStats(value) {
     rejectUnknownKeys(input, STATS_KEYS, "stats.");
 
     return Object.freeze({
-        systemId: requireNonEmptyString(input.systemId, "stats.systemId"),
+        // Optional: a package whose packs are not all for one system declares
+        // the system per pack instead (`packs[].system`), and a package that
+        // ships only system-agnostic documents declares none at all.
+        systemId:
+            input.systemId === undefined || input.systemId === null ?
+                null
+            :   requireNonEmptyString(input.systemId, "stats.systemId"),
         systemVersion: requireNonEmptyString(
             input.systemVersion,
             "stats.systemVersion",

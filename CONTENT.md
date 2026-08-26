@@ -86,6 +86,23 @@ packs:
     companions:
       - { name: adventures, type: Adventure }
 
+  # A pack whose per-document JSON is already built — checked in rather than
+  # generated. `prebuilt` names where it lives, generation is skipped for it,
+  # and `cleanPackEntry` and the Scene/Level integrity check still run. It may
+  # not carry `folders`, `companions` or `default`, and may not be a companion:
+  # each of those describes a generation pass a prebuilt pack does not have.
+  # When every configured pack is prebuilt the content walk is skipped
+  # entirely, so a package with no `assets/content` builds.
+  - name: adventures
+    type: Adventure
+    prebuilt: assets/packs/adventure
+    # Foundry requires `system` on ActiveEffect, Actor and Item packs and on no
+    # others, so it is declared per pack. Unset falls back to `stats.systemId`
+    # — itself optional — and with neither the manifest omits the key. An
+    # Adventure or Scene pack that names a system is hidden from every other
+    # one, which is rarely what a package that declined to name one meant.
+    system: null
+
 # How this repository frames the pages `content-build docs` generates. The
 # tables come from the itemBuilders registry and are the same everywhere; the
 # heading, the filing and what a reader is told first are this repository's.
