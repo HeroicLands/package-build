@@ -178,14 +178,23 @@ export function manifestPacks(config) {
         pack,
         ...(pack.companions ?? []).flatMap(flatten),
     ];
-    return config.packs.flatMap(flatten).map((pack) => ({
-        label: pack.label,
-        type: pack.type,
-        name: pack.name,
-        system: config.stats.systemId,
-        path: `packs/${pack.name}`,
-        private: pack.private,
-    }));
+    return config.packs.flatMap(flatten).map((pack) => {
+        // Foundry requires `system` on ActiveEffect, Actor and Item packs and
+        // on no others, so the value is per pack: its own declaration first,
+        // then the package-wide one. With neither, the key is omitted — an
+        // Adventure, Scene or JournalEntry pack that declares a system is
+        // hidden from every other system, which is rarely what a package that
+        // declined to name one meant.
+        const system = pack.system ?? config.stats.systemId;
+        return {
+            label: pack.label,
+            type: pack.type,
+            name: pack.name,
+            ...(system ? { system } : {}),
+            path: `packs/${pack.name}`,
+            private: pack.private,
+        };
+    });
 }
 
 /**

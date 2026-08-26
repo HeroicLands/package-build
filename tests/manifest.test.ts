@@ -418,3 +418,59 @@ describe("writeManifest", () => {
         expect(onDisk.endsWith("\n")).toBe(true);
     });
 });
+
+describe("manifestPacks — the system is per pack (#40)", () => {
+    const pack = (extra = {}) => ({
+        name: "adventures",
+        type: "Adventure",
+        label: "Adventures",
+        private: false,
+        companions: [],
+        ...extra,
+    });
+
+    // Foundry requires `system` on ActiveEffect, Actor and Item packs and on no
+    // others. An Adventure pack that declares one is hidden from every other
+    // system, so the key is omitted rather than guessed.
+    it("omits system when neither the pack nor the package names one", () => {
+        const [entry] = manifestPacks({
+            stats: { systemId: null },
+            packs: [pack()],
+        });
+        expect(entry).not.toHaveProperty("system");
+    });
+
+    it("falls back to the package-wide systemId", () => {
+        const [entry] = manifestPacks({
+            stats: { systemId: "sohl" },
+            packs: [pack()],
+        });
+        expect(entry.system).toBe("sohl");
+    });
+
+    it("lets a pack override the package-wide systemId", () => {
+        const [entry] = manifestPacks({
+            stats: { systemId: "sohl" },
+            packs: [pack({ system: "hm3" })],
+        });
+        expect(entry.system).toBe("hm3");
+    });
+
+    // The shape harn-adventures needs: one system-less Adventure pack beside
+    // two Actor packs that each name their own system.
+    it("emits a different answer per pack", () => {
+        const entries = manifestPacks({
+            stats: { systemId: null },
+            packs: [
+                pack(),
+                pack({ name: "actors-hm3", type: "Actor", system: "hm3" }),
+                pack({ name: "actors-sohl", type: "Actor", system: "sohl" }),
+            ],
+        });
+        expect(entries.map((e) => e.system)).toEqual([
+            undefined,
+            "hm3",
+            "sohl",
+        ]);
+    });
+});

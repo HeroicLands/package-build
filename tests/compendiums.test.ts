@@ -152,3 +152,59 @@ describe("the compendium library is importable", () => {
         expect(fs.readdirSync(cwd)).toEqual([]);
     });
 });
+
+describe("a prebuilt pack compiles without a content tree (#40)", () => {
+    /**
+     * A package whose packs are already Foundry JSON has no `assets/content`.
+     * Generation refuses an empty tree, so before #40 the compile threw before
+     * reaching the pack it was asked for. Here there is no tree at all.
+     */
+    it("compiles from the declared directory and never calls generation", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "prebuilt-"));
+        const prebuilt = path.join(root, "assets/packs/adventure");
+        fs.mkdirSync(prebuilt, { recursive: true });
+        fs.writeFileSync(
+            path.join(prebuilt, "Sandbox_AAAAAAAAAAAAAAAA.json"),
+            JSON.stringify({
+                _id: "AAAAAAAAAAAAAAAA",
+                name: "Sandbox",
+                journal: [],
+                scenes: [],
+                actors: [],
+                folders: [],
+            }),
+        );
+
+        const stage = path.join(root, "build/stage/packs");
+        const config = {
+            packs: [
+                {
+                    name: "adventures",
+                    type: "Adventure",
+                    label: "Adventures",
+                    private: false,
+                    companions: [],
+                    prebuilt,
+                    system: null,
+                },
+            ],
+            packDirectories: ["adventures"],
+            paths: {
+                content: path.join(root, "assets/content"),
+                packJson: path.join(root, "build/packs-json"),
+                stage,
+            },
+            stats: { systemId: null, lastModifiedBy: "prebuilt00000000" },
+        };
+
+        await expect(
+            compilePacks({ config, stageDest: stage }),
+        ).resolves.not.toThrow();
+
+        // The compiled pack exists, and generation wrote nothing.
+        expect(fs.existsSync(path.join(stage, "adventures"))).toBe(true);
+        expect(fs.existsSync(path.join(root, "build/packs-json"))).toBe(false);
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+});
