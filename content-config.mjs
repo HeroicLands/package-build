@@ -816,10 +816,15 @@ function normalizeStats(value) {
             input.systemId === undefined || input.systemId === null ?
                 null
             :   requireNonEmptyString(input.systemId, "stats.systemId"),
-        systemVersion: requireNonEmptyString(
-            input.systemVersion,
-            "stats.systemVersion",
-        ),
+        // Optional for the same reason as `systemId`: a system-agnostic module
+        // is not built against a system, so it has no version of one to stamp.
+        systemVersion:
+            input.systemVersion === undefined || input.systemVersion === null ?
+                null
+            :   requireNonEmptyString(
+                    input.systemVersion,
+                    "stats.systemVersion",
+                ),
         lastModifiedBy: requireNonEmptyString(
             input.lastModifiedBy,
             "stats.lastModifiedBy",
