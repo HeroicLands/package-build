@@ -390,6 +390,34 @@ describe("the container stages", () => {
             ),
         ).toThrow(/port/);
     });
+
+    it("names the container after the package unless one is declared", () => {
+        expect(resolvePackageBuildConfig(shared()).containerName).toBeNull();
+    });
+
+    it("carries a name the packages sharing a licence agree on", () => {
+        // Foundry signs a licence for a hostname, and the hostname follows the
+        // container name — so a name two repositories can both state is what
+        // makes one signature cover both.
+        const config = resolvePackageBuildConfig(
+            shared({ container: { name: "heroiclands-foundry" } }),
+        );
+
+        expect(config.containerName).toBe("heroiclands-foundry");
+    });
+
+    it("rejects a name docker would not accept", () => {
+        // The stage is appended to it, so a bad name would otherwise surface as
+        // a failure to create a container nobody wrote down.
+        expect(() =>
+            resolvePackageBuildConfig(
+                shared({ container: { name: "heroiclands/foundry" } }),
+            ),
+        ).toThrow(/packageBuild\.container\.name/);
+        expect(() =>
+            resolvePackageBuildConfig(shared({ container: { name: "" } })),
+        ).toThrow(/packageBuild\.container\.name/);
+    });
 });
 
 describe("the end-to-end harness", () => {
