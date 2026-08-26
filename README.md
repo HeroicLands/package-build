@@ -189,6 +189,13 @@ packageBuild:
   # `FOUNDRYVTT_<STAGE>_DATA`, the same variable `deploy` writes into, and their
   # ports are conventional. Declare a stage only when it is genuinely yours.
   container:
+    # Optional. The container name, minus the stage, which is always appended:
+    # this declares `heroiclands-foundry-test`, not `sohl-foundry-test`.
+    # Foundry binds a signed licence to the container hostname, so packages that
+    # declare the same name are one instance covered by one signature. Defaults
+    # to the package id, which keeps every package in its own container.
+    name: heroiclands-foundry
+
     stages:
       # SoHL keeps the previous, pre-TypeScript system on an older Foundry.
       # An empty `world` declares "never auto-launch" — it is managed by hand.
