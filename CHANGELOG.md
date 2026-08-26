@@ -1,5 +1,76 @@
 # @heroiclands/package-build
 
+## 3.1.0
+
+### Minor Changes
+
+- 40386b1: Build a pack from JSON that is already built, and declare the system per pack.
+  
+  The compile is two stages — content notes to `build/packs-json/<pack>/`, then
+  that directory to LevelDB — but only the first could feed the second. A package
+  whose packs are already Foundry JSON had no way in: generation runs first and
+  refuses an empty content tree, so a package with no `assets/content` threw
+  before the compile loop, and staging the files by hand did not survive
+  `generatePack`'s `rmSync` of its destination.
+  
+  `packs[].prebuilt` names the directory a pack's per-document JSON already lives
+  in. Generation is skipped for it and the compile reads from there, so
+  `cleanPackEntry` and the Scene/Level integrity check still run — which is the
+  reason to route through this toolchain rather than call `compilePack` directly.
+  When every selected pack is prebuilt the content walk is skipped altogether.
+  
+  `prebuilt` may not be combined with `folders`, `companions` or `default`, and
+  may not be declared on a companion. Each of those describes a generation pass,
+  and a prebuilt pack has none; refusing is better than ignoring a folder file
+  that can never be read.
+  
+  Separately, `stats.systemId` is now optional and `packs[].system` declares it
+  per pack, falling back to the package-wide value and omitted from the manifest
+  when neither is set. Every pack used to be emitted with one system id, which no
+  package needing two could express. Foundry requires `system` on ActiveEffect,
+  Actor and Item packs and on no others, and an Adventure pack that declares one
+  is hidden from every other system.
+- de6dc40: Let packages share one Foundry container, and so one signed licence.
+  
+  The container name was derived from the package id, and `--hostname` set to
+  match. The hostname part is right — Foundry binds a signed licence to it, and a
+  stable one is exactly what makes the signature survive a `recreate`. What was
+  wrong is that the value could not be shared: `sohl` got `sohl-foundry-test` and
+  `hm3` got `hm3-foundry-test`, so a `Config/license.json` signed for the first
+  would not verify for the second, and one maintainer with one dev licence needed
+  one per package.
+  
+  Neither fallback rescues it. Passing `FOUNDRYVTT_<STAGE>_LICENSE_KEY` makes the
+  felddy image write the key **unsigned**, and Foundry v13+ refuses to start with
+  `Software license requires signature`; omitting it makes the image fetch a key
+  from the account, unsigned, same refusal. Signing is a one-time interactive step
+  per host, so a second package's container could not come up without a second
+  licence — or a re-signing that then broke the first.
+  
+  The rest of the shared-instance model already worked. `requireIsolatedDataRoot`
+  refuses only the dev/qa/prod roots, so a shared **test** root was already
+  allowed, and `resolveE2EWorld` already derives a distinct world id per package,
+  so one data root already holds both systems and both worlds with `FOUNDRY_WORLD`
+  choosing which launches. The container identity was the last package-scoped
+  piece.
+  
+  So `packageBuild.container.name` declares it:
+  
+  ```yaml
+  packageBuild:
+    container:
+      # Shared with the other HeroicLands packages so one signed Foundry
+      # licence covers them all.
+      name: heroiclands-foundry
+  ```
+  
+  The stage is still appended — this declares `heroiclands-foundry-test`, not
+  `heroiclands-foundry`. Sharing is meant to cross packages, not stages: two
+  stages are two containers over two data roots, and docker names are unique, so a
+  name used whole would have `container dev` find the `test` container already
+  there, start it, and serve the test data root on the dev port. Nothing is
+  declared by default, and the name stays `<packageId>-foundry-<stage>`.
+
 ## 3.0.1
 
 ### Patch Changes
