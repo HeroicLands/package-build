@@ -310,3 +310,51 @@ describe("locating the configuration", () => {
         expect(findConfigFile(repoDir())).toBeUndefined();
     });
 });
+
+describe("a system-agnostic module stamps no system version (#43)", () => {
+    /**
+     * A module whose packs are core document types carrying no system data
+     * installs under any system, so it declares neither a `systemId` nor a
+     * system relationship — and has no system version to stamp. Declaring the
+     * relationship is not an escape: Foundry's `_testSupportedSystems` returns
+     * true only when a package declares no systems, so naming them would make
+     * the module unavailable to every system it did not name.
+     */
+    it("stamps null when it names neither a system nor a relationship", () => {
+        const root = repoDir({
+            "package.json": JSON.stringify({
+                name: "harn-adventures",
+                version: "0.1.0",
+            }),
+        });
+        const config = resolveIn(root, {
+            ...minimal(),
+            packageKind: "modules",
+            stats: { lastModifiedBy: "harnbuild0000000" },
+        });
+
+        expect(config.stats.systemId).toBeNull();
+        expect(config.stats.systemVersion).toBeNull();
+    });
+
+    // The two signals together are what separate deliberate from forgetful:
+    // naming a system but no relationship is still the mistake #1548 guards.
+    it("still throws when a systemId is named but no relationship is", () => {
+        expect(() =>
+            resolveIn(repoDir(), { ...minimal(), packageKind: "modules" }),
+        ).toThrow(/relationships\.systems/);
+    });
+
+    it("still derives from a relationship declared without a systemId", () => {
+        const config = resolveIn(repoDir(), {
+            ...minimal(),
+            packageKind: "modules",
+            stats: { lastModifiedBy: "harnbuild0000000" },
+            relationships: {
+                systems: [{ id: "sohl", compatibility: { verified: "0.4.3" } }],
+            },
+        });
+
+        expect(config.stats.systemVersion).toBe("0.4.3");
+    });
+});

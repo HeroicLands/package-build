@@ -272,6 +272,23 @@ function shippedSystemVersion(rootDir, input) {
 
     const systemId = /** @type {Record<string, unknown>} */ (input.stats ?? {})
         .systemId;
+    const declaredSystems = /** @type {Record<string, unknown>} */ (
+        input.relationships ?? {}
+    ).systems;
+
+    // A module that names neither a system nor a relationship with one is
+    // system-agnostic on purpose: its packs are core document types carrying no
+    // system data, and it installs under any system. There is no version to
+    // stamp, and inventing one would be the very thing the throw below guards
+    // against. The two signals together are what separate this from a module
+    // that simply forgot to declare its system (#43).
+    if (
+        (systemId === undefined || systemId === null) &&
+        !(Array.isArray(declaredSystems) && declaredSystems.length)
+    ) {
+        return null;
+    }
+
     const systems =
         /** @type {{id?: string, compatibility?: {verified?: string}}[]} */ (
             /** @type {Record<string, unknown>} */ (input.relationships ?? {})
