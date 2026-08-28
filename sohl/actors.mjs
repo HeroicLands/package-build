@@ -55,6 +55,7 @@ import {
     md,
 } from "../engine/helpers.mjs";
 import { emitDiagnostic } from "../engine/diagnostics.mjs";
+import { openingMasteryLevel } from "./skill-base.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 
@@ -498,7 +499,61 @@ export class Actors extends BasePackCompiler {
             });
         }
 
+        this.openUnopenedSkills(items, ctx);
         return items;
+    }
+
+    /**
+     * Bake each unopened skill's opening mastery level into the document (#46).
+     *
+     * A skill whose `masteryLevelBase` is still null once the note's frontmatter
+     * has been merged onto the catalogue entry is *not yet opened*, and the
+     * client fills it in on import — `Skill Base × initSkillMult`, in
+     * `SkillLogic.initialize`. Computing it here instead leaves the compiled
+     * pack self-describing: what a being's skills open at is visible in the
+     * document, reviewable in a diff, and testable without standing up Foundry.
+     *
+     * This runs last because the Skill Base formula reads the actor's
+     * attributes, so every attribute item has to exist first. It only ever
+     * fills nulls — a skill that states a `masteryLevelBase`, whether from the
+     * catalogue or the note, keeps it untouched.
+     *
+     * **The scores used are the ones just written.** `SkillLogic` resolves
+     * `attr.<code>` to an attribute's *effective* score, after active effects;
+     * all this pass has is the `scoreBase` it set from `sohl.attributes`. For a
+     * compiled being carrying no attribute-altering effects the two agree,
+     * which is every being in content today. One that did carry such an effect
+     * would bake a Skill Base its client then disagrees with — that is the
+     * limit of doing this at build time, and the point to revisit if it bites.
+     *
+     * @param {object[]} items - The actor's embedded items, attributes included.
+     * @param {string} ctx - Diagnostic context (the actor's label).
+     */
+    openUnopenedSkills(items, ctx) {
+        const skills = items.filter(
+            (item) =>
+                item.type === "skill" &&
+                item.system &&
+                item.system.masteryLevelBase == null,
+        );
+        if (!skills.length) return;
+
+        const attrs = {};
+        for (const item of items) {
+            if (item.type !== "attribute") continue;
+            const code = item.system?.shortcode?.toLowerCase();
+            if (code) attrs[code] = Number(item.system.scoreBase) || 0;
+        }
+
+        for (const skill of skills) {
+            const { value, error } = openingMasteryLevel(skill.system, attrs);
+            if (error) {
+                this.noteError(`${ctx}: skill "${skill.name}": ${error}`);
+                this.errorCount++;
+                continue;
+            }
+            if (value !== null) skill.system.masteryLevelBase = value;
+        }
     }
 
     buildBeing(itemsMap, fm, body) {
