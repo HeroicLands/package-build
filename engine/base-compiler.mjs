@@ -14,9 +14,9 @@
 /**
  * `BasePackCompiler` — the one compile loop every pack pass runs.
  *
- * Walking the content tree, rejecting what this build does not own, skipping
- * drafts, expanding generated tables, converting wikilinks, writing the JSON
- * and counting what failed are the same in every pass. They were written out
+ * Walking the content tree, rejecting what this build does not own, expanding
+ * generated tables, converting wikilinks, writing the JSON and counting what
+ * failed are the same in every pass. They were written out
  * once per pass — three times when this was filed, five by the time it landed —
  * so a fix to any of them had to be made everywhere, and the passes drifted
  * apart in exactly the places nobody was comparing (#1509).
@@ -74,24 +74,24 @@ import {
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { assertNoDraftField } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
  *
  * `declined` and `skippedOther` are deliberately separate numbers. A declined
- * note is one this build **refused** — it declares the retired `package:`
- * field — and it is an error; a skipped one legitimately belongs to another
- * pass, and there are thousands of those. Folding the first into the second is
- * what let a whole tree be filtered out in silence (#56).
+ * note is one this build **refused** — it declares a retired frontmatter field
+ * — and it is an error; a skipped one legitimately belongs to another pass, and
+ * there are thousands of those. Folding the first into the second is what let a
+ * whole tree be filtered out in silence (#56).
  *
  * @typedef {object} PassStats
  * @property {number} compiled - Notes that became a document.
- * @property {number} skippedDraft - Notes marked `draft: true`.
  * @property {number} skippedNoId - Notes with no `id`, where that is tolerated.
  * @property {number} skippedOther - Notes this pass does not claim.
- * @property {number} declined - Notes refused because they declare the retired
- *   `package:` field. Counted as errors, never as skips.
+ * @property {number} declined - Notes refused because they declare a retired
+ *   frontmatter field. Counted as errors, never as skips.
  */
 
 /**
@@ -508,16 +508,13 @@ export class BasePackCompiler {
         if (stats.skippedNoId) {
             log.info(`Skipped ${stats.skippedNoId} note(s) missing id`);
         }
-        if (stats.skippedDraft) {
-            log.info(`Skipped ${stats.skippedDraft} draft(s)`);
-        }
         if (stats.declined) {
             // Its own line, at error level: these are not skips, and burying
             // them in the skipped tally is the defect (#56). Each one has
             // already been named individually as a diagnostic.
             log.error(
                 `Declined ${stats.declined} note(s) declaring a retired ` +
-                    `\`package:\` field`,
+                    `frontmatter field`,
             );
         }
         this.reportDetail(stats);
@@ -532,7 +529,6 @@ export class BasePackCompiler {
         /** @type {PassStats} */
         const stats = {
             compiled: 0,
-            skippedDraft: 0,
             skippedNoId: 0,
             skippedOther: 0,
             declined: 0,
@@ -557,14 +553,23 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
-            // The package a note belongs to is this repository's configured
-            // one, and `package:` is retired (#56): declaring it is an error
-            // whatever it says. Reported and counted — never skipped, which is
-            // how a tree naming a package nothing answers to used to compile
-            // zero notes and exit 0. The file comes from the diagnostic
-            // locator, so the message must not repeat it.
+            // The retired frontmatter fields, refused before `selects` so a
+            // note is answered whichever pass would have claimed it — and
+            // whatever the declared value says.
+            //
+            // - `package:` (#56): a note's package is the repository's
+            //   configured one, so declaring it restates a constant.
+            // - `draft:` (#69): it excluded the note from the packs, the
+            //   manifest and the site, and no checker reported the links that
+            //   left dangling.
+            //
+            // Both are reported and counted — never skipped, which is how a
+            // tree naming a package nothing answers to used to compile zero
+            // notes and exit 0. The file comes from the diagnostic locator, so
+            // neither message may repeat it.
             try {
                 assertNoDeclaredPackage(fm, { absPath });
+                assertNoDraftField(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;
@@ -581,11 +586,6 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
-            if (fm.draft === true) {
-                stats.skippedDraft++;
-                log.debug(`Skipping draft: ${absPath}`);
-                continue;
-            }
             if (!fm.id) {
                 if (this.constructor.requiresId) {
                     throw new Error(`${Label} missing id: ${absPath}`);
@@ -594,9 +594,9 @@ export class BasePackCompiler {
                 this.noteWarn(`${label} note has no id, skipping`);
                 continue;
             }
-            // Which pack of this type takes it. Applied after the draft and
-            // id checks — a draft is not compiled anywhere, so its declaration
-            // is nobody's business — and before `skipNote`, so a note this pack
+            // Which pack of this type takes it. Applied after the id check —
+            // a note with no id is nobody's document, so its routing is
+            // nobody's business — and before `skipNote`, so a note this pack
             // does not own never reaches this pass's own rejection rules.
             try {
                 if (!this.routesHere(fm)) {

@@ -57,6 +57,9 @@ export * as contentPackage from "./content-package.mjs";
 /** Which content package a note belongs to, and refusing one that says so. */
 export * as notePackage from "./note-package.mjs";
 
+/** Frontmatter fields a note may no longer declare, and the refusal of them. */
+export * as retiredFields from "./retired-fields.mjs";
+
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
 /** The URL a content note is published at — the one web-address rule. */

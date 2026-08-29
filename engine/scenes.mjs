@@ -42,9 +42,8 @@
  * Not a standalone script — exports the `Scenes` compiler class, imported and
  * driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).
  *
- * The walk itself — filtering by package and type, skipping drafts,
- * expanding tables, converting wikilinks, writing the JSON and counting
- * errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
+ * The walk itself — filtering by type, expanding tables, converting
+ * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
  * states only what makes this pass its own (#1509).
  */
 
@@ -192,11 +191,11 @@ export class Scenes extends BasePackCompiler {
         for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(
             this.contentBase,
         )) {
-            // No package test: every note in the tree is this package's, and
-            // this pass's own walk — the shared compile loop — is where a note
-            // still declaring the retired `package:` field is reported, once
-            // (#56). Repeating the check here would either double the
-            // diagnostic or throw past it.
+            // No retired-field test: this pass's own walk — the shared compile
+            // loop — is where a note still declaring `package:` (#56) or
+            // `draft:` (#69) is reported, once. Repeating either check here
+            // would double the diagnostic or throw past it. A refused note is
+            // indexed and then never compiled, so it reaches no document.
             if (!fm || !fm.id) continue;
             if (
                 fm.shortcode &&
@@ -217,10 +216,6 @@ export class Scenes extends BasePackCompiler {
                 });
             }
             if (!isMapType(fm.type)) continue;
-            if (fm.draft === true) {
-                log.debug(`Skipping draft map: ${absPath}`);
-                continue;
-            }
             maps.push({ fm, body, absPath });
         }
         return { maps, effectsByAddress };

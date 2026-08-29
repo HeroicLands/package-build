@@ -51,6 +51,7 @@
 import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
+import { draftRetiredMessage } from "./retired-fields.mjs";
 
 /**
  * `sohl:` keys every type accepts, whatever its schema says.
@@ -211,10 +212,10 @@ export function lintNote(note, { schemas, index }) {
     const at = (key, literal) =>
         positionInFrontmatter(raw(), key, literal ?? undefined);
 
-    // A retired top-level field, checked before the type: a note may carry it
-    // whatever it is, and the finding stands on its own. Reported here as well
-    // as refused at compile because this is where an author meets every
-    // finding in the tree at once, rather than one note at a time (#56).
+    // The retired top-level fields, checked before the type: a note may carry
+    // one whatever its type is, and each finding stands on its own. Reported
+    // here as well as refused at compile because this is where an author meets
+    // every finding in the tree at once, rather than one note at a time (#56).
     if (Object.hasOwn(fm, "package")) {
         findings.push({
             file: note.file,
@@ -225,6 +226,14 @@ export function lintNote(note, { schemas, index }) {
                 "note's package is this repository's configured " +
                 "`contentPackage`, in package-build.config.yaml, and every " +
                 "note in the tree belongs to it",
+        });
+    }
+    if (Object.hasOwn(fm, "draft")) {
+        findings.push({
+            file: note.file,
+            ...at("draft"),
+            severity: "error",
+            message: draftRetiredMessage(),
         });
     }
 
