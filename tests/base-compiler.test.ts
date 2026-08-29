@@ -90,13 +90,6 @@ const TREE: Record<string, string> = {
         shortcode: "two",
         type: "probe",
     }),
-    "Draft.md": note("A draft.", {
-        name: { full: "Probe Draft" },
-        id: "PROBEPROBE000003",
-        shortcode: "draft",
-        type: "probe",
-        draft: true,
-    }),
     // The retired field, which no value makes acceptable (#56).
     "Declares.md": note("Declares a package.", {
         name: { full: "Probe Declares" },
@@ -179,10 +172,6 @@ describe("BasePackCompiler's shared compile loop", () => {
         // the compiler would not compile used to vanish into the "belongs to
         // another pass" tally (#56).
         expect(read(out)["Probe Declares"]).toBeUndefined();
-    });
-
-    it("skips a draft", () => {
-        expect(read(out)["Probe Draft"]).toBeUndefined();
     });
 
     it("counts a failed entry rather than aborting the pass", () => {

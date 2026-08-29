@@ -111,16 +111,6 @@ name:
     full: Creatures`,
     );
 
-    // Excluded, each for its own reason.
-    note(
-        "Gear/Draft.md",
-        `type: weapongear
-shortcode: draftitem
-draft: true
-id: eeeeeeeeeeeeeeee
-name:
-    full: Draft Blade`,
-    );
     // No section: a `doc` with no category has no address at all.
     note(
         "Rules/Homeless.md",
@@ -227,11 +217,9 @@ name:
 });
 
 describe("what is published, and what is not", () => {
-    it("skips drafts and notes with no section", () => {
+    it("skips a note with no section", () => {
         const doc = emit({ ...WEB });
-        const keys = Object.keys(doc.entries);
-        expect(keys).not.toContain("demo-weapongear-draftitem");
-        expect(keys).not.toContain("demo-doc-homeless");
+        expect(Object.keys(doc.entries)).not.toContain("demo-doc-homeless");
     });
 
     it("refuses a note declaring `package:`, rather than skipping it", () => {
@@ -252,6 +240,26 @@ name:
             expect(() => emit({ ...WEB })).toThrow(/retired/);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Declares.md"));
+        }
+    });
+
+    it("refuses a note declaring `draft:`, rather than skipping it", () => {
+        // It used to be dropped in silence, which left every wikilink into it
+        // indistinguishable from a link to a note that does not exist — the
+        // one state the manifest exists to prevent (#69).
+        note(
+            "Gear/Drafted.md",
+            `type: weapongear
+shortcode: drafted
+draft: true
+id: eeeeeeeeeeeeeeee
+name:
+    full: Drafted Blade`,
+        );
+        try {
+            expect(() => emit({ ...WEB })).toThrow(/`draft:` is a retired/);
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Gear/Drafted.md"));
         }
     });
 

@@ -55,6 +55,7 @@ import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -193,14 +194,13 @@ export function entriesForNote(fm, name, address, body, ctx) {
 /**
  * Every note this package publishes, as manifest entries.
  *
- * Drafts are excluded because the site does not publish them, and an entry for
- * an unpublished page is exactly the dead link the manifest exists to prevent.
- *
  * Every note in the tree is this package's, so nothing here selects by package:
  * the key's first segment is `contentPackage` (#56). A note still declaring the
- * retired `package:` field **throws** rather than being skipped — skipping one
- * silently is how a whole tree came to be filtered out of a manifest that then
- * claimed the package published nothing.
+ * retired `package:` or `draft:` field **throws** rather than being skipped —
+ * skipping one silently is how a whole tree came to be filtered out of a
+ * manifest that then claimed the package published nothing, and it is what let
+ * a drafted note's inbound links look like links to a note that never existed
+ * (#69).
  *
  * A note that has no address is **reported, not guessed** — the finding carries
  * the file and the reason, so a caller can print it or fail on it. Inventing an
@@ -231,7 +231,7 @@ export function collectManifestEntries(contentBase, ctx) {
             absPath,
             configured: ctx.contentPackage,
         });
-        if (fm.draft === true) continue;
+        assertNoDraftField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
 
         const base = path.basename(absPath);

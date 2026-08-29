@@ -53,10 +53,8 @@
  * @module
  */
 
-import fs from "node:fs";
-
 import { contentPackage } from "./content-package.mjs";
-import { positionInFrontmatter } from "./diagnostics.mjs";
+import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
  * A note's frontmatter as a generated table searches it — its package present,
@@ -129,27 +127,7 @@ export function assertNoDeclaredPackage(
     // Where the field is, so the caller's diagnostic opens on the line that has
     // to be deleted. Read here rather than carried through every walk: this is
     // the failing path, and the build stops on it.
-    const position = locate(absPath);
+    const position = locateFrontmatterKey(absPath, "package");
     if (position) err.position = position;
     throw err;
-}
-
-/**
- * The `package:` line's position in a note's file, or nothing.
- *
- * @param {string|undefined} absPath - The note's file.
- * @returns {{line?: number, column?: number}|undefined} Spreadable position
- *   fields, dropped rather than guessed when the file cannot be read — as
- *   `formatDiagnostic` requires.
- */
-function locate(absPath) {
-    if (!absPath) return undefined;
-    let raw;
-    try {
-        raw = fs.readFileSync(absPath, "utf8");
-    } catch {
-        return undefined;
-    }
-    const at = positionInFrontmatter(raw, "package");
-    return at.line === undefined ? undefined : at;
 }

@@ -44,9 +44,8 @@
  * Not a standalone script — exports the `Macros` compiler class, imported and
  * driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).
  *
- * The walk itself — filtering by package and type, skipping drafts,
- * expanding tables, converting wikilinks, writing the JSON and counting
- * errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
+ * The walk itself — filtering by type, expanding tables, converting
+ * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
  * states only what makes this pass its own (#1509).
  */
 
