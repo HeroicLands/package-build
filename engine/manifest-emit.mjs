@@ -54,7 +54,7 @@ import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
-import { assertNotePackage } from "./note-package.mjs";
+import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -196,11 +196,11 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * Drafts are excluded because the site does not publish them, and an entry for
  * an unpublished page is exactly the dead link the manifest exists to prevent.
  *
- * Every note in the tree is this package's note, whether or not it says so:
- * `package:` is optional and merely has to agree (#56). A note naming a
- * different package **throws** rather than being skipped — this build is not
- * authoritative for it, and skipping it silently is how a whole tree came to be
- * filtered out of a manifest that then claimed the package published nothing.
+ * Every note in the tree is this package's, so nothing here selects by package:
+ * the key's first segment is `contentPackage` (#56). A note still declaring the
+ * retired `package:` field **throws** rather than being skipped — skipping one
+ * silently is how a whole tree came to be filtered out of a manifest that then
+ * claimed the package published nothing.
  *
  * A note that has no address is **reported, not guessed** — the finding carries
  * the file and the reason, so a caller can print it or fail on it. Inventing an
@@ -226,7 +226,11 @@ export function collectManifestEntries(contentBase, ctx) {
     )) {
         if (!fm) continue;
         const rel = path.relative(contentBase, absPath);
-        assertNotePackage(fm, { file: rel, configured: ctx.contentPackage });
+        assertNoDeclaredPackage(fm, {
+            file: rel,
+            absPath,
+            configured: ctx.contentPackage,
+        });
         if (fm.draft === true) continue;
         if (!fm.type || !fm.shortcode) continue;
 

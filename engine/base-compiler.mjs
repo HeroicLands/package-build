@@ -73,26 +73,25 @@ import {
     expandNoteTables,
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
-import { contentPackage } from "./content-package.mjs";
-import { assertNotePackage } from "./note-package.mjs";
+import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
  *
  * `declined` and `skippedOther` are deliberately separate numbers. A declined
- * note is one this build **refused** — it names a package this repository does
- * not compile — and it is an error; a skipped one legitimately belongs to
- * another pass, and there are thousands of those. Folding the first into the
- * second is what let a whole tree be filtered out in silence (#56).
+ * note is one this build **refused** — it declares the retired `package:`
+ * field — and it is an error; a skipped one legitimately belongs to another
+ * pass, and there are thousands of those. Folding the first into the second is
+ * what let a whole tree be filtered out in silence (#56).
  *
  * @typedef {object} PassStats
  * @property {number} compiled - Notes that became a document.
  * @property {number} skippedDraft - Notes marked `draft: true`.
  * @property {number} skippedNoId - Notes with no `id`, where that is tolerated.
  * @property {number} skippedOther - Notes this pass does not claim.
- * @property {number} declined - Notes refused because they declare another
- *   package. Counted as errors, never as skips.
+ * @property {number} declined - Notes refused because they declare the retired
+ *   `package:` field. Counted as errors, never as skips.
  */
 
 /**
@@ -336,9 +335,6 @@ export class BasePackCompiler {
         const { markdown: tabulated, lineMap } = expandNoteTables(body, {
             docs: this.contentDocs,
             name,
-            // The repository's package, not the note's: every note in the tree
-            // is this package's note, whether or not it says so (#56).
-            pkg: contentPackage(),
             fm,
             bodyLine,
         });
@@ -520,7 +516,8 @@ export class BasePackCompiler {
             // them in the skipped tally is the defect (#56). Each one has
             // already been named individually as a diagnostic.
             log.error(
-                `Declined ${stats.declined} note(s) declaring another package`,
+                `Declined ${stats.declined} note(s) declaring a retired ` +
+                    `\`package:\` field`,
             );
         }
         this.reportDetail(stats);
@@ -561,17 +558,17 @@ export class BasePackCompiler {
                 continue;
             }
             // The package a note belongs to is this repository's configured
-            // one; `package:` is optional and merely has to agree (#56). A
-            // disagreement is reported and counted as an error — never skipped,
-            // which is how a tree naming a package nothing answers to used to
-            // compile zero notes and exit 0. The file comes from the diagnostic
+            // one, and `package:` is retired (#56): declaring it is an error
+            // whatever it says. Reported and counted — never skipped, which is
+            // how a tree naming a package nothing answers to used to compile
+            // zero notes and exit 0. The file comes from the diagnostic
             // locator, so the message must not repeat it.
             try {
-                assertNotePackage(fm);
+                assertNoDeclaredPackage(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;
-                this.noteError(err.message);
+                this.noteError(err.message, err.position);
                 continue;
             }
             // Checked before `selects`, and therefore for every note this

@@ -38,8 +38,9 @@ import { loadPackConfig } from "./pack-config.mjs";
  * `package:` frontmatter and the compilers kept the ones that matched. Every
  * content tree is single-package — each is single-sourced in the repository that
  * ships it — so the field restated this constant once per note while a value
- * that matched nothing filtered the whole tree out in silence. The field is
- * being retired; the value stays, here, where it is declared once.
+ * that matched nothing filtered the whole tree out in silence. That field is
+ * retired and declaring it now fails the build; this value stays, here, where
+ * it is declared once.
  *
  * Stable across compilation targets. If this content were ever compiled for a
  * second game system, it would still be published as `sohl` — only the Foundry

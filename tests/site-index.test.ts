@@ -29,7 +29,9 @@ function entry(over: Record<string, unknown> = {}) {
     const sec = (over.sec as string) ?? "skill";
     return {
         kind: "content",
-        fm: { type: "skill", package: "sohl", ...(over.fm as object) },
+        // No `package:` — the field is retired, and the index takes the
+        // page's own `pkg` or the configured package instead (#56).
+        fm: { type: "skill", ...(over.fm as object) },
         name,
         slug,
         sec,
@@ -43,7 +45,7 @@ describe("keys that are unique by construction", () => {
     it("indexes a page by section/slug and by type/shortcode", () => {
         const { index } = buildSiteIndex([
             entry({
-                fm: { type: "skill", package: "sohl", shortcode: "clmb" },
+                fm: { type: "skill", shortcode: "clmb" },
             }),
         ]);
 
@@ -56,7 +58,7 @@ describe("keys that are unique by construction", () => {
         // to the citing note's own package (#1499).
         const { index } = buildSiteIndex([
             entry({
-                fm: { type: "skill", package: "sohl", shortcode: "clmb" },
+                fm: { type: "skill", shortcode: "clmb" },
             }),
         ]);
 
@@ -69,7 +71,7 @@ describe("keys that are unique by construction", () => {
         // note renders as one page which *is* its documentation (#1362).
         const { index, contentTypes } = buildSiteIndex([
             entry({
-                fm: { type: "skill", package: "sohl", shortcode: "clmb" },
+                fm: { type: "skill", shortcode: "clmb" },
             }),
         ]);
 
@@ -100,7 +102,7 @@ describe("fallback keys are collision-aware", () => {
                 slug: "shock",
                 sec: "trauma",
                 url: "/kb/trauma/shock/",
-                fm: { type: "trauma", package: "sohl" },
+                fm: { type: "trauma" },
             }),
         ]);
 
@@ -148,7 +150,7 @@ describe("aliases are scoped to their type", () => {
                 slug: "shock",
                 sec: "trauma",
                 url: "/t/",
-                fm: { type: "trauma", package: "sohl" },
+                fm: { type: "trauma" },
             }),
         ]);
 
@@ -174,7 +176,6 @@ describe("aliases are scoped to their type", () => {
                 base: "Rock_Climbing.md",
                 fm: {
                     type: "skill",
-                    package: "sohl",
                     aliases: ["Scrambling"],
                     name: { aliases: ["Clambering"] },
                 },
@@ -248,11 +249,7 @@ describe("foreign packages", () => {
         const { index } = buildSiteIndex(
             [
                 entry({
-                    fm: {
-                        type: "polity",
-                        package: "sohl",
-                        shortcode: "tanvur",
-                    },
+                    fm: { type: "polity", shortcode: "tanvur" },
                 }),
             ],
             { foreignIndex: foreignIndex() },
@@ -292,7 +289,7 @@ describe("foreign packages", () => {
         const { index } = buildSiteIndex(
             [
                 entry({
-                    fm: { type: "skill", package: "sohl", shortcode: "clmb" },
+                    fm: { type: "skill", shortcode: "clmb" },
                 }),
             ],
             { foreignIndex: impostor },
@@ -365,7 +362,7 @@ describe("sections and the reference index", () => {
         // Callers resolving an embedded item look it up by the type as written.
         const { refIndex } = buildSiteIndex([
             entry({
-                fm: { type: "weaponGear", package: "sohl", shortcode: "swd" },
+                fm: { type: "weaponGear", shortcode: "swd" },
             }),
         ]);
 

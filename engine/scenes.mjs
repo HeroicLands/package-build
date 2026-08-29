@@ -194,8 +194,9 @@ export class Scenes extends BasePackCompiler {
         )) {
             // No package test: every note in the tree is this package's, and
             // this pass's own walk — the shared compile loop — is where a note
-            // declaring another one is reported, once (#56). Repeating the
-            // check here would either double the diagnostic or throw past it.
+            // still declaring the retired `package:` field is reported, once
+            // (#56). Repeating the check here would either double the
+            // diagnostic or throw past it.
             if (!fm || !fm.id) continue;
             if (
                 fm.shortcode &&

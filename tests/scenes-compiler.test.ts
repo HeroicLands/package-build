@@ -24,7 +24,6 @@ name:
 id: AAAAAAAAAAAAAAAA
 shortcode: testground
 type: battlemap
-package: sohl
 sohl:
   place: testplace
   placeName: Test Place
@@ -62,7 +61,6 @@ name:
 id: BBBBBBBBBBBBBBBB
 shortcode: testloft
 type: battlemap
-package: sohl
 sohl:
   place: testplace
   image: systems/sohl/assets/ui/parchment.jpg

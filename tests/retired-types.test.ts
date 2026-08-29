@@ -101,7 +101,6 @@ describe("a note left on a retired type fails the compile", () => {
         "  full: Condor",
         "id: CCCCCCCCCCCCCCCC",
         "shortcode: condor",
-        "package: thalorna",
     ].join("\n");
 
     it("reports the file, from a pass that would not have claimed it anyway", async () => {

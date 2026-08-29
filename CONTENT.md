@@ -178,27 +178,44 @@ something migrates on it.
 ### A note's package is the repository's, not the note's
 
 `contentPackage` is the **address namespace** every note in the tree is
-published under. It is not a filter, and a note does not restate it.
+published under: the first segment of every canonical key (`sohl-skill-clmb`),
+the name of the link manifest this build emits (`sohl.json`), and the package a
+cross-package wikilink writes to reach one of these notes. It is the
+repository's identity in the address space — not a filter — and a note does not
+restate it.
 
-A note may still carry `package:` — every note written before this did — and it
-is accepted while it **agrees** with `contentPackage`. One that disagrees is an
-error naming the file, in the compile, in the link manifest, and anywhere else
-a note is read. The field is redundant, and it is being retired in three steps:
-optional now, swept out of every content tree on this version, and rejected
-outright in a later major.
+**`package:` in a note's frontmatter is retired, and declaring it fails the
+build**, naming the file, whatever the value says. An agreeing declaration is
+refused exactly as a disagreeing one is: there is no value that makes writing
+the field correct. The diagnostic says so, and says where the value comes from
+instead:
+
+```text
+assets/content/Gear/Axe.md:12:1: error: `package: sohl` is a retired frontmatter field — delete it. A note's package is this repository's configured `contentPackage` ("sohl", in package-build.config.yaml), and every note in the tree belongs to it.
+```
+
+`content-build lint` reports every such note in one pass; `content-build
+package compile` and `content-build manifest` refuse the tree.
 
 A generated table that scopes itself with `WHERE … and package = "<pkg>"` keeps
-working either way: a note's package is supplied to the table search whether or
-not the note declares it, so deleting the field never turns a table into an
-empty one.
+working: the package is **synthesised** into what the table search sees,
+supplied from `contentPackage` rather than read off the note. It is a search
+value, never an authored one.
 
 It used to **select**: a note compiled when its `package:` matched and was
 skipped when it did not. Every content tree is single-package — each is
 single-sourced in the repository that ships it — so the field restated one
 constant thousands of times, while a tree whose notes named a package no
 configuration answered to compiled **zero notes and exited 0**. Deleting the
-field from a note is safe on this version and is the fix; deleting the
-_configured_ value is not, since every address derives from it.
+field from a note is the fix; deleting the _configured_ value is not, since
+every address derives from it.
+
+Sweeping a tree is mechanical — the field is a whole line, and nothing else
+reads it:
+
+```bash
+find assets/content -name '*.md' -print0 | xargs -0 sed -i '' '/^package: /d'
+```
 
 ### A registry of your own
 

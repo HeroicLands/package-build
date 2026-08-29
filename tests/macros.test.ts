@@ -226,7 +226,6 @@ const FM = {
     shortcode: "autoattack",
     name: { full: "Automated Attack" },
     img: "icons/game-icons/lorc/crossed-swords.svg",
-    package: "sohl",
 };
 
 describe("buildMacroEntry", () => {

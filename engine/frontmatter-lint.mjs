@@ -211,6 +211,23 @@ export function lintNote(note, { schemas, index }) {
     const at = (key, literal) =>
         positionInFrontmatter(raw(), key, literal ?? undefined);
 
+    // A retired top-level field, checked before the type: a note may carry it
+    // whatever it is, and the finding stands on its own. Reported here as well
+    // as refused at compile because this is where an author meets every
+    // finding in the tree at once, rather than one note at a time (#56).
+    if (Object.hasOwn(fm, "package")) {
+        findings.push({
+            file: note.file,
+            ...at("package"),
+            severity: "error",
+            message:
+                "`package:` is a retired frontmatter field — delete it. A " +
+                "note's package is this repository's configured " +
+                "`contentPackage`, in package-build.config.yaml, and every " +
+                "note in the tree belongs to it",
+        });
+    }
+
     const replacement = RETIRED_TYPES[type];
     if (replacement) {
         findings.push({

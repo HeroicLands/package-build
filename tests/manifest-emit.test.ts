@@ -67,8 +67,7 @@ beforeAll(() => {
     // An ordinary item note: two documents, so two entries.
     note(
         "Gear/Dagger.md",
-        `package: demo
-type: weapongear
+        `type: weapongear
 shortcode: dagger
 id: aaaaaaaaaaaaaaaa
 name:
@@ -79,8 +78,7 @@ name:
     // A `doc` note routes by its category, and owns its own anchors.
     note(
         "Rules/Combat.md",
-        `package: demo
-type: doc
+        `type: doc
 category: rules
 shortcode: combat
 id: bbbbbbbbbbbbbbbb
@@ -92,8 +90,7 @@ name:
     // A section landing page under the `readme` rule.
     note(
         "Rules/README.md",
-        `package: demo
-type: doc
+        `type: doc
 category: rules
 shortcode: rulesidx
 id: cccccccccccccccc
@@ -105,8 +102,7 @@ name:
     // `collection`.
     note(
         "Creatures.md",
-        `package: demo
-type: doc
+        `type: doc
 category: collection
 section: creature
 shortcode: creatures
@@ -118,8 +114,7 @@ name:
     // Excluded, each for its own reason.
     note(
         "Gear/Draft.md",
-        `package: demo
-type: weapongear
+        `type: weapongear
 shortcode: draftitem
 draft: true
 id: eeeeeeeeeeeeeeee
@@ -129,8 +124,7 @@ name:
     // No section: a `doc` with no category has no address at all.
     note(
         "Rules/Homeless.md",
-        `package: demo
-type: doc
+        `type: doc
 shortcode: homeless
 id: 1111111111111111
 name:
@@ -210,8 +204,7 @@ describe("the address scheme is configuration, and both live rules work", () => 
     it("a collection note naming no section is reported, never guessed", () => {
         note(
             "Nowhere.md",
-            `package: demo
-type: doc
+            `type: doc
 category: collection
 shortcode: nowhere
 id: 2222222222222222
@@ -241,24 +234,24 @@ describe("what is published, and what is not", () => {
         expect(keys).not.toContain("demo-doc-homeless");
     });
 
-    it("refuses a note declaring another package, rather than skipping it", () => {
+    it("refuses a note declaring `package:`, rather than skipping it", () => {
         // It used to be filtered out in silence, which is how a whole tree
         // could be excluded from a manifest that then claimed the package
         // publishes nothing (#56). `tests/note-package.test.ts` owns the rest
         // of that contract; here it only has to be loud in this pipeline.
         note(
-            "Gear/Foreign.md",
-            `package: elsewhere
+            "Gear/Declares.md",
+            `package: demo
 type: weapongear
-shortcode: foreign
+shortcode: declares
 id: ffffffffffffffff
 name:
-    full: Foreign Blade`,
+    full: Declaring Blade`,
         );
         try {
-            expect(() => emit({ ...WEB })).toThrow(/elsewhere/);
+            expect(() => emit({ ...WEB })).toThrow(/retired/);
         } finally {
-            fs.rmSync(path.join(root, "assets/content/Gear/Foreign.md"));
+            fs.rmSync(path.join(root, "assets/content/Gear/Declares.md"));
         }
     });
 
@@ -346,8 +339,7 @@ describe("both addresses are optional, independently (#1516)", () => {
     it("emits no `uuid` for a note that compiles into no document", () => {
         note(
             "Gear/Idless.md",
-            `package: demo
-type: weapongear
+            `type: weapongear
 shortcode: idless
 name:
     full: Idless Blade`,

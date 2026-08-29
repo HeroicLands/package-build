@@ -52,7 +52,8 @@ import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
-import { notePackage, searchableFrontmatter } from "./note-package.mjs";
+import { contentPackage } from "./content-package.mjs";
+import { searchableFrontmatter } from "./note-package.mjs";
 import {
     canonicalKey,
     loadForeignManifests,
@@ -130,12 +131,13 @@ export function buildLinkIndex(
     const byAlias = new Map();
     const aliasCollide = new Set();
 
+    // The one package every note in this tree belongs to. Taken from the
+    // configuration, never from a note: `package:` is retired, so there is no
+    // second source an address could disagree with (#56).
+    const pkg = contentPackage();
+
     for (const note of notes) {
         const { fm, type } = note;
-        // Derived, never read out of frontmatter: `package:` is optional, and a
-        // note that declares nothing addresses exactly as one that declares the
-        // configured package (#56).
-        const pkg = notePackage(fm);
         if (typeof fm.shortcode === "string" && fm.shortcode) {
             byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
             // The canonical, fully qualified address alongside the short one,
@@ -170,7 +172,7 @@ export function buildLinkIndex(
     // A foreign package may use a type this tree has never seen, so its types
     // join `types` — otherwise `readQualifier` reads the link as prose and it
     // is never checked at all.
-    const localPackages = new Set(notes.map((n) => notePackage(n.fm)));
+    const localPackages = new Set([pkg]);
     const foreign =
         manifestDir ?
             loadForeignManifests(manifestDir, localPackages)
@@ -178,15 +180,15 @@ export function buildLinkIndex(
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
     const packages = new Set([
-        ...[...byKey.values()].map((n) => notePackage(n.fm)),
+        ...(byKey.size ? [pkg] : []),
         ...foreign.packages,
     ]);
 
     /** The searchable universe a `dataview` table draws its rows from. */
     const tableDocs = notes.map((n) => ({
-        // Package present however the note spells it — see
-        // {@link searchableFrontmatter} (#56).
-        fm: searchableFrontmatter(n.fm),
+        // Package present for a `WHERE … package = "…"` clause, synthesised
+        // rather than authored — see {@link searchableFrontmatter} (#56).
+        fm: searchableFrontmatter(n.fm, pkg),
         path: n.rel,
         tld: n.rel.split("/")[0],
         folder: path.dirname(n.rel).split("/").pop(),
@@ -205,9 +207,9 @@ export function buildLinkIndex(
         let body = note.body;
         if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*dataview\b/im.test(body)) {
             body = expandContentTables(body, {
-                docs: tableDocs.filter(
-                    (d) => notePackage(d.fm) === notePackage(note.fm),
-                ),
+                // Unfiltered: every note in the tree is this package's, so
+                // there is no other package's note to exclude (#56).
+                docs: tableDocs,
                 linkable: (d) => Boolean(d.fm.shortcode),
                 source: note.file,
             }).markdown;

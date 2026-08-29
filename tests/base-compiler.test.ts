@@ -18,15 +18,12 @@ import { Journals } from "../engine/journals.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Macros } from "../engine/macros.mjs";
 import { Scenes } from "../engine/scenes.mjs";
-import { contentPackage } from "../engine/content-package.mjs";
-
-/** A note of this build's own content package, in the tree's shape. */
-function note(
-    body: string,
-    fm: Record<string, unknown>,
-    pkg: string = contentPackage(),
-): string {
-    const lines = Object.entries({ package: pkg, ...fm }).map(
+/**
+ * A note in the tree's shape. It declares no package: a note's package is the
+ * repository's configured `contentPackage` and `package:` is retired (#56).
+ */
+function note(body: string, fm: Record<string, unknown>): string {
+    const lines = Object.entries(fm).map(
         ([k, v]) => `${k}: ${JSON.stringify(v)}`,
     );
     return `---\n${lines.join("\n")}\n---\n\n${body}\n`;
@@ -100,16 +97,14 @@ const TREE: Record<string, string> = {
         type: "probe",
         draft: true,
     }),
-    "Foreign.md": note(
-        "Another package's note.",
-        {
-            name: { full: "Probe Foreign" },
-            id: "PROBEPROBE000004",
-            shortcode: "foreign",
-            type: "probe",
-        },
-        "not-this-package",
-    ),
+    // The retired field, which no value makes acceptable (#56).
+    "Declares.md": note("Declares a package.", {
+        name: { full: "Probe Declares" },
+        id: "PROBEPROBE000004",
+        shortcode: "declares",
+        type: "probe",
+        package: "not-this-package",
+    }),
     "Boom.md": note("Explodes.", {
         name: { full: "Probe Boom" },
         id: "PROBEPROBE000005",
@@ -179,11 +174,11 @@ describe("BasePackCompiler's shared compile loop", () => {
         expect(Object.keys(docs).sort()).toEqual(["Probe One", "Probe Two"]);
     });
 
-    it("declines a note declaring another content package", () => {
+    it("declines a note declaring the retired `package:` field", () => {
         // Refused rather than skipped, and counted as an error below: a note
-        // naming a package this build does not compile used to vanish into the
-        // "belongs to another pass" tally (#56).
-        expect(read(out)["Probe Foreign"]).toBeUndefined();
+        // the compiler would not compile used to vanish into the "belongs to
+        // another pass" tally (#56).
+        expect(read(out)["Probe Declares"]).toBeUndefined();
     });
 
     it("skips a draft", () => {
@@ -191,8 +186,8 @@ describe("BasePackCompiler's shared compile loop", () => {
     });
 
     it("counts a failed entry rather than aborting the pass", () => {
-        // Two: the entry whose `buildEntry` threw, and the note declaring
-        // another package.
+        // Two: the entry whose `buildEntry` threw, and the note declaring the
+        // retired field.
         expect(pack.errorCount).toBe(2);
         expect(read(out)["Probe Boom"]).toBeUndefined();
     });

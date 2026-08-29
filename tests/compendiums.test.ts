@@ -31,7 +31,6 @@ name:
 id: FFFFFFFFFFFFFFFF
 shortcode: sandbox
 type: doc
-package: elsewhere
 sohl:
   archetype: null
 ---

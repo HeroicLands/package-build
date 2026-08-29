@@ -15,9 +15,8 @@ import path from "node:path";
 // configuration to a package that is not "sohl" is what tells a configured read
 // apart from a hard-coded literal.
 //
-// Since #56 the frontmatter field is optional rather than a selector: a note
-// that declares nothing compiles, one that declares the configured package
-// compiles, and one that declares another package is an error naming the file
+// Since #56 there is no frontmatter field at all: a note declares nothing and
+// compiles, and one that still declares `package:` is an error naming the file
 // — never the silent skip that let a whole tree be filtered out at exit 0.
 vi.mock("../engine/content-package.mjs", () => ({
     contentPackage: () => "thalorna",
@@ -39,7 +38,6 @@ name:
 id: AAAAAAAAAAAAAAAA
 shortcode: foreignskill
 type: skill
-package: thalorna
 sohl:
   archetype: null
   subType: physical
@@ -55,9 +53,9 @@ A skill belonging to the configured content package.
 `;
 
 /**
- * A note that declares no package at all — the shape every note in a swept tree
- * has. It compiles exactly as the one above does: the package a note belongs to
- * is the repository's, not the note's (#56).
+ * A second note, likewise declaring no package. Every note in every tree has
+ * this shape now: the package a note belongs to is the repository's, not the
+ * note's (#56).
  */
 const UNDECLARED_SKILL = `---
 name:
@@ -80,9 +78,10 @@ A skill that leaves its package to the configuration.
 `;
 
 /**
- * The control: a note of a *different* package. It must be **refused** — a
- * compiler that let everything through would pass the tests above for the wrong
- * reason, and one that skipped it quietly is the defect #56 removes.
+ * The control: a note still declaring the retired field. It must be **refused**
+ * — a compiler that let everything through would pass the tests above for the
+ * wrong reason, and one that skipped it quietly is the defect #56 removes. The
+ * value is beside the point; the field is.
  */
 const OTHER_SKILL = `---
 name:
@@ -111,7 +110,6 @@ name:
 id: BBBBBBBBBBBBBBBB
 shortcode: foreigncreature
 type: being
-package: thalorna
 sohl:
   archetype: null
 ---
@@ -127,7 +125,6 @@ name:
 id: CCCCCCCCCCCCCCCC
 shortcode: foreignguide
 type: doc
-package: thalorna
 sohl:
   archetype: null
 ---
@@ -143,7 +140,6 @@ name:
 id: DDDDDDDDDDDDDDDD
 shortcode: foreignmacro
 type: macro
-package: thalorna
 sohl:
   archetype: null
 ---
@@ -163,7 +159,6 @@ name:
 id: EEEEEEEEEEEEEEEE
 shortcode: foreignmap
 type: battlemap
-package: thalorna
 sohl:
   archetype: null
   place: foreignplace
@@ -282,7 +277,7 @@ describe("every pack compiler compiles the configured package's notes", () => {
     });
 });
 
-describe("a note belonging to another package is refused, not skipped", () => {
+describe("a note still declaring `package:` is refused, not skipped", () => {
     let tmp2: string;
 
     beforeAll(() => {
@@ -309,7 +304,7 @@ describe("a note belonging to another package is refused, not skipped", () => {
             expect(names(out)).not.toContain("Other Package Skill");
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines.some((l) => l.includes("OtherSkill.md"))).toBe(true);
-            expect(lines.some((l) => l.includes("sohl"))).toBe(true);
+            expect(lines.some((l) => l.includes("retired"))).toBe(true);
             expect(lines.some((l) => l.includes("thalorna"))).toBe(true);
         } finally {
             spy.mockRestore();

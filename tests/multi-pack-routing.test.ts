@@ -217,7 +217,6 @@ name:
 id: ${id}
 shortcode: ${shortcode}
 type: skill
-package: ${contentPackage()}
 ${head}
 sohl:
   archetype: null

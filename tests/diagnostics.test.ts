@@ -310,7 +310,6 @@ describe("convertWikilinks records where each unresolved link sat", () => {
 /* ---------------------------------------------------------------------- */
 
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
-import { contentPackage } from "../engine/content-package.mjs";
 
 /** A minimal pass, as `base-compiler.test.ts` defines one. */
 class Probe extends BasePackCompiler {
@@ -339,7 +338,6 @@ describe("an unresolved wikilink names the file, line and column", () => {
     /** The note that reproduces the reported symptom: four identical links. */
     const NOTE = [
         "---",
-        `package: "${contentPackage()}"`,
         'name: { "full": "The Capital Nome" }',
         'id: "PROBEPROBE000001"',
         'shortcode: "capital"',
