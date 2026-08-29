@@ -367,6 +367,16 @@ export function tableUniverse(pages) {
  * redirect stub at each name. They are dropped, and this build emits no
  * redirects of its own.
  *
+ * A content page carries the package the build **derived**, whether or not the
+ * note declared one (#65). `package:` became optional in 3.3.0, so a swept tree
+ * declares none — and the note's frontmatter alone would then publish a page
+ * that does not say which package it belongs to. The emitted page is what a
+ * theme reads: `breadcrumbs.html` builds its middle crumb from
+ * `.Params.package`, so without it that crumb degrades from a linked, labelled
+ * section to a bare type slug. Writing the derived value keeps a page
+ * self-describing and makes sweeping the field out of a content tree
+ * output-preserving for a site as it already is for the packs.
+ *
  * @param {object} page - The page.
  * @param {object} options - `{ sections, readmeSections, decorate }`.
  * @returns {object} The frontmatter to write.
@@ -375,7 +385,17 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
     const { fm, name, slug, sec, isReadme } = page;
     let data;
     if (page.kind === "content") {
-        data = { ...fm, slug, title: fm.title ?? name, kbfolder: page.folder };
+        data = {
+            ...fm,
+            // Spread after the note's own frontmatter, so a note that declares
+            // the field keeps its authored position and value and an unswept
+            // tree emits byte-identically. Guarded because `package: undefined`
+            // is not a value YAML can carry.
+            ...(page.pkg ? { package: page.pkg } : {}),
+            slug,
+            title: fm.title ?? name,
+            kbfolder: page.folder,
+        };
         if (decorate) decorate(data, page);
         if (isReadme) {
             const meta = readmeSections[sec];
