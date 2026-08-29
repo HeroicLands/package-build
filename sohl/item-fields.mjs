@@ -599,14 +599,6 @@ export const ITEM_FIELDS = Object.freeze({
                 "Shortcode of the affiliation whose standing confers the ability — a religion, school, or ancestor/totem/spirit.",
         },
         {
-            name: "assocMysteryCode",
-            to: "assocMysteryCode",
-            ref: "mystery",
-            ...AS_AUTHORED,
-            default: "",
-            describe: "Shortcode of the mystery the ability draws on.",
-        },
-        {
             name: "masteryLevelBase",
             to: "masteryLevelBase",
             ...NUMBER,
