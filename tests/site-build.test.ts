@@ -115,7 +115,7 @@ function configFor(site: Record<string, unknown> = {}) {
             { name: "journals", type: "JournalEntry" },
         ],
         publish: {
-            site: true,
+            site: "content",
             manifests: { publish: true, consume: true },
             address: { prefix: "kb/" },
         },
@@ -442,7 +442,7 @@ describe("the output root is refused unless it is safe to delete", () => {
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],
-            publish: { site: true },
+            publish: { site: "content" },
         });
         expect(() => buildSite({ config })).toThrow(/not set/);
         expect(fs.existsSync(path.join(sandbox, "precious.txt"))).toBe(true);

@@ -76,6 +76,9 @@ import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 // set — an adventure module ships skills, beings and magic swords — so no
 // consumer gets a subset (#19, #20).
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+// The engine's own types, merged under the registry's so the vocabulary stands
+// in a package that configures no `itemBuilders` at all (#51).
+import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
 import { emitLinkManifest } from "../engine/manifest-emit.mjs";
 import {
@@ -346,7 +349,7 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
                 const frontmatter = lintFrontmatter(index, {
-                    schemas: NOTE_SCHEMAS,
+                    schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
                     references: argv.references,
                 });
 
@@ -823,7 +826,8 @@ function siteCommand() {
 
                 const s = result.stats;
                 log.info(
-                    `wrote ${s.content ?? 0} content page(s) + ` +
+                    `wrote ${s.homepages ?? 0} homepage(s) + ` +
+                        `${s.content ?? 0} content page(s) + ` +
                         `${s.tree ?? 0} tree page(s) + ${s.landings} ` +
                         `landing(s) to ${path.relative(process.cwd(), s.out)}`,
                 );

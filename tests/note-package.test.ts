@@ -468,7 +468,7 @@ describe("addresses are keyed from the configuration alone", () => {
                 { name: "items", type: "Item" },
                 { name: "journals", type: "JournalEntry" },
             ],
-            publish: { site: true, manifests: { publish: true } },
+            publish: { site: "content", manifests: { publish: true } },
         });
     }
 

@@ -42,7 +42,7 @@ describe("defineConfig", () => {
                 assets: [{ from: "assets/icons", to: "assets/icons" }],
             },
             publish: {
-                site: true,
+                site: "content",
                 manifests: { publish: true, consume: false },
             },
         });
@@ -74,32 +74,36 @@ describe("defineConfig", () => {
             assets: [{ from: "assets/icons", to: "assets/icons" }],
         });
         expect(config.publish).toEqual({
-            site: true,
+            site: "content",
             manifests: { publish: true, consume: false },
             address: { prefix: "", landing: "readme" },
         });
     });
 
-    it("defaults the reserved section to empty and every switch to off", () => {
+    it("defaults the reserved section to empty, and publishing to the floor", () => {
         const config = defineConfig(minimal());
 
         expect(config.packageBuild).toEqual({});
         expect(config.publish).toEqual({
-            site: false,
+            site: "homepage",
             manifests: { publish: false, consume: false },
             address: { prefix: "", landing: "readme" },
         });
     });
 
     it("treats the three publishing switches as independent", () => {
-        // `kethira` publishes neither a site nor a manifest, but still consumes
-        // manifests (#1385/#1446) — the shape must express exactly that.
+        // `kethira` publishes a homepage and no other page, and no manifest at
+        // all, while still consuming other packages' (#1385/#1446) — the shape
+        // must express exactly that. The site mode and the manifest switches
+        // answer different questions: the homepage is one row in a routing
+        // table, and a link manifest is the dependency edge that would stop the
+        // module being withdrawable (#55).
         const config = defineConfig({
             ...minimal(),
             publish: { manifests: { consume: true } },
         });
 
-        expect(config.publish.site).toBe(false);
+        expect(config.publish.site).toBe("homepage");
         expect(config.publish.manifests.publish).toBe(false);
         expect(config.publish.manifests.consume).toBe(true);
     });
@@ -190,9 +194,13 @@ describe("defineConfig", () => {
             "a non-mapping packageBuild section",
             { ...minimal(), packageBuild: [] },
         ],
+        ["an unknown site mode", { ...minimal(), publish: { site: "yes" } }],
+        // Refused rather than mapped onto the nearest mode: `false` read as
+        // "no web presence", which describes no package (#55).
+        ["the retired `site: true`", { ...minimal(), publish: { site: true } }],
         [
-            "a non-boolean publishing switch",
-            { ...minimal(), publish: { site: "yes" } },
+            "the retired `site: false`",
+            { ...minimal(), publish: { site: false } },
         ],
         ["an unknown key", { ...minimal(), publishSite: true }],
     ])("rejects %s", (_label, input) => {
@@ -510,7 +518,7 @@ describe("the address scheme a repository publishes at (#58)", () => {
     const address = (value: unknown) =>
         defineConfig({
             ...minimal(),
-            publish: { site: true, address: value },
+            publish: { site: "content", address: value },
         }).publish.address;
 
     it("defaults to the package root under the `readme` rule", () => {

@@ -60,6 +60,12 @@ export * as notePackage from "./note-package.mjs";
 /** Frontmatter fields a note may no longer declare, and the refusal of them. */
 export * as retiredFields from "./retired-fields.mjs";
 
+/** The package homepage: the note type that compiles to a page, not a document. */
+export * as homepage from "./homepage.mjs";
+
+/** The note types the engine itself declares, whatever a consumer registers. */
+export * as noteSchemas from "./note-schemas.mjs";
+
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
 /** The URL a content note is published at — the one web-address rule. */

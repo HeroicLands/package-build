@@ -38,6 +38,7 @@
  */
 
 import { AS_AUTHORED, NUMBER, STRING } from "../engine/field-spec.mjs";
+import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { ITEM_FIELDS } from "./item-fields.mjs";
 
 /** A map-valued property, whose entries the compiler walks by key. */
@@ -302,9 +303,16 @@ const PRESENTATION_FIELDS = Object.freeze({
  * Every content type this package compiles, and what a note of that type may
  * write.
  *
+ * The engine's own types are merged in first, so a SoHL tree is checked against
+ * one vocabulary rather than two. They are declared there rather than here
+ * because they are note-format knowledge — a `homepage` carries no `system`
+ * block and would mean the same thing for a game system that is not SoHL — and
+ * because a package declaring no `itemBuilders` never reaches this file (#51).
+ *
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
 export const NOTE_SCHEMAS = Object.freeze({
+    ...ENGINE_NOTE_SCHEMAS,
     ...Object.fromEntries(
         Object.entries(ITEM_FIELDS).map(([type, fields]) => [
             type,
