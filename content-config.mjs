@@ -414,9 +414,9 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *                                          repository — every configured path is
  *                                          resolved against it, so the build never
  *                                          depends on the working directory.
- * @property {string} contentPackage        Content package name — the value each
- *                                          content note carries in its `package:`
- *                                          frontmatter.
+ * @property {string} contentPackage        Content package name — the address
+ *                                          namespace every note in this
+ *                                          repository is published under.
  * @property {string} foundryPackage        Foundry package id, as it appears in
  *                                          `system.json` / `module.json`.
  * @property {PackageKind} packageKind      Whether the package is a system or a module.

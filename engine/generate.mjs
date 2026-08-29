@@ -21,9 +21,9 @@
  * into the shipped LevelDB packs) — it is never committed.
  *
  * Each `*` compiler walks the whole content tree and selects its own entries by
- * frontmatter (a `package:` matching the configured `contentPackage` + `type`),
- * so routing is directory-agnostic: a file lands in a pack because of its
- * `type`, not its location. Which packs exist, in what order, and which folder
+ * the note's `type` — every note in the tree belongs to this repository's
+ * `contentPackage` (#56) — so routing is directory-agnostic: a file lands in a
+ * pack because of its `type`, not its location. Which packs exist, in what order, and which folder
  * hierarchy each one loads are all declared in `package-build.config.yaml`;
  * folder files live under the content root and are referenced from entry
  * frontmatter via `sohl.folder: <id>`.
@@ -196,9 +196,9 @@ async function generatePack(
  * The passes that compiled nothing when they were expected to compile
  * something — a build failure, not a quiet no-op.
  *
- * A pack compiler selects its entries by the configured content package, so a
- * single wrong package id rejects every note in a perfectly good tree and every
- * pack ships blank while the build exits 0 (#1502). The empty-tree guard in
+ * A pack ships blank whenever every note in a full tree was rejected — by a
+ * `selects` that claims nothing, or a `pack:` that routes everything elsewhere
+ * — and the build then exits 0 (#1502). The empty-tree guard in
  * {@link generatePacksJson} cannot see that: the tree is full, it is the
  * *output* that is empty.
  *
@@ -212,10 +212,10 @@ export function emptyPassErrors(passes) {
         .map(
             (pass) =>
                 `Pack "${pass.name}" compiled 0 entries from a non-empty ` +
-                `content tree. Every note was rejected — check that the notes ` +
-                `declare the package this build compiles (\`contentPackage\` in ` +
-                `package-build.config.yaml), or declare the pack ` +
-                `\`mayBeEmpty\` if it genuinely ships nothing.`,
+                `content tree. Every note was rejected — check that the tree ` +
+                `holds notes of the type this pack claims, and that their ` +
+                `\`pack:\` routes here, or declare the pack \`mayBeEmpty\` if it ` +
+                `genuinely ships nothing.`,
         );
 }
 

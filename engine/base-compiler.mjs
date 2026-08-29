@@ -74,16 +74,25 @@ import {
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { contentPackage } from "./content-package.mjs";
+import { assertNotePackage } from "./note-package.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
+ *
+ * `declined` and `skippedOther` are deliberately separate numbers. A declined
+ * note is one this build **refused** — it names a package this repository does
+ * not compile — and it is an error; a skipped one legitimately belongs to
+ * another pass, and there are thousands of those. Folding the first into the
+ * second is what let a whole tree be filtered out in silence (#56).
  *
  * @typedef {object} PassStats
  * @property {number} compiled - Notes that became a document.
  * @property {number} skippedDraft - Notes marked `draft: true`.
  * @property {number} skippedNoId - Notes with no `id`, where that is tolerated.
  * @property {number} skippedOther - Notes this pass does not claim.
+ * @property {number} declined - Notes refused because they declare another
+ *   package. Counted as errors, never as skips.
  */
 
 /**
@@ -250,8 +259,9 @@ export class BasePackCompiler {
     /**
      * Whether this pass claims a note. **Required.**
      *
-     * Called only for a note of the configured content package, so a subclass
-     * decides on `type` alone.
+     * Called only for a note this build compiles — every note in the tree
+     * belongs to the configured content package (#56) — so a subclass decides
+     * on `type` alone.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True to compile it.
@@ -326,7 +336,9 @@ export class BasePackCompiler {
         const { markdown: tabulated, lineMap } = expandNoteTables(body, {
             docs: this.contentDocs,
             name,
-            pkg: fm.package,
+            // The repository's package, not the note's: every note in the tree
+            // is this package's note, whether or not it says so (#56).
+            pkg: contentPackage(),
             fm,
             bodyLine,
         });
@@ -503,6 +515,14 @@ export class BasePackCompiler {
         if (stats.skippedDraft) {
             log.info(`Skipped ${stats.skippedDraft} draft(s)`);
         }
+        if (stats.declined) {
+            // Its own line, at error level: these are not skips, and burying
+            // them in the skipped tally is the defect (#56). Each one has
+            // already been named individually as a diagnostic.
+            log.error(
+                `Declined ${stats.declined} note(s) declaring another package`,
+            );
+        }
         this.reportDetail(stats);
     }
 
@@ -518,6 +538,7 @@ export class BasePackCompiler {
             skippedDraft: 0,
             skippedNoId: 0,
             skippedOther: 0,
+            declined: 0,
         };
         await this.prepare();
 
@@ -534,8 +555,23 @@ export class BasePackCompiler {
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one (#17).
             this.currentNote = { absPath, bodyLine, bodyColumn };
-            if (!fm || fm.package !== contentPackage()) {
+            // A file carrying no frontmatter at all is not a note.
+            if (!fm) {
                 stats.skippedOther++;
+                continue;
+            }
+            // The package a note belongs to is this repository's configured
+            // one; `package:` is optional and merely has to agree (#56). A
+            // disagreement is reported and counted as an error — never skipped,
+            // which is how a tree naming a package nothing answers to used to
+            // compile zero notes and exit 0. The file comes from the diagnostic
+            // locator, so the message must not repeat it.
+            try {
+                assertNotePackage(fm);
+            } catch (err) {
+                stats.declined++;
+                this.errorCount++;
+                this.noteError(err.message);
                 continue;
             }
             // Checked before `selects`, and therefore for every note this

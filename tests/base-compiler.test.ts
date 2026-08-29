@@ -179,7 +179,10 @@ describe("BasePackCompiler's shared compile loop", () => {
         expect(Object.keys(docs).sort()).toEqual(["Probe One", "Probe Two"]);
     });
 
-    it("skips a note belonging to another content package", () => {
+    it("declines a note declaring another content package", () => {
+        // Refused rather than skipped, and counted as an error below: a note
+        // naming a package this build does not compile used to vanish into the
+        // "belongs to another pass" tally (#56).
         expect(read(out)["Probe Foreign"]).toBeUndefined();
     });
 
@@ -188,7 +191,9 @@ describe("BasePackCompiler's shared compile loop", () => {
     });
 
     it("counts a failed entry rather than aborting the pass", () => {
-        expect(pack.errorCount).toBe(1);
+        // Two: the entry whose `buildEntry` threw, and the note declaring
+        // another package.
+        expect(pack.errorCount).toBe(2);
         expect(read(out)["Probe Boom"]).toBeUndefined();
     });
 

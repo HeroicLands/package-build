@@ -53,6 +53,7 @@ import path from "node:path";
 
 import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
+import { notePackage } from "./note-package.mjs";
 
 /**
  * One page the site will publish, as the index needs to see it.
@@ -238,7 +239,13 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             // stays because a bare `[[skill-lang]]` defaults to the citing
             // note's own package and must keep resolving unchanged; the
             // canonical form is what cross-package links use (#1499).
-            index.set(canonicalKey(e.fm.package, type, shortcode), value);
+            // The page's package is derived — the site collection resolves it
+            // and records it as `pkg` — rather than read out of frontmatter,
+            // where `package:` is optional and on its way out (#56).
+            index.set(
+                canonicalKey(e.pkg ?? notePackage(e.fm), type, shortcode),
+                value,
+            );
             // In Foundry an item and its documentation are two documents, so
             // `skill/wpnc` and `docskill/wpnc` are two UUIDs (#1362). Here the
             // item note renders as one page which *is* its documentation, so
