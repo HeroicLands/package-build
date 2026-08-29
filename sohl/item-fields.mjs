@@ -231,11 +231,6 @@ const GEAR_COMMON = Object.freeze([
         value: true,
         describe: "Whether it is being carried. Possession state.",
     },
-    {
-        to: "isEquipped",
-        value: false,
-        describe: "Whether it is equipped. Possession state.",
-    },
 ]);
 
 /* --------------------------------------------------------------------- */
