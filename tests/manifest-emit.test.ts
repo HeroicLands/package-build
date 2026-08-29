@@ -126,15 +126,6 @@ id: eeeeeeeeeeeeeeee
 name:
     full: Draft Blade`,
     );
-    note(
-        "Gear/Foreign.md",
-        `package: elsewhere
-type: weapongear
-shortcode: foreign
-id: ffffffffffffffff
-name:
-    full: Foreign Blade`,
-    );
     // No section: a `doc` with no category has no address at all.
     note(
         "Rules/Homeless.md",
@@ -243,12 +234,32 @@ name:
 });
 
 describe("what is published, and what is not", () => {
-    it("skips drafts, foreign packages, and notes with no section", () => {
+    it("skips drafts and notes with no section", () => {
         const doc = emit({ ...WEB });
         const keys = Object.keys(doc.entries);
         expect(keys).not.toContain("demo-weapongear-draftitem");
-        expect(keys).not.toContain("demo-weapongear-foreign");
         expect(keys).not.toContain("demo-doc-homeless");
+    });
+
+    it("refuses a note declaring another package, rather than skipping it", () => {
+        // It used to be filtered out in silence, which is how a whole tree
+        // could be excluded from a manifest that then claimed the package
+        // publishes nothing (#56). `tests/note-package.test.ts` owns the rest
+        // of that contract; here it only has to be loud in this pipeline.
+        note(
+            "Gear/Foreign.md",
+            `package: elsewhere
+type: weapongear
+shortcode: foreign
+id: ffffffffffffffff
+name:
+    full: Foreign Blade`,
+        );
+        try {
+            expect(() => emit({ ...WEB })).toThrow(/elsewhere/);
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Gear/Foreign.md"));
+        }
     });
 
     it("reports an unaddressable note rather than dropping it silently", () => {

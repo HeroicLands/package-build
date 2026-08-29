@@ -25,12 +25,25 @@
 import { loadPackConfig } from "./pack-config.mjs";
 
 /**
- * The **content** package: the distribution unit a note declares in its
- * `package:` frontmatter. The pack compilers select their entries by it.
+ * The **content** package: the distribution unit this repository's notes belong
+ * to, and the **address namespace** every one of them is published under.
+ *
+ * It is the first segment of every canonical key (`sohl-skill-clmb`), the name
+ * of the link manifest this build emits (`sohl.json`), and the package a
+ * cross-package wikilink writes to reach one of these notes. So it is the
+ * repository's identity in the address space, not a switch — and never dead
+ * configuration, whatever else changes.
+ *
+ * It was also, until #56, a **selector**: a note declared the same value in its
+ * `package:` frontmatter and the compilers kept the ones that matched. Every
+ * content tree is single-package — each is single-sourced in the repository that
+ * ships it — so the field restated this constant once per note while a value
+ * that matched nothing filtered the whole tree out in silence. The field is
+ * being retired; the value stays, here, where it is declared once.
  *
  * Stable across compilation targets. If this content were ever compiled for a
- * second game system, its notes would still declare `package: sohl` — only the
- * Foundry package below would differ.
+ * second game system, it would still be published as `sohl` — only the Foundry
+ * package below would differ.
  *
  * An accessor rather than a hoisted constant, so that importing this module
  * needs no configuration (#2).
@@ -47,7 +60,7 @@ export function contentPackage() {
  * compendium UUID the compilers emit.
  *
  * Distinct from {@link contentPackage}, and equal to it only by coincidence
- * here: a note says `package: sohl` and its documents are addressed as
+ * here: a note is published under `sohl` and its documents are addressed as
  * `Compendium.sohl.<pack>.<Type>.<id>`. In `sohl-thalorna` the two differ
  * (`thalorna` vs `sohl-thalorna`), which is why they are separate values rather
  * than one — treating them as interchangeable is what #1498 was.

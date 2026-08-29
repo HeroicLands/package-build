@@ -63,7 +63,7 @@ import { BasePackCompiler } from "./base-compiler.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
 import { packRouter } from "./pack-router.mjs";
-import { contentPackage, foundryPackageId } from "./content-package.mjs";
+import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
 import {
     behaviorDocId,
@@ -192,7 +192,11 @@ export class Scenes extends BasePackCompiler {
         for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(
             this.contentBase,
         )) {
-            if (!fm || fm.package !== contentPackage() || !fm.id) continue;
+            // No package test: every note in the tree is this package's, and
+            // this pass's own walk — the shared compile loop — is where a note
+            // declaring another one is reported, once (#56). Repeating the
+            // check here would either double the diagnostic or throw past it.
+            if (!fm || !fm.id) continue;
             if (
                 fm.shortcode &&
                 Array.isArray(fm.effects) &&

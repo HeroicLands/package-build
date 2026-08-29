@@ -21,7 +21,9 @@ npm install -D @heroiclands/package-build
 A consuming repository declares one `package-build.config.yaml` at its root:
 
 ```yaml
-# The value each content note carries in its `package:` frontmatter.
+# The package this repository's content is published as: the first segment of
+# every canonical address, the name of the link manifest it emits, and the
+# package a cross-package wikilink writes to reach one of its notes.
 contentPackage: thalorna
 # Where Foundry installs it: "systems" or "modules". Also decides the served
 # asset root a note's `img:` resolves to — `modules/sohl-thalorna/assets/…`.
@@ -173,6 +175,31 @@ never existed. A module declaring no usable system relationship fails the build
 rather than guessing — a wrong `_stats.systemVersion` is invisible until
 something migrates on it.
 
+### A note's package is the repository's, not the note's
+
+`contentPackage` is the **address namespace** every note in the tree is
+published under. It is not a filter, and a note does not restate it.
+
+A note may still carry `package:` — every note written before this did — and it
+is accepted while it **agrees** with `contentPackage`. One that disagrees is an
+error naming the file, in the compile, in the link manifest, and anywhere else
+a note is read. The field is redundant, and it is being retired in three steps:
+optional now, swept out of every content tree on this version, and rejected
+outright in a later major.
+
+A generated table that scopes itself with `WHERE … and package = "<pkg>"` keeps
+working either way: a note's package is supplied to the table search whether or
+not the note declares it, so deleting the field never turns a table into an
+empty one.
+
+It used to **select**: a note compiled when its `package:` matched and was
+skipped when it did not. Every content tree is single-package — each is
+single-sourced in the repository that ships it — so the field restated one
+constant thousands of times, while a tree whose notes named a package no
+configuration answered to compiled **zero notes and exited 0**. Deleting the
+field from a note is safe on this version and is the fix; deleting the
+_configured_ value is not, since every address derives from it.
+
 ### A registry of your own
 
 `itemBuilders` is the one part of the contract that is code — a table of
@@ -240,7 +267,6 @@ packs:
 name:
   full: Climbing
 type: skill
-package: kethira
 id: ...
 ---
 # A note that names one lands there instead.
@@ -248,7 +274,6 @@ id: ...
 name:
   full: Second Sight
 type: skill
-package: kethira
 id: ...
 pack: mysteries
 ---
@@ -543,7 +568,7 @@ It reads its whole input from configuration and takes nothing else:
 
 | Setting                     | What it decides                                               |
 | --------------------------- | ------------------------------------------------------------- |
-| `contentPackage`            | The package emitted, and which notes belong to it.            |
+| `contentPackage`            | The package emitted, which every note belongs to.             |
 | `foundryPackage`            | The package every emitted `uuid` names.                       |
 | `paths.content`             | The tree walked.                                              |
 | `paths.manifestOut`         | Where the file lands (`build/manifests` by default).          |

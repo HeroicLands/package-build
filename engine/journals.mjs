@@ -16,7 +16,7 @@
  * Foundry compendium from markdown notes in the `assets/content/` tree.
  *
  * The content root (`contentBase`) is walked recursively; any `.md` file
- * whose frontmatter declares `package: sohl` and either `type: doc` or a
+ * whose frontmatter declares either `type: doc` or a
  * **doc-carrying type** ({@link sohl.utils.packs.docEntryTypes} — every item
  * type, plus `macro`) is compiled into one JournalEntry document. Each note's
  * body is split on top-level H1 headings; the optional content before the
@@ -54,7 +54,6 @@ import {
     md,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
-import { contentPackage } from "./content-package.mjs";
 import { anchorPageId } from "./wikilinks.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 
@@ -367,8 +366,7 @@ export class Journals extends BasePackCompiler {
     /** @inheritdoc */
     reportDetail(stats) {
         log.debug(
-            `Skipped ${stats.skippedOther} non-doc file(s) ` +
-                `(not type:doc package:${contentPackage()})`,
+            `Skipped ${stats.skippedOther} non-doc file(s) (not type:doc)`,
         );
     }
 }

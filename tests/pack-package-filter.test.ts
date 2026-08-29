@@ -10,10 +10,15 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-// The whole point of these tests: the compilers must select their entries by
-// the *configured* content package, so a repository that ships another
-// package's notes compiles them. Mocking the configuration to a package that is
-// not "sohl" is what tells a configured read apart from a hard-coded literal.
+// The whole point of these tests: a note's package is the *configured* one, so
+// a repository that ships another package's notes compiles them. Mocking the
+// configuration to a package that is not "sohl" is what tells a configured read
+// apart from a hard-coded literal.
+//
+// Since #56 the frontmatter field is optional rather than a selector: a note
+// that declares nothing compiles, one that declares the configured package
+// compiles, and one that declares another package is an error naming the file
+// — never the silent skip that let a whole tree be filtered out at exit 0.
 vi.mock("../engine/content-package.mjs", () => ({
     contentPackage: () => "thalorna",
     foundryPackageId: () => "sohl-thalorna",
@@ -50,8 +55,34 @@ A skill belonging to the configured content package.
 `;
 
 /**
- * The control: a note of a *different* package. It must be skipped — a filter
- * that let everything through would pass the tests above for the wrong reason.
+ * A note that declares no package at all — the shape every note in a swept tree
+ * has. It compiles exactly as the one above does: the package a note belongs to
+ * is the repository's, not the note's (#56).
+ */
+const UNDECLARED_SKILL = `---
+name:
+  full: Undeclared Skill
+id: YYYYYYYYYYYYYYYY
+shortcode: undeclaredskill
+type: skill
+sohl:
+  archetype: null
+  subType: physical
+  skillBaseFormula: "sb(attr.str)"
+  combatCategory: none
+  parentSkillCode: ""
+  initSkillMult: 0
+  masteryLevelBase: null
+  improveFlag: false
+---
+
+A skill that leaves its package to the configuration.
+`;
+
+/**
+ * The control: a note of a *different* package. It must be **refused** — a
+ * compiler that let everything through would pass the tests above for the wrong
+ * reason, and one that skipped it quietly is the defect #56 removes.
  */
 const OTHER_SKILL = `---
 name:
@@ -173,7 +204,10 @@ beforeAll(async () => {
     content = path.join(tmp, "content");
     fs.mkdirSync(content, { recursive: true });
     fs.writeFileSync(path.join(content, "OwnSkill.md"), OWN_SKILL);
-    fs.writeFileSync(path.join(content, "OtherSkill.md"), OTHER_SKILL);
+    fs.writeFileSync(
+        path.join(content, "UndeclaredSkill.md"),
+        UNDECLARED_SKILL,
+    );
     fs.writeFileSync(path.join(content, "OwnCreature.md"), OWN_CREATURE);
     fs.writeFileSync(path.join(content, "OwnDoc.md"), OWN_DOC);
     fs.writeFileSync(path.join(content, "OwnMacro.md"), OWN_MACRO);
@@ -215,7 +249,7 @@ beforeAll(async () => {
 
 afterAll(() => fs.rmSync(tmp, { recursive: true, force: true }));
 
-describe("every pack compiler selects by the configured content package", () => {
+describe("every pack compiler compiles the configured package's notes", () => {
     it("compiles the items of the configured package", () => {
         expect(compilers.items.errorCount).toBe(0);
         expect(names(dirs.items)).toContain("Foreign Skill");
@@ -241,11 +275,45 @@ describe("every pack compiler selects by the configured content package", () => 
         expect(names(dirs.scenes)).toContain("Foreign Map");
     });
 
-    it("skips a note belonging to another package", () => {
-        // Not merely "some notes were compiled" — the filter must still reject
-        // what this build does not own, in every pass that could claim it.
-        expect(names(dirs.items)).not.toContain("Other Package Skill");
-        expect(names(dirs.journals)).not.toContain("Other Package Skill");
+    it("compiles a note that declares no package at all", () => {
+        // The shape a swept tree's notes have. Nothing about it is special:
+        // the package is the repository's, so there is nothing to match.
+        expect(names(dirs.items)).toContain("Undeclared Skill");
+    });
+});
+
+describe("a note belonging to another package is refused, not skipped", () => {
+    let tmp2: string;
+
+    beforeAll(() => {
+        tmp2 = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-pkg-foreign-"));
+    });
+
+    afterAll(() => fs.rmSync(tmp2, { recursive: true, force: true }));
+
+    it("counts an error and writes nothing, naming the file", async () => {
+        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
+        try {
+            const tree = path.join(tmp2, "content");
+            const out = path.join(tmp2, "items");
+            fs.mkdirSync(tree, { recursive: true });
+            fs.mkdirSync(out, { recursive: true });
+            fs.writeFileSync(path.join(tree, "OtherSkill.md"), OTHER_SKILL);
+
+            const items = new Items({ contentBase: tree, dest: out });
+            await items.compile();
+
+            // Loud: the build fails, rather than shipping an empty pack from a
+            // tree whose every note named a package nothing answered to.
+            expect(items.errorCount).toBe(1);
+            expect(names(out)).not.toContain("Other Package Skill");
+            const lines = spy.mock.calls.map((c) => String(c[0]));
+            expect(lines.some((l) => l.includes("OtherSkill.md"))).toBe(true);
+            expect(lines.some((l) => l.includes("sohl"))).toBe(true);
+            expect(lines.some((l) => l.includes("thalorna"))).toBe(true);
+        } finally {
+            spy.mockRestore();
+        }
     });
 });
 

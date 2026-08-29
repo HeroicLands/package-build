@@ -52,6 +52,7 @@ import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
+import { notePackage, searchableFrontmatter } from "./note-package.mjs";
 import {
     canonicalKey,
     loadForeignManifests,
@@ -131,21 +132,18 @@ export function buildLinkIndex(
 
     for (const note of notes) {
         const { fm, type } = note;
+        // Derived, never read out of frontmatter: `package:` is optional, and a
+        // note that declares nothing addresses exactly as one that declares the
+        // configured package (#56).
+        const pkg = notePackage(fm);
         if (typeof fm.shortcode === "string" && fm.shortcode) {
             byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
             // The canonical, fully qualified address alongside the short one,
             // so a package-qualified link checks the same way a bare one does.
-            if (fm.package) {
-                byKey.set(canonicalKey(fm.package, type, fm.shortcode), note);
-            }
+            byKey.set(canonicalKey(pkg, type, fm.shortcode), note);
             if (hasDocEntry(type)) {
                 byKey.set(`doc${type}/${fm.shortcode}`.toLowerCase(), note);
-                if (fm.package) {
-                    byKey.set(
-                        canonicalKey(fm.package, `doc${type}`, fm.shortcode),
-                        note,
-                    );
-                }
+                byKey.set(canonicalKey(pkg, `doc${type}`, fm.shortcode), note);
             }
         }
         const aliases = [
@@ -172,9 +170,7 @@ export function buildLinkIndex(
     // A foreign package may use a type this tree has never seen, so its types
     // join `types` — otherwise `readQualifier` reads the link as prose and it
     // is never checked at all.
-    const localPackages = new Set(
-        notes.map((n) => n.fm?.package).filter(Boolean),
-    );
+    const localPackages = new Set(notes.map((n) => notePackage(n.fm)));
     const foreign =
         manifestDir ?
             loadForeignManifests(manifestDir, localPackages)
@@ -182,13 +178,15 @@ export function buildLinkIndex(
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
     const packages = new Set([
-        ...[...byKey.values()].map((n) => n.fm?.package).filter(Boolean),
+        ...[...byKey.values()].map((n) => notePackage(n.fm)),
         ...foreign.packages,
     ]);
 
     /** The searchable universe a `dataview` table draws its rows from. */
     const tableDocs = notes.map((n) => ({
-        fm: n.fm,
+        // Package present however the note spells it — see
+        // {@link searchableFrontmatter} (#56).
+        fm: searchableFrontmatter(n.fm),
         path: n.rel,
         tld: n.rel.split("/")[0],
         folder: path.dirname(n.rel).split("/").pop(),
@@ -207,7 +205,9 @@ export function buildLinkIndex(
         let body = note.body;
         if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*dataview\b/im.test(body)) {
             body = expandContentTables(body, {
-                docs: tableDocs.filter((d) => d.fm.package === note.fm.package),
+                docs: tableDocs.filter(
+                    (d) => notePackage(d.fm) === notePackage(note.fm),
+                ),
                 linkable: (d) => Boolean(d.fm.shortcode),
                 source: note.file,
             }).markdown;

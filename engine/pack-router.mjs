@@ -69,8 +69,9 @@ export class PackRoutingError extends Error {
 /**
  * The frontmatter field a note declares its pack in.
  *
- * Deliberately close to `package:` and deliberately not the same word: a note's
- * `package:` says which *distribution* owns it, `pack:` which *compendium*
+ * Deliberately close to the retiring `package:` and deliberately not the same
+ * word: `package:` said which *distribution* owned a note — now the
+ * repository's `contentPackage` (#56) — while `pack:` says which *compendium*
  * receives its document.
  */
 export const PACK_FIELD = "pack";

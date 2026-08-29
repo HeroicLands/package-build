@@ -286,8 +286,8 @@ export function buildMacroEntry(
 /**
  * Macros pack compiler.
  *
- * Walks the content tree and compiles every `package: sohl`, `type: macro`
- * note into one Macro document. The same note's documentation is compiled by
+ * Walks the content tree and compiles every `type: macro` note into one Macro
+ * document. The same note's documentation is compiled by
  * the journals pass; neither pass reads the other's output.
  */
 export class Macros extends BasePackCompiler {

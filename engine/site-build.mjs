@@ -62,6 +62,7 @@ import {
 } from "./foreign-manifests.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { notePackage, searchableFrontmatter } from "./note-package.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -117,7 +118,9 @@ function readNote(file) {
  * The content tree's pages, and what could not be addressed.
  *
  * @param {string} contentBase - Absolute path to the content tree.
- * @param {object} ctx - `{ packages, skipDirectories, mount, scheme }`.
+ * @param {object} ctx - `{ packages, contentPackage, skipDirectories, mount,
+ *   scheme }`. `contentPackage` is the package a note that declares none
+ *   belongs to.
  * @returns {{pages: object[], slugFindings: object[], fmLinkFindings: object[]}}
  */
 export function collectContentPages(contentBase, ctx) {
@@ -129,7 +132,12 @@ export function collectContentPages(contentBase, ctx) {
         const note = readNote(file);
         if (!note) continue;
         const { fm, body } = note;
-        if (!ctx.packages.has(fm.package) || !fm.type) continue;
+        // Derived rather than read: `package:` is optional, and a note that
+        // declares nothing belongs to the package this repository compiles
+        // (#56). Once the field is retired outright this collapses to
+        // `ctx.contentPackage` and the set membership becomes a formality.
+        const pkg = notePackage(fm, ctx.contentPackage);
+        if (!ctx.packages.has(pkg) || !fm.type) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
             fmLinkFindings.push({ file, ...hit });
@@ -154,6 +162,10 @@ export function collectContentPages(contentBase, ctx) {
         pages.push({
             kind: "content",
             fm,
+            // The page's package, resolved once here so every consumer — the
+            // index's canonical keys, the table universe, the local-package set
+            // — reads one derived value instead of frontmatter (#56).
+            pkg,
             body,
             name,
             slug,
@@ -287,7 +299,7 @@ export function siteGates(pages, findings, { manifestDir }) {
     // and that is only known once the tree is walked — reading it from a
     // configured list instead silently discarded the manifest of any package
     // the list named but the tree did not contain.
-    const localPackages = new Set(content.map((p) => p.fm.package));
+    const localPackages = new Set(content.map((p) => p.pkg));
     const foreign = loadForeignManifests(manifestDir, localPackages);
     out.foreign = foreign;
     if (foreign.stale.length) {
@@ -332,10 +344,12 @@ export function tableUniverse(pages) {
     const byPackage = new Map();
     for (const p of pages) {
         if (p.kind !== "content") continue;
-        const pkg = p.fm.package;
+        const pkg = p.pkg;
         if (!byPackage.has(pkg)) byPackage.set(pkg, []);
         byPackage.get(pkg).push({
-            fm: p.fm,
+            // Package present however the note spells it — see
+            // {@link searchableFrontmatter} (#56).
+            fm: searchableFrontmatter(p.fm, pkg),
             path: p.relPath,
             tld: p.tld,
             folder: p.folder,
@@ -457,10 +471,13 @@ export function renderPages(pages, options) {
         let body = page.body;
         if (page.kind === "content") {
             const { markdown, errors } = expandContentTables(body, {
-                docs: universe.get(page.fm.package) ?? [],
+                docs: universe.get(page.pkg) ?? [],
                 linkable,
                 source: src,
-                self: { fm: page.fm, path: page.relPath },
+                self: {
+                    fm: searchableFrontmatter(page.fm, page.pkg),
+                    path: page.relPath,
+                },
             });
             tableErrors.push(...errors);
             body = markdown;
@@ -697,6 +714,8 @@ export function buildSite({ config, outRoot } = {}) {
 
     const ctx = {
         packages,
+        // What a note that declares no `package:` belongs to (#56).
+        contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
         mount,
         scheme,
