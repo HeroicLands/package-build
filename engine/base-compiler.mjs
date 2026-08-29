@@ -34,9 +34,11 @@
  * | {@link BasePackCompiler#finish} | Work that needs every note first. |
  * | {@link BasePackCompiler#reportCompiled} / {@link BasePackCompiler#reportDetail} | The pass's own log lines. |
  *
- * plus two static switches — `requiresId` (a note with no id is fatal, or
- * merely skipped) and `convertsWikilinks` (whether the body reaching
- * `buildEntry` is converted or exactly as authored).
+ * plus three static switches — `requiresId` (a note with no id is fatal, or
+ * merely skipped), `convertsWikilinks` (whether the body reaching
+ * `buildEntry` is converted or exactly as authored) and `readsPackOutputOf`
+ * (the document types whose compiled output this pass reads, which is what the
+ * generator derives the compile order from).
  *
  * `selects` answers *which document type* a pass claims, and it is the same
  * answer for every pack of that type. Which **pack of that type** a claimed
@@ -140,6 +142,29 @@ export class BasePackCompiler {
      * @type {boolean}
      */
     static convertsWikilinks = true;
+
+    /**
+     * The document types whose **compiled output** this pass reads.
+     *
+     * Empty for every pass that reads only the content tree. The actors pass
+     * is the exception: a being names its embedded items by
+     * `(type, shortcode)`, and it resolves them against the JSON the item
+     * passes wrote — so an Actor pass must run after every Item pass, and it
+     * says so here.
+     *
+     * The generator derives the compile order from this (#73), so the order
+     * `packs:` declares is presentation only — it is the manifest's `packs`
+     * array as well, and a consumer orders that for a reader. A pass that
+     * reads another's output states the dependency once, in the class that
+     * does the reading, instead of every consuming repository having to know
+     * it when writing its pack list.
+     *
+     * A consumer registering a compiler of its own declares its dependencies
+     * the same way; a type no pack declares is simply not waited for.
+     *
+     * @type {readonly string[]}
+     */
+    static readsPackOutputOf = Object.freeze([]);
 
     /** @type {string} */
     contentBase;
