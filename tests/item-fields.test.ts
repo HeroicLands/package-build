@@ -214,3 +214,36 @@ describe("association codes reach the emitted document (#3)", () => {
         }
     });
 });
+
+// The inverse of #3, from the same root cause: an emitted key no DataModel
+// declares. `MysticalAbilityDataModel` dropped `assocMysteryCode` in
+// HeroicLands/Song-of-Heroic-Lands-FoundryVTT#973 — nothing read the mystery it
+// resolved to — and `assocAffiliationCode` arrived later and separately (#1012)
+// as the granting faction, so the two are unrelated rather than a rename.
+// Foundry discards an undeclared key when the document is constructed, so every
+// compiled ability shipped a value that was thrown away at load.
+describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => {
+    it("omits the key when no note authors it", () => {
+        expect(
+            build("mysticalability", { subType: "arcane" }),
+        ).not.toHaveProperty("assocMysteryCode");
+    });
+
+    it("omits the key even when a note still authors one", () => {
+        expect(
+            build("mysticalability", {
+                subType: "arcane",
+                assocMysteryCode: "pmagic",
+            }),
+        ).not.toHaveProperty("assocMysteryCode");
+    });
+
+    it("declares no mysteryCode field on any type", () => {
+        for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
+            expect(
+                (fields as any[]).map((f) => f.to),
+                type,
+            ).not.toContain("assocMysteryCode");
+        }
+    });
+});
