@@ -52,6 +52,22 @@ function note({
     ].join("\n");
 }
 
+/**
+ * The package homepage: a note with a `type` and no `shortcode`, because it is
+ * addressed by the package rather than by a slug.
+ */
+function homepage(title = "Hârn Adventures"): string {
+    return [
+        "---",
+        "type: homepage",
+        `title: ${title}`,
+        "---",
+        "",
+        "Prose.",
+        "",
+    ].join("\n");
+}
+
 /** Lint a tree, skipping nothing, and return its findings. */
 const lint = (files: Record<string, string>) =>
     lintContentTree(tree(files), { skipDirectories: [] });
@@ -174,12 +190,62 @@ describe("lintContentTree", () => {
         expect(r.findings).toHaveLength(1);
         expect(r.findings[0].message).toContain("vacuous");
         expect(r.keys).toBe(0);
+        expect(r.notes).toBe(0);
     });
 
     it("fails a tree of untyped scaffolding for the same reason", () => {
         const r = lint({ "README.md": "# Nothing addressable\n" });
         expect(r.findings).toHaveLength(1);
         expect(r.findings[0].message).toContain("vacuous");
+        expect(r.notes).toBe(0);
+    });
+
+    // Not a tree at all: the path names nothing, which is what a mistyped root
+    // or a missing checkout looks like from here.
+    it("fails a path that is not a content tree", () => {
+        const r = lintContentTree(path.join(tree({}), "does", "not", "exist"), {
+            skipDirectories: [],
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].message).toContain("vacuous");
+        expect(r.notes).toBe(0);
+    });
+
+    // #77: a package in `publish.site: homepage` mode may hold exactly one
+    // note, and a homepage carries no `shortcode` by design — it is addressed
+    // by the package, not by a slug. That is a populated tree with nothing to
+    // key, not an absent one, so the vacuous guard must not fire.
+    it("passes a tree whose only note is the package homepage", () => {
+        const r = lint({ "homepage.md": homepage() });
+        expect(r.findings).toEqual([]);
+        expect(r.notes).toBe(1);
+        expect(r.keys).toBe(0);
+    });
+
+    it("still lints a homepage alongside keyed notes", () => {
+        const r = lint({
+            "homepage.md": homepage(),
+            "Afflictions/Aconite.md": note(),
+            "Afflictions/Belladonna.md": note({
+                shortcode: "bella",
+                name: "Belladonna",
+            }),
+        });
+        expect(r.findings).toEqual([]);
+        expect(r.notes).toBe(3);
+        expect(r.keys).toBe(2);
+
+        // The keyed notes are still held to both rules with a homepage present.
+        const dupes = lint({
+            "homepage.md": homepage(),
+            "A/One.md": note(),
+            "B/Two.md": note({ name: "Aconite Copy" }),
+        });
+        expect(
+            dupes.findings.filter((f) =>
+                f.message.includes("duplicate address"),
+            ),
+        ).toHaveLength(2);
     });
 
     it("honours the skip list", () => {
