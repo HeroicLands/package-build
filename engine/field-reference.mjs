@@ -147,8 +147,8 @@ function workedExample(type, fields) {
         `type: ${type}`,
         "shortcode: xmpl",
         // No `package:`. A note's package is the repository's configured
-        // `contentPackage`, so the field is redundant and is being retired
-        // (#56) — and this example is the smallest note that compiles.
+        // `contentPackage`, and declaring the field is a build error (#56) —
+        // this example is the smallest note that compiles.
         "id: <16-character id>",
         "sohl:",
         "  archetype: null",

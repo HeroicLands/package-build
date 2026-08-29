@@ -159,6 +159,22 @@ describe("the five failure classes (#19)", () => {
             ),
         ).toEqual([]);
     });
+
+    it("reports a retired top-level `package:`, at its own position", () => {
+        // The lint is where an author meets the whole list at once; the compile
+        // refuses one note at a time (#56). Reported whatever it says — the
+        // value is the repository's `contentPackage` and no note restates it.
+        const declaring = {
+            file: "/tree/skill.md",
+            type: "skill",
+            raw: `---\ntype: skill\npackage: sohl\n---\n`,
+            fm: { type: "skill", package: "sohl", sohl: { subType: "craft" } },
+        };
+        const findings = lintNote(declaring, { schemas });
+        expect(messages(findings)).toContain("retired");
+        expect(messages(findings)).toContain("contentPackage");
+        expect(findings[0]).toMatchObject({ line: 3, column: 1 });
+    });
 });
 
 describe("keys every type accepts", () => {

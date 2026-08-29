@@ -54,7 +54,7 @@ export * as packRouter from "./pack-router.mjs";
 /** The content package a build compiles, and the Foundry package it ships in. */
 export * as contentPackage from "./content-package.mjs";
 
-/** Which content package a note belongs to, and refusing one that disagrees. */
+/** Which content package a note belongs to, and refusing one that says so. */
 export * as notePackage from "./note-package.mjs";
 
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */

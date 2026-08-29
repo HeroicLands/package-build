@@ -62,7 +62,7 @@ import {
 } from "./foreign-manifests.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
-import { notePackage, searchableFrontmatter } from "./note-package.mjs";
+import { searchableFrontmatter } from "./note-package.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -132,11 +132,10 @@ export function collectContentPages(contentBase, ctx) {
         const note = readNote(file);
         if (!note) continue;
         const { fm, body } = note;
-        // Derived rather than read: `package:` is optional, and a note that
-        // declares nothing belongs to the package this repository compiles
-        // (#56). Once the field is retired outright this collapses to
-        // `ctx.contentPackage` and the set membership becomes a formality.
-        const pkg = notePackage(fm, ctx.contentPackage);
+        // The configuration's, never a note's: `package:` is retired, so every
+        // note in the tree belongs to the package this repository compiles
+        // (#56).
+        const pkg = ctx.contentPackage;
         if (!ctx.packages.has(pkg) || !fm.type) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
@@ -162,9 +161,9 @@ export function collectContentPages(contentBase, ctx) {
         pages.push({
             kind: "content",
             fm,
-            // The page's package, resolved once here so every consumer — the
+            // The page's package, recorded once here so every consumer — the
             // index's canonical keys, the table universe, the local-package set
-            // — reads one derived value instead of frontmatter (#56).
+            // — reads one configured value and never frontmatter (#56).
             pkg,
             body,
             name,
@@ -347,7 +346,8 @@ export function tableUniverse(pages) {
         const pkg = p.pkg;
         if (!byPackage.has(pkg)) byPackage.set(pkg, []);
         byPackage.get(pkg).push({
-            // Package present however the note spells it — see
+            // Package present for a `WHERE … package = "…"` clause,
+            // synthesised rather than authored — see
             // {@link searchableFrontmatter} (#56).
             fm: searchableFrontmatter(p.fm, pkg),
             path: p.relPath,
@@ -367,10 +367,10 @@ export function tableUniverse(pages) {
  * redirect stub at each name. They are dropped, and this build emits no
  * redirects of its own.
  *
- * A content page carries the package the build **derived**, whether or not the
- * note declared one (#65). `package:` became optional in 3.3.0, so a swept tree
- * declares none — and the note's frontmatter alone would then publish a page
- * that does not say which package it belongs to. The emitted page is what a
+ * A content page carries the package the build **derived** (#65). No note
+ * declares one — `package:` is retired (#56) — so the note's frontmatter alone
+ * would publish a page that does not say which package it belongs to. The
+ * emitted page is what a
  * theme reads: `breadcrumbs.html` builds its middle crumb from
  * `.Params.package`, so without it that crumb degrades from a linked, labelled
  * section to a bare type slug. Writing the derived value keeps a page
@@ -387,10 +387,8 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
     if (page.kind === "content") {
         data = {
             ...fm,
-            // Spread after the note's own frontmatter, so a note that declares
-            // the field keeps its authored position and value and an unswept
-            // tree emits byte-identically. Guarded because `package: undefined`
-            // is not a value YAML can carry.
+            // Spread after the note's own frontmatter. Guarded because
+            // `package: undefined` is not a value YAML can carry.
             ...(page.pkg ? { package: page.pkg } : {}),
             slug,
             title: fm.title ?? name,
@@ -734,7 +732,8 @@ export function buildSite({ config, outRoot } = {}) {
 
     const ctx = {
         packages,
-        // What a note that declares no `package:` belongs to (#56).
+        // The package every note in the tree belongs to. `package:` is
+        // retired, so this is the only source of it (#56).
         contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
         mount,

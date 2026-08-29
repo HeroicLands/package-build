@@ -54,7 +54,6 @@ name:
 id: FFFFFFFFFFFFFFFF
 shortcode: relocated
 type: doc
-package: elsewhere
 sohl:
   archetype: null
 ---

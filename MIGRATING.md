@@ -1,3 +1,50 @@
+# Migrating to `@heroiclands/package-build` 4.0.0
+
+**One authoring change: delete `package:` from every content note.** A note's
+package is the repository's configured `contentPackage`, and declaring the field
+is now a build error rather than a redundancy the build tolerated.
+
+## 1. Sweep the content tree
+
+The field is a whole line, and nothing else reads it:
+
+```bash
+find assets/content -name '*.md' -print0 | xargs -0 sed -i '' '/^package: /d'
+```
+
+(GNU `sed`: `sed -i '/^package: /d'`.) Then compile — `content-build package
+compile` must produce byte-identical output to the run before the sweep, because
+the value the build derives is the value the notes restated.
+
+A note that still carries the field fails the build where it is:
+
+```text
+assets/content/Gear/Axe.md:12:1: error: `package: sohl` is a retired frontmatter field — delete it. A note's package is this repository's configured `contentPackage` ("sohl", in package-build.config.yaml), and every note in the tree belongs to it.
+```
+
+`content-build lint` reports every one of them in a single pass, so the sweep can
+be checked before it is compiled.
+
+## 2. Nothing else
+
+- **`contentPackage` stays**, and is unchanged. It is the address namespace —
+  the first segment of every canonical key, the name of the emitted link
+  manifest, and the package a cross-package wikilink writes. Every address in
+  every manifest is identical across this upgrade.
+- **A generated table's `WHERE … and package = "<pkg>"` clause keeps matching.**
+  The package is synthesised into what the table search sees, from
+  `contentPackage`; it was never the authored field that answered the clause
+  after 3.3.0.
+- **No configuration key changed**, and no CLI command, flag or exit code.
+
+## What this replaced
+
+A note used to be _selected_ by the field: it compiled when `package:` matched
+`contentPackage` and was skipped, silently and as "belongs to another pass",
+when it did not. A tree whose notes named a package no configuration answered to
+compiled **zero notes and exited 0** (#56). 3.3.0 made the field optional so
+every repository could be swept on a non-breaking version; this major removes it.
+
 # Migrating to `@heroiclands/package-build` 3.0.0
 
 `@heroiclands/content-build` and `@heroiclands/package-build` are one package.

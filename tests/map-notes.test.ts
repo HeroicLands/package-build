@@ -39,7 +39,6 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         id: SCENE_ID,
         shortcode: "ambushdefile",
         type: "battlemap",
-        package: "sohl",
         sohl: {
             image: "systems/sohl/assets/ui/parchment.jpg",
             dimensions: [1900, 2600],

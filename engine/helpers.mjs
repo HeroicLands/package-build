@@ -36,7 +36,7 @@ import log from "loglevel";
 import { loadPackConfig } from "./pack-config.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
-import { notePackage, searchableFrontmatter } from "./note-package.mjs";
+import { searchableFrontmatter } from "./note-package.mjs";
 import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 import { expandContentTables } from "./content-tables.mjs";
@@ -602,8 +602,9 @@ export function collectContentDocs(contentBase) {
         if (!fm) continue;
         const segments = path.relative(contentBase, absPath).split(path.sep);
         docs.push({
-            // With its package present whether the note declares one or not, so
-            // a `WHERE … package = "…"` query reads the same either way (#56).
+            // With its package supplied for a `WHERE … package = "…"` query —
+            // synthesised from the configuration, since no note declares it
+            // (#56).
             fm: searchableFrontmatter(fm),
             // POSIX-separated and relative to the content root — what a
             // `path:` search term globs, on every platform.
@@ -636,17 +637,15 @@ const packLinkable = (doc) =>
  * Expand the fenced `dataview` tables in one note's markdown, before wikilinks
  * are resolved — so a generated cell may itself be a wikilink.
  *
- * A table searches only notes of the source note's own package, so a SoHL page
- * never tabulates setting-package content (and vice versa). Each candidate's
- * package is **derived** rather than read out of its frontmatter: `package:` is
- * optional, and comparing a declared value with an absent one would drop every
- * unswept — or every swept — note from the table (#56).
+ * A table searches the whole tree, which is one package's notes and nothing
+ * else — so there is no longer a package to scope on. It used to filter, back
+ * when a tree could hold several packages' notes and `package:` said which was
+ * which; that field is retired and the filter with it (#56).
  *
  * @param {string} body - The note's markdown body.
  * @param {object} ctx
  * @param {Array<object>} ctx.docs - From {@link collectContentDocs}.
  * @param {string} ctx.name - The note, for the error message.
- * @param {string} [ctx.pkg] - The source note's package.
  * @param {object} [ctx.fm] - The source note's frontmatter, which is what a
  *   query's `this` reads. Its entry in `docs` supplies the path as well.
  * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line,
@@ -659,8 +658,7 @@ const packLinkable = (doc) =>
  *   compile rather than shipping a table-shaped hole. The error carries
  *   `position`, the directive's own line.
  */
-export function expandNoteTables(body, { docs, name, pkg, fm, bodyLine }) {
-    const scoped = pkg ? docs.filter((d) => notePackage(d.fm) === pkg) : docs;
+export function expandNoteTables(body, { docs, name, fm, bodyLine }) {
     const self =
         fm ?
             (docs.find((d) => d.fm?.id && d.fm.id === fm.id) ?? {
@@ -668,7 +666,7 @@ export function expandNoteTables(body, { docs, name, pkg, fm, bodyLine }) {
             })
         :   undefined;
     const { markdown, errors, lineMap } = expandContentTables(body ?? "", {
-        docs: scoped,
+        docs,
         linkable: packLinkable,
         source: name,
         self,

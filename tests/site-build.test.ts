@@ -62,8 +62,7 @@ beforeAll(() => {
 
     note(
         "Gear/Dagger.md",
-        `package: demo
-type: weapongear
+        `type: weapongear
 shortcode: dagger
 id: aaaaaaaaaaaaaaaa
 aliases: [weapongear-dagger, "A Fine Dagger"]
@@ -73,8 +72,7 @@ name:
     );
     note(
         "Rules/Combat.md",
-        `package: demo
-type: doc
+        `type: doc
 category: rules
 shortcode: combat
 name:
@@ -82,21 +80,11 @@ name:
     );
     note(
         "Rules/README.md",
-        `package: demo
-type: doc
+        `type: doc
 category: rules
 shortcode: rulesidx
 name:
     full: The Rules`,
-    );
-    // Another package's note, and one this build does not accept.
-    note(
-        "Gear/Foreign.md",
-        `package: other
-type: weapongear
-shortcode: foreign
-name:
-    full: Foreign`,
     );
 
     write(
@@ -137,6 +125,9 @@ function configFor(site: Record<string, unknown> = {}) {
 
 const ctx = {
     packages: new Set(["demo"]),
+    // The package every note in the tree belongs to. Read from the
+    // configuration, never from a note (#56).
+    contentPackage: "demo",
     skipDirectories: [],
     mount: "/demo/kb/",
     scheme: { prefix: "kb/", landing: "readme" },
@@ -155,7 +146,7 @@ describe("the walk is ordered, because the index depends on it", () => {
     });
 
     it("skips the directories the configuration names", () => {
-        write("assets/content/Templates/T.md", "---\npackage: demo\n---\n");
+        write("assets/content/Templates/T.md", "---\ntype: doc\n---\n");
         const all = walkSiteTree(path.join(root, "assets/content"));
         const kept = walkSiteTree(path.join(root, "assets/content"), [
             "Templates",
@@ -180,12 +171,17 @@ describe("a page's address comes from the shared scheme", () => {
         expect(byName["The Rules"]).toBe("/demo/kb/rules/");
     });
 
-    it("only publishes the packages the site accepts", () => {
+    it("publishes every note in the tree, under the configured package", () => {
+        // Nothing is selected by frontmatter any more: the tree holds one
+        // package's notes and `package:` is retired, so a page's package is
+        // the configuration's (#56).
         const { pages } = collectContentPages(
             path.join(root, "assets/content"),
             ctx,
         );
-        expect(pages.map((p) => p.name)).not.toContain("Foreign");
+        const content = pages.filter((p) => p.kind === "content");
+        expect(content.map((p) => p.name)).toContain("Dagger");
+        expect(content.every((p) => p.pkg === "demo")).toBe(true);
     });
 
     it("preserves an extra tree's source layout below its section", () => {
@@ -232,8 +228,7 @@ describe("every gate reports; none exits", () => {
     it("catches a wikilink authored in frontmatter", () => {
         note(
             "Gear/Linky.md",
-            `package: demo
-type: weapongear
+            `type: weapongear
 shortcode: linky
 name:
     full: Linky
@@ -250,8 +245,7 @@ summary: "see [[weapongear-dagger]]"`,
     it("catches a name that yields no slug", () => {
         note(
             "Gear/Blank.md",
-            `package: demo
-type: weapongear
+            `type: weapongear
 shortcode: blank
 name:
     full: "···"`,
@@ -264,8 +258,7 @@ name:
     it("catches two pages claiming one URL", () => {
         note(
             "Gear/Dagger2.md",
-            `package: demo
-type: weapongear
+            `type: weapongear
 shortcode: dagger2
 name:
     full: Dagger`,
@@ -305,21 +298,21 @@ describe("what a page publishes with", () => {
         isReadme: false,
     };
 
-    it("carries the package the build derived, declared or not", () => {
-        // #65: `package:` is optional since 3.3.0, so a swept tree's notes
-        // declare none — and a page that publishes without it is no longer
+    it("carries the package the build derived", () => {
+        // #65: no note declares `package:` — it is retired (#56) — so a page
+        // that published only what the note carried would no longer be
         // self-describing. The theme's breadcrumb partial reads
         // `.Params.package` to build the middle crumb, which degrades from a
         // linked section label to a bare type slug without it.
         expect(pageFrontmatter(page as never, {}).package).toBe("demo");
     });
 
-    it("publishes a declared package unchanged", () => {
-        const declared = {
-            ...page,
-            fm: { ...page.fm, package: "demo" },
-        };
-        expect(pageFrontmatter(declared as never, {}).package).toBe("demo");
+    it("overwrites a stale authored value with the derived one", () => {
+        // The compile refuses a note declaring the field, so this is defence
+        // rather than a live path: whatever a note says, the page publishes
+        // the package the build derived.
+        const stale = { ...page, fm: { ...page.fm, package: "elsewhere" } };
+        expect(pageFrontmatter(stale as never, {}).package).toBe("demo");
     });
 
     it("drops an authored `aliases`", () => {
@@ -522,8 +515,7 @@ name:
     it("stops before writing when a gate fires", () => {
         note(
             "Gear/Dagger3.md",
-            `package: demo
-type: weapongear
+            `type: weapongear
 shortcode: dagger3
 name:
     full: Dagger`,
