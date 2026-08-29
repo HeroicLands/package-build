@@ -425,17 +425,17 @@ npx content-build site [--out <dir>]
 npx content-build reachability <dir> [file] [--index <shortcode>]
 ```
 
-| Command        | What it does                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).       |
-| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                      |
-| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                  |
-| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests. |
-| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                |
-| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                            |
-| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).               |
-| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                     |
-| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.       |
+| Command        | What it does                                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
+| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
+| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
+| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
+| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
+| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
+| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
+| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
+| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
 
 Every path, pack name and root it needs comes from the consuming repository's
 `package-build.config.yaml`, so the usual invocation takes no arguments beyond
@@ -511,6 +511,61 @@ in Obsidian, so the rule cost a line of frontmatter per note for a reader that
 does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
+
+### The homepage's own links
+
+The homepage is the page a reader arrives at, and until #54 it was the one page
+nothing checked. SoHL's landing pointed at `kb/creature/` and `kb/character/`
+from the day those two types merged into `being` — two 404s on the package's
+front page, through every build, because a landing's links went through no
+checker at all.
+
+`links` therefore audits a `type: homepage` note as well, and it reads **both**
+halves of it. Of the six homepages authored today four carry every link in the
+body as ordinary markdown and two carry them in `landing:` — and the one whose
+dead links prompted this has an _empty body_. A dead link in a card is exactly
+as broken as one in a paragraph, so `landing.install.url`, every
+`cards…​.url` / `.href`, the markdown links inside the prose fields (`lead`,
+`closing`, `install.intro`, `install.note`, a card's `description`, a link's
+`note`) and the body's own markdown links are all read.
+
+**`url` and `href` are not the same address and are not checked the same way.**
+The theme resolves a `url` against the site with `relURL`, so a package writes
+`kb/rules/` and is served `/sohl/kb/rules/` without naming its own prefix; an
+`href` is an address that is _already_ resolved and is used verbatim, which is
+what `cards.source: sections` fills in. A leading `/` is therefore a defect in a
+`url` — Hugo prefixes it a second time — and correct in an `href`.
+
+Four findings, and each one names the form to write instead:
+
+| Finding                      | Why                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| A **retired content type**   | `kb/creature/` when `creature` became `being`. The engine knows what was retired. |
+| A **hardcoded absolute URL** | Into this package's own prefix, or into one a vendored manifest names.            |
+| A **root-relative `url:`**   | `relURL` prefixes it again. `href:` is exempt — verbatim is what it means.        |
+| A **wikilink**               | Nothing resolves one here: a homepage is published verbatim in every mode.        |
+
+That last one is why a homepage does **not** get the wikilink resolution every
+other note body gets. In `homepage` mode the content tree is never walked, so
+there is no index for a wikilink to resolve against — and giving the page one
+would make the mode depend on exactly the machinery its licensing fence exists
+to not build. So a landing addresses the web the way the web does, and a
+wikilink on one is reported rather than resolved.
+
+**What is checkable, and what is not.** Only an address into this site is, and
+only against facts the build already holds — the retired-type table and the
+package prefixes a vendored manifest names. Two things are deliberately not
+attempted:
+
+- **Whether an external URL answers.** There is no network at build time, and a
+  build must not go red because a third party is down.
+- **Whether a live in-site address names a page that exists.** Several surfaces
+  a landing routes to are produced by other tools entirely — generated API
+  documentation, hand-authored Hugo sections — so this build does not hold the
+  set of published pages and would report a working link as dead. A bare
+  `https://www.heroiclands.org/<package>/` is left alone for the same reason it
+  cannot be improved: a package homepage is in no link manifest, so there is no
+  better form to write.
 
 ## Prose: formatting and markdown
 
