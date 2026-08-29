@@ -297,12 +297,30 @@ describe("what a page publishes with", () => {
     const page = {
         kind: "content",
         fm: { type: "weapongear", aliases: ["a", "b"], custom: 1 },
+        pkg: "demo",
         name: "Dagger",
         slug: "dagger",
         sec: "weapongear",
         folder: "Gear",
         isReadme: false,
     };
+
+    it("carries the package the build derived, declared or not", () => {
+        // #65: `package:` is optional since 3.3.0, so a swept tree's notes
+        // declare none — and a page that publishes without it is no longer
+        // self-describing. The theme's breadcrumb partial reads
+        // `.Params.package` to build the middle crumb, which degrades from a
+        // linked section label to a bare type slug without it.
+        expect(pageFrontmatter(page as never, {}).package).toBe("demo");
+    });
+
+    it("publishes a declared package unchanged", () => {
+        const declared = {
+            ...page,
+            fm: { ...page.fm, package: "demo" },
+        };
+        expect(pageFrontmatter(declared as never, {}).package).toBe("demo");
+    });
 
     it("drops an authored `aliases`", () => {
         // Obsidian reads `aliases` as names; Hugo reads it as URL redirects, so
@@ -476,6 +494,29 @@ describe("buildSite end to end", () => {
             "utf8",
         );
         expect(page).toContain("/demo/kb/weapongear/dagger/");
+    });
+
+    it("writes the derived package into a swept note's page", () => {
+        // #65: end to end, because the defect is that the value the collect
+        // pass already resolved never reaches the file on disk.
+        note(
+            "Gear/Sling.md",
+            `type: weapongear
+shortcode: sling
+name:
+    full: Sling`,
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(gatesFailed(result.gates)).toBe(false);
+            const page = fs.readFileSync(
+                path.join(root, "out/kb/weapongear/sling.md"),
+                "utf8",
+            );
+            expect(page).toMatch(/^package: demo$/m);
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));
+        }
     });
 
     it("stops before writing when a gate fires", () => {
