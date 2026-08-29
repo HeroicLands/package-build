@@ -128,9 +128,11 @@ packageBuild:
     - { from: assets/icons, to: assets/icons }
 
 # Three independent switches — every combination is real — plus the address
-# scheme both `manifest` and `site` derive addresses under.
+# scheme both `manifest` and `site` derive addresses under. `site` is a mode,
+# not a boolean: `homepage` (the default) publishes the authored homepage and
+# no other page; `content` publishes it plus every page the tree compiles to.
 publish:
-  site: true
+  site: content
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/
@@ -147,8 +149,8 @@ site:
 
 The loader validates the document, resolves every path against the directory
 the file sits in, fills the optional halves with their defaults
-(`skipDirectories: []`, `packageBuild: {}`, the conventional `paths`, every
-publishing switch off),
+(`skipDirectories: []`, `packageBuild: {}`, the conventional `paths`, both
+manifest switches off and `publish.site` at its `homepage` floor),
 derives `assetRoot`, `packDirectories`, `itemTypes` and `docEntryTypes`, and
 freezes the result. A malformed configuration throws a `TypeError` naming the
 offending field, so it fails at load rather than as an empty pack much later.
@@ -594,10 +596,11 @@ It reads its whole input from configuration and takes nothing else:
 | `publish.address`           | The address scheme those paths are derived under — see below. |
 
 **Both addresses are optional, independently.** A note that compiles into no
-document has no `uuid`, and a package that ships compendiums and publishes no
-site (`publish.site: false`) has no `path` on any entry. Neither is an error, and
-neither is guessed: inventing the missing one asserts a target that does not
-exist, which is the silent dead link the manifest exists to prevent.
+document has no `uuid`, and a package that ships compendiums and publishes only
+a homepage (`publish.site: homepage`) has no `path` on any entry — its notes are
+not pages. Neither is an error, and neither is guessed: inventing the missing one
+asserts a target that does not exist, which is the silent dead link the manifest
+exists to prevent.
 
 **`publish.manifests.publish` is a declaration, not a preference.** The file is
 vendored by other repositories and read as authoritative, so emitting one is a
@@ -615,7 +618,7 @@ time and 404s for the reader.
 
 ```yaml
 publish:
-  site: true
+  site: content
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/ # default: "" — the package root
@@ -658,6 +661,64 @@ address derivation, the address index, table expansion, wikilink resolution,
 code-fence protection, the foreign-manifest merge, the page emission and the
 section-landing backfill.
 
+### The homepage, and how much else is published
+
+Every package is reachable at `https://www.heroiclands.org/<contentPackage>/`,
+and what a reader finds there is a note in the content tree — one markdown file,
+written by a person:
+
+```markdown
+---
+type: homepage
+title: HârnMaster Kethira Basic # optional; defaults to packageBuild.manifest.title
+---
+
+What the module is, which system it needs, how to install it.
+```
+
+That is the whole envelope. A homepage **compiles into no compendium
+document**, appears in no pack and in no link manifest, and is addressed by the
+_package_ rather than by its own name — so `name.full`, `shortcode` and `id`
+decide nothing on it. It is dispatched on `type` like every other note, not on a
+filename: `README.md` is already a section landing under `landing: readme`, and
+in `sohl-thalorna` it is a developer explainer about the source tree.
+
+`type: homepage` is declared by the **engine**, not by the `sohl` item registry,
+so a package that configures no `itemBuilders` at all — `HarnMaster-3-FoundryVTT`
+and every HM3 module — can author one. The `engine/` ÷ `sohl/` line is
+note-format knowledge against game-system knowledge, and a homepage carries no
+`system` block.
+
+`publish.site` then says how much _else_ is published:
+
+| Mode       | What is published                                                               |
+| ---------- | ------------------------------------------------------------------------------- |
+| `homepage` | The authored homepage, and no other page. **The default, and the floor.**       |
+| `content`  | The homepage plus every page the content tree compiles to, and its extra trees. |
+
+There is no value meaning "no web presence": every package publishes its
+homepage. It was a boolean until 5.0.0, and both spellings are now refused
+naming the mode to write instead — see [MIGRATING.md](MIGRATING.md).
+
+**Homepage-only is a first-class mode, not an accommodation.**
+`sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
+Fan Material Guidelines) and `harn-adventures` (HârnFanon under Lythia's terms)
+must each publish a homepage and nothing beneath it. The boundary is _published
+content_ — journal text, artwork, item descriptions, compiled notes — and a page
+announcing the module discloses none of it. Because the failure mode is silent,
+the mode **fences the content surfaces off** rather than trusting a
+configuration to stay empty: in `homepage` mode the tree is never walked for
+pages, and `sections`, `trees`, `landing` and `backfillSections` emit nothing
+even when they are declared.
+
+That is separate from `publish.manifests.publish`, which stays off for both for
+an unrelated reason: a link manifest is the dependency edge that would stop the
+module being withdrawable, and a homepage is one row in a routing table.
+
+The homepage is written at the root of `site.out` — the package's own address —
+one level above the content mount, which is where `publish.address.prefix` puts
+everything else.
+
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the link manifest reads, so a page and its manifest entry cannot
 disagree about where the page is. Everything under `site:` is _framing_ —
@@ -686,7 +747,7 @@ site:
 
 | Key                | What it decides                                                                                  |
 | ------------------ | ------------------------------------------------------------------------------------------------ |
-| `out`              | The Hugo content root. **Required**, and wiped on every run — see the safety note below.         |
+| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.           |
 | `base`             | Where the package is served. Defaults to `/<contentPackage>/`.                                   |
 | `packages`         | Which content packages this site renders. Defaults to its own.                                   |
 | `sections`         | Landing title and hero per section, so a landing matches the card that links to it.              |

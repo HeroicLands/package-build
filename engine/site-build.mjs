@@ -63,6 +63,13 @@ import {
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
+import {
+    HOMEPAGE_DESTINATION,
+    homepageFrontmatter,
+    homepageTitle,
+    isHomepage,
+} from "./homepage.mjs";
+import { publishesContentPages } from "../content-config.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -137,6 +144,10 @@ export function collectContentPages(contentBase, ctx) {
         // (#56).
         const pkg = ctx.contentPackage;
         if (!ctx.packages.has(pkg) || !fm.type) continue;
+        // A homepage is addressed by the *package*, not by its own name, so it
+        // never takes a section and a slug (#51). {@link collectHomepages}
+        // gathers it instead.
+        if (isHomepage(fm)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
             fmLinkFindings.push({ file, ...hit });
@@ -250,6 +261,62 @@ export function collectTreePages(tree, ctx) {
 }
 
 /**
+ * The package's homepage notes — the authored page at `/<contentPackage>/`.
+ *
+ * A separate walk from {@link collectContentPages} rather than a branch inside
+ * it, because in homepage-only mode it is the **whole** of the site build: the
+ * content tree is never read for pages at all, so the licensing constraint two
+ * packages ship under is a property of the code path rather than of a
+ * configuration that happens to be empty (#55).
+ *
+ * Returned as a list rather than as the one note there should be. Requiring
+ * exactly one is #52's, and it is a separate decision — this reports what it
+ * found so a count is visible either way.
+ *
+ * @param {string} contentBase - Absolute path to the content tree.
+ * @param {object} ctx - `{ skipDirectories }`.
+ * @returns {{pages: object[]}} The homepage notes, in walk order.
+ */
+export function collectHomepages(contentBase, ctx) {
+    const pages = [];
+    for (const file of walkSiteTree(contentBase, ctx.skipDirectories)) {
+        const note = readNote(file);
+        if (!note || !isHomepage(note.fm)) continue;
+        pages.push({ kind: "homepage", file, fm: note.fm, body: note.body });
+    }
+    return { pages };
+}
+
+/**
+ * Writes each homepage at the package's own root.
+ *
+ * Its own writer, deliberately small. A homepage is authored markdown published
+ * verbatim — no table expansion, no section landing, and (until #54) no link
+ * resolution — so routing it through {@link renderPages} would buy it a pipeline
+ * it has no input for, and would make homepage-only mode depend on the index,
+ * the foreign manifests and the table universe that mode exists to not build.
+ *
+ * @param {string} outRoot - The package's site root — the configured `site.out`,
+ *   one level above the content mount.
+ * @param {readonly object[]} pages - From {@link collectHomepages}.
+ * @param {object} config - The resolved configuration, for the package name and
+ *   the default title.
+ * @returns {number} How many pages were written.
+ */
+export function writeHomepages(outRoot, pages, config) {
+    for (const page of pages) {
+        const data = homepageFrontmatter(page.fm, {
+            contentPackage: config.contentPackage,
+            title: homepageTitle(page.fm, config),
+        });
+        const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
+        fs.mkdirSync(path.dirname(dest), { recursive: true });
+        fs.writeFileSync(dest, matter.stringify(page.body, data));
+    }
+    return pages.length;
+}
+
+/**
  * The integrity gates a site build runs before it writes anything.
  *
  * Every one of these was an inline `process.exit` in both consumer scripts, so
@@ -316,6 +383,30 @@ export function siteGates(pages, findings, { manifestDir }) {
 
     out.index = index;
     return out;
+}
+
+/**
+ * The gate result of a build that ran none of them.
+ *
+ * Homepage-only publishes one authored page and resolves nothing, so every gate
+ * here is about a surface that mode does not have. The shape is returned all the
+ * same, because a caller reads the same fields whichever mode ran and a `null`
+ * would make each of them a special case.
+ *
+ * @returns {object} An all-clear gate result.
+ */
+export function emptyGates() {
+    return {
+        frontmatterLinks: [],
+        slugErrors: [],
+        collisions: [],
+        staleManifests: [],
+        unaddressable: [],
+        conflicts: [],
+        index: null,
+        foreign: null,
+        manifests: null,
+    };
 }
 
 /** Whether any gate produced a finding. */
@@ -706,6 +797,10 @@ export function buildSite({ config, outRoot } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
+    // Homepage-only or homepage-plus-content (#55). The floor is the homepage,
+    // so this decides whether the *content* surfaces are published, never
+    // whether anything is.
+    const publishesContent = publishesContentPages(resolved);
 
     // Where the package is served, and where its content mounts inside it. The
     // two are separate facts: `base` is the package's own address on the site
@@ -722,9 +817,16 @@ export function buildSite({ config, outRoot } = {}) {
     // directory it was launched from (#1508).
     const outBase = resolveOutputRoot(resolved.rootDir, site.out);
     const out =
-        outRoot ?
-            path.resolve(outRoot)
-        :   path.join(outBase, scheme.prefix.replace(/\/$/, ""));
+        outRoot ? path.resolve(outRoot)
+        : publishesContent ?
+            path.join(outBase, scheme.prefix.replace(/\/$/, ""))
+            // Homepage-only has no content mount, so the package's root *is*
+            // the output root and `--out` redirects the whole of it.
+        :   outBase;
+    // The homepage publishes at `/<contentPackage>/`, which is the package's
+    // own root — one level above the content mount, and the same directory in
+    // homepage-only mode.
+    const homeRoot = publishesContent ? outBase : out;
 
     const packages = new Set(
         site.packages.length ? site.packages : [resolved.contentPackage],
@@ -743,6 +845,25 @@ export function buildSite({ config, outRoot } = {}) {
     // The whole tree is a build artifact, regenerated every run: a page whose
     // note was deleted or renamed would otherwise linger and keep publishing.
     fs.rmSync(outBase, { recursive: true, force: true });
+
+    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
+
+    // Homepage-only stops here, and stopping is the point: nothing below reads
+    // the content tree for pages, so `sohl-kethira-basic` and `harn-adventures`
+    // cannot publish one whatever else their `site:` block declares (#55).
+    if (!publishesContent) {
+        return {
+            gates: emptyGates(),
+            manifests: null,
+            tableErrors: [],
+            wikiErrors: [],
+            stats: {
+                homepages: writeHomepages(homeRoot, homepages, resolved),
+                landings: 0,
+                out: homeRoot,
+            },
+        };
+    }
 
     const content = collectContentPages(resolved.paths.content, ctx);
     const pages = [...content.pages];
@@ -804,12 +925,21 @@ export function buildSite({ config, outRoot } = {}) {
         sectionTitle: site.backfillSections ? pluralTitle : null,
     });
 
+    // Last, and outside the mount: the package's front page is not part of the
+    // content tree it introduces.
+    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved);
+
     return {
         gates,
         manifests: gates.manifests,
         tableErrors: rendered.tableErrors,
         wikiErrors: rendered.wikiErrors,
-        stats: { ...rendered.byKind, landings, out },
+        stats: {
+            ...rendered.byKind,
+            homepages: homepagesWritten,
+            landings,
+            out,
+        },
     };
 }
 

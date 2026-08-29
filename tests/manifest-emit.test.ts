@@ -153,7 +153,7 @@ function emit(publish: Record<string, unknown>): Manifest {
 }
 
 const WEB = {
-    site: true,
+    site: "content",
     manifests: { publish: true, consume: false },
 };
 
@@ -334,8 +334,8 @@ describe("anchors are computed, never approximated", () => {
 });
 
 describe("both addresses are optional, independently (#1516)", () => {
-    it("emits no `path` when the build publishes no web surface", () => {
-        const doc = emit({ site: false, manifests: { publish: true } });
+    it("emits no `path` when the build publishes only a homepage", () => {
+        const doc = emit({ site: "homepage", manifests: { publish: true } });
         for (const entry of Object.values(doc.entries)) {
             expect(entry.path).toBeUndefined();
         }
@@ -392,7 +392,7 @@ describe("the manifest names the package the configuration declares", () => {
         // caller that bypasses the command cannot bypass the declaration.
         expect(() =>
             emitLinkManifest({
-                config: configFor({ site: true }),
+                config: configFor({ site: "content" }),
                 outDir: path.join(root, "out-undeclared"),
             }),
         ).toThrow(/does not publish a link manifest/);

@@ -59,6 +59,7 @@ import { assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { publishesContentPages } from "../content-config.mjs";
 
 /**
  * The reserved anchor name for a journal's **first** page.
@@ -271,7 +272,7 @@ export function manifestContext(config = loadPackConfig()) {
         foundryPackageId: config.foundryPackage,
         packRouter: routerFor(config),
         scheme: config.publish.address,
-        web: config.publish.site,
+        web: publishesContentPages(config),
         // The walk's own configuration, threaded through rather than left to
         // its default, so a caller that passes a config drives every read.
         skipDirectories: config.skipDirectories,

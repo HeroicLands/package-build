@@ -1,3 +1,76 @@
+# Migrating to `@heroiclands/package-build` 5.0.0
+
+**One configuration change: `publish.site` is a mode, not a boolean.** And one
+new authoring capability that needs no migration: a `type: homepage` note.
+
+## 1. Respell `publish.site`
+
+```yaml
+publish:
+  site: content # was `site: true`
+```
+
+```yaml
+publish:
+  site: homepage # was `site: false`, or absent
+```
+
+`homepage` is the default, so a repository that never set the key needs no edit.
+A repository that set it to either boolean gets a `TypeError` at load naming the
+mode to write:
+
+```text
+package-build config: `publish.site` is no longer a boolean — write `site: content`. Every package publishes an authored homepage at /<contentPackage>/, so no value means "no web presence": `homepage` publishes that page and nothing else, and `content` publishes it plus every page the content tree compiles to.
+```
+
+Both spellings are **refused rather than mapped** onto the nearest mode. `false`
+read as _this package has no web presence_, which now describes no package at
+all, and a value silently reinterpreted reads to its author as though it still
+means what it said.
+
+Nothing else about publishing moved: `publish.address`, `publish.manifests` and
+the whole `site:` block are unchanged, and every address `sohl` and `thalorna`
+already publish is byte-identical across the upgrade.
+
+## 2. Author a homepage (optional here, required by #52)
+
+Every package is reachable at `https://www.heroiclands.org/<contentPackage>/`,
+and the page there is a note in the content tree:
+
+```markdown
+---
+type: homepage
+title: HârnMaster Kethira Basic # optional; defaults to packageBuild.manifest.title
+---
+
+What the module is, which system it needs, how to install it.
+```
+
+It compiles into no compendium document, appears in no pack and in no link
+manifest, and is addressed by the package rather than by its own name. It is
+written to the root of `site.out`, one level above the content mount.
+
+A repository with no homepage note publishes none, and the site build says so in
+its count. Requiring exactly one is a separate change (#52).
+
+## 3. What homepage-only means
+
+`homepage` mode does not merely leave the content configuration unused — it
+**fences the content surfaces off**. The tree is never walked for pages, and
+`site.sections`, `site.trees`, `site.landing` and `site.backfillSections` emit
+nothing even when they are declared.
+
+That is deliberate, and it is a licensing requirement rather than a preference.
+`sohl-kethira-basic` (Keléstia Productions' Fan Material Guidelines) and
+`harn-adventures` (HârnFanon under Lythia's terms) publish a homepage and no
+other page; the failure mode is silent — a `site:` block added later ships
+licensed content with nobody noticing — so the property is asserted by the code
+path rather than left to configuration.
+
+`publish.manifests.publish` is a separate decision and stays `false` for both: a
+link manifest is the dependency edge that would stop a module being withdrawable,
+and a homepage is not.
+
 # Migrating to `@heroiclands/package-build` 4.0.0
 
 **One authoring change: delete `package:` from every content note.** A note's

@@ -33,7 +33,7 @@
  *     assets:
  *         - { from: assets/icons, to: assets/icons }
  * publish:
- *     site: true
+ *     site: content
  *     manifests: { publish: true, consume: true }
  * ```
  *
@@ -152,6 +152,62 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
     prefix: "",
     landing: "readme",
 });
+
+/**
+ * How much of a package reaches the web.
+ *
+ * Every HeroicLands package publishes something: a top-level, human-authored
+ * homepage at `https://www.heroiclands.org/<contentPackage>/` saying what the
+ * module is, which system it needs and how to install it (#50). So there is no
+ * value here meaning *no web presence at all* — homepage-only is the **floor**,
+ * and the default.
+ *
+ * - `homepage` — the authored homepage, and **no other page**. The content tree
+ *   is not walked for pages, `site.sections` / `site.trees` / `site.landing`
+ *   emit nothing, and link-manifest entries carry no web `path`.
+ * - `content` — the homepage *plus* every page the content tree publishes: the
+ *   knowledgebase, the extra trees, the section landings.
+ *
+ * **Homepage-only is a first-class mode, not an accommodation.**
+ * `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
+ * Fan Material Guidelines) and `harn-adventures` (HârnFanon under Lythia's
+ * terms) must each publish a homepage and nothing beneath it — two packages
+ * under two different fan-content licences. The boundary is **published
+ * content**: journal text, artwork, item descriptions, compiled notes. A
+ * human-authored page announcing the module discloses none of it. Because the
+ * failure mode is silent — a `site:` block added later ships licensed content
+ * with nobody noticing — the mode fences the content surfaces off rather than
+ * trusting a configuration to stay empty.
+ *
+ * This was a boolean until 5.0.0, and `false` read as "no web presence", which
+ * no longer describes any package. Both spellings are refused rather than
+ * mapped: a value silently reinterpreted reads to its author as though it still
+ * means what it said.
+ *
+ * @typedef {"homepage" | "content"} SiteMode
+ */
+
+/**
+ * The publishing modes {@link PublishSwitches.site} may name, floor first.
+ *
+ * @satisfies {readonly SiteMode[]}
+ */
+export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
+
+/**
+ * Whether this package publishes the pages its content tree compiles to.
+ *
+ * The one question every reader of the mode actually asks — the site build, to
+ * decide whether to walk the tree at all, and the link-manifest emitter, to
+ * decide whether an entry carries a web `path`. Written once here so the two
+ * cannot come to disagree about what a mode means.
+ *
+ * @param {{publish: {site: SiteMode}}} config - A resolved configuration.
+ * @returns {boolean} Whether content pages are published.
+ */
+export function publishesContentPages(config) {
+    return config.publish.site === "content";
+}
 
 /**
  * @typedef {"systems" | "modules"} PackageKind
@@ -300,7 +356,8 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
 
 /**
  * @typedef {object} PublishSwitches
- * @property {boolean} site           Render this package's knowledgebase/site pages.
+ * @property {SiteMode} site          How much of this package reaches the web.
+ *                                    See {@link SITE_MODES}.
  * @property {ManifestSwitches} manifests
  */
 
@@ -387,8 +444,15 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
 
 /**
  * @typedef {object} PublishSwitchesInput
- * @property {boolean} [site]
+ * @property {SiteMode} [site]
  * @property {ManifestSwitchesInput} [manifests]
+ * @property {AddressSchemeInput} [address]
+ */
+
+/**
+ * @typedef {object} AddressSchemeInput
+ * @property {string} [prefix]   Where the content tree mounts inside the package.
+ * @property {string} [landing]  Which note addresses a whole section.
  */
 
 /**
@@ -454,7 +518,9 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *                                          which has none to invent.
  * @property {Relationships} [relationships]  What this package declares about
  *                                          others, in Foundry's own shape.
- * @property {PublishSwitchesInput} [publish]  Publishing switches. Each defaults to off.
+ * @property {PublishSwitchesInput} [publish]  Publishing switches. The manifest
+ *                                          switches default to off; `site`
+ *                                          defaults to `homepage`, the floor.
  */
 
 /**
@@ -1273,13 +1339,50 @@ function normalizeItemBuilders(value) {
 }
 
 /**
+ * The publishing mode, refusing the boolean this setting used to be.
+ *
+ * A boolean is refused rather than mapped onto the nearest mode, because the
+ * reading `false` invited — *this package has no web presence* — is exactly the
+ * belief the change exists to correct, and a value quietly reinterpreted reads
+ * to its author as though it still means what it said. So the message names the
+ * mode to write instead of the value to fix.
+ *
+ * @param {unknown} value - The authored `publish.site`.
+ * @returns {SiteMode} The mode.
+ */
+function normalizeSiteMode(value) {
+    if (value === undefined) return "homepage";
+    if (typeof value === "boolean") {
+        fail(
+            "publish.site",
+            `is no longer a boolean — write \`site: ${value ? "content" : "homepage"}\`. ` +
+                `Every package publishes an authored homepage at ` +
+                `/<contentPackage>/, so no value means "no web presence": ` +
+                `\`homepage\` publishes that page and nothing else, and ` +
+                `\`content\` publishes it plus every page the content tree ` +
+                `compiles to`,
+        );
+    }
+    if (
+        typeof value !== "string" ||
+        !(/** @type {readonly string[]} */ (SITE_MODES).includes(value))
+    ) {
+        fail(
+            "publish.site",
+            `must be one of ${SITE_MODES.join(", ")} (got ${JSON.stringify(value)})`,
+        );
+    }
+    return /** @type {SiteMode} */ (value);
+}
+
+/**
  * @param {unknown} value
  * @returns {Readonly<PublishSwitches>}
  */
 function normalizePublish(value) {
     if (value === undefined) {
         return Object.freeze({
-            site: false,
+            site: "homepage",
             manifests: Object.freeze({ publish: false, consume: false }),
             address: Object.freeze({ ...DEFAULT_ADDRESS_SCHEME }),
         });
@@ -1332,7 +1435,7 @@ function normalizePublish(value) {
     }
 
     return Object.freeze({
-        site: optionalBoolean(publish.site, "publish.site", false),
+        site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix, landing }),
         manifests: Object.freeze({
             publish: optionalBoolean(
