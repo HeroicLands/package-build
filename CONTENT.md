@@ -77,8 +77,10 @@ paths:
   stage: build/stage/packs
   unpack: build/tmp/packs
 
-# The one pack list. Order is load-bearing where one pass reads another's
-# output, and `packDirectories` is derived from it.
+# The one pack list. `packDirectories` and the manifest's `packs` array are both
+# derived from it, so order it for a reader browsing compendiums — the compile
+# order is worked out separately, from what each pass reads (see "Declaration
+# order is presentation" below).
 packs:
   - { name: items, type: Item, label: Items, folders: item-folders.yaml }
   - { name: journals, type: JournalEntry, label: Journals }
@@ -357,6 +359,55 @@ hand-authored `system.template.json` lived, and the package-id guard and the
 top-level `compatibility.minimum`, the id is derived from `package.json`
 `name`, and `@heroiclands/package-build` writes the manifest from this file.
 
+### Declaration order is presentation, not compile order
+
+`packs:` is the manifest's `packs` array as well, so a consumer orders it for a
+reader browsing compendiums. It is **not** the order the passes run in, and it
+does not have to be: the compile order is derived from what each pass reads.
+
+One pass reads another's output today. The actors pass resolves each being's
+embedded items against the JSON the item passes wrote — a being names an item by
+`(type, shortcode)` and never by the pack it ships in, so **every** Item pack has
+to be compiled before the Actor pass, not merely the first. A compiler states
+that on itself:
+
+```js
+export class Actors extends BasePackCompiler {
+  static readsPackOutputOf = Object.freeze(["Item"]);
+}
+```
+
+The generator schedules each pass after the packs of every type it names, and
+does so with the **smallest** reordering that works — the earliest declared pass
+whose dependencies have all run goes next. A list already in a workable order is
+therefore compiled exactly as declared, and one that is not moves only the
+passes that had to move. When the two orders differ the build says so:
+
+```text
+[INFO]: Pass order: characteristics, mysteries, characters — a pass that reads
+        another's output compiles after it, whatever order `packs:` declares.
+```
+
+This used to be the author's problem, and a nasty one: an Actor pack declared
+first compiled only where an earlier run had already left `build/packs-json`
+populated. `build/` is gitignored, so it was green on every local tree that had
+built once and exit 1 on every fresh checkout and CI runner, over a message that
+named a missing directory rather than the ordering that caused it (#73). A
+consumer registering a compiler of its own declares its dependencies the same
+way; a type no pack of which is declared is simply not waited for.
+
+**Compiling one pack by name is the case ordering cannot answer.**
+`content-build package compile <name>` runs the pass you asked for and no other,
+so a dependency that is neither in the run nor already on disk is reported
+rather than ordered around:
+
+```text
+error: pack "characters" (Actor) reads the compiled output of the Item pack
+       "characteristics", which this run does not compile and which
+       build/packs-json/characteristics does not hold — compile the whole
+       package, or compile "characteristics" first
+```
+
 ### An item type's default art
 
 A note that carries no `img:` gets its type's **default art**, and a type
@@ -425,17 +476,17 @@ npx content-build site [--out <dir>]
 npx content-build reachability <dir> [file] [--index <shortcode>]
 ```
 
-| Command        | What it does                                                                                                                  |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).       |
-| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                      |
-| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                  |
-| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests. |
-| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                |
-| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                            |
-| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).               |
-| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                     |
-| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.       |
+| Command        | What it does                                                                                                                                                            |
+| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
+| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
+| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
+| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
+| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
+| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
+| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
+| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
+| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
 
 Every path, pack name and root it needs comes from the consuming repository's
 `package-build.config.yaml`, so the usual invocation takes no arguments beyond
@@ -468,6 +519,13 @@ It compiles nothing, opens no LevelDB and needs no Foundry manifest, so it runs
 in about a second and can gate a commit. An empty or untyped tree **fails**
 rather than passing: "every one of nothing is unique" is a vacuous pass, and it
 is exactly what a tree that failed to check out produces.
+
+What that guard reports is an **empty walk**, not an empty set of addresses. A
+note may be keyless by design — a homepage carries no `shortcode`, because it is
+addressed by the package rather than by a slug — so a package in
+`publish.site: homepage` mode has a content tree that is populated, correct and
+permanently unkeyed. That tree passes; a tree holding no notes at all still
+fails.
 
 ### Frontmatter, against the schema its type declares
 
@@ -511,6 +569,61 @@ in Obsidian, so the rule cost a line of frontmatter per note for a reader that
 does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
+
+### The homepage's own links
+
+The homepage is the page a reader arrives at, and until #54 it was the one page
+nothing checked. SoHL's landing pointed at `kb/creature/` and `kb/character/`
+from the day those two types merged into `being` — two 404s on the package's
+front page, through every build, because a landing's links went through no
+checker at all.
+
+`links` therefore audits a `type: homepage` note as well, and it reads **both**
+halves of it. Of the six homepages authored today four carry every link in the
+body as ordinary markdown and two carry them in `landing:` — and the one whose
+dead links prompted this has an _empty body_. A dead link in a card is exactly
+as broken as one in a paragraph, so `landing.install.url`, every
+`cards…​.url` / `.href`, the markdown links inside the prose fields (`lead`,
+`closing`, `install.intro`, `install.note`, a card's `description`, a link's
+`note`) and the body's own markdown links are all read.
+
+**`url` and `href` are not the same address and are not checked the same way.**
+The theme resolves a `url` against the site with `relURL`, so a package writes
+`kb/rules/` and is served `/sohl/kb/rules/` without naming its own prefix; an
+`href` is an address that is _already_ resolved and is used verbatim, which is
+what `cards.source: sections` fills in. A leading `/` is therefore a defect in a
+`url` — Hugo prefixes it a second time — and correct in an `href`.
+
+Four findings, and each one names the form to write instead:
+
+| Finding                      | Why                                                                               |
+| ---------------------------- | --------------------------------------------------------------------------------- |
+| A **retired content type**   | `kb/creature/` when `creature` became `being`. The engine knows what was retired. |
+| A **hardcoded absolute URL** | Into this package's own prefix, or into one a vendored manifest names.            |
+| A **root-relative `url:`**   | `relURL` prefixes it again. `href:` is exempt — verbatim is what it means.        |
+| A **wikilink**               | Nothing resolves one here: a homepage is published verbatim in every mode.        |
+
+That last one is why a homepage does **not** get the wikilink resolution every
+other note body gets. In `homepage` mode the content tree is never walked, so
+there is no index for a wikilink to resolve against — and giving the page one
+would make the mode depend on exactly the machinery its licensing fence exists
+to not build. So a landing addresses the web the way the web does, and a
+wikilink on one is reported rather than resolved.
+
+**What is checkable, and what is not.** Only an address into this site is, and
+only against facts the build already holds — the retired-type table and the
+package prefixes a vendored manifest names. Two things are deliberately not
+attempted:
+
+- **Whether an external URL answers.** There is no network at build time, and a
+  build must not go red because a third party is down.
+- **Whether a live in-site address names a page that exists.** Several surfaces
+  a landing routes to are produced by other tools entirely — generated API
+  documentation, hand-authored Hugo sections — so this build does not hold the
+  set of published pages and would report a working link as dead. A bare
+  `https://www.heroiclands.org/<package>/` is left alone for the same reason it
+  cannot be improved: a package homepage is in no link manifest, so there is no
+  better form to write.
 
 ## Prose: formatting and markdown
 

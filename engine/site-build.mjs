@@ -291,10 +291,16 @@ export function collectHomepages(contentBase, ctx) {
  * Writes each homepage at the package's own root.
  *
  * Its own writer, deliberately small. A homepage is authored markdown published
- * verbatim — no table expansion, no section landing, and (until #54) no link
- * resolution — so routing it through {@link renderPages} would buy it a pipeline
- * it has no input for, and would make homepage-only mode depend on the index,
- * the foreign manifests and the table universe that mode exists to not build.
+ * verbatim — no table expansion, no section landing and no link resolution — so
+ * routing it through {@link renderPages} would buy it a pipeline it has no input
+ * for, and would make homepage-only mode depend on the index, the foreign
+ * manifests and the table universe that mode exists to not build.
+ *
+ * **Verbatim is the answer to #54, not a gap left by it.** A landing's links
+ * could not be *resolved* here without giving `homepage` mode the index its
+ * licensing fence exists to not build, so they are **checked** instead:
+ * {@link auditHomepageLinks} reads the `landing:` addresses and the body's
+ * markdown links, and reports a wikilink on the page rather than resolving one.
  *
  * @param {string} outRoot - The package's site root — the configured `site.out`,
  *   one level above the content mount.
