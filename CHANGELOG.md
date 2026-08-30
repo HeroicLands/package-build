@@ -1,5 +1,324 @@
 # @heroiclands/package-build
 
+## 6.0.0
+
+### Major Changes
+
+- 5538fdf: Check `packFolders` against the derived `packs[]` (#81).
+  
+  `packageBuild.manifest.packFolders` is the one **declared** manifest key that
+  names something the build **derives**. Every other declared key states a fact
+  about the package (`title`, `socket`, `grid`) or addresses a staged file
+  (`esmodules`, `styles`, `languages`) — a staged file being a different relation,
+  answered against the stage rather than against configuration. Surveyed across
+  all six HeroicLands packages, no other declared key names a derived value, so
+  this is the only place the two halves could drift.
+  
+  They did. `HarnMaster-3-FoundryVTT` shipped a folder naming `character`,
+  `possessions`, `esoteric` and `system-help`; three had not existed since its
+  compendium was consolidated into one `items` pack, and `items` — 1,577 of 1,597
+  documents — was named by no folder at all. Foundry rendered the folder holding
+  one journal pack with the entire item compendium loose beside it, and the build
+  reported nothing at any point (HarnMaster-3-FoundryVTT#420).
+  
+  **Two findings, deliberately different severities**
+  
+  | Finding                                         | Severity    | Why                                                                                                                 |
+  | ----------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+  | a folder names a pack the package does not ship | **error**   | Foundry silently skips a name it cannot resolve, so the declaration does nothing; no arrangement intends it         |
+  | a pack no folder names                          | **warning** | legal, and a root-level pack can be deliberate — but a package that declared a folder rarely meant to leave one out |
+  | no `packFolders` declared at all                | nothing     | everything at the root is an arrangement, not an omission                                                           |
+  
+  Giving the two one severity gets one of them wrong: erroring on an ungrouped
+  pack fails working packages over a matter of taste, and warning on an
+  unresolvable name reproduces the defect this exists to catch.
+  
+  The comparison descends through nested folders — Foundry's
+  `PackageCompendiumFolder` re-declares itself while `depth < 4` — so a nested
+  name is checked in both directions rather than being missed and then reported as
+  ungrouped.
+  
+  **Reported where the reader can open it**
+  
+  Findings carry the config key path of the offending scalar, which
+  `positionOfYamlPath` (new, in `engine/diagnostics.mjs`) resolves against the
+  configuration file. A position that cannot be established honestly — an `.mjs`
+  configuration, an unreadable file — is dropped rather than guessed, so the line
+  degrades from `file:line:column:` to `file:` to no locator:
+  
+  ```text
+  package-build.config.yaml:164:23: error: packFolders: folder "HârnMaster 3 System" names pack "character", which this package does not ship (packs: items, system-help)
+  package-build.config.yaml:162:13: warning: packFolders: pack "items" is named by no folder, so it ships outside every folder this package declares
+  ```
+  
+  An error **stops the write**: a manifest already known to describe packs that do
+  not exist should not reach the stage, where the next command would deploy it.
+  
+  **Why major**
+  
+  It newly fails a build that passes today. Measured against every real consumer
+  as each stands: `sohl`, `sohl-kethira-basic`, `harn-ensemble` and
+  `harn-adventures` are clean; `sohl-thalorna` warns once, for an `actors` pack no
+  folder names, and still builds; and `HarnMaster-3-FoundryVTT`'s `main` fails
+  with the three errors above, which is HarnMaster-3-FoundryVTT#420 — filed, and
+  fixed in its open PR #426. That is a real defect reported rather than
+  accommodated, but it is still a red build a consumer would meet on a blind
+  upgrade, so it takes the major.
+  
+  Also new and exported: `packFolderFindings` (the rule, pure) from
+  `@heroiclands/package-build/manifest`, `positionOfYamlPath` from
+  `@heroiclands/package-build/engine/diagnostics`, and `packConfigPath` from
+  `@heroiclands/package-build/engine/pack-config` — the file `loadPackConfig`
+  actually read, so a finding about a configured value names it rather than
+  re-deriving a path free to disagree. `writeManifest` takes an optional
+  `configFile`; omitting it costs the position, not the finding.
+
+### Minor Changes
+
+- 46e0c10: Check the package homepage's own links (#54).
+  
+  The homepage is the page a reader arrives at, and it was the one page nothing
+  checked. Every other note addresses the corpus with wikilinks, which
+  `content-build links` resolves; a landing addresses the web the way the web does
+  — markdown links and `landing:` `url` / `href` fields — and none of those went
+  through a checker at all. SoHL's landing pointed at `kb/creature/` and
+  `kb/character/` from the day those two types merged into `being`: two 404s on
+  the package's front page, surviving every build, found only by a person reading
+  the page.
+  
+  **Both halves of the note are in scope, and the real pages are why.** Of the six
+  homepages authored today, four carry every link in the body as ordinary markdown
+  and two carry them in `landing:` front matter — and the one whose dead links
+  prompted this has an _empty body_. A body-only check would have found nothing on
+  the page it was written for. So `landing.install.url`, every card and card-link
+  `url` / `href`, the markdown links inside the prose fields (`lead`, `closing`,
+  `install.intro`, `install.note`, a card's `description`, a link's `note`) and the
+  body's own markdown links are all read.
+  
+  **`url` and `href` are not the same address.** The theme resolves a `url`
+  against the site with `relURL`, so a package writes `kb/rules/` and is served
+  `/sohl/kb/rules/` without naming its own prefix; an `href` is an address that is
+  _already_ resolved and is used verbatim, which is what `cards.source: sections`
+  fills in. A leading `/` is therefore a defect in a `url` — Hugo prefixes it a
+  second time — and correct in an `href`, so the two are not checked the same way.
+  
+  **What is reported**, each finding naming the form to write instead:
+  
+  | Finding                      | Why                                                                        |
+  | ---------------------------- | -------------------------------------------------------------------------- |
+  | A **retired content type**   | `kb/creature/` after `creature` became `being` — the engine knows.         |
+  | A **hardcoded absolute URL** | Into this package's own prefix, or into one a vendored manifest names.     |
+  | A **root-relative `url:`**   | `relURL` prefixes it again. `href:` is exempt — verbatim is what it means. |
+  | A **wikilink**               | Nothing resolves one here: a homepage is published verbatim in every mode. |
+  
+  That last one settles a question rather than deferring it. A homepage does
+  **not** get the wikilink resolution every other note body gets, because in
+  `homepage` mode the content tree is never walked — there is no index for a
+  wikilink to resolve against, and giving the page one would make the mode depend
+  on exactly the machinery its licensing fence exists to not build. A wikilink on
+  a landing is therefore reported, not resolved.
+  
+  **What is deliberately not attempted.** Whether an external URL answers: there is
+  no network at build time and a build must not go red because a third party is
+  down. And whether a live in-site address names a page that exists: several
+  surfaces a landing routes to are produced by other tools entirely — generated API
+  documentation, hand-authored Hugo sections — so this build does not hold the set
+  of published pages and would report a working link as dead. A bare
+  `https://www.heroiclands.org/<package>/` is left alone for the same reason it
+  cannot be improved: a package homepage is in no link manifest, so there is no
+  better form to write.
+  
+  **Minor rather than major, measured rather than assumed.** A new lint error that
+  fails a previously-passing consumer would be breaking. All six HeroicLands
+  content packages were run against it — `sohl`, `hm3`, `thalorna`, `kethira`,
+  `harnensemble`, `harnadventures`, including the two homepages that exist only in
+  open pull requests — and every one is clean; the four whose trees are checked out
+  in full pass `links` end to end. Run against SoHL's landing as it stood _before_
+  the port, the check reports both dead links, at their line and column.
+  
+  It rides in the existing pass rather than beside it: no new command, no second
+  walk, and a consumer that already runs `content-build links` gets it with no
+  change.
+- d8ce7b3: Derive the compile order from what each pass reads, instead of trusting the
+  order `packs:` happens to declare (#73).
+  
+  `generatePacksJson` ran its passes in declaration order, but the actors pass
+  resolves each being's embedded items against the **output** of the item passes —
+  the JSON under `build/packs-json/`, not the content tree. A package declaring its
+  Actor pack first therefore compiled only where an earlier run had already left
+  that directory populated: green on every local tree that had built once, exit 1
+  on a cold one, over a message naming a missing directory rather than the ordering
+  that caused it.
+  
+  `build/` is gitignored, so **every fresh checkout and every CI runner is cold**.
+  `sohl-kethira-basic` shipped exactly that list and its release path was broken;
+  the failure had not fired only because an unrelated lint failure exited first.
+  
+  **What changed**
+  
+  - A compiler declares the document types whose compiled output it reads —
+    `static readsPackOutputOf` on `BasePackCompiler`, `["Item"]` on `Actors`. A
+    consumer registering a compiler of its own declares its dependencies the same
+    way.
+  - `orderPassesByDependency` (exported from `engine/generate.mjs`) schedules each
+    pass after **every** pack of every type it names — a being addresses an item by
+    `(type, shortcode)` without knowing which Item pack ships it, so waiting for
+    one of several would resolve some beings and silently fail others. The
+    reordering is the smallest one that works: the earliest declared pass whose
+    dependencies have all run goes next, so a list already in a workable order is
+    compiled exactly as declared. The build logs the derived order only when it
+    differs from the declared one.
+  - **The declared list is untouched**, which is the point: it is also the
+    manifest's `packs` array, and a consumer orders that for a reader browsing
+    compendiums. The two are now allowed to disagree, so fixing a cold build no
+    longer means reordering the shipped manifest away from its `packFolders`.
+  - The case ordering cannot answer — `content-build package compile <name>`, which
+    runs one pass and no other — is now reported in this project's diagnostic form,
+    naming the pack that waits, the pack it waits on and the fix, instead of
+    throwing about a directory:
+  
+    ```text
+    error: pack "characters" (Actor) reads the compiled output of the Item pack
+           "characteristics", which this run does not compile and which
+           build/packs-json/characteristics does not hold — compile the whole
+           package, or compile "characteristics" first
+    ```
+  
+  **Bump**
+  
+  _Minor, not patch, and not major._ Minor because it adds public surface: two
+  exports on `engine/generate.mjs` and a third documented static switch on
+  `BasePackCompiler`, which is the registration point for a consumer's own
+  compiler.
+  
+  **No previously-passing consumer build starts failing.** The change is strictly
+  permissive — configurations that failed now succeed, and configurations that
+  succeeded compile the same documents. Of the four HeroicLands packages, three
+  (`sohl`, `sohl-thalorna`, `HarnMaster-3-FoundryVTT`) declare an order the
+  derivation returns unchanged; `sohl-kethira-basic` is the one that moves, and its
+  `build/packs-json` is **byte-identical** across the two orders — 385 documents,
+  `diff -r` exit 0. The new single-pack diagnostic replaces a throw on exactly the
+  runs that already failed.
+- f716902: Stop emitting `isEquipped` on a compiled gear item (#68).
+  
+  `GEAR_COMMON` emitted `isEquipped: false` on every gear item, and no SoHL
+  DataModel declares the field. `GearDataModel` declares `isCarried`,
+  `containerId` and `sharedWithCohortIds` as its possession state, and nothing
+  else — Foundry discards the extra key when the document is constructed, so
+  every gear item in every consuming pack shipped a value that was thrown away at
+  load, with nothing at compile or load time saying so.
+  
+  `GEAR_COMMON` is spread into all six gear types (`armorgear`, `concoctiongear`,
+  `containergear`, `miscgear`, `projectilegear`, `weapongear`), so this reached
+  every gear item of every consuming package.
+  
+  This is the second instance of #35's defect and has the same root cause:
+  nothing compares a builder's emitted `system` block against the DataModel that
+  receives it. The general check is #60.
+  
+  **The field was retired, not renamed.**
+  Song-of-Heroic-Lands-FoundryVTT#662 made the worn/equipped concept armour-only:
+  it removed `system.isEquipped` from the shared gear data model and gave
+  `ArmorGearDataModel` its own `system.isWorn`. That shipped in SoHL 0.8.0, so no
+  released system has read the key since. `isWorn` belongs to armour alone and is
+  not a target this declaration can be retargeted at — whether an `armorgear`
+  note should be able to author one is a separate content question, left open on
+  #68.
+  
+  **Nothing to sweep.** Unlike `assocMysteryCode`, this was never authorable: the
+  declaration carried a `to` and a `value` but no `name`, so `readField` never
+  consulted the frontmatter and no note in any package could set it. It was
+  already absent from `authoredFields`, so the author-facing field reference is
+  unchanged. A consumer has no line to delete.
+  
+  **This changes emitted documents**, so a consumer wants a rebuild rather than a
+  silent upgrade — though nothing downstream can have depended on the value.
+  Verified by recompiling two consumer trees at `main` before and after, comparing
+  every emitted document key-ordered:
+  
+  - `sohl` — removes exactly 1019 `"isEquipped": false` keys from 1012 of its 3126
+    compiled documents: 1010 items (465 `miscgear`, 331 `armorgear`, 114
+    `containergear`, 82 `weapongear`, 18 `projectilegear`) and 9 more embedded in
+    gear-carrying actors. No other difference, and no document added or removed.
+  - `sohl-thalorna` — removes 97 of 2018 across 2555 documents (96 items: 71
+    `concoctiongear`, 25 `weapongear`). No other difference.
+  
+  **A consumer that embeds a foreign item catalogue keeps the key until its
+  upstream republishes.** The 1921 `sohl-thalorna` occurrences this does not
+  remove are not emitted by this build at all: they are inherited verbatim from
+  the pinned `sohl@0.8.2` release pack its actors resolve against, which was
+  compiled by an earlier package-build. They clear when `sohl` cuts a release
+  built with this version, not before — so a consumer grepping its own output
+  after upgrading should expect the catalogue's share to remain.
+- 07944a2: Resolve the `sohlKb` TypeDoc symbol map against the repository root, and stop
+  swallowing every failure to read it (#75).
+  
+  `site.passOptions.symbolMap` is authored repo-relative, but `readSymbolMap` read
+  it against the process cwd and wrapped the read in a bare `catch` that returned
+  `{}`. A missing file, a malformed one, a permissions error, a path typo and a
+  correctly configured build with no symbols were all indistinguishable — and the
+  build exited 0 either way, publishing every `{@link}` as a code span instead of
+  a link into the API documentation. Driving `content-build site` from outside the
+  tree through `PACKAGE_BUILD_CONFIG` — how #51 was verified — silently dropped
+  224 API links across 25 pages of the `sohl` knowledgebase, and nothing at any
+  stage reported it.
+  
+  **What changed**
+  
+  | State                                  | Before               | Now                                          |
+  | -------------------------------------- | -------------------- | -------------------------------------------- |
+  | `symbolMap` unset                      | `{}`, silent         | `{}`, silent — unchanged                     |
+  | Configured, readable                   | works from repo root | works from **any** directory                 |
+  | Configured, missing / unreadable       | `{}`, exit 0         | build fails, naming the path and `errno`     |
+  | Configured, malformed JSON             | `{}`, exit 0         | build fails, naming the path and the JSON    |
+  | Configured, JSON that is not an object | `{}`, exit 0         | build fails, naming the path                 |
+  | Configured, read                       | nothing              | `resolved N API symbols from <path>` at info |
+  
+  The count is reported because a map that loaded and a map that loaded _empty_
+  are otherwise indistinguishable without reading the emitted HTML, and an empty
+  one degrades every tag exactly as a missing one used to.
+  
+  **Bump**
+  
+  _Minor, not patch._ No key, export, or flag changed shape, and a consumer whose
+  map is where its configuration says it is sees only the new info line. But a
+  build that previously exited 0 can now fail — deliberately — which reverses the
+  module's own documented licence to run the knowledgebase before `npm run docs`
+  and publish degraded tags. A consumer that orders its pipeline that way must
+  either generate the map first or leave `symbolMap` unset. No known consumer is
+  affected: `Song-of-Heroic-Lands-FoundryVTT` commits `kb/data/api-symbols.json`.
+
+### Patch Changes
+
+- bb08713: Stop `content-build lint` failing a homepage-only content tree (#77).
+  
+  A package in `publish.site: homepage` mode may hold exactly one note, and a
+  homepage carries no `shortcode` **by design** — it is addressed by the package
+  rather than by a slug, so `HOMEPAGE_FIELDS` is empty. The vacuous-tree guard
+  keyed off the address map, so that tree produced no keys and was reported as a
+  missing checkout:
+  
+  ```text
+  assets/content: error: holds no keyed content, so every rule here is vacuous — check that the content tree is present and that this is its root
+  ```
+  
+  The tree was present, it was the root, and it held the one note the package is
+  meant to have. `harn-adventures` and `sohl-kethira-basic` both ship in that
+  mode, so for them the failure was permanent — and an expected failure trains its
+  author to stop reading the output, which is the one thing this guard needs them
+  to do.
+  
+  The guard now reports an **empty walk** rather than an empty key set: a tree
+  holding notes is a tree, whatever they are keyed on, and only a tree holding
+  none is the absent one. Nothing about its strength changes — an empty tree, a
+  tree of untyped scaffolding, and a path that is not the content root each still
+  fail with the same diagnostic, now worded "holds no content notes".
+  
+  `patch`, not `minor`: no tree that lints today reports anything different. The
+  only behaviour that changes is a false failure becoming a pass. The success line
+  gains its missing noun — `(0 address(es) across 1 note(s))` — since a
+  homepage-only pass is the first time it prints a zero.
+
 ## 5.0.0
 
 ### Major Changes
