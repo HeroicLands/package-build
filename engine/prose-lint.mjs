@@ -240,8 +240,16 @@ function toDiagnostic(directory, result) {
  *
  * {@link MARKDOWNLINT_CONFIG} is passed as markdownlint's `optionsDefault`,
  * which is precisely the "shipped default, consumer overrides" behaviour the
- * command promises: a `.markdownlint-cli2.jsonc` found in the tree replaces it,
- * and a repository with none gets these rules.
+ * command promises: a repository with no configuration of its own gets these
+ * rules, and a `.markdownlint-cli2.jsonc` found in the tree overrides them.
+ *
+ * The override is **key by key, and each key wholesale** — which is not the same
+ * as "replaces it", and the difference is the one worth stating. A consumer file
+ * declaring only `ignores` keeps this rule set intact, including `default: false`
+ * and every per-rule option; but its `ignores` *replaces*
+ * {@link MARKDOWN_IGNORES} rather than extending it, so such a file must restate
+ * every shared entry it still wants. Omitting `CHANGELOG.md` there silently
+ * starts linting a generated file.
  *
  * @param {string} root - Repository to lint.
  * @param {object} [opts]
