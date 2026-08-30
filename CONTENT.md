@@ -505,7 +505,7 @@ npx content-build lint            # the configured `paths.content`
 npx content-build lint some/tree  # or a tree named outright
 ```
 
-Checks the two rules every note's **identity** is authored against, and reports
+Checks the three rules every note's **identity** is authored against, and reports
 each finding in the located form below:
 
 - **Shape** — a `shortcode` is strictly ASCII-alphanumeric. It is the identity
@@ -514,6 +514,8 @@ each finding in the located form below:
 - **Uniqueness** — `(type, shortcode)` names one note. A document is addressed
   across _every_ pack of its document type, so routing two same-address notes to
   different packs with `pack:` does not separate them.
+- **The package's own address** — exactly one note claims `/<package>/`. See
+  [Exactly one homepage](#exactly-one-homepage) below.
 
 It compiles nothing, opens no LevelDB and needs no Foundry manifest, so it runs
 in about a second and can gate a commit. An empty or untyped tree **fails**
@@ -526,6 +528,48 @@ addressed by the package rather than by a slug — so a package in
 `publish.site: homepage` mode has a content tree that is populated, correct and
 permanently unkeyed. That tree passes; a tree holding no notes at all still
 fails.
+
+### Exactly one homepage
+
+A content tree declares **exactly one** `type: homepage` note (#52). Zero is an
+error and two is an error, at the same severity, because they are one defect: a
+package whose front page is not the page a person chose.
+
+- _Zero_ and the package serves nothing at `/<package>/` — the failure the
+  authored homepage exists to prevent, and a silent one: the site build reports
+  `wrote 0 homepage(s)` and exits 0.
+- _Two_ and it serves a page nobody chose. Every homepage is written to the same
+  `_index.md`, so the second overwrites the first and the front page is decided
+  by the order the walk reached the files in — by _filename_, on a type whose
+  whole point is that it is routed by frontmatter. There is no "first wins"
+  convention to fall back on, so nothing can pick the right one.
+
+Neither has a safe default, so neither is a warning: a build that proceeded past
+either would publish the wrong front page while reporting success, which is
+exactly what a warning tolerates.
+
+**Where it fires: `lint` _and_ `site`.** No single command reaches every
+package — `HarnMaster-3-FoundryVTT` runs `content-build site` and no
+`content-build lint`; `sohl-thalorna` runs `content-build lint` and its own site
+builder — so a rule in one of them is a rule two of the six packages do not
+have. Both call the same function, so there is one rule and two call sites
+rather than two rules. In the site build it runs **before the output tree is
+cleared**, so a failing gate cannot destroy a good site to report a bad tree.
+
+**It does not vary by `publish.site`.** That setting chooses whether the
+_content_ surfaces are published; the homepage is the floor beneath both modes.
+The lint call site reads no `site:` block at all, and so could not vary by mode
+even if the rule wanted to.
+
+Zero has no file to name, so the locator is the **content root** — a real path,
+and the directory the note has to be added to. No line or column is invented for
+it. Two is reported once per offending note, located at its own `type:` value and
+naming the other, because each note is a place an author has to open and edit:
+
+```text
+assets/content: error: holds no `type: homepage` note, so package "sohl" publishes nothing at its own address /sohl/ — a package's front page is one authored note in this tree, routed by `type:` rather than by filename
+assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and every homepage is written to the same `_index.md` — so the one the walk reaches last silently overwrites the rest
+```
 
 ### Frontmatter, against the schema its type declares
 
@@ -788,6 +832,10 @@ title: HârnMaster Kethira Basic # optional; defaults to packageBuild.manifest.t
 
 What the module is, which system it needs, how to install it.
 ```
+
+A package declares **exactly one** of these, and both `content-build lint` and
+`content-build site` require it — see
+[Exactly one homepage](#exactly-one-homepage).
 
 That is the whole envelope. A homepage **compiles into no compendium
 document**, appears in no pack and in no link manifest, and is addressed by the
