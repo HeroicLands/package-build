@@ -94,6 +94,7 @@ describe("lintContentTree", () => {
     it("reports nothing for a clean tree, and says what it inspected", () => {
         const r = lintContentTree(
             tree({
+                "homepage.md": homepage(),
                 "Afflictions/Aconite.md": note(),
                 "Afflictions/Belladonna.md": note({
                     shortcode: "bella",
@@ -104,18 +105,21 @@ describe("lintContentTree", () => {
             { skipDirectories: [] },
         );
         expect(r.findings).toEqual([]);
-        expect(r.notes).toBe(2);
+        // Three notes, two keys: the homepage is a note and carries no
+        // shortcode, because it is addressed by the package (#52).
+        expect(r.notes).toBe(3);
         expect(r.keys).toBe(2);
     });
 
     it("ignores files with no frontmatter type", () => {
         const r = lint({
+            "homepage.md": homepage(),
             "Afflictions/Aconite.md": note(),
             "README.md": "# Just a readme\n",
             "CLAUDE.md": "---\nfoo: bar\n---\n\nScaffolding.\n",
         });
         expect(r.findings).toEqual([]);
-        expect(r.notes).toBe(1);
+        expect(r.notes).toBe(2);
     });
 
     it("reports a malformed shortcode at its own line", () => {
@@ -174,11 +178,15 @@ describe("lintContentTree", () => {
     it("does not require a note to repeat its own address in aliases", () => {
         expect(
             lint({
+                "homepage.md": homepage(),
                 "Afflictions/Aconite.md": note({ aliases: ["Wolfsbane"] }),
             }).findings,
         ).toEqual([]);
         expect(
-            lint({ "Afflictions/Aconite.md": note({ aliases: [] }) }).findings,
+            lint({
+                "homepage.md": homepage(),
+                "Afflictions/Aconite.md": note({ aliases: [] }),
+            }).findings,
         ).toEqual([]);
     });
 
@@ -251,6 +259,7 @@ describe("lintContentTree", () => {
     it("honours the skip list", () => {
         const r = lintContentTree(
             tree({
+                "homepage.md": homepage(),
                 "Afflictions/Aconite.md": note(),
                 "Templates/Affliction.md": note({
                     shortcode: "aconite",
@@ -261,6 +270,6 @@ describe("lintContentTree", () => {
         );
         // Without the skip, the template would duplicate the real note.
         expect(r.findings).toEqual([]);
-        expect(r.notes).toBe(1);
+        expect(r.notes).toBe(2);
     });
 });

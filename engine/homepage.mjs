@@ -57,7 +57,10 @@
  * @module
  */
 
+import fs from "node:fs";
+
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { formatLocator, positionInFrontmatter } from "./diagnostics.mjs";
 
 /**
  * The note type that compiles to the package homepage.
@@ -189,6 +192,114 @@ export function checkHomepageAddressFields(fm) {
         if (message) out.push({ key, message });
     }
     return out;
+}
+
+/**
+ * Require exactly one homepage note in a content tree (#52).
+ *
+ * "Exactly one" is two rules, and they are **one severity** because they are
+ * one defect: a package whose front page is not the page a person chose.
+ *
+ * - _None_ and the package serves nothing at `/<package>/`. That is the failure
+ *   #50 exists to prevent, and it is silent — the site build reports `wrote 0
+ *   homepage(s)` and exits 0.
+ * - _Two_ and it serves a page nobody chose. Every homepage is written to the
+ *   same {@link HOMEPAGE_DESTINATION}, so the second overwrites the first and
+ *   the package's front page is decided by the order the walk happened to reach
+ *   the files in — by *filename*, on a type whose whole point is that it is
+ *   routed by frontmatter. There is no "first wins" convention to fall back on,
+ *   so nothing here can pick the right one.
+ *
+ * Neither has a safe default, so neither is a warning. A warning is the right
+ * severity for something a build can proceed past correctly, and a build that
+ * proceeds past either of these publishes the wrong front page while reporting
+ * success — which is the exact outcome a warning would be tolerating.
+ *
+ * **Two is reported once per note, not once for the tree.** Each note is a
+ * place an author has to open and edit, and a single finding saying "there are
+ * two" sends them hunting for the second.
+ *
+ * **None is located at the tree, honestly.** There is no file to name, so the
+ * locator is the content root — the directory the note is missing from, which
+ * is a real path and the one the author adds it to. No line and no column are
+ * invented for it, per the diagnostic rules in
+ * {@link module:engine/diagnostics}. {@link lintContentTree} already reports an
+ * empty walk against the same locator.
+ *
+ * The rule reads no `site:` configuration and does not vary by
+ * `publish.site`: that setting chooses whether the *content* surfaces are
+ * published, and the homepage is the floor underneath both modes.
+ *
+ * @param {ReadonlyArray<{file: string}>} found - The homepage notes, in walk
+ *   order. Paths may be absolute or relative to the working directory.
+ * @param {object} options - Options.
+ * @param {string} options.contentBase - Root of the content tree, for the
+ *   locator when there is no file to name.
+ * @param {string} [options.contentPackage] - The package this tree builds.
+ *   Dropped from the message when unknown rather than guessed.
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: "error", message: string}>} The findings, one per offending note.
+ */
+export function checkHomepageCount(found, { contentBase, contentPackage }) {
+    const pages = found ?? [];
+    const named = contentPackage ? ` "${contentPackage}"` : "";
+    const address = contentPackage ? ` /${contentPackage}/` : "";
+
+    if (pages.length === 0) {
+        return [
+            {
+                file: contentBase,
+                severity: "error",
+                message:
+                    `holds no \`type: homepage\` note, so ` +
+                    `${contentPackage ? `package${named}` : "this package"} ` +
+                    `publishes nothing at its own address${address} — a ` +
+                    `package's front page is one authored note in this tree, ` +
+                    `routed by \`type:\` rather than by filename`,
+            },
+        ];
+    }
+    if (pages.length === 1) return [];
+
+    return pages.map((page) => {
+        const others = pages
+            .filter((p) => p !== page)
+            .map((p) => formatLocator({ file: p.file }));
+        return {
+            file: page.file,
+            ...positionOfType(page.file),
+            severity: "error",
+            message:
+                `duplicate \`type: homepage\` note, also declared by ` +
+                `${others.join(", ")}; a package has one front page` +
+                `${contentPackage ? `, at${address},` : ""} and every ` +
+                `homepage is written to the same \`${HOMEPAGE_DESTINATION}\` — ` +
+                `so the one the walk reaches last silently overwrites the rest`,
+        };
+    });
+}
+
+/**
+ * Where a note declares `type: homepage`, when the file can still be read.
+ *
+ * A separate read rather than a raw text threaded through every caller: the
+ * two call sites hold different shapes (a lint note, a collected page) and this
+ * runs only on a tree that is already failing.
+ *
+ * @param {string} file - Path to the note.
+ * @returns {{line?: number, column?: number}} Spreadable position fields, empty
+ *   when the file cannot be read — dropped rather than guessed.
+ */
+function positionOfType(file) {
+    try {
+        return positionInFrontmatter(
+            fs.readFileSync(file, "utf8"),
+            "type",
+            HOMEPAGE_TYPE,
+        );
+    } catch {
+        return {};
+    }
 }
 
 /**
