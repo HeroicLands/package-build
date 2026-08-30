@@ -583,6 +583,7 @@ function linksCommand() {
                     deadAnchors,
                     deadAddresses,
                     frontmatterLinks,
+                    homepageLinks,
                     usedManifest,
                 } = auditLinks(index);
 
@@ -615,10 +616,24 @@ function linksCommand() {
                     });
                 }
 
+                // The package homepage. Its addresses are markdown links and
+                // `landing:` url/href fields rather than wikilinks — it is
+                // published verbatim, so nothing resolves a wikilink on it —
+                // and until #54 nothing looked at them at all.
+                for (const h of homepageLinks) {
+                    emitDiagnostic({
+                        file: h.note.file,
+                        ...positionOfLiteral(h.note.raw, h.text, h.occurrence),
+                        severity: "error",
+                        message: `${h.field}: ${h.message}`,
+                    });
+                }
+
                 const failures =
                     deadAnchors.length +
                     deadAddresses.length +
-                    frontmatterLinks.length;
+                    frontmatterLinks.length +
+                    homepageLinks.length;
                 if (failures) {
                     log.error(
                         `${failures} link problem(s) across ${index.notes.length} note(s).`,
@@ -629,7 +644,8 @@ function linksCommand() {
                         `${index.notes.length} notes: every anchor link lands ` +
                             `and every qualified address resolves ` +
                             `(${usedManifest.size} cross-package reference(s) ` +
-                            `via manifest), no wikilink in frontmatter.`,
+                            `via manifest), no wikilink in frontmatter, ` +
+                            `every homepage address resolvable.`,
                     );
                 }
             } catch (err) {
