@@ -224,8 +224,6 @@ describe("the site build enforces it, in both publishing modes (#52)", () => {
             foundryPackage: "demo",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],

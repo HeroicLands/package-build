@@ -106,9 +106,12 @@ function configFor(root: string, coreVersion = "14.359") {
         contentPackage: "elsewhere",
         foundryPackage: "sohl-elsewhere",
         packageKind: "modules",
+        // The identity is declared under `systems:` and selected by
+        // `requiresSystem` now; `stats.systemId`/`systemVersion` are derived
+        // and may not be authored (#48).
+        systems: { sohl: { compatibility: { verified: "3.2.1" } } },
+        requiresSystem: "sohl",
         stats: {
-            systemId: "sohl",
-            systemVersion: "3.2.1",
             lastModifiedBy: "elsewherebuild0",
         },
         paths: { content: "vault/notes" },
@@ -182,8 +185,6 @@ describe("path resolution does not depend on the working directory", () => {
                 foundryPackage: "sohl-elsewhere",
                 packageKind: "modules",
                 stats: {
-                    systemId: "sohl",
-                    systemVersion: "3.2.1",
                     lastModifiedBy: "elsewherebuild0",
                 },
                 paths: { content: "vault/notes" },

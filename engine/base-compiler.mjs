@@ -73,6 +73,7 @@ import {
     convertNoteWikilinks,
     collectContentDocs,
     expandNoteTables,
+    statsForPack,
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
@@ -237,6 +238,7 @@ export class BasePackCompiler {
         dest,
         folderResolver = () => null,
         packName,
+        packSystem = null,
         docType,
         router,
         routingReporter = false,
@@ -262,10 +264,33 @@ export class BasePackCompiler {
             writable: false,
         });
         this.packName = packName;
+        this.packSystem = packSystem;
         this.docType = docType;
         this.router = router;
         this.routingReporter = routingReporter;
     }
+
+    /**
+     * The `_stats` block every entry this pass emits is stamped with (#48).
+     *
+     * Per pack rather than per package, because a module may ship the same
+     * content for two systems — `harn-ensemble` has an `actors-hm3` pack and an
+     * `actors-sohl` pack — and those documents were built against different
+     * system versions. A single global block stamped both identically.
+     *
+     * Memoised on the instance: one pass, one pack, one system, so the block is
+     * constant for the life of the compiler. The previous module-level memo
+     * could not be, because it was shared across passes for different packs.
+     *
+     * @returns {object} The block, built once per compiler.
+     */
+    get stats() {
+        this.#stats ??= statsForPack(this.packSystem);
+        return this.#stats;
+    }
+
+    /** @type {object|undefined} */
+    #stats;
 
     /**
      * Whether this pass's pack is the one a claimed note belongs in.

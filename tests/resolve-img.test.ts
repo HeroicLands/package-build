@@ -56,8 +56,6 @@ describe("resolveImg for a non-`sohl` consumer (#1508)", () => {
         foundryPackage: "sohl-thalorna",
         packageKind: "modules",
         stats: {
-            systemId: "sohl",
-            systemVersion: "0.1.0",
             lastModifiedBy: "thalornabuild000",
         },
         packs: [{ name: "items", type: "Item" }],

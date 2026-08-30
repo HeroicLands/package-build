@@ -47,8 +47,6 @@ function baseConfig({ packs, rootDir = os.tmpdir() }: any) {
         foundryPackage: "sohl",
         packageKind: "systems",
         stats: {
-            systemId: "sohl",
-            systemVersion: "0.0.0",
             lastModifiedBy: "sohltestbuild0000",
         },
         packs,

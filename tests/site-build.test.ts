@@ -109,8 +109,6 @@ function configFor(site: Record<string, unknown> = {}) {
         foundryPackage: "demo",
         packageKind: "modules",
         stats: {
-            systemId: "sohl",
-            systemVersion: "1.0.0",
             lastModifiedBy: "demobuilder0000",
         },
         packs: [
@@ -440,8 +438,6 @@ describe("the output root is refused unless it is safe to delete", () => {
             foundryPackage: "demo",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],

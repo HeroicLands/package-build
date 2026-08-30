@@ -25,8 +25,10 @@
 # be read as the shape a real consumer must adopt — see the README for that.
 #
 # Absent because they are derived, never authored: `rootDir` (the directory
-# this file sits in), `foundryPackage` (the adjacent `package.json` `name`) and
-# `stats.systemVersion` (its `version`, for a system).
+# this file sits in), `foundryPackage` (the adjacent `package.json` `name`),
+# `stats.systemVersion` (its `version`, for a system) and `stats.systemId` (a
+# system package is its own system; a module takes it from `requiresSystem` or
+# from a lone `systems:` entry).
 
 contentPackage: sohl
 packageKind: systems
@@ -39,7 +41,6 @@ compatibility:
     verified: "14.359"
 
 stats:
-    systemId: sohl
     lastModifiedBy: contentbuild0000
 
 # Named, not supplied: the item-type registry is code, and a data configuration

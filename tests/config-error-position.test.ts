@@ -49,7 +49,6 @@ const MINIMAL = [
     "compatibility:",
     '    minimum: "14.359"',
     "stats:",
-    "    systemId: sohl",
     "    lastModifiedBy: sohlbuilder00000",
     "packs:",
     "    - name: items",
@@ -188,7 +187,7 @@ describe("a configuration error carries the position of its key", () => {
         const { err, file } = failureFor(text);
 
         expect(err.message).toBe(
-            `${file}:13:30: error: package-build config: ` +
+            `${file}:12:30: error: package-build config: ` +
                 "`site.sections.gear.descrption` is not a recognized option " +
                 "(expected one of: title, banner, description).",
         );
@@ -222,7 +221,7 @@ describe("a configuration error carries the position of its key", () => {
     });
 
     it("drops the position, keeping the file, for a missing top-level key", () => {
-        const text = `${MINIMAL.split("\n").slice(0, 7).join("\n")}\n`;
+        const text = `${MINIMAL.split("\n").slice(0, 6).join("\n")}\n`;
         const { err, file } = failureFor(text);
 
         expect(err.message).toBe(
@@ -236,7 +235,7 @@ describe("a configuration error carries the position of its key", () => {
         const err = await loadFresh(file);
 
         expect(err.message).toBe(
-            `${file}:14:19: error: package-build config: ` +
+            `${file}:13:19: error: package-build config: ` +
                 "`packageBuild.container.stages.qa.port` must be a number.",
         );
         const { line, column } = locatorOf(err.message);
@@ -249,7 +248,7 @@ describe("a configuration error carries the position of its key", () => {
         const err = await loadFresh(file);
 
         expect(err.message).toBe(
-            `${file}:11:1: error: package-build config: ` +
+            `${file}:10:1: error: package-build config: ` +
                 "`skipDirectories` must be an array.",
         );
     });

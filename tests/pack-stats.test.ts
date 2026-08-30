@@ -116,9 +116,10 @@ describe("the `_stats` stamp is configuration, not a literal (#1508)", () => {
             contentPackage: "thalorna",
             foundryPackage: "sohl-thalorna",
             packageKind: "modules",
+            // Declared and required rather than authored into `stats` (#48).
+            systems: { sohl: { compatibility: { verified: "0.1.0" } } },
+            requiresSystem: "sohl",
             stats: {
-                systemId: "sohl",
-                systemVersion: "0.1.0",
                 lastModifiedBy: "thalornabuild000",
             },
             packs: [{ name: "items", type: "Item" }],

@@ -80,7 +80,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import YAML from "yaml";
 
-import { defineConfig } from "../content-config.mjs";
+import { defineConfig, DERIVED_SYSTEM_VERSION } from "../content-config.mjs";
 import {
     formatDiagnostic,
     positionOfYamlPath,
@@ -280,6 +280,33 @@ function shippedSystemVersion(rootDir, input) {
     const declaredSystems = /** @type {Record<string, unknown>} */ (
         input.relationships ?? {}
     ).systems;
+
+    // The `systems:` block declares without requiring (#48), so it is consulted
+    // first: a package that has adopted it needs no relationship, and one that
+    // ships for two systems could not express itself through a relationship at
+    // all. `requiresSystem` names the package-wide default when there is one;
+    // otherwise a single declared system is unambiguous. With several and no
+    // gate, there is no package-wide answer — each pack carries its own, and
+    // {@link statsForPack} is what reads it.
+    const systemsBlock =
+        /** @type {Record<string, {compatibility?: {verified?: string}}>} */ (
+            input.systems ?? {}
+        );
+    const systemIds = Object.keys(systemsBlock);
+    if (systemIds.length) {
+        const chosen =
+            typeof input.requiresSystem === "string" ? input.requiresSystem
+            : systemIds.length === 1 ? systemIds[0]
+            : null;
+        if (chosen) {
+            const verified = systemsBlock[chosen]?.compatibility?.verified;
+            if (typeof verified === "string" && verified.length)
+                return verified;
+        }
+        // Several declared and none required: the package-wide value is
+        // deliberately absent rather than one of them picked arbitrarily.
+        return null;
+    }
 
     // A module that names neither a system nor a relationship with one is
     // system-agnostic on purpose: its packs are core document types carrying no
@@ -494,19 +521,18 @@ export function configFromData(data, configPath) {
     const stats = input.stats;
     if (stats !== null && typeof stats === "object" && !Array.isArray(stats)) {
         const declared = /** @type {Record<string, unknown>} */ (stats);
-        if (declared.systemVersion !== undefined) {
-            throw new Error(
-                `package-build: ${configPath} declares ` +
-                    `\`stats.systemVersion\`, which a data configuration may ` +
-                    `not: a system derives it from the \`version\` of the ` +
-                    `\`package.json\` beside it, and a module from the ` +
-                    `\`compatibility.verified\` of the system it declares a ` +
-                    `relationship with. Remove the key.`,
-            );
-        }
+        // `stats.systemId` and `stats.systemVersion` are both refused by
+        // `defineConfig`, which reports them with a locator — so nothing is
+        // rejected here. This half only supplies the value the validator cannot
+        // compute: resolving a system package's version means reading the
+        // adjacent `package.json`, and `defineConfig` performs no I/O.
+        //
+        // Passed under a symbol so the channel is not a second, forgeable
+        // spelling of the key that was just refused (see
+        // {@link DERIVED_SYSTEM_VERSION}).
         input.stats = {
             ...declared,
-            systemVersion: shippedSystemVersion(rootDir, input),
+            [DERIVED_SYSTEM_VERSION]: shippedSystemVersion(rootDir, input),
         };
     }
 

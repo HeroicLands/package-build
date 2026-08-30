@@ -167,7 +167,7 @@ export class Items extends BasePackCompiler {
             // `sohl.archetype` (required nullable number) drives
             // `flags.sohl.docArchetype` (#640 / archetype contract #604).
             flags: withArchetypeFlag(fm, fm.flags, `item "${name}"`),
-            _stats: defaultStats(),
+            _stats: this.stats,
             ownership: { default: 0 },
             folder,
             _key: `!items!${id}`,

@@ -49,7 +49,7 @@ import { Actors } from "../sohl/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
 import {
-    buildStats,
+    statsForPack,
     loadFolders,
     buildFolderResolver,
     writeFolderDocs,
@@ -247,7 +247,7 @@ export function unsatisfiedPassDependencies(running, config) {
  *     count (0 on success) and the number of entries it wrote.
  */
 async function generatePack(
-    { name, type, folders, companions },
+    { name, type, folders, companions, system },
     config,
     router,
     routingReporter,
@@ -291,7 +291,9 @@ async function generatePack(
         companionDests[companion.name] = companionDest;
     }
 
-    writeFolderDocs(folderList, buildStats(undefined, config), dest, type);
+    // A folder document belongs to the pack it is written into, so it carries
+    // that pack's system rather than the package-wide one (#48).
+    writeFolderDocs(folderList, statsForPack(system, config), dest, type);
 
     const pack = new packClass({
         contentBase,
@@ -312,6 +314,8 @@ async function generatePack(
         foreignSourceDirs: foreignItemCatalogDirs(config),
         folderResolver: resolver,
         packName: name,
+        // Which system this pack's documents are stamped for (#48).
+        packSystem: system ?? null,
         docType: type,
         router,
         routingReporter,

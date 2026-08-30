@@ -584,9 +584,12 @@ const CONFIG_KEYS = [
     "site",
     "compatibility",
     "relationships",
+    "systems",
+    "requiresSystem",
     "packageBuild",
     "publish",
 ];
+const SYSTEM_KEYS = ["manifest", "compatibility"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
 const DOCS_KEYS = ["itemFields"];
 const SITE_KEYS = [
@@ -626,7 +629,24 @@ const PACK_KEYS = [
     "system",
 ];
 const PATH_KEYS = Object.keys(DEFAULT_PATHS);
-const STATS_KEYS = ["systemId", "systemVersion", "lastModifiedBy"];
+const STATS_KEYS = ["lastModifiedBy"];
+
+/**
+ * How the loader hands {@link defineConfig} the system version it resolved.
+ *
+ * A **Symbol**, deliberately. `stats.systemVersion` is refused from an authored
+ * configuration (#48), but the value still has to reach here from the loader —
+ * which is the half that may do I/O, and which reads a system package's version
+ * out of the adjacent `package.json`. A string key would be a second spelling of
+ * the refused one, forgeable from YAML and reachable by `rejectUnknownKeys`; a
+ * symbol key cannot be written in YAML at all and does not appear in
+ * `Object.keys`, so the refusal has no back door.
+ *
+ * @type {symbol}
+ */
+export const DERIVED_SYSTEM_VERSION = Symbol.for(
+    "package-build.derivedSystemVersion",
+);
 const PUBLISH_KEYS = ["site", "manifests", "address"];
 const MANIFEST_KEYS = ["publish", "consume"];
 const ADDRESS_KEYS = ["prefix", "landing"];
@@ -882,28 +902,42 @@ function normalizePaths(value, rootDir) {
  * @param {unknown} value
  * @returns {Readonly<StatsSpec>}
  */
-function normalizeStats(value) {
+function normalizeStats(value, derived) {
     if (!isPlainObject(value)) fail("stats", "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value);
+
+    // **`systemId` and `systemVersion` are derived, and authoring a derived
+    // value is an error rather than an override (#48).** `systems:` is the
+    // single source: it says which systems this package stamps against, and
+    // `requiresSystem` — or a lone declared system — says which one the
+    // package-wide block takes. A system package answers for itself.
+    //
+    // Refused rather than ignored, because the two would silently disagree.
+    // That is exactly how `stats.systemVersion` came to sit at `0.6.0` for four
+    // releases: a transcribed copy is free to drift from what it copied, and
+    // nothing reads a stamped `_stats` until something migrates on it.
+    for (const key of ["systemId", "systemVersion"]) {
+        if (input[key] === undefined) continue;
+        fail(
+            `stats.${key}`,
+            `is derived and may not be authored. ` +
+                (key === "systemId" ?
+                    `A system package is its own system; a module takes it ` +
+                    `from \`requiresSystem\`, or from \`systems:\` when it ` +
+                    `declares exactly one. `
+                :   `It is the \`compatibility.verified\` of the system in ` +
+                    `\`systems:\`, or a system package's own \`package.json\` ` +
+                    `version. `) +
+                `Remove the key`,
+        );
+    }
     rejectUnknownKeys(input, STATS_KEYS, "stats.");
 
     return Object.freeze({
-        // Optional: a package whose packs are not all for one system declares
-        // the system per pack instead (`packs[].system`), and a package that
-        // ships only system-agnostic documents declares none at all.
-        systemId:
-            input.systemId === undefined || input.systemId === null ?
-                null
-            :   requireNonEmptyString(input.systemId, "stats.systemId"),
-        // Optional for the same reason as `systemId`: a system-agnostic module
-        // is not built against a system, so it has no version of one to stamp.
-        systemVersion:
-            input.systemVersion === undefined || input.systemVersion === null ?
-                null
-            :   requireNonEmptyString(
-                    input.systemVersion,
-                    "stats.systemVersion",
-                ),
+        // Per pack where the packs differ — see `statsForPack` — and this is
+        // the package-wide answer for everything that has no pack in hand.
+        systemId: derived.systemId,
+        systemVersion: derived.systemVersion,
         lastModifiedBy: requireNonEmptyString(
             input.lastModifiedBy,
             "stats.lastModifiedBy",
@@ -1197,6 +1231,98 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * @param {unknown} value - The `relationships` block, or `undefined`.
  * @returns {Readonly<Relationships>} It, frozen; `{}` when absent.
  */
+/**
+ * The systems this package can stamp content against — declaration only (#48).
+ *
+ * **Declaring is not requiring, and that separation is the whole point.** The
+ * only place to state a system version used to be `relationships.systems`, and
+ * that list is a *restriction*: Foundry's `supportsSystem` drops a module from
+ * any world whose system it does not name. So a module shipping content for two
+ * systems — `harn-ensemble` ships an HM3 pack, a SoHL pack and a system-neutral
+ * journals pack — had to choose between naming its systems and remaining
+ * loadable, and choosing the second meant stamping no system version at all on
+ * content that certainly has one.
+ *
+ * Naming a system here restricts nothing. {@link normalizeRequiresSystem} is
+ * what restricts, and it is separate and optional.
+ *
+ * Each entry carries the same `compatibility` shape a relationship does, and
+ * `verified` is what a pack stamps: `_stats.systemVersion` records what the
+ * content was *built against*, not the floor it tolerates.
+ *
+ * @param {unknown} value - The declared `systems:` mapping.
+ * @returns {Readonly<Record<string, Readonly<object>>>} Frozen; `{}` when absent.
+ */
+function normalizeSystems(value) {
+    if (value === undefined || value === null) return Object.freeze({});
+    if (!isPlainObject(value))
+        fail("systems", "must be a mapping of id to spec");
+    const input = /** @type {Record<string, unknown>} */ (value);
+
+    const out = {};
+    for (const [id, entry] of Object.entries(input)) {
+        const at = `systems.${id}`;
+        if (!id) fail("systems", "declares an empty system id");
+        if (!isPlainObject(entry)) fail(at, "must be a mapping");
+        const spec = /** @type {Record<string, unknown>} */ (entry);
+        rejectUnknownKeys(spec, SYSTEM_KEYS, `${at}.`);
+
+        const compatibility = spec.compatibility;
+        if (!isPlainObject(compatibility)) {
+            fail(`${at}.compatibility`, "must be a mapping");
+        }
+        const compat = /** @type {Record<string, unknown>} */ (compatibility);
+        rejectUnknownKeys(compat, COMPATIBILITY_KEYS, `${at}.compatibility.`);
+        // `verified` is required because it is the value a pack stamps. A
+        // declaration that cannot answer "which version was this built
+        // against" is the gap this block exists to close.
+        const verified = requireNonEmptyString(
+            compat.verified,
+            `${at}.compatibility.verified`,
+        );
+
+        out[id] = Object.freeze({
+            manifest:
+                spec.manifest === undefined || spec.manifest === null ?
+                    null
+                :   requireNonEmptyString(spec.manifest, `${at}.manifest`),
+            compatibility: Object.freeze({
+                minimum:
+                    compat.minimum === undefined || compat.minimum === null ?
+                        null
+                    :   requireNonEmptyString(
+                            compat.minimum,
+                            `${at}.compatibility.minimum`,
+                        ),
+                verified,
+            }),
+        });
+    }
+    return Object.freeze(out);
+}
+
+/**
+ * The one system this package refuses to load without, or `null` (#48).
+ *
+ * The gate half of the split. Naming a system here emits
+ * `relationships.systems` for it, which is what Foundry's `supportsSystem`
+ * reads — so the package becomes unavailable under any other system. Omitted,
+ * no relationship is emitted and the package loads anywhere, each pack stamping
+ * whatever its own `system:` names.
+ *
+ * It reuses the {@link normalizeSystems} entry rather than restating the
+ * compatibility: `stats.systemVersion` froze at `0.6.0` for four releases
+ * because a transcription was free to disagree with what it copied, and a
+ * second transcription invites the same.
+ *
+ * @param {unknown} value - The declared `requiresSystem:`.
+ * @returns {string|null} The system id, or `null`.
+ */
+function normalizeRequiresSystem(value) {
+    if (value === undefined || value === null) return null;
+    return requireNonEmptyString(value, "requiresSystem");
+}
+
 function normalizeRelationships(value) {
     if (value === undefined) return Object.freeze({});
     if (!isPlainObject(value)) fail("relationships", "must be a mapping");
@@ -1554,6 +1680,54 @@ export function defineConfig(config) {
         seen.add(name);
     }
 
+    // ── systems: declaring, and requiring, are separate decisions (#48) ──────
+    const systems = normalizeSystems(input.systems);
+    const requiresSystem = normalizeRequiresSystem(input.requiresSystem);
+    const declaredSystems = new Set(Object.keys(systems));
+    /** `relationships.systems`, for the derivations that still consult it. */
+    const relationshipSystems = /** @type {{id?: string}[]} */ (
+        (isPlainObject(input.relationships) ?
+            input.relationships.systems
+        :   null) ?? []
+    );
+
+    // A name that resolves to nothing is a build error rather than a
+    // fall-through, in the spirit the rest of this file already follows: a pack
+    // stamping a system nobody declared would stamp `undefined`, which is the
+    // plausible lie #43 was about.
+    if (requiresSystem !== null && !declaredSystems.has(requiresSystem)) {
+        fail(
+            "requiresSystem",
+            `names \`${requiresSystem}\`, which \`systems:\` does not declare` +
+                (declaredSystems.size ?
+                    `. Declared: ${[...declaredSystems].join(", ")}`
+                :   ` — the \`systems:\` block is empty or absent`),
+        );
+    }
+    for (const pack of packs.flatMap((p) => [p, ...p.companions])) {
+        if (!pack.system) continue;
+        if (declaredSystems.size && !declaredSystems.has(pack.system)) {
+            fail(
+                `packs.${pack.name}.system`,
+                `names \`${pack.system}\`, which \`systems:\` does not ` +
+                    `declare. Declared: ${[...declaredSystems].join(", ")}`,
+            );
+        }
+        // With a gate set, a pack for any other system could never be seen:
+        // Foundry drops the whole package under a system `requiresSystem` does
+        // not name, so the pack would ship and be unreachable.
+        if (requiresSystem !== null && pack.system !== requiresSystem) {
+            fail(
+                `packs.${pack.name}.system`,
+                `names \`${pack.system}\` while \`requiresSystem\` is ` +
+                    `\`${requiresSystem}\`, so this pack could never be seen — ` +
+                    `Foundry hides the whole package from any world whose ` +
+                    `system \`requiresSystem\` does not name. Drop ` +
+                    `\`requiresSystem\`, or correct the pack`,
+            );
+        }
+    }
+
     // Several packs of one document type are allowed — editorial grouping of
     // same-type documents is ordinary Foundry practice, and collapsing such a
     // layout breaks every stored compendium UUID (#1566). What is not allowed
@@ -1605,7 +1779,50 @@ export function defineConfig(config) {
         // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
         assetRoot: `${packageKind}/${foundryPackage}/assets`,
         paths: normalizePaths(input.paths, rootDir),
-        stats: normalizeStats(input.stats),
+        // The package-wide system, derived (#48). A **system** package is its
+        // own system, which is true by construction and needs no declaration. A
+        // **module** takes the one it requires, or the one system it declares
+        // when there is exactly one; with several and no gate there is no
+        // package-wide answer, and each pack carries its own.
+        stats: normalizeStats(input.stats, {
+            systemId:
+                packageKind === "systems" ? foundryPackage
+                : requiresSystem ? requiresSystem
+                : Object.keys(systems).length === 1 ? Object.keys(systems)[0]
+                    // A lone `relationships.systems` entry is a declaration of
+                    // the system as much as a gate, so it still answers. That
+                    // matters because the relationship carries `itemCatalog`
+                    // too — a separate concern the split does not replace — so
+                    // a repository using it would otherwise have to restate its
+                    // compatibility under `systems:` purely to keep stamping,
+                    // which is the duplication this whole change exists to
+                    // remove. Several entries have no single answer and get
+                    // none.
+                : relationshipSystems.length === 1 ?
+                    (relationshipSystems[0]?.id ?? null)
+                :   null,
+            // Derived here where the answer is pure data — the `verified` of
+            // whichever system the package-wide block takes — and supplied by
+            // the loader otherwise. The loader is the half that may do I/O, and
+            // the two cases needing it are a *system* package (its own
+            // `package.json` version) and a module still deriving from
+            // `relationships.systems`.
+            systemVersion:
+                (() => {
+                    const id =
+                        requiresSystem ??
+                        (Object.keys(systems).length === 1 ?
+                            Object.keys(systems)[0]
+                        :   null);
+                    return id ?
+                            (systems[id]?.compatibility?.verified ?? null)
+                        :   null;
+                })() ??
+                (isPlainObject(input.stats) ?
+                    input.stats[DERIVED_SYSTEM_VERSION]
+                :   null) ??
+                null,
+        }),
         itemBuilders,
         itemArt,
         itemFields,
@@ -1629,6 +1846,8 @@ export function defineConfig(config) {
             "compatibility",
         ),
         relationships: normalizeRelationships(input.relationships),
+        systems,
+        requiresSystem,
         packageBuild: normalizePackageBuild(input.packageBuild),
         publish: normalizePublish(input.publish),
     });

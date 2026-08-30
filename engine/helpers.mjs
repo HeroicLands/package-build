@@ -335,6 +335,44 @@ export function buildStats(
     };
 }
 
+/**
+ * The `_stats` block for one pack, stamped with the system that pack is for
+ * (#48).
+ *
+ * **`systemId` travels with `systemVersion`.** They are one decision, so where
+ * one is omitted both are. Stamping a per-pack version against a package-wide
+ * id would emit `systemId: sohl, systemVersion: 1.6.3` on HM3 documents — a
+ * *plausible lie*, which is worse than the missing value #43 fixed, because
+ * nothing about it looks wrong.
+ *
+ * Resolution, in order:
+ *
+ * 1. The pack's own `system:`, looked up in the `systems:` block. That is the
+ *    case a module shipping for two systems needs, and the one no
+ *    package-wide value could express.
+ * 2. Failing that, the package-wide `stats` — a package whose packs are all for
+ *    one system, which is every package that worked before this existed.
+ *
+ * A pack naming a system is validated against `systems:` at configuration time,
+ * so an unresolvable name never reaches here.
+ *
+ * @param {string|null|undefined} packSystem - The pack's declared `system:`.
+ * @param {object} [config] - The resolved configuration.
+ * @returns {object} The `_stats` block for that pack.
+ */
+export function statsForPack(packSystem, config = loadPackConfig()) {
+    const declared = packSystem ? config.systems?.[packSystem] : null;
+    if (!declared) return buildStats(undefined, config);
+    return {
+        systemId: packSystem,
+        systemVersion: declared.compatibility.verified,
+        coreVersion: supportedCoreVersion(config),
+        createdTime: 0,
+        modifiedTime: 0,
+        lastModifiedBy: config.stats.lastModifiedBy,
+    };
+}
+
 /** Memoised {@link defaultStats}. */
 let cachedDefaultStats;
 

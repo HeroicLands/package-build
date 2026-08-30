@@ -430,8 +430,43 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
         ...releaseUrls({ repoUrl, version: packageJson.version, artifact }),
     };
     if (config.compatibility) derived.compatibility = config.compatibility;
-    if (config.relationships && Object.keys(config.relationships).length) {
-        derived.relationships = publishedRelationships(config.relationships);
+
+    // `requiresSystem` is the gate half of the declare/require split (#48). It
+    // emits the `relationships.systems` entry Foundry's `supportsSystem` reads,
+    // reusing the `systems:` declaration rather than restating it — a second
+    // transcription is free to disagree with what it copied, which is how
+    // `stats.systemVersion` came to sit at `0.6.0` for four releases.
+    //
+    // Declaring a system emits nothing on its own. That is the point: a module
+    // shipping content for two systems names both under `systems:`, stamps each
+    // pack accordingly, and stays loadable everywhere because it requires
+    // neither.
+    const relationships = { ...(config.relationships ?? {}) };
+    if (config.requiresSystem) {
+        const declaredSystem = config.systems?.[config.requiresSystem];
+        const entry = {
+            id: config.requiresSystem,
+            type: "system",
+            ...(declaredSystem?.manifest ?
+                { manifest: declaredSystem.manifest }
+            :   {}),
+            ...(declaredSystem?.compatibility ?
+                {
+                    compatibility: Object.fromEntries(
+                        Object.entries(declaredSystem.compatibility).filter(
+                            ([, v]) => v != null,
+                        ),
+                    ),
+                }
+            :   {}),
+        };
+        // An explicit `relationships.systems` still wins, so a repository
+        // mid-migration is never told two different things about itself.
+        relationships.systems =
+            relationships.systems?.length ? relationships.systems : [entry];
+    }
+    if (Object.keys(relationships).length) {
+        derived.relationships = publishedRelationships(relationships);
     }
 
     const merged = { ...declared, ...derived };
