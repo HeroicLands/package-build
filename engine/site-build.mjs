@@ -65,6 +65,7 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import {
     HOMEPAGE_DESTINATION,
+    checkHomepageCount,
     homepageFrontmatter,
     homepageTitle,
     isHomepage,
@@ -269,9 +270,9 @@ export function collectTreePages(tree, ctx) {
  * packages ship under is a property of the code path rather than of a
  * configuration that happens to be empty (#55).
  *
- * Returned as a list rather than as the one note there should be. Requiring
- * exactly one is #52's, and it is a separate decision — this reports what it
- * found so a count is visible either way.
+ * Returned as a list rather than as the one note there should be, because the
+ * count is what {@link checkHomepageCount} judges (#52) — this walk reports
+ * what it found, and {@link buildSite} decides whether that is one.
  *
  * @param {string} contentBase - Absolute path to the content tree.
  * @param {object} ctx - `{ skipDirectories }`.
@@ -345,6 +346,10 @@ export function writeHomepages(outRoot, pages, config) {
  */
 export function siteGates(pages, findings, { manifestDir }) {
     const out = {
+        // Always empty here: the homepage count is decided in `buildSite`
+        // before the content walk, and a failing count returns without ever
+        // reaching these gates (#52). Present so every caller reads one shape.
+        homepages: [],
         frontmatterLinks: findings.fmLinkFindings ?? [],
         slugErrors: findings.slugFindings ?? [],
         collisions: [],
@@ -403,6 +408,7 @@ export function siteGates(pages, findings, { manifestDir }) {
  */
 export function emptyGates() {
     return {
+        homepages: [],
         frontmatterLinks: [],
         slugErrors: [],
         collisions: [],
@@ -418,6 +424,7 @@ export function emptyGates() {
 /** Whether any gate produced a finding. */
 export function gatesFailed(gates) {
     return Boolean(
+        gates.homepages.length ||
         gates.frontmatterLinks.length ||
         gates.slugErrors.length ||
         gates.collisions.length ||
@@ -453,6 +460,39 @@ export function tableUniverse(pages) {
         });
     }
     return byPackage;
+}
+
+/**
+ * The front matter a section's landing states about itself.
+ *
+ * The section metadata a configuration resolved, ready to be written or merged
+ * onto a page. Two things happen here and nothing else does:
+ *
+ * - **`title` leads.** It is the one key every landing has carried since the
+ *   first one, and a landing whose block opened with `banner:` would be a
+ *   gratuitous diff on every consumer's tree.
+ * - **An absent value is left off**, not written as `undefined` — which is not
+ *   a value YAML can carry, and would abort the serializer.
+ *
+ * Everything else the section declared is passed through. That is the point of
+ * the function: before #91 both writers transcribed `title` and `banner` by
+ * name, so the vocabulary lived in three places — the schema that admits a key
+ * and the two writers that copy it — and a key added to the schema alone
+ * validated cleanly and then reached no page. The *schema* is the bound worth
+ * keeping (see `normalizeSectionMeta`, which refuses a key it does not know and
+ * names it); a second, silent bound in the writers is not.
+ *
+ * @param {object} meta - A resolved `site.sections` / `site.readmeSections`
+ *   entry.
+ * @returns {object} Its front matter, `title` first.
+ */
+export function sectionFrontmatter(meta) {
+    const data = { title: meta.title };
+    for (const [key, value] of Object.entries(meta)) {
+        if (key === "title" || value === undefined) continue;
+        data[key] = value;
+    }
+    return data;
 }
 
 /**
@@ -494,12 +534,11 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
         if (decorate) decorate(data, page);
         if (isReadme) {
             const meta = readmeSections[sec];
-            if (meta) {
-                data.title = meta.title;
-                // Guarded: a title-only entry would otherwise emit
-                // `banner: undefined`, which the YAML serializer rejects.
-                if (meta.banner) data.banner = meta.banner;
-            }
+            // What the section says about itself wins over what its README
+            // happens to carry — the landing has to match the card linking to
+            // it. Assigned rather than transcribed key by key, so a section's
+            // vocabulary is decided in one place (#91).
+            if (meta) Object.assign(data, sectionFrontmatter(meta));
         }
     } else {
         // A tree's own landing describes the *mount*, and nothing beneath it. A
@@ -509,7 +548,7 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
         const isSectionRoot = path.posix.dirname(page.rel) === ".";
         const meta = isReadme && isSectionRoot ? readmeSections[sec] : null;
         data = { ...fm, title: meta?.title ?? fm.title ?? name };
-        if (meta?.banner) data.banner = meta.banner;
+        if (meta) Object.assign(data, sectionFrontmatter(meta));
     }
     delete data.aliases;
     return data;
@@ -660,15 +699,11 @@ export function writeSectionLandings(
     for (const [sec, meta] of Object.entries(sections)) {
         const dir = path.join(outRoot, sec);
         fs.mkdirSync(dir, { recursive: true });
-        // A section may have no hero: the images are CDN assets and not every
-        // section has one. An explicit `banner: undefined` is not a value YAML
-        // can carry, so the key is left off entirely.
+        // Whatever the section declared, not a list of keys named here — see
+        // {@link sectionFrontmatter} for why the two lists were one too many.
         fs.writeFileSync(
             path.join(dir, "_index.md"),
-            matter.stringify("", {
-                title: meta.title,
-                ...(meta.banner ? { banner: meta.banner } : {}),
-            }),
+            matter.stringify("", sectionFrontmatter(meta)),
         );
         written += 1;
     }
@@ -848,11 +883,31 @@ export function buildSite({ config, outRoot } = {}) {
         scheme,
     };
 
+    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
+
+    // Exactly one homepage, and checked here — before the output tree is
+    // cleared and before either mode branches (#52). Before the clear, because
+    // a gate that fired after it would have destroyed a good site to report a
+    // bad tree. Before the branch, because the requirement does not vary by
+    // mode: `publish.site` chooses whether the *content* surfaces are
+    // published, and the homepage is the floor beneath both.
+    const homepageFindings = checkHomepageCount(homepages, {
+        contentBase: resolved.paths.content,
+        contentPackage: resolved.contentPackage,
+    });
+    if (homepageFindings.length) {
+        return {
+            gates: { ...emptyGates(), homepages: homepageFindings },
+            manifests: null,
+            tableErrors: [],
+            wikiErrors: [],
+            stats: null,
+        };
+    }
+
     // The whole tree is a build artifact, regenerated every run: a page whose
     // note was deleted or renamed would otherwise linger and keep publishing.
     fs.rmSync(outBase, { recursive: true, force: true });
-
-    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
 
     // Homepage-only stops here, and stopping is the point: nothing below reads
     // the content tree for pages, so `sohl-kethira-basic` and `harn-adventures`

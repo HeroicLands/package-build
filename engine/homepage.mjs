@@ -49,14 +49,18 @@
  *
  * **Its address is the package's, not the note's.** A homepage publishes at
  * `/<contentPackage>/` because that is where the package is, so `name.full`,
- * `shortcode` and `id` decide nothing on it (#53 refuses them outright; this
- * module simply never reads them). It compiles into no document, so it carries
+ * `shortcode` and `id` decide nothing on it — nothing here reads them, and
+ * {@link HOMEPAGE_REFUSED_FIELDS} refuses them outright rather than leaving an
+ * author to believe they worked (#53). It compiles into no document, so it carries
  * no compendium UUID and appears in no pack and in no link-manifest entry.
  *
  * @module
  */
 
+import fs from "node:fs";
+
 import { matchAllOutsideCode } from "./code-fences.mjs";
+import { formatLocator, positionInFrontmatter } from "./diagnostics.mjs";
 
 /**
  * The note type that compiles to the package homepage.
@@ -96,6 +100,206 @@ export const HOMEPAGE_DESTINATION = "_index.md";
  */
 export function isHomepage(fm) {
     return Boolean(fm) && fm.type === HOMEPAGE_TYPE;
+}
+
+/**
+ * The top-level fields a homepage refuses, and what each one would decide (#53).
+ *
+ * A note's URL derives from `name.full` and its identity from
+ * `(type, shortcode)`. The homepage is the one page for which neither holds: it
+ * publishes at `/<package>/`, fixed by the package id. An author fluent in the
+ * conventions writes them here expecting exactly what they do everywhere else,
+ * and gets none of it.
+ *
+ * **They were never inert, which is why ignoring them was the wrong answer.** A
+ * `shortcode` puts the note in the address index and in the `dataview` link
+ * universe, so `[[homepage-<shortcode>]]` resolves *green* — to
+ * `homepage/<slug>/`, an address derived from `name.full` and published by
+ * nothing, because a homepage is written to {@link HOMEPAGE_DESTINATION} at the
+ * package root. A build that reports a live link to a 404 is worse than one
+ * that says nothing. It also inflates `content-build lint`'s address tally, so
+ * the lint and the link manifest disagree about what the package publishes.
+ *
+ * **A named class, not an allow-list, and that boundary is the decision.** The
+ * documented envelope is `type` plus an optional `title`, and `landing`,
+ * `description` and `banner` are legitimate beside them — but a homepage's
+ * frontmatter is *emitted into the published page*
+ * ({@link homepageFrontmatter}), so an unrecognised key is a Hugo or theme
+ * parameter this build has never heard of and has no standing to refuse.
+ * Rejecting unknown keys would make every new theme parameter wait on a
+ * package-build release. What is refused is the specific class that makes a
+ * false claim about *where this page is*.
+ *
+ * `aliases` is deliberately not in the class: {@link homepageFrontmatter}
+ * already drops it from every emitted page, with a reason of its own, so
+ * authoring one is the same no-op it is on any other page rather than a wrong
+ * belief about this one's address.
+ *
+ * @type {ReadonlyMap<string, string>}
+ */
+export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
+    new Map([
+        [
+            "name",
+            "`name` decides nothing on a `type: homepage` note: a page's slug " +
+                "derives from `name.full`, and a homepage's destination is " +
+                `fixed — it is written to \`${HOMEPAGE_DESTINATION}\` at the ` +
+                "package's own address, `/<package>/`. Write `title:` for what " +
+                "the page is called, and delete `name`",
+        ],
+        [
+            "shortcode",
+            "`shortcode` decides nothing on a `type: homepage` note: this " +
+                "page's address is the package's own, `/<package>/`, fixed by " +
+                "the package id. It is not ignored either — it puts the note " +
+                "in the address index, so `[[homepage-<shortcode>]]` resolves " +
+                "to a page the site build never writes. Delete it",
+        ],
+        [
+            "id",
+            "`id` decides nothing on a `type: homepage` note: it is the " +
+                "Foundry document id a compendium UUID is built from, and a " +
+                "homepage compiles into no document — it appears in no pack " +
+                "and in no link manifest. Delete it",
+        ],
+    ]),
+);
+
+/**
+ * The address-bearing fields one note authors, in the order it authored them.
+ *
+ * Authoring order rather than declaration order, so a caller emitting one
+ * diagnostic per finding emits them top to bottom down the file — the order a
+ * reader and a compiler-output parser both expect.
+ *
+ * Presence is the whole test: `shortcode:` authored empty still says "this page
+ * has an address of its own", and a value cannot make the claim true.
+ *
+ * Returned without a locator, because the two things that would supply one —
+ * the raw note text and the position helper — belong to the caller. This
+ * mirrors {@link module:engine/retired-fields}, whose retired-field messages
+ * are likewise positioned by whoever reports them.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @returns {Array<{key: string, message: string}>} One entry per field the note
+ *   authored, empty for any note that is not a homepage.
+ */
+export function checkHomepageAddressFields(fm) {
+    if (!isHomepage(fm)) return [];
+    const out = [];
+    for (const key of Object.keys(fm)) {
+        const message = HOMEPAGE_REFUSED_FIELDS.get(key);
+        if (message) out.push({ key, message });
+    }
+    return out;
+}
+
+/**
+ * Require exactly one homepage note in a content tree (#52).
+ *
+ * "Exactly one" is two rules, and they are **one severity** because they are
+ * one defect: a package whose front page is not the page a person chose.
+ *
+ * - _None_ and the package serves nothing at `/<package>/`. That is the failure
+ *   #50 exists to prevent, and it is silent — the site build reports `wrote 0
+ *   homepage(s)` and exits 0.
+ * - _Two_ and it serves a page nobody chose. Every homepage is written to the
+ *   same {@link HOMEPAGE_DESTINATION}, so the second overwrites the first and
+ *   the package's front page is decided by the order the walk happened to reach
+ *   the files in — by *filename*, on a type whose whole point is that it is
+ *   routed by frontmatter. There is no "first wins" convention to fall back on,
+ *   so nothing here can pick the right one.
+ *
+ * Neither has a safe default, so neither is a warning. A warning is the right
+ * severity for something a build can proceed past correctly, and a build that
+ * proceeds past either of these publishes the wrong front page while reporting
+ * success — which is the exact outcome a warning would be tolerating.
+ *
+ * **Two is reported once per note, not once for the tree.** Each note is a
+ * place an author has to open and edit, and a single finding saying "there are
+ * two" sends them hunting for the second.
+ *
+ * **None is located at the tree, honestly.** There is no file to name, so the
+ * locator is the content root — the directory the note is missing from, which
+ * is a real path and the one the author adds it to. No line and no column are
+ * invented for it, per the diagnostic rules in
+ * {@link module:engine/diagnostics}. {@link lintContentTree} already reports an
+ * empty walk against the same locator.
+ *
+ * The rule reads no `site:` configuration and does not vary by
+ * `publish.site`: that setting chooses whether the *content* surfaces are
+ * published, and the homepage is the floor underneath both modes.
+ *
+ * @param {ReadonlyArray<{file: string}>} found - The homepage notes, in walk
+ *   order. Paths may be absolute or relative to the working directory.
+ * @param {object} options - Options.
+ * @param {string} options.contentBase - Root of the content tree, for the
+ *   locator when there is no file to name.
+ * @param {string} [options.contentPackage] - The package this tree builds.
+ *   Dropped from the message when unknown rather than guessed.
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: "error", message: string}>} The findings, one per offending note.
+ */
+export function checkHomepageCount(found, { contentBase, contentPackage }) {
+    const pages = found ?? [];
+    const named = contentPackage ? ` "${contentPackage}"` : "";
+    const address = contentPackage ? ` /${contentPackage}/` : "";
+
+    if (pages.length === 0) {
+        return [
+            {
+                file: contentBase,
+                severity: "error",
+                message:
+                    `holds no \`type: homepage\` note, so ` +
+                    `${contentPackage ? `package${named}` : "this package"} ` +
+                    `publishes nothing at its own address${address} — a ` +
+                    `package's front page is one authored note in this tree, ` +
+                    `routed by \`type:\` rather than by filename`,
+            },
+        ];
+    }
+    if (pages.length === 1) return [];
+
+    return pages.map((page) => {
+        const others = pages
+            .filter((p) => p !== page)
+            .map((p) => formatLocator({ file: p.file }));
+        return {
+            file: page.file,
+            ...positionOfType(page.file),
+            severity: "error",
+            message:
+                `duplicate \`type: homepage\` note, also declared by ` +
+                `${others.join(", ")}; a package has one front page` +
+                `${contentPackage ? `, at${address},` : ""} and every ` +
+                `homepage is written to the same \`${HOMEPAGE_DESTINATION}\` — ` +
+                `so the one the walk reaches last silently overwrites the rest`,
+        };
+    });
+}
+
+/**
+ * Where a note declares `type: homepage`, when the file can still be read.
+ *
+ * A separate read rather than a raw text threaded through every caller: the
+ * two call sites hold different shapes (a lint note, a collected page) and this
+ * runs only on a tree that is already failing.
+ *
+ * @param {string} file - Path to the note.
+ * @returns {{line?: number, column?: number}} Spreadable position fields, empty
+ *   when the file cannot be read — dropped rather than guessed.
+ */
+function positionOfType(file) {
+    try {
+        return positionInFrontmatter(
+            fs.readFileSync(file, "utf8"),
+            "type",
+            HOMEPAGE_TYPE,
+        );
+    } catch {
+        return {};
+    }
 }
 
 /**

@@ -22,13 +22,18 @@
  * disagree without anything detecting it, which the canonical-separator
  * handling already did once on each side.
  *
- * Two rules, both about a note's identity:
+ * Three rules, all about a note's identity:
  *
  * 1. **Shape** — a `shortcode` is strictly ASCII-alphanumeric. It is the
  *    identity key referenced from saved world data, and it is half of the
  *    `type-shortcode` address, whose parse depends on the separating hyphen
  *    being the only hyphen in the string.
  * 2. **Uniqueness** — `(type, shortcode)` names one note.
+ * 3. **The package's own address** — exactly one note claims `/<package>/`,
+ *    which is {@link checkHomepageCount} (#52). It belongs here for the same
+ *    reason the other two do: it is a statement about which note holds which
+ *    address, it needs no `site:` configuration to decide, and a package with
+ *    no front page is misconfigured whether or not anyone runs a site build.
  *
  * **Nothing here writes.** A check reports and an author fixes.
  *
@@ -56,6 +61,7 @@ import path from "node:path";
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 
 /**
  * The shape every `shortcode` must match: ASCII letters and digits only.
@@ -122,11 +128,16 @@ function collectNotes(contentBase, { skipDirectories } = {}) {
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names the walk
  *   ignores. Defaults to the configured list.
+ * @param {string} [opts.contentPackage] - The package this tree builds, for the
+ *   homepage rule. Dropped from that finding when unknown rather than guessed.
  * @returns {{findings: Array<{file: string, line?: number, column?: number,
  *   severity: "error"|"warning", message: string}>, notes: number,
  *   keys: number}} The findings, and what was inspected to produce them.
  */
-export function lintContentTree(contentBase, { skipDirectories } = {}) {
+export function lintContentTree(
+    contentBase,
+    { skipDirectories, contentPackage } = {},
+) {
     const findings = [];
     const notes = collectNotes(contentBase, { skipDirectories });
 
@@ -183,6 +194,16 @@ export function lintContentTree(contentBase, { skipDirectories } = {}) {
         });
         return { findings, notes: 0, keys: 0 };
     }
+
+    // Deliberately after that return: a tree nobody has established exists has
+    // no homepage either, and saying so is noise about the second problem when
+    // the first is "check that the content tree is present".
+    findings.push(
+        ...checkHomepageCount(
+            notes.filter((n) => isHomepage(n.fm)),
+            { contentBase, contentPackage },
+        ),
+    );
 
     for (const [key, files] of byKey) {
         if (files.length < 2) continue;

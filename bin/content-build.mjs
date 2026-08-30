@@ -350,7 +350,11 @@ function lintCommand() {
                 const root = argv.root ?? config.paths.content;
                 const manifestDir = argv.manifests ?? config.paths.manifests;
 
-                const addresses = lintContentTree(root);
+                // The package is passed for the homepage rule (#52), which
+                // names the address a tree with no front page fails to serve.
+                const addresses = lintContentTree(root, {
+                    contentPackage: config.contentPackage,
+                });
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
@@ -777,6 +781,11 @@ function siteCommand() {
                 });
                 const { gates } = result;
 
+                // First, because it is decided before the tree is walked and
+                // before the output is cleared: a package with no front page,
+                // or two competing for it, has nothing to say about its pages
+                // yet (#52).
+                for (const f of gates.homepages) emitDiagnostic(f);
                 for (const f of gates.frontmatterLinks) {
                     emitDiagnostic({
                         file: f.file,
