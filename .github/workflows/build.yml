@@ -28,6 +28,16 @@ jobs:
             - run: npm ci
             - name: Formatting
               run: npm run format:check
+            # Separate step rather than folded into `npm run lint`, which chains
+            # the two with `&&`: a formatting failure would short-circuit the
+            # chain and hide every markdown finding behind it. As two steps the
+            # failing one is named in the checks UI. `npm run lint` exists for
+            # running both locally in one command.
+            #
+            # This repository *provides* `content-build markdown`, and until now
+            # was the one repository that never ran it (#92).
+            - name: Markdown
+              run: npm run lint:markdown
             - name: Tests
               run: npm test
             # Declaration emit is what `prepack` runs at publish time, so a
