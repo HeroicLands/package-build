@@ -145,7 +145,6 @@ describe("the declarations preserve the vocabulary they replaced", () => {
             const out = build(type, { subType: "x" });
             expect(out.quantity).toBe(1);
             expect(out.isCarried).toBe(true);
-            expect(out.isEquipped).toBe(false);
             expect(out.containerId).toBeNull();
             expect(out.sharedWithCohortIds).toEqual([]);
         }
@@ -244,6 +243,91 @@ describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => 
                 (fields as any[]).map((f) => f.to),
                 type,
             ).not.toContain("assocMysteryCode");
+        }
+    });
+});
+
+// The same inverse again, and from the same root cause. `isEquipped` was never
+// a rename or a version skew: the worn/equipped concept was deliberately made
+// armour-only in HeroicLands/Song-of-Heroic-Lands-FoundryVTT#662, which removed
+// `system.isEquipped` from the shared gear data model and gave
+// `ArmorGearDataModel` its own `isWorn`. That shipped in SoHL 0.8.0, so no
+// released system has read the key since — yet `GEAR_COMMON` kept emitting it,
+// on every gear item of every consuming package, to be discarded at load.
+//
+// It is not even authorable: the declaration carried a `to` and a `value` but
+// no `name`, so `readField` never consulted the frontmatter and no note could
+// set it. There is nothing to migrate — only an emitted constant to stop
+// emitting.
+describe("a compiled gear item carries no isEquipped (#68)", () => {
+    const GEAR_TYPES = [
+        "armorgear",
+        "concoctiongear",
+        "containergear",
+        "miscgear",
+        "projectilegear",
+        "weapongear",
+    ];
+
+    it("omits the key on every gear type when no note authors it", () => {
+        for (const type of GEAR_TYPES) {
+            expect(build(type, { subType: "x" }), type).not.toHaveProperty(
+                "isEquipped",
+            );
+        }
+    });
+
+    it("omits the key even when a note tries to author one", () => {
+        for (const type of GEAR_TYPES) {
+            expect(
+                build(type, { subType: "x", isEquipped: true }),
+                type,
+            ).not.toHaveProperty("isEquipped");
+        }
+    });
+
+    it("declares no isEquipped field on any type", () => {
+        for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
+            expect(
+                (fields as any[]).map((f) => f.to),
+                type,
+            ).not.toContain("isEquipped");
+        }
+    });
+
+    // The armour-only replacement is `isWorn`, which `GEAR_COMMON` must not
+    // acquire in its place: it belongs to `ArmorGearDataModel` alone, and
+    // whether an `armorgear` note should be able to author one is a separate
+    // content question (see #68).
+    it("does not substitute isWorn for it", () => {
+        for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
+            expect(
+                (fields as any[]).map((f) => f.to),
+                type,
+            ).not.toContain("isWorn");
+        }
+    });
+});
+
+// The three possession-state constants that stay. Unlike `isEquipped`, every
+// one of these is declared by `GearDataModel` — `isCarried` (`BooleanField`,
+// `initial: true`), `containerId` (`DocumentIdField`) and
+// `sharedWithCohortIds` (`ArrayField`) — so each survives document
+// construction and is read by the system.
+describe("the surviving gear possession constants (#68)", () => {
+    it("layers all three onto every gear type", () => {
+        for (const type of [
+            "armorgear",
+            "concoctiongear",
+            "containergear",
+            "miscgear",
+            "projectilegear",
+            "weapongear",
+        ]) {
+            const out = build(type, { subType: "x" });
+            expect(out.isCarried, type).toBe(true);
+            expect(out.containerId, type).toBeNull();
+            expect(out.sharedWithCohortIds, type).toEqual([]);
         }
     });
 });
