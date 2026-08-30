@@ -602,7 +602,7 @@ const SITE_KEYS = [
     "backfillSections",
 ];
 const SITE_TREE_KEYS = ["from", "section"];
-const SECTION_META_KEYS = ["title", "banner"];
+const SECTION_META_KEYS = ["title", "banner", "description"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = [
@@ -973,16 +973,32 @@ function normalizeDocs(value) {
 }
 
 /**
- * One section's landing metadata — the title and hero a generated `_index.md`
- * carries.
+ * One section's landing metadata — what a section says about itself on the
+ * `_index.md` this build generates for it.
  *
- * `banner` is optional because the hero images are external assets and not
- * every section has one. It is left off entirely rather than written as
+ * A generated landing is the *only* place a section can speak: a content
+ * package has no authored `_index.md` for `weapongear` or `affliction`, so the
+ * file the theme reads is the one the site build writes. This is therefore the
+ * whole vocabulary, and it is deliberately a **closed** one.
+ *
+ * The alternative — passing whatever a section declared straight through, as
+ * `site.landing` does — was weighed and refused. `landing` is written once, for
+ * the mount, and its keys are one landing template's own; a section entry is
+ * written fourteen to twenty times per build against a contract every package
+ * and every section shares. Unbounded there, a mistyped `descrption:` publishes
+ * into front matter, is read by nobody, and says nothing to anyone — which is
+ * the failure #91 was filed about, moved one step downstream where no build can
+ * see it. So the keys are named here, and the writers emit what this produced
+ * rather than transcribing a second list of their own (#91).
+ *
+ * `banner` and `description` are optional — the hero images are external assets
+ * and not every section has one, and a section may reasonably have nothing to
+ * add to its title. Each is left off entirely rather than written as
  * `undefined`, which is not a value YAML can carry.
  *
  * @param {unknown} value - The declared entry.
  * @param {string} where - Dotted path, for the error.
- * @returns {Readonly<{title: string, banner?: string}>}
+ * @returns {Readonly<{title: string, banner?: string, description?: string}>}
  */
 function normalizeSectionMeta(value, where) {
     if (!isPlainObject(value)) fail(where, "must be a mapping");
@@ -991,6 +1007,12 @@ function normalizeSectionMeta(value, where) {
     const out = { title: requireNonEmptyString(input.title, `${where}.title`) };
     if (input.banner !== undefined) {
         out.banner = requireNonEmptyString(input.banner, `${where}.banner`);
+    }
+    if (input.description !== undefined) {
+        out.description = requireNonEmptyString(
+            input.description,
+            `${where}.description`,
+        );
     }
     return Object.freeze(out);
 }
