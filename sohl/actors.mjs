@@ -327,20 +327,33 @@ export class Actors extends BasePackCompiler {
     itemsSourceDirs;
     foreignSourceDirs;
 
-    constructor({ itemsSourceDirs, foreignSourceDirs = [], ...options }) {
+    constructor({ itemsSourceDirs = [], foreignSourceDirs = [], ...options }) {
         super(options);
         // Where the items passes wrote their JSON. Stated by the caller rather
         // than assumed to be this pack's sibling: the packs' locations are
         // configuration, and a consumer may put them anywhere (#1508). Every
         // Item pack, because a repository may ship more than one (#1566).
-        if (!itemsSourceDirs?.length) {
-            throw new Error(
-                "Actors compiler requires `itemsSourceDirs` — the generated JSON " +
-                    "of every Item pack, which each being's embedded items are " +
-                    "resolved against. Declare at least one pack of type " +
-                    '"Item" in package-build.config.yaml.',
-            );
-        }
+        //
+        // **Optional, and empty is a legitimate package (#49).** This used to
+        // throw unless at least one Item pack was declared, which asked a
+        // package to declare the very thing it may exist not to have. An Item
+        // pack is system-bound by construction — Foundry requires `system` on
+        // Item packs — so a deliberately system-agnostic module could satisfy
+        // the guard only by naming a system. `harn-ensemble` is the case:
+        // 2,512 beings whose embedded items address the `sohl` and `hm3`
+        // catalogues, and five affiliation notes of its own.
+        //
+        // The guard also did not test what it claimed. It counted *declared
+        // directories*, not resolvable items, so an empty Item pack satisfied
+        // it while a being naming a missing item still failed later. The
+        // condition actually cared about is checked where it can be reported
+        // precisely: {@link Actors#resolveEmbedded} already errors per
+        // unresolved `(type, shortcode)`, naming the being. A package whose
+        // beings embed nothing, or whose every address resolves against a
+        // dependency catalogue through `foreignSourceDirs`, now compiles with
+        // no Item pack at all — and one that is genuinely missing an item
+        // still fails, saying which item and which actor rather than which
+        // pack is absent.
         Object.defineProperty(this, "itemsSourceDirs", {
             value: Object.freeze([...itemsSourceDirs]),
             writable: false,
