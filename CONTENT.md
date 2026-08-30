@@ -614,6 +614,55 @@ does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
 
+### The homepage carries no address of its own
+
+A note's URL derives from `name.full` and its identity from
+`(type, shortcode)`. The homepage is the one page for which neither holds: it
+publishes at `/<package>/`, fixed by the package id. So `content-build lint`
+**refuses** `name`, `shortcode` and `id` on a `type: homepage` note (#53) rather
+than ignoring them — an author fluent in the conventions writes them here
+expecting exactly what they do everywhere else, and gets none of it.
+
+They were never inert, which is why ignoring them was the wrong answer. A
+`shortcode` puts the note in the address index and in the `dataview` link
+universe, so `[[homepage-<shortcode>]]` resolves _green_ — to `homepage/<slug>/`,
+an address derived from `name.full` that the site build never writes, because a
+homepage goes to `_index.md` at the package root. A build reporting a live link
+to a 404 is worse than one saying nothing. It also inflates this command's own
+address tally, so the lint and the link manifest disagree about what the package
+publishes: SoHL's tree reports `1607 address(es) across 1607 note(s)` with a
+`shortcode` on its landing and `1606 address(es) across 1607 note(s)` without
+one. That is one defect, not two — the tally is only ever printed on a clean run,
+so refusing the field is what makes the count honest.
+
+Each finding is located at the offending key and says what the field would have
+decided, not merely that it does not belong:
+
+```text
+assets/content/homepage.md:26:1: error: `shortcode` decides nothing on a `type: homepage` note: this page's address is the package's own, `/<package>/`, fixed by the package id. It is not ignored either — it puts the note in the address index, so `[[homepage-<shortcode>]]` resolves to a page the site build never writes. Delete it
+assets/content/homepage.md:28:1: error: `name` decides nothing on a `type: homepage` note: a page's slug derives from `name.full`, and a homepage's destination is fixed — it is written to `_index.md` at the package's own address, `/<package>/`. Write `title:` for what the page is called, and delete `name`
+```
+
+**A named class, not an allow-list.** The documented envelope is `type` plus an
+optional `title`, with `landing`, `description` and `banner` legitimate beside
+them — but an unknown top-level key is **not** refused, and that boundary is the
+decision rather than an omission. A homepage's frontmatter is emitted into the
+published page, so an unrecognised key is a Hugo or theme parameter this build
+has never heard of and has no standing to reject; a closed list would make every
+new theme parameter wait on a package-build release. What is refused is the
+specific class that makes a false claim about _where this page is_. `aliases` is
+not in that class either: it is already dropped from every emitted page, so
+authoring one here is the same no-op it is anywhere else.
+
+**Where it fires: `content-build lint` only.** Unlike a rule about the shape of
+the _tree_, which the site build has its own reason to gate on, this is a
+_frontmatter-schema_ rule and `content-build site` runs none of them — wiring in one type's field
+rule would have the site build refuse `shortcode` on a homepage while accepting
+`weight: heavy` on a weapon. The gap that leaves is `HarnMaster-3-FoundryVTT`,
+which runs no `content-build lint` at all and so receives no frontmatter finding
+of any kind; that is a missing script in that repository, not a rule to duplicate
+one at a time.
+
 ### The homepage's own links
 
 The homepage is the page a reader arrives at, and until #54 it was the one page

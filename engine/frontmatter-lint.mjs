@@ -40,6 +40,13 @@
  * vocabulary (an adventure module ships skills, beings and magic swords), so
  * every consumer loads all of it.
  *
+ * The two rules that are not schema-driven sit on the *note format* side of
+ * that line, which is why they are here and not in `sohl/`: the retired
+ * top-level fields, and the address-bearing fields a `type: homepage` note
+ * refuses (#53). Each supplies its own message from the module that owns the
+ * knowledge — `retired-fields.mjs` and `homepage.mjs` — and this module only
+ * locates it in the file.
+ *
  * **It takes a built link index rather than walking itself.** The dead-
  * reference check has to resolve exactly as a wikilink does, cross-package
  * manifests and all, and the way to guarantee that is to call the same
@@ -50,6 +57,7 @@
 
 import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
 import { draftRetiredMessage } from "./retired-fields.mjs";
 
@@ -234,6 +242,20 @@ export function lintNote(note, { schemas, index }) {
             ...at("draft"),
             severity: "error",
             message: draftRetiredMessage(),
+        });
+    }
+
+    // A homepage's address is its package's, so the top-level fields that
+    // decide an address decide nothing on it (#53). Reported beside the retired
+    // fields above because it is the same kind of statement — a top-level key
+    // this note may not write — and, like them, it must survive the two early
+    // returns below: the finding stands whatever else the type is.
+    for (const { key, message } of checkHomepageAddressFields(fm)) {
+        findings.push({
+            file: note.file,
+            ...at(key),
+            severity: "error",
+            message,
         });
     }
 
