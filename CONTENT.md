@@ -155,7 +155,9 @@ the file sits in, fills the optional halves with their defaults
 manifest switches off and `publish.site` at its `homepage` floor),
 derives `assetRoot`, `packDirectories`, `itemTypes` and `docEntryTypes`, and
 freezes the result. A malformed configuration throws a `TypeError` naming the
-offending field, so it fails at load rather than as an empty pack much later.
+offending field — and the line and column it was written on, in the
+[located form](#diagnostics) — so it fails at load rather than as an empty pack
+much later.
 
 **Four values are derived rather than authored**, because each is something a
 file can be asked for rather than told:
@@ -1159,6 +1161,24 @@ Two rules keep it that way, both in `engine/diagnostics.mjs`:
   can establish honestly and no more: `file:line: …` when the column is
   meaningless, `file: …` when only the note is known. Nothing defaults to
   `1:1`, which would send a reader to the frontmatter every time.
+
+**A configuration error is located the same way.** Every check in
+`content-config.mjs` and `config.mjs` reports through one `fail()`, naming the
+offending key's dotted path — a good description and a bad locator, in a file
+that runs to hundreds of lines with sibling entries flow-mapped onto one. The
+path now rides on the error, and the loader that read the file resolves it
+against the YAML, so all of them come out located:
+
+```text
+package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner).
+```
+
+The same two rules apply. A key the file never declares — a required one that is
+simply missing — has no node of its own, so the position names the **mapping it
+belongs in** and no further out; a missing _top-level_ key has nothing above it
+but the document, and an `.mjs` configuration has no YAML to resolve a path
+against at all. Both report `package-build.config.yaml: error: …`, the file
+without a line, rather than a line that would be wrong.
 
 Establishing a position at all takes three corrections, applied only where they
 hold — see `positionInBody`. A body offset is not a file line until the

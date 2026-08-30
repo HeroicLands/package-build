@@ -59,7 +59,11 @@
  */
 
 import path from "node:path";
-import { loadPackConfig } from "./engine/pack-config.mjs";
+import {
+    loadPackConfig,
+    locateConfigError,
+    packConfigPath,
+} from "./engine/pack-config.mjs";
 
 /** Keys the reserved section may declare. */
 const SECTION_KEYS = [
@@ -145,12 +149,21 @@ const ARTIFACT_OF_KIND = Object.freeze({
 });
 
 /**
+ * Reject a configured value, naming the key it was written under.
+ *
+ * The dotted path rides on the error as `field` as well as appearing in the
+ * message, so {@link loadPackageBuildConfig} — the half that knows which file
+ * was read — can resolve it to a line and column (#95). This half stays pure.
+ *
  * @param {string} where - Dotted path of the offending key.
  * @param {string} problem - What is wrong with it.
  * @returns {never}
  */
 function fail(where, problem) {
-    throw new TypeError(`package-build config: \`${where}\` ${problem}.`);
+    throw Object.assign(
+        new TypeError(`package-build config: \`${where}\` ${problem}.`),
+        { field: where },
+    );
 }
 
 /**
@@ -842,5 +855,14 @@ export function resolvePackageBuildConfig(shared) {
  *   declares something malformed.
  */
 export function loadPackageBuildConfig() {
-    return resolvePackageBuildConfig(loadPackConfig());
+    const shared = loadPackConfig();
+    try {
+        return resolvePackageBuildConfig(shared);
+    } catch (err) {
+        // The pure half names the offending key and nothing else; this half
+        // knows the file it was read from, so the position is attached here
+        // (#95) — the same boundary `configFromData` is for the rest of the
+        // configuration.
+        throw locateConfigError(err, packConfigPath());
+    }
 }

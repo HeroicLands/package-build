@@ -135,7 +135,14 @@ function ownVersion() {
  */
 function die(err) {
     const message = err instanceof Error ? err.message : String(err);
-    console.error(`package-build: ${message}`);
+    // A located diagnostic already starts with `file:line:column:`, which is
+    // exactly the position a parser reads the path from — prefixing it would
+    // yield a filename no editor can open (#95).
+    console.error(
+        /** @type {{located?: boolean}} */ (err)?.located ? message : (
+            `package-build: ${message}`
+        ),
+    );
     process.exit(1);
 }
 
