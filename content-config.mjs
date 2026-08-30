@@ -637,12 +637,25 @@ function isPlainObject(value) {
 }
 
 /**
- * @param {string} field
- * @param {string} problem
+ * Reject a configured value, naming the key it was written under.
+ *
+ * The dotted path is carried on the error as `field` as well as spelled into
+ * the message, because the message alone is a good description and a bad
+ * locator: the loader that read the file can resolve that path to a line and
+ * column, and does (`locateConfigError` in `engine/pack-config.mjs`, #95).
+ * Attaching it here rather than formatting here is what keeps this module
+ * free of I/O — it is the leaf an `.mjs` configuration imports, so it may not
+ * reach for the file it is validating.
+ *
+ * @param {string} field - Dotted path of the offending key.
+ * @param {string} problem - What is wrong with it.
  * @returns {never}
  */
 function fail(field, problem) {
-    throw new TypeError(`package-build config: \`${field}\` ${problem}.`);
+    throw Object.assign(
+        new TypeError(`package-build config: \`${field}\` ${problem}.`),
+        { field },
+    );
 }
 
 /**

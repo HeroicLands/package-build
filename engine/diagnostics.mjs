@@ -289,12 +289,25 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
  * resolves to nothing — yields `{}`, so a caller spreads the result and the
  * position is dropped rather than guessed.
  *
+ * **`key: true` addresses the declaration rather than the value.** A finding
+ * about a *value* — this pack name is not in `packs[]` — belongs on the value,
+ * which is the default. A finding that names a **field** — `\`site.sections.x\`
+ * is not a recognized option` — sends the reader to look for that field, so the
+ * position should be the field's own, and in a flow mapping
+ * (`{ title: X, banner: Y }`) the two are different columns on one line. The
+ * key's node is found through the same parse, so this stays one locator rather
+ * than a second one free to disagree with it.
+ *
  * @param {string} text - The document's contents.
  * @param {ReadonlyArray<string|number>} keyPath - Path to the node: map keys as
  *   strings, sequence entries as numbers.
+ * @param {object} [opts]
+ * @param {boolean} [opts.key=false] - Report where the last segment is
+ *   *declared* rather than where its value sits. Ignored for a sequence entry,
+ *   which has no key.
  * @returns {{line?: number, column?: number}} Spreadable position fields.
  */
-export function positionOfYamlPath(text, keyPath) {
+export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
     if (typeof text !== "string" || !text) return {};
     if (!Array.isArray(keyPath) || keyPath.length === 0) return {};
 
@@ -305,6 +318,19 @@ export function positionOfYamlPath(text, keyPath) {
         // `keepScalar` returns the Scalar node rather than its value, which is
         // the only form carrying a range.
         node = doc.getIn(keyPath, true);
+        if (key && node !== undefined) {
+            const last = keyPath[keyPath.length - 1];
+            const parent =
+                keyPath.length === 1 ?
+                    doc.contents
+                :   doc.getIn(keyPath.slice(0, -1), true);
+            const pair = parent?.items?.find?.(
+                (item) =>
+                    item?.key != null &&
+                    String(item.key.value) === String(last),
+            );
+            if (pair?.key?.range) node = pair.key;
+        }
     } catch {
         return {};
     }
@@ -313,4 +339,38 @@ export function positionOfYamlPath(text, keyPath) {
     if (!Number.isFinite(start)) return {};
     const { line, col } = counter.linePos(start);
     return { line, column: col };
+}
+
+/**
+ * The YAML key path a **dotted field path** addresses.
+ *
+ * Configuration checks report the offending key as the path a reader would
+ * write it — `packs[1].name`, `site.sections.affliction.title` — because that
+ * is what the message has to say. {@link positionOfYamlPath} addresses a node
+ * by segments instead, so this is the one translation between them: `.`
+ * separates map keys, and a bracketed suffix is a sequence index.
+ *
+ * A path this cannot parse yields `[]`, which {@link positionOfYamlPath} in
+ * turn resolves to no position — dropped rather than guessed, as everything
+ * else here is.
+ *
+ * @param {string} field - The dotted path, as a diagnostic spells it.
+ * @returns {Array<string|number>} Its segments, sequence indices as numbers.
+ */
+export function yamlKeyPath(field) {
+    if (typeof field !== "string" || field === "") return [];
+    /** @type {Array<string|number>} */
+    const segments = [];
+    for (const segment of field.split(".")) {
+        const parsed = /^([^[\]]*)((?:\[\d+\])*)$/.exec(segment);
+        // Anything else is not a path this understands — a key holding a `[`,
+        // or a dot inside a key. Refuse the whole path rather than resolve
+        // part of it to a node that is not the one named.
+        if (!parsed) return [];
+        if (parsed[1] !== "") segments.push(parsed[1]);
+        for (const index of parsed[2].matchAll(/\[(\d+)\]/g)) {
+            segments.push(Number(index[1]));
+        }
+    }
+    return segments;
 }

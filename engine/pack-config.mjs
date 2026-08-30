@@ -81,6 +81,11 @@ import { createRequire } from "node:module";
 import YAML from "yaml";
 
 import { defineConfig } from "../content-config.mjs";
+import {
+    formatDiagnostic,
+    positionOfYamlPath,
+    yamlKeyPath,
+} from "./diagnostics.mjs";
 
 /** The stem every consuming repository declares its build under. */
 export const CONFIG_BASENAME = "package-build.config";
@@ -315,6 +320,95 @@ function shippedSystemVersion(rootDir, input) {
 }
 
 /**
+ * Where in the configuration file a dotted field path was written.
+ *
+ * Only a YAML configuration has text to resolve a path against. An `.mjs` one
+ * is deliberately not searched: JavaScript source fed to a YAML parser is not
+ * an error — it parses as *something*, and a path could resolve to a line that
+ * has nothing to do with the key. A position that is wrong is worse than none,
+ * so the extension decides.
+ *
+ * A path that names a key the file never declared — a missing required one —
+ * has no node of its own. The position then names the **mapping it belongs
+ * in**, one level up and no further: that entry is a real node, and it is the
+ * one the reader has to edit. Walking further would drift away from the key
+ * with each step, so a top-level key that is simply absent gets no position at
+ * all.
+ *
+ * @param {string} configPath - Absolute path of the configuration file.
+ * @param {string} field - The dotted path the diagnostic names.
+ * @returns {{line?: number, column?: number}} Spreadable position fields,
+ *   empty when nothing can be established honestly.
+ */
+function positionInConfig(configPath, field) {
+    if (!/\.ya?ml$/i.test(configPath)) return {};
+
+    let text;
+    try {
+        text = fs.readFileSync(configPath, "utf8");
+    } catch {
+        return {};
+    }
+
+    const keyPath = yamlKeyPath(field);
+    if (keyPath.length === 0) return {};
+
+    const declared = positionOfYamlPath(text, keyPath, { key: true });
+    if (declared.line !== undefined) return declared;
+    if (keyPath.length === 1) return {};
+    return positionOfYamlPath(text, keyPath.slice(0, -1), { key: true });
+}
+
+/**
+ * Attach the position of the key a configuration error names.
+ *
+ * Eighty-one checks across `content-config.mjs` and `config.mjs` report through
+ * one `fail()`, which knows the offending key's dotted path and nothing
+ * about where it was written. Locating one of them and not the rest would be
+ * worse than locating none — a reader would learn that some configuration
+ * errors carry a position and could not predict which — so the path rides on
+ * the error and every one of them is located here, at the boundary that knows
+ * which file was read (#95).
+ *
+ * The message keeps its body and gains the `file:line:column: error: ` prefix
+ * every other finding in this build already uses, so nothing a reader has today
+ * is lost. `located` marks it done, so an error crossing two boundaries is
+ * decorated once; the fields are also left on the error, for a caller that
+ * wants to re-render it.
+ *
+ * @param {unknown} err - What was thrown.
+ * @param {string} [configPath] - The configuration file that was read.
+ * @returns {unknown} The same error, decorated when it named a field.
+ */
+export function locateConfigError(err, configPath) {
+    const failure =
+        /** @type {{field?: unknown, located?: boolean, message?: string, file?: string, line?: number, column?: number}} */ (
+            err
+        );
+    if (!(err instanceof Error)) return err;
+    if (
+        failure.located ||
+        typeof failure.field !== "string" ||
+        !failure.field
+    ) {
+        return err;
+    }
+    if (!configPath) return err;
+
+    const at = {
+        file: configPath,
+        ...positionInConfig(configPath, failure.field),
+    };
+    Object.assign(failure, at, { located: true });
+    failure.message = formatDiagnostic({
+        ...at,
+        severity: "error",
+        message: /** @type {string} */ (failure.message),
+    });
+    return err;
+}
+
+/**
  * Turn a parsed YAML configuration into the frozen one the engine reads.
  *
  * Three fields exist in a code configuration only because a code file has to
@@ -416,7 +510,13 @@ export function configFromData(data, configPath) {
         };
     }
 
-    return defineConfig(/** @type {never} */ (input));
+    try {
+        return defineConfig(/** @type {never} */ (input));
+    } catch (err) {
+        // Every `fail()` in the validator names a key and knows nothing about
+        // the file; this is where the two meet.
+        throw locateConfigError(err, configPath);
+    }
 }
 
 /**
@@ -432,6 +532,10 @@ function loadCodeConfig(configPath) {
     try {
         module = require(configPath);
     } catch (err) {
+        // A code configuration calls `defineConfig` itself, so its rejections
+        // arrive here. There is no YAML to locate into, but the file is known —
+        // `locateConfigError` names it and drops the line.
+        locateConfigError(err, configPath);
         if (
             /** @type {{ code?: string }} */ (err)?.code ===
             "ERR_REQUIRE_ASYNC_MODULE"

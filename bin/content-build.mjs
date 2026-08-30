@@ -156,6 +156,25 @@ prefix.apply(log, {
     },
 });
 
+/**
+ * Report a command's failure.
+ *
+ * A configuration error carries its own `file:line:column: error: ` locator
+ * (#95), and `loglevel`'s `[timestamp] [ERROR]:` prefix occupies exactly the
+ * position a parser reads the path from — so a located failure is printed
+ * unprefixed, as `emitDiagnostic` prints every other finding. Everything else
+ * is ordinary prose and keeps the log line it always had.
+ *
+ * @param {unknown} err - What was thrown.
+ * @returns {void}
+ */
+function reportFailure(err) {
+    const message = err instanceof Error ? err.message : String(err);
+    if (/** @type {{located?: boolean}} */ (err)?.located)
+        console.error(message);
+    else log.error(message);
+}
+
 const argv = yargs(hideBin(process.argv))
     .command(packageCommand())
     .command(depsCommand())
@@ -303,7 +322,7 @@ function docsCommand() {
                     process.stdout.write(page);
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -385,7 +404,7 @@ function lintCommand() {
                     );
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -466,7 +485,7 @@ function formatCommand() {
                     log.info(`Formatting is clean (${checked} file(s)).`);
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -515,7 +534,7 @@ function markdownCommand() {
                     log.info("Markdown is clean.");
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -663,7 +682,7 @@ function linksCommand() {
                     );
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -739,7 +758,7 @@ function manifestCommand() {
                     });
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -868,7 +887,7 @@ function siteCommand() {
                         `landing(s) to ${path.relative(process.cwd(), s.out)}`,
                 );
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -962,7 +981,7 @@ function reachabilityCommand() {
                     );
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -1052,7 +1071,7 @@ function depsCommand() {
                 if (count)
                     log.info(`Fetched ${count} dependency catalogue(s).`);
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
@@ -1262,7 +1281,7 @@ function packageCommand() {
                         });
                 }
             } catch (err) {
-                log.error(err.message);
+                reportFailure(err);
                 process.exitCode = 1;
             }
         },
