@@ -891,6 +891,16 @@ rewrites repository-relative links in the developer docs to their published or
 GitHub addresses. Neither rewrite can fail a build; an unknown `{@link}` degrades
 to a code span.
 
+`symbolMap` is resolved **against the repository root**, not the process cwd, so
+`content-build site` reads the same map whatever directory it was invoked from.
+Leaving it unset is the legitimate empty case — every `{@link}` degrades, and
+nothing is reported. Setting it to a path that cannot be read, cannot be parsed,
+or does not hold a name → page object **fails the build**, naming the file and
+the reason: those were all indistinguishable from "no symbols" until #75, so a
+site could publish 224 dead `{@link}` tags at exit 0. A map that is read reports
+its symbol count at info level, which is the only way to tell a map that loaded
+from one that loaded empty without reading the emitted HTML.
+
 A bundle supplies up to two hooks, and their order around the shared work is the
 point:
 
