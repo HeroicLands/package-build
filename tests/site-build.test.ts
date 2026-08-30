@@ -60,6 +60,9 @@ beforeAll(() => {
     );
     fs.mkdirSync(path.join(root, "assets/manifests"), { recursive: true });
 
+    // Every package publishes exactly one homepage (#52), so a sandbox that
+    // builds a site has to carry one.
+    note("homepage.md", "type: homepage", "The module, in its own words.\n");
     note(
         "Gear/Dagger.md",
         `type: weapongear

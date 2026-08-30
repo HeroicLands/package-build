@@ -65,6 +65,7 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import {
     HOMEPAGE_DESTINATION,
+    checkHomepageCount,
     homepageFrontmatter,
     homepageTitle,
     isHomepage,
@@ -269,9 +270,9 @@ export function collectTreePages(tree, ctx) {
  * packages ship under is a property of the code path rather than of a
  * configuration that happens to be empty (#55).
  *
- * Returned as a list rather than as the one note there should be. Requiring
- * exactly one is #52's, and it is a separate decision — this reports what it
- * found so a count is visible either way.
+ * Returned as a list rather than as the one note there should be, because the
+ * count is what {@link checkHomepageCount} judges (#52) — this walk reports
+ * what it found, and {@link buildSite} decides whether that is one.
  *
  * @param {string} contentBase - Absolute path to the content tree.
  * @param {object} ctx - `{ skipDirectories }`.
@@ -345,6 +346,10 @@ export function writeHomepages(outRoot, pages, config) {
  */
 export function siteGates(pages, findings, { manifestDir }) {
     const out = {
+        // Always empty here: the homepage count is decided in `buildSite`
+        // before the content walk, and a failing count returns without ever
+        // reaching these gates (#52). Present so every caller reads one shape.
+        homepages: [],
         frontmatterLinks: findings.fmLinkFindings ?? [],
         slugErrors: findings.slugFindings ?? [],
         collisions: [],
@@ -403,6 +408,7 @@ export function siteGates(pages, findings, { manifestDir }) {
  */
 export function emptyGates() {
     return {
+        homepages: [],
         frontmatterLinks: [],
         slugErrors: [],
         collisions: [],
@@ -418,6 +424,7 @@ export function emptyGates() {
 /** Whether any gate produced a finding. */
 export function gatesFailed(gates) {
     return Boolean(
+        gates.homepages.length ||
         gates.frontmatterLinks.length ||
         gates.slugErrors.length ||
         gates.collisions.length ||
@@ -876,11 +883,31 @@ export function buildSite({ config, outRoot } = {}) {
         scheme,
     };
 
+    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
+
+    // Exactly one homepage, and checked here — before the output tree is
+    // cleared and before either mode branches (#52). Before the clear, because
+    // a gate that fired after it would have destroyed a good site to report a
+    // bad tree. Before the branch, because the requirement does not vary by
+    // mode: `publish.site` chooses whether the *content* surfaces are
+    // published, and the homepage is the floor beneath both.
+    const homepageFindings = checkHomepageCount(homepages, {
+        contentBase: resolved.paths.content,
+        contentPackage: resolved.contentPackage,
+    });
+    if (homepageFindings.length) {
+        return {
+            gates: { ...emptyGates(), homepages: homepageFindings },
+            manifests: null,
+            tableErrors: [],
+            wikiErrors: [],
+            stats: null,
+        };
+    }
+
     // The whole tree is a build artifact, regenerated every run: a page whose
     // note was deleted or renamed would otherwise linger and keep publishing.
     fs.rmSync(outBase, { recursive: true, force: true });
-
-    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
 
     // Homepage-only stops here, and stopping is the point: nothing below reads
     // the content tree for pages, so `sohl-kethira-basic` and `harn-adventures`
