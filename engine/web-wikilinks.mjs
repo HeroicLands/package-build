@@ -46,7 +46,12 @@ import { slugify } from "./content-slug.mjs";
 // Re-exported so a site build keeps one import path for the whole of link
 // resolution: the same rule that names a page also names an anchor within it.
 export { slugify };
-import { WIKILINK, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
+import {
+    authoredLabel,
+    WIKILINK,
+    isSamePage,
+    parseWikilink,
+} from "./wikilink-syntax.mjs";
 
 /** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 
@@ -240,10 +245,14 @@ export function resolveWebWikilinks(body, ctx) {
     // inline span is source text, not a link (#1505).
     return replaceOutsideCode(body, WIKILINK, (_m, rawInner) => {
         const { target, anchor, display } = parseWikilink(rawInner);
+        // An empty label is not a label: `[[x|]]` addresses the target and
+        // shows its name, so `""` falls through to the same place `null` does
+        // (#113). One reading, from {@link authoredLabel}.
+        const label = authoredLabel({ display });
 
         // `[[#section-slug|Text]]` — a section of this same page.
         if (isSamePage({ target, anchor })) {
-            return `[${display ?? anchor}](#${slugify(anchor)})`;
+            return `[${label ?? anchor}](#${slugify(anchor)})`;
         }
 
         const key = target.toLowerCase();
@@ -272,7 +281,7 @@ export function resolveWebWikilinks(body, ctx) {
             // (#1398), and a hyphen inside a note *name* ("Grukar-ahk") is not
             // one, which is why the rule is the packs' own (#1409).
             const text =
-                display ??
+                label ??
                 (isAddress(target, ctx.contentTypes) ? hit.name : target);
             // A pack-only package publishes Foundry addresses and no pages
             // (#1516), so its entries carry no `path` and resolve to no URL.
@@ -325,6 +334,6 @@ export function resolveWebWikilinks(body, ctx) {
                 reason: "broken type/shortcode",
             });
         }
-        return unresolvedLink(display ?? target, target);
+        return unresolvedLink(label ?? target, target);
     });
 }

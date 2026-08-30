@@ -93,7 +93,7 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
 // one cannot disagree about what counts as a link.
-import { WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { authoredLabel, WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
 
 export { ITEM_PACK, PACK_BY_TYPE, packForType };
 
@@ -498,8 +498,11 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             const { labelled } = parsed;
             let target = parsed.target;
             // An unlabelled link shows its interior verbatim, anchor included;
-            // a labelled one shows its label.
-            let text = labelled ? (parsed.display ?? "") : parsed.inner;
+            // a labelled one shows its label. An *empty* label is not a label
+            // — `[[x|]]` means "show the target's name" — and that reading
+            // comes from {@link authoredLabel} so the web resolver cannot draw
+            // the line somewhere else (#113).
+            let text = labelled ? (authoredLabel(parsed) ?? "") : parsed.inner;
             const slug = parsed.anchor || null;
 
             // Resolve the document: same-page (empty target), type-shortcode, or alias.
