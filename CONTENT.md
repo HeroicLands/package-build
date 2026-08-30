@@ -77,8 +77,10 @@ paths:
   stage: build/stage/packs
   unpack: build/tmp/packs
 
-# The one pack list. Order is load-bearing where one pass reads another's
-# output, and `packDirectories` is derived from it.
+# The one pack list. `packDirectories` and the manifest's `packs` array are both
+# derived from it, so order it for a reader browsing compendiums — the compile
+# order is worked out separately, from what each pass reads (see "Declaration
+# order is presentation" below).
 packs:
   - { name: items, type: Item, label: Items, folders: item-folders.yaml }
   - { name: journals, type: JournalEntry, label: Journals }
@@ -357,6 +359,55 @@ hand-authored `system.template.json` lived, and the package-id guard and the
 top-level `compatibility.minimum`, the id is derived from `package.json`
 `name`, and `@heroiclands/package-build` writes the manifest from this file.
 
+### Declaration order is presentation, not compile order
+
+`packs:` is the manifest's `packs` array as well, so a consumer orders it for a
+reader browsing compendiums. It is **not** the order the passes run in, and it
+does not have to be: the compile order is derived from what each pass reads.
+
+One pass reads another's output today. The actors pass resolves each being's
+embedded items against the JSON the item passes wrote — a being names an item by
+`(type, shortcode)` and never by the pack it ships in, so **every** Item pack has
+to be compiled before the Actor pass, not merely the first. A compiler states
+that on itself:
+
+```js
+export class Actors extends BasePackCompiler {
+  static readsPackOutputOf = Object.freeze(["Item"]);
+}
+```
+
+The generator schedules each pass after the packs of every type it names, and
+does so with the **smallest** reordering that works — the earliest declared pass
+whose dependencies have all run goes next. A list already in a workable order is
+therefore compiled exactly as declared, and one that is not moves only the
+passes that had to move. When the two orders differ the build says so:
+
+```text
+[INFO]: Pass order: characteristics, mysteries, characters — a pass that reads
+        another's output compiles after it, whatever order `packs:` declares.
+```
+
+This used to be the author's problem, and a nasty one: an Actor pack declared
+first compiled only where an earlier run had already left `build/packs-json`
+populated. `build/` is gitignored, so it was green on every local tree that had
+built once and exit 1 on every fresh checkout and CI runner, over a message that
+named a missing directory rather than the ordering that caused it (#73). A
+consumer registering a compiler of its own declares its dependencies the same
+way; a type no pack of which is declared is simply not waited for.
+
+**Compiling one pack by name is the case ordering cannot answer.**
+`content-build package compile <name>` runs the pass you asked for and no other,
+so a dependency that is neither in the run nor already on disk is reported
+rather than ordered around:
+
+```text
+error: pack "characters" (Actor) reads the compiled output of the Item pack
+       "characteristics", which this run does not compile and which
+       build/packs-json/characteristics does not hold — compile the whole
+       package, or compile "characteristics" first
+```
+
 ### An item type's default art
 
 A note that carries no `img:` gets its type's **default art**, and a type
@@ -468,6 +519,13 @@ It compiles nothing, opens no LevelDB and needs no Foundry manifest, so it runs
 in about a second and can gate a commit. An empty or untyped tree **fails**
 rather than passing: "every one of nothing is unique" is a vacuous pass, and it
 is exactly what a tree that failed to check out produces.
+
+What that guard reports is an **empty walk**, not an empty set of addresses. A
+note may be keyless by design — a homepage carries no `shortcode`, because it is
+addressed by the package rather than by a slug — so a package in
+`publish.site: homepage` mode has a content tree that is populated, correct and
+permanently unkeyed. That tree passes; a tree holding no notes at all still
+fails.
 
 ### Frontmatter, against the schema its type declares
 
