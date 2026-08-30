@@ -92,6 +92,31 @@ export function parseWikilink(rawInner) {
 }
 
 /**
+ * The label an author actually supplied, or `null` when they supplied none.
+ *
+ * **An empty label is not a label.** `[[x|]]` is deliberately writable — it
+ * means "address this target, and show the target's own name" — so `display:
+ * ""` has to read as *absent* everywhere a fallback is chosen, exactly as
+ * `display: null` does. The two are still distinguishable through
+ * {@link ParsedWikilink.labelled}, which is the thing that genuinely differs
+ * and which #1409 depends on.
+ *
+ * Stated here because the two resolvers had already drawn the line in two
+ * places and drawn it differently: the packs tested falsiness and were right,
+ * the web tested `??` — which falls through on `null` only — and emitted
+ * `[](/url/)`, a link with no clickable text, through every build (#113). That
+ * is the same drift this module exists to prevent, in the case its own
+ * {@link ParsedWikilink} docstring calls out. One reading, one place.
+ *
+ * @param {{display: string|null}} parsed - A parsed wikilink, or anything
+ *   carrying its `display`.
+ * @returns {string|null} The label, or `null` when there is none to show.
+ */
+export function authoredLabel({ display }) {
+    return display ? display : null;
+}
+
+/**
  * Whether a parsed link addresses a section of the page it is written on.
  *
  * `[[#some-heading]]` — no target, only an anchor. Both resolvers special-case
