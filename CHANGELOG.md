@@ -1,5 +1,189 @@
 # @heroiclands/package-build
 
+## 6.1.0
+
+### Minor Changes
+
+- dc424d7: **`content-build addresses diff` reports every published address a build has
+  stopped publishing, and tells a rename from a removal** (#66).
+  
+  A package's `(type, shortcode)` addresses are a published interface — every
+  satellite declaring `itemCatalog: true` assembles its beings out of them — but
+  nothing compared one release's addresses against the next, so renaming a
+  shortcode cost nothing and produced no signal. The check that got made instead
+  was a repository-local grep, which cannot see the other repositories and reports
+  the reassuring answer. `sohl` renamed `weapongear:Tabri` to `weapongear:Taburi`
+  two days after the `v0.8.2` tag both satellites pin, stating that nothing
+  referenced the old value; five lookups across two repositories do, and they fail
+  the moment either pin moves.
+  
+  ```bash
+  gh release download v0.8.2 -p system.zip -D build/baseline
+  npx content-build addresses diff --from build/baseline/system.zip
+  ```
+  
+  Run against `sohl` today that reports 20 findings — 8 renames and 12
+  withdrawals — including the `Tabri` one, at the line of the note that made it:
+  
+  ```text
+  assets/content/Weapons/Melee/Taburi.md:12:1: warning: since sohl@0.8.2, weapongear:Tabri is no longer published; the same document (s5D6QJbw7ZbETxdN) is now published as weapongear:Taburi. Every package that resolves weapongear:Tabri breaks when it moves past sohl@0.8.2
+  ```
+  
+  **A rename is told from a removal by the document id, which is an identity match
+  rather than an inference.** A note authors its `_id` in frontmatter and it is not
+  derived from the shortcode, so it survives a rename. Where the id is published
+  under no address at all, the finding says only that — _withdrawn_, naming no
+  successor. A split, a deletion and a merge are indistinguishable at that point,
+  and a "did you mean" guessed from string similarity would send the reader to the
+  wrong fix.
+  
+  Both findings are warnings and neither fails a build: retiring content is
+  legitimate, and so is renaming — the shortcode charset rule forces some. What a
+  rename must not do is happen in silence. `--strict` reports both as errors and
+  exits non-zero, for a release workflow that wants a gate.
+  
+  Additive: nothing runs unless the command is invoked, and no existing behaviour
+  changed.
+- f28f653: A section can now describe itself: `site.sections` and `site.readmeSections`
+  take a `description`, and it reaches the generated `_index.md` (#91).
+  
+  A generated section landing is the only place a section can speak — a content
+  package authors no `_index.md` for `weapongear` or `affliction`, so the file the
+  theme reads is the one this build writes. Its vocabulary was two keys, and
+  `partials/hero-banner.html` has always rendered `description` as the hero
+  standfirst, so every generated landing rendered a heading with no standfirst and
+  could not be given one by any consumer, at any level.
+  
+  **The pair was the defect, not a passthrough.** The vocabulary lived in two
+  places that had to be kept in step by hand: the schema that admits a key, and
+  the two writers that each transcribed `title` and `banner` by name. A key added
+  to the schema alone validated cleanly and then reached no page. So the writers
+  stop naming keys and emit what the section resolved to, `title` first, and the
+  schema is now the single place a section's vocabulary is decided.
+  
+  **The bound stays.** An unrecognised key under a section is refused at config
+  load, by name, exactly as before — `site.sections.affliction.descrption is not a
+  recognized option (expected one of: title, banner, description)`. Passing
+  sections through unvalidated the way `site.landing` is was weighed and refused:
+  `landing` is written once, for the mount, in one landing template's vocabulary,
+  where a section entry is written fourteen to twenty times per build against a
+  contract every package shares. Unbounded, a mistyped `descrption:` would publish
+  into front matter, be read by nobody, and say nothing to anyone — which is the
+  failure this issue was filed about, one step downstream where no build can see
+  it.
+  
+  Additive. `description` is optional and no consuming package declares one — none
+  could, since the loader has always refused it — so every generated landing is
+  byte-identical, verified across all six consuming packages.
+- 43a9de4: Refuse `name`, `shortcode` and `id` on a `type: homepage` note (#53).
+  
+  A note's URL derives from `name.full` and its identity from `(type, shortcode)`.
+  The homepage is the one page for which neither holds — it publishes at
+  `/<package>/`, fixed by the package id — so an author fluent in the conventions
+  writes them there expecting exactly what they do everywhere else, and gets none
+  of it. Until now `content-build lint` ignored all three: a homepage carrying
+  `shortcode`, `id` and `name.full` passed at exit 0.
+  
+  **They were never inert, which is why ignoring them was the wrong answer.** A
+  `shortcode` puts the note in the address index and in the `dataview` link
+  universe, so `[[homepage-<shortcode>]]` resolves _green_ — to `homepage/<slug>/`,
+  an address derived from `name.full` and published by nothing, because a homepage
+  is written to `_index.md` at the package root. A build that reports a live link
+  to a 404 is worse than one that says nothing.
+  
+  **The inflated address tally is the same defect, not a second one.** The same
+  note was counted as an address it does not publish, so the lint and the link
+  manifest disagreed about what the package ships: SoHL's tree reports
+  `1607 address(es) across 1607 note(s)` with a `shortcode` on its landing and
+  `1606 address(es) across 1607 note(s)` without one. The tally is only ever
+  printed on a clean run, so refusing the field is what makes the count honest —
+  `lintContentTree` needed no change, and got none.
+  
+  **A named class, not an allow-list, and that boundary is the decision.** An
+  unknown top-level key is deliberately still accepted. A homepage's frontmatter is
+  emitted into the published page, so an unrecognised key is a Hugo or theme
+  parameter this build has never heard of and has no standing to reject, and a
+  closed list would make every new theme parameter wait on a package-build release.
+  What is refused is the class that makes a false claim about _where this page is_.
+  `aliases` is not in it either — it is already dropped from every emitted page, so
+  authoring one here is the same no-op it is anywhere else. This departs from the
+  issue's third acceptance criterion, deliberately: over-strictness here breaks
+  authoring on a page whose whole frontmatter is pass-through.
+  
+  **Where it fires: `content-build lint` only.** This is a frontmatter-schema rule,
+  and `content-build site` runs none of them; wiring one type's field rule in there
+  would have the site build refuse `shortcode` on a homepage while accepting
+  `weight: heavy` on a weapon. The gap that leaves is `HarnMaster-3-FoundryVTT`,
+  which runs no `content-build lint` at all and so receives no frontmatter finding
+  of any kind — a missing script in that repository rather than a rule to duplicate
+  one at a time.
+  
+  Each finding is located at the offending key and says what the field would have
+  decided:
+  
+  ```text
+  assets/content/homepage.md:26:1: error: `shortcode` decides nothing on a `type: homepage` note: this page's address is the package's own, `/<package>/`, fixed by the package id. It is not ignored either — it puts the note in the address index, so `[[homepage-<shortcode>]]` resolves to a page the site build never writes. Delete it
+  ```
+  
+  **Minor rather than major, measured rather than assumed.** A new hard error is
+  breaking only if it fails a previously-passing consumer. All six HeroicLands
+  content packages were linted at their default branch, before and after — `sohl`,
+  `hm3`, `thalorna`, `kethira`, `harnensemble` and `harnadventures` — and every one
+  produces byte-identical findings and the same exit code with the rule as without
+  it. None of the six authors any of the three fields on its homepage.
+- d1166d0: Require exactly one `type: homepage` note per package (#52).
+  
+  Every package is reachable at `/<package>/` and what a reader finds there is one
+  authored note in its content tree — but nothing required a package to have one,
+  so the failure mode of the whole arrangement was a package that builds green and
+  serves nothing at its own address.
+  
+  **Zero and two are the same defect, at the same severity.** Neither is a warning,
+  because a build that proceeds past either publishes the wrong front page while
+  reporting success — which is exactly what a warning tolerates.
+  
+  | Count    | What ships                                                                                                                                                                       |
+  | -------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | **Zero** | Nothing at `/<package>/`, silently: the site build reports `wrote 0 homepage(s)` and exits 0.                                                                                    |
+  | **Two**  | A page nobody chose. Both are written to the same `_index.md`, so the last one walked wins — the front page decided by _filename_, on a type whose point is frontmatter routing. |
+  
+  **It fires in `content-build lint` and in `content-build site`, because neither
+  one reaches every package.** `HarnMaster-3-FoundryVTT` runs `site` and no `lint`;
+  `sohl-thalorna` runs `lint` and its own site builder. A rule in one of them is a
+  rule two of the six packages do not have. Both call the same function, so this is
+  one rule with two call sites rather than two rules that can drift. In the site
+  build it runs _before the output tree is cleared_, so a failing gate cannot
+  destroy a good site to report a bad tree.
+  
+  **It does not vary by `publish.site`.** That setting chooses whether the
+  _content_ surfaces are published; the homepage is the floor beneath both modes.
+  The lint call site reads no `site:` block at all, so it could not vary by mode
+  even if the rule wanted to.
+  
+  **Zero has no file to name, and none is invented.** The locator is the content
+  root — a real path, and the directory the note has to be added to — with no line
+  and no column, as the diagnostic rules require. Two is reported once per note,
+  located at its own `type:` value and naming the other, because each note is a
+  place an author has to open and edit:
+  
+  ```text
+  assets/content: error: holds no `type: homepage` note, so package "sohl" publishes nothing at its own address /sohl/ — a package's front page is one authored note in this tree, routed by `type:` rather than by filename
+  assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and every homepage is written to the same `_index.md` — so the one the walk reaches last silently overwrites the rest
+  ```
+  
+  **Minor rather than major, measured rather than assumed.** A new hard error is
+  breaking only if it fails a previously-passing consumer. All six HeroicLands
+  content packages were run at their default branch, before and after: `sohl`,
+  `hm3`, `thalorna`, `kethira`, `harnensemble` and `harnadventures` each carry
+  exactly one homepage note, and every one produces byte-identical findings and the
+  same exit code with the check as without it.
+  
+  The issue's sequencing — ship it inert, flip it to an error later — was written
+  when the count was ~45 repositories and two homepages existed only in unmerged
+  pull requests. Both have since merged, the real count is six, and every one
+  passes today, so the warning window would protect nobody and the flip would be a
+  second pull request for no reason.
+
 ## 6.0.0
 
 ### Major Changes
