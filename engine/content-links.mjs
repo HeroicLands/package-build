@@ -61,6 +61,8 @@ import {
     readCanonicalKey,
 } from "./kb-manifest.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
+import { homepageAddresses, isHomepage } from "./homepage.mjs";
+import { RETIRED_TYPES } from "./ids.mjs";
 import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
@@ -305,6 +307,12 @@ export function buildLinkIndex(
         anchors,
         types,
         packages,
+        /**
+         * The one package this tree publishes. Distinct from `packages`, which
+         * is the set an address may name and which a homepage-only tree leaves
+         * this package out of, having no keyed note to put it there.
+         */
+        contentPackage: pkg,
         foreign,
         manifests: manifestsComplete(localPackages, foreign.packages),
         linksOf,
@@ -316,12 +324,222 @@ export function buildLinkIndex(
 }
 
 /**
+ * The site this project publishes on, as a host pattern.
+ *
+ * Hardcoded, as it is in {@link module:engine/homepage} already: every package's
+ * address is `https://www.heroiclands.org/<contentPackage>/`, and the whole
+ * point of the rule below is that an author *should not* be writing that host
+ * into a page. A configurable host would be a second place to write down the
+ * thing being discouraged.
+ *
+ * @type {RegExp}
+ */
+const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
+
+/**
+ * How an authored address resolves, or `null` for one nothing here can judge.
+ *
+ * Three shapes reach the site and one does not, and the distinction is the
+ * whole of what is checkable. An address into this site can be reasoned about
+ * from the package roster alone; an address to `github.com`, `kelestia.com` or
+ * `discord.gg` cannot be reasoned about at all without fetching it, and a build
+ * must not depend on a third party being up.
+ *
+ * @param {string} url - The authored address.
+ * @param {ReadonlySet<string>} packages - Package prefixes this build can name.
+ * @returns {{shape: string, segments: string[], prefix: string|null}|null} The
+ *   shape, the path segments, and the package prefix the address starts with.
+ */
+function readAddress(url, packages) {
+    const value = String(url ?? "").trim();
+    if (!value || value.startsWith("#")) return null;
+
+    let segments;
+    let shape;
+    if (/^[a-z][a-z0-9+.-]*:/i.test(value)) {
+        let parsed;
+        try {
+            parsed = new URL(value);
+        } catch {
+            return null;
+        }
+        if (!/^https?:$/.test(parsed.protocol)) return null;
+        if (!SITE_HOST.test(parsed.hostname)) return null;
+        shape = "absolute";
+        segments = parsed.pathname.split("/").filter(Boolean);
+    } else if (value.startsWith("/")) {
+        shape = "rooted";
+        segments = value.split("?")[0].split("#")[0].split("/").filter(Boolean);
+    } else {
+        shape = "relative";
+        segments = value.split("?")[0].split("#")[0].split("/").filter(Boolean);
+    }
+
+    const prefix =
+        shape !== "relative" && packages.has(segments[0]) ? segments[0] : null;
+    return { shape, segments, prefix };
+}
+
+/**
+ * Every defect in the addresses a package homepage carries.
+ *
+ * **Why the homepage needs its own audit at all.** Every other note addresses
+ * the corpus with wikilinks, which {@link auditLinks} resolves. A homepage does
+ * not and cannot: it is published *verbatim* by every publishing mode, including
+ * the homepage-only mode two fan-licensed packages ship under, where the content
+ * tree is never walked and there is no index for a wikilink to resolve against.
+ * So a landing addresses the web the way the web does — markdown links and
+ * `url:` fields — and nothing was looking at those. SoHL's landing pointed at
+ * `kb/creature/` and `kb/character/` from the day those types merged into
+ * `being`: two 404s on the package's front page, through every build.
+ *
+ * **What is checkable, stated plainly.** Only an address into this site is, and
+ * only against facts this build already holds:
+ *
+ * - A **retired content type** in the path. The engine knows what used to exist
+ *   and what replaced it, so this is a fact rather than a guess — and it is
+ *   exactly the SoHL defect.
+ * - A **hardcoded absolute URL** into this package's own prefix, or into one a
+ *   vendored manifest names. Both have a better form to write, which is why they
+ *   are reported; a bare `/<package>/` is left alone, because a package
+ *   homepage is in no manifest and there is nothing better to write.
+ * - A **root-relative `url:`**, which the theme's `relURL` prefixes a second
+ *   time. `href:` means "already resolved, use verbatim", so the same leading
+ *   slash is correct there and is not reported.
+ * - A **wikilink**, which nothing on this page will ever resolve.
+ *
+ * **What is not checkable, and is not attempted.** Whether an external URL
+ * answers — there is no network at build time, and a build must not fail because
+ * a third party is down. And whether a live in-site address names a page that
+ * exists: several of the surfaces a landing routes to are produced by other
+ * tools entirely (generated API documentation, hand-authored Hugo sections), so
+ * this build does not hold the set of published pages and would report a working
+ * link as dead.
+ *
+ * @param {ReturnType<typeof buildLinkIndex>} index - The built index.
+ * @returns {Array<{note: object, field: string, url: string, text: string,
+ *   occurrence: number, message: string}>} One finding per defect, `text` and
+ *   `occurrence` locating it in the note's raw source.
+ */
+export function auditHomepageLinks(index) {
+    const findings = [];
+    const packages = new Set([index.contentPackage, ...index.packages]);
+
+    for (const note of index.notes) {
+        if (!isHomepage(note.fm)) continue;
+
+        // How many times each literal has been seen, so two identical
+        // addresses are located at their own positions.
+        const seen = new Map();
+        const at = (text) => {
+            const occurrence = (seen.get(text) ?? 0) + 1;
+            seen.set(text, occurrence);
+            return occurrence;
+        };
+        const report = (field, url, text, occurrence, message) =>
+            findings.push({ note, field, url, text, occurrence, message });
+
+        for (const [all, rawInner] of matchAllOutsideCode(
+            note.body,
+            new RegExp(WIKILINK.source, "g"),
+        )) {
+            const { target } = parseWikilink(rawInner);
+            report(
+                "body",
+                target,
+                all,
+                at(all),
+                `wikilink ${all} on the package homepage — a homepage is ` +
+                    `published verbatim in every publishing mode, so nothing ` +
+                    `resolves it; write a markdown link, package-relative`,
+            );
+        }
+
+        for (const { field, url, kind } of homepageAddresses(
+            note.fm,
+            note.body,
+        )) {
+            // Counted for every address, checked or not, so the count is
+            // the literal's nth appearance in the file rather than the nth
+            // *finding* about it — two rules can fire on one address.
+            const occurrence = at(url);
+            const address = readAddress(url, packages);
+            if (!address) continue;
+            const { shape, segments, prefix } = address;
+
+            if (shape === "absolute" && prefix) {
+                // A bare `/<package>/` is a package's homepage, which is in no
+                // link manifest and has no relative form from another package.
+                // A finding with no fix is noise.
+                const rest = segments.slice(1).join("/");
+                if (rest) {
+                    report(
+                        field,
+                        url,
+                        url,
+                        occurrence,
+                        prefix === index.contentPackage ?
+                            `hardcoded absolute URL into this package's own ` +
+                                `address — write the package-relative ` +
+                                `"${rest}/", which the landing resolves ` +
+                                `against the site so the page follows the mount`
+                        :   `hardcoded absolute URL into package "${prefix}" ` +
+                                `— resolve it through that package's link ` +
+                                `manifest, whose entries carry the address, so a ` +
+                                `relocation does not leave this page behind`,
+                    );
+                }
+            } else if (shape === "rooted" && kind === "url") {
+                const rest =
+                    prefix ? segments.slice(1).join("/") : segments.join("/");
+                report(
+                    field,
+                    url,
+                    url,
+                    occurrence,
+                    `url "${url}" is root-relative, but a landing's url: is ` +
+                        `resolved against the site — write "${rest}/", or ` +
+                        `href: for an address that is already resolved`,
+                );
+            }
+
+            // The retired-type rule reads the path *inside* the package, so an
+            // address that named one is fixed the same way wherever it was
+            // written.
+            const inPackage = prefix ? segments.slice(1) : segments;
+            for (const [i, segment] of inPackage.entries()) {
+                // `hasOwn`, not a plain lookup: a path segment spelled
+                // `constructor` would otherwise inherit a truthy answer from
+                // `Object.prototype` and be reported as retired.
+                if (!Object.hasOwn(RETIRED_TYPES, segment)) continue;
+                const replacement = RETIRED_TYPES[segment];
+                const fixed = [...inPackage];
+                fixed[i] = replacement;
+                report(
+                    field,
+                    url,
+                    url,
+                    occurrence,
+                    `address "${url}" names content type "${segment}", ` +
+                        `retired in favour of "${replacement}" — both ` +
+                        `compiled to the same document, so the fix is ` +
+                        `mechanical: "${fixed.join("/")}/"`,
+                );
+            }
+        }
+    }
+
+    return findings;
+}
+
+/**
  * Every link in a tree that lands nowhere.
  *
  * @param {ReturnType<typeof buildLinkIndex>} index - The built index.
  * @returns {{deadAnchors: object[], deadAddresses: object[],
- *   frontmatterLinks: object[], usedManifest: Set<string>}} The findings, and
- *   which addresses a foreign manifest answered.
+ *   frontmatterLinks: object[], homepageLinks: object[],
+ *   usedManifest: Set<string>}} The findings, and which addresses a foreign
+ *   manifest answered.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
@@ -370,6 +588,7 @@ export function auditLinks(index) {
         deadAnchors,
         deadAddresses,
         frontmatterLinks: index.frontmatterLinks,
+        homepageLinks: auditHomepageLinks(index),
         usedManifest,
     };
 }

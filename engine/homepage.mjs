@@ -56,6 +56,8 @@
  * @module
  */
 
+import { matchAllOutsideCode } from "./code-fences.mjs";
+
 /**
  * The note type that compiles to the package homepage.
  *
@@ -147,4 +149,111 @@ export function homepageFrontmatter(fm, { contentPackage, title }) {
     const data = { ...fm, package: contentPackage, title };
     delete data.aliases;
     return data;
+}
+
+/**
+ * An inline markdown link — `[text](target)`, but not an image.
+ *
+ * Reference-style links are deliberately not matched: a landing's prose fields
+ * are single YAML scalars with nowhere to put a link definition, so a `[x][y]`
+ * in one could never resolve and is not an address anybody wrote.
+ *
+ * @type {RegExp}
+ */
+const MARKDOWN_LINK = /(?<!!)\[[^\]]*\]\(\s*([^)\s]+)(?:\s+"[^"]*")?\s*\)/g;
+
+/**
+ * The two frontmatter keys that hold an address, and what each one means.
+ *
+ * They are **not** interchangeable, and a check that treated them as one would
+ * be wrong about both. The theme resolves a `url` against the site with
+ * `relURL`, so a package writes `kb/rules/` and is served `/sohl/kb/rules/`
+ * without ever naming its own prefix. An `href` is an address that is *already*
+ * resolved and is used verbatim — which is what `cards.source: sections` fills
+ * in, since a section's permalink already carries the prefix.
+ *
+ * So a leading `/` is a defect in a `url` (it is prefixed a second time) and
+ * correct in an `href`.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const HOMEPAGE_ADDRESS_KEYS = Object.freeze(new Set(["url", "href"]));
+
+/**
+ * Collect the markdown links in one prose value.
+ *
+ * @param {string} text - The value.
+ * @param {string} field - Where it came from.
+ * @param {string} kind - The address kind to record.
+ * @param {object[]} out - Accumulator.
+ * @param {boolean} [skipCode] - Whether to ignore links inside code.
+ */
+function collectProse(text, field, kind, out, skipCode = false) {
+    const pattern = new RegExp(MARKDOWN_LINK.source, "g");
+    const matches =
+        skipCode ?
+            matchAllOutsideCode(text, pattern)
+        :   [...text.matchAll(pattern)];
+    for (const m of matches) out.push({ field, url: m[1], kind });
+}
+
+/**
+ * Every address a homepage carries, wherever it is written.
+ *
+ * **Both halves of the page are in scope, and that is the finding rather than
+ * the assumption.** Of the six homepages authored today, four carry every link
+ * in the body as ordinary markdown and two carry them in `landing:` — and the
+ * one whose dead links prompted the check has an *empty body*, so a body-only
+ * reading would have found nothing at all on it. A dead link in a card is
+ * exactly as broken as one in a paragraph.
+ *
+ * Three shapes are gathered, and the caller needs to tell them apart because
+ * the rules differ:
+ *
+ * - **`url`** — package-relative, resolved against the site by the theme.
+ * - **`href`** — already resolved, used verbatim.
+ * - **prose and body markdown links** — emitted as written and resolved by the
+ *   browser against the landing's own address, which *is* the package root, so
+ *   a relative one means the same thing a `url` does.
+ *
+ * `banner:` is not an address: it is an image path resolved through the CDN
+ * base, and `banner: none` is a sentinel rather than a target. Top-level
+ * `title` and `description` are not walked either — they are set as text, never
+ * rendered as markdown.
+ *
+ * @param {object|null|undefined} fm - The note's frontmatter.
+ * @param {string} [body] - The note's markdown body.
+ * @returns {Array<{field: string, url: string, kind: string}>} Every address,
+ *   frontmatter first and then the body, each with the dotted path it was
+ *   written at.
+ */
+export function homepageAddresses(fm, body = "") {
+    const out = [];
+
+    const walk = (value, field) => {
+        if (typeof value === "string") {
+            collectProse(value, field, "prose", out);
+            return;
+        }
+        if (Array.isArray(value)) {
+            value.forEach((v, i) => walk(v, `${field}[${i}]`));
+            return;
+        }
+        if (!value || typeof value !== "object") return;
+        for (const [key, v] of Object.entries(value)) {
+            const child = `${field}.${key}`;
+            // An address field holds an address, not prose: reading it for
+            // markdown links as well would report the same target twice
+            // whenever one happened to look like a link.
+            if (HOMEPAGE_ADDRESS_KEYS.has(key) && typeof v === "string") {
+                out.push({ field: child, url: v, kind: key });
+                continue;
+            }
+            walk(v, child);
+        }
+    };
+
+    walk(fm?.landing, "landing");
+    collectProse(String(body ?? ""), "body", "body", out, true);
+    return out;
 }
