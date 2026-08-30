@@ -950,7 +950,10 @@ site:
   trees:
     - { from: kb/dev-docs, section: dev-docs }
   sections:
-    being: { title: Beings, banner: banners/creature.webp }
+    being:
+      title: Beings
+      banner: banners/creature.webp
+      description: Folk, animals and the things that walk the world.
   readmeSections:
     dev-docs: { title: Developer Documentation, banner: banners/dev-docs.webp }
 ```
@@ -960,13 +963,49 @@ site:
 | `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.           |
 | `base`             | Where the package is served. Defaults to `/<contentPackage>/`.                                   |
 | `packages`         | Which content packages this site renders. Defaults to its own.                                   |
-| `sections`         | Landing title and hero per section, so a landing matches the card that links to it.              |
+| `sections`         | What each section says about itself on its landing — see below.                                  |
 | `readmeSections`   | The same, for a section whose landing comes from a `README`.                                     |
 | `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.     |
 | `backfillSections` | Write a bare `_index.md` for any other section directly under the mount.                         |
 | `trees`            | Extra source trees published beside the content, preserving their source layout below a section. |
 | `pass`             | A named bundle of this repository's own body rewrites.                                           |
 | `passOptions`      | That bundle's options.                                                                           |
+
+### What a section may declare
+
+A generated section landing is the **only** place a section can describe itself.
+A content package authors no `_index.md` for `weapongear` or `affliction`, so
+the file the theme reads is the one this build writes from `sections` — and
+whatever that entry may carry is the whole of what the section can say.
+
+| Key           | Required | What it does                                                              |
+| ------------- | -------- | ------------------------------------------------------------------------- |
+| `title`       | yes      | The landing's heading, so it matches the card that links to it.           |
+| `banner`      | no       | The hero image, resolved as a CDN asset like any other `banner:`.         |
+| `description` | no       | The hero standfirst under the heading, and the blurb a landing card uses. |
+
+`readmeSections` takes the same three, for a section whose landing comes from a
+`README` rather than from nothing. What the section declares wins over what the
+`README` happens to carry — the landing has to match the card that links to it.
+
+**The vocabulary is closed, and a key outside it is refused by name:**
+
+```text
+package-build config: `site.sections.affliction.descrption` is not a
+recognized option (expected one of: title, banner, description).
+```
+
+That refusal is the point. `landing` is passed through unvalidated because it is
+written once, for the mount, in one landing template's own vocabulary. A section
+entry is written fourteen to twenty times per build against a contract every
+package and every section shares, so an unbounded one would let a mistyped
+`descrption:` publish into front matter, be read by nobody, and say nothing to
+anyone. Refusing it costs one line here when the vocabulary genuinely grows, and
+buys a build that cannot quietly emit a key no theme reads.
+
+The **writers** name no keys: a section's `_index.md` is whatever the entry
+resolved to, `title` first. So extending the vocabulary is a change to the
+schema alone, and the two can no longer drift apart.
 
 ### Why `out` is required
 
