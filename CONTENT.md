@@ -520,6 +520,13 @@ in about a second and can gate a commit. An empty or untyped tree **fails**
 rather than passing: "every one of nothing is unique" is a vacuous pass, and it
 is exactly what a tree that failed to check out produces.
 
+What that guard reports is an **empty walk**, not an empty set of addresses. A
+note may be keyless by design — a homepage carries no `shortcode`, because it is
+addressed by the package rather than by a slug — so a package in
+`publish.site: homepage` mode has a content tree that is populated, correct and
+permanently unkeyed. That tree passes; a tree holding no notes at all still
+fails.
+
 ### Frontmatter, against the schema its type declares
 
 The same command also checks that each note's `sohl:` block is what its **type**
