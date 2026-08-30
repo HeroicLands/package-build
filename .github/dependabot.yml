@@ -22,12 +22,19 @@
 # grouped housekeeping pull request would hide which dependency caused a
 # regression; an isolated one puts it in the diff.
 #
-# No `ignore` entries. `typescript` is a direct dependency here (`tsc` emits
-# the published `.d.mts` files), but nothing peers against a ceiling the way
-# SoHL's TypeDoc/typescript-eslint do, and `build.yml`'s "Declaration emit"
-# step already gates a breaking bump on every pull request — so there is no
-# known-bad range to record. Add one, with its reason, the day this repository
-# gains a dependency that needs it (#100).
+# One `ignore` entry, added the day it was needed (#100 left the slot open for
+# exactly this). `typescript` majors are held at 6 because TypeScript 7 removes
+# the JavaScript compiler API this package parses with — see the entry's own
+# comment below for the evidence.
+#
+# The prediction that stood here before it is worth keeping, because it was
+# wrong in an instructive way. It said `build.yml`'s "Declaration emit" step
+# already gates a breaking `typescript` bump, so no ceiling was needed. That
+# step passes clean under 7.0.2: `tsc` still emits every `.d.mts` file. The
+# break is in `coverage.mjs`, which uses `typescript` as a *parser* rather than
+# as a compiler, and it was `npm test` that caught it — 11 failures in
+# `tests/coverage.test.ts`. A dependency can be load-bearing in two unrelated
+# ways at once, and naming only one of them names the wrong gate.
 version: 2
 updates:
     - package-ecosystem: npm
@@ -39,6 +46,36 @@ updates:
       commit-message:
           prefix: chore(deps)
           prefix-development: chore(deps-dev)
+      ignore:
+          # TypeScript 7 is the native port, and its npm package no longer
+          # exposes the JavaScript compiler API. `typescript`'s "." export
+          # resolves to `lib/version.cjs`, whose entire surface is `version` and
+          # `versionMajorMinor`.
+          #
+          # `coverage.mjs` uses that API as a *parser* — it reads localization
+          # keys out of a consumer's `src/**/*.{ts,mjs}` by walking a real AST,
+          # deliberately down one path so JavaScript and TypeScript cannot
+          # drift. Under 7.0.2 the AST *vocabulary* survives behind
+          # `typescript/unstable/ast` (`ScriptTarget`, and every `isX` guard the
+          # scan uses), but the three things that drive it exist nowhere in the
+          # JS surface: `createSourceFile`, `forEachChild` and
+          # `flattenDiagnosticMessageText`. The only `createSourceFile` in 7 is a
+          # factory that assembles a SourceFile from statements already parsed,
+          # not a parser.
+          #
+          # Parsing now lives in the Go binary, reachable only through
+          # `unstable/sync`'s Project/Program API. Adopting it would put a
+          # subprocess and a virtual filesystem inside a module whose stated
+          # contract is "everything here is pure — source text in, references or
+          # findings out", in exchange for an explicitly unstable API. That is a
+          # deliberate migration, not a dependency bump.
+          #
+          # Minor and patch updates within 6 still arrive. Lift this the day
+          # TypeScript publishes a stable in-process parse entry point, or the
+          # day `coverage.mjs` no longer needs one.
+          - dependency-name: typescript
+            update-types:
+                - version-update:semver-major
       groups:
           # The pack pipeline first: each is its own decision and neither may be
           # swept into a grouped housekeeping pull request, for any update type.
