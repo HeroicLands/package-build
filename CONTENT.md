@@ -474,6 +474,7 @@ npx content-build markdown [paths..] [--fix]
 npx content-build manifest [root] [--out <dir>]
 npx content-build site [--out <dir>]
 npx content-build reachability <dir> [file] [--index <shortcode>]
+npx content-build addresses diff --from <zip|dir> [--strict]
 ```
 
 | Command        | What it does                                                                                                                                                            |
@@ -487,6 +488,7 @@ npx content-build reachability <dir> [file] [--index <shortcode>]
 | `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
 | `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
 | `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
+| `addresses`    | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
 
 Every path, pack name and root it needs comes from the consuming repository's
 `package-build.config.yaml`, so the usual invocation takes no arguments beyond
@@ -1066,6 +1068,72 @@ after the links that failed because of it reads as a pile of broken notes.
 None of them exits the process from inside the library; the command decides. That
 is what makes them testable, which the consumer scripts' inline `process.exit`
 calls were not.
+
+## Diffing published addresses
+
+```bash
+gh release download v0.8.2 -p system.zip -D build/baseline
+npx content-build addresses diff --from build/baseline/system.zip
+npx content-build addresses diff --from build/baseline/system.zip --strict
+```
+
+A package's `(type, shortcode)` addresses are a **published interface**. Every
+satellite declaring `itemCatalog: true` assembles its beings out of them —
+`attribute:str`, `skill:awar`, `weapongear:Tabri` — resolving each against the
+Item packs of the release its `compatibility.verified` pins. Renaming a
+shortcode is therefore a breaking change to something other repositories
+consume, and it used to cost nothing and produce no signal: the check that got
+made was a repository-local grep, which cannot see the other repositories and
+reports the reassuring answer.
+
+`sohl` renamed one weapon's shortcode from `Tabri` to `Taburi` two days after
+the `v0.8.2` tag, on the stated ground that "nothing referenced the old value".
+True of that repository. Both satellites pin `v0.8.2` and address
+`weapongear:Tabri` on their copy of the same character — five lookups that
+resolve today and fail the moment either pin moves, reporting a missing item.
+
+**A rename is told from a removal by the document id, and that is an identity
+match rather than an inference.** A note authors its `_id` in frontmatter; it is
+not derived from the shortcode, so it survives a rename. An address that
+disappeared while its document is still published elsewhere _is_ a rename:
+
+```text
+assets/content/Weapons/Melee/Taburi.md:12:1: warning: since sohl@0.8.2, weapongear:Tabri is no longer published; the same document (s5D6QJbw7ZbETxdN) is now published as weapongear:Taburi. Every package that resolves weapongear:Tabri breaks when it moves past sohl@0.8.2
+```
+
+Where the id is published under no address at all, that is all it says —
+**withdrawn**, with no successor named. A split, a deletion and a merge are
+indistinguishable at that point, and a "did you mean" guessed from string
+similarity would be worse than silence, because a wrong one sends the reader to
+the wrong fix.
+
+| Finding     | What it means                                            | Severity                                |
+| ----------- | -------------------------------------------------------- | --------------------------------------- |
+| `renamed`   | Address gone; the same document publishes under another. | `warning` — legitimate, but not silent  |
+| `withdrawn` | Address gone; its document publishes under none.         | `warning` — retiring content is allowed |
+
+Neither fails a build. Retiring content is legitimate, and so is renaming — the
+shortcode charset rule forces some. What a rename must not do is happen without
+anyone noticing. `--strict` reports both as errors and exits non-zero, for a
+release workflow that wants a gate.
+
+**A finding is placed against the note, not the pack it was read from.** The
+address space is read from compiled output because that is what actually ships;
+the content tree is read only to find the note carrying the id, so the reader
+lands on the `shortcode:` line they just edited. A withdrawal has no such note,
+so it degrades to the baseline document — and where neither is readable the
+position is dropped rather than guessed.
+
+**The baseline is named, never derived, and never downloaded.** `--from` takes
+the artifact for the same reason `deps fetch --from` does: a command that
+reaches the network on its own is not reproducible and fails strangely offline.
+A baseline that yields **no** addressable item is refused rather than read as
+"nothing changed" — it would report a clean result for every possible input,
+which is the one failure a check like this can never catch.
+
+Item packs only, because that is the address space consumers resolve against: a
+being's embedded items are the only cross-package resolution by
+`(type, shortcode)`.
 
 ## Diagnostics
 

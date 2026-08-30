@@ -45,6 +45,7 @@
  *   npx content-build manifest [root] [--out <dir>]
  *   npx content-build site [--out <dir>]
  *   npx content-build reachability <dir> [file] [--index <shortcode>]
+ *   npx content-build addresses diff --from <zip|dir> [--strict]
  *
  * In a consuming repository, wrapped as npm scripts — SoHL spells them:
  *   npm run build:compiledb                // → … package compile (all packs)
@@ -92,6 +93,14 @@ import {
     walkReachability,
 } from "../engine/content-links.mjs";
 import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
+import {
+    readItemAddresses,
+    diffItemAddresses,
+    noteFilesById,
+    locateAddressFinding,
+    addressFindingMessage,
+} from "../engine/address-diff.mjs";
+import { itemPackJsonDirs } from "../engine/generate.mjs";
 import {
     formatUnaddressableFinding,
     unaddressableForeignPackages,
@@ -158,6 +167,7 @@ const argv = yargs(hideBin(process.argv))
     .command(manifestCommand())
     .command(siteCommand())
     .command(reachabilityCommand())
+    .command(addressesCommand())
     .version(ownVersion())
     .help()
     .alias("help", "h")
@@ -1041,6 +1051,154 @@ function depsCommand() {
                 const count = await fetchAllCatalogs(config);
                 if (count)
                     log.info(`Fetched ${count} dependency catalogue(s).`);
+            } catch (err) {
+                log.error(err.message);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `addresses diff` — report every published `(type, shortcode)` this build no
+ * longer publishes, against a released artifact.
+ *
+ * The address space is a published interface (see `engine/address-diff.mjs`),
+ * and renaming a shortcode used to cost nothing and produce no signal. This is
+ * the signal, emitted in the repository doing the renaming while the change is
+ * still in front of the author.
+ *
+ * **Its own command rather than a step of `package compile`.** It reads a
+ * *second* artifact that the compile knows nothing about and that has to be
+ * obtained separately, and it is a question about a release rather than about a
+ * build — a repository between releases has nothing to compare against.
+ *
+ * **The baseline is named, never derived, and never downloaded.** `--from`
+ * takes the artifact — the `.zip` a release publishes, or a directory built
+ * from one — for the same reason `deps fetch --from` does: a command that
+ * reaches the network on its own is not reproducible and fails strangely
+ * offline. In a release workflow the artifact is one line ahead of it:
+ *
+ * ```sh
+ * gh release download v0.8.2 -p system.zip -D build/baseline
+ * npx content-build addresses diff --from build/baseline/system.zip
+ * ```
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{from: string, strict?: boolean}} argv - The parsed arguments.
+ * @returns {Promise<void>}
+ */
+async function diffAddresses(config, argv) {
+    // The baseline is this package's own earlier self, so it is cached beside
+    // the dependency catalogues rather than among them — a release of `sohl`
+    // is not a dependency of `sohl`, and filing it as one would collide with a
+    // genuine relationship of the same id.
+    const cacheConfig = {
+        ...config,
+        paths: {
+            ...config.paths,
+            foreignCache: path.join(
+                path.dirname(config.paths.foreignCache),
+                "baseline",
+            ),
+        },
+    };
+    const dir = await fetchCatalogFromPath(
+        cacheConfig,
+        { id: config.foundryPackage },
+        argv.from,
+    );
+    // `<id>@<version>`, which is what the diagnostics name the baseline by.
+    const label = path.basename(dir);
+
+    const itemsRoot = path.join(dir, "items");
+    const baselineDirs = fs
+        .readdirSync(itemsRoot)
+        .map((name) => path.join(itemsRoot, name));
+    const currentDirs = itemPackJsonDirs(config);
+    if (!currentDirs.length) {
+        throw new Error(
+            'this repository declares no pack of type "Item", so it ' +
+                "publishes no item addresses to diff",
+        );
+    }
+
+    const findings = diffItemAddresses(
+        readItemAddresses(baselineDirs),
+        readItemAddresses(currentDirs),
+        { baseline: label },
+    );
+    if (!findings.length) {
+        log.info(`Every address ${label} published is still published.`);
+        return;
+    }
+
+    // A rename is fixed in the note that made it, so findings are placed
+    // against the tree rather than against the compiled output they were read
+    // from.
+    const noteFiles = noteFilesById(config.paths.content);
+    const severity = argv.strict ? "error" : "warning";
+    for (const finding of findings) {
+        emitDiagnostic({
+            ...locateAddressFinding(finding, noteFiles),
+            severity,
+            message: addressFindingMessage(finding),
+        });
+    }
+    const renamed = findings.filter((f) => f.kind === "renamed").length;
+    log.info(
+        `${findings.length} address(es) ${label} published are no longer ` +
+            `published (${renamed} renamed, ${findings.length - renamed} ` +
+            `withdrawn).`,
+    );
+    // Retiring content is legitimate and so is renaming; neither fails a build
+    // unless the caller asked for a gate.
+    if (argv.strict) process.exitCode = 1;
+}
+
+function addressesCommand() {
+    return {
+        command: "addresses <action>",
+        describe:
+            "Compare the addresses this build publishes against a release's",
+        builder: (yargs) => {
+            // Required, for the reason every other action is (#57): an
+            // optional one exits 0 having compared nothing.
+            yargs.positional("action", {
+                describe: "The action to perform.",
+                type: "string",
+                choices: ["diff"],
+            });
+            yargs.option("from", {
+                describe:
+                    "The released artifact to compare against — a package " +
+                    "zip, or the directory it was built from.",
+                type: "string",
+            });
+            yargs.option("strict", {
+                describe:
+                    "Report findings as errors and exit non-zero, for a " +
+                    "release workflow that gates on them.",
+                type: "boolean",
+                default: false,
+            });
+            // Checked while parsing, so it fails in a repository whose
+            // configuration a handler would never get far enough to resolve.
+            yargs.check((parsed) => {
+                if (parsed.action === "diff" && !parsed.from) {
+                    throw new Error(
+                        "`addresses diff` needs `--from <zip|dir>`: the " +
+                            "release to compare against. There is nothing to " +
+                            "derive it from — a repository between releases " +
+                            "has no previous artifact on disk.",
+                    );
+                }
+                return true;
+            });
+        },
+        handler: async (argv) => {
+            try {
+                await diffAddresses(loadPackConfig(), argv);
             } catch (err) {
                 log.error(err.message);
                 process.exitCode = 1;
