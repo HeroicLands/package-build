@@ -102,8 +102,9 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @returns {string[]} Each Item pack's JSON directory. Empty when the
- *   repository ships no items at all — the actors pass, which is the only
- *   caller that needs one, refuses that itself.
+ *   repository ships no items at all, which is a legitimate package: the actors
+ *   pass accepts an empty list and reports an item it cannot resolve per
+ *   `(type, shortcode)` instead, naming the being (#49).
  */
 export function itemPackJsonDirs(config = loadPackConfig()) {
     return config.packs
