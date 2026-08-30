@@ -1,3 +1,44 @@
+# Migrating to `@heroiclands/package-build` 6.0.0
+
+**No configuration change to make, and one build check that may now fail.**
+`packageBuild.manifest.packFolders` is compared against the `packs[]` the build
+derives, and a folder naming a pack the package does not ship is an error.
+
+## 1. Check what `package-build manifest` says
+
+Nothing to edit up front — run it, and the build names anything wrong:
+
+```text
+package-build.config.yaml:164:23: error: packFolders: folder "HârnMaster 3 System" names pack "character", which this package does not ship (packs: items, system-help)
+```
+
+Every name in a folder's `packs` must appear in the top-level `packs:` list —
+companions included, since Foundry sees no difference. Delete a name that no
+longer resolves, or correct it. An error stops the manifest being written, so
+nothing half-right reaches the stage.
+
+## 2. The advisory needs no action
+
+A pack no folder names is a **warning**, and the build continues:
+
+```text
+package-build.config.yaml:162:13: warning: packFolders: pack "items" is named by no folder, so it ships outside every folder this package declares
+```
+
+Shipping one pack at the root can be deliberate, so this is not an error. But a
+package that bothered to declare a folder rarely meant to leave one out — that
+is exactly how `HarnMaster-3-FoundryVTT` shipped 1,577 of 1,597 documents loose
+beside its folder. Add the pack to a folder, or leave it and take the advisory.
+
+A package that declares no `packFolders` at all is unaffected, and says nothing.
+
+## 3. Nothing else
+
+- **No configuration key changed**, and no CLI command, flag or exit code beyond
+  `manifest` failing on the error above.
+- `writeManifest` takes an optional `configFile`, so a finding names the line it
+  is about. Omitting it costs the position, not the finding.
+
 # Migrating to `@heroiclands/package-build` 5.0.0
 
 **One configuration change: `publish.site` is a mode, not a boolean.** And one

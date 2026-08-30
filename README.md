@@ -255,6 +255,36 @@ comes from.
 a companion is only a pack written by another pass rather than one of its own.
 Give each pack the `label` you want Foundry to show.
 
+#### `packFolders` is checked against the packs you ship
+
+`packFolders` is the one **declared** key that names something the build
+**derives**. Every other declared key states a fact about the package (`title`,
+`socket`, `grid`) or addresses a staged file (`esmodules`, `styles`,
+`languages`) — a staged file being a different relation, answered against the
+stage rather than against configuration. So it is the one place a declaration
+can quietly go stale against a value the build already computed, and it did:
+`HarnMaster-3-FoundryVTT` shipped a folder naming four packs, three of which had
+not existed since its compendium was consolidated, while `items` — 1,577 of
+1,597 documents — sat in no folder at all, with the build reporting nothing.
+
+`package-build manifest` now compares the two, descending through nested folders
+(Foundry allows three levels), and reports in the usual
+`file:line:column: severity: message` form:
+
+| Finding                                         | Severity    | Why                                                                                                                 |
+| ----------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------------------- |
+| a folder names a pack the package does not ship | **error**   | Foundry silently skips a name it cannot resolve, so the declaration does nothing; no arrangement intends it         |
+| a pack no folder names                          | **warning** | legal, and a root-level pack can be deliberate — but a package that declared a folder rarely meant to leave one out |
+| no `packFolders` declared at all                | nothing     | everything at the root is an arrangement, not an omission                                                           |
+
+An error **stops the write**: a manifest already known to describe packs that do
+not exist should not reach the stage, where the next command would deploy it.
+
+```text
+package-build.config.yaml:164:23: error: packFolders: folder "HârnMaster 3 System" names pack "character", which this package does not ship (packs: items, system-help)
+package-build.config.yaml:162:13: warning: packFolders: pack "items" is named by no folder, so it ships outside every folder this package declares
+```
+
 `compatibility` and `relationships` are read from the **top level** of the
 shared configuration, not from this section — content-build consumes them
 (`supportedCoreVersion`, and a module'''s `stats.systemVersion`) and the

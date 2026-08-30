@@ -44,6 +44,7 @@
  */
 
 import path from "node:path";
+import YAML, { LineCounter } from "yaml";
 
 /**
  * The `file:line:column` locator, with whatever is known.
@@ -267,4 +268,49 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
         line: before.split("\n").length,
         column: at - before.lastIndexOf("\n"),
     };
+}
+
+/**
+ * Where a **key or value in a YAML document** sits, addressed by its path.
+ *
+ * {@link positionOfLiteral} is the plain search, and it is the wrong tool for a
+ * configuration file: a pack name like `items` or `actors` appears in the
+ * `packs:` block, in a folder's list, in a path, and often in prose, so the
+ * first occurrence is routinely not the one the finding is about — which is the
+ * one thing the located form exists to prevent.
+ *
+ * A path resolves the exact node instead. The document is re-parsed here rather
+ * than threaded from the loader because the loader returns plain data: `yaml`
+ * discards ranges once a document is materialised, and carrying a parallel
+ * position tree through configuration resolution would be a second
+ * representation of the same file to keep in step.
+ *
+ * Every failure — unparseable text, an `.mjs` configuration, a path that
+ * resolves to nothing — yields `{}`, so a caller spreads the result and the
+ * position is dropped rather than guessed.
+ *
+ * @param {string} text - The document's contents.
+ * @param {ReadonlyArray<string|number>} keyPath - Path to the node: map keys as
+ *   strings, sequence entries as numbers.
+ * @returns {{line?: number, column?: number}} Spreadable position fields.
+ */
+export function positionOfYamlPath(text, keyPath) {
+    if (typeof text !== "string" || !text) return {};
+    if (!Array.isArray(keyPath) || keyPath.length === 0) return {};
+
+    let node;
+    const counter = new LineCounter();
+    try {
+        const doc = YAML.parseDocument(text, { lineCounter: counter });
+        // `keepScalar` returns the Scalar node rather than its value, which is
+        // the only form carrying a range.
+        node = doc.getIn(keyPath, true);
+    } catch {
+        return {};
+    }
+
+    const start = node?.range?.[0];
+    if (!Number.isFinite(start)) return {};
+    const { line, col } = counter.linePos(start);
+    return { line, column: col };
 }

@@ -78,7 +78,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
-import { loadPackConfig } from "../engine/pack-config.mjs";
+import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { validateLangSource } from "../lang.mjs";
 import {
@@ -354,6 +354,8 @@ function manifestCommand() {
                 artifact: config.artifact,
                 outDir: path.join(config.rootDir, config.stageDir),
                 flags,
+                // So a `packFolders` finding names the line it is about.
+                configFile: packConfigPath(),
             });
             console.log(
                 `✅ Wrote ${path.relative(config.rootDir, written)} ` +

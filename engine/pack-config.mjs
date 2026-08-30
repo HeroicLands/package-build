@@ -453,6 +453,9 @@ function loadCodeConfig(configPath) {
 /** The loaded configuration, memoised — the file is read at most once. */
 let loaded;
 
+/** The file {@link loadPackConfig} read, alongside the memoised result. */
+let loadedFrom;
+
 /**
  * The consuming repository's resolved, frozen configuration.
  *
@@ -492,5 +495,23 @@ export function loadPackConfig() {
                 YAML.parse(fs.readFileSync(configPath, "utf8")),
                 configPath,
             );
+    loadedFrom = configPath;
     return loaded;
+}
+
+/**
+ * The file {@link loadPackConfig} resolved the configuration from.
+ *
+ * A diagnostic about a *configured* value has to name the file it was declared
+ * in, and re-deriving that path at the point of the finding would be a second
+ * resolution free to disagree with the first — the `PACKAGE_BUILD_CONFIG`
+ * override, the upward walk and the one-file-per-directory rule all have to
+ * come out the same way. This reports the path actually read.
+ *
+ * @returns {string} Its absolute path.
+ * @throws {Error} As {@link loadPackConfig}, when there is no configuration.
+ */
+export function packConfigPath() {
+    loadPackConfig();
+    return /** @type {string} */ (loadedFrom);
 }
