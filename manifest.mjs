@@ -49,7 +49,10 @@
  */
 
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import path from "node:path";
+
+import { emitDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
 
 /**
  * The two package kinds Foundry defines, as the artifact name each one's
@@ -198,6 +201,130 @@ export function manifestPacks(config) {
 }
 
 /**
+ * Where a `packFolders` declaration lives in the configuration file.
+ *
+ * @type {readonly string[]}
+ */
+const PACK_FOLDERS_PATH = Object.freeze([
+    "packageBuild",
+    "manifest",
+    "packFolders",
+]);
+
+/**
+ * Every pack name a folder tree names, with the folder that named it.
+ *
+ * Foundry nests pack folders three deep — `PackageCompendiumFolder` re-declares
+ * itself while `depth < 4` — so a rule reading only the top level would miss
+ * every nested name in both directions: a broken one it never checked, and a
+ * working one it would then report as ungrouped.
+ *
+ * @param {unknown} folders - A `packFolders` list, or a nested `folders` list.
+ * @param {Array<string|number>} at - Config key path of `folders`.
+ * @returns {Array<{pack: string, folder: string, keyPath: Array<string|number>}>}
+ *   One entry per named pack, in declaration order, depth first.
+ */
+function namedPacks(folders, at) {
+    if (!Array.isArray(folders)) return [];
+    const found = [];
+    folders.forEach((folder, index) => {
+        if (folder === null || typeof folder !== "object") return;
+        const name = String(folder.name ?? "");
+        const packs = Array.isArray(folder.packs) ? folder.packs : [];
+        packs.forEach((pack, position) => {
+            found.push({
+                pack: String(pack),
+                folder: name,
+                keyPath: [...at, index, "packs", position],
+            });
+        });
+        found.push(...namedPacks(folder.folders, [...at, index, "folders"]));
+    });
+    return found;
+}
+
+/**
+ * What `packFolders` and the derived `packs[]` disagree about.
+ *
+ * `packFolders` is the one **declared** manifest key that names something the
+ * build **derives**: every other declared key states a fact about the package
+ * (`title`, `socket`, `grid`) or addresses a staged file (`esmodules`,
+ * `styles`, `languages`), and a staged file is a different relation, checked
+ * against the stage rather than against configuration. So this is the one place
+ * a declaration can go stale against a value the build already computed — and
+ * until now nothing compared them (#81).
+ *
+ * `HarnMaster-3-FoundryVTT` shipped the consequence: its folder named four
+ * packs, three of which had not existed since the compendium was consolidated,
+ * and omitted `items` — 1,577 of 1,597 documents, loose in Foundry's compendium
+ * browser, with the build reporting nothing (HM3#420).
+ *
+ * **The two findings are not the same finding**, and giving them one severity
+ * gets one of them wrong:
+ *
+ * - _A folder names a pack that does not exist_ is an **error**. Foundry
+ *   resolves the name against the package's own packs and silently skips what
+ *   it cannot find, so the declaration does nothing at all; there is no
+ *   arrangement in which it is intended, and the fix is unambiguous.
+ * - _A pack no folder names_ is a **warning**. It is legal and can be
+ *   deliberate — a package may want one pack at the root — so failing on it
+ *   would break working packages for a matter of taste. But a package that
+ *   bothered to declare a folder rarely meant to leave one out, which is
+ *   exactly how HM3's `items` went unnoticed.
+ * - _A package declaring no folders_ says **nothing**. Everything at the root
+ *   is the majority arrangement, not an omission.
+ *
+ * Errors come first, in declaration order, then warnings in pack order: the
+ * unresolvable names are what a reader fixes, and a folder gaining a name often
+ * settles a warning too.
+ *
+ * @param {object} options
+ * @param {unknown} [options.packFolders] - The declared `packFolders`.
+ * @param {ReadonlyArray<{name: string}>} [options.packs] - The derived packs,
+ *   as {@link manifestPacks} returns them.
+ * @returns {Array<{severity: "error"|"warning", message: string, pack: string,
+ *   folder?: string, keyPath: Array<string|number>}>} The findings, ordered.
+ */
+export function packFolderFindings({ packFolders, packs = [] }) {
+    if (!Array.isArray(packFolders) || packFolders.length === 0) return [];
+
+    const shipped = packs.map((pack) => pack?.name).filter(Boolean);
+    const known = new Set(shipped);
+    const named = namedPacks(packFolders, PACK_FOLDERS_PATH);
+    const grouped = new Set(named.map((entry) => entry.pack));
+
+    const findings = named
+        .filter((entry) => !known.has(entry.pack))
+        .map((entry) => ({
+            severity: /** @type {const} */ ("error"),
+            pack: entry.pack,
+            folder: entry.folder,
+            keyPath: entry.keyPath,
+            message:
+                `packFolders: folder "${entry.folder}" names pack ` +
+                `"${entry.pack}", which this package does not ship ` +
+                `(packs: ${shipped.join(", ")})`,
+        }));
+
+    for (const name of shipped) {
+        if (grouped.has(name)) continue;
+        findings.push({
+            severity: /** @type {const} */ ("warning"),
+            pack: name,
+            // No folder omitted it in particular — every one of them did — so
+            // the position is the declaration a reader edits, not one entry
+            // inside it. Each warning names its own pack, so they stay
+            // distinguishable despite sharing a line.
+            keyPath: [...PACK_FOLDERS_PATH],
+            message:
+                `packFolders: pack "${name}" is named by no folder, so it ` +
+                `ships outside every folder this package declares`,
+        });
+    }
+    return findings;
+}
+
+/**
  * Relationship keys that direct the **build**, rather than describe the
  * package.
  *
@@ -331,7 +458,52 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
 }
 
 /**
+ * Report what {@link packFolderFindings} found, and say whether it was fatal.
+ *
+ * The position comes from the configuration file, when one was named and can be
+ * read: a `packFolders` finding is about a line of YAML, and the file is the
+ * only place a line exists. Anything that cannot be established — an `.mjs`
+ * configuration, an unreadable file, a path that resolves to nothing — is
+ * dropped rather than guessed, so the diagnostic degrades from
+ * `file:line:column:` to `file:` to no locator at all.
+ *
+ * @param {ReturnType<typeof packFolderFindings>} findings - What was found.
+ * @param {string} [configFile] - Absolute path of the configuration file.
+ * @returns {number} How many of them were errors.
+ */
+function reportPackFolders(findings, configFile) {
+    if (!findings.length) return 0;
+
+    let text;
+    if (configFile) {
+        try {
+            text = fsSync.readFileSync(configFile, "utf8");
+        } catch {
+            text = undefined;
+        }
+    }
+
+    let errors = 0;
+    for (const finding of findings) {
+        if (finding.severity === "error") errors += 1;
+        emitDiagnostic({
+            ...(configFile ? { file: configFile } : {}),
+            ...(text ? positionOfYamlPath(text, finding.keyPath) : {}),
+            severity: finding.severity,
+            message: finding.message,
+        });
+    }
+    return errors;
+}
+
+/**
  * Write the generated manifest into the staged package.
+ *
+ * The declared `packFolders` is checked against the derived `packs[]` first,
+ * and an unresolvable name **stops the write**: a manifest already known to
+ * describe packs the package does not ship should not reach the stage, where
+ * the next command would deploy it (#81). See {@link packFolderFindings} for
+ * the rule and why its two findings carry different severities.
  *
  * @param {object} options - As {@link buildManifest}, plus where to write.
  * @param {object} options.config - The resolved content configuration.
@@ -339,7 +511,12 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
  * @param {string} options.artifact - `system` or `module`.
  * @param {string} options.outDir - Directory to write into.
  * @param {Record<string, object>} [options.flags] - Namespaced flags to merge.
+ * @param {string} [options.configFile] - Absolute path of the configuration
+ *   file the manifest was resolved from, so a finding about it can be located.
+ *   Omitting it costs the position, not the finding.
  * @returns {Promise<{path: string, manifest: object}>} Where it went, and what.
+ * @throws {Error} When a `packFolders` entry names a pack the package does not
+ *   ship. Nothing is written in that case.
  */
 export async function writeManifest({
     config,
@@ -347,8 +524,26 @@ export async function writeManifest({
     artifact,
     outDir,
     flags,
+    configFile,
 }) {
     const manifest = buildManifest({ config, packageJson, artifact, flags });
+
+    const errors = reportPackFolders(
+        packFolderFindings({
+            packFolders: manifest.packFolders,
+            packs: manifest.packs,
+        }),
+        configFile,
+    );
+    if (errors) {
+        throw new Error(
+            `packFolders names ${errors} pack${errors === 1 ? "" : "s"} this ` +
+                `package does not ship (reported above). Foundry skips a name ` +
+                `it cannot resolve, so the folder would ship missing those ` +
+                `packs — correct \`packageBuild.manifest.packFolders\`.`,
+        );
+    }
+
     await fs.mkdir(outDir, { recursive: true });
     const outPath = path.join(outDir, `${artifact}.json`);
     // Trailing newline: the file is committed to a release archive and read by
