@@ -204,15 +204,94 @@ describe("auditLinks — the homepage", () => {
         expect(found[0]).toContain("package-relative");
     });
 
-    it("leaves a bare package root alone — there is no better form to write", () => {
+    it("reports a hardcoded absolute URL to this package's own landing (#87)", () => {
+        const found = messages({
+            "homepage.md": homepage(
+                "",
+                "A module for [SoHL](https://www.heroiclands.org/sohl/).\n",
+            ),
+        });
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain("this package's own landing");
+        expect(found[0]).toContain('write "/sohl/"');
+    });
+
+    // The case the issue was filed for, and the one the fence makes hard:
+    // `sohl-kethira-basic` links to SoHL's landing and vendors **no manifest**,
+    // because homepage-only mode never walks a content tree. The roster is what
+    // makes the address reachable anyway — no `manifestDir` is passed here, and
+    // the finding still names the package and its base.
+    it("reports a foreign package's landing with no manifest vendored (#87)", () => {
+        const found = messages({
+            "homepage.md": homepage(
+                "",
+                "See [Thalorna](https://www.heroiclands.org/thalorna/).\n",
+            ),
+        });
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain(`package "thalorna"'s landing`);
+        expect(found[0]).toContain('write "/thalorna/"');
+    });
+
+    // A package the roster does not list and no manifest names is not a package
+    // as far as this build is concerned, so its path is left alone rather than
+    // guessed at — several surfaces a landing routes to are built by other
+    // tools entirely.
+    it("leaves an in-site path that names no known package alone", () => {
         expect(
             messages({
                 "homepage.md": homepage(
                     "",
-                    "A module for [SoHL](https://www.heroiclands.org/sohl/).\n",
+                    "See [the blog](https://www.heroiclands.org/news/).\n",
                 ),
             }),
         ).toEqual([]);
+    });
+
+    // The form the finding above names. It is host-free and is emitted
+    // verbatim — no index resolves it — which is what lets it hold in
+    // homepage-only mode, where the content tree is never walked.
+    it("accepts the root-relative form it directs an author to", () => {
+        expect(
+            messages({
+                "homepage.md": homepage("", "A module for [SoHL](/sohl/).\n"),
+            }),
+        ).toEqual([]);
+    });
+
+    it("accepts a card href: to another package's landing", () => {
+        expect(
+            messages({
+                "homepage.md": homepage(
+                    [
+                        "landing:",
+                        "  cards:",
+                        "    items:",
+                        "      - { title: SoHL, href: /sohl/ }",
+                        "",
+                    ].join("\n"),
+                ),
+            }),
+        ).toEqual([]);
+    });
+
+    // `url:` is package-relative by construction, so there is no spelling of it
+    // that leaves this package — the fix is the field, not the path.
+    it("directs a url: naming another package's landing to href:", () => {
+        const found = messages({
+            "homepage.md": homepage(
+                [
+                    "landing:",
+                    "  cards:",
+                    "    items:",
+                    "      - { title: SoHL, url: /sohl/ }",
+                    "",
+                ].join("\n"),
+            ),
+        });
+        expect(found).toHaveLength(1);
+        expect(found[0]).toContain(`package "sohl"'s landing`);
+        expect(found[0]).toContain('write href: "/sohl/"');
     });
 
     it("reports a root-relative url:, which the theme would prefix twice", () => {

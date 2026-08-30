@@ -110,12 +110,25 @@ jobs:
             # context here instead. It is not a rubber stamp: that pull request
             # *is* the declared bump, consuming the changesets the gate exists
             # to require.
+            #
+            # The output is `pr-number`. v2 renamed it from v1's
+            # `pullRequestNumber`, and an unset output reads as the empty
+            # string rather than erroring — so the v1 spelling made this
+            # condition `'' != ''` and left the step permanently skipped
+            # instead of failing loudly.
+            #
+            # Bracket notation, not `outputs.pr-number`: a hyphen is the
+            # subtraction operator in an Actions expression, so the dotted form
+            # parses as `outputs.pr - number` and does not mean what it reads
+            # as. `published` below stays dotted deliberately — it is the one
+            # output name v2 kept unchanged, so a blanket kebab-case sweep of
+            # this file would break the step that currently works.
             - name: Mark the version pull request as having declared its bump
-              if: steps.changesets.outputs.pullRequestNumber != ''
+              if: steps.changesets.outputs['pr-number'] != ''
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
               run: |
-                  SHA=$(gh api "repos/${{ github.repository }}/pulls/${{ steps.changesets.outputs.pullRequestNumber }}" --jq .head.sha)
+                  SHA=$(gh api "repos/${{ github.repository }}/pulls/${{ steps.changesets.outputs['pr-number'] }}" --jq .head.sha)
                   gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
                       -f state=success \
                       -f context='Changeset declared' \

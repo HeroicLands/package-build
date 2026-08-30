@@ -58,6 +58,7 @@ import {
     canonicalKey,
     loadForeignManifests,
     manifestsComplete,
+    PACKAGE_BASE,
     readCanonicalKey,
 } from "./kb-manifest.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
@@ -337,6 +338,74 @@ export function buildLinkIndex(
 const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
 
 /**
+ * Every package landing this build can name, as `package` → base (#87).
+ *
+ * **A landing needs no manifest, and that is what makes it work.** The link
+ * manifest indexes content notes, and a homepage is deliberately not one — it
+ * compiles to no document and is entered in no manifest. The reading that
+ * follows from this, and that left a hardcoded URL as the only authored form,
+ * is that a landing therefore cannot be addressed. It does not follow: a
+ * landing's address is not a *note's* address but the **package's**, and
+ * {@link PACKAGE_BASE} already records where each package is served. That is a
+ * frozen constant vendored into every repository, so consulting it walks no
+ * tree, reads no manifest and builds no index — which is precisely why the
+ * mechanism survives `homepage` mode, where the licensing fence means none of
+ * those exist.
+ *
+ * The roster is consulted **for landings only**. Widening the package set the
+ * other rules read would make them offer manifest-based advice about packages
+ * no manifest is vendored for.
+ *
+ * @param {string} ownPackage - The package this build publishes.
+ * @param {Iterable<string>} manifestPackages - Packages a vendored manifest
+ *   names, which are addressable whether or not the roster lists them.
+ * @returns {Map<string, string>} Package to base, each base slash-terminated.
+ */
+function landingBases(ownPackage, manifestPackages) {
+    const bases = new Map();
+    // Convention first, roster second, so a package the roster relocates is
+    // recorded at the relocated base rather than the default one.
+    for (const pkg of [ownPackage, ...manifestPackages]) {
+        if (pkg) bases.set(pkg, `/${pkg}/`);
+    }
+    for (const [pkg, base] of Object.entries(PACKAGE_BASE)) {
+        if (typeof base === "string" && base.endsWith("/")) {
+            bases.set(pkg, base);
+        }
+    }
+    return bases;
+}
+
+/**
+ * The package whose landing an address names, or `null`.
+ *
+ * Matches the whole path, not a prefix: `/sohl/` is the landing, `/sohl/kb/`
+ * is a page inside the package and belongs to the manifest rules instead.
+ *
+ * @param {string} url - The authored address.
+ * @param {Map<string, string>} bases - From {@link landingBases}.
+ * @returns {{pkg: string, base: string}|null} The package and its base.
+ */
+function landingTarget(url, bases) {
+    const value = String(url ?? "").trim();
+    if (!value || !/^[a-z][a-z0-9+.-]*:/i.test(value)) return null;
+    let parsed;
+    try {
+        parsed = new URL(value);
+    } catch {
+        return null;
+    }
+    if (!/^https?:$/.test(parsed.protocol)) return null;
+    if (!SITE_HOST.test(parsed.hostname)) return null;
+    const pathname =
+        parsed.pathname.endsWith("/") ? parsed.pathname : `${parsed.pathname}/`;
+    for (const [pkg, base] of bases) {
+        if (pathname === base) return { pkg, base };
+    }
+    return null;
+}
+
+/**
  * How an authored address resolves, or `null` for one nothing here can judge.
  *
  * Three shapes reach the site and one does not, and the distinction is the
@@ -400,9 +469,17 @@ function readAddress(url, packages) {
  *   and what replaced it, so this is a fact rather than a guess — and it is
  *   exactly the SoHL defect.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
- *   vendored manifest names. Both have a better form to write, which is why they
- *   are reported; a bare `/<package>/` is left alone, because a package
- *   homepage is in no manifest and there is nothing better to write.
+ *   vendored manifest names. Every one of them has a better form to write, which
+ *   is why every one is reported — including a bare `/<package>/`, which names
+ *   another package's landing (#87).
+ *
+ *   That last case was exempt until the better form was identified, on the
+ *   reasoning that a landing is in no link manifest so nothing could resolve it.
+ *   True, and beside the point: it does not need resolving. A landing's address
+ *   *is* its package prefix, so `/<package>/` is the absolute URL with the host
+ *   struck off — host-free, emitted verbatim, and needing no index, which is
+ *   what lets it hold in homepage-only mode where the tree is never walked. The
+ *   form was already accepted here; nothing had ever named it as the one to use.
  * - A **root-relative `url:`**, which the theme's `relURL` prefixes a second
  *   time. `href:` means "already resolved, use verbatim", so the same leading
  *   slash is correct there and is not reported.
@@ -424,6 +501,7 @@ function readAddress(url, packages) {
 export function auditHomepageLinks(index) {
     const findings = [];
     const packages = new Set([index.contentPackage, ...index.packages]);
+    const bases = landingBases(index.contentPackage, index.packages);
 
     for (const note of index.notes) {
         if (!isHomepage(note.fm)) continue;
@@ -467,28 +545,43 @@ export function auditHomepageLinks(index) {
             if (!address) continue;
             const { shape, segments, prefix } = address;
 
-            if (shape === "absolute" && prefix) {
-                // A bare `/<package>/` is a package's homepage, which is in no
-                // link manifest and has no relative form from another package.
-                // A finding with no fix is noise.
+            // Landings first, and by the roster rather than by the manifest
+            // package set: a landing is addressable in a repository that
+            // vendors no manifest at all, which is the case the fence creates
+            // and the case this rule exists for (#87).
+            const landing = landingTarget(url, bases);
+            if (landing) {
+                report(
+                    field,
+                    url,
+                    url,
+                    occurrence,
+                    `hardcoded absolute URL to ` +
+                        (landing.pkg === index.contentPackage ?
+                            `this package's own landing`
+                        :   `package "${landing.pkg}"'s landing`) +
+                        ` — write "${landing.base}", which names no host, is ` +
+                        `emitted verbatim, and resolves through the package ` +
+                        `roster rather than through an index, so it holds ` +
+                        `where no content tree is walked`,
+                );
+            } else if (shape === "absolute" && prefix) {
                 const rest = segments.slice(1).join("/");
-                if (rest) {
-                    report(
-                        field,
-                        url,
-                        url,
-                        occurrence,
-                        prefix === index.contentPackage ?
-                            `hardcoded absolute URL into this package's own ` +
-                                `address — write the package-relative ` +
-                                `"${rest}/", which the landing resolves ` +
-                                `against the site so the page follows the mount`
-                        :   `hardcoded absolute URL into package "${prefix}" ` +
-                                `— resolve it through that package's link ` +
-                                `manifest, whose entries carry the address, so a ` +
-                                `relocation does not leave this page behind`,
-                    );
-                }
+                report(
+                    field,
+                    url,
+                    url,
+                    occurrence,
+                    prefix === index.contentPackage ?
+                        `hardcoded absolute URL into this package's own ` +
+                            `address — write the package-relative ` +
+                            `"${rest}/", which the landing resolves ` +
+                            `against the site so the page follows the mount`
+                    :   `hardcoded absolute URL into package "${prefix}" ` +
+                            `— resolve it through that package's link ` +
+                            `manifest, whose entries carry the address, so a ` +
+                            `relocation does not leave this page behind`,
+                );
             } else if (shape === "rooted" && kind === "url") {
                 const rest =
                     prefix ? segments.slice(1).join("/") : segments.join("/");
@@ -497,9 +590,21 @@ export function auditHomepageLinks(index) {
                     url,
                     url,
                     occurrence,
-                    `url "${url}" is root-relative, but a landing's url: is ` +
-                        `resolved against the site — write "${rest}/", or ` +
-                        `href: for an address that is already resolved`,
+                    // A `url:` is package-relative by construction, so it
+                    // cannot address anything outside this package at all —
+                    // there is no relative spelling of another package's root.
+                    // `href:` is the field for an address already resolved.
+                    !rest ?
+                        `url "${url}" addresses ` +
+                            (prefix ?
+                                `package "${prefix}"'s landing`
+                            :   `the site root`) +
+                            `, but a landing's url: is package-relative and ` +
+                            `cannot leave this package — write ` +
+                            `href: "${url}", which is used verbatim`
+                    :   `url "${url}" is root-relative, but a landing's url: ` +
+                            `is resolved against the site — write "${rest}/", ` +
+                            `or href: for an address that is already resolved`,
                 );
             }
 
