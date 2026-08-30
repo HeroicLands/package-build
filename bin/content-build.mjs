@@ -366,7 +366,8 @@ function lintCommand() {
                 } else {
                     log.info(
                         `Addresses and frontmatter are well-formed ` +
-                            `(${addresses.keys} across ${addresses.notes} note(s)).`,
+                            `(${addresses.keys} address(es) across ` +
+                            `${addresses.notes} note(s)).`,
                     );
                 }
             } catch (err) {

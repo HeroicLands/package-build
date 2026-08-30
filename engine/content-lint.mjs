@@ -164,15 +164,24 @@ export function lintContentTree(contentBase, { skipDirectories } = {}) {
     // "Every one of nothing is unique" is a vacuous pass, and it is exactly
     // what a tree that failed to check out produces — so the lint would go
     // green on the one state it most needs to catch.
-    if (byKey.size === 0) {
+    //
+    // The state that catches is an **empty walk**, not an empty key set (#77).
+    // A note may be keyless by design: a homepage carries no `shortcode`
+    // because it is addressed by the package rather than by a slug, so a
+    // package in `publish.site: homepage` mode has a content tree that is
+    // populated, correct, and permanently unkeyed. Reporting that as a missing
+    // checkout trains its author to stop reading the output — the one thing
+    // this guard needs them to do. A tree holding notes is therefore a tree;
+    // only a tree holding none is the absent one.
+    if (notes.length === 0) {
         findings.push({
             file: path.relative(process.cwd(), contentBase) || contentBase,
             severity: "error",
             message:
-                "holds no keyed content, so every rule here is vacuous — " +
+                "holds no content notes, so every rule here is vacuous — " +
                 "check that the content tree is present and that this is its root",
         });
-        return { findings, notes: notes.length, keys: 0 };
+        return { findings, notes: 0, keys: 0 };
     }
 
     for (const [key, files] of byKey) {
