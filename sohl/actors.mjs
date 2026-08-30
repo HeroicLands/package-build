@@ -186,8 +186,16 @@ function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
     const shadowed = [];
     for (const itemsSourceDir of itemsSourceDirs) {
         if (!fs.existsSync(itemsSourceDir)) {
+            // The generator orders the actors pass after every Item pass (#73),
+            // so a whole-package build cannot reach this. What can is a run
+            // restricted to this one pack, or a caller constructing the
+            // compiler itself — neither of which reordering a pack list fixes,
+            // so the message no longer suggests it.
             throw new Error(
-                `Items source directory ${itemsSourceDir} does not exist — actors must be generated after items`,
+                `Items source directory ${itemsSourceDir} does not exist — ` +
+                    `a being resolves its embedded items against the Item ` +
+                    `packs' compiled output, so those packs must be compiled ` +
+                    `before this one`,
             );
         }
         for (const name of fs.readdirSync(itemsSourceDir)) {
@@ -309,6 +317,11 @@ function renderSection(body, anchorId) {
 export class Actors extends BasePackCompiler {
     static id = "actors";
     static label = "actor";
+
+    // A being's embedded items are resolved against the *output* of the item
+    // passes, so every Item pack compiles before this one. Declared rather than
+    // left to the order `packs:` happens to list (#73).
+    static readsPackOutputOf = Object.freeze(["Item"]);
 
     /** @type {readonly string[]} */
     itemsSourceDirs;

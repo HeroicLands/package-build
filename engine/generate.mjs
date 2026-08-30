@@ -23,10 +23,15 @@
  * Each `*` compiler walks the whole content tree and selects its own entries by
  * the note's `type` — every note in the tree belongs to this repository's
  * `contentPackage` (#56) — so routing is directory-agnostic: a file lands in a
- * pack because of its `type`, not its location. Which packs exist, in what order, and which folder
- * hierarchy each one loads are all declared in `package-build.config.yaml`;
- * folder files live under the content root and are referenced from entry
- * frontmatter via `sohl.folder: <id>`.
+ * pack because of its `type`, not its location. Which packs exist and which
+ * folder hierarchy each one loads are declared in
+ * `package-build.config.yaml`; folder files live under the content root and are
+ * referenced from entry frontmatter via `sohl.folder: <id>`.
+ *
+ * **The order the passes run in is derived, not declared** — see
+ * {@link orderPassesByDependency}. The declared list is the manifest's `packs`
+ * array as well, so it is ordered for a reader; a pass that reads another's
+ * output states that on its compiler and is scheduled after it (#73).
  *
  * This replaces the retired `packs:export` (vault → committed `_source/`); the
  * HeroicLands vault is no longer a build input for SoHL content.
@@ -50,6 +55,7 @@ import {
     writeFolderDocs,
 } from "./helpers.mjs";
 import { countContentNotes } from "./content-tree.mjs";
+import { emitDiagnostic } from "./diagnostics.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 
@@ -89,8 +95,9 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * and an actor's embedded items may be sourced from any of them. Finding one
  * pack and stopping is how embedded-item resolution would silently miss every
  * item that landed in another. Returned in configured order, which is also the
- * order they compile in, so a pack later in the list cannot be read before it
- * is written.
+ * order they compile in — {@link orderPassesByDependency} keeps the declared
+ * order among packs of one type — and every one of them is written before the
+ * actors pass that reads them.
  *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
@@ -102,6 +109,126 @@ export function itemPackJsonDirs(config = loadPackConfig()) {
     return config.packs
         .filter((pack) => pack.type === "Item")
         .map((pack) => packJsonDir(pack.name, config));
+}
+
+/**
+ * The document types whose compiled output a pass of this type reads.
+ *
+ * Asked of the compiler rather than held in a table here, so the dependency
+ * lives in the class that does the reading and a consumer's own compiler can
+ * declare its own. A type no compiler is registered for waits on nothing —
+ * {@link generatePack} reports it as an unknown type, which is the better
+ * message.
+ *
+ * @param {string} type - A pack's document type.
+ * @returns {readonly string[]} The types it reads the output of.
+ */
+function readsOutputOf(type) {
+    return COMPILERS[type]?.readsPackOutputOf ?? [];
+}
+
+/**
+ * The passes to run, ordered so that each one follows the output it reads.
+ *
+ * **Declaration order is presentation, not compile order (#73).** The same
+ * `packs:` list is the manifest's `packs` array, which a consumer orders for a
+ * reader browsing compendiums; the actors pass, meanwhile, resolves each
+ * being's embedded items against the item passes' *output*. Making one list
+ * satisfy both meant an Actor pack declared first compiled only where a
+ * previous run had already left `build/packs-json` populated — green on a warm
+ * tree, exit 1 on every fresh checkout and every CI runner, and `build/` is
+ * gitignored so that is the state CI always starts from.
+ *
+ * **The reordering is the smallest one that works.** Each step takes the
+ * *earliest declared* pass whose dependencies are all already emitted, so a
+ * list that was already in a workable order comes back untouched, and one that
+ * was not moves exactly the passes that had to move. A dependency is satisfied
+ * only when **every** pack of that type has run: a being addresses an item by
+ * `(type, shortcode)` without knowing which Item pack ships it, so waiting for
+ * one of several would resolve some beings and silently fail others.
+ *
+ * A dependency on a type this configuration declares no pack of is not waited
+ * for. A package may ship an Actor pack and no Item pack; the pass that needs
+ * one refuses on its own, with a message about items rather than about order.
+ *
+ * @param {readonly object[]} packs - The passes to be run, as declared.
+ * @returns {object[]} A new list, in compile order. The input is untouched.
+ * @throws {Error} If the passes read each other's output in a cycle, which no
+ *   order can satisfy. Only reachable from a mis-declared compiler, so it names
+ *   the passes rather than blaming the pack list.
+ */
+export function orderPassesByDependency(packs) {
+    const declared = new Set(packs.map((pack) => pack.type));
+    const remaining = [...packs];
+    const emitted = new Set();
+    /** @type {object[]} */
+    const ordered = [];
+
+    /** Whether every pack this pass reads the output of has already run. */
+    const ready = (pack) =>
+        readsOutputOf(pack.type).every(
+            (dependency) =>
+                !declared.has(dependency) ||
+                packs.every(
+                    (other) =>
+                        other.type !== dependency || emitted.has(other.name),
+                ),
+        );
+
+    while (remaining.length) {
+        const next = remaining.findIndex(ready);
+        if (next === -1) {
+            throw new Error(
+                `package-build: the configured passes read each other's ` +
+                    `output in a cycle (` +
+                    `${remaining.map((pack) => `${pack.name} (${pack.type})`).join(", ")}` +
+                    `); no compile order can satisfy that.`,
+            );
+        }
+        const [pack] = remaining.splice(next, 1);
+        emitted.add(pack.name);
+        ordered.push(pack);
+    }
+    return ordered;
+}
+
+/**
+ * The dependencies this run cannot satisfy by ordering, because the pass that
+ * would produce them is not in it.
+ *
+ * Ordering answers the whole-package build; a run restricted to one pack
+ * (`content-build package compile <name>`) cannot conjure the passes it left
+ * out. Where their output is already on disk from an earlier run that is fine
+ * — it is how compiling one pack at a time is meant to work — so this reports
+ * only what is genuinely absent, and names the pack that would write it rather
+ * than the directory that is missing.
+ *
+ * @param {readonly object[]} running - The passes this run will execute.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string[]} One message per unsatisfiable dependency.
+ */
+export function unsatisfiedPassDependencies(running, config) {
+    const included = new Set(running.map((pack) => pack.name));
+    /** @type {string[]} */
+    const messages = [];
+    for (const pack of running) {
+        for (const dependency of readsOutputOf(pack.type)) {
+            for (const producer of config.packs) {
+                if (producer.type !== dependency) continue;
+                if (included.has(producer.name)) continue;
+                const dir = packJsonDir(producer.name, config);
+                if (fs.existsSync(dir)) continue;
+                messages.push(
+                    `pack "${pack.name}" (${pack.type}) reads the compiled ` +
+                        `output of the ${producer.type} pack ` +
+                        `"${producer.name}", which this run does not compile ` +
+                        `and which ${dir} does not hold — compile the whole ` +
+                        `package, or compile "${producer.name}" first`,
+                );
+            }
+        }
+    }
+    return messages;
 }
 
 /**
@@ -280,9 +407,31 @@ export async function generatePacksJson({
         if (!firstOfType.has(pack.type)) firstOfType.set(pack.type, pack.name);
     }
 
+    // Compile order is derived from what each pass reads, not from the order
+    // `packs:` declares — that list is also the manifest's, which a consumer
+    // orders for a reader (#73).
+    const ordered = orderPassesByDependency(packs);
+    if (ordered.some((pack, index) => pack !== packs[index])) {
+        log.info(
+            `Pass order: ${ordered.map((pack) => pack.name).join(", ")} — a ` +
+                `pass that reads another's output compiles after it, whatever ` +
+                `order \`packs:\` declares.`,
+        );
+    }
+
+    // What ordering cannot reach: a run restricted to one pack, whose
+    // dependencies are simply not in it and not on disk either.
+    const unsatisfied = unsatisfiedPassDependencies(ordered, config);
+    if (unsatisfied.length) {
+        for (const message of unsatisfied) {
+            emitDiagnostic({ severity: "error", message });
+        }
+        return unsatisfied.length;
+    }
+
     let totalErrors = 0;
     const passes = [];
-    for (const pack of packs) {
+    for (const pack of ordered) {
         const { errors, compiled } = await generatePack(
             pack,
             config,
