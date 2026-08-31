@@ -52,6 +52,11 @@
  * @module
  */
 
+import fs from "node:fs";
+import path from "node:path";
+
+import { cachedSchemaPath, SCHEMA_ARTIFACT_FILE } from "./foreign-catalog.mjs";
+
 /**
  * The artifact version this module reads.
  *
@@ -232,6 +237,58 @@ export function compareFields({
     }
 
     return { undeclared, unemitted, skipped };
+}
+
+/**
+ * The published schema this build should check itself against, or `null`.
+ *
+ * **Which system, and which version, are already settled.** `stats.systemId`
+ * and `stats.systemVersion` are derived rather than authored (#48) — a system
+ * package is its own system, and a module takes the one it requires — and the
+ * version is the `compatibility.verified` it pins. So the question "whose
+ * schema, at what version" has one answer here rather than a second set of
+ * configuration to disagree with the first.
+ *
+ * Two places to find it, because a system checks itself against source it owns
+ * while a module checks against a dependency it fetched:
+ *
+ * - **A system**: its own `schema.json`, generated from its `src/` and
+ *   committed beside it.
+ * - **A module**: the copy cached by `content-build deps fetch`, from the
+ *   archive of the version it pins — which is what makes the comparison happen
+ *   at `verified` rather than against whatever the system's `main` holds today.
+ *   That distinction is the whole of the `affiliation.subType` case.
+ *
+ * `null` where there is nothing to check against: a system-agnostic module
+ * stamps no system at all, and a system that has not adopted the artifact yet
+ * is simply unchecked. Neither is an error, and the caller says which it was.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {{artifact: SchemaArtifact, source: string}|null} The schema and
+ *   where it was read from.
+ */
+export function resolveSchemaArtifact(config) {
+    const systemId = config?.stats?.systemId;
+    if (!systemId) return null;
+
+    const read = (file) => ({
+        artifact: JSON.parse(fs.readFileSync(file, "utf8")),
+        source: file,
+    });
+
+    // The system checking itself, against the schema its own build published.
+    if (
+        config.packageKind === "systems" &&
+        config.foundryPackage === systemId
+    ) {
+        const own = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
+        return fs.existsSync(own) ? read(own) : null;
+    }
+
+    const version = config?.stats?.systemVersion;
+    if (!version) return null;
+    const cached = cachedSchemaPath(config, systemId, version);
+    return fs.existsSync(cached) ? read(cached) : null;
 }
 
 /**

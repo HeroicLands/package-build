@@ -73,6 +73,12 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import {
+    compareFields,
+    resolveSchemaArtifact,
+    undeclaredMessage,
+    unemittedMessage,
+} from "../engine/schema-check.mjs";
 // The one vocabulary, loaded whole. Every content project authors the full type
 // set — an adventure module ships skills, beings and magic swords — so no
 // consumer gets a subset (#19, #20).
@@ -386,9 +392,56 @@ function lintCommand() {
                     references: argv.references,
                 });
 
+                // What the builders emit, against what the receiving system
+                // declares (#60). Reported here rather than at compile: it is
+                // a property of the *declarations*, not of any one note, so it
+                // is the same answer for every document and belongs where a
+                // reader is already being told about the vocabulary.
+                const schema = resolveSchemaArtifact(config);
+                const schemaFindings = [];
+                if (!schema && config.stats?.systemId) {
+                    // Said out loud, because a check that quietly does nothing
+                    // is indistinguishable from one that passed — and this
+                    // whole issue exists because a defect went unnoticed for a
+                    // release. A system before its first schema build, or a
+                    // module pinning a version released before the artifact
+                    // existed, lands here.
+                    log.info(
+                        `No published schema for ${config.stats.systemId}` +
+                            `@${config.stats.systemVersion ?? "?"}, so emitted ` +
+                            `\`system\` fields are unchecked. A system ` +
+                            `generates its own; a module gets one from ` +
+                            `\`content-build deps fetch\`.`,
+                    );
+                }
+                if (schema) {
+                    const { undeclared, unemitted } = compareFields({
+                        builders: config.itemFields ?? {},
+                        artifact: schema.artifact,
+                    });
+                    for (const f of undeclared) {
+                        schemaFindings.push({
+                            file: schema.source,
+                            severity: "error",
+                            message: undeclaredMessage(f),
+                        });
+                    }
+                    for (const f of unemitted) {
+                        // Advisory: a field the system fills at runtime, or one
+                        // added ahead of the content that will use it, is not a
+                        // defect.
+                        emitDiagnostic({
+                            file: schema.source,
+                            severity: "warning",
+                            message: unemittedMessage(f),
+                        });
+                    }
+                }
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
+                    ...schemaFindings,
                 ];
                 for (const finding of findings) emitDiagnostic(finding);
                 if (findings.length) {

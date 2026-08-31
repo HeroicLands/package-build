@@ -98,6 +98,51 @@ export function catalogDir(config, id, version) {
 const itemsDir = (dir) => path.join(dir, "items");
 
 /**
+ * The file a system publishes its `system` field sets as (#60).
+ *
+ * @type {string}
+ */
+export const SCHEMA_ARTIFACT_FILE = "schema.json";
+
+/**
+ * Where a cached dependency's published schema sits, if it shipped one.
+ *
+ * @param {object} config - The resolved configuration.
+ * @param {string} id - The dependency's package id.
+ * @param {string} version - Its resolved version.
+ * @returns {string} The path, whether or not it exists.
+ */
+export function cachedSchemaPath(config, id, version) {
+    return path.join(catalogDir(config, id, version), SCHEMA_ARTIFACT_FILE);
+}
+
+/**
+ * Keep the dependency's published schema beside its extracted items.
+ *
+ * **Copied to one known place rather than read from where it landed.** The two
+ * fetch paths leave the unpacked archive in different states — a download
+ * unzips into `<cache>/package/` and keeps it, while `--from` unzips into a
+ * temporary directory and deletes it — so a reader that went looking in the
+ * unpacked tree would find the schema for one and not the other, which is the
+ * kind of difference that shows up as an unexplained skipped check.
+ *
+ * Absent is not an error: a system that has not adopted the artifact yet is
+ * simply unchecked, and saying so is {@link module:engine/schema-check}'s job
+ * rather than the fetch's.
+ *
+ * @param {string} root - The unpacked package root.
+ * @param {string} dir - The dependency's cache directory.
+ * @returns {boolean} Whether one was published.
+ */
+function cacheSchemaArtifact(root, dir) {
+    const src = path.join(root, SCHEMA_ARTIFACT_FILE);
+    if (!fs.existsSync(src)) return false;
+    fs.mkdirSync(dir, { recursive: true });
+    fs.copyFileSync(src, path.join(dir, SCHEMA_ARTIFACT_FILE));
+    return true;
+}
+
+/**
  * Whether a dependency's cache is present and complete.
  *
  * @param {string} dir - The dependency's cache directory.
@@ -288,6 +333,7 @@ export async function fetchCatalog(config, rel) {
     await downloadAndUnzip(download, raw);
 
     await extractItemPacks(rel.id, version, manifest, raw, dir);
+    cacheSchemaArtifact(raw, dir);
     return dir;
 }
 
@@ -385,6 +431,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
         const dir = catalogDir(config, rel.id, version);
         fs.rmSync(dir, { recursive: true, force: true });
         await extractItemPacks(rel.id, version, manifest, root, dir);
+        cacheSchemaArtifact(root, dir);
         log.info(`${rel.id}@${version}: cached from ${source}`);
         return dir;
     } finally {
