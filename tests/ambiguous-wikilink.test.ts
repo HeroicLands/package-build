@@ -76,9 +76,7 @@ describe("an ambiguous wikilink names its candidates (#13)", () => {
 
 describe("an ambiguous wikilink fails the compile (#13)", () => {
     it("throws rather than warning", () => {
-        expect(() => convertNoteWikilinks("a [[Coma]] state", from)).toThrow(
-            /ambiguous/i,
-        );
+        expect(() => convertNoteWikilinks("a [[Coma]] state", from)).toThrow(/ambiguous/i);
     });
 
     it("names the colliding notes, not just the citing one", () => {
@@ -105,16 +103,12 @@ describe("an ambiguous wikilink fails the compile (#13)", () => {
         const result = convertNoteWikilinks("a [[Nowhere At All]] place", from);
         expect(result.markdown).toContain('class="sohl-unresolved-link"');
         expect(warn).toHaveBeenCalledWith(
-            expect.stringContaining(
-                "warning: unresolved wikilink [[Nowhere At All]]",
-            ),
+            expect.stringContaining("warning: unresolved wikilink [[Nowhere At All]]"),
         );
         warn.mockRestore();
     });
 
     it("does not throw when nothing is ambiguous", () => {
-        expect(() =>
-            convertNoteWikilinks("plain prose, no links", from),
-        ).not.toThrow();
+        expect(() => convertNoteWikilinks("plain prose, no links", from)).not.toThrow();
     });
 });

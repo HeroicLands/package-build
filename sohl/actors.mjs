@@ -151,9 +151,7 @@ function extractBodyAndMovement(fm) {
     return {
         body: normalizeBody(sohlField(fm, "body", {})),
         currentMoveMedium: String(sohlField(fm, "currentMoveMedium", "none")),
-        movementProfiles: normalizeMovementProfiles(
-            sohlField(fm, "movementProfiles", []),
-        ),
+        movementProfiles: normalizeMovementProfiles(sohlField(fm, "movementProfiles", [])),
     };
 }
 
@@ -290,8 +288,7 @@ function extractAnchorSection(body, anchorId) {
             if (capturing) captured.push(line);
             continue;
         }
-        const h1Match =
-            !inCodeBlock ? line.match(/^\s*#\s+(.+?)\s*#*\s*$/) : null;
+        const h1Match = !inCodeBlock ? line.match(/^\s*#\s+(.+?)\s*#*\s*$/) : null;
         if (h1Match) {
             const anchor = h1Match[1].match(/\{#([^}]+)\}\s*$/);
             const id = anchor?.[1]?.trim().toLowerCase() || null;
@@ -383,13 +380,8 @@ export class Actors extends BasePackCompiler {
      */
     async prepare() {
         await super.prepare();
-        this.itemsMap = loadItemsMap(
-            this.itemsSourceDirs,
-            this.foreignSourceDirs,
-        );
-        log.info(
-            `Loaded ${this.itemsMap.size} predefined items for actor resolution`,
-        );
+        this.itemsMap = loadItemsMap(this.itemsSourceDirs, this.foreignSourceDirs);
+        log.info(`Loaded ${this.itemsMap.size} predefined items for actor resolution`);
     }
 
     /**
@@ -421,22 +413,12 @@ export class Actors extends BasePackCompiler {
      * `(actorId, type, shortcode, indexKey)` so re-exports are stable.
      * Returns null if the descriptor cannot be resolved.
      */
-    resolveEmbedded(
-        itemsMap,
-        actorId,
-        type,
-        shortcode,
-        overlay,
-        indexKey,
-        ctx,
-    ) {
+    resolveEmbedded(itemsMap, actorId, type, shortcode, overlay, indexKey, ctx) {
         let base = null;
         if (shortcode) {
             base = itemsMap.get(`${type}:${shortcode}`);
             if (!base) {
-                this.noteError(
-                    `${ctx}: no predefined item for "${type}:${shortcode}"`,
-                );
+                this.noteError(`${ctx}: no predefined item for "${type}:${shortcode}"`);
                 this.errorCount++;
                 return null;
             }
@@ -452,10 +434,7 @@ export class Actors extends BasePackCompiler {
         }
         const merged = overlay ? deepMerge(base, overlay) : base;
         merged.type = type;
-        merged._id = makeId(
-            actorId,
-            `${type}:${shortcode || merged.name}:${indexKey}`,
-        );
+        merged._id = makeId(actorId, `${type}:${shortcode || merged.name}:${indexKey}`);
         // Foundry's pack compiler flattens the document hierarchy into LevelDB,
         // storing each embedded document under its own `_key`. Embedded items
         // therefore need a hierarchical key, as do any effects they carry
@@ -499,9 +478,7 @@ export class Actors extends BasePackCompiler {
         if (Array.isArray(sohlItems)) {
             sohlItems.forEach((entry, index) => {
                 if (!entry || typeof entry !== "object") {
-                    this.noteError(
-                        `${ctx}: sohl.items[${index}] is not an object`,
-                    );
+                    this.noteError(`${ctx}: sohl.items[${index}] is not an object`);
                     this.errorCount++;
                     return;
                 }
@@ -556,10 +533,7 @@ export class Actors extends BasePackCompiler {
      */
     openUnopenedSkills(items, ctx) {
         const skills = items.filter(
-            (item) =>
-                item.type === "skill" &&
-                item.system &&
-                item.system.masteryLevelBase == null,
+            (item) => item.type === "skill" && item.system && item.system.masteryLevelBase == null,
         );
         if (!skills.length) return;
 
@@ -621,11 +595,7 @@ export class Actors extends BasePackCompiler {
         }
 
         // Being-only combat grouping (mirrors `system.defaultCombatGroup`).
-        const defaultCombatGroup = sohlField(
-            fm,
-            "defaultCombatGroup",
-            undefined,
-        );
+        const defaultCombatGroup = sohlField(fm, "defaultCombatGroup", undefined);
         if (defaultCombatGroup !== undefined) {
             system.defaultCombatGroup = defaultCombatGroup;
         }

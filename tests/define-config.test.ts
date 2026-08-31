@@ -153,14 +153,8 @@ describe("defineConfig", () => {
         ["a missing stats block", { ...minimal(), stats: undefined }],
         ["a non-object paths block", { ...minimal(), paths: "build" }],
         ["an unknown path key", { ...minimal(), paths: { nope: "build" } }],
-        [
-            "an absolute configured path",
-            { ...minimal(), paths: { content: "/etc/content" } },
-        ],
-        [
-            "a non-array skipDirectories",
-            { ...minimal(), skipDirectories: "Templates" },
-        ],
+        ["an absolute configured path", { ...minimal(), paths: { content: "/etc/content" } }],
+        ["a non-array skipDirectories", { ...minimal(), skipDirectories: "Templates" }],
         [
             "a companion with no document type",
             {
@@ -188,23 +182,15 @@ describe("defineConfig", () => {
                 ],
             },
         ],
-        [
-            "a non-mapping packageBuild section",
-            { ...minimal(), packageBuild: [] },
-        ],
+        ["a non-mapping packageBuild section", { ...minimal(), packageBuild: [] }],
         ["an unknown site mode", { ...minimal(), publish: { site: "yes" } }],
         // Refused rather than mapped onto the nearest mode: `false` read as
         // "no web presence", which describes no package (#55).
         ["the retired `site: true`", { ...minimal(), publish: { site: true } }],
-        [
-            "the retired `site: false`",
-            { ...minimal(), publish: { site: false } },
-        ],
+        ["the retired `site: false`", { ...minimal(), publish: { site: false } }],
         ["an unknown key", { ...minimal(), publishSite: true }],
     ])("rejects %s", (_label, input) => {
-        expect(() => defineConfig(input as ContentBuildConfigInput)).toThrow(
-            TypeError,
-        );
+        expect(() => defineConfig(input as ContentBuildConfigInput)).toThrow(TypeError);
     });
 
     it("names the offending field in the error message", () => {
@@ -244,9 +230,7 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
         expect(config.paths.content).toBe(path.join("/elsewhere", "content"));
         expect(config.paths.stage).toBe(path.join("/elsewhere", "dist/packs"));
         // Unnamed paths keep the convention, anchored at the same root.
-        expect(config.paths.packJson).toBe(
-            path.join("/elsewhere", "build/packs-json"),
-        );
+        expect(config.paths.packJson).toBe(path.join("/elsewhere", "build/packs-json"));
     });
 
     it("derives the served asset root from the package kind and id", () => {
@@ -275,11 +259,7 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
             ],
         });
 
-        expect(config.packDirectories).toEqual([
-            "items",
-            "scenes",
-            "adventures",
-        ]);
+        expect(config.packDirectories).toEqual(["items", "scenes", "adventures"]);
         expect(config.packs[0].folders).toBe("item-folders.yaml");
         expect(config.packs[1].companions).toEqual([
             {
@@ -302,8 +282,7 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
         // toolchain — a consumer that uses it says so.
         expect(defineConfig(minimal()).skipDirectories).toEqual([]);
         expect(
-            defineConfig({ ...minimal(), skipDirectories: ["Templates"] })
-                .skipDirectories,
+            defineConfig({ ...minimal(), skipDirectories: ["Templates"] }).skipDirectories,
         ).toEqual(["Templates"]);
     });
 
@@ -327,9 +306,9 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
         const { compatibility: _drop, ...without } = minimal();
         expect(defineConfig(without).compatibility).toBeNull();
 
-        expect(() =>
-            defineConfig({ ...minimal(), compatibility: { verified: "14.4" } }),
-        ).toThrow(/compatibility\.minimum/);
+        expect(() => defineConfig({ ...minimal(), compatibility: { verified: "14.4" } })).toThrow(
+            /compatibility\.minimum/,
+        );
     });
 
     it("freezes the added blocks too", () => {
@@ -472,9 +451,7 @@ describe("the reserved `packageBuild` section", () => {
     it("does not key-check inside it, unlike every key around it", () => {
         // A typo'd top-level key is a build failure; a key package-build has
         // not heard of is package-build's to reject, not this module's.
-        expect(() =>
-            defineConfig({ ...minimal(), notAKey: true } as never),
-        ).toThrow(/notAKey/);
+        expect(() => defineConfig({ ...minimal(), notAKey: true } as never)).toThrow(/notAKey/);
         expect(() =>
             defineConfig({
                 ...minimal(),
@@ -547,16 +524,12 @@ describe("the address scheme a repository publishes at (#58)", () => {
     it("rejects a package-absolute prefix", () => {
         // A leading slash is the site-absolute shape #1465 removed: it would
         // record where the package is mounted, which is the consumer's fact.
-        expect(() => address({ prefix: "/kb/" })).toThrow(
-            /must not begin with a slash/,
-        );
+        expect(() => address({ prefix: "/kb/" })).toThrow(/must not begin with a slash/);
     });
 
     it("names the landing rules rather than accepting any string", () => {
         expect(address({ landing: "collection" }).landing).toBe("collection");
-        expect(() => address({ landing: "readmes" })).toThrow(
-            /readme, collection/,
-        );
+        expect(() => address({ landing: "readmes" })).toThrow(/readme, collection/);
     });
 
     it("rejects an unknown key, as every other section does", () => {
@@ -677,9 +650,7 @@ describe("prebuilt packs and per-pack systems (#40)", () => {
         expect(() =>
             defineConfig({
                 ...minimal(),
-                packs: [
-                    { name: "adventures", type: "Adventure", prebuilt: "" },
-                ],
+                packs: [{ name: "adventures", type: "Adventure", prebuilt: "" }],
             }),
         ).toThrow();
     });

@@ -107,10 +107,7 @@ function stripNonProse(source) {
  * @returns {boolean} Whether it should have been localized.
  */
 function isProse(text, allowed) {
-    return (
-        /[A-Za-z]{2}/.test(text.replace(/&[a-zA-Z]+;|&#\d+;/g, " ")) &&
-        !allowed.has(text)
-    );
+    return /[A-Za-z]{2}/.test(text.replace(/&[a-zA-Z]+;|&#\d+;/g, " ")) && !allowed.has(text);
 }
 
 /**
@@ -201,23 +198,15 @@ export function findTemplateSyntaxErrors(source) {
         // answer, in the only place this error carries it.
         const loc = err?.hash?.loc;
         const stated = /Parse error on line (\d+)/.exec(String(err?.message));
-        const line =
-            loc?.first_line ??
-            err?.lineNumber ??
-            (stated ? Number(stated[1]) : undefined);
+        const line = loc?.first_line ?? err?.lineNumber ?? (stated ? Number(stated[1]) : undefined);
         return [
             {
                 ...(typeof line === "number" ? { line } : {}),
-                ...((
-                    typeof line === "number" &&
-                    typeof loc?.first_column === "number"
-                ) ?
+                ...(typeof line === "number" && typeof loc?.first_column === "number" ?
                     { column: loc.first_column + 1 }
                 :   {}),
                 severity: "error",
-                message: `template does not compile: ${
-                    String(err).split("\n")[0]
-                }`,
+                message: `template does not compile: ${String(err).split("\n")[0]}`,
             },
         ];
     }

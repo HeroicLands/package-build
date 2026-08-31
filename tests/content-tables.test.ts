@@ -8,24 +8,15 @@
 import { describe, it, expect } from "vitest";
 // Build-time content helper (plain ESM, no Foundry). Imported by relative path
 // because the build scripts live outside the `@src` alias tree.
-import {
-    parseDataviewQuery,
-    expandContentTables,
-} from "../engine/content-tables.mjs";
+import { parseDataviewQuery, expandContentTables } from "../engine/content-tables.mjs";
 
 /**
  * A content note as the build hands it to the expander. `path` is the note's
  * location under `assets/content/`, which the `file.*` fields read.
  */
-function doc(
-    tld: string,
-    folder: string,
-    fm: Record<string, unknown>,
-    file?: string,
-) {
+function doc(tld: string, folder: string, fm: Record<string, unknown>, file?: string) {
     const leaf =
-        file ??
-        `${String((fm.name as { full?: string })?.full ?? "note").replace(/\s+/g, "_")}.md`;
+        file ?? `${String((fm.name as { full?: string })?.full ?? "note").replace(/\s+/g, "_")}.md`;
     return { fm, path: `${tld}/${folder}/${leaf}` };
 }
 
@@ -86,8 +77,7 @@ function armourDocs() {
 }
 
 /** Every note in these fixtures is linkable unless a test says otherwise. */
-const linkable = (d: { fm: Record<string, unknown> }) =>
-    Boolean(d.fm.shortcode);
+const linkable = (d: { fm: Record<string, unknown> }) => Boolean(d.fm.shortcode);
 
 /** Wraps a query in the ```dataview fence an author writes in Obsidian. */
 const block = (query: string) => "```dataview\n" + query + "\n```";
@@ -124,10 +114,7 @@ describe("parseDataviewQuery", () => {
                 'WHERE type = "armorgear"\n' +
                 "SORT name.full ASC",
         );
-        expect(spec.columns.map((c: any) => c.header)).toEqual([
-            "Name",
-            "Weight",
-        ]);
+        expect(spec.columns.map((c: any) => c.header)).toEqual(["Name", "Weight"]);
         expect(spec.sort).toHaveLength(1);
         expect(spec.sort[0].descending).toBe(false);
         expect(spec.where).not.toBeNull();
@@ -143,23 +130,15 @@ describe("parseDataviewQuery", () => {
     });
 
     it("adds the implicit File column when WITHOUT ID is absent", () => {
-        const spec = parseDataviewQuery(
-            'TABLE sohl.weight AS "Weight"\nWHERE type = "armorgear"',
-        );
-        expect(spec.columns.map((c: any) => c.header)).toEqual([
-            "File",
-            "Weight",
-        ]);
+        const spec = parseDataviewQuery('TABLE sohl.weight AS "Weight"\nWHERE type = "armorgear"');
+        expect(spec.columns.map((c: any) => c.header)).toEqual(["File", "Weight"]);
     });
 
     it("headers a column with its expression text when AS is omitted", () => {
         const spec = parseDataviewQuery(
             'TABLE WITHOUT ID name.full, sohl.weight\nWHERE type = "armorgear"',
         );
-        expect(spec.columns.map((c: any) => c.header)).toEqual([
-            "name.full",
-            "sohl.weight",
-        ]);
+        expect(spec.columns.map((c: any) => c.header)).toEqual(["name.full", "sohl.weight"]);
     });
 
     it("reads a per-key sort direction, defaulting to ascending", () => {
@@ -173,17 +152,15 @@ describe("parseDataviewQuery", () => {
     it("does not mistake a field named like a clause keyword for a clause", () => {
         // The vault sorts traits on a frontmatter field literally named `sort`.
         const spec = parseDataviewQuery(
-            'TABLE WITHOUT ID name.full AS "Name"\n' +
-                'WHERE type = "trait"\n' +
-                "SORT sort ASC",
+            'TABLE WITHOUT ID name.full AS "Name"\n' + 'WHERE type = "trait"\n' + "SORT sort ASC",
         );
         expect(spec.sort).toHaveLength(1);
     });
 
     it("rejects a query that is not a TABLE", () => {
-        expect(() =>
-            parseDataviewQuery('LIST\nWHERE type = "armorgear"'),
-        ).toThrow(/only TABLE queries/i);
+        expect(() => parseDataviewQuery('LIST\nWHERE type = "armorgear"')).toThrow(
+            /only TABLE queries/i,
+        );
     });
 
     it("rejects an unsupported clause by name", () => {
@@ -196,20 +173,14 @@ describe("parseDataviewQuery", () => {
 
     it("rejects a malformed expression", () => {
         expect(() =>
-            parseDataviewQuery(
-                'TABLE WITHOUT ID name.full\nWHERE type = = "armorgear"',
-            ),
+            parseDataviewQuery('TABLE WITHOUT ID name.full\nWHERE type = = "armorgear"'),
         ).toThrow();
-        expect(() =>
-            parseDataviewQuery("TABLE WITHOUT ID link(file.path\nWHERE type"),
-        ).toThrow();
+        expect(() => parseDataviewQuery("TABLE WITHOUT ID link(file.path\nWHERE type")).toThrow();
     });
 
     it("rejects an unknown function", () => {
         expect(() =>
-            parseDataviewQuery(
-                'TABLE WITHOUT ID name.full\nWHERE bogus(type, "x")',
-            ),
+            parseDataviewQuery('TABLE WITHOUT ID name.full\nWHERE bogus(type, "x")'),
         ).toThrow(/bogus/);
     });
 });
@@ -247,53 +218,35 @@ describe("expandContentTables — selection", () => {
         );
         expect(rowNames(ne)).toEqual(["Mail Hauberk"]);
 
-        const gt = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.value > 90',
-        );
+        const gt = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.value > 90');
         expect(rowNames(gt).sort()).toEqual(["Mail Hauberk", "Russet Robe"]);
 
-        const le = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.weight <= 1',
-        );
+        const le = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.weight <= 1');
         expect(rowNames(le).sort()).toEqual(["Dagger", "Linen Tunic"]);
     });
 
     it("compares strings case-sensitively, as Dataview does", () => {
         expect(
-            rowNames(
-                table(
-                    'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "cloth"',
-                ),
-            ),
+            rowNames(table('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "cloth"')),
         ).toEqual([]);
     });
 
     it("treats a bare field as a presence test and ! as absence", () => {
-        const present = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material',
-        );
+        const present = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material');
         expect(present).toContain("Russet Robe");
         expect(present).not.toContain("Dagger");
 
-        const absent = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE !sohl.material',
-        );
+        const absent = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE !sohl.material');
         expect(rowNames(absent)).toEqual(["Dagger"]);
     });
 
     it("reads file.path, file.name, and file.folder", () => {
         const byFolder = table(
-            'TABLE WITHOUT ID name.full AS "Name"\n' +
-                'WHERE file.folder = "Armor/Clothing"',
+            'TABLE WITHOUT ID name.full AS "Name"\n' + 'WHERE file.folder = "Armor/Clothing"',
         );
-        expect(rowNames(byFolder).sort()).toEqual([
-            "Linen Tunic",
-            "Russet Robe",
-        ]);
+        expect(rowNames(byFolder).sort()).toEqual(["Linen Tunic", "Russet Robe"]);
 
-        const byName = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE file.name = "Dagger"',
-        );
+        const byName = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE file.name = "Dagger"');
         expect(rowNames(byName)).toEqual(["Dagger"]);
 
         const byPath = table(
@@ -305,14 +258,12 @@ describe("expandContentTables — selection", () => {
 
     it("matches tags through file.tags, which carries the '#' prefix", () => {
         const md = table(
-            'TABLE WITHOUT ID name.full AS "Name"\n' +
-                'WHERE contains(file.tags, "cloth")',
+            'TABLE WITHOUT ID name.full AS "Name"\n' + 'WHERE contains(file.tags, "cloth")',
         );
         expect(rowNames(md).sort()).toEqual(["Linen Tunic", "Russet Robe"]);
         expect(
             table(
-                'TABLE WITHOUT ID name.full AS "Name"\n' +
-                    'WHERE econtains(file.tags, "#metal")',
+                'TABLE WITHOUT ID name.full AS "Name"\n' + 'WHERE econtains(file.tags, "#metal")',
             ),
         ).toContain("Mail Hauberk");
     });
@@ -321,8 +272,7 @@ describe("expandContentTables — selection", () => {
         expect(
             rowNames(
                 table(
-                    'TABLE WITHOUT ID name.full AS "Name"\n' +
-                        'WHERE contains(name.full, "Tunic")',
+                    'TABLE WITHOUT ID name.full AS "Name"\n' + 'WHERE contains(name.full, "Tunic")',
                 ),
             ),
         ).toEqual(["Linen Tunic"]);
@@ -330,9 +280,7 @@ describe("expandContentTables — selection", () => {
         // Case-sensitive, per Dataview; icontains() is the forgiving variant.
         expect(
             rowNames(
-                table(
-                    'TABLE WITHOUT ID name.full AS "Name"\nWHERE contains(name.full, "tunic")',
-                ),
+                table('TABLE WITHOUT ID name.full AS "Name"\nWHERE contains(name.full, "tunic")'),
             ),
         ).toEqual([]);
         expect(
@@ -346,24 +294,19 @@ describe("expandContentTables — selection", () => {
     });
 
     it("scopes rows to a folder with FROM", () => {
-        const md = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nFROM "Armor"\nWHERE type',
-        );
+        const md = table('TABLE WITHOUT ID name.full AS "Name"\nFROM "Armor"\nWHERE type');
         expect(rowNames(md)).toHaveLength(3);
         expect(md).not.toContain("Dagger");
     });
 
     it("scopes rows to a tag with FROM #tag", () => {
-        const md = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nFROM #cloth\nWHERE type',
-        );
+        const md = table('TABLE WITHOUT ID name.full AS "Name"\nFROM #cloth\nWHERE type');
         expect(rowNames(md).sort()).toEqual(["Linen Tunic", "Russet Robe"]);
     });
 
     it("reads a bracket-indexed field, folding it into the path", () => {
         const md = table(
-            'TABLE WITHOUT ID name["full"] AS "Name"\n' +
-                'WHERE sohl["material"] = "Mail"',
+            'TABLE WITHOUT ID name["full"] AS "Name"\n' + 'WHERE sohl["material"] = "Mail"',
         );
         expect(rowNames(md)).toEqual(["Mail Hauberk"]);
     });
@@ -384,8 +327,7 @@ describe("expandContentTables — selection", () => {
 
     it("filters on `this`, so a note can tabulate its own children", () => {
         const md = table(
-            'TABLE WITHOUT ID name.full AS "Name"\n' +
-                "WHERE sohl.material = this.material",
+            'TABLE WITHOUT ID name.full AS "Name"\n' + "WHERE sohl.material = this.material",
             { self: { fm: { material: "Mail" }, path: "Rules/Armour.md" } },
         );
         expect(rowNames(md)).toEqual(["Mail Hauberk"]);
@@ -420,23 +362,13 @@ describe("expandContentTables — rendering", () => {
             'TABLE WITHOUT ID name.full AS "Name"\n' +
                 'WHERE type = "armorgear"\nSORT sohl.value DESC',
         );
-        expect(rowNames(md)).toEqual([
-            "Mail Hauberk",
-            "Russet Robe",
-            "Linen Tunic",
-        ]);
+        expect(rowNames(md)).toEqual(["Mail Hauberk", "Russet Robe", "Linen Tunic"]);
     });
 
     it("orders by file path when no SORT clause is given", () => {
-        const md = table(
-            'TABLE WITHOUT ID name.full AS "Name"\nWHERE type = "armorgear"',
-        );
+        const md = table('TABLE WITHOUT ID name.full AS "Name"\nWHERE type = "armorgear"');
         // Armor/Armor/… sorts before Armor/Clothing/…
-        expect(rowNames(md)).toEqual([
-            "Mail Hauberk",
-            "Linen Tunic",
-            "Russet Robe",
-        ]);
+        expect(rowNames(md)).toEqual(["Mail Hauberk", "Linen Tunic", "Russet Robe"]);
     });
 
     it("renders link(file.path, …) as a wikilink to the row's own note", () => {
@@ -448,9 +380,7 @@ describe("expandContentTables — rendering", () => {
     });
 
     it("renders the implicit File column as a wikilink too", () => {
-        const md = table(
-            'TABLE sohl.weight AS "Weight"\nWHERE sohl.material = "Mail"',
-        );
+        const md = table('TABLE sohl.weight AS "Weight"\nWHERE sohl.material = "Mail"');
         expect(md).toContain("| [[armorgear/MHaub\\|Mail_Hauberk]] | 20 |");
     });
 
@@ -518,9 +448,7 @@ describe("expandContentTables — rendering", () => {
     it("separates the table from surrounding prose and keeps that prose intact", () => {
         const { markdown } = expand(
             "Cloth armour:\n\n" +
-                block(
-                    'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Cloth"',
-                ) +
+                block('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Cloth"') +
                 "\n\nMail is heavier.",
         );
         expect(markdown).toMatch(/Cloth armour:\n\n\| Name \|/);
@@ -529,13 +457,9 @@ describe("expandContentTables — rendering", () => {
 
     it("expands every dataview block in a body", () => {
         const { markdown, errors } = expand(
-            block(
-                'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Cloth"',
-            ) +
+            block('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Cloth"') +
                 "\n\n" +
-                block(
-                    'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Mail"',
-                ),
+                block('TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Mail"'),
         );
         expect(errors).toEqual([]);
         expect(markdown).toContain("Russet Robe");
@@ -583,9 +507,7 @@ describe("expandContentTables — errors", () => {
 
     it("reports a column expression that resolves to an object", () => {
         const { errors } = expand(
-            block(
-                'TABLE WITHOUT ID sohl.protection AS "Prot"\nWHERE sohl.material = "Mail"',
-            ),
+            block('TABLE WITHOUT ID sohl.protection AS "Prot"\nWHERE sohl.material = "Mail"'),
         );
         expect(errors).toHaveLength(1);
         expect(errors[0].reason).toMatch(/resolves to an object/);

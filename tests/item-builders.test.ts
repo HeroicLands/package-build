@@ -57,9 +57,7 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
 
     it("keeps the registry in step with the per-type default art", () => {
         // The third list that could drift (#1504): default item artwork.
-        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual(
-            [...itemTypes()].sort(),
-        );
+        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...itemTypes()].sort());
     });
 
     it("pairs each type with its own entry from the one art map (#7)", () => {
@@ -89,23 +87,18 @@ describe("itemBuilder (lookup that fails loudly)", () => {
         // its own graph, so the two spellings are two copies of one file. The
         // property under test is about the runtime, so it is asserted against
         // the runtime's copy.
-        const registry = createRequire(import.meta.url)(
-            "../sohl/item-builders.mjs",
-        ).ITEM_BUILDERS as Record<string, unknown>;
+        const registry = createRequire(import.meta.url)("../sohl/item-builders.mjs")
+            .ITEM_BUILDERS as Record<string, unknown>;
         // The resolved configuration holds the entries' `system` builders, not
         // the entries themselves — `itemBuilder` has always returned something
         // callable, and the paired shape (#7) did not change that.
-        expect(itemBuilder("skill")).toBe(
-            (registry["skill"] as { system: unknown }).system,
-        );
+        expect(itemBuilder("skill")).toBe((registry["skill"] as { system: unknown }).system);
         expect(itemBuilder("weapongear")).toBe(
             (registry["weapongear"] as { system: unknown }).system,
         );
         // …and that copy is the same table, key for key, as the one this
         // suite imported.
-        expect(Object.keys(registry).sort()).toEqual(
-            Object.keys(BUILDERS).sort(),
-        );
+        expect(Object.keys(registry).sort()).toEqual(Object.keys(BUILDERS).sort());
     });
 
     it("throws a named error for an unregistered type", () => {

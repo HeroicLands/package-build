@@ -80,9 +80,7 @@ export function contentAddress(fm, name, isReadme) {
  */
 function landingOf(fm, isReadme, landing) {
     if (landing === "readme") {
-        return isReadme ?
-                { landing: true, segment: sectionOf(fm) }
-            :   { landing: false };
+        return isReadme ? { landing: true, segment: sectionOf(fm) } : { landing: false };
     }
     // `collection`. The section is authored rather than derived: it is the
     // identity of the section being introduced, and the note's own title
@@ -127,9 +125,7 @@ export function packageAddress(fm, name, { isReadme = false, scheme } = {}) {
     const land = landingOf(fm, isReadme, landing);
     if (land.landing) {
         if (typeof land.segment !== "string" || !land.segment) {
-            throw new Error(
-                `landing note declares no section, so it lands nowhere`,
-            );
+            throw new Error(`landing note declares no section, so it lands nowhere`);
         }
         return `${prefix}${land.segment}/`;
     }

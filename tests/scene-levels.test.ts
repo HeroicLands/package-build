@@ -9,10 +9,7 @@ import { describe, it, expect } from "vitest";
 
 // Build-time pack integrity check (plain ESM, no Foundry). Imported by relative
 // path because the pack-build scripts live outside the `@src` alias tree.
-import {
-    checkSceneLevels,
-    compendiumCliVersion,
-} from "../engine/scene-levels.mjs";
+import { checkSceneLevels, compendiumCliVersion } from "../engine/scene-levels.mjs";
 
 /** A well-formed scene record and the sublevel record its `levels` names. */
 function goodPack(): Array<[string, Record<string, unknown>]> {
@@ -43,9 +40,7 @@ describe("checkSceneLevels", () => {
     });
 
     it("passes a pack holding no scenes at all", () => {
-        expect(
-            checkSceneLevels([["!items!AAAAAAAAAAAAAAAA", { _id: "x" }]]),
-        ).toEqual([]);
+        expect(checkSceneLevels([["!items!AAAAAAAAAAAAAAAA", { _id: "x" }]])).toEqual([]);
     });
 
     // The reported failure (#1538): the parent still names its Level, but the
@@ -53,9 +48,7 @@ describe("checkSceneLevels", () => {
     // levels" and persists the emptied array on the next launch, so the map
     // image is lost and `initialLevel` dangles.
     it("reports a `levels` id with no record in the scenes.levels sublevel", () => {
-        const records = goodPack().filter(
-            ([key]) => !key.startsWith("!scenes.levels!"),
-        );
+        const records = goodPack().filter(([key]) => !key.startsWith("!scenes.levels!"));
         const problems = checkSceneLevels(records);
         expect(problems).toHaveLength(1);
         expect(problems[0]).toContain("Hearthmoor");
@@ -134,9 +127,7 @@ describe("checkSceneLevels", () => {
         });
 
         it("reports an inline scene whose initialLevel is absent", () => {
-            const problems = checkSceneLevels(
-                adventure([{ _id: "other0000000000" }]),
-            );
+            const problems = checkSceneLevels(adventure([{ _id: "other0000000000" }]));
             expect(problems).toHaveLength(1);
             expect(problems[0]).toContain("initialLevel");
         });
@@ -174,10 +165,7 @@ describe("checkSceneLevels diagnostics", () => {
         name: string,
         levels: unknown,
     ): [string, Record<string, unknown>] {
-        return [
-            `!scenes!${id}`,
-            { _id: id, name, initialLevel: "defaultLevel0000", levels },
-        ];
+        return [`!scenes!${id}`, { _id: id, name, initialLevel: "defaultLevel0000", levels }];
     }
 
     const inlineLevel = {
@@ -203,9 +191,7 @@ describe("checkSceneLevels diagnostics", () => {
     it("reports an inline Level object that carries no `_id`", () => {
         const problems = checkSceneLevels([
             ...otherScene(),
-            sceneDeclaring("AAAAAAAAAAAAAAAA", "Hearthmoor", [
-                { name: "Ground" },
-            ]),
+            sceneDeclaring("AAAAAAAAAAAAAAAA", "Hearthmoor", [{ name: "Ground" }]),
         ]);
         expect(problems).toHaveLength(1);
         expect(problems[0]).not.toContain("[object Object]");
@@ -282,9 +268,7 @@ describe("checkSceneLevels diagnostics", () => {
     // sublevel is still one fact, and still reported once.
     it("reports the wholesale case for id entries without blaming inline shape", () => {
         const problems = checkSceneLevels([
-            sceneDeclaring("AAAAAAAAAAAAAAAA", "Hearthmoor", [
-                "defaultLevel0000",
-            ]),
+            sceneDeclaring("AAAAAAAAAAAAAAAA", "Hearthmoor", ["defaultLevel0000"]),
             sceneDeclaring("CCCCCCCCCCCCCCCC", "Wayside", ["defaultLevel0000"]),
         ]);
         expect(problems).toHaveLength(1);

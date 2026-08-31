@@ -11,10 +11,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import {
-    MARKDOWNLINT_CONFIG,
-    PRETTIER_CONFIG,
-} from "../engine/prose-config.mjs";
+import { MARKDOWNLINT_CONFIG, PRETTIER_CONFIG } from "../engine/prose-config.mjs";
 
 /**
  * A throwaway repository.
@@ -73,9 +70,7 @@ describe("content-build format (#69)", () => {
         const file = write("a.md", "Some   *emphasis*    here.\n");
         return checkFormatting(root).then((r) => {
             expect(files(r.findings)).toEqual(["a.md"]);
-            expect(fs.readFileSync(file, "utf8")).toBe(
-                "Some   *emphasis*    here.\n",
-            );
+            expect(fs.readFileSync(file, "utf8")).toBe("Some   *emphasis*    here.\n");
         });
     });
 
@@ -129,10 +124,7 @@ describe("content-build format (#69)", () => {
     // repository with a config resolves it correctly, and every markdown
     // fixture here was a single line with nothing to indent.
     it("indents markdown at 2 with no local config, as the shared override says", async () => {
-        const note = write(
-            "note.md",
-            "---\nname:\n  full: X\n  aliases:\n    - A\n---\n\ntext\n",
-        );
+        const note = write("note.md", "---\nname:\n  full: X\n  aliases:\n    - A\n---\n\ntext\n");
 
         expect((await checkFormatting(root)).findings).toEqual([]);
 

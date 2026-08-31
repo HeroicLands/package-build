@@ -99,18 +99,12 @@ export function anchorsOf(body) {
  * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(
-    contentBase,
-    { manifestDir, skipDirectories } = {},
-) {
+export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {}) {
     const notes = [];
     const frontmatterLinks = [];
     const walkOpts = skipDirectories ? { skipDirectories } : undefined;
 
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(
-        contentBase,
-        walkOpts,
-    )) {
+    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
         if (!fm || typeof fm.type !== "string") continue;
         // The raw text is kept beside the parsed body: a consumer's own checks
         // may need what frontmatter carried, which the body has dropped.
@@ -182,10 +176,7 @@ export function buildLinkIndex(
         :   { index: new Map(), packages: new Set(), stale: [] };
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
-    const packages = new Set([
-        ...(byKey.size ? [pkg] : []),
-        ...foreign.packages,
-    ]);
+    const packages = new Set([...(byKey.size ? [pkg] : []), ...foreign.packages]);
 
     /** The searchable universe a `dataview` table draws its rows from. */
     const tableDocs = notes.map((n) => ({
@@ -223,10 +214,7 @@ export function buildLinkIndex(
         const seen = new Map();
         // Code is verbatim, so a `[[…]]` inside a fence, an indented block or
         // an inline span is not a link — the compilers make none of it either.
-        for (const [all, rawInner] of matchAllOutsideCode(
-            body,
-            new RegExp(WIKILINK.source, "g"),
-        )) {
+        for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
             const { target, anchor } = parseWikilink(rawInner);
             const occurrence = (seen.get(all) ?? 0) + 1;
             seen.set(all, occurrence);
@@ -258,18 +246,13 @@ export function buildLinkIndex(
      */
     function resolve(note, target) {
         const direct =
-            byAlias.get(`${note.type}|${target}`.toLowerCase()) ??
-            byKey.get(target.toLowerCase());
+            byAlias.get(`${note.type}|${target}`.toLowerCase()) ?? byKey.get(target.toLowerCase());
         if (direct) return direct;
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
         return byKey.get(
             qualified.package ?
-                canonicalKey(
-                    qualified.package,
-                    qualified.type,
-                    qualified.shortcode,
-                )
+                canonicalKey(qualified.package, qualified.type, qualified.shortcode)
             :   `${qualified.type}/${qualified.shortcode}`.toLowerCase(),
         );
     }
@@ -284,11 +267,7 @@ export function buildLinkIndex(
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return null;
         if (q.package) {
-            return (
-                foreign.index.get(
-                    canonicalKey(q.package, q.type, q.shortcode),
-                ) ?? null
-            );
+            return foreign.index.get(canonicalKey(q.package, q.type, q.shortcode)) ?? null;
         }
         // A bare address names no package, so it resolves against any foreign
         // one that publishes it. Claimed by two, it is ambiguous and the author
@@ -397,8 +376,7 @@ function landingTarget(url, bases) {
     }
     if (!/^https?:$/.test(parsed.protocol)) return null;
     if (!SITE_HOST.test(parsed.hostname)) return null;
-    const pathname =
-        parsed.pathname.endsWith("/") ? parsed.pathname : `${parsed.pathname}/`;
+    const pathname = parsed.pathname.endsWith("/") ? parsed.pathname : `${parsed.pathname}/`;
     for (const [pkg, base] of bases) {
         if (pathname === base) return { pkg, base };
     }
@@ -444,8 +422,7 @@ function readAddress(url, packages) {
         segments = value.split("?")[0].split("#")[0].split("/").filter(Boolean);
     }
 
-    const prefix =
-        shape !== "relative" && packages.has(segments[0]) ? segments[0] : null;
+    const prefix = shape !== "relative" && packages.has(segments[0]) ? segments[0] : null;
     return { shape, segments, prefix };
 }
 
@@ -533,10 +510,7 @@ export function auditHomepageLinks(index) {
             );
         }
 
-        for (const { field, url, kind } of homepageAddresses(
-            note.fm,
-            note.body,
-        )) {
+        for (const { field, url, kind } of homepageAddresses(note.fm, note.body)) {
             // Counted for every address, checked or not, so the count is
             // the literal's nth appearance in the file rather than the nth
             // *finding* about it — two rules can fire on one address.
@@ -583,8 +557,7 @@ export function auditHomepageLinks(index) {
                             `relocation does not leave this page behind`,
                 );
             } else if (shape === "rooted" && kind === "url") {
-                const rest =
-                    prefix ? segments.slice(1).join("/") : segments.join("/");
+                const rest = prefix ? segments.slice(1).join("/") : segments.join("/");
                 report(
                     field,
                     url,
@@ -596,9 +569,7 @@ export function auditHomepageLinks(index) {
                     // `href:` is the field for an address already resolved.
                     !rest ?
                         `url "${url}" addresses ` +
-                            (prefix ?
-                                `package "${prefix}"'s landing`
-                            :   `the site root`) +
+                            (prefix ? `package "${prefix}"'s landing` : `the site root`) +
                             `, but a landing's url: is package-relative and ` +
                             `cannot leave this package — write ` +
                             `href: "${url}", which is used verbatim`
@@ -737,9 +708,7 @@ export function auditLinks(index) {
 export function walkReachability(index, { root, scope, stopAt = () => false }) {
     const rootNote = index.notes.find((n) => n.rel === root);
     if (!rootNote) {
-        throw new Error(
-            `no note at ${root}, so the corpus has no page to be read from`,
-        );
+        throw new Error(`no note at ${root}, so the corpus has no page to be read from`);
     }
 
     const reached = new Set([rootNote]);

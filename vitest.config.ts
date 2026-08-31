@@ -36,10 +36,7 @@ export default defineConfig({
         environment: "node",
         include: ["tests/**/*.test.ts"],
         env: {
-            PACKAGE_BUILD_CONFIG: path.join(
-                HERE,
-                "tests/fixtures/repo/package-build.config.yaml",
-            ),
+            PACKAGE_BUILD_CONFIG: path.join(HERE, "tests/fixtures/repo/package-build.config.yaml"),
         },
     },
 });

@@ -47,10 +47,8 @@ import { loadPackConfig } from "./pack-config.mjs";
 function renderDefault(value) {
     if (value === undefined) return "—";
     if (value === null) return "`null`";
-    if (typeof value === "string")
-        return value === "" ? '`""`' : `\`${value}\``;
-    if (Array.isArray(value))
-        return value.length === 0 ? "`[]`" : `\`${JSON.stringify(value)}\``;
+    if (typeof value === "string") return value === "" ? '`""`' : `\`${value}\``;
+    if (Array.isArray(value)) return value.length === 0 ? "`[]`" : `\`${JSON.stringify(value)}\``;
     if (typeof value === "object") {
         const json = JSON.stringify(value);
         return json === "{}" ? "`{}`" : `\`${json}\``;
@@ -83,17 +81,10 @@ function cell(text) {
  * @returns {string[]} Markdown lines.
  */
 function padTable(rows) {
-    const widths = rows[0].map((_, column) =>
-        Math.max(...rows.map((row) => row[column].length)),
-    );
-    const line = (cells) =>
-        `| ${cells.map((c, i) => c.padEnd(widths[i])).join(" | ")} |`;
+    const widths = rows[0].map((_, column) => Math.max(...rows.map((row) => row[column].length)));
+    const line = (cells) => `| ${cells.map((c, i) => c.padEnd(widths[i])).join(" | ")} |`;
     const [header, ...body] = rows;
-    return [
-        line(header),
-        `| ${widths.map((w) => "-".repeat(w)).join(" | ")} |`,
-        ...body.map(line),
-    ];
+    return [line(header), `| ${widths.map((w) => "-".repeat(w)).join(" | ")} |`, ...body.map(line)];
 }
 
 /**
@@ -156,12 +147,7 @@ function workedExample(type, fields) {
     for (const field of required) {
         lines.push(`  ${field.name}: <${field.shape ?? "value"}>`);
     }
-    lines.push(
-        "---",
-        "",
-        "The prose here compiles into the item's documentation.",
-        "```",
-    );
+    lines.push("---", "", "The prose here compiles into the item's documentation.", "```");
     return lines;
 }
 

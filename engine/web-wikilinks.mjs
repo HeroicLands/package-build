@@ -46,12 +46,7 @@ import { slugify } from "./content-slug.mjs";
 // Re-exported so a site build keeps one import path for the whole of link
 // resolution: the same rule that names a page also names an anchor within it.
 export { slugify };
-import {
-    authoredLabel,
-    WIKILINK,
-    isSamePage,
-    parseWikilink,
-} from "./wikilink-syntax.mjs";
+import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
 
 /** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 
@@ -280,9 +275,7 @@ export function resolveWebWikilinks(body, ctx) {
             // Both separators qualify: `type-shortcode` is the canonical form
             // (#1398), and a hyphen inside a note *name* ("Grukar-ahk") is not
             // one, which is why the rule is the packs' own (#1409).
-            const text =
-                label ??
-                (isAddress(target, ctx.contentTypes) ? hit.name : target);
+            const text = label ?? (isAddress(target, ctx.contentTypes) ? hit.name : target);
             // A pack-only package publishes Foundry addresses and no pages
             // (#1516), so its entries carry no `path` and resolve to no URL.
             // The address is real — this is not a typo and must not fail the
@@ -295,8 +288,7 @@ export function resolveWebWikilinks(body, ctx) {
         }
 
         const slash = target.indexOf("/");
-        const prefix =
-            slash === -1 ? null : target.slice(0, slash).toLowerCase();
+        const prefix = slash === -1 ? null : target.slice(0, slash).toLowerCase();
         // Deliberately *not* extended to the hyphen form, which is also how a
         // note addresses content in a package this build does not publish
         // (`Rules/Bestiary.md` → `being-grkrahk`, a real note in the `thalorna`
@@ -307,8 +299,7 @@ export function resolveWebWikilinks(body, ctx) {
         // which holds the reviewed list of cross-package exceptions — and which,
         // unlike this build, runs as part of `npm run lint` on every change.
         const badQualified =
-            prefix !== null &&
-            (ctx.sections.has(prefix) || ctx.contentTypes.has(prefix));
+            prefix !== null && (ctx.sections.has(prefix) || ctx.contentTypes.has(prefix));
         // The hyphen form is the canonical address (#1398) and is what the
         // authored content writes. It could not be guarded while some packages
         // were invisible here: `Rules/Bestiary.md` addresses `being-grkrahk`,

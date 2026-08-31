@@ -65,9 +65,7 @@ describe("authoredLabel", () => {
     });
 
     it("returns a real label unchanged", () => {
-        expect(authoredLabel(parseWikilink("doc-shock|Shock State"))).toBe(
-            "Shock State",
-        );
+        expect(authoredLabel(parseWikilink("doc-shock|Shock State"))).toBe("Shock State");
     });
 
     // The distinction the fallback must not erase: `labelled` is what #1409
@@ -99,16 +97,12 @@ describe("the web resolver honours an empty label (#113)", () => {
     });
 
     it("leaves a genuinely labelled link alone", () => {
-        expect(web("[[doc-shock|Shock State]]")).toBe(
-            "[Shock State](/rules/sohl-shock/)",
-        );
+        expect(web("[[doc-shock|Shock State]]")).toBe("[Shock State](/rules/sohl-shock/)");
     });
 
     // #1409: a bare `[[Text]]` is already the prose the author wrote, so the
     // canonical name must not be substituted there. Unchanged by this fix.
     it("keeps an unlabelled alias showing the author's own prose", () => {
-        expect(web("[[Shock State]]")).toBe(
-            "[Shock State](/rules/sohl-shock/)",
-        );
+        expect(web("[[Shock State]]")).toBe("[Shock State](/rules/sohl-shock/)");
     });
 });

@@ -48,12 +48,7 @@ import { Journals } from "./journals.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
-import {
-    statsForPack,
-    loadFolders,
-    buildFolderResolver,
-    writeFolderDocs,
-} from "./helpers.mjs";
+import { statsForPack, loadFolders, buildFolderResolver, writeFolderDocs } from "./helpers.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -170,10 +165,7 @@ export function orderPassesByDependency(packs) {
         readsOutputOf(pack.type).every(
             (dependency) =>
                 !declared.has(dependency) ||
-                packs.every(
-                    (other) =>
-                        other.type !== dependency || emitted.has(other.name),
-                ),
+                packs.every((other) => other.type !== dependency || emitted.has(other.name)),
         );
 
     while (remaining.length) {
@@ -269,8 +261,7 @@ async function generatePack(
     let folderList;
     let resolver;
     try {
-        folderList =
-            folders ? loadFolders(path.join(contentBase, folders)) : [];
+        folderList = folders ? loadFolders(path.join(contentBase, folders)) : [];
         ({ resolver } = buildFolderResolver(folderList));
     } catch (err) {
         log.error(`${name} ${folders} validation failed: ${err.message}`);
@@ -365,10 +356,7 @@ export function emptyPassErrors(passes) {
  * @throws {Error} If the configured Foundry package id has drifted from the
  *   shipped manifest's `id` (see `package-manifest.mjs`).
  */
-export async function generatePacksJson({
-    only,
-    config = loadPackConfig(),
-} = {}) {
+export async function generatePacksJson({ only, config = loadPackConfig() } = {}) {
     // Before anything is generated: every UUID written below is addressed to
     // the configured `foundryPackage`, so a value that has drifted from the shipped
     // manifest's `id` produces a whole pack of links that resolve nowhere.

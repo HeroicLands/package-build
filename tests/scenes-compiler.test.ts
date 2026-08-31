@@ -122,9 +122,7 @@ describe("the scenes pass", () => {
         const scenes = read(sceneDir);
         const ground = scenes["Test Ground Floor"];
         expect(ground._key).toBe("!scenes!AAAAAAAAAAAAAAAA");
-        expect(ground.levels[0]._key).toBe(
-            "!scenes.levels!AAAAAAAAAAAAAAAA.defaultLevel0000",
-        );
+        expect(ground.levels[0]._key).toBe("!scenes.levels!AAAAAAAAAAAAAAAA.defaultLevel0000");
         // A missing `_key` fails the compendium compile with "Key cannot be
         // null or undefined", so every embedded document carries one.
         for (const collection of ["walls", "notes", "regions"]) {
@@ -148,9 +146,7 @@ describe("the scenes pass", () => {
         // 14.353, discarding an authored Level and its map image without a
         // word (#1533). The stamp comes from the manifest's supported floor.
         const ground = read(sceneDir)["Test Ground Floor"];
-        const [major, build = 0] = ground._stats.coreVersion
-            .split(".")
-            .map(Number);
+        const [major, build = 0] = ground._stats.coreVersion.split(".").map(Number);
         expect(major).toBe(14);
         expect(build).toBeGreaterThanOrEqual(353);
     });
@@ -158,9 +154,7 @@ describe("the scenes pass", () => {
     it("resolves a cross-map teleport address to the other scene's region", () => {
         const scenes = read(sceneDir);
         const loft = scenes["Test Loft"];
-        const stairHead = loft.regions.find(
-            (r: any) => r.name === "Stair Head",
-        );
+        const stairHead = loft.regions.find((r: any) => r.name === "Stair Head");
         const teleport = scenes["Test Ground Floor"].regions
             .find((r: any) => r.name === "Stair Foot")
             .behaviors.find((b: any) => b.type === "teleportToken");
@@ -186,14 +180,12 @@ describe("the scenes pass", () => {
     it("points each pin at a page the bundled journal actually holds", () => {
         const ground = read(sceneDir)["Test Ground Floor"];
         const adventure = read(adventureDir)["Test Place"];
-        const entry = adventure.journal.find(
-            (j: any) => j._id === ground.journal,
-        );
+        const entry = adventure.journal.find((j: any) => j._id === ground.journal);
         const pageIds = entry.pages.map((p: any) => p._id);
         expect(ground.notes).toHaveLength(1);
         expect(pageIds).toContain(ground.notes[0].pageId);
-        expect(
-            entry.pages.find((p: any) => p._id === ground.notes[0].pageId).name,
-        ).toBe("Common Room");
+        expect(entry.pages.find((p: any) => p._id === ground.notes[0].pageId).name).toBe(
+            "Common Room",
+        );
     });
 });

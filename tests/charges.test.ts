@@ -22,35 +22,40 @@ describe("resolveCharges (pack builder — a blank maximum means 'does not use c
     });
 
     it("yields a null max when the maximum is explicitly null", () => {
-        expect(
-            resolveCharges({ sohl: { charges: { value: null, max: null } } }),
-        ).toEqual({ value: null, max: null });
+        expect(resolveCharges({ sohl: { charges: { value: null, max: null } } })).toEqual({
+            value: null,
+            max: null,
+        });
     });
 
     it("keeps a declared finite maximum and current value", () => {
-        expect(
-            resolveCharges({ sohl: { charges: { value: 3, max: 5 } } }),
-        ).toEqual({ value: 3, max: 5 });
+        expect(resolveCharges({ sohl: { charges: { value: 3, max: 5 } } })).toEqual({
+            value: 3,
+            max: 5,
+        });
     });
 
     it("keeps a zero maximum, which means 'counted but uncapped'", () => {
-        expect(
-            resolveCharges({ sohl: { charges: { value: 2, max: 0 } } }),
-        ).toEqual({ value: 2, max: 0 });
+        expect(resolveCharges({ sohl: { charges: { value: 2, max: 0 } } })).toEqual({
+            value: 2,
+            max: 0,
+        });
     });
 
     it("keeps a null value (infinite remaining) alongside a real maximum", () => {
-        expect(
-            resolveCharges({ sohl: { charges: { value: null, max: 4 } } }),
-        ).toEqual({ value: null, max: 4 });
+        expect(resolveCharges({ sohl: { charges: { value: null, max: 4 } } })).toEqual({
+            value: null,
+            max: 4,
+        });
     });
 
     it("forces the value to null when the item does not use charges", () => {
         // A stray current-charge count cannot outlive a blank maximum: the
         // logic layer disables both modifiers when max is null.
-        expect(
-            resolveCharges({ sohl: { charges: { value: 7, max: null } } }),
-        ).toEqual({ value: null, max: null });
+        expect(resolveCharges({ sohl: { charges: { value: 7, max: null } } })).toEqual({
+            value: null,
+            max: null,
+        });
     });
 
     it("ignores a legacy usesCharges flag entirely", () => {

@@ -23,12 +23,7 @@ import {
     resolveMacroScope,
     resolveMacroType,
 } from "../engine/macros.mjs";
-import {
-    docEntryTypes,
-    hasDocEntry,
-    itemTypes,
-    itemDocEntryId,
-} from "../engine/item-docs.mjs";
+import { docEntryTypes, hasDocEntry, itemTypes, itemDocEntryId } from "../engine/item-docs.mjs";
 import { splitPages, buildPages } from "../engine/journals.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
 import { MAP_TYPES } from "../engine/ids.mjs";
@@ -80,9 +75,7 @@ describe("extractJsFence (the first language-tagged JS fence, verbatim)", () => 
     });
 
     it("skips an untagged fence and finds the tagged one after it", () => {
-        expect(extractJsFence("```\nplain\n```\n\n```js\nreal();\n```")).toBe(
-            "real();",
-        );
+        expect(extractJsFence("```\nplain\n```\n\n```js\nreal();\n```")).toBe("real();");
     });
 
     it("reads a longer fence delimiter, so a script may embed ```", () => {
@@ -144,27 +137,22 @@ describe("macroCommand (the script page's first JS fence)", () => {
     });
 
     it("works whatever heading depth carries the anchor", () => {
-        const body =
-            "# Doc\n\ntext\n\n### Script {#script}\n\n```js\nx();\n```";
+        const body = "# Doc\n\ntext\n\n### Script {#script}\n\n```js\nx();\n```";
         expect(macroCommand(body, "Macro")).toBe("x();");
     });
 
     it("fails the build when no page declares {#script}", () => {
-        expect(() => macroCommand("# Doc\n\n```js\nx();\n```", "Aut")).toThrow(
-            /\{#script\}/,
-        );
+        expect(() => macroCommand("# Doc\n\n```js\nx();\n```", "Aut")).toThrow(/\{#script\}/);
     });
 
     it("fails the build when the script page has no tagged JS fence", () => {
-        expect(() =>
-            macroCommand("# Script {#script}\n\n```\nx();\n```", "Aut"),
-        ).toThrow(/language-tagged/);
+        expect(() => macroCommand("# Script {#script}\n\n```\nx();\n```", "Aut")).toThrow(
+            /language-tagged/,
+        );
     });
 
     it("names the macro in either error, so the build says which note", () => {
-        expect(() => macroCommand("nothing", "Automated Attack")).toThrow(
-            /Automated Attack/,
-        );
+        expect(() => macroCommand("nothing", "Automated Attack")).toThrow(/Automated Attack/);
     });
 });
 
@@ -178,21 +166,15 @@ describe("resolveMacroType", () => {
     });
 
     it("accepts an explicit `script`", () => {
-        expect(resolveMacroType({ sohl: { macroType: "script" } }, "m")).toBe(
-            "script",
-        );
+        expect(resolveMacroType({ sohl: { macroType: "script" } }, "m")).toBe("script");
     });
 
     it("rejects `chat` rather than half-implementing it", () => {
-        expect(() =>
-            resolveMacroType({ sohl: { macroType: "chat" } }, "m"),
-        ).toThrow(/chat/);
+        expect(() => resolveMacroType({ sohl: { macroType: "chat" } }, "m")).toThrow(/chat/);
     });
 
     it("rejects an unknown macro type", () => {
-        expect(() =>
-            resolveMacroType({ sohl: { macroType: "wobble" } }, "m"),
-        ).toThrow(/wobble/);
+        expect(() => resolveMacroType({ sohl: { macroType: "wobble" } }, "m")).toThrow(/wobble/);
     });
 });
 
@@ -203,16 +185,12 @@ describe("resolveMacroScope", () => {
 
     it("accepts every Foundry macro scope", () => {
         for (const scope of MACRO_SCOPES) {
-            expect(
-                resolveMacroScope({ sohl: { macroScope: scope } }, "m"),
-            ).toBe(scope);
+            expect(resolveMacroScope({ sohl: { macroScope: scope } }, "m")).toBe(scope);
         }
     });
 
     it("rejects a scope Foundry does not define", () => {
-        expect(() =>
-            resolveMacroScope({ sohl: { macroScope: "party" } }, "m"),
-        ).toThrow(/party/);
+        expect(() => resolveMacroScope({ sohl: { macroScope: "party" } }, "m")).toThrow(/party/);
     });
 });
 
@@ -236,9 +214,7 @@ describe("buildMacroEntry", () => {
     });
 
     it("names the macro from its frontmatter", () => {
-        expect(buildMacroEntry(FM, { command: "x();" }).name).toBe(
-            "Automated Attack",
-        );
+        expect(buildMacroEntry(FM, { command: "x();" }).name).toBe("Automated Attack");
     });
 
     it("states `script` explicitly — Foundry's initial type is CHAT", () => {
@@ -287,9 +263,7 @@ describe("a macro note carries documentation like an item does", () => {
         for (const t of itemTypes()) expect(hasDocEntry(t)).toBe(true);
         // Every item type, plus `macro`, plus the three map types — a map
         // note's prose is a JournalEntry of its own too (#1525).
-        expect(docEntryTypes().size).toBe(
-            itemTypes().size + 1 + MAP_TYPES.size,
-        );
+        expect(docEntryTypes().size).toBe(itemTypes().size + 1 + MAP_TYPES.size);
     });
 
     it("leaves `doc` notes and actors alone — they are one document each", () => {
@@ -308,15 +282,8 @@ describe("a macro note carries documentation like an item does", () => {
             "```",
         ].join("\n");
         const entryId = itemDocEntryId(NOTE_ID);
-        const pages = buildPages(
-            splitPages(body, "Automated Attack"),
-            entryId,
-            "Automated Attack",
-        );
-        expect(pages.map((p) => p.name)).toEqual([
-            "Automated Attack",
-            "Script",
-        ]);
+        const pages = buildPages(splitPages(body, "Automated Attack"), entryId, "Automated Attack");
+        expect(pages.map((p) => p.name)).toEqual(["Automated Attack", "Script"]);
         expect(pages[1].text.content).toContain("await go();");
     });
 });
@@ -354,18 +321,14 @@ describe("wikilinks to a macro and to its documentation", () => {
 
     it("addresses its documentation through the virtual `docmacro`", () => {
         expect(convert("[[docmacro-autoattack|the docs]]")).toBe(
-            `@UUID[Compendium.sohl.journals.JournalEntry.${itemDocEntryId(
-                NOTE_ID,
-            )}]{the docs}`,
+            `@UUID[Compendium.sohl.journals.JournalEntry.${itemDocEntryId(NOTE_ID)}]{the docs}`,
         );
     });
 
     it("reaches the script page by anchor", () => {
         const out = convert("[[docmacro-autoattack#script|source]]");
         expect(out).toContain(
-            `Compendium.sohl.journals.JournalEntry.${itemDocEntryId(
-                NOTE_ID,
-            )}.JournalEntryPage.`,
+            `Compendium.sohl.journals.JournalEntry.${itemDocEntryId(NOTE_ID)}.JournalEntryPage.`,
         );
     });
 
@@ -399,9 +362,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
         ],
     ]);
 
-    const localOnlyDocs = [
-        { type: "doc", id: "docdocdocdocdoc1", shortcode: "usage" },
-    ];
+    const localOnlyDocs = [{ type: "doc", id: "docdocdocdocdoc1", shortcode: "usage" }];
 
     it("does not admit a foreign `docmacro` key to the known-type set", () => {
         // No local macro notes at all: `macro` is known only from the manifest,

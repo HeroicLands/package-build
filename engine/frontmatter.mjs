@@ -119,8 +119,7 @@ export function resolveCharges(fm) {
     // A blank maximum means "does not use charges" — a stray current count
     // cannot outlive it, since the logic layer disables both modifiers.
     return {
-        value:
-            max === null ? null : toCount(sohlField(fm, "charges.value", null)),
+        value: max === null ? null : toCount(sohlField(fm, "charges.value", null)),
         max,
     };
 }
@@ -149,9 +148,7 @@ export function resolveCharges(fm) {
 export function resolveSkillAptitudes(fm, ctx = "item") {
     const entries = readMapEntries(fm, "skillAptitudes");
     if (entries === null) {
-        throw new Error(
-            `${ctx}: skillAptitudes must be a map of selector → number`,
-        );
+        throw new Error(`${ctx}: skillAptitudes must be a map of selector → number`);
     }
     const out = {};
     for (const [selector, value] of entries) {
@@ -187,9 +184,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
 export function resolveRelation(fm, ctx = "item") {
     const entries = readMapEntries(fm, "relation");
     if (entries === null) {
-        throw new Error(
-            `${ctx}: relation must be a map of shortcode → standing`,
-        );
+        throw new Error(`${ctx}: relation must be a map of shortcode → standing`);
     }
     const out = {};
     for (const [code, value] of entries) {

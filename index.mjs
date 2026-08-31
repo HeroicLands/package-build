@@ -42,11 +42,7 @@
 // ── Content: notes to compendium packs, site content, link manifests ────────
 
 /** The configuration contract a consuming repository declares its build with. */
-export {
-    defineConfig,
-    PACKAGE_KINDS,
-    PACK_DOCUMENT_TYPES,
-} from "./content-config.mjs";
+export { defineConfig, PACKAGE_KINDS, PACK_DOCUMENT_TYPES } from "./content-config.mjs";
 
 /** The content pipeline — walking, compiling, linking, emitting. */
 export * as engine from "./engine/index.mjs";

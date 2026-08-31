@@ -50,9 +50,10 @@ import { CONFIG_BASENAME, findConfigFile } from "../engine/pack-config.mjs";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
-const manifest = JSON.parse(
-    fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8"),
-) as { version: string; files: string[] };
+const manifest = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")) as {
+    version: string;
+    files: string[];
+};
 
 /** Where the copy lives, and the package root inside it. */
 let sandbox: string;
@@ -124,18 +125,11 @@ beforeAll(() => {
             fs.cpSync(from, path.join(installed, entry), { recursive: true });
         }
     }
-    fs.cpSync(
-        path.join(PKG_ROOT, "package.json"),
-        path.join(installed, "package.json"),
-    );
+    fs.cpSync(path.join(PKG_ROOT, "package.json"), path.join(installed, "package.json"));
 
     // The runtime dependencies still have to resolve; only the *configuration*
     // is meant to be missing.
-    fs.symlinkSync(
-        path.join(PKG_ROOT, "node_modules"),
-        path.join(sandbox, "node_modules"),
-        "dir",
-    );
+    fs.symlinkSync(path.join(PKG_ROOT, "node_modules"), path.join(sandbox, "node_modules"), "dir");
 });
 
 afterAll(() => {
@@ -167,11 +161,7 @@ describe("the shipped package needs no configuration to be imported (#2)", () =>
             }
             console.log(JSON.stringify(failures));
         `;
-        const { status, stdout, stderr } = run([
-            "--input-type=module",
-            "-e",
-            probe,
-        ]);
+        const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
         expect(status, stderr).toBe(0);
         expect(JSON.parse(stdout.trim())).toEqual([]);
     });
@@ -204,11 +194,7 @@ describe("the shipped package needs no configuration to be imported (#2)", () =>
             try { loadPackConfig(); console.log("NO THROW"); }
             catch (err) { console.log(err.message); }
         `;
-        const { status, stdout, stderr } = run([
-            "--input-type=module",
-            "-e",
-            probe,
-        ]);
+        const { status, stdout, stderr } = run(["--input-type=module", "-e", probe]);
         expect(status, stderr).toBe(0);
         expect(stdout).toContain(CONFIG_BASENAME);
         expect(stdout).toContain("PACKAGE_BUILD_CONFIG");

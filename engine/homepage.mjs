@@ -262,9 +262,7 @@ export function checkHomepageCount(found, { contentBase, contentPackage }) {
     if (pages.length === 1) return [];
 
     return pages.map((page) => {
-        const others = pages
-            .filter((p) => p !== page)
-            .map((p) => formatLocator({ file: p.file }));
+        const others = pages.filter((p) => p !== page).map((p) => formatLocator({ file: p.file }));
         return {
             file: page.file,
             ...positionOfType(page.file),
@@ -292,11 +290,7 @@ export function checkHomepageCount(found, { contentBase, contentPackage }) {
  */
 function positionOfType(file) {
     try {
-        return positionInFrontmatter(
-            fs.readFileSync(file, "utf8"),
-            "type",
-            HOMEPAGE_TYPE,
-        );
+        return positionInFrontmatter(fs.readFileSync(file, "utf8"), "type", HOMEPAGE_TYPE);
     } catch {
         return {};
     }
@@ -325,9 +319,7 @@ export function homepageTitle(fm, config) {
         config?.packageBuild?.manifest
     );
     const title = manifest?.title;
-    return typeof title === "string" && title.trim() ?
-            title
-        :   config.contentPackage;
+    return typeof title === "string" && title.trim() ? title : config.contentPackage;
 }
 
 /**
@@ -394,10 +386,7 @@ export const HOMEPAGE_ADDRESS_KEYS = Object.freeze(new Set(["url", "href"]));
  */
 function collectProse(text, field, kind, out, skipCode = false) {
     const pattern = new RegExp(MARKDOWN_LINK.source, "g");
-    const matches =
-        skipCode ?
-            matchAllOutsideCode(text, pattern)
-        :   [...text.matchAll(pattern)];
+    const matches = skipCode ? matchAllOutsideCode(text, pattern) : [...text.matchAll(pattern)];
     for (const m of matches) out.push({ field, url: m[1], kind });
 }
 

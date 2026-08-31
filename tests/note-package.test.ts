@@ -32,18 +32,12 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import {
-    assertNoDeclaredPackage,
-    searchableFrontmatter,
-} from "../engine/note-package.mjs";
+import { assertNoDeclaredPackage, searchableFrontmatter } from "../engine/note-package.mjs";
 import * as notePackageModule from "../engine/note-package.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
-import {
-    collectManifestEntries,
-    manifestContext,
-} from "../engine/manifest-emit.mjs";
+import { collectManifestEntries, manifestContext } from "../engine/manifest-emit.mjs";
 import { defineConfig } from "../index.mjs";
 
 /** The package this suite's fixture repository compiles. */
@@ -69,26 +63,18 @@ describe("assertNoDeclaredPackage — the field is rejected outright", () => {
         // The point of the major: not "accepted while it agrees". An agreeing
         // declaration is exactly the ~6,200 redundant lines the sweep removed,
         // and tolerating it lets the field grow back.
-        expect(() => assertNoDeclaredPackage({ package: OWN })).toThrow(
-            /retired/,
-        );
+        expect(() => assertNoDeclaredPackage({ package: OWN })).toThrow(/retired/);
     });
 
     it("rejects a note declaring some other package", () => {
-        expect(() =>
-            assertNoDeclaredPackage({ package: "harnadventures" }),
-        ).toThrow(/retired/);
+        expect(() => assertNoDeclaredPackage({ package: "harnadventures" })).toThrow(/retired/);
     });
 
     it("rejects a declaration with no value at all", () => {
         // `package:` alone parses as null, and an empty one as "". Both are the
         // field, authored — there is no value that makes writing it correct.
-        expect(() => assertNoDeclaredPackage({ package: null })).toThrow(
-            /retired/,
-        );
-        expect(() => assertNoDeclaredPackage({ package: "" })).toThrow(
-            /retired/,
-        );
+        expect(() => assertNoDeclaredPackage({ package: null })).toThrow(/retired/);
+        expect(() => assertNoDeclaredPackage({ package: "" })).toThrow(/retired/);
     });
 
     it("says what to do instead, naming `contentPackage` and where it lives", () => {
@@ -108,9 +94,9 @@ describe("assertNoDeclaredPackage — the field is rejected outright", () => {
     });
 
     it("names the file when it was given one", () => {
-        expect(() =>
-            assertNoDeclaredPackage({ package: OWN }, { file: "Gear/Axe.md" }),
-        ).toThrow(/Gear\/Axe\.md/);
+        expect(() => assertNoDeclaredPackage({ package: OWN }, { file: "Gear/Axe.md" })).toThrow(
+            /Gear\/Axe\.md/,
+        );
     });
 
     it("leaves the file out of the message when it was given none", () => {
@@ -144,11 +130,7 @@ describe("assertNoDeclaredPackage — the field is rejected outright", () => {
         const tmp = fs.mkdtempSync(path.join(os.tmpdir(), "note-pkg-pos-"));
         try {
             const file = path.join(tmp, "Declares.md");
-            fs.writeFileSync(
-                file,
-                `---\ntype: doc\npackage: ${OWN}\n---\n\nProse.\n`,
-                "utf8",
-            );
+            fs.writeFileSync(file, `---\ntype: doc\npackage: ${OWN}\n---\n\nProse.\n`, "utf8");
             let position: any;
             try {
                 assertNoDeclaredPackage(
@@ -194,9 +176,7 @@ describe("searchableFrontmatter — what a generated table searches", () => {
 
 /** A note in the tree's shape, with or without a `package:` line. */
 function note(fm: Record<string, unknown>, body = "Prose."): string {
-    const lines = Object.entries(fm).map(
-        ([k, v]) => `${k}: ${JSON.stringify(v)}`,
-    );
+    const lines = Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
     return `---\n${lines.join("\n")}\n---\n\n${body}\n`;
 }
 
@@ -414,9 +394,7 @@ describe("a generated table still scopes on `package` after the sweep", () => {
         await probe.compile();
         expect(probe.errorCount).toBe(0);
 
-        const doc = JSON.parse(
-            fs.readFileSync(path.join(dest, fs.readdirSync(dest)[0]), "utf8"),
-        );
+        const doc = JSON.parse(fs.readFileSync(path.join(dest, fs.readdirSync(dest)[0]), "utf8"));
         // Without the synthesised package the query would match neither note
         // and render an empty table, in silence — the failure mode the sweep
         // would otherwise have walked straight into (#56).
@@ -474,9 +452,7 @@ describe("addresses are keyed from the configuration alone", () => {
         const root = tree("links");
         const index = buildLinkIndex(path.join(root, "assets/content"));
         // The package-qualified form is what a cross-package link writes.
-        expect(
-            index.resolve({ type: "doc" }, `${OWN}-skill-clmb`),
-        ).toBeTruthy();
+        expect(index.resolve({ type: "doc" }, `${OWN}-skill-clmb`)).toBeTruthy();
         expect(index.packages.has(OWN)).toBe(true);
     });
 
@@ -504,8 +480,8 @@ describe("addresses are keyed from the configuration alone", () => {
             }),
             "utf8",
         );
-        expect(() =>
-            collectManifestEntries(content, manifestContext(configFor(root))),
-        ).toThrow(/retired/);
+        expect(() => collectManifestEntries(content, manifestContext(configFor(root)))).toThrow(
+            /retired/,
+        );
     });
 });

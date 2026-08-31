@@ -42,10 +42,9 @@ describe("toDiagnostics", () => {
 
     it("keeps a line and column together", () => {
         expect(
-            toDiagnostics(
-                [{ severity: "error", message: "bad", line: 3, column: 12 }],
-                { file: "lang/en.json" },
-            ),
+            toDiagnostics([{ severity: "error", message: "bad", line: 3, column: 12 }], {
+                file: "lang/en.json",
+            }),
         ).toEqual([
             {
                 file: "lang/en.json",
@@ -76,10 +75,9 @@ describe("toDiagnostics", () => {
     it("drops a column that has no line to sit on", () => {
         // A column alone locates nothing, and `formatLocator` ignores it — so
         // carrying it would only invite a reader to trust it.
-        const [d] = toDiagnostics(
-            [{ severity: "error", message: "bad", column: 12 }],
-            { file: "build/stage/sohl.mjs" },
-        );
+        const [d] = toDiagnostics([{ severity: "error", message: "bad", column: 12 }], {
+            file: "build/stage/sohl.mjs",
+        });
 
         expect("column" in d).toBe(false);
     });
@@ -112,9 +110,7 @@ describe("toDiagnostics", () => {
     });
 
     it("needs no default file when every finding carries one", () => {
-        expect(
-            toDiagnostics([{ message: "x", file: "src/a.ts" }], {})[0].file,
-        ).toBe("src/a.ts");
+        expect(toDiagnostics([{ message: "x", file: "src/a.ts" }], {})[0].file).toBe("src/a.ts");
     });
 });
 

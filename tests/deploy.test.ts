@@ -61,11 +61,7 @@ describe("resolveStage", () => {
 
 describe("packageSubpath", () => {
     it("places a system and a module in their own trees", () => {
-        expect(packageSubpath("systems", "sohl")).toEqual([
-            "Data",
-            "systems",
-            "sohl",
-        ]);
+        expect(packageSubpath("systems", "sohl")).toEqual(["Data", "systems", "sohl"]);
         expect(packageSubpath("modules", "sohl-thalorna")).toEqual([
             "Data",
             "modules",
@@ -74,9 +70,7 @@ describe("packageSubpath", () => {
     });
 
     it("refuses a kind Foundry does not define", () => {
-        expect(() => packageSubpath("plugins" as never, "x")).toThrow(
-            /"systems" or "modules"/,
-        );
+        expect(() => packageSubpath("plugins" as never, "x")).toThrow(/"systems" or "modules"/);
     });
 
     it("refuses a missing package id", () => {
@@ -128,21 +122,15 @@ describe("parseRemote", () => {
 
 describe("resolveAgent", () => {
     it("prefers a per-stage override", () => {
-        expect(
-            resolveAgent(
-                { FOUNDRYVTT_QA_AGENT: "pageant", SSH_AUTH_SOCK: "/sock" },
-                "QA",
-            ),
-        ).toBe("pageant");
+        expect(resolveAgent({ FOUNDRYVTT_QA_AGENT: "pageant", SSH_AUTH_SOCK: "/sock" }, "QA")).toBe(
+            "pageant",
+        );
     });
 
     it("falls back to the shared override, then the agent socket", () => {
-        expect(
-            resolveAgent(
-                { SOHL_SFTP_AGENT: "shared", SSH_AUTH_SOCK: "/s" },
-                "QA",
-            ),
-        ).toBe("shared");
+        expect(resolveAgent({ SOHL_SFTP_AGENT: "shared", SSH_AUTH_SOCK: "/s" }, "QA")).toBe(
+            "shared",
+        );
         expect(resolveAgent({ SSH_AUTH_SOCK: "/sock" }, "QA")).toBe("/sock");
     });
 });
@@ -210,17 +198,14 @@ describe("deployLocal — atomic staged swap (safe with a live server)", () => {
         await fs.mkdir(path.join(ws.src, "packs", "actors"), {
             recursive: true,
         });
-        await fs.writeFile(
-            path.join(ws.src, "packs", "actors", "CURRENT"),
-            "MANIFEST-1",
-        );
+        await fs.writeFile(path.join(ws.src, "packs", "actors", "CURRENT"), "MANIFEST-1");
 
         await deployLocal(ws.src, ws.dest);
 
         expect(await readMaybe(path.join(ws.dest, "system.json"))).toBe("v1");
-        expect(
-            await readMaybe(path.join(ws.dest, "packs", "actors", "CURRENT")),
-        ).toBe("MANIFEST-1");
+        expect(await readMaybe(path.join(ws.dest, "packs", "actors", "CURRENT"))).toBe(
+            "MANIFEST-1",
+        );
     });
 
     it("replaces existing content and removes stale files", async () => {
@@ -249,10 +234,7 @@ describe("deployLocal — atomic staged swap (safe with a live server)", () => {
             await fs.mkdir(path.join(ws.src, "packs", "actors"), {
                 recursive: true,
             });
-            await fs.writeFile(
-                path.join(ws.src, "packs", "actors", "000001.ldb"),
-                "NEW-DATA",
-            );
+            await fs.writeFile(path.join(ws.src, "packs", "actors", "000001.ldb"), "NEW-DATA");
 
             await deployLocal(ws.src, ws.dest);
 
@@ -301,11 +283,9 @@ describe("deployStage", () => {
         });
 
         expect(result).toMatchObject({ stage: "qa", remote: false });
-        expect(
-            await readMaybe(
-                path.join(dataRoot, "Data", "systems", "sohl", "system.json"),
-            ),
-        ).toBe("v1");
+        expect(await readMaybe(path.join(dataRoot, "Data", "systems", "sohl", "system.json"))).toBe(
+            "v1",
+        );
     });
 
     it("deploys a module beneath Data/modules/<id>", async () => {
@@ -318,15 +298,7 @@ describe("deployStage", () => {
             env: { FOUNDRYVTT_DEV_DATA: dataRoot },
         });
         expect(
-            await readMaybe(
-                path.join(
-                    dataRoot,
-                    "Data",
-                    "modules",
-                    "sohl-thalorna",
-                    "system.json",
-                ),
-            ),
+            await readMaybe(path.join(dataRoot, "Data", "modules", "sohl-thalorna", "system.json")),
         ).toBe("v1");
     });
 
@@ -355,12 +327,7 @@ describe("deployStage", () => {
     });
 
     it("declares one environment variable per stage", () => {
-        expect(Object.keys(STAGE_ENV_MAP)).toEqual([
-            "dev",
-            "qa",
-            "prod",
-            "test",
-        ]);
+        expect(Object.keys(STAGE_ENV_MAP)).toEqual(["dev", "qa", "prod", "test"]);
         expect(Object.isFrozen(STAGE_ENV_MAP)).toBe(true);
     });
 });

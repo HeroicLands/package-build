@@ -36,9 +36,10 @@ const artifact = (documents: object, systemVersion = "0.8.2") => ({
 
 describe("emittedFields", () => {
     it("takes every `to`, which is what buildFromFields writes", () => {
-        expect([
-            ...emittedFields([{ to: "subType" }, { to: "levelBase" }]),
-        ]).toEqual(["subType", "levelBase"]);
+        expect([...emittedFields([{ to: "subType" }, { to: "levelBase" }])]).toEqual([
+            "subType",
+            "levelBase",
+        ]);
     });
 
     // A schema declares `charges` as a SchemaField and the paths beneath it
@@ -46,10 +47,7 @@ describe("emittedFields", () => {
     // container as unemitted and the leaf as undeclared — two findings, both
     // wrong, for a correct declaration.
     it("records the parents of a nested path, not only the leaf", () => {
-        expect([...emittedFields([{ to: "charges.value" }])]).toEqual([
-            "charges",
-            "charges.value",
-        ]);
+        expect([...emittedFields([{ to: "charges.value" }])]).toEqual(["charges", "charges.value"]);
     });
 
     it("ignores a field that writes nowhere", () => {
@@ -73,9 +71,7 @@ describe("declaredFields separates own from inherited", () => {
     });
 
     it("reads `own` as only what the subtype adds", () => {
-        expect([...declaredFields(a, "Item", "skill")!.own]).toEqual([
-            "subType",
-        ]);
+        expect([...declaredFields(a, "Item", "skill")!.own]).toEqual(["subType"]);
     });
 
     it("returns null for a subtype the artifact does not declare", () => {
@@ -90,10 +86,7 @@ describe("emitted but not declared — the field evaporates at load", () => {
     it("catches the assocMysteryCode case (#35)", () => {
         const { undeclared } = compareFields({
             builders: {
-                mysticalability: [
-                    { to: "subType" },
-                    { to: "assocMysteryCode" },
-                ],
+                mysticalability: [{ to: "subType" }, { to: "assocMysteryCode" }],
             },
             artifact: artifact({
                 Item: {
@@ -219,10 +212,7 @@ describe("declared but not emitted — reported, and only for own fields", () =>
                 },
             }),
         });
-        expect(unemitted.map((f) => f.field).sort()).toEqual([
-            "charges",
-            "charges.value",
-        ]);
+        expect(unemitted.map((f) => f.field).sort()).toEqual(["charges", "charges.value"]);
     });
 
     it("explains what a reader would see instead", () => {

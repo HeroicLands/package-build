@@ -89,9 +89,7 @@ import { draftRetiredMessage } from "./retired-fields.mjs";
  *
  * @type {ReadonlySet<string>}
  */
-export const UNIVERSAL_KEYS = Object.freeze(
-    new Set(["folder", "pack", "archetype", "kbcat"]),
-);
+export const UNIVERSAL_KEYS = Object.freeze(new Set(["folder", "pack", "archetype", "kbcat"]));
 
 /**
  * Edit distance, capped — enough to answer "did you mean".
@@ -166,11 +164,7 @@ export function matchesKind(value, kind) {
                         value.trim() !== "" &&
                         Number.isFinite(Number(value));
         case "boolean":
-            return (
-                typeof value === "boolean" ||
-                value === "true" ||
-                value === "false"
-            );
+            return typeof value === "boolean" || value === "true" || value === "false";
         case "string":
             return typeof value !== "object" || value === null;
         case "list":
@@ -179,9 +173,7 @@ export function matchesKind(value, kind) {
             // An emptied map arrives as `[]` from the property editor, and
             // means "this note authors no entries" — the same thing `{}` means.
             return (
-                (typeof value === "object" &&
-                    value !== null &&
-                    !Array.isArray(value)) ||
+                (typeof value === "object" && value !== null && !Array.isArray(value)) ||
                 (Array.isArray(value) && value.length === 0)
             );
         default:
@@ -197,9 +189,7 @@ export function matchesKind(value, kind) {
  */
 function sohlBlock(fm) {
     const block = fm?.sohl;
-    return block && typeof block === "object" && !Array.isArray(block) ?
-            block
-        :   {};
+    return block && typeof block === "object" && !Array.isArray(block) ? block : {};
 }
 
 /**
@@ -217,8 +207,7 @@ export function lintNote(note, { schemas, index }) {
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
-    const at = (key, literal) =>
-        positionInFrontmatter(raw(), key, literal ?? undefined);
+    const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
 
     // The retired top-level fields, checked before the type: a note may carry
     // one whatever its type is, and each finding stands on its own. Reported
@@ -312,8 +301,7 @@ export function lintNote(note, { schemas, index }) {
         const [head, ...rest] = field.name.split(".");
         let value = block[head];
         for (const segment of rest) {
-            value =
-                value && typeof value === "object" ? value[segment] : undefined;
+            value = value && typeof value === "object" ? value[segment] : undefined;
         }
         const absent = value === undefined || value === null;
 

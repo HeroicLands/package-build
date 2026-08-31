@@ -142,11 +142,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
         :   undefined;
 
     if (hasDocEntry(fm.type)) {
-        const docKey = canonicalKey(
-            contentPackage,
-            `doc${fm.type}`,
-            fm.shortcode,
-        );
+        const docKey = canonicalKey(contentPackage, `doc${fm.type}`, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
         const docUuid = uuidFor("doc", docEntryId);
         return [
@@ -166,10 +162,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 // documentation, so both addresses resolve to the same URL.
                 url,
                 uuid: docUuid,
-                anchors:
-                    docUuid ?
-                        anchorsOf(docUuid, docEntryId, body ?? "", name)
-                    :   undefined,
+                anchors: docUuid ? anchorsOf(docUuid, docEntryId, body ?? "", name) : undefined,
             },
         ];
     }
@@ -184,10 +177,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             name,
             url,
             uuid: own,
-            anchors:
-                own && fm.type === "doc" ?
-                    anchorsOf(own, fm.id, body ?? "", name)
-                :   undefined,
+            anchors: own && fm.type === "doc" ? anchorsOf(own, fm.id, body ?? "", name) : undefined,
         },
     ];
 }
@@ -221,10 +211,9 @@ export function collectManifestEntries(contentBase, ctx) {
     // note yields two entries, so reporting one as the other overstates how
     // much of the tree is published.
     let notes = 0;
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(
-        contentBase,
-        { skipDirectories: ctx.skipDirectories },
-    )) {
+    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
+        skipDirectories: ctx.skipDirectories,
+    })) {
         if (!fm) continue;
         const rel = path.relative(contentBase, absPath);
         assertNoDeclaredPackage(fm, {

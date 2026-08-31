@@ -18,11 +18,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import {
-    VISIBLE_ATTRIBUTES,
-    findHardcodedText,
-    findTemplateSyntaxErrors,
-} from "../templates.mjs";
+import { VISIBLE_ATTRIBUTES, findHardcodedText, findTemplateSyntaxErrors } from "../templates.mjs";
 
 describe("findHardcodedText", () => {
     it("passes a template whose every visible string is localized", () => {
@@ -56,12 +52,7 @@ describe("findHardcodedText", () => {
     it("locates a finding at the line the literal is on", () => {
         // The literal is what the reader searches for, so the position must be
         // the literal's own — not the top of the file.
-        const source = [
-            "<div>",
-            "  {{name}}",
-            "  <p>Well met.</p>",
-            "</div>",
-        ].join("\n");
+        const source = ["<div>", "  {{name}}", "  <p>Well met.</p>", "</div>"].join("\n");
         const [finding] = findHardcodedText(source);
 
         expect(finding.line).toBe(3);
@@ -79,9 +70,7 @@ describe("findHardcodedText", () => {
         const [finding] = findHardcodedText(source);
 
         expect(finding.line).toBe(2);
-        expect(source.split("\n")[1]!.slice(finding.column! - 1)).toMatch(
-            /^Wounded/,
-        );
+        expect(source.split("\n")[1]!.slice(finding.column! - 1)).toMatch(/^Wounded/);
     });
 
     it("ignores markup with no prose in it", () => {
@@ -105,9 +94,7 @@ describe("findHardcodedText", () => {
     });
 
     it("ignores a Handlebars comment", () => {
-        expect(
-            findHardcodedText("{{!-- an explanatory note --}}<p>{{x}}</p>"),
-        ).toEqual([]);
+        expect(findHardcodedText("{{!-- an explanatory note --}}<p>{{x}}</p>")).toEqual([]);
     });
 
     it("accepts a literal the repository has justified", () => {
@@ -123,9 +110,7 @@ describe("findHardcodedText", () => {
 
 describe("findTemplateSyntaxErrors", () => {
     it("passes a template that compiles", () => {
-        expect(
-            findTemplateSyntaxErrors('<p>{{localize "SOHL.a"}}</p>'),
-        ).toEqual([]);
+        expect(findTemplateSyntaxErrors('<p>{{localize "SOHL.a"}}</p>')).toEqual([]);
     });
 
     // The usual way to break a template while localizing it: legal in an HTML

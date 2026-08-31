@@ -31,24 +31,16 @@ describe("formatDiagnostic — the compiler-style locator", () => {
                 severity: "warning",
                 message: "unresolved wikilink [[Kenbet_Pat]]",
             }),
-        ).toBe(
-            "notes/Capital.md:12:5: warning: unresolved wikilink [[Kenbet_Pat]]",
-        );
+        ).toBe("notes/Capital.md:12:5: warning: unresolved wikilink [[Kenbet_Pat]]");
     });
 
     it("degrades one field at a time rather than inventing a position", () => {
         const base = { file: "a.md", severity: "error", message: "boom" };
-        expect(formatDiagnostic({ ...base, line: 3 })).toBe(
-            "a.md:3: error: boom",
-        );
+        expect(formatDiagnostic({ ...base, line: 3 })).toBe("a.md:3: error: boom");
         expect(formatDiagnostic(base)).toBe("a.md: error: boom");
         // A column without a line cannot be placed, so it is dropped with it.
-        expect(formatDiagnostic({ ...base, column: 9 })).toBe(
-            "a.md: error: boom",
-        );
-        expect(formatDiagnostic({ severity: "error", message: "boom" })).toBe(
-            "error: boom",
-        );
+        expect(formatDiagnostic({ ...base, column: 9 })).toBe("a.md: error: boom");
+        expect(formatDiagnostic({ severity: "error", message: "boom" })).toBe("error: boom");
     });
 
     it("reports a path relative to the working directory", () => {
@@ -122,17 +114,19 @@ describe("positionInBody — an offset becomes a file position", () => {
     it("shifts by where the body starts in the file", () => {
         // A note's body is what follows the frontmatter, so an offset within
         // it is not a file line until the frontmatter's own lines are added.
-        expect(
-            positionInBody(body, body.indexOf("[[a link]]"), { bodyLine: 9 }),
-        ).toMatchObject({ line: 10, column: 14 });
+        expect(positionInBody(body, body.indexOf("[[a link]]"), { bodyLine: 9 })).toMatchObject({
+            line: 10,
+            column: 14,
+        });
     });
 
     it("applies the body's starting column to its first line only", () => {
         // `parseMarkdownFile` trims the body, so its first line may have lost
         // indentation the file still has. Later lines are untouched.
-        expect(
-            positionInBody(body, 0, { bodyLine: 4, bodyColumn: 5 }),
-        ).toMatchObject({ line: 4, column: 5 });
+        expect(positionInBody(body, 0, { bodyLine: 4, bodyColumn: 5 })).toMatchObject({
+            line: 4,
+            column: 5,
+        });
         expect(
             positionInBody(body, body.indexOf("line three"), {
                 bodyLine: 4,
@@ -155,12 +149,16 @@ describe("positionInBody — an offset becomes a file position", () => {
             generated: false,
         });
         // A generated line has no authored column — only the directive's line.
-        expect(
-            positionInBody(body, body.indexOf("[[a link]]"), { lineMap }),
-        ).toMatchObject({ line: 8, generated: true, column: undefined });
-        expect(
-            positionInBody(body, body.indexOf("line three"), { lineMap }),
-        ).toMatchObject({ line: 10, generated: false, column: 1 });
+        expect(positionInBody(body, body.indexOf("[[a link]]"), { lineMap })).toMatchObject({
+            line: 8,
+            generated: true,
+            column: undefined,
+        });
+        expect(positionInBody(body, body.indexOf("line three"), { lineMap })).toMatchObject({
+            line: 10,
+            generated: false,
+            column: 1,
+        });
     });
 });
 
@@ -298,10 +296,7 @@ describe("convertWikilinks records where each unresolved link sat", () => {
             id: "aaaaaaaaaaaaaaa1",
             index,
         });
-        expect(unresolved.map((u: any) => u.offset)).toEqual([
-            0,
-            body.lastIndexOf("[[Nowhere]]"),
-        ]);
+        expect(unresolved.map((u: any) => u.offset)).toEqual([0, body.lastIndexOf("[[Nowhere]]")]);
     });
 });
 
@@ -356,9 +351,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
         fs.mkdirSync(content, { recursive: true });
         fs.writeFileSync(path.join(content, "Capital.md"), NOTE);
         warned = [];
-        vi.spyOn(console, "warn").mockImplementation(
-            (line: any) => void warned.push(String(line)),
-        );
+        vi.spyOn(console, "warn").mockImplementation((line: any) => void warned.push(String(line)));
         const out = path.join(tmp, "probes");
         fs.mkdirSync(out, { recursive: true });
         await new Probe({ contentBase: content, dest: out }).compile();
@@ -374,25 +367,16 @@ describe("an unresolved wikilink names the file, line and column", () => {
         // 1-based file coordinates of each authored link.
         const first = {
             line: lines.findIndex((l) => l.includes("[[Kenbet_Pat|")) + 1,
-            column:
-                lines.find((l) => l.includes("[[Kenbet_Pat|"))!.indexOf("[[") +
-                1,
+            column: lines.find((l) => l.includes("[[Kenbet_Pat|"))!.indexOf("[[") + 1,
         };
         const second = {
             line: lines.findIndex((l) => l.includes("the [[Kenbet_Pat]]")) + 1,
-            column:
-                lines
-                    .find((l) => l.includes("the [[Kenbet_Pat]]"))!
-                    .indexOf("[[") + 1,
+            column: lines.find((l) => l.includes("the [[Kenbet_Pat]]"))!.indexOf("[[") + 1,
         };
 
         expect(warned).toEqual([
-            expect.stringContaining(
-                `Capital.md:${first.line}:${first.column}: warning: `,
-            ),
-            expect.stringContaining(
-                `Capital.md:${second.line}:${second.column}: warning: `,
-            ),
+            expect.stringContaining(`Capital.md:${first.line}:${first.column}: warning: `),
+            expect.stringContaining(`Capital.md:${second.line}:${second.column}: warning: `),
         ]);
     });
 
@@ -453,20 +437,12 @@ describe("positionInFrontmatter — where a key is declared", () => {
 
     it("drops the position rather than guessing it", () => {
         expect(positionInFrontmatter(raw, "nosuchkey")).toEqual({});
-        expect(positionInFrontmatter("no frontmatter here", "type")).toEqual(
-            {},
-        );
+        expect(positionInFrontmatter("no frontmatter here", "type")).toEqual({});
         expect(positionInFrontmatter(undefined as never, "type")).toEqual({});
     });
 
     it("is not fooled by a key that is a prefix of another", () => {
-        const doc = [
-            "---",
-            "shortcodeExtra: x",
-            "shortcode: y",
-            "---",
-            "",
-        ].join("\n");
+        const doc = ["---", "shortcodeExtra: x", "shortcode: y", "---", ""].join("\n");
         expect(positionInFrontmatter(doc, "shortcode")).toEqual({
             line: 3,
             column: 1,

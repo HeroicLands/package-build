@@ -12,10 +12,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { packFolderFindings, writeManifest } from "../manifest.mjs";
-import {
-    formatDiagnostic,
-    positionOfYamlPath,
-} from "../engine/diagnostics.mjs";
+import { formatDiagnostic, positionOfYamlPath } from "../engine/diagnostics.mjs";
 
 /** The pack list `manifestPacks` derives, reduced to what the rule reads. */
 const packs = (...names: string[]) => names.map((name) => ({ name }));
@@ -34,11 +31,7 @@ describe("packFolderFindings", () => {
         });
         const errors = findings.filter((f) => f.severity === "error");
         expect(errors).toHaveLength(3);
-        expect(errors.map((f) => f.pack)).toEqual([
-            "character",
-            "possessions",
-            "esoteric",
-        ]);
+        expect(errors.map((f) => f.pack)).toEqual(["character", "possessions", "esoteric"]);
         // Both halves are named, so the reader needs neither file open.
         expect(errors[0].message).toContain('"HârnMaster 3 System"');
         expect(errors[0].message).toContain('"character"');
@@ -48,9 +41,7 @@ describe("packFolderFindings", () => {
     // The other half of HM3#420, and the half a strict rule would get wrong.
     it("warns on a pack no folder names", () => {
         const findings = packFolderFindings({
-            packFolders: [
-                { name: "HârnMaster 3 System", packs: ["system-help"] },
-            ],
+            packFolders: [{ name: "HârnMaster 3 System", packs: ["system-help"] }],
             packs: packs("items", "system-help"),
         });
         expect(findings).toHaveLength(1);
@@ -79,9 +70,7 @@ describe("packFolderFindings", () => {
                 packs: packs("items", "journals"),
             }),
         ).toEqual([]);
-        expect(
-            packFolderFindings({ packFolders: [], packs: packs("items") }),
-        ).toEqual([]);
+        expect(packFolderFindings({ packFolders: [], packs: packs("items") })).toEqual([]);
     });
 
     // Foundry nests pack folders three deep (`PackageCompendiumFolder`
@@ -134,12 +123,7 @@ describe("packFolderFindings", () => {
             packFolders: [{ name: "Top", packs: ["gone", "alsogone"] }],
             packs: packs("a", "b"),
         });
-        expect(findings.map((f) => f.severity)).toEqual([
-            "error",
-            "error",
-            "warning",
-            "warning",
-        ]);
+        expect(findings.map((f) => f.severity)).toEqual(["error", "error", "warning", "warning"]);
     });
 });
 
@@ -155,25 +139,14 @@ describe("positionOfYamlPath", () => {
 
     it("locates a scalar deep in the document", () => {
         expect(
-            positionOfYamlPath(yaml, [
-                "packageBuild",
-                "manifest",
-                "packFolders",
-                0,
-                "packs",
-                1,
-            ]),
+            positionOfYamlPath(yaml, ["packageBuild", "manifest", "packFolders", 0, "packs", 1]),
         ).toEqual({ line: 5, column: 30 });
     });
 
     it("locates a mapping key's value", () => {
-        expect(
-            positionOfYamlPath(yaml, [
-                "packageBuild",
-                "manifest",
-                "packFolders",
-            ]),
-        ).toMatchObject({ line: 4 });
+        expect(positionOfYamlPath(yaml, ["packageBuild", "manifest", "packFolders"])).toMatchObject(
+            { line: 4 },
+        );
     });
 
     // Dropped, never guessed: an absent path yields no position at all.
@@ -213,10 +186,7 @@ describe("writeManifest reporting", () => {
         try {
             await expect(
                 writeManifest({
-                    config: configWith(
-                        [{ name: "Top", packs: ["gone"] }],
-                        ["items"],
-                    ),
+                    config: configWith([{ name: "Top", packs: ["gone"] }], ["items"]),
                     packageJson,
                     artifact: "system",
                     outDir,
@@ -251,10 +221,7 @@ describe("writeManifest reporting", () => {
             .mockImplementation((line: string) => void warnings.push(line));
         try {
             const { manifest } = await writeManifest({
-                config: configWith(
-                    [{ name: "Top", packs: ["items"] }],
-                    ["items", "journals"],
-                ),
+                config: configWith([{ name: "Top", packs: ["items"] }], ["items", "journals"]),
                 packageJson,
                 artifact: "system",
                 outDir: dir,
@@ -285,10 +252,7 @@ describe("writeManifest reporting", () => {
             .mockImplementation((line: string) => void warnings.push(line));
         try {
             await writeManifest({
-                config: configWith(
-                    [{ name: "Top", packs: ["items"] }],
-                    ["items", "journals"],
-                ),
+                config: configWith([{ name: "Top", packs: ["items"] }], ["items", "journals"]),
                 packageJson,
                 artifact: "system",
                 outDir,
@@ -302,12 +266,8 @@ describe("writeManifest reporting", () => {
     it("says nothing at all for a package declaring no folders", async () => {
         const outDir = fs.mkdtempSync(path.join(os.tmpdir(), "pb-folders-"));
         const said: string[] = [];
-        const warn = vi
-            .spyOn(console, "warn")
-            .mockImplementation((l: string) => void said.push(l));
-        const err = vi
-            .spyOn(console, "error")
-            .mockImplementation((l: string) => void said.push(l));
+        const warn = vi.spyOn(console, "warn").mockImplementation((l: string) => void said.push(l));
+        const err = vi.spyOn(console, "error").mockImplementation((l: string) => void said.push(l));
         try {
             await writeManifest({
                 config: configWith(undefined, ["items", "journals"]),

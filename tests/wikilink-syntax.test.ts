@@ -7,11 +7,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import {
-    WIKILINK,
-    isSamePage,
-    parseWikilink,
-} from "../engine/wikilink-syntax.mjs";
+import { WIKILINK, isSamePage, parseWikilink } from "../engine/wikilink-syntax.mjs";
 
 /** Every wikilink interior the shared pattern finds in a body. */
 const found = (body: string) =>
@@ -19,18 +15,14 @@ const found = (body: string) =>
 
 describe("WIKILINK — what counts as a link", () => {
     it("finds a link in prose", () => {
-        expect(found("See [[skill-climbing]] and [[a|B]].")).toEqual([
-            "skill-climbing",
-            "a|B",
-        ]);
+        expect(found("See [[skill-climbing]] and [[a|B]].")).toEqual(["skill-climbing", "a|B"]);
     });
 
     // The divergence this module exists to end. The web resolver's pattern
     // omitted `\n`, so an unclosed bracket consumed everything up to the next
     // `]]` anywhere in the document — two paragraphs, in the case that found it.
     it("does not let an unclosed bracket swallow the document", () => {
-        const body =
-            "Prose with [[ an unclosed bracket\n\nand a later [[skill-climbing]] link.";
+        const body = "Prose with [[ an unclosed bracket\n\nand a later [[skill-climbing]] link.";
         expect(found(body)).toEqual(["skill-climbing"]);
     });
 

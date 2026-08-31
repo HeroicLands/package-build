@@ -198,10 +198,7 @@ export function diffItemAddresses(baseline, current, { baseline: label }) {
 export function noteFilesById(contentBase, { skipDirectories } = {}) {
     const byId = new Map();
     const walkOpts = skipDirectories ? { skipDirectories } : undefined;
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(
-        contentBase,
-        walkOpts,
-    )) {
+    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
         if (fm?.id && !byId.has(fm.id)) byId.set(fm.id, absPath);
     }
     return byId;

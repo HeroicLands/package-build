@@ -129,17 +129,15 @@ describe("requiring a system is the separate, optional gate", () => {
         // The declaration is reused rather than restated, so the two cannot
         // disagree the way a transcription can.
         expect(config.systems.sohl.compatibility.verified).toBe("0.8.2");
-        expect(config.systems.sohl.manifest).toBe(
-            "https://example.org/system.json",
-        );
+        expect(config.systems.sohl.manifest).toBe("https://example.org/system.json");
     });
 });
 
 describe("a name that resolves to nothing is an error, not a fall-through", () => {
     it("refuses requiresSystem naming an undeclared system", () => {
-        expect(() =>
-            resolveIn(repoDir(), twoSystems({ requiresSystem: "hm4" })),
-        ).toThrow(/requiresSystem.*hm4.*does not declare/s);
+        expect(() => resolveIn(repoDir(), twoSystems({ requiresSystem: "hm4" }))).toThrow(
+            /requiresSystem.*hm4.*does not declare/s,
+        );
     });
 
     it("refuses a pack naming an undeclared system", () => {
@@ -157,9 +155,9 @@ describe("a name that resolves to nothing is an error, not a fall-through", () =
     // package from any world whose system the gate does not name, so the pack
     // would ship and be unreachable.
     it("refuses a pack whose system the gate excludes", () => {
-        expect(() =>
-            resolveIn(repoDir(), twoSystems({ requiresSystem: "sohl" })),
-        ).toThrow(/could never be seen/s);
+        expect(() => resolveIn(repoDir(), twoSystems({ requiresSystem: "sohl" }))).toThrow(
+            /could never be seen/s,
+        );
     });
 
     it("requires a verified version on every declared system", () => {

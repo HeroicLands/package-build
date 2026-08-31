@@ -79,8 +79,7 @@ import { emitDiagnostic } from "../engine/diagnostics.mjs";
 export function toDiagnostics(findings, { file }) {
     return findings.map((finding) => {
         const hasLine = finding.line !== undefined && finding.line !== null;
-        const hasColumn =
-            finding.column !== undefined && finding.column !== null;
+        const hasColumn = finding.column !== undefined && finding.column !== null;
         return {
             file: finding.file ?? file,
             ...(hasLine ? { line: finding.line } : {}),

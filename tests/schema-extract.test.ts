@@ -105,11 +105,7 @@ export const itemModels = {
 
     it("follows `Object.assign(super.defineSchema(), …)` inheritance", () => {
         const { documents } = extract("hm3/models.js");
-        expect(documents.Item.gear.own).toEqual([
-            "protection",
-            "protection.blunt",
-            "weight",
-        ]);
+        expect(documents.Item.gear.own).toEqual(["protection", "protection.blunt", "weight"]);
         expect(documents.Item.gear.inherited).toEqual([
             "macros",
             "macros.command",
@@ -347,11 +343,7 @@ export const itemModels = {thing: ThingData};
         // accusing the content of the reader's own blind spot.
         const { documents } = extract("xfile/models.ts");
         expect(documents.Item.thing.own).toEqual(["own"]);
-        expect(documents.Item.thing.inherited).toEqual([
-            "actionDefs",
-            "local",
-            "shortcode",
-        ]);
+        expect(documents.Item.thing.inherited).toEqual(["actionDefs", "local", "shortcode"]);
     });
 
     it("still prefers a same-file definition over an import", () => {
@@ -393,9 +385,7 @@ export const itemModels = {phased: PhasedData};
         // present, and permanently reported as unemitted. The schema is a
         // contract other repositories read, so a contract this cannot state is
         // worth stopping for.
-        expect(() => extract("computed/models.ts")).toThrow(
-            /computed name.*does not evaluate/s,
-        );
+        expect(() => extract("computed/models.ts")).toThrow(/computed name.*does not evaluate/s);
     });
 
     it("names the file and the key it could not resolve", () => {
@@ -434,10 +424,7 @@ describe("pathAliases", () => {
             );
             // Longest first, so `@models/core/x` does not resolve through
             // `@models/` and land in the wrong directory.
-            expect(pathAliases(aliased).map(([p]) => p)).toEqual([
-                "@models/core/",
-                "@models/",
-            ]);
+            expect(pathAliases(aliased).map(([p]) => p)).toEqual(["@models/core/", "@models/"]);
         } finally {
             fs.rmSync(aliased, { recursive: true, force: true });
         }

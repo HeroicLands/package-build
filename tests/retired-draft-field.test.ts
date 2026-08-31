@@ -26,10 +26,7 @@ import path from "node:path";
 
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
-import {
-    assertNoDraftField,
-    draftRetiredMessage,
-} from "../engine/retired-fields.mjs";
+import { assertNoDraftField, draftRetiredMessage } from "../engine/retired-fields.mjs";
 
 describe("refusing a note that declares `draft:`", () => {
     let tmp: string;
@@ -50,13 +47,9 @@ describe("refusing a note that declares `draft:`", () => {
     it("passes anything that does not declare it", () => {
         const file = write(
             "clean",
-            ["type: doc", "shortcode: clean", "id: AAAAAAAAAAAAAAAA"].join(
-                "\n",
-            ),
+            ["type: doc", "shortcode: clean", "id: AAAAAAAAAAAAAAAA"].join("\n"),
         );
-        expect(() =>
-            assertNoDraftField({ type: "doc" }, { absPath: file }),
-        ).not.toThrow();
+        expect(() => assertNoDraftField({ type: "doc" }, { absPath: file })).not.toThrow();
         expect(() => assertNoDraftField(null)).not.toThrow();
         expect(() => assertNoDraftField(undefined)).not.toThrow();
     });
@@ -66,21 +59,16 @@ describe("refusing a note that declares `draft:`", () => {
         (value) => {
             // The value never mattered, and `draft: false` least of all: it
             // reads as "publish this note", which is what happens either way.
-            expect(() =>
-                assertNoDraftField({ type: "doc", draft: value }),
-            ).toThrow(/`draft:` is a retired frontmatter field/);
+            expect(() => assertNoDraftField({ type: "doc", draft: value })).toThrow(
+                /`draft:` is a retired frontmatter field/,
+            );
         },
     );
 
     it("locates the offending line, for a caller that emits a diagnostic", () => {
         const file = write(
             "located",
-            [
-                "type: doc",
-                "shortcode: located",
-                "id: BBBBBBBBBBBBBBBB",
-                "draft: true",
-            ].join("\n"),
+            ["type: doc", "shortcode: located", "id: BBBBBBBBBBBBBBBB", "draft: true"].join("\n"),
         );
         try {
             assertNoDraftField({ type: "doc", draft: true }, { absPath: file });
@@ -126,9 +114,7 @@ describe("refusing a note that declares `draft:`", () => {
             } as any,
             { schemas: {} },
         );
-        const draft = findings.filter((f: any) =>
-            /`draft:` is a retired/.test(f.message),
-        );
+        const draft = findings.filter((f: any) => /`draft:` is a retired/.test(f.message));
         expect(draft).toHaveLength(1);
         expect(draft[0]).toMatchObject({
             file: "Rules/Linted.md",
@@ -197,10 +183,7 @@ describe("the compile loop refuses a note declaring `draft:`", () => {
     it("counts it as an error, writes no document, and names the line", async () => {
         const spy = vi.spyOn(console, "error").mockImplementation(() => {});
         try {
-            const { probe, dest } = await compileOne("drafted", [
-                ...NOTE,
-                "draft: true",
-            ]);
+            const { probe, dest } = await compileOne("drafted", [...NOTE, "draft: true"]);
             // Loud, not silent: the pass counts an error, so the build fails.
             expect(probe.errorCount).toBe(1);
             expect(probe.compiledCount).toBe(0);

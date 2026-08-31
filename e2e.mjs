@@ -93,9 +93,7 @@ const EXACT_BUILD = /^\d+\.\d+$/;
  * @returns {string} The hex hash.
  */
 export function hashPassword(password, salt) {
-    return crypto
-        .pbkdf2Sync(password, salt, 1000, 64, "sha512")
-        .toString("hex");
+    return crypto.pbkdf2Sync(password, salt, 1000, 64, "sha512").toString("hex");
 }
 
 /**
@@ -127,23 +125,13 @@ export function resolveE2EWorld(config, env = process.env) {
     const world = config.e2eWorld ?? {};
     const gm = config.e2eGm ?? {};
     return {
-        worldId:
-            env[`${prefix}WORLD_ID`]?.trim() ||
-            world.id ||
-            `${config.packageId}-e2e`,
-        worldTitle:
-            env[`${prefix}WORLD_TITLE`]?.trim() ||
-            world.title ||
-            `${config.packageId} E2E`,
+        worldId: env[`${prefix}WORLD_ID`]?.trim() || world.id || `${config.packageId}-e2e`,
+        worldTitle: env[`${prefix}WORLD_TITLE`]?.trim() || world.title || `${config.packageId} E2E`,
         worldDescription:
-            world.description ||
-            `Disposable world for ${config.packageId} end-to-end tests.`,
+            world.description || `Disposable world for ${config.packageId} end-to-end tests.`,
         gmId: E2E_GM_ID,
         gmName: env[`${prefix}GM_NAME`]?.trim() || gm.name || "Gamemaster",
-        gmPassword:
-            env[`${prefix}GM_PASSWORD`]?.trim() ||
-            gm.password ||
-            `${config.packageId}-e2e`,
+        gmPassword: env[`${prefix}GM_PASSWORD`]?.trim() || gm.password || `${config.packageId}-e2e`,
     };
 }
 
@@ -330,8 +318,7 @@ export function parseFastArgs(argv, build) {
 
     for (let i = 0; i < own.length; i += 1) {
         const arg = /** @type {string} */ (own[i]);
-        if (arg.startsWith("--build="))
-            requested = arg.slice("--build=".length);
+        if (arg.startsWith("--build=")) requested = arg.slice("--build=".length);
         else if (arg === "--recreate") recreate = true;
         else if (arg === "--no-run") runSuite = false;
         else if (arg === "--spec") {
@@ -387,12 +374,7 @@ export function parseFastArgs(argv, build) {
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {Promise<{worldDir: string, world: E2EWorld}>} Where it landed.
  */
-export async function seedTestWorld({
-    config,
-    packageJson,
-    env = process.env,
-    log = () => {},
-}) {
+export async function seedTestWorld({ config, packageJson, env = process.env, log = () => {} }) {
     const stage = config.e2eStage;
     const dataRoot = requireIsolatedDataRoot(stage, env);
     const world = resolveE2EWorld(config, env);
@@ -530,13 +512,7 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
  * @returns {Promise<void>} Resolves once the world is active.
  * @throws {Error} On a licence failure or a timeout.
  */
-export async function waitForWorld({
-    url,
-    container,
-    stage,
-    timeoutMs = 180_000,
-    log = () => {},
-}) {
+export async function waitForWorld({ url, container, stage, timeoutMs = 180_000, log = () => {} }) {
     const join = `${url}/join`;
     const deadline = Date.now() + timeoutMs;
     log(`Waiting for the world at ${join} …`);
@@ -597,27 +573,17 @@ function captureContainerLog(container) {
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {number} The suite's exit status.
  */
-export function runSuite({
-    command,
-    args = [],
-    cwd,
-    env = process.env,
-    log = () => {},
-}) {
+export function runSuite({ command, args = [], cwd, env = process.env, log = () => {} }) {
     const [program, ...rest] = command;
     const childEnv = { ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
     log(`▸ ${[...command, ...args].join(" ")}`);
-    const result = spawnSync(
-        /** @type {string} */ (program),
-        [...rest, ...args],
-        {
-            stdio: "inherit",
-            cwd,
-            env: childEnv,
-            shell: process.platform === "win32",
-        },
-    );
+    const result = spawnSync(/** @type {string} */ (program), [...rest, ...args], {
+        stdio: "inherit",
+        cwd,
+        env: childEnv,
+        shell: process.platform === "win32",
+    });
     if (result.error) throw result.error;
     return result.status ?? 1;
 }
@@ -756,12 +722,7 @@ export async function e2eRun({
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {Promise<number>} The suite's exit status.
  */
-export async function e2eFast({
-    config,
-    argv = [],
-    env = process.env,
-    log = () => {},
-}) {
+export async function e2eFast({ config, argv = [], env = process.env, log = () => {} }) {
     const {
         targets,
         recreate,

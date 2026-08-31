@@ -45,13 +45,7 @@
 
 import log from "loglevel";
 
-import {
-    sohlField,
-    makeId,
-    resolveName,
-    defaultStats,
-    md,
-} from "./helpers.mjs";
+import { sohlField, makeId, resolveName, defaultStats, md } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { anchorPageId } from "./wikilinks.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
@@ -98,12 +92,10 @@ export function splitPages(body, leadName = "Introduction") {
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
         // section has to be one.
-        const headingMatch =
-            !inCodeBlock ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
+        const headingMatch = !inCodeBlock ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
         const rawHeading = headingMatch?.[2]?.trim();
         const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
-        const startsPage =
-            headingMatch && (headingMatch[1].length === 1 || anchorMatch);
+        const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
         if (startsPage) {
             closeCurrent();
             current = {
@@ -371,8 +363,6 @@ export class Journals extends BasePackCompiler {
 
     /** @inheritdoc */
     reportDetail(stats) {
-        log.debug(
-            `Skipped ${stats.skippedOther} non-doc file(s) (not type:doc)`,
-        );
+        log.debug(`Skipped ${stats.skippedOther} non-doc file(s) (not type:doc)`);
     }
 }

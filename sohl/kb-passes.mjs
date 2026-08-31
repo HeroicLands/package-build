@@ -90,8 +90,7 @@ function readSymbolMap(file, repoRoot) {
         raw = fs.readFileSync(resolved, "utf8");
     } catch (err) {
         throw new Error(
-            `site.passOptions.symbolMap ${resolved} cannot be read: ` +
-                `${err.message}`,
+            `site.passOptions.symbolMap ${resolved} cannot be read: ` + `${err.message}`,
         );
     }
 
@@ -100,8 +99,7 @@ function readSymbolMap(file, repoRoot) {
         parsed = JSON.parse(raw);
     } catch (err) {
         throw new Error(
-            `site.passOptions.symbolMap ${resolved} is not valid JSON: ` +
-                `${err.message}`,
+            `site.passOptions.symbolMap ${resolved} is not valid JSON: ` + `${err.message}`,
         );
     }
 
@@ -140,39 +138,34 @@ function readSymbolMap(file, repoRoot) {
  * @returns {string} The body with every tag resolved.
  */
 export function resolveApiLinks(body, symbols, apiBase) {
-    return body.replace(
-        /\{@link(code|plain)?\s+([^}]+)\}/g,
-        (_m, kind, inner) => {
-            inner = inner.trim();
-            let target, text;
-            const pipe = inner.indexOf("|");
-            const space = inner.search(/\s/);
-            if (pipe !== -1) {
-                target = inner.slice(0, pipe).trim();
-                text = inner.slice(pipe + 1).trim();
-            } else if (space !== -1) {
-                target = inner.slice(0, space);
-                text = inner.slice(space + 1).trim();
-            } else {
-                target = inner;
-                text = "";
-            }
+    return body.replace(/\{@link(code|plain)?\s+([^}]+)\}/g, (_m, kind, inner) => {
+        inner = inner.trim();
+        let target, text;
+        const pipe = inner.indexOf("|");
+        const space = inner.search(/\s/);
+        if (pipe !== -1) {
+            target = inner.slice(0, pipe).trim();
+            text = inner.slice(pipe + 1).trim();
+        } else if (space !== -1) {
+            target = inner.slice(0, space);
+            text = inner.slice(space + 1).trim();
+        } else {
+            target = inner;
+            text = "";
+        }
 
-            if (/^https?:\/\//.test(target)) {
-                return `[${text || target}](${target})`;
-            }
+        if (/^https?:\/\//.test(target)) {
+            return `[${text || target}](${target})`;
+        }
 
-            const url = symbols[target];
-            const display = text || target.split(".").pop();
-            if (url) {
-                const href = apiBase + url;
-                return kind === "code" ?
-                        `[\`${display}\`](${href})`
-                    :   `[${display}](${href})`;
-            }
-            return kind === "plain" ? display : `\`${display}\``;
-        },
-    );
+        const url = symbols[target];
+        const display = text || target.split(".").pop();
+        if (url) {
+            const href = apiBase + url;
+            return kind === "code" ? `[\`${display}\`](${href})` : `[${display}](${href})`;
+        }
+        return kind === "plain" ? display : `\`${display}\``;
+    });
 }
 
 /**
@@ -218,10 +211,7 @@ export function rewriteRepoLinks(body, docRel, options) {
         let out;
         if (repoRel.startsWith(`${docsRel}/`) && repoRel.endsWith(".md")) {
             const rel2 = repoRel.slice(docsRel.length + 1, -3).toLowerCase();
-            const devPath =
-                path.basename(rel2) === "readme" ?
-                    path.posix.dirname(rel2)
-                :   rel2;
+            const devPath = path.basename(rel2) === "readme" ? path.posix.dirname(rel2) : rel2;
             out = `${route}${devPath === "." ? "" : `${devPath}/`}${anchor}`;
         } else {
             out = `${blob}${repoRel}${anchor}`;

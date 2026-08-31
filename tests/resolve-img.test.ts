@@ -34,9 +34,7 @@ describe("resolveImg (content → Foundry img path translation, #890)", () => {
 
     it("passes through any other rooted path unchanged (module, URL)", () => {
         expect(resolveImg("modules/foo/bar.webp")).toBe("modules/foo/bar.webp");
-        expect(resolveImg("https://example.com/a.png")).toBe(
-            "https://example.com/a.png",
-        );
+        expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
     it("returns an empty string for an empty, null, or undefined path", () => {
@@ -65,9 +63,9 @@ describe("resolveImg for a non-`sohl` consumer (#1508)", () => {
         // Foundry installs a module under `modules/`, so the same content path
         // has to resolve to a different served root. Nothing but configuration
         // decides which.
-        expect(
-            resolveImg("icons/game-icons/lorc/monkey.svg", moduleConfig),
-        ).toBe("modules/sohl-thalorna/assets/icons/game-icons/lorc/monkey.svg");
+        expect(resolveImg("icons/game-icons/lorc/monkey.svg", moduleConfig)).toBe(
+            "modules/sohl-thalorna/assets/icons/game-icons/lorc/monkey.svg",
+        );
         expect(resolveImg("images/maps/keep.webp", moduleConfig)).toBe(
             "modules/sohl-thalorna/assets/images/maps/keep.webp",
         );

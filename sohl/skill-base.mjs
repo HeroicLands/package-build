@@ -116,9 +116,7 @@ function evalNode(node, attrs) {
     switch (node.type) {
         case "Literal": {
             if (typeof node.value !== "number") {
-                throw new Error(
-                    `unsupported literal ${JSON.stringify(node.value)}`,
-                );
+                throw new Error(`unsupported literal ${JSON.stringify(node.value)}`);
             }
             return node.value;
         }
@@ -126,9 +124,7 @@ function evalNode(node, attrs) {
             // Only `attr.<code>` and `attr["<code>"]`. Any other object, and
             // any computed key that is not a plain string, is out of scope.
             if (node.object?.type !== "Identifier") {
-                throw new Error(
-                    "only `attr.<code>` member reads are supported",
-                );
+                throw new Error("only `attr.<code>` member reads are supported");
             }
             if (node.object.name !== "attr") {
                 throw new Error(
@@ -136,13 +132,8 @@ function evalNode(node, attrs) {
                 );
             }
             if (node.computed) {
-                if (
-                    node.property.type !== "Literal" ||
-                    typeof node.property.value !== "string"
-                ) {
-                    throw new Error(
-                        "a computed `attr[...]` read needs a literal string shortcode",
-                    );
+                if (node.property.type !== "Literal" || typeof node.property.value !== "string") {
+                    throw new Error("a computed `attr[...]` read needs a literal string shortcode");
                 }
                 return readAttr(attrs, node.property.value);
             }
@@ -150,15 +141,11 @@ function evalNode(node, attrs) {
         }
         case "CallExpression": {
             if (node.callee?.type !== "Identifier") {
-                throw new Error(
-                    "only direct calls to a named helper are supported",
-                );
+                throw new Error("only direct calls to a named helper are supported");
             }
             const helper = HELPERS[node.callee.name];
             if (!helper) {
-                throw new Error(
-                    `unknown helper "${node.callee.name}()" in a skill base formula`,
-                );
+                throw new Error(`unknown helper "${node.callee.name}()" in a skill base formula`);
             }
             return helper(...node.arguments.map((a) => evalNode(a, attrs)));
         }
@@ -200,10 +187,7 @@ export function evaluateSkillBase(formula, attrs = {}) {
     let node;
     try {
         const program = parse(source, { ecmaVersion: 2022 });
-        if (
-            program.body.length !== 1 ||
-            program.body[0].type !== "ExpressionStatement"
-        ) {
+        if (program.body.length !== 1 || program.body[0].type !== "ExpressionStatement") {
             return {
                 value: 0,
                 error: `skill base formula "${source}" is not a single expression`,

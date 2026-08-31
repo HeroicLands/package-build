@@ -23,9 +23,7 @@ import { Scenes } from "../engine/scenes.mjs";
  * repository's configured `contentPackage` and `package:` is retired (#56).
  */
 function note(body: string, fm: Record<string, unknown>): string {
-    const lines = Object.entries(fm).map(
-        ([k, v]) => `${k}: ${JSON.stringify(v)}`,
-    );
+    const lines = Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
     return `---\n${lines.join("\n")}\n---\n\n${body}\n`;
 }
 
@@ -203,9 +201,7 @@ describe("BasePackCompiler's per-pass switches", () => {
         const out = dest("raw");
         const pack = new RawProbe({ contentBase: content, dest: out });
         await pack.compile();
-        expect(read(out)["Probe One"].body).toContain(
-            "[[doc-probetarget|Target]]",
-        );
+        expect(read(out)["Probe One"].body).toContain("[[doc-probetarget|Target]]");
     });
 
     it("fails the build on a note with no id", async () => {
@@ -241,8 +237,8 @@ describe("BasePackCompiler's constructor contract", () => {
     });
 
     it("rejects a content root that does not exist", () => {
-        expect(
-            () => new Probe({ contentBase: path.join(tmp, "nope"), dest: tmp }),
-        ).toThrow(/Content tree not found/);
+        expect(() => new Probe({ contentBase: path.join(tmp, "nope"), dest: tmp })).toThrow(
+            /Content tree not found/,
+        );
     });
 });

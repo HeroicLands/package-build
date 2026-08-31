@@ -59,11 +59,7 @@
  */
 
 import path from "node:path";
-import {
-    loadPackConfig,
-    locateConfigError,
-    packConfigPath,
-} from "./engine/pack-config.mjs";
+import { loadPackConfig, locateConfigError, packConfigPath } from "./engine/pack-config.mjs";
 
 /** Keys the reserved section may declare. */
 const SECTION_KEYS = [
@@ -161,10 +157,9 @@ const ARTIFACT_OF_KIND = Object.freeze({
  * @returns {never}
  */
 function fail(where, problem) {
-    throw Object.assign(
-        new TypeError(`package-build config: \`${where}\` ${problem}.`),
-        { field: where },
-    );
+    throw Object.assign(new TypeError(`package-build config: \`${where}\` ${problem}.`), {
+        field: where,
+    });
 }
 
 /**
@@ -315,10 +310,7 @@ function normalizeGlobs(value, fallback, where) {
     const list = Array.isArray(value) ? value : [value];
     return Object.freeze(
         list.map((glob, index) =>
-            requireNonEmptyString(
-                glob,
-                Array.isArray(value) ? `${where}[${index}]` : where,
-            ),
+            requireNonEmptyString(glob, Array.isArray(value) ? `${where}[${index}]` : where),
         ),
     );
 }
@@ -443,9 +435,7 @@ function normalizeE2ESuite(value) {
             fail(where, "must be a non-empty list naming a program to run");
         }
         return Object.freeze(
-            value_.map((part, i) =>
-                requireNonEmptyString(part, `${where}[${i}]`),
-            ),
+            value_.map((part, i) => requireNonEmptyString(part, `${where}[${i}]`)),
         );
     };
 
@@ -589,9 +579,7 @@ function normalizeExceptions(value, field, where) {
  * @throws {TypeError} When the reserved section declares something malformed.
  */
 export function resolvePackageBuildConfig(shared) {
-    const section = /** @type {Record<string, unknown>} */ (
-        shared.packageBuild ?? {}
-    );
+    const section = /** @type {Record<string, unknown>} */ (shared.packageBuild ?? {});
     rejectUnknownKeys(section, SECTION_KEYS, "packageBuild.");
 
     if (section.assets !== undefined && !Array.isArray(section.assets)) {
@@ -661,31 +649,22 @@ export function resolvePackageBuildConfig(shared) {
     );
     const containerInput = /** @type {Record<string, unknown>} */ (container);
     const containerName =
-        containerInput.name === undefined ?
-            null
-        :   requireContainerName(containerInput.name);
+        containerInput.name === undefined ? null : requireContainerName(containerInput.name);
     const declaredStages = containerInput.stages ?? {};
     if (!isMapping(declaredStages)) {
         fail("packageBuild.container.stages", "must be a mapping");
     }
     const containerStages = Object.freeze(
         Object.fromEntries(
-            Object.entries(
-                /** @type {Record<string, unknown>} */ (declaredStages),
-            ).map(([name, entry]) => [
-                name,
-                normalizeContainerStage(entry, name),
-            ]),
+            Object.entries(/** @type {Record<string, unknown>} */ (declaredStages)).map(
+                ([name, entry]) => [name, normalizeContainerStage(entry, name)],
+            ),
         ),
     );
 
     const e2e = section.e2e ?? {};
     if (!isMapping(e2e)) fail("packageBuild.e2e", "must be a mapping");
-    rejectUnknownKeys(
-        /** @type {Record<string, unknown>} */ (e2e),
-        E2E_KEYS,
-        "packageBuild.e2e.",
-    );
+    rejectUnknownKeys(/** @type {Record<string, unknown>} */ (e2e), E2E_KEYS, "packageBuild.e2e.");
     const e2eInput = /** @type {Record<string, unknown>} */ (e2e);
     const declaredBuild = e2eInput.build ?? {};
     if (!isMapping(declaredBuild)) {
@@ -695,12 +674,9 @@ export function resolvePackageBuildConfig(shared) {
     // bundler has to run before the passes that copy into the stage it empties.
     const e2eBuild = Object.freeze(
         Object.fromEntries(
-            Object.entries(
-                /** @type {Record<string, unknown>} */ (declaredBuild),
-            ).map(([name, entry]) => [
-                name,
-                normalizeE2EBuildTarget(entry, name),
-            ]),
+            Object.entries(/** @type {Record<string, unknown>} */ (declaredBuild)).map(
+                ([name, entry]) => [name, normalizeE2EBuildTarget(entry, name)],
+            ),
         ),
     );
 
@@ -713,23 +689,15 @@ export function resolvePackageBuildConfig(shared) {
         stageDir:
             section.stageDir === undefined ?
                 "build/stage"
-            :   requireNonEmptyString(
-                    section.stageDir,
-                    "packageBuild.stageDir",
-                ),
+            :   requireNonEmptyString(section.stageDir, "packageBuild.stageDir"),
         packageKind: shared.packageKind,
         packageId: shared.foundryPackage,
         // Derived from the kind, which already decides it. Stating it was one
         // more literal every consumer's release script carried.
         artifact:
             releaseInput.artifact === undefined ?
-                ARTIFACT_OF_KIND[
-                    /** @type {"systems"|"modules"} */ (shared.packageKind)
-                ]
-            :   requireNonEmptyString(
-                    releaseInput.artifact,
-                    "packageBuild.release.artifact",
-                ),
+                ARTIFACT_OF_KIND[/** @type {"systems"|"modules"} */ (shared.packageKind)]
+            :   requireNonEmptyString(releaseInput.artifact, "packageBuild.release.artifact"),
         assets: Object.freeze(assets),
         schema: normalizeSchema(section.schema),
         assetTransform:
@@ -737,10 +705,7 @@ export function resolvePackageBuildConfig(shared) {
                 null
             :   path.resolve(
                     shared.rootDir,
-                    requireNonEmptyString(
-                        section.assetTransform,
-                        "packageBuild.assetTransform",
-                    ),
+                    requireNonEmptyString(section.assetTransform, "packageBuild.assetTransform"),
                 ),
         manifest: normalizeManifest(section.manifest),
         manifestFlags:
@@ -748,19 +713,13 @@ export function resolvePackageBuildConfig(shared) {
                 null
             :   path.resolve(
                     shared.rootDir,
-                    requireNonEmptyString(
-                        section.manifestFlags,
-                        "packageBuild.manifestFlags",
-                    ),
+                    requireNonEmptyString(section.manifestFlags, "packageBuild.manifestFlags"),
                 ),
         cleanExtra: Object.freeze(cleanExtra),
         langSources:
             langInput.sources === undefined ?
                 "lang/*.json"
-            :   requireNonEmptyString(
-                    langInput.sources,
-                    "packageBuild.lang.sources",
-                ),
+            :   requireNonEmptyString(langInput.sources, "packageBuild.lang.sources"),
         langHelp:
             langInput.help === undefined ?
                 null
@@ -771,10 +730,7 @@ export function resolvePackageBuildConfig(shared) {
         langPrimary:
             langInput.primary === undefined ?
                 "lang/en.json"
-            :   requireNonEmptyString(
-                    langInput.primary,
-                    "packageBuild.lang.primary",
-                ),
+            :   requireNonEmptyString(langInput.primary, "packageBuild.lang.primary"),
         langScripts: normalizeGlobs(
             langInput.scripts,
             ["src/**/*.{ts,mjs}"],
@@ -791,38 +747,24 @@ export function resolvePackageBuildConfig(shared) {
         langKeyRoots:
             langInput.keyRoots === undefined ?
                 null
-            :   normalizeGlobs(
-                    langInput.keyRoots,
-                    [],
-                    "packageBuild.lang.keyRoots",
-                ),
+            :   normalizeGlobs(langInput.keyRoots, [], "packageBuild.lang.keyRoots"),
         langReferences:
             langInput.references === undefined ?
                 null
             :   path.resolve(
                     shared.rootDir,
-                    requireNonEmptyString(
-                        langInput.references,
-                        "packageBuild.lang.references",
-                    ),
+                    requireNonEmptyString(langInput.references, "packageBuild.lang.references"),
                 ),
         langRetained: normalizeExceptions(
             langInput.retained,
             "prefix",
             "packageBuild.lang.retained",
         ),
-        langAllow: normalizeExceptions(
-            langInput.allow,
-            "literal",
-            "packageBuild.lang.allow",
-        ),
+        langAllow: normalizeExceptions(langInput.allow, "literal", "packageBuild.lang.allow"),
         envPrefix:
             deployInput.envPrefix === undefined ?
                 "SOHL"
-            :   requireNonEmptyString(
-                    deployInput.envPrefix,
-                    "packageBuild.deploy.envPrefix",
-                ),
+            :   requireNonEmptyString(deployInput.envPrefix, "packageBuild.deploy.envPrefix"),
         // The file Foundry loads, as the manifest spells it. Named after the
         // package by convention, and the id is already derived from
         // package.json `name` — so a repository states this only when its
@@ -835,10 +777,7 @@ export function resolvePackageBuildConfig(shared) {
         bundleEntry:
             bundleInput.entry === undefined ?
                 `${shared.foundryPackage}.mjs`
-            :   requireNonEmptyString(
-                    bundleInput.entry,
-                    "packageBuild.bundle.entry",
-                ),
+            :   requireNonEmptyString(bundleInput.entry, "packageBuild.bundle.entry"),
         // Read from the top level, where the package already claims it. The
         // end-to-end pin derives from this, so the claim and the evidence for
         // it are the same number and cannot drift apart.
@@ -851,10 +790,7 @@ export function resolvePackageBuildConfig(shared) {
         containerImage:
             containerInput.image === undefined ?
                 null
-            :   requireNonEmptyString(
-                    containerInput.image,
-                    "packageBuild.container.image",
-                ),
+            :   requireNonEmptyString(containerInput.image, "packageBuild.container.image"),
         containerName,
         containerStages,
         e2eStage:
@@ -863,20 +799,9 @@ export function resolvePackageBuildConfig(shared) {
             :   requireNonEmptyString(e2eInput.stage, "packageBuild.e2e.stage"),
         e2eSuite: normalizeE2ESuite(e2eInput.suite),
         e2eBuild,
-        e2eWorld: normalizeStringMap(
-            e2eInput.world,
-            "packageBuild.e2e.world",
-            E2E_WORLD_KEYS,
-        ),
-        e2eGm: normalizeStringMap(
-            e2eInput.gm,
-            "packageBuild.e2e.gm",
-            E2E_GM_KEYS,
-        ),
-        e2eDocuments: normalizeStringMap(
-            e2eInput.documents,
-            "packageBuild.e2e.documents",
-        ),
+        e2eWorld: normalizeStringMap(e2eInput.world, "packageBuild.e2e.world", E2E_WORLD_KEYS),
+        e2eGm: normalizeStringMap(e2eInput.gm, "packageBuild.e2e.gm", E2E_GM_KEYS),
+        e2eDocuments: normalizeStringMap(e2eInput.documents, "packageBuild.e2e.documents"),
     });
 }
 

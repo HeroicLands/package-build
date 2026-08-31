@@ -41,9 +41,7 @@ describe("countContentNotes — is there anything to compile?", () => {
     });
 
     it("counts nothing when the tree is absent entirely", () => {
-        expect(
-            countContentNotes(path.join(os.tmpdir(), "sohl-no-such-tree")),
-        ).toBe(0);
+        expect(countContentNotes(path.join(os.tmpdir(), "sohl-no-such-tree"))).toBe(0);
     });
 
     it("does not count the folder manifests — they are not notes", () => {
@@ -60,9 +58,7 @@ describe("countContentNotes — is there anything to compile?", () => {
     });
 
     it("ignores dot directories, so editor state cannot mask an empty tree", () => {
-        expect(
-            countContentNotes(tree({ ".obsidian/cache/stale.md": "x" })),
-        ).toBe(0);
+        expect(countContentNotes(tree({ ".obsidian/cache/stale.md": "x" }))).toBe(0);
     });
 });
 
@@ -100,10 +96,6 @@ describe("emptyPassErrors — did anything actually compile?", () => {
     it("honours a pack's explicit `mayBeEmpty` opt-out", () => {
         // A consumer package that ships no notes of some type declares it,
         // rather than the build learning to tolerate empty output everywhere.
-        expect(
-            emptyPassErrors([
-                { name: "scenes", compiled: 0, mayBeEmpty: true },
-            ]),
-        ).toEqual([]);
+        expect(emptyPassErrors([{ name: "scenes", compiled: 0, mayBeEmpty: true }])).toEqual([]);
     });
 });

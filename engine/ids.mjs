@@ -36,11 +36,7 @@ import crypto from "crypto";
  * @returns {string} A 16-character hexadecimal Foundry id.
  */
 export function makeId(namespace, value) {
-    return crypto
-        .createHash("sha1")
-        .update(`${namespace}:${value}`)
-        .digest("hex")
-        .slice(0, 16);
+    return crypto.createHash("sha1").update(`${namespace}:${value}`).digest("hex").slice(0, 16);
 }
 
 /**
@@ -55,9 +51,7 @@ export function makeId(namespace, value) {
  *
  * @type {ReadonlySet<string>}
  */
-export const MAP_TYPES = Object.freeze(
-    new Set(["battlemap", "localmap", "regionalmap"]),
-);
+export const MAP_TYPES = Object.freeze(new Set(["battlemap", "localmap", "regionalmap"]));
 
 /**
  * Content type → the pack its documents compile into, and the document type
@@ -77,10 +71,7 @@ export const PACK_BY_TYPE = Object.freeze({
     macro: { pack: "macros", docType: "Macro" },
     being: { pack: "actors", docType: "Actor" },
     ...Object.fromEntries(
-        [...MAP_TYPES].map((type) => [
-            type,
-            { pack: "scenes", docType: "Scene" },
-        ]),
+        [...MAP_TYPES].map((type) => [type, { pack: "scenes", docType: "Scene" }]),
     ),
 });
 

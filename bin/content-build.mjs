@@ -59,11 +59,7 @@ import log from "loglevel";
 import prefix from "loglevel-plugin-prefix";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
-import {
-    compilePacks,
-    cleanPacks,
-    unpackPacks,
-} from "../engine/compendiums.mjs";
+import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import {
     fetchAllCatalogs,
@@ -93,11 +89,7 @@ import {
     gatesFailed,
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
-import {
-    auditLinks,
-    buildLinkIndex,
-    walkReachability,
-} from "../engine/content-links.mjs";
+import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
 import {
     readItemAddresses,
@@ -143,9 +135,7 @@ function configuredPacks() {
  * @returns {string} The `version` field of this package's manifest.
  */
 function ownVersion() {
-    return JSON.parse(
-        fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-    ).version;
+    return JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 }
 
 // Configure loglevel
@@ -176,8 +166,7 @@ prefix.apply(log, {
  */
 function reportFailure(err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/** @type {{located?: boolean}} */ (err)?.located)
-        console.error(message);
+    if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
     else log.error(message);
 }
 
@@ -245,13 +234,11 @@ function docsCommand() {
                 choices: ["item-fields"],
             });
             yargs.option("out", {
-                describe:
-                    "Write to this file instead of the configured location.",
+                describe: "Write to this file instead of the configured location.",
                 type: "string",
             });
             yargs.option("check", {
-                describe:
-                    "Compare against the file already there; write nothing.",
+                describe: "Compare against the file already there; write nothing.",
                 type: "boolean",
                 default: false,
             });
@@ -274,13 +261,10 @@ function docsCommand() {
                 const config = loadPackConfig();
                 const spec = config.docs?.itemFields ?? {};
                 const destination =
-                    argv.out ??
-                    (spec.out ? path.resolve(config.rootDir, spec.out) : null);
+                    argv.out ?? (spec.out ? path.resolve(config.rootDir, spec.out) : null);
 
                 const page = `${renderItemFieldReference({
-                    ...((title ?? spec.title) ?
-                        { title: title ?? spec.title }
-                    :   {}),
+                    ...((title ?? spec.title) ? { title: title ?? spec.title } : {}),
                     ...(spec.preamble ? { preamble: spec.preamble } : {}),
                     generatedBy: "`content-build docs item-fields`",
                     config,
@@ -296,9 +280,7 @@ function docsCommand() {
                     }
                     const relative = path.relative(config.rootDir, destination);
                     const current =
-                        fs.existsSync(destination) ?
-                            fs.readFileSync(destination, "utf8")
-                        :   "";
+                        fs.existsSync(destination) ? fs.readFileSync(destination, "utf8") : "";
                     if (current !== page) {
                         // Staleness belongs to the whole file, so no line is
                         // named — the diagnostics contract drops a field it
@@ -321,9 +303,7 @@ function docsCommand() {
                         recursive: true,
                     });
                     fs.writeFileSync(destination, page);
-                    log.info(
-                        `Wrote ${path.relative(config.rootDir, destination)}`,
-                    );
+                    log.info(`Wrote ${path.relative(config.rootDir, destination)}`);
                 } else {
                     process.stdout.write(page);
                 }
@@ -353,8 +333,7 @@ function lintCommand() {
         describe: "Check a content tree's addresses and frontmatter",
         builder: (yargs) => {
             yargs.positional("root", {
-                describe:
-                    "Content tree to lint. Defaults to the configured contentBase.",
+                describe: "Content tree to lint. Defaults to the configured contentBase.",
                 type: "string",
             });
             yargs.option("references", {
@@ -468,9 +447,7 @@ function lintCommand() {
                 ];
                 for (const finding of findings) emitDiagnostic(finding);
                 if (findings.length) {
-                    log.error(
-                        `${findings.length} finding(s) across ${addresses.notes} note(s).`,
-                    );
+                    log.error(`${findings.length} finding(s) across ${addresses.notes} note(s).`);
                     process.exitCode = 1;
                 } else {
                     log.info(
@@ -510,19 +487,16 @@ function formatCommand() {
         describe: "Check formatting with the shared Prettier configuration",
         builder: (yargs) => {
             yargs.positional("paths", {
-                describe:
-                    "Files or directories to check. Defaults to the whole repository.",
+                describe: "Files or directories to check. Defaults to the whole repository.",
                 type: "string",
             });
             yargs.option("write", {
-                describe:
-                    "Rewrite unformatted files in place instead of reporting them.",
+                describe: "Rewrite unformatted files in place instead of reporting them.",
                 type: "boolean",
                 default: false,
             });
             yargs.option("check", {
-                describe:
-                    "Report unformatted files without rewriting them (the default).",
+                describe: "Report unformatted files without rewriting them (the default).",
                 type: "boolean",
             });
         },
@@ -532,17 +506,15 @@ function formatCommand() {
                 // it contradicts `--write`; naming both is a mistake worth
                 // saying out loud rather than silently resolving.
                 if (argv.check === true && argv.write) {
-                    log.error(
-                        "--check and --write ask for opposite things; name one.",
-                    );
+                    log.error("--check and --write ask for opposite things; name one.");
                     process.exitCode = 1;
                     return;
                 }
                 const root = process.cwd();
-                const { findings, checked, written } = await checkFormatting(
-                    root,
-                    { paths: argv.paths, write: argv.write },
-                );
+                const { findings, checked, written } = await checkFormatting(root, {
+                    paths: argv.paths,
+                    write: argv.write,
+                });
                 if (argv.write) {
                     log.info(
                         written.length ?
@@ -553,9 +525,7 @@ function formatCommand() {
                 }
                 for (const finding of findings) emitDiagnostic(finding);
                 if (findings.length) {
-                    log.error(
-                        `${findings.length} of ${checked} file(s) are not formatted.`,
-                    );
+                    log.error(`${findings.length} of ${checked} file(s) are not formatted.`);
                     process.exitCode = 1;
                 } else {
                     log.info(`Formatting is clean (${checked} file(s)).`);
@@ -586,8 +556,7 @@ function markdownCommand() {
         describe: "Lint markdown with the shared markdownlint rule set",
         builder: (yargs) => {
             yargs.positional("paths", {
-                describe:
-                    "Globs to lint. Defaults to every markdown file in the repository.",
+                describe: "Globs to lint. Defaults to every markdown file in the repository.",
                 type: "string",
             });
             yargs.option("fix", {
@@ -635,8 +604,7 @@ function linksCommand() {
         describe: "Check that every link in a content tree lands somewhere",
         builder: (yargs) => {
             yargs.positional("root", {
-                describe:
-                    "Content tree to check. Defaults to the configured contentBase.",
+                describe: "Content tree to check. Defaults to the configured contentBase.",
                 type: "string",
             });
             yargs.option("manifests", {
@@ -665,9 +633,7 @@ function linksCommand() {
                             message: `unusable link manifest: ${s.reason}`,
                         });
                     }
-                    log.error(
-                        "Refresh the vendored copy from that package's own build.",
-                    );
+                    log.error("Refresh the vendored copy from that package's own build.");
                     process.exitCode = 1;
                     return;
                 }
@@ -675,14 +641,10 @@ function linksCommand() {
                 // Readable is not the same as addressable: a key shape the
                 // lookup cannot parse makes every cross-package link miss, and
                 // the audit then blames the *notes*.
-                const drifted = unaddressableForeignPackages(
-                    index.foreign.index,
-                );
+                const drifted = unaddressableForeignPackages(index.foreign.index);
                 if (drifted.length) {
                     for (const f of drifted) {
-                        console.error(
-                            formatUnaddressableFinding(f, manifestDir),
-                        );
+                        console.error(formatUnaddressableFinding(f, manifestDir));
                     }
                     process.exitCode = 1;
                     return;
@@ -744,9 +706,7 @@ function linksCommand() {
                     frontmatterLinks.length +
                     homepageLinks.length;
                 if (failures) {
-                    log.error(
-                        `${failures} link problem(s) across ${index.notes.length} note(s).`,
-                    );
+                    log.error(`${failures} link problem(s) across ${index.notes.length} note(s).`);
                     process.exitCode = 1;
                 } else {
                     log.info(
@@ -789,14 +749,12 @@ function manifestCommand() {
         describe: "Emit this package's cross-package link manifest",
         builder: (yargs) => {
             yargs.positional("root", {
-                describe:
-                    "Content tree to read. Defaults to the configured contentBase.",
+                describe: "Content tree to read. Defaults to the configured contentBase.",
                 type: "string",
             });
             yargs.option("out", {
                 describe:
-                    "Directory to write into. Defaults to the configured " +
-                    "`paths.manifestOut`.",
+                    "Directory to write into. Defaults to the configured " + "`paths.manifestOut`.",
                 type: "string",
             });
         },
@@ -825,10 +783,7 @@ function manifestCommand() {
                 // lost its address becomes a dead link in every consumer.
                 for (const s of skipped) {
                     emitDiagnostic({
-                        file: path.join(
-                            argv.root ?? config.paths.content,
-                            s.file,
-                        ),
+                        file: path.join(argv.root ?? config.paths.content, s.file),
                         severity: "warning",
                         message: `no address, so it is absent from the manifest: ${s.reason}`,
                     });
@@ -864,8 +819,7 @@ function siteCommand() {
         describe: "Build a Hugo content tree from the content tree",
         builder: (yargs) => {
             yargs.option("out", {
-                describe:
-                    "Write the mount here instead of the configured `site.out`.",
+                describe: "Write the mount here instead of the configured `site.out`.",
                 type: "string",
             });
         },
@@ -903,26 +857,16 @@ function siteCommand() {
                 }
                 for (const s of gates.staleManifests) {
                     emitDiagnostic({
-                        file: path.join(
-                            loadPackConfig().paths.manifests,
-                            `${s.package}.json`,
-                        ),
+                        file: path.join(loadPackConfig().paths.manifests, `${s.package}.json`),
                         severity: "error",
                         message: `unusable link manifest: ${s.reason}`,
                     });
                 }
                 for (const f of gates.unaddressable) {
-                    console.error(
-                        formatUnaddressable(
-                            f,
-                            loadPackConfig().paths.manifests,
-                        ),
-                    );
+                    console.error(formatUnaddressable(f, loadPackConfig().paths.manifests));
                 }
                 for (const c of gates.conflicts) {
-                    log.error(
-                        `address ${c.key} is also published by ${c.package}`,
-                    );
+                    log.error(`address ${c.key} is also published by ${c.package}`);
                 }
                 if (gatesFailed(gates)) {
                     process.exitCode = 1;
@@ -937,9 +881,7 @@ function siteCommand() {
                     log.error(`bad content table: ${e.reason}  (${e.source})`);
                 }
                 for (const e of result.wikiErrors) {
-                    log.error(
-                        `bad wikilink [[${e.target}]]: ${e.reason}  (${e.file})`,
-                    );
+                    log.error(`bad wikilink [[${e.target}]]: ${e.reason}  (${e.file})`);
                 }
                 if (result.tableErrors.length || result.wikiErrors.length) {
                     process.exitCode = 1;
@@ -989,8 +931,7 @@ function reachabilityCommand() {
         describe: "Check that every document in a corpus is reachable",
         builder: (yargs) => {
             yargs.positional("dir", {
-                describe:
-                    "The corpus directory, relative to the content tree root.",
+                describe: "The corpus directory, relative to the content tree root.",
                 type: "string",
             });
             yargs.positional("file", {
@@ -1008,8 +949,7 @@ function reachabilityCommand() {
                 default: [],
             });
             yargs.option("root", {
-                describe:
-                    "Content tree to read. Defaults to the configured contentBase.",
+                describe: "Content tree to read. Defaults to the configured contentBase.",
                 type: "string",
             });
         },
@@ -1026,9 +966,7 @@ function reachabilityCommand() {
                     stopAt: (n) => indexes.has(String(n.fm.shortcode)),
                 });
 
-                const total = index.notes.filter((n) =>
-                    n.rel.startsWith(`${dir}/`),
-                ).length;
+                const total = index.notes.filter((n) => n.rel.startsWith(`${dir}/`)).length;
 
                 for (const o of orphans) {
                     // Unreachability is a property of the whole document, so
@@ -1052,8 +990,7 @@ function reachabilityCommand() {
                     process.exitCode = 1;
                 } else {
                     log.info(
-                        `All ${total} document(s) in ${dir} are reachable ` +
-                            `from ${argv.file}.`,
+                        `All ${total} document(s) in ${dir} are reachable ` + `from ${argv.file}.`,
                     );
                 }
             } catch (err) {
@@ -1144,8 +1081,7 @@ function depsCommand() {
                     return;
                 }
                 const count = await fetchAllCatalogs(config);
-                if (count)
-                    log.info(`Fetched ${count} dependency catalogue(s).`);
+                if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -1192,24 +1128,15 @@ async function diffAddresses(config, argv) {
         ...config,
         paths: {
             ...config.paths,
-            foreignCache: path.join(
-                path.dirname(config.paths.foreignCache),
-                "baseline",
-            ),
+            foreignCache: path.join(path.dirname(config.paths.foreignCache), "baseline"),
         },
     };
-    const dir = await fetchCatalogFromPath(
-        cacheConfig,
-        { id: config.foundryPackage },
-        argv.from,
-    );
+    const dir = await fetchCatalogFromPath(cacheConfig, { id: config.foundryPackage }, argv.from);
     // `<id>@<version>`, which is what the diagnostics name the baseline by.
     const label = path.basename(dir);
 
     const itemsRoot = path.join(dir, "items");
-    const baselineDirs = fs
-        .readdirSync(itemsRoot)
-        .map((name) => path.join(itemsRoot, name));
+    const baselineDirs = fs.readdirSync(itemsRoot).map((name) => path.join(itemsRoot, name));
     const currentDirs = itemPackJsonDirs(config);
     if (!currentDirs.length) {
         throw new Error(
@@ -1254,8 +1181,7 @@ async function diffAddresses(config, argv) {
 function addressesCommand() {
     return {
         command: "addresses <action>",
-        describe:
-            "Compare the addresses this build publishes against a release's",
+        describe: "Compare the addresses this build publishes against a release's",
         builder: (yargs) => {
             // Required, for the reason every other action is (#57): an
             // optional one exits 0 having compared nothing.

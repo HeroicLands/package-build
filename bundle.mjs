@@ -72,10 +72,7 @@ export function declaredGlobals(node) {
                 break;
             case "ObjectPattern":
                 for (const p of pattern.properties)
-                    namesIn(
-                        p.type === "RestElement" ? p.argument : p.value,
-                        out,
-                    );
+                    namesIn(p.type === "RestElement" ? p.argument : p.value, out);
                 break;
             case "ArrayPattern":
                 for (const e of pattern.elements) namesIn(e, out);
@@ -157,12 +154,7 @@ export function globalDeclarations(source) {
  *   declaredAs: "esmodules"|"scripts"|"both"|"neither"}} The findings, empty
  *   when the two agree, and how the entry was declared.
  */
-export function checkBundleLoading({
-    manifest,
-    source,
-    entry,
-    manifestName = "the manifest",
-}) {
+export function checkBundleLoading({ manifest, source, entry, manifestName = "the manifest" }) {
     const declaredAs = entryDeclaration(manifest, entry);
 
     if (declaredAs === "both") {

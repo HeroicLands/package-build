@@ -72,9 +72,7 @@ export function itemTypes() {
  * @throws {Error} When the configuration registers no builder for `type`.
  */
 export function itemBuilder(type) {
-    const builder = /** @type {Record<string, Function>} */ (
-        loadPackConfig().itemBuilders
-    )[type];
+    const builder = /** @type {Record<string, Function>} */ (loadPackConfig().itemBuilders)[type];
     if (typeof builder !== "function") {
         throw new Error(
             `No builder registered for item type "${type}" — add one to the ` +
@@ -112,9 +110,7 @@ export function itemBuilder(type) {
  * @throws {Error} When the type's registry entry pairs no `img`.
  */
 export function itemArt(type) {
-    const art = /** @type {Record<string, string|undefined>} */ (
-        loadPackConfig().itemArt
-    )[type];
+    const art = /** @type {Record<string, string|undefined>} */ (loadPackConfig().itemArt)[type];
     if (!art) {
         throw new Error(
             `No default art for item type "${type}" — the note carries no ` +

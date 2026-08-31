@@ -56,10 +56,9 @@ describe("what is derived rather than stated", () => {
     });
 
     it("still honours a stated artifact", () => {
-        expect(
-            resolvePackageBuildConfig(shared({ release: { artifact: "mod" } }))
-                .artifact,
-        ).toBe("mod");
+        expect(resolvePackageBuildConfig(shared({ release: { artifact: "mod" } })).artifact).toBe(
+            "mod",
+        );
     });
 
     it("defaults every optional half", () => {
@@ -81,9 +80,7 @@ describe("what is derived rather than stated", () => {
             shared({ assetTransform: "./utils/svg-theme.mjs" }),
         );
 
-        expect(config.assetTransform).toBe(
-            path.resolve("/repo", "./utils/svg-theme.mjs"),
-        );
+        expect(config.assetTransform).toBe(path.resolve("/repo", "./utils/svg-theme.mjs"));
     });
 });
 
@@ -109,17 +106,14 @@ describe("what a repository states", () => {
         // A site generates content/, public/ and resources/; the library's own
         // list is the conventional build artifacts and nothing else.
         expect(
-            resolvePackageBuildConfig(
-                shared({ clean: { extra: ["site/content", "site/public"] } }),
-            ).cleanExtra,
+            resolvePackageBuildConfig(shared({ clean: { extra: ["site/content", "site/public"] } }))
+                .cleanExtra,
         ).toEqual(["site/content", "site/public"]);
     });
 
     it("carries repository-specific guidance for a lang failure", () => {
         const help = "See kb/dev-docs/reference/localization-keys.md.";
-        expect(
-            resolvePackageBuildConfig(shared({ lang: { help } })).langHelp,
-        ).toBe(help);
+        expect(resolvePackageBuildConfig(shared({ lang: { help } })).langHelp).toBe(help);
     });
 });
 
@@ -131,9 +125,7 @@ describe("the manifest specification", () => {
             somethingFoundryAddsLater: true,
         };
 
-        expect(
-            resolvePackageBuildConfig(shared({ manifest })).manifest,
-        ).toEqual(manifest);
+        expect(resolvePackageBuildConfig(shared({ manifest })).manifest).toEqual(manifest);
     });
 
     it("defaults to an empty block", () => {
@@ -153,24 +145,21 @@ describe("the manifest specification", () => {
     ])("refuses a declared %s, which the build derives", (key) => {
         // An override would be silently overwritten, and the two would disagree
         // with nothing to say so.
-        expect(() =>
-            resolvePackageBuildConfig(shared({ manifest: { [key]: "x" } })),
-        ).toThrow(new RegExp(`packageBuild\\.manifest\\.${key}`));
+        expect(() => resolvePackageBuildConfig(shared({ manifest: { [key]: "x" } }))).toThrow(
+            new RegExp(`packageBuild\\.manifest\\.${key}`),
+        );
     });
 
     it("names where the value actually comes from", () => {
-        expect(() =>
-            resolvePackageBuildConfig(
-                shared({ manifest: { version: "9.9.9" } }),
-            ),
-        ).toThrow(/package\.json/);
+        expect(() => resolvePackageBuildConfig(shared({ manifest: { version: "9.9.9" } }))).toThrow(
+            /package\.json/,
+        );
     });
 
     it("resolves the flags module against the repository root", () => {
         expect(
-            resolvePackageBuildConfig(
-                shared({ manifestFlags: "./utils/manifest-flags.mjs" }),
-            ).manifestFlags,
+            resolvePackageBuildConfig(shared({ manifestFlags: "./utils/manifest-flags.mjs" }))
+                .manifestFlags,
         ).toBe(path.resolve("/repo", "./utils/manifest-flags.mjs"));
     });
 });
@@ -180,27 +169,21 @@ describe("what it refuses", () => {
         ["an unknown section key", { notAKey: true }, /notAKey/],
         ["a non-list asset table", { assets: {} }, /assets/],
         ["an asset with no destination", { assets: [{ from: "lang" }] }, /to/],
-        [
-            "an unknown asset key",
-            { assets: [{ from: "a", to: "b", mode: "copy" }] },
-            /mode/,
-        ],
+        ["an unknown asset key", { assets: [{ from: "a", to: "b", mode: "copy" }] }, /mode/],
         ["a non-mapping clean block", { clean: [] }, /clean/],
         ["a non-list clean.extra", { clean: { extra: "site" } }, /extra/],
         ["an unknown deploy key", { deploy: { user: "root" } }, /user/],
         ["an empty stageDir", { stageDir: "" }, /stageDir/],
     ])("rejects %s", (_name, section, pattern) => {
-        expect(() =>
-            resolvePackageBuildConfig(
-                shared(section as Record<string, unknown>),
-            ),
-        ).toThrow(pattern as RegExp);
+        expect(() => resolvePackageBuildConfig(shared(section as Record<string, unknown>))).toThrow(
+            pattern as RegExp,
+        );
     });
 
     it("names the section in every message, so the file is obvious", () => {
-        expect(() =>
-            resolvePackageBuildConfig(shared({ clean: { extra: "site" } })),
-        ).toThrow(/packageBuild\.clean\.extra/);
+        expect(() => resolvePackageBuildConfig(shared({ clean: { extra: "site" } }))).toThrow(
+            /packageBuild\.clean\.extra/,
+        );
     });
 });
 
@@ -209,36 +192,31 @@ describe("the bundle entry", () => {
         // A Foundry package's bundle is conventionally named after the package,
         // and the id is already derived from package.json `name`. Stating it
         // again would be a third spelling of one fact.
-        expect(resolvePackageBuildConfig(shared()).bundleEntry).toBe(
-            "sohl.mjs",
-        );
+        expect(resolvePackageBuildConfig(shared()).bundleEntry).toBe("sohl.mjs");
     });
 
     it("still honours a stated entry", () => {
         expect(
-            resolvePackageBuildConfig(shared({ bundle: { entry: "main.mjs" } }))
-                .bundleEntry,
+            resolvePackageBuildConfig(shared({ bundle: { entry: "main.mjs" } })).bundleEntry,
         ).toBe("main.mjs");
     });
 
     it("rejects an entry that is not a non-empty string", () => {
-        expect(() =>
-            resolvePackageBuildConfig(shared({ bundle: { entry: "" } })),
-        ).toThrow(/packageBuild\.bundle\.entry/);
+        expect(() => resolvePackageBuildConfig(shared({ bundle: { entry: "" } }))).toThrow(
+            /packageBuild\.bundle\.entry/,
+        );
     });
 
     it("rejects an unknown key in the section", () => {
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ bundle: { entrypoint: "main.mjs" } }),
-            ),
+            resolvePackageBuildConfig(shared({ bundle: { entrypoint: "main.mjs" } })),
         ).toThrow(/packageBuild\.bundle\./);
     });
 
     it("rejects a section that is not a mapping", () => {
-        expect(() =>
-            resolvePackageBuildConfig(shared({ bundle: "main.mjs" })),
-        ).toThrow(/packageBuild\.bundle/);
+        expect(() => resolvePackageBuildConfig(shared({ bundle: "main.mjs" }))).toThrow(
+            /packageBuild\.bundle/,
+        );
     });
 });
 
@@ -257,30 +235,25 @@ describe("the localization guards", () => {
 
     it("takes a single glob or a list of them", () => {
         expect(
-            resolvePackageBuildConfig(
-                shared({ lang: { scripts: "src/**/*.ts" } }),
-            ).langScripts,
+            resolvePackageBuildConfig(shared({ lang: { scripts: "src/**/*.ts" } })).langScripts,
         ).toEqual(["src/**/*.ts"]);
         expect(
-            resolvePackageBuildConfig(
-                shared({ lang: { templates: ["a/**/*.hbs", "b/**/*.hbs"] } }),
-            ).langTemplates,
+            resolvePackageBuildConfig(shared({ lang: { templates: ["a/**/*.hbs", "b/**/*.hbs"] } }))
+                .langTemplates,
         ).toEqual(["a/**/*.hbs", "b/**/*.hbs"]);
     });
 
     it("resolves the reference contributor against the repository root", () => {
         expect(
-            resolvePackageBuildConfig(
-                shared({ lang: { references: "./utils/lang-refs.mjs" } }),
-            ).langReferences,
+            resolvePackageBuildConfig(shared({ lang: { references: "./utils/lang-refs.mjs" } }))
+                .langReferences,
         ).toBe(path.resolve("/repo", "./utils/lang-refs.mjs"));
     });
 
     it("takes the key roots when a package references one it does not declare", () => {
         expect(
-            resolvePackageBuildConfig(
-                shared({ lang: { keyRoots: ["SOHL", "TYPES"] } }),
-            ).langKeyRoots,
+            resolvePackageBuildConfig(shared({ lang: { keyRoots: ["SOHL", "TYPES"] } }))
+                .langKeyRoots,
         ).toEqual(["SOHL", "TYPES"]);
     });
 
@@ -304,9 +277,7 @@ describe("the localization guards", () => {
         ).toEqual(["SOHL.Gear.Action."]);
 
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ lang: { retained: [{ prefix: "SOHL.a." }] } }),
-            ),
+            resolvePackageBuildConfig(shared({ lang: { retained: [{ prefix: "SOHL.a." }] } })),
         ).toThrow(/packageBuild\.lang\.retained\[0\]\.reason/);
     });
 
@@ -327,17 +298,13 @@ describe("the localization guards", () => {
         ).toEqual(["a === 'b'"]);
 
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ lang: { allow: [{ literal: "x" }] } }),
-            ),
+            resolvePackageBuildConfig(shared({ lang: { allow: [{ literal: "x" }] } })),
         ).toThrow(/packageBuild\.lang\.allow\[0\]\.reason/);
     });
 
     it("rejects an unknown key in the section", () => {
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ lang: { source: "lang/*.json" } }),
-            ),
+            resolvePackageBuildConfig(shared({ lang: { source: "lang/*.json" } })),
         ).toThrow(/packageBuild\.lang\./);
     });
 });
@@ -377,9 +344,7 @@ describe("the container stages", () => {
 
     it("rejects an unknown key in a stage entry", () => {
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ container: { stages: { leg: { prt: 1 } } } }),
-            ),
+            resolvePackageBuildConfig(shared({ container: { stages: { leg: { prt: 1 } } } })),
         ).toThrow(/packageBuild\.container\.stages\.leg\.prt/);
     });
 
@@ -410,13 +375,11 @@ describe("the container stages", () => {
         // The stage is appended to it, so a bad name would otherwise surface as
         // a failure to create a container nobody wrote down.
         expect(() =>
-            resolvePackageBuildConfig(
-                shared({ container: { name: "heroiclands/foundry" } }),
-            ),
+            resolvePackageBuildConfig(shared({ container: { name: "heroiclands/foundry" } })),
         ).toThrow(/packageBuild\.container\.name/);
-        expect(() =>
-            resolvePackageBuildConfig(shared({ container: { name: "" } })),
-        ).toThrow(/packageBuild\.container\.name/);
+        expect(() => resolvePackageBuildConfig(shared({ container: { name: "" } }))).toThrow(
+            /packageBuild\.container\.name/,
+        );
     });
 });
 
@@ -453,9 +416,9 @@ describe("the end-to-end harness", () => {
     });
 
     it("requires a suite to name a program to run", () => {
-        expect(() =>
-            resolvePackageBuildConfig(shared({ e2e: { suite: { run: [] } } })),
-        ).toThrow(/packageBuild\.e2e\.suite\.run/);
+        expect(() => resolvePackageBuildConfig(shared({ e2e: { suite: { run: [] } } }))).toThrow(
+            /packageBuild\.e2e\.suite\.run/,
+        );
     });
 
     it("normalizes a build target given as a bare script name", () => {
@@ -495,9 +458,9 @@ describe("the end-to-end harness", () => {
     });
 
     it("rejects an unknown key, so a typo is not silently ignored", () => {
-        expect(() =>
-            resolvePackageBuildConfig(shared({ e2e: { wrld: {} } })),
-        ).toThrow(/packageBuild\.e2e\.wrld/);
+        expect(() => resolvePackageBuildConfig(shared({ e2e: { wrld: {} } }))).toThrow(
+            /packageBuild\.e2e\.wrld/,
+        );
     });
 });
 
@@ -514,8 +477,6 @@ describe("the compatibility floor", () => {
     });
 
     it("is null when the package claims none", () => {
-        expect(
-            resolvePackageBuildConfig(shared()).compatibilityMinimum,
-        ).toBeNull();
+        expect(resolvePackageBuildConfig(shared()).compatibilityMinimum).toBeNull();
     });
 });

@@ -203,9 +203,7 @@ export function writeZipEntries(files, dest) {
  * @returns {Promise<void>}
  */
 async function extractItemPacks(id, version, manifest, root, dir) {
-    const itemPacks = (manifest.packs ?? []).filter(
-        (pack) => pack.type === "Item",
-    );
+    const itemPacks = (manifest.packs ?? []).filter((pack) => pack.type === "Item");
     if (!itemPacks.length) {
         throw new Error(
             `${id}@${version}: its manifest declares no Item packs, so it ` +
@@ -239,9 +237,7 @@ async function extractItemPacks(id, version, manifest, root, dir) {
 async function downloadAndUnzip(url, dest) {
     const res = await fetch(url, { redirect: "follow" });
     if (!res.ok) {
-        throw new Error(
-            `could not download ${url}: HTTP ${res.status} ${res.statusText}`,
-        );
+        throw new Error(`could not download ${url}: HTTP ${res.status} ${res.statusText}`);
     }
     writeZipEntries(unzipSync(new Uint8Array(await res.arrayBuffer())), dest);
 }
@@ -272,10 +268,7 @@ export function pinnedManifestUrl(url, verified) {
     if (at === -1) return { url, pinned: false };
     const tag = verified.startsWith("v") ? verified : `v${verified}`;
     return {
-        url:
-            url.slice(0, at) +
-            `/releases/download/${tag}/` +
-            url.slice(at + marker.length),
+        url: url.slice(0, at) + `/releases/download/${tag}/` + url.slice(at + marker.length),
         pinned: true,
     };
 }
@@ -318,9 +311,7 @@ export async function fetchCatalog(config, rel) {
 
     const download = manifest.download;
     if (!download) {
-        throw new Error(
-            `${rel.id}@${version}: its manifest declares no \`download\``,
-        );
+        throw new Error(`${rel.id}@${version}: its manifest declares no \`download\``);
     }
 
     // Rebuild from empty: a previous run may have died partway, and a stale
@@ -398,9 +389,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
         throw new Error(`${rel.id}: nothing at ${source}`);
     }
 
-    const staging = fs.mkdtempSync(
-        path.join(os.tmpdir(), `content-build-${rel.id}-`),
-    );
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `content-build-${rel.id}-`));
     try {
         let root;
         if (fs.statSync(source).isDirectory()) {
@@ -419,9 +408,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
             );
         }
         if (manifest.id && manifest.id !== rel.id) {
-            throw new Error(
-                `${rel.id}: ${source} is package "${manifest.id}", not "${rel.id}"`,
-            );
+            throw new Error(`${rel.id}: ${source} is package "${manifest.id}", not "${rel.id}"`);
         }
         const version = manifest.version;
         if (!version) {
@@ -448,9 +435,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
 export async function fetchAllCatalogs(config) {
     const rels = itemCatalogRelationships(config);
     if (!rels.length) {
-        log.info(
-            "No relationship declares `itemCatalog: true`; nothing to fetch.",
-        );
+        log.info("No relationship declares `itemCatalog: true`; nothing to fetch.");
         return 0;
     }
     for (const rel of rels) await fetchCatalog(config, rel);

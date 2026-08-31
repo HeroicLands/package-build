@@ -57,15 +57,7 @@ function note({
  * addressed by the package rather than by a slug.
  */
 function homepage(title = "Hârn Adventures"): string {
-    return [
-        "---",
-        "type: homepage",
-        `title: ${title}`,
-        "---",
-        "",
-        "Prose.",
-        "",
-    ].join("\n");
+    return ["---", "type: homepage", `title: ${title}`, "---", "", "Prose.", ""].join("\n");
 }
 
 /** Lint a tree, skipping nothing, and return its findings. */
@@ -129,9 +121,7 @@ describe("lintContentTree", () => {
                 aliases: ["affliction-self-pro"],
             }),
         });
-        const shape = r.findings.filter((f) =>
-            f.message.includes("alphanumeric"),
-        );
+        const shape = r.findings.filter((f) => f.message.includes("alphanumeric"));
         expect(shape).toHaveLength(1);
         expect(shape[0].file).toContain("Aconite.md");
         expect(shape[0].line).toBe(5);
@@ -143,9 +133,7 @@ describe("lintContentTree", () => {
             "A/One.md": note(),
             "B/Two.md": note({ name: "Aconite Copy" }),
         });
-        const dupes = r.findings.filter((f) =>
-            f.message.includes("duplicate address"),
-        );
+        const dupes = r.findings.filter((f) => f.message.includes("duplicate address"));
         expect(dupes).toHaveLength(2);
         expect(dupes[0].message).toContain("affliction:aconite");
         // Each finding names the *other* file, so neither is a dead end.
@@ -158,17 +146,12 @@ describe("lintContentTree", () => {
     // document is addressed across every pack of its document type.
     it("still reports a duplicate when the two notes route to different packs", () => {
         const withPack = (pack: string, name: string) =>
-            note({ name }).replace(
-                "type: affliction",
-                `pack: ${pack}\ntype: affliction`,
-            );
+            note({ name }).replace("type: affliction", `pack: ${pack}\ntype: affliction`);
         const r = lint({
             "A/One.md": withPack("items", "One"),
             "B/Two.md": withPack("relics", "Two"),
         });
-        expect(
-            r.findings.filter((f) => f.message.includes("duplicate address")),
-        ).toHaveLength(2);
+        expect(r.findings.filter((f) => f.message.includes("duplicate address"))).toHaveLength(2);
     });
 
     // The rule requiring every note to repeat its own `type-shortcode` in
@@ -249,11 +232,9 @@ describe("lintContentTree", () => {
             "A/One.md": note(),
             "B/Two.md": note({ name: "Aconite Copy" }),
         });
-        expect(
-            dupes.findings.filter((f) =>
-                f.message.includes("duplicate address"),
-            ),
-        ).toHaveLength(2);
+        expect(dupes.findings.filter((f) => f.message.includes("duplicate address"))).toHaveLength(
+            2,
+        );
     });
 
     it("honours the skip list", () => {

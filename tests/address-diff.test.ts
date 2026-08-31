@@ -27,12 +27,7 @@ import {
 } from "../engine/address-diff.mjs";
 
 /** A compiled item document, in the shape a pack's JSON output has. */
-function itemDoc(
-    type: string,
-    shortcode: string,
-    id: string,
-    name = shortcode,
-): object {
+function itemDoc(type: string, shortcode: string, id: string, name = shortcode): object {
     return { _id: id, type, name, system: { shortcode } };
 }
 
@@ -41,10 +36,7 @@ let tmp: string;
 function write(rel: string, data: unknown): string {
     const full = path.join(tmp, rel);
     fs.mkdirSync(path.dirname(full), { recursive: true });
-    fs.writeFileSync(
-        full,
-        typeof data === "string" ? data : JSON.stringify(data, null, 2),
-    );
+    fs.writeFileSync(full, typeof data === "string" ? data : JSON.stringify(data, null, 2));
     return full;
 }
 
@@ -84,20 +76,12 @@ describe("reading an address space out of compiled item JSON (#66)", () => {
     it("reads several pack directories as one address space", () => {
         write("a/One_1.json", itemDoc("skill", "awar", "1"));
         write("b/Two_2.json", itemDoc("weapongear", "dagr", "2"));
-        const space = readItemAddresses([
-            path.join(tmp, "a"),
-            path.join(tmp, "b"),
-        ]);
-        expect([...space.keys()].sort()).toEqual([
-            "skill:awar",
-            "weapongear:dagr",
-        ]);
+        const space = readItemAddresses([path.join(tmp, "a"), path.join(tmp, "b")]);
+        expect([...space.keys()].sort()).toEqual(["skill:awar", "weapongear:dagr"]);
     });
 
     it("reports a directory that is not there rather than treating it as empty", () => {
-        expect(() => readItemAddresses([path.join(tmp, "nope")])).toThrow(
-            /does not exist/,
-        );
+        expect(() => readItemAddresses([path.join(tmp, "nope")])).toThrow(/does not exist/);
     });
 });
 
@@ -124,9 +108,7 @@ describe("diffing this build's addresses against a published release (#66)", () 
 
     it("says nothing when every published address is still published", () => {
         const current = new Map(baseline());
-        expect(
-            diffItemAddresses(baseline(), current, { baseline: "sohl@0.8.2" }),
-        ).toEqual([]);
+        expect(diffItemAddresses(baseline(), current, { baseline: "sohl@0.8.2" })).toEqual([]);
     });
 
     it("says nothing about an address that merely arrived", () => {
@@ -137,9 +119,7 @@ describe("diffing this build's addresses against a published release (#66)", () 
             type: "weapongear",
             shortcode: "new",
         });
-        expect(
-            diffItemAddresses(baseline(), current, { baseline: "sohl@0.8.2" }),
-        ).toEqual([]);
+        expect(diffItemAddresses(baseline(), current, { baseline: "sohl@0.8.2" })).toEqual([]);
     });
 
     /*
@@ -207,9 +187,9 @@ describe("diffing this build's addresses against a published release (#66)", () 
      * what the current build publishes.
      */
     it("refuses a baseline that publishes no address at all", () => {
-        expect(() =>
-            diffItemAddresses(new Map(), new Map(), { baseline: "pkg@0.5.3" }),
-        ).toThrow(/publishes no addressable item/);
+        expect(() => diffItemAddresses(new Map(), new Map(), { baseline: "pkg@0.5.3" })).toThrow(
+            /publishes no addressable item/,
+        );
     });
 
     it("reports findings in address order, so two runs read the same", () => {
@@ -217,10 +197,7 @@ describe("diffing this build's addresses against a published release (#66)", () 
         const findings = diffItemAddresses(baseline(), current, {
             baseline: "sohl@0.8.2",
         });
-        expect(findings.map((f) => f.address)).toEqual([
-            "skill:awar",
-            "weapongear:Tabri",
-        ]);
+        expect(findings.map((f) => f.address)).toEqual(["skill:awar", "weapongear:Tabri"]);
     });
 });
 

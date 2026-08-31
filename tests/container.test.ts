@@ -36,9 +36,7 @@ import {
 describe("what a stage resolves to", () => {
     it("names the container after the package, so two can run at once", () => {
         expect(containerName("sohl", "test")).toBe("sohl-foundry-test");
-        expect(containerName("sohl-thalorna", "dev")).toBe(
-            "sohl-thalorna-foundry-dev",
-        );
+        expect(containerName("sohl-thalorna", "dev")).toBe("sohl-thalorna-foundry-dev");
     });
 
     it("takes a declared name, so packages can share one licence", () => {
@@ -74,9 +72,7 @@ describe("what a stage resolves to", () => {
     });
 
     it("takes a declared stage's port from configuration", () => {
-        expect(
-            resolveStagePort("leg", { stages: { leg: { port: 30010 } } }),
-        ).toBe(30010);
+        expect(resolveStagePort("leg", { stages: { leg: { port: 30010 } } })).toBe(30010);
     });
 
     it("lets the environment override any of them", () => {
@@ -88,9 +84,7 @@ describe("what a stage resolves to", () => {
     });
 
     it("refuses a stage with no data root configured", () => {
-        expect(() => resolveDataRoot("test", { env: {} })).toThrow(
-            /FOUNDRYVTT_TEST_DATA/,
-        );
+        expect(() => resolveDataRoot("test", { env: {} })).toThrow(/FOUNDRYVTT_TEST_DATA/);
     });
 
     it("refuses a remote data root, which cannot be bind-mounted", () => {
@@ -114,24 +108,18 @@ describe("which Foundry build a run pins", () => {
     it("pins the test stage to the compatibility floor it claims", () => {
         // The manifest promises a minimum, and a promise is only defended if
         // something exercises it — so the evidence and the claim are one number.
-        expect(
-            resolveFoundryVersion("test", { compatibilityMinimum: "14.359" }),
-        ).toBe("14.359");
+        expect(resolveFoundryVersion("test", { compatibilityMinimum: "14.359" })).toBe("14.359");
     });
 
     it("leaves the maintainer's own stages unpinned", () => {
         // dev/qa/prod track whatever Foundry they are meant to.
-        expect(
-            resolveFoundryVersion("dev", { compatibilityMinimum: "14.359" }),
-        ).toBeNull();
+        expect(resolveFoundryVersion("dev", { compatibilityMinimum: "14.359" })).toBeNull();
     });
 
     it("cannot pin a floor that names no build", () => {
         // A bare major would resolve to whatever the registry served that week,
         // which is the drift a pin exists to prevent.
-        expect(
-            resolveFoundryVersion("test", { compatibilityMinimum: "14" }),
-        ).toBeNull();
+        expect(resolveFoundryVersion("test", { compatibilityMinimum: "14" })).toBeNull();
     });
 
     it("takes a declared stage's build from configuration", () => {
@@ -154,18 +142,12 @@ describe("which Foundry build a run pins", () => {
 
 describe("which image a run uses", () => {
     it("takes the major from the pinned build", () => {
-        expect(resolveImage({ version: "14.359" })).toBe(
-            "felddy/foundryvtt:14",
-        );
-        expect(resolveImage({ version: "12.331" })).toBe(
-            "felddy/foundryvtt:12",
-        );
+        expect(resolveImage({ version: "14.359" })).toBe("felddy/foundryvtt:14");
+        expect(resolveImage({ version: "12.331" })).toBe("felddy/foundryvtt:12");
     });
 
     it("falls back to the major of the compatibility floor", () => {
-        expect(resolveImage({ compatibilityMinimum: "14.359" })).toBe(
-            "felddy/foundryvtt:14",
-        );
+        expect(resolveImage({ compatibilityMinimum: "14.359" })).toBe("felddy/foundryvtt:14");
     });
 
     it("floats only when the package claims no floor at all", () => {
@@ -173,9 +155,9 @@ describe("which image a run uses", () => {
     });
 
     it("honours a configured image, then an environment override", () => {
-        expect(
-            resolveImage({ image: "local/foundry:wip", version: "14.359" }),
-        ).toBe("local/foundry:wip");
+        expect(resolveImage({ image: "local/foundry:wip", version: "14.359" })).toBe(
+            "local/foundry:wip",
+        );
         expect(
             resolveImage({
                 env: { FOUNDRYVTT_CONTAINER_IMAGE: "mirror/foundry:14" },
@@ -200,9 +182,7 @@ describe("which world a stage launches", () => {
 
     it("lets a declared stage force no auto-launch at all", () => {
         // The legacy stage's world is managed by hand.
-        expect(resolveWorld("leg", { stages: { leg: { world: "" } } })).toBe(
-            "",
-        );
+        expect(resolveWorld("leg", { stages: { leg: { world: "" } } })).toBe("");
     });
 });
 
@@ -251,9 +231,7 @@ describe("the docker run argument vector", () => {
     });
 
     it("passes the pinned build to the image as FOUNDRY_VERSION", () => {
-        expect(dockerRunArgs({ ...base, version: "14.359" })).toContain(
-            "FOUNDRY_VERSION=14.359",
-        );
+        expect(dockerRunArgs({ ...base, version: "14.359" })).toContain("FOUNDRY_VERSION=14.359");
     });
 
     it("omits FOUNDRY_VERSION entirely when nothing is pinned", () => {
@@ -261,9 +239,7 @@ describe("the docker run argument vector", () => {
     });
 
     it("sets an empty world when a stage forces no auto-launch", () => {
-        expect(dockerRunArgs({ ...base, world: "" })).toContain(
-            "FOUNDRY_WORLD=",
-        );
+        expect(dockerRunArgs({ ...base, world: "" })).toContain("FOUNDRY_WORLD=");
     });
 
     it("mounts a host cache and points the image at the mount", () => {

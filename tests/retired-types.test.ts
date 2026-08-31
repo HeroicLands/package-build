@@ -18,12 +18,7 @@ vi.mock("../engine/content-package.mjs", () => ({
     foundryPackageId: () => "sohl-thalorna",
 }));
 
-import {
-    PACK_BY_TYPE,
-    RETIRED_TYPES,
-    assertTypeNotRetired,
-    packForType,
-} from "../engine/ids.mjs";
+import { PACK_BY_TYPE, RETIRED_TYPES, assertTypeNotRetired, packForType } from "../engine/ids.mjs";
 import { Items } from "../sohl/items.mjs";
 
 /**
@@ -64,9 +59,9 @@ describe("retired content types", () => {
     );
 
     it("says what to write instead, and where the offending value is", () => {
-        expect(() =>
-            assertTypeNotRetired("creature", "/vault/Bestiary/Condor.md"),
-        ).toThrow(/\/vault\/Bestiary\/Condor\.md/);
+        expect(() => assertTypeNotRetired("creature", "/vault/Bestiary/Condor.md")).toThrow(
+            /\/vault\/Bestiary\/Condor\.md/,
+        );
     });
 
     it("leaves every live type alone", () => {
@@ -96,33 +91,24 @@ describe("a note left on a retired type fails the compile", () => {
         return path.join(root, "content");
     }
 
-    const NOTE = [
-        "name:",
-        "  full: Condor",
-        "id: CCCCCCCCCCCCCCCC",
-        "shortcode: condor",
-    ].join("\n");
+    const NOTE = ["name:", "  full: Condor", "id: CCCCCCCCCCCCCCCC", "shortcode: condor"].join(
+        "\n",
+    );
 
     it("reports the file, from a pass that would not have claimed it anyway", async () => {
         // The Items pass never claimed a creature note, so before the guard it
         // would have skipped this silently — and so would every other pass,
         // leaving a build that is green and missing an actor.
         const content = treeWith(`${NOTE}\ntype: creature`);
-        const dest = fs.mkdtempSync(
-            path.join(os.tmpdir(), "sohl-retired-out-"),
+        const dest = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-retired-out-"));
+        await expect(new Items({ contentBase: content, dest }).compile()).rejects.toThrow(
+            /Condor\.md/,
         );
-        await expect(
-            new Items({ contentBase: content, dest }).compile(),
-        ).rejects.toThrow(/Condor\.md/);
     });
 
     it("compiles the same note once it declares `being`", async () => {
         const content = treeWith(`${NOTE}\ntype: being`);
-        const dest = fs.mkdtempSync(
-            path.join(os.tmpdir(), "sohl-retired-out-"),
-        );
-        await expect(
-            new Items({ contentBase: content, dest }).compile(),
-        ).resolves.not.toThrow();
+        const dest = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-retired-out-"));
+        await expect(new Items({ contentBase: content, dest }).compile()).resolves.not.toThrow();
     });
 });

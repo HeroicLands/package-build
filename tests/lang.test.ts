@@ -10,8 +10,7 @@ import { describe, expect, it } from "vitest";
 import { findPrefixCollisions, validateLangSource } from "../lang.mjs";
 
 /** Serialize a record the way a lang file is authored, so positions are real. */
-const asFile = (entries: Record<string, unknown>) =>
-    JSON.stringify(entries, null, 4);
+const asFile = (entries: Record<string, unknown>) => JSON.stringify(entries, null, 4);
 
 describe("validateLangSource", () => {
     it("passes a shippable file", () => {
@@ -112,15 +111,11 @@ describe("validateLangSource", () => {
 
 describe("findPrefixCollisions", () => {
     it("finds nothing when every key is a leaf", () => {
-        expect(
-            findPrefixCollisions({ "a.b": "1", "a.c": "2", d: "3" }),
-        ).toEqual([]);
+        expect(findPrefixCollisions({ "a.b": "1", "a.c": "2", d: "3" })).toEqual([]);
     });
 
     it("pairs each prefix with the leaf that exposes it", () => {
-        expect(findPrefixCollisions({ "a.b": "1", "a.b.c": "2" })).toEqual([
-            ["a.b", "a.b.c"],
-        ]);
+        expect(findPrefixCollisions({ "a.b": "1", "a.b.c": "2" })).toEqual([["a.b", "a.b.c"]]);
     });
 
     it("reports every leaf a single prefix collides with", () => {

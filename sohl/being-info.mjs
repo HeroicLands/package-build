@@ -108,8 +108,7 @@ export function deriveBeingInfo(sohl, index) {
     const items = Array.isArray(out.items) ? out.items : [];
     if (items.length === 0) return out;
 
-    const lookup = (type, shortcode) =>
-        shortcode ? index.get(`${type}:${shortcode}`) : undefined;
+    const lookup = (type, shortcode) => (shortcode ? index.get(`${type}:${shortcode}`) : undefined);
 
     /** An item's display name: its own, then the index's, then its shortcode. */
     const displayName = (it, ref, shortcode) =>
@@ -135,8 +134,7 @@ export function deriveBeingInfo(sohl, index) {
             if (!isMap(it)) continue;
             const key = GEAR_TYPE_TO_KEY[it.type];
             if (!key) continue;
-            const shortcode =
-                typeof it.shortcode === "string" ? it.shortcode : undefined;
+            const shortcode = typeof it.shortcode === "string" ? it.shortcode : undefined;
             const ref = lookup(it.type, shortcode);
             const name = displayName(it, ref, shortcode);
             if (!name) continue;
@@ -153,8 +151,7 @@ export function deriveBeingInfo(sohl, index) {
     const talents = [];
     for (const it of items) {
         if (!isMap(it) || it.type !== "mysticalability") continue;
-        const shortcode =
-            typeof it.shortcode === "string" ? it.shortcode : undefined;
+        const shortcode = typeof it.shortcode === "string" ? it.shortcode : undefined;
         const ref = lookup("mysticalability", shortcode);
         // No shortcode fallback here: an ability with neither an inline name
         // nor an index entry has nothing to show, and a row reading like a

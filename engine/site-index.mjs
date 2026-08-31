@@ -152,10 +152,7 @@ function mergeForeign(index, foreignIndex) {
         const parts = readCanonicalKey(key);
         if (!parts) continue;
         const shortKey = `${parts.type}/${parts.shortcode}`;
-        if (
-            short.has(shortKey) &&
-            short.get(shortKey).package !== value.package
-        ) {
+        if (short.has(shortKey) && short.get(shortKey).package !== value.package) {
             ambiguous.add(shortKey);
         } else {
             short.set(shortKey, value);
@@ -242,10 +239,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             // The page's package is the configured one — the site collection
             // resolves it and records it as `pkg`. Never read out of
             // frontmatter: `package:` is retired (#56).
-            index.set(
-                canonicalKey(e.pkg ?? contentPackage(), type, shortcode),
-                value,
-            );
+            index.set(canonicalKey(e.pkg ?? contentPackage(), type, shortcode), value);
             // In Foundry an item and its documentation are two documents, so
             // `skill/wpnc` and `docskill/wpnc` are two UUIDs (#1362). Here the
             // item note renders as one page which *is* its documentation, so
@@ -315,13 +309,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  */
 export function wikiContext(
     built,
-    {
-        src,
-        type = null,
-        errors,
-        foreignIndex = new Map(),
-        manifestsComplete = true,
-    },
+    { src, type = null, errors, foreignIndex = new Map(), manifestsComplete = true },
 ) {
     return {
         index: built.index,

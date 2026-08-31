@@ -46,7 +46,25 @@
  * @type {Readonly<object>}
  */
 export const PRETTIER_BASE = Object.freeze({
-    printWidth: 80,
+    // 100, not the conventional 80. The usual argument for 80 is reading
+    // measure, and it does not apply here: `proseWrap` is left at Prettier's
+    // default of `preserve`, so authored prose is never reflowed at all — the
+    // notes in these trees run to a p90 of 378 characters a line and are
+    // untouched by this number. What it actually governs is TypeScript and the
+    // YAML of a note's frontmatter, and both were measurably cramped at 80.
+    //
+    // Measured before changing it, across a third of the SoHL source: at 80,
+    // Prettier *fails* to honour the limit on 1,399 lines — long string
+    // literals, `@src/…` specifiers, generic signatures — so those lines are
+    // over-width anyway and their surroundings were broken up for nothing. At
+    // 100 that falls to 75, and the file is 4.9% shorter. Past 100 the returns
+    // flatten (120 buys another 2.6%).
+    //
+    // The same knee appears in content: an item entry written in flow style —
+    // `{ shortcode: X, type: skill, name: …, system: { … } }` — typically lands
+    // in the low 90s, so 90.8% of 318,030 entries fit on one line at 80 and
+    // 95.3% at 100, with almost nothing gained in between.
+    printWidth: 100,
     tabWidth: 4,
     useTabs: false,
     semi: true,
@@ -113,9 +131,7 @@ export const PRETTIER_CONFIG = Object.freeze({
  *   `overrides`: passing that inline is what silently did nothing (#76).
  */
 export function sharedPrettierOptionsFor(file) {
-    return /\.md$/i.test(file) ?
-            { ...PRETTIER_BASE, ...PRETTIER_MARKDOWN }
-        :   { ...PRETTIER_BASE };
+    return /\.md$/i.test(file) ? { ...PRETTIER_BASE, ...PRETTIER_MARKDOWN } : { ...PRETTIER_BASE };
 }
 
 /**

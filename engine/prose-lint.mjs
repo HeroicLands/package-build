@@ -116,18 +116,13 @@ export async function checkFormatting(root, opts = {}) {
     const { paths, write = false } = opts;
     const prettier = opts.prettier ?? (await import("prettier"));
     const base = path.resolve(root);
-    const ignorePath = IGNORE_FILES.map((name) => path.join(base, name)).filter(
-        (file) => fs.existsSync(file),
+    const ignorePath = IGNORE_FILES.map((name) => path.join(base, name)).filter((file) =>
+        fs.existsSync(file),
     );
 
-    const roots =
-        paths?.length ?
-            paths.map((entry) => path.resolve(base, entry))
-        :   [base];
+    const roots = paths?.length ? paths.map((entry) => path.resolve(base, entry)) : [base];
     const candidates = roots.flatMap((entry) =>
-        fs.existsSync(entry) && fs.statSync(entry).isDirectory() ?
-            walkFiles(entry)
-        :   [entry],
+        fs.existsSync(entry) && fs.statSync(entry).isDirectory() ? walkFiles(entry) : [entry],
     );
 
     const findings = [];
@@ -175,8 +170,7 @@ export async function checkFormatting(root, opts = {}) {
                     // No line or column: Prettier's answer is about the whole
                     // file, and #17's rule is to drop a field rather than
                     // invent one.
-                    message:
-                        "is not formatted; run `content-build format --write` to fix it",
+                    message: "is not formatted; run `content-build format --write` to fix it",
                 });
             }
         } catch (err) {
@@ -189,9 +183,7 @@ export async function checkFormatting(root, opts = {}) {
             const loc = err?.loc?.start ?? err?.loc;
             findings.push({
                 file,
-                ...(Number.isFinite(loc?.line) ?
-                    { line: loc.line, column: loc.column }
-                :   {}),
+                ...(Number.isFinite(loc?.line) ? { line: loc.line, column: loc.column } : {}),
                 severity: "error",
                 message: `cannot be parsed: ${String(err?.message ?? err).split("\n")[0]}`,
             });

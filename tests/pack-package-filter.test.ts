@@ -181,9 +181,7 @@ function names(dir: string): string[] {
     return fs
         .readdirSync(dir)
         .filter((f) => f.endsWith(".json"))
-        .map(
-            (f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")).name,
-        );
+        .map((f) => JSON.parse(fs.readFileSync(path.join(dir, f), "utf8")).name);
 }
 
 /** A destination directory for one pack. */
@@ -199,10 +197,7 @@ beforeAll(async () => {
     content = path.join(tmp, "content");
     fs.mkdirSync(content, { recursive: true });
     fs.writeFileSync(path.join(content, "OwnSkill.md"), OWN_SKILL);
-    fs.writeFileSync(
-        path.join(content, "UndeclaredSkill.md"),
-        UNDECLARED_SKILL,
-    );
+    fs.writeFileSync(path.join(content, "UndeclaredSkill.md"), UNDECLARED_SKILL);
     fs.writeFileSync(path.join(content, "OwnCreature.md"), OWN_CREATURE);
     fs.writeFileSync(path.join(content, "OwnDoc.md"), OWN_DOC);
     fs.writeFileSync(path.join(content, "OwnMacro.md"), OWN_MACRO);
@@ -318,9 +313,7 @@ describe("every pack compiler reports how many entries it wrote", () => {
     it.each(["items", "actors", "journals", "macros", "scenes"])(
         "%s reports a compiled count matching the documents it emitted",
         (name) => {
-            expect(compilers[name].compiledCount).toBe(
-                names(dirs[name]).length,
-            );
+            expect(compilers[name].compiledCount).toBe(names(dirs[name]).length);
             expect(compilers[name].compiledCount).toBeGreaterThan(0);
         },
     );

@@ -182,16 +182,10 @@ describe("aliases are scoped to their type", () => {
             }),
         ]);
 
-        expect(typeAlias.get("skill|scrambling")?.url).toBe(
-            "/kb/skill/climbing/",
-        );
-        expect(typeAlias.get("skill|clambering")?.url).toBe(
-            "/kb/skill/climbing/",
-        );
+        expect(typeAlias.get("skill|scrambling")?.url).toBe("/kb/skill/climbing/");
+        expect(typeAlias.get("skill|clambering")?.url).toBe("/kb/skill/climbing/");
         // Underscores in a filename stand for spaces.
-        expect(typeAlias.get("skill|rock climbing")?.url).toBe(
-            "/kb/skill/climbing/",
-        );
+        expect(typeAlias.get("skill|rock climbing")?.url).toBe("/kb/skill/climbing/");
     });
 });
 
@@ -215,9 +209,7 @@ describe("foreign packages", () => {
             foreignIndex: foreignIndex(),
         });
 
-        expect(index.get("thalorna-polity-tanvur")?.url).toBe(
-            "/thalorna/polity/tanvur/",
-        );
+        expect(index.get("thalorna-polity-tanvur")?.url).toBe("/thalorna/polity/tanvur/");
         expect(contentTypes.has("polity")).toBe(true);
     });
 
@@ -226,9 +218,7 @@ describe("foreign packages", () => {
             foreignIndex: foreignIndex(),
         });
 
-        expect(index.get("polity/tanvur")?.url).toBe(
-            "/thalorna/polity/tanvur/",
-        );
+        expect(index.get("polity/tanvur")?.url).toBe("/thalorna/polity/tanvur/");
     });
 
     it("drops the short form when two packages claim it", () => {
@@ -262,16 +252,12 @@ describe("foreign packages", () => {
         // The keys present when the merge runs are the addressing ones —
         // section/slug and the bare fallbacks. A manifest claiming one of those
         // is two packages claiming one address, which the caller fails on.
-        const clash = new Map([
-            ["skill/climbing", { url: "/elsewhere/", package: "thalorna" }],
-        ]);
+        const clash = new Map([["skill/climbing", { url: "/elsewhere/", package: "thalorna" }]]);
         const { conflicts, index } = buildSiteIndex([entry()], {
             foreignIndex: clash,
         });
 
-        expect(conflicts).toEqual([
-            { key: "skill/climbing", package: "thalorna" },
-        ]);
+        expect(conflicts).toEqual([{ key: "skill/climbing", package: "thalorna" }]);
         // The local page keeps the address; the caller decides to fail.
         expect(index.get("skill/climbing")?.url).toBe("/kb/skill/climbing/");
     });
@@ -314,12 +300,8 @@ describe("pages that carry no type", () => {
             },
         ]);
 
-        expect(index.get("dev-docs/architecture")?.url).toBe(
-            "/kb/dev-docs/architecture/",
-        );
-        expect(index.get("architecture")?.url).toBe(
-            "/kb/dev-docs/architecture/",
-        );
+        expect(index.get("dev-docs/architecture")?.url).toBe("/kb/dev-docs/architecture/");
+        expect(index.get("architecture")?.url).toBe("/kb/dev-docs/architecture/");
         expect(typeAlias.size).toBe(0);
         expect(contentTypes.size).toBe(0);
     });

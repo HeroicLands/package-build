@@ -108,7 +108,5 @@ function entryFor(type) {
  * @type {Readonly<Record<string, Readonly<{system: (fm: object) => object, img: string, fields: readonly object[]}>>>}
  */
 export const ITEM_BUILDERS = Object.freeze(
-    Object.fromEntries(
-        Object.keys(ITEM_FIELDS).map((type) => [type, entryFor(type)]),
-    ),
+    Object.fromEntries(Object.keys(ITEM_FIELDS).map((type) => [type, entryFor(type)])),
 );

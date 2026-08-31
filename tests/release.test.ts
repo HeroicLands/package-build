@@ -63,9 +63,7 @@ describe("packRelease", () => {
         expect(path.basename(result.manifest)).toBe("system.json");
         expect(result.version).toBe("0.8.2");
         expect(fs.existsSync(result.zip)).toBe(true);
-        expect(JSON.parse(fs.readFileSync(result.manifest, "utf8")).id).toBe(
-            "sohl",
-        );
+        expect(JSON.parse(fs.readFileSync(result.manifest, "utf8")).id).toBe("sohl");
     });
 
     // Foundry unpacks the archive *into* the package directory, so an extra
@@ -87,8 +85,7 @@ describe("packRelease", () => {
             "system.json": JSON.stringify({ version: "1.0.0" }),
         };
         // Enough content that a premature return would be visible as a short file.
-        for (let i = 0; i < 200; i++)
-            files[`pack/f${i}.json`] = "x".repeat(2048);
+        for (let i = 0; i < 200; i++) files[`pack/f${i}.json`] = "x".repeat(2048);
         const { stageDir, outDir } = stage(files);
 
         const { zip, bytes } = await packRelease({ stageDir, outDir });
@@ -112,8 +109,6 @@ describe("packRelease", () => {
     // An archive with no manifest installs as nothing.
     it("refuses a stage with no manifest", async () => {
         const { stageDir, outDir } = stage({ "sohl.js": "x" });
-        await expect(packRelease({ stageDir, outDir })).rejects.toThrow(
-            /nothing to release/,
-        );
+        await expect(packRelease({ stageDir, outDir })).rejects.toThrow(/nothing to release/);
     });
 });

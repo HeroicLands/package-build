@@ -67,23 +67,19 @@ afterEach(() => {
 
 describe("packageRelative", () => {
     it("strips the emitting package's own base", () => {
-        expect(
-            packageRelative("/thalorna/creature/grukar-ahk/", "/thalorna/"),
-        ).toBe("creature/grukar-ahk/");
+        expect(packageRelative("/thalorna/creature/grukar-ahk/", "/thalorna/")).toBe(
+            "creature/grukar-ahk/",
+        );
     });
 
     it("leaves a root-based package's address untouched but for the slash", () => {
-        expect(packageRelative("/skill/climbing/", "/")).toBe(
-            "skill/climbing/",
-        );
+        expect(packageRelative("/skill/climbing/", "/")).toBe("skill/climbing/");
     });
 
     it("refuses a URL that does not sit under the declared base", () => {
         // Emitting it anyway would record an address that resolves nowhere once
         // a consumer prefixes its own base — the 404 this format exists to end.
-        expect(() =>
-            packageRelative("/sohl/skill/climbing/", "/thalorna/"),
-        ).toThrow(/base/);
+        expect(() => packageRelative("/sohl/skill/climbing/", "/thalorna/")).toThrow(/base/);
     });
 });
 
@@ -95,35 +91,24 @@ describe("resolvePackageUrl", () => {
     });
 
     it("produces an absolute URL when the base names another origin", () => {
-        expect(
-            resolvePackageUrl(
-                "creature/grukar-ahk/",
-                "https://thalorna.example.org/",
-            ),
-        ).toBe("https://thalorna.example.org/creature/grukar-ahk/");
-    });
-
-    it("rejects a base that does not end in a slash", () => {
-        expect(() => resolvePackageUrl("creature/x/", "/thalorna")).toThrow(
-            /slash/,
+        expect(resolvePackageUrl("creature/grukar-ahk/", "https://thalorna.example.org/")).toBe(
+            "https://thalorna.example.org/creature/grukar-ahk/",
         );
     });
 
+    it("rejects a base that does not end in a slash", () => {
+        expect(() => resolvePackageUrl("creature/x/", "/thalorna")).toThrow(/slash/);
+    });
+
     it("rejects a site-absolute address — the shape this format replaced", () => {
-        expect(() =>
-            resolvePackageUrl("/thalorna/creature/x/", "/thalorna/"),
-        ).toThrow(/relative/);
+        expect(() => resolvePackageUrl("/thalorna/creature/x/", "/thalorna/")).toThrow(/relative/);
     });
 });
 
 describe("buildManifest", () => {
     it("keys entries canonically and records a package-relative path", () => {
         const doc = manifestOf(
-            buildManifest(
-                "sohl",
-                [entry("skill", "climb", "Climbing", "/skill/climbing/")],
-                "/",
-            ),
+            buildManifest("sohl", [entry("skill", "climb", "Climbing", "/skill/climbing/")], "/"),
         );
         expect(doc.version).toBe(MANIFEST_VERSION);
         expect(doc.package).toBe("sohl");
@@ -139,20 +124,11 @@ describe("buildManifest", () => {
         const doc = manifestOf(
             buildManifest(
                 "thalorna",
-                [
-                    entry(
-                        "creature",
-                        "grkrahk",
-                        "Grukar-ahk",
-                        "/thalorna/creature/grukar-ahk/",
-                    ),
-                ],
+                [entry("creature", "grkrahk", "Grukar-ahk", "/thalorna/creature/grukar-ahk/")],
                 "/thalorna/",
             ),
         );
-        expect(doc.entries["thalorna-creature-grkrahk"].path).toBe(
-            "creature/grukar-ahk/",
-        );
+        expect(doc.entries["thalorna-creature-grkrahk"].path).toBe("creature/grukar-ahk/");
     });
 
     it("omits a note with no shortcode — it cannot be addressed", () => {
@@ -208,12 +184,7 @@ describe("buildManifest", () => {
             buildManifest(
                 "sohl",
                 [
-                    entry(
-                        "skill",
-                        "climb",
-                        "Climbing",
-                        "/sohl/kb/skill/climbing/",
-                    ),
+                    entry("skill", "climb", "Climbing", "/sohl/kb/skill/climbing/"),
                     entry("doc", "shock", "Shock", "/sohl/kb/doc/shock/"),
                 ],
                 "/sohl/",
@@ -235,19 +206,13 @@ describe("buildManifest", () => {
                 "/",
             ),
         );
-        expect(Object.keys(doc.entries)).toEqual([
-            "sohl-skill-alpha",
-            "sohl-skill-zeta",
-        ]);
+        expect(Object.keys(doc.entries)).toEqual(["sohl-skill-alpha", "sohl-skill-zeta"]);
     });
 });
 
 describe("loadForeignManifests", () => {
     const write = (pkg: string, body: object) =>
-        fs.writeFileSync(
-            path.join(dir, `${pkg}.json`),
-            JSON.stringify(body, null, 2),
-        );
+        fs.writeFileSync(path.join(dir, `${pkg}.json`), JSON.stringify(body, null, 2));
 
     it("returns an empty index when the directory does not exist", () => {
         const r = loadForeignManifests(path.join(dir, "absent"), []);
@@ -466,17 +431,7 @@ describe("writeManifests", () => {
         // never carried the mount point.
         writeManifests(
             new Map([
-                [
-                    "thalorna",
-                    [
-                        entry(
-                            "creature",
-                            "grkrahk",
-                            "Grukar-ahk",
-                            "/creature/grukar-ahk/",
-                        ),
-                    ],
-                ],
+                ["thalorna", [entry("creature", "grkrahk", "Grukar-ahk", "/creature/grukar-ahk/")]],
             ]),
             dir,
             { thalorna: "/" },

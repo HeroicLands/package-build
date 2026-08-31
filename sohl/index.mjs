@@ -47,9 +47,4 @@ export * as kbPasses from "./kb-passes.mjs";
 // compilers arrived (#1510).
 export { DEFAULT_ITEM_ART, defaultItemArt } from "./default-item-art.mjs";
 export { AFFILIATION_STANDINGS } from "./affiliation-standings.mjs";
-export {
-    BEING_TYPE,
-    GEAR_TYPE_TO_KEY,
-    deriveBeingInfo,
-    isBeing,
-} from "./being-info.mjs";
+export { BEING_TYPE, GEAR_TYPE_TO_KEY, deriveBeingInfo, isBeing } from "./being-info.mjs";

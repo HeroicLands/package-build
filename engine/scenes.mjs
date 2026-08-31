@@ -51,25 +51,14 @@ import fs from "fs";
 import path from "path";
 import log from "loglevel";
 
-import {
-    walkMarkdownTree,
-    sohlField,
-    resolveName,
-    slugify,
-    defaultStats,
-} from "./helpers.mjs";
+import { walkMarkdownTree, sohlField, resolveName, slugify, defaultStats } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
-import {
-    behaviorDocId,
-    buildScene,
-    isMapType,
-    regionDocId,
-} from "./map-notes.mjs";
+import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.mjs";
 
 /**
  * Every SoHL action name this build knows about, for the `action:` warning on a
@@ -158,9 +147,7 @@ export class Scenes extends BasePackCompiler {
     }) {
         super({ contentBase, dest, folderResolver });
         if (!companionDests.adventures) {
-            throw new Error(
-                "Scenes compiler requires an `adventures` companion destination",
-            );
+            throw new Error("Scenes compiler requires an `adventures` companion destination");
         }
         Object.defineProperty(this, "adventureDir", {
             value: companionDests.adventures,
@@ -188,30 +175,21 @@ export class Scenes extends BasePackCompiler {
     #collect() {
         const maps = [];
         const effectsByAddress = new Map();
-        for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(
-            this.contentBase,
-        )) {
+        for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(this.contentBase)) {
             // No retired-field test: this pass's own walk — the shared compile
             // loop — is where a note still declaring `package:` (#56) or
             // `draft:` (#69) is reported, once. Repeating either check here
             // would double the diagnostic or throw past it. A refused note is
             // indexed and then never compiled, so it reaches no document.
             if (!fm || !fm.id) continue;
-            if (
-                fm.shortcode &&
-                Array.isArray(fm.effects) &&
-                fm.effects.length
-            ) {
+            if (fm.shortcode && Array.isArray(fm.effects) && fm.effects.length) {
                 effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
                     id: fm.id,
                     type: fm.type,
                     // Where the owning item landed, so a region behaviour's
                     // effect reference addresses the right pack when a
                     // repository ships several of one type (#1566).
-                    pack: packRouter().resolveOrNull(
-                        fm,
-                        packForType(fm.type).docType,
-                    ),
+                    pack: packRouter().resolveOrNull(fm, packForType(fm.type).docType),
                     effects: fm.effects,
                 });
             }
@@ -239,17 +217,13 @@ export class Scenes extends BasePackCompiler {
                 throw new Error(`Map note missing shortcode: ${absPath}`);
             }
             if (index.has(fm.shortcode)) {
-                throw new Error(
-                    `Two map notes share the shortcode "${fm.shortcode}"`,
-                );
+                throw new Error(`Two map notes share the shortcode "${fm.shortcode}"`);
             }
             const regions = new Map();
             for (const [key, spec] of Object.entries(fm.sohl?.regions ?? {})) {
                 const id = regionDocId(fm.id, key, spec?._id);
                 const behaviors = new Map();
-                for (const [bKey, bSpec] of Object.entries(
-                    spec?.behaviors ?? {},
-                )) {
+                for (const [bKey, bSpec] of Object.entries(spec?.behaviors ?? {})) {
                     behaviors.set(bKey, behaviorDocId(id, bKey, bSpec?._id));
                 }
                 regions.set(key, { id, behaviors });
@@ -283,9 +257,7 @@ export class Scenes extends BasePackCompiler {
             const mapKey = addr.map ?? selfShortcode;
             const target = index.get(mapKey);
             if (!target) {
-                throw new Error(
-                    `${label}: no map note has the shortcode "${mapKey}"`,
-                );
+                throw new Error(`${label}: no map note has the shortcode "${mapKey}"`);
             }
             const region = target.regions.get(addr.region);
             if (!region) {
@@ -305,9 +277,7 @@ export class Scenes extends BasePackCompiler {
             resolveBehaviorRef: (addr, label) => {
                 const { target, region } = lookupRegion(addr, label);
                 if (!addr.behavior) {
-                    throw new Error(
-                        `${label}: a behaviour reference is {map, region, behavior}`,
-                    );
+                    throw new Error(`${label}: a behaviour reference is {map, region, behavior}`);
                 }
                 const behaviorId = region.behaviors.get(addr.behavior);
                 if (!behaviorId) {
@@ -317,8 +287,7 @@ export class Scenes extends BasePackCompiler {
                     );
                 }
                 return (
-                    `Scene.${target.sceneId}.Region.${region.id}` +
-                    `.RegionBehavior.${behaviorId}`
+                    `Scene.${target.sceneId}.Region.${region.id}` + `.RegionBehavior.${behaviorId}`
                 );
             },
             resolveEffectRef: (addr, label) => {
@@ -420,8 +389,7 @@ export class Scenes extends BasePackCompiler {
             // default JournalEntry pack, not in whichever Scene pack the map
             // itself was routed to (#1566).
             journalPack: packRouter().defaultOf("JournalEntry"),
-            pageIds:
-                hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
+            pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
             knownActions: this.knownActions,
             warnings,
             ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
@@ -489,9 +457,7 @@ export class Scenes extends BasePackCompiler {
 
     /** @inheritdoc */
     reportCompiled(stats) {
-        log.info(
-            `Compiled ${stats.compiled} scene(s) and ${this.adventureCount} adventure(s)`,
-        );
+        log.info(`Compiled ${stats.compiled} scene(s) and ${this.adventureCount} adventure(s)`);
     }
 
     /**

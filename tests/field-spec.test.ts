@@ -47,16 +47,12 @@ describe("setPath — declaration order is emission order (#22)", () => {
             { to: "second", value: 2, describe: "" },
             { to: "first", value: 1, describe: "" },
         ];
-        expect(Object.keys(buildFromFields(fields)({}))).toEqual([
-            "second",
-            "first",
-        ]);
+        expect(Object.keys(buildFromFields(fields)({}))).toEqual(["second", "first"]);
     });
 });
 
 describe("readField — coercions carry their shape", () => {
-    const read = (field: object, fm: object) =>
-        readField(field as never, fm as never);
+    const read = (field: object, fm: object) => readField(field as never, fm as never);
 
     it("takes the value as authored when no coercion is declared", () => {
         const field = { name: "weight", to: "w", ...AS_AUTHORED, default: 0 };
@@ -113,17 +109,9 @@ describe("readField — coercions carry their shape", () => {
     });
 
     it("coerces a string and a boolean", () => {
+        expect(read({ name: "s", to: "s", ...STRING, default: "" }, { sohl: { s: 5 } })).toBe("5");
         expect(
-            read(
-                { name: "s", to: "s", ...STRING, default: "" },
-                { sohl: { s: 5 } },
-            ),
-        ).toBe("5");
-        expect(
-            read(
-                { name: "b", to: "b", ...BOOLEAN, default: false },
-                { sohl: { b: "yes" } },
-            ),
+            read({ name: "b", to: "b", ...BOOLEAN, default: false }, { sohl: { b: "yes" } }),
         ).toBe(true);
     });
 
@@ -148,8 +136,6 @@ describe("authoredFields — the vocabulary, not the emitted block", () => {
             { name: "weight", to: "weightBase", describe: "" },
             { to: "numDice", value: () => 0, describe: "" },
         ];
-        expect(authoredFields(fields as never).map((f) => f.name)).toEqual([
-            "weight",
-        ]);
+        expect(authoredFields(fields as never).map((f) => f.name)).toEqual(["weight"]);
     });
 });

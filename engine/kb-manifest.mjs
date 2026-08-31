@@ -180,9 +180,7 @@ export const PACKAGE_BASE = Object.freeze({
  */
 function checkBase(base, what) {
     if (typeof base !== "string" || !base.endsWith("/")) {
-        throw new Error(
-            `${what}: package base ${JSON.stringify(base)} must end in a slash`,
-        );
+        throw new Error(`${what}: package base ${JSON.stringify(base)} must end in a slash`);
     }
     return base;
 }
@@ -226,8 +224,7 @@ export function resolvePackageUrl(rel, base) {
     checkBase(base, "resolvePackageUrl");
     if (typeof rel !== "string" || !rel || rel.startsWith("/")) {
         throw new Error(
-            `resolvePackageUrl: ${JSON.stringify(rel)} is not a package-` +
-                `relative address`,
+            `resolvePackageUrl: ${JSON.stringify(rel)} is not a package-` + `relative address`,
         );
     }
     return `${base}${rel}`;
@@ -289,8 +286,7 @@ export function buildManifest(pkg, entries, base, foundryPackage) {
         // address, so there is no fact being restated, and an anchor is not
         // required to live inside its own entry. Publishing the complete link
         // also keeps the page-id hash out of the published contract entirely.
-        if (e.anchors && Object.keys(e.anchors).length)
-            entry.anchors = e.anchors;
+        if (e.anchors && Object.keys(e.anchors).length) entry.anchors = e.anchors;
         out[e.key ?? canonicalKey(pkg, type, shortcode)] = entry;
     }
     return {
@@ -327,12 +323,7 @@ export function writeManifests(entriesByPackage, dir, bases, foundryPackages) {
     fs.mkdirSync(dir, { recursive: true });
     const written = [];
     for (const [pkg, entries] of entriesByPackage) {
-        const doc = buildManifest(
-            pkg,
-            entries,
-            bases?.[pkg],
-            foundryPackages?.[pkg],
-        );
+        const doc = buildManifest(pkg, entries, bases?.[pkg], foundryPackages?.[pkg]);
         const file = path.join(dir, `${pkg}.json`);
         fs.writeFileSync(file, `${JSON.stringify(doc, null, 2)}\n`);
         written.push({
@@ -430,10 +421,7 @@ export function loadForeignManifests(dir, localPackages, bases = PACKAGE_BASE) {
                         // Absent for an entry with no page. A consumer must
                         // tolerate that rather than invent an href, exactly as
                         // it already tolerates an entry with no `uuid`.
-                        url:
-                            v.path == null ?
-                                undefined
-                            :   resolvePackageUrl(v.path, base),
+                        url: v.path == null ? undefined : resolvePackageUrl(v.path, base),
                         uuid: v.uuid,
                         doc: v.doc,
                         anchors: v.anchors,
