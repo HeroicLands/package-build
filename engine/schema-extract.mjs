@@ -23,7 +23,7 @@
  * compiler for `coverage.mjs`, so a JavaScript-only repository does not acquire
  * a TypeScript pin merely to describe its own data models.
  *
- * ## The four shapes it follows
+ * ## The shapes it follows
  *
  * - **A registry, not a directory walk.** The subtype → DataModel map is the
  *   canonical statement of which subtypes exist. Walking `*Model.js` instead
@@ -40,6 +40,24 @@
  *   `charges`, `charges.value` and `charges.max`, because a builder may write
  *   the whole object or the leaves. Written bare or as `fields.SchemaField`,
  *   since both spellings are in use.
+ * - **A sub-schema built by a function.** `skillBase: skillBaseField()` is as
+ *   much a declaration as the constructor it wraps, so the call is followed to
+ *   it. Reading only the constructor form recorded `skillBase` with no keys
+ *   beneath it while the content that fills it writes `skillBase.value` — a
+ *   correctly authored field reported as undeclared.
+ *
+ * ## What it does not claim to know
+ *
+ * A `SchemaField` whose argument is *computed* —
+ * `new SchemaField(Object.fromEntries(ABILITIES.map(…)))` — is recorded as a
+ * field with no keys beneath it. Recording the field is what matters: an
+ * emitted `abilities.str.base` is not reported as undeclared, because the check
+ * treats a declared ancestor as covering what lies under it. But the keys
+ * themselves are not enumerated, so a *misspelled* one inside such a container
+ * passes unnoticed. That is a deliberate limit rather than an oversight —
+ * guessing at keys this cannot see would let the check report confidently on a
+ * shape it invented, which is the failure mode the whole comparison exists to
+ * remove.
  *
  * Fields reached by inheritance are recorded apart from the subtype's own,
  * because the two answer different questions: a builder must not emit a field
@@ -423,17 +441,90 @@ function isSchemaField(expr) {
     return false;
 }
 
-/** The keys of a `new SchemaField({ … })`, recursively dotted. */
-function nestedKeysOf(expr) {
-    if (!isSchemaField(expr)) return [];
-    const arg = expr.arguments?.[0];
+/**
+ * The expression a named local function or arrow returns.
+ *
+ * The literal-only variant above answers "what schema does this build"; this
+ * one answers "what is this call, really", which a factory returning a field
+ * rather than a schema needs.
+ */
+function returnedExpressionOf(src, fnName) {
+    let found = null;
+    const visit = (node) => {
+        if (found) return;
+        const isTarget =
+            (ts.isFunctionDeclaration(node) && node.name?.text === fnName) ||
+            (ts.isVariableDeclaration(node) &&
+                ts.isIdentifier(node.name) &&
+                node.name.text === fnName);
+        if (isTarget) {
+            const body =
+                ts.isFunctionDeclaration(node) ? node.body
+                : node.initializer && ts.isArrowFunction(node.initializer) ?
+                    node.initializer.body
+                :   null;
+            if (body) {
+                found =
+                    ts.isObjectLiteralExpression(body) ? body : (
+                        returnExpression(body)
+                    );
+            }
+        }
+        ts.forEachChild(node, visit);
+    };
+    visit(src);
+    return found;
+}
+
+/**
+ * The `SchemaField` an expression amounts to, following a local factory.
+ *
+ * A repeated sub-schema is often extracted into a function —
+ * `skillBase: skillBaseField()` — and the call is as much a `SchemaField`
+ * declaration as the constructor it wraps. Reading only the constructor form
+ * recorded `skillBase` with no keys beneath it, while the content that fills it
+ * writes `skillBase.value`; the check would then have called a correctly
+ * authored field undeclared, on every note that carries one.
+ *
+ * Recursion is guarded by name: a factory that returns a call to itself would
+ * otherwise not terminate.
+ *
+ * @param {ts.Expression} expr - The property's initializer.
+ * @param {ts.SourceFile} src - The file it lives in.
+ * @param {Set<string>} [seen] - Factory names already followed.
+ * @returns {ts.NewExpression|null} The construction, or `null`.
+ */
+function schemaFieldOf(expr, src, seen = new Set()) {
+    if (isSchemaField(expr)) return expr;
+    if (!ts.isCallExpression(expr) || !ts.isIdentifier(expr.expression)) {
+        return null;
+    }
+    const name = expr.expression.text;
+    if (seen.has(name)) return null;
+    seen.add(name);
+    const returned = returnedExpressionOf(src, name);
+    return returned ? schemaFieldOf(returned, src, seen) : null;
+}
+
+/**
+ * The keys of a `new SchemaField({ … })`, recursively dotted.
+ *
+ * A `SchemaField` whose argument is *computed* rather than written out —
+ * `new SchemaField(Object.fromEntries(ABILITIES.map(…)))` — yields no keys.
+ * The field itself is still recorded, so nothing beneath it is reported as
+ * undeclared; it is simply not described in detail. See the module docstring.
+ */
+function nestedKeysOf(expr, src) {
+    const field = schemaFieldOf(expr, src);
+    if (!field) return [];
+    const arg = field.arguments?.[0];
     if (!arg || !ts.isObjectLiteralExpression(arg)) return [];
     const out = [];
     for (const p of arg.properties) {
         if (!ts.isPropertyAssignment(p)) continue;
         const key = propName(p.name);
         out.push(key);
-        for (const child of nestedKeysOf(p.initializer)) {
+        for (const child of nestedKeysOf(p.initializer, src)) {
             out.push(`${key}.${child}`);
         }
     }
@@ -445,7 +536,7 @@ function nestedKeysOf(expr) {
  *
  * @returns {{own: string[], edges: object[]}}
  */
-function readLiteral(literal) {
+function readLiteral(src, literal) {
     const own = [];
     const edges = [];
     for (const p of literal.properties) {
@@ -457,7 +548,7 @@ function readLiteral(literal) {
         if (!ts.isPropertyAssignment(p)) continue;
         const key = propName(p.name);
         own.push(key);
-        for (const child of nestedKeysOf(p.initializer)) {
+        for (const child of nestedKeysOf(p.initializer, src)) {
             own.push(`${key}.${child}`);
         }
     }
@@ -505,7 +596,7 @@ export function fieldsForClass({ file, className, aliases, cache, rootDir }) {
 
     /** Walk a schema literal, following the spreads inside it. */
     const walkLiteral = (located, literal, into, superName) => {
-        const { own: fields, edges } = readLiteral(literal);
+        const { own: fields, edges } = readLiteral(located.src, literal);
         into.push(...fields);
         for (const edge of edges) followEdge(located, edge, superName);
     };
