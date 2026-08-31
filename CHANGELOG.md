@@ -1,5 +1,619 @@
 # @heroiclands/package-build
 
+## 7.0.0
+
+### Major Changes
+
+- a136429: Separate declaring a system from requiring one, and stamp `_stats` per pack
+  (#48).
+  
+  A module shipping content for two systems could not say so. The only place to
+  state a system version was `relationships.systems`, and that list is a
+  **restriction**: Foundry's `supportsSystem` drops a package from any world whose
+  system it does not name. So the two needs were in direct conflict — name your
+  systems and become unloadable elsewhere, or stay loadable and stamp nothing.
+  
+  **`harn-ensemble` is the case, and it is live.** It declares an `actors-hm3`
+  pack and an `actors-sohl` pack, and resolves to:
+  
+  ```json
+  { "statsSystemId": null, "statsSystemVersion": null }
+  ```
+  
+  Nothing stamped, on content that was certainly built against `hm3 1.6.3` and
+  `sohl 0.8.2`. It takes that path deliberately, because declaring the two systems
+  would hide the module from every other world — including the ones that want only
+  its system-neutral journals pack.
+  
+  **The split.**
+  
+  |                   | describes                                    | gates                       |
+  | ----------------- | -------------------------------------------- | --------------------------- |
+  | `systems:`        | which systems this package can stamp against | **nothing**                 |
+  | `requiresSystem:` | —                                            | where the package will load |
+  
+  Naming a system under `systems:` restricts nothing. `requiresSystem` is separate
+  and optional, and emits the `relationships.systems` entry Foundry reads —
+  _reusing_ the declaration rather than restating it, because
+  `stats.systemVersion` sat at `0.6.0` for four releases when a transcription was
+  free to disagree with what it copied.
+  
+  ```yaml
+  systems:
+    hm3: { compatibility: { minimum: "1.6.3", verified: "1.6.3" } }
+    sohl: { compatibility: { minimum: "0.8.2", verified: "0.8.2" } }
+  requiresSystem: null # optional; omitted, the package loads anywhere
+  ```
+  
+  **A pack's `system:` now selects what stamps its documents.** `_stats` was one
+  memoised block for the whole package, so every document in every pack was
+  stamped identically. It is per pack now: `statsForPack()` resolves the pack's
+  declared system through `systems:`, and `BasePackCompiler` exposes it as
+  `this.stats`, memoised per instance — one pass, one pack, one system.
+  
+  **`systemId` travels with `systemVersion`.** They are one decision, so where one
+  is omitted both are. Stamping a per-pack version against a package-wide id would
+  emit `systemId: sohl, systemVersion: 1.6.3` on HM3 documents — a plausible lie,
+  which is worse than the missing value #43 fixed, because nothing about it looks
+  wrong.
+  
+  **A name that resolves to nothing is an error.** A pack's `system:` must name a
+  declared system; `requiresSystem` must too; and with a gate set, a pack naming a
+  _different_ system is refused outright — Foundry would hide the whole package
+  from any world that pack could have appeared in, so it would ship and be
+  unreachable.
+  
+  **Nothing that ships today moves.** All six consumers were resolved before and
+  after; none declares a `systems:` block yet, so every pack still falls through to
+  the package-wide block it used before:
+  
+  | package              | `systems:` | `requiresSystem` | stamps         | packs unchanged |
+  | -------------------- | ---------: | ---------------- | -------------- | --------------- |
+  | `sohl`               |          0 | —                | `sohl / 0.8.2` | yes             |
+  | `sohl-thalorna`      |          0 | —                | `sohl / 0.8.2` | yes             |
+  | `sohl-kethira-basic` |          0 | —                | `sohl / 0.8.2` | yes             |
+  | `harn-ensemble`      |          0 | —                | `— / —`        | yes             |
+  | `harn-adventures`    |          0 | —                | `— / —`        | yes             |
+  | `hm3`                |          0 | —                | `hm3 / 1.6.3`  | yes             |
+  
+  **`stats.systemId` and `stats.systemVersion` are refused outright.** Authoring a
+  derived value is an error rather than an override, which is the rule this
+  configuration already applies elsewhere — and the reason is the same one that let
+  `stats.systemVersion` sit at `0.6.0` for four releases: a transcribed copy is
+  free to drift from what it copied, and nothing reads a stamped `_stats` until
+  something migrates on it. The refusal names the key, its line, and what supplies
+  it now.
+  
+  The value still has to reach the validator from the loader, which is the half
+  that may read the adjacent `package.json`. It travels under a **symbol**, so the
+  channel is not a second, forgeable spelling of the key just refused: a symbol
+  cannot be written in YAML and does not appear in `Object.keys`.
+  
+  **`relationships.systems` keeps working, and still answers.** It carries
+  `itemCatalog` — a separate concern this split does not replace — so a repository
+  using it would otherwise have to restate its compatibility under `systems:`
+  purely to keep stamping, which is the duplication the change exists to remove. A
+  lone relationship is a declaration as much as a gate, so it derives `systemId`
+  too. Several have no single answer and get none.
+  
+  **Every consumer was migrated in the same change.** One line each:
+  
+  ```diff
+   stats:
+  -    systemId: sohl
+       lastModifiedBy: sohlbuilder00000
+  ```
+  
+  `sohl` and `hm3` are systems and are their own system by construction;
+  `sohl-thalorna` and `sohl-kethira-basic` derive it from the single system
+  relationship they already declare; `harn-ensemble` and `harn-adventures` declared
+  none and were already clean.
+  
+  **Bump**
+  
+  _Major._ `stats.systemId` and `stats.systemVersion` were accepted and are now
+  refused, so a configuration that resolved before can fail — which is the
+  definition this repository uses. Every HeroicLands consumer is migrated in
+  lockstep and verified to stamp exactly what it stamped before, but a consumer
+  outside that set must delete the two keys.
+  
+  Part of #57, the third of its three keys that both describe and gate. #56 is
+  done, #49 shipped in 6.2.0, and this is #48.
+
+### Minor Changes
+
+- db40b24: Address another package's landing without naming a host (#87).
+  
+  A link from one package's page to another package's landing had no form but a
+  hardcoded absolute URL, and the homepage link check (#54) exempted one — a
+  finding whose fix does not exist is noise. `sohl-kethira-basic`'s homepage writes
+  `https://www.heroiclands.org/sohl/` twice.
+  
+  **The premise the exemption rested on is true, and does not lead where it looked
+  like it led.** A landing is in no link manifest: it compiles to no document and
+  is entered in no index. The reading that follows is that nothing can resolve it.
+  But a landing's address is not a _note's_ address — it is the **package's**, and
+  `PACKAGE_BASE` has recorded where each package is served all along. Consulting it
+  walks no tree, reads no manifest and builds no index, which is exactly why the
+  mechanism survives the fence: `kethira` and `harnadventures` publish a homepage
+  and nothing else, and that mode never walks a content tree.
+  
+  **So the authored form is the absolute URL with the host struck off.** `/sohl/`
+  in a body, or `href: /sohl/` in a card. Both were already accepted here — nothing
+  had ever named one as the form to use, which is the whole of what was missing.
+  
+  | Field   | Cross-package landing | Why                                       |
+  | ------- | --------------------- | ----------------------------------------- |
+  | body    | `[SoHL](/sohl/)`      | emitted verbatim, resolved by the browser |
+  | `href:` | `/sohl/`              | "already resolved, used verbatim"         |
+  | `url:`  | **not expressible**   | package-relative by construction          |
+  
+  `url:` cannot leave its own package, so a `url:` naming another package's landing
+  is now reported with the field as the fix rather than a path — previously it was
+  told to "write `/`", which is nonsense arrived at by taking the path after the
+  prefix when there is nothing after the prefix.
+  
+  **The base comes from the roster, not from the prefix.** The finding names
+  `PACKAGE_BASE[pkg]`, so a package the roster relocates (`/setting/thalorna/`) is
+  addressed where it actually is. That is the property the manifest enforces
+  everywhere else — the address published is the address emitted — reaching these
+  links for the first time.
+  
+  **Roster for landings only.** Widening the package set the other rules read would
+  have them offer manifest-based advice about packages no manifest is vendored for.
+  An in-site path naming no known package is still left alone: several surfaces a
+  landing routes to are built by other tools, and this build does not hold the set
+  of published pages.
+  
+  **Measured across every homepage authored today.** All five were run before and
+  after, each under its own `package-build.config.yaml`:
+  
+  | Package                   | Before | After |                         |
+  | ------------------------- | ------ | ----- | ----------------------- |
+  | `sohl-kethira-basic`      | 0      | **2** | the two the issue names |
+  | `sohl-thalorna`           | 0      | 0     |                         |
+  | `harn-ensemble`           | 0      | 0     |                         |
+  | `harn-adventures`         | 0      | 0     |                         |
+  | `HarnMaster-3-FoundryVTT` | 0      | 0     |                         |
+  
+  Kethira vendors no manifest at all — it is homepage-only — so it is also the
+  proof that the roster reaches where an index does not. Applying the fix the
+  finding names takes it back to 0.
+  
+  **Sequencing, stated because it decides the bump.** These are hard errors:
+  `severity: "error"`, counted into `failures`, `exitCode 1`. By this repository's
+  own rule — a new hard error is breaking only if it fails a previously-passing
+  consumer — this is minor **only once kethira's two lines are converted**, and
+  major if it ships before them. The conversion does not wait on this release:
+  `/sohl/` already passes under the current published version, verified, so it can
+  land in `sohl-kethira-basic` immediately and independently. It must land first.
+  
+  **Bump**
+  
+  _Minor, not patch, and not major._ Not patch: a check that previously passed a
+  page can now fail it. Not major, on the condition above — with kethira converted,
+  every homepage authored today passes before and after, and no export, option or
+  emitted document changes shape.
+- 35bde43: Locate a configuration error in the file it was written in (#95).
+  
+  Every check across `content-config.mjs` and `config.mjs` — 81 of them — reports
+  through one `fail()`, which named the offending key's **dotted path** and
+  nothing else. That is a good description and a bad locator: nothing in the line
+  is a path an editor can open or a CI annotator can resolve, in a file that runs
+  to 400 lines with fourteen sibling entries under `sections:` alone, several of
+  them flow-mapped onto one line.
+  
+  The path now rides on the error as a `field`, and the loader that read the file
+  resolves it — through `positionOfYamlPath`, the same locator `manifest`'s
+  `packFolders` findings already use — so all 81 come out in the
+  `file:line:column: severity: message` form every other finding uses, path first:
+  
+  ```text
+  package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner, description).
+  ```
+  
+  **Located at the boundary, not at the check.** `content-config.mjs` is the leaf
+  an `.mjs` configuration imports and performs no I/O, so it attaches the path and
+  `configFromData` — which knows the file — formats it. `config.mjs`'s pure
+  `resolvePackageBuildConfig` is unchanged for the same reason;
+  `loadPackageBuildConfig` is where its findings are located.
+  
+  **Positions are dropped, never guessed.** A required key the file never declared
+  has no node of its own, so the position names the **mapping it belongs in**, one
+  level up and no further — that entry is a real node and the one the reader must
+  edit. A missing _top-level_ key has nothing above it but the document, and an
+  `.mjs` configuration has no YAML to resolve a path against at all (parsing
+  JavaScript as YAML would resolve some paths to lines that mean nothing). Both
+  report `package-build.config.yaml: error: …` — the file, without a line.
+  
+  Both command lines print a located failure unprefixed, since `package-build: `
+  and `loglevel`'s `[timestamp] [ERROR]:` occupy exactly the position a parser
+  reads the path from.
+  
+  **Additive.** A valid configuration resolves exactly as before; only the text of
+  a rejection changes, and it keeps the body it had. `positionOfYamlPath` gains an
+  optional `{ key: true }` — report where a key is _declared_ rather than where
+  its value sits, which is what a message naming a field wants — and
+  `engine/diagnostics` gains `yamlKeyPath`, the one translation between a dotted
+  path and a YAML key path.
+- b7ad450: Compile actors without an Item pack of this package's own (#49).
+  
+  The actors pass threw unless the package declared at least one pack of type
+  `Item`. An Item pack is system-bound by construction — Foundry requires `system`
+  on Item packs and on few others — so the guard asked a deliberately
+  system-agnostic module to declare the very thing it exists not to depend on.
+  
+  **This is not hypothetical, and it is not a future case.** `harn-ensemble`
+  declares two Actor packs and no Item pack at all in its
+  `package-build.config.yaml` today. Run against that configuration, the compiler
+  does not start:
+  
+  ```text
+  packs declared   : actors-hm3(Actor), actors-sohl(Actor)
+  itemPackJsonDirs : []
+  Actors           : THREW — Actors compiler requires `itemsSourceDirs` …
+  ```
+  
+  Its 2,512 beings resolve their embedded items — `skill:awar`, `attribute:str`,
+  `weapongear:…` — against the `sohl` and `hm3` catalogues through
+  `foreignSourceDirs`. The optional mechanism is the one that matters there; the
+  mandatory one had nothing to contribute.
+  
+  **The guard did not test what it claimed.** It counted _declared directories_,
+  not resolvable items. An Item pack containing no documents satisfied it, while a
+  being naming an item nothing defines still failed later — so it neither
+  prevented the failure it named nor reported it where it happened. And its
+  remedy, "declare at least one pack of type `Item`", is the opposite of the fix
+  for a system-agnostic package.
+  
+  **The condition actually cared about was already checked, at the site of the
+  mistake.** `resolveEmbedded` reports each unresolved `(type, shortcode)` by
+  name, with the being as context, and counts it — and those counts aggregate into
+  `totalErrors`, so a package genuinely missing an item still fails the build:
+  
+  ```text
+  Bandit: no predefined item for "skill:awar"
+  ```
+  
+  That is the same line #43 and the frontmatter-lint work drew: a structural
+  precondition that is cheap to state is not the condition you care about, and
+  reporting where the mistake is beats refusing to start.
+  
+  **Nothing tightens.** `itemsSourceDirs` defaults to `[]` and is otherwise
+  unchanged; `foreignSourceDirs` is untouched; `itemPackJsonDirs` already returned
+  an empty list for a repository with no Item packs, and only the constructor
+  rejected it. A package that declares Item packs behaves exactly as before — the
+  1,647 existing tests pass unchanged, with four added for the empty case and for
+  the point-of-use error that replaces the guard.
+  
+  **Bump**
+  
+  _Minor, not patch._ No consumer that compiled before fails now — the change only
+  removes a refusal — but a configuration that was rejected is now supported, which
+  is new surface rather than a repair to existing surface. Not major for the same
+  reason: nothing that was accepted stops being accepted.
+  
+  Part of #57, which is the same defect in three places: a key that both describes
+  and gates, so the legitimate case cannot be expressed. Here the gate is removed
+  and the description — which Item packs this package ships — is left saying only
+  that.
+
+### Patch Changes
+
+- 8aab711: Bump `glob` from 11.1.0 to 13.0.6.
+  
+  **Both majors are changes to glob's command-line program, not its library.**
+  
+  - **12** removed the unsafe `--shell` option, keeping it only on shells where it
+    can be implemented safely (the remediation for GHSA-5j98-mcp5-4vw2, whose
+    mitigation 11.1 had introduced).
+  - **13** moved the CLI out to a separate `glob-bin` package.
+  
+  This repository never invokes that program. The single use of the library is
+  `globSync(patterns, { cwd, absolute: true })` in `readMatching`
+  (`bin/package-build.mjs`), which is untouched across both majors — no workflow,
+  hook, or script calls `glob` from a shell, so the removed binary is not a
+  dependency this package had.
+  
+  **Verified rather than assumed.** `globSync` was exercised under 13.0.6 with the
+  options `readMatching` actually passes, returning the same absolute paths; the
+  repository's 1,642 tests pass unchanged.
+  
+  **Bump**
+  
+  _Patch, not minor._ Nothing in this package's surface moves, and the majors are
+  the library's own. Worth noting for a consumer only in one case: a repository
+  that installed `glob` transitively through this package and relied on
+  `node_modules/.bin/glob` being present must now depend on `glob-bin` directly.
+  That was never a supported edge of this package, and no HeroicLands repository
+  does it.
+- 8e0778e: Bump `markdown-it` from 14.3.0 to 15.0.0.
+  
+  This package's entire use of the library is `markdownit({ html: true })` and
+  `md.render(body)`, at three call sites — `engine/helpers.mjs`,
+  `engine/journals.mjs` and `sohl/actors.mjs`. Nothing overrides a renderer rule,
+  installs a plugin, or reaches into the parser.
+  
+  **Every breaking change in 15.0.0 lands outside that surface.**
+  
+  | Breaking change                                                        | Why it does not reach here                                                      |
+  | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+  | `linkify-it` → v6: no fuzzy links, no auth check, CJK link termination | `linkify` defaults to `false` and is never enabled, so the linkifier never runs |
+  | Package-internal subpath exports (`markdown-it/lib/*`) removed         | Only the package root is imported                                               |
+  | `validateLink`/`normalizeLink`/`normalizeLinkText` moved to prototype  | None is read, assigned, or overridden                                           |
+  | `StateBlock#ddIndent` removed                                          | No plugin is installed, `markdown-it-deflist` included                          |
+  | Root now resolves to prebuilt `dist/` rather than raw sources          | Import is by package name; the resolved path was never depended on              |
+  
+  **Verified rather than assumed.** The same corpus was rendered through 14.3.0
+  and 15.0.0 and diffed byte-for-byte, covering exactly the constructs the release
+  touched — bare URLs, autolinks, email-shaped text, reference links and their
+  definitions, CJK adjacent to a URL, hard line breaks, raw HTML, tables, nested
+  lists, and both fenced and indented code. Output is identical. The repository's
+  1,642 tests pass unchanged.
+  
+  **Bump**
+  
+  _Patch, not minor._ No export, option, or emitted document changes shape, and no
+  behaviour a consumer can observe moves. The version is a major on the library's
+  own surface, none of which this package presents onward.
+- 6318722: Add `.github/dependabot.yml`. This repository had none, so nothing proposed a
+  dependency update — not npm, not GitHub Actions.
+  
+  That matters more here than in a consumer: this is the toolchain every other
+  HeroicLands package builds with, and it is published to npm, so its dependency
+  tree reaches every consumer's build and everyone who installs it. The
+  consuming repositories are already covered; this producer was the one link in
+  the chain nothing watched.
+  
+  `@foundryvtt/foundryvtt-cli` and `classic-level` are each an ungrouped
+  single-package entry, ordered ahead of the housekeeping catch-all, for every
+  update type including minor and patch. Both sit directly on the compendium
+  pack pipeline, and a version bump that silently changes how a pack compiles is
+  exactly the failure this repository's byte-level output comparisons exist to
+  catch — grouping either into a housekeeping pull request would hide which
+  dependency caused a regression.
+  
+  No `ignore` entries: nothing here has a known-bad range to record.
+  `typescript` is a direct dependency, but `build.yml`'s "Declaration emit" step
+  already gates a breaking bump on every pull request.
+  
+  Closes #100.
+- cd32ea1: Render `[[target|]]` as the target's name on the web, as the packs already do
+  (#113).
+  
+  A wikilink with an explicit but empty label produced an **empty anchor** —
+  `[](/rules/sohl-shock/)`, a link with no clickable text — silently, through
+  every site build:
+  
+  ```text
+  [[doc-shock]]             => [Shock](/rules/sohl-shock/)
+  [[doc-shock|]]            => [](/rules/sohl-shock/)      ← before
+  [[doc-shock|]]            => [Shock](/rules/sohl-shock/) ← after
+  [[#sec|]]                 => [](#sec)                    ← before
+  ```
+  
+  **The two resolvers had drawn the same line in two places, differently.**
+  `parseWikilink` distinguishes "no label" from "empty label" deliberately, and
+  its docstring says so — _"`null` and `""` differ: an author may write
+  `[[x|]]`"_. The packs resolver honoured that by testing falsiness. The web
+  resolver used `??`, which falls through on `null` only, so `""` survived to the
+  output at three sites: the same-page anchor, the resolved link, and the
+  unresolved link.
+  
+  That is the third instance of exactly the drift `wikilink-syntax.mjs` was
+  created to stop — its module docstring opens on the two copies of the link
+  parser having already diverged. The parse was centralised; the _interpretation
+  of the parsed parts_ was not, and it drifted in the one case the docstring
+  names.
+  
+  **So the reading is stated once.** `authoredLabel()` joins the syntax module and
+  both resolvers consult it, rather than each deciding what an empty label means.
+  `labelled` is untouched and still separates `[[x]]` from `[[x|]]`, which is what
+  #1409 actually depends on — an unlabelled `[[Shock State]]` still shows the
+  author's own prose rather than the canonical name.
+  
+  **Why it is worth a release rather than waiting.** `[[x|]]` becomes load-bearing
+  under the four-segment address grammar (#59): the pipe is what distinguishes an
+  address lookup from an alias lookup, so `[[target|]]` is the canonical way to
+  write an address that displays its target's name — and the planned migration
+  rewrites every authored address link into that form. Converting the corpus into
+  a form that renders an empty anchor would be a corpus-wide regression, so this
+  has to land first.
+  
+  **Bump**
+  
+  _Patch._ A defect fix with no new surface. `authoredLabel` is exported because
+  both resolvers import it, not as a feature for consumers; no option, address, or
+  emitted document changes shape, and no link that renders correctly today renders
+  differently after.
+- bc2c5c8: Bump `@types/node` in the lockfile for development tooling maintenance.
+- 1a4d882: Hold `typescript` at major 6 in Dependabot, because TypeScript 7 removes the
+  compiler API `coverage.mjs` parses with.
+  
+  Dependabot proposed 6.0.3 → 7.0.2 (#105). It cannot be taken.
+  
+  **TypeScript 7 is the native port, and its npm package no longer ships the
+  JavaScript compiler API.** The `"."` export resolves to `lib/version.cjs`, whose
+  entire surface is `version` and `versionMajorMinor`.
+  
+  `coverage.mjs` uses that API as a _parser_, not as a compiler: it reads
+  localization keys out of a consumer's `src/**/*.{ts,mjs}` by walking a real AST,
+  deliberately down one path so JavaScript and TypeScript cannot drift. Under 7.0.2
+  the AST **vocabulary** survives behind `typescript/unstable/ast` — `ScriptTarget`
+  and every `isX` guard the scan uses — but the three things that actually drive it
+  exist nowhere in the JS surface:
+  
+  | Needed by `coverage.mjs`                                      | In 7.0.2                                   |
+  | ------------------------------------------------------------- | ------------------------------------------ |
+  | `createSourceFile`                                            | **missing** — only a factory of that name¹ |
+  | `forEachChild`                                                | **missing**                                |
+  | `flattenDiagnosticMessageText`                                | **missing**                                |
+  | `ScriptTarget`, `isStringLiteral`, `isPropertyDeclaration`, … | present, behind `unstable/ast`             |
+  
+  ¹ 7's `createSourceFile` assembles a SourceFile from statements already parsed.
+  It is not a parser.
+  
+  **The gate this file predicted would catch it did not.** The previous comment in
+  `dependabot.yml` recorded no ignore entry on the reasoning that `build.yml`'s
+  "Declaration emit" step already guards a breaking `typescript` bump. That step
+  passes clean under 7.0.2 — `tsc` still emits every `.d.mts`. What failed was
+  `npm test`: 11 failures in `tests/coverage.test.ts`, all
+  `TypeError: Cannot read properties of undefined (reading 'Latest')`. A dependency
+  can be load-bearing in two unrelated ways at once, and the file named only one of
+  them. That correction is now written where the wrong prediction was.
+  
+  **Why an ignore rather than a migration.** Parsing in 7 lives in the Go binary,
+  reachable only through `unstable/sync`'s Project/Program API. Adopting it would
+  put a subprocess and a virtual filesystem inside a module whose stated contract
+  is "everything here is pure — source text in, references or findings out", in
+  exchange for an API whose own export path says `unstable`. Acorn is not a
+  substitute either: the default scan glob is `src/**/*.{ts,mjs}`, and the largest
+  consumer's sources are TypeScript.
+  
+  That migration is worth doing when the API stabilises. It is not a dependency
+  bump, and it should not arrive as one.
+  
+  **Scope of the hold.** Majors only — minor and patch releases within 6 still
+  arrive on the weekly schedule. The entry names the two conditions that lift it:
+  a stable in-process parse entry point, or a `coverage.mjs` that no longer needs
+  one.
+  
+  **Bump**
+  
+  _Patch._ Nothing shipped changes. `.github/dependabot.yml` is this repository's
+  own automation and sits outside `files`; the `typescript` range in
+  `package.json` is untouched, because `^6.0.3` already excludes 7 — the entry
+  stops the pull request being reopened, it does not change what resolves.
+- f3167c3: Read the changesets action's `pr-number` output, so the step that marks the
+  Version Packages pull request stops being dead code (#84).
+  
+  `release.yml` pins `changesets/action@v2` but read v1's `pullRequestNumber`. An
+  unset output evaluates to the empty string rather than erroring, so the guard was
+  `'' != ''` — always false. The step has never run once.
+  
+  **The failure was silent by construction, which is why it survived three
+  releases.** A misspelled output does not fail a workflow; it disappears. `v3.4.0`,
+  `v4.0.0` and `v5.0.0` were all cut with this step skipped, and every run reported
+  green.
+  
+  **Only one of the three names actually moved.** Checked against v2's own
+  `action.yml` rather than against the assumption that v2 kebab-cased everything:
+  
+  | v1                  | v2                   | Used here                             |
+  | ------------------- | -------------------- | ------------------------------------- |
+  | `pullRequestNumber` | `pr-number`          | yes — the two lines this change fixes |
+  | `publishedPackages` | `published-packages` | no                                    |
+  | `hasChangesets`     | `has-changesets`     | no                                    |
+  | `published`         | `published`          | yes — **unchanged**, and left alone   |
+  
+  `published` is the one name v2 kept. A blanket kebab-case sweep of this file —
+  the obvious reading of "rename the v1 outputs" — would have broken the one step
+  that was working.
+  
+  **Bracket notation, not `outputs.pr-number`.** A hyphen is the subtraction
+  operator in an Actions expression, so the dotted form parses as
+  `outputs.pr - number`: a second silent-ish defect sitting directly behind the
+  first. `steps.changesets.outputs['pr-number']` is the form that means what it
+  reads as.
+  
+  **What this repairs.** The Version Packages pull request is opened by
+  `GITHUB_TOKEN`, and GitHub deliberately starts no workflow runs from that token,
+  so the required `Changeset declared` context never reports on it. This step
+  exists to post that status. With it inert, every Version Packages pull request
+  has needed the check waived or force-merged by hand.
+  
+  **Not yet demonstrated running, and stated rather than glossed.** The acceptance
+  criterion asks for a run where the step is not `skipped`, and that can only
+  happen on `main`, on the next release that opens a Version Packages pull request
+  — this change cannot produce one from a branch. The expression is verified by
+  parsing the workflow and by v2's manifest; the live proof arrives with the next
+  bump.
+  
+  **Sibling repositories are fixed individually, not swept from here.** The same
+  defect is open on `harn-ensemble` (#13) and `HarnMaster-3-FoundryVTT` (#427),
+  where it is more severe — there the misspelling gates the release itself, and no
+  release is ever cut. Each repository owns its own copy of `release.yml`; this one
+  is not a reusable workflow. Turning it into one is a real improvement and a
+  separate change, and folding it into a two-line fix would put a shared release
+  pipeline into production on the back of a typo correction.
+  
+  **Bump**
+  
+  _Patch, not minor._ Nothing this package exports, emits, or documents for a
+  consumer changes. The file is this repository's own release plumbing, and it is
+  not shipped: `.github` is outside `files`.
+- 2bdc792: Make `lint:markdown` pass, and run it in CI (#92).
+  
+  This repository provides `content-build markdown` and was the one repository that
+  never ran it. The script existed, failed, and was executed by nothing — no
+  aggregate `lint` script, and no workflow naming it.
+  
+  **The finding count in the issue is wrong, and the correction changes the
+  decision.** 117 is what `npx markdownlint-cli2 CHANGELOG-content-build.md`
+  reports — markdownlint's _default_ rule set, which this toolchain deliberately
+  turns off (`default: false`, then each rule enabled by name). Under the rules the
+  repository actually uses, `npm run lint:markdown` reports **three**: two
+  `MD001` heading skips and one `MD034` bare URL. The issue's "fix it — 117
+  mechanical findings" and "exclude it — 117 is too many to fix" were both
+  arguments about a number that was never the repository's.
+  
+  **Excluded anyway, and not because three is still too many.**
+  `CHANGELOG-content-build.md` is the published changelog of
+  `@heroiclands/content-build` — a **deprecated repository**, absorbed into this
+  one at 3.0.0 (#32). It is frozen, not merely generated: exactly one commit has
+  ever touched it, nothing regenerates it, and it ships only because `files` lists
+  it. Its three findings are facts about what content-build published. Rewriting
+  them would edit a historical record to satisfy a rule about prose nobody will
+  write again, and would put a style-only commit in the blame of a file whose whole
+  value is being what was published. It is the same class as `CHANGELOG.md`, which
+  the shared default already ignores for the weaker reason that the next release
+  rewrites it.
+  
+  **Declared locally, so no consumer moves.** The exclusion is a new
+  `.markdownlint-cli2.jsonc` in this repository, not an entry added to the shared
+  `MARKDOWN_IGNORES`. One repository's retired filename does not belong in
+  configuration six repositories consume, and the shared rule set is unchanged for
+  all of them.
+  
+  **What that file had to get right, and what it documents.** `content-build
+  markdown` passes the shared rules as markdownlint-cli2's `optionsDefault`, and a
+  consumer file merges over them **key by key, each key wholesale**:
+  
+  | Declared locally | Effect on the shared default                                          |
+  | ---------------- | --------------------------------------------------------------------- |
+  | only `ignores`   | rule set survives intact — `default: false` and every per-rule option |
+  | `ignores`        | **replaces** `MARKDOWN_IGNORES`; it does not extend it                |
+  
+  So the local file restates `CHANGELOG.md`. Verified rather than assumed — with
+  that entry dropped, `lint:markdown` reports ten findings in `CHANGELOG.md`; with
+  a probe file present, `MD049` still fires with its shared `underscore` option
+  while `MD013` stays silent, which is what proves the rule set was not replaced.
+  
+  `engine/prose-lint.mjs` said a consumer config "replaces it", which is the
+  reading that would send the next person to add the ignore to the shared default
+  or to a full config copy. Its docstring now states the key-by-key rule and the
+  `ignores` trap by name.
+  
+  **Wired as a separate CI step, not folded into the chain.** `npm run lint` is
+  added for running both checks locally in one command, but `build.yml` gets a
+  `Markdown` step of its own beside `Formatting`. The aggregate chains with `&&`,
+  so a formatting failure would short-circuit it and hide every markdown finding
+  behind it; as two steps the failing one is named in the checks UI.
+  `lint:markdown:fix` is added too — the issue referred to it, and it did not exist.
+  
+  **The exclusion cannot rot silently.** If a future markdownlint-cli2 bump changes
+  those merge semantics, the restated `CHANGELOG.md` entry stops applying and its
+  ten findings reappear — in the CI step this change adds. The guard is checked by
+  the thing it guards.
+  
+  **Bump**
+  
+  _Patch._ Nothing a consumer imports, calls, or configures changes behaviour. The
+  one shipped file touched is a docstring in `engine/prose-lint.mjs`, which reaches
+  consumers through the emitted declarations; everything else — the workflow, the
+  local lint config, the scripts — is this repository's own plumbing and is outside
+  `files`.
+
 ## 6.1.0
 
 ### Minor Changes
