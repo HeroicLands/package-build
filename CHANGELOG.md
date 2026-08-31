@@ -1,5 +1,231 @@
 # @heroiclands/package-build
 
+## 8.0.0
+
+### Major Changes
+
+- d324b5a: Stop emitting five `system` fields no SoHL DataModel declares (#60).
+  
+  The comparison this release adds was run against sohl's published schema at
+  0.8.2 and found five, on its first run:
+  
+  | type             | emitted, undeclared                                      |
+  | ---------------- | -------------------------------------------------------- |
+  | `affliction`     | `isTreated`                                              |
+  | `trauma`         | `isTreated`, `isBleeding`                                |
+  | `projectilegear` | `impactBase.overrideDice`, `impactBase.overrideModifier` |
+  
+  Every one was discarded when the document was constructed, on every compiled
+  document, with nothing said — which is the whole of what #60 is about.
+  
+  **Two of them were never storable.** `isTreated` and `isBleeding` are _derived_
+  on the logic classes: `AfflictionLogic.isTreated` is `treatmentDate != null`,
+  and `TraumaLogic.isBleeding` is `bloodLossAdvanceDurationBase != null`. So the
+  builder wrote a constant Foundry threw away while the field it is computed from
+  went unwritten — both directions of the same defect, on the same field. Nothing
+  replaces them: an untreated affliction is one whose `treatmentDate` is unset,
+  which is already the initial value.
+  
+  **Three were authored fields that vanished.** `trauma.isTreated`,
+  `trauma.isBleeding` and the two projectile overrides carried a frontmatter
+  `name`, so a note could write them — and the value went nowhere.
+  
+  **The projectile overrides are removed rather than reported upstream as missing
+  fields**, because nothing anywhere wants them: no DataModel declares them, no
+  logic class reads them, no localization key names them. A
+  launcher-versus-ammunition override may be worth having, but it would have to be
+  designed in the system first, and a content builder cannot be where it is
+  invented.
+  
+  **Checked before removing, because three were authored.** Dropping an authored
+  field turns a note that writes it from a silent loss into an unknown-key error,
+  so all six content trees were searched first: `sohl`, `thalorna`, `kethira`,
+  `harnensemble`, `harnadventures` and `hm3` write none of the five.
+  
+  **Verified.** Against sohl 0.8.2's published schema, `undeclared` falls from
+  five to zero. The twelve remaining findings are the advisory direction —
+  fields a subtype declares that no builder emits, `treatmentDate` among them —
+  and are reported rather than fatal.
+  
+  **Bump**
+  
+  _Major._ Three of the five were part of the authored frontmatter vocabulary, and
+  a note writing one is now an unknown-key error rather than a value silently
+  dropped. No content in this organisation writes them, but a consumer outside it
+  would have to delete the keys — and would find its documents unchanged, since
+  they never reached a saved document in the first place.
+
+### Minor Changes
+
+- d324b5a: Run the emitted-versus-declared field comparison in `content-build lint` (#60).
+  
+  The comparison shipped in 7.0.0 with nothing calling it, because no system had
+  published its field sets yet. `sohl` now does, so this reads the artifact and
+  runs both directions.
+  
+  **Which system, at which version, is already settled.** `stats.systemId` and
+  `stats.systemVersion` are derived rather than authored (#48) — a system package
+  is its own system, a module takes the one it requires, and the version is the
+  `compatibility.verified` it pins. So there is no second piece of configuration
+  to disagree with the first about whose schema to check against.
+  
+  Two places to find it:
+  
+  - **A system** reads its own `schema.json`, generated from its `src/`.
+  - **A module** reads the copy `content-build deps fetch` caches from the archive
+    of the version it pins — which is what makes the comparison happen at
+    `verified` rather than against whatever the system's `main` holds today.
+  
+  **The fetch now keeps the schema.** Both fetch paths already unpacked the
+  dependency's archive, but only one kept the result: a download unzips into
+  `<cache>/package/` and leaves it, while `deps fetch --from` unzips into a
+  temporary directory and deletes it. A reader looking in the unpacked tree would
+  have found the schema for one and not the other — so it is copied to one known
+  place beside the extracted items instead.
+  
+  **An absent schema is announced, not skipped in silence.** A system before its
+  first schema build, and a module pinning a version released before the artifact
+  existed, both have nothing to check against. That is not an error — but a check
+  that quietly does nothing is indistinguishable from one that passed, and this
+  issue exists because a defect went unnoticed for a release. So the run says so:
+  
+  ```text
+  No published schema for sohl@0.8.2, so emitted `system` fields are unchecked.
+  A system generates its own; a module gets one from `content-build deps fetch`.
+  ```
+  
+  **Also lands the five fixes the comparison found.** They were pushed after
+  #116's merge and so were not part of it: `affliction` and `trauma` emitted
+  `isTreated`, `trauma` emitted `isBleeding`, and `projectilegear` emitted
+  `impactBase.overrideDice` and `impactBase.overrideModifier` — none of which any
+  DataModel declares. Without them this change would have turned `sohl`'s own
+  lint red on the defects it was written to find.
+  
+  **Verified against both shapes.** Against `sohl`, the run reports zero errors
+  and twelve advisory warnings, and `lint` passes. Against `sohl-kethira-basic`,
+  whose pinned 0.8.2 archive predates the artifact, it announces the skip and
+  reports only that repository's pre-existing findings.
+  
+  **Bump**
+  
+  _Minor._ New reporting on an existing command, and a fetch that keeps one more
+  file. The error direction can fail a build that passed before — but only for a
+  package whose dependency publishes a schema, which no released version does yet.
+- ee9a9a8: Compare a builder's emitted `system` fields against the receiving DataModel
+  (#60) — the comparison half.
+  
+  Foundry discards an unknown `system` key when a document is constructed, and
+  says nothing: the value is absent at load while the build that wrote it reported
+  success. Both directions of that mismatch have already happened here, both
+  compiled clean, and both were found by set-subtracting compiled documents'
+  `system` keys against `defineSchema()` **by hand**.
+  
+  **The emitted half needs neither compilation nor parsing.** `field-spec.mjs`
+  already makes the field list the only statement of the mapping — "the
+  declaration is the builder" — so every `system` path a type can emit is
+  `field.to`, known statically. Nothing compiles a document to find out.
+  
+  **The declared half arrives as data, pinned to the declared version.** A system
+  publishes its field sets as an artifact and this reads it, the shape the link
+  manifest already uses for addresses. Against `compatibility.verified`, never the
+  system's `main`: `affiliation.subType` _is_ defined on sohl `main` and simply
+  unreleased, while `sohl-kethira-basic` pins `0.8.2` — so a check against `main`
+  passes and the field still evaporates for all 21 of its deities.
+  
+  **`own` and `inherited` are recorded apart, and the two directions read
+  different sets.** A subtype's schema spreads its parent's, so `notes`, `docHtml`
+  and the rest land on every subtype; they are the system's own runtime concerns
+  and no content builder is expected to emit them.
+  
+  | direction             | read against                                                       | severity |
+  | --------------------- | ------------------------------------------------------------------ | -------- |
+  | emitted, not declared | `own` ∪ `inherited` — the field must exist somewhere               | error    |
+  | declared, not emitted | `own` only — what the subtype adds is what its builder answers for | report   |
+  
+  Collapsing them would report every inherited field on every type: a wall of
+  findings that are all correct and none actionable.
+  
+  **A false positive the real schema caught before this shipped.** Run against
+  sohl's actual `mysticalability`, the _declared, not emitted_ direction reported
+  `charges.value` and `charges.max` on a type that populates them correctly — the
+  builder writes `charges` as a whole object and never names the leaves beneath
+  it. A declared path is now covered when the builder emits any ancestor. The
+  first real schema tried produced two false findings, which is exactly the kind
+  that teaches people to ignore a report.
+  
+  **Verified against the real declarations.** With sohl's `mysticalability`
+  schema transcribed from source, the comparison reports nothing; with #35's
+  `assocMysteryCode` reinstated, it reports exactly that field.
+  
+  **What this does not do yet.** It does not read an artifact from disk, and
+  nothing runs it in a build — those wait on a system actually publishing its
+  schemas, which is sohl's half and a separate change. The comparison, the format
+  and both regression cases are pinned here so that half has something to satisfy.
+  
+  **Bump**
+  
+  _Minor._ New surface — `engine/schema-check.mjs` and its exports — and nothing
+  existing changes behaviour. No consumer runs the comparison until an artifact
+  exists to run it against.
+- 14cd092: Add `package-build schema`, so a system publishes its DataModel field sets from
+  here rather than from its own copy of an extractor.
+  
+  The consuming half of this contract shipped in 7.0.0: `content-build lint`
+  subtracts what a package's builders emit from what a document will actually
+  receive, because Foundry discards an unknown `system` key at construction and
+  says nothing about it. The producing half lived in the first system that needed
+  it, which meant the second system to need it would have copied 491 lines — and,
+  worse, would have copied a hardcoded `SCHEMA_ARTIFACT_VERSION`, a constant this
+  package owns. Two producers stamping a third repository's constant by hand is
+  the drift worth removing before it happens rather than after: the version is now
+  imported by the producer, not restated.
+  
+  **Why here and not in each system.** A DataModel's schema is only introspectable
+  inside Foundry — `defineSchema()` returns field classes that do not exist in
+  Node — so the field sets have to be read out of the source as an AST.
+  TypeScript's parser reads plain JavaScript too, and this package already pins
+  that compiler for `coverage.mjs`. Putting the reader here means a
+  JavaScript-only system does not acquire a TypeScript pin merely to describe its
+  own data models.
+  
+  **Declared, because the two layouts in use disagree.**
+  
+  ```yaml
+  packageBuild:
+    schema:
+      Item: { from: module/data/item-models.js, registry: itemModels }
+      Actor: { from: module/data/actor-models.js, registry: actorModels }
+  ```
+  
+  One system keeps both registries in a single configuration module; the other
+  keeps one per file. Neither layout is more correct, and a convention guessing
+  between them would fail by reading _nothing_ rather than by complaining — which
+  is the worst failure available here, since an empty schema passes every check.
+  A registry that maps nothing is refused for the same reason.
+  
+  **Four spellings of inheritance, all followed.** `...Super.defineSchema()`,
+  `...super.defineSchema()`, `Object.assign(super.defineSchema(), {…})`, and a
+  subclass with no `defineSchema()` at all. The last is a real and complete
+  declaration — `class MiscGearModel extends GearModel {}` — and reading it as
+  "declares nothing" would make every field of a whole subtype look undeclared.
+  `SchemaField` nesting is recorded as dotted paths whether written bare or as
+  `fields.SchemaField`, since both spellings are in use.
+  
+  **A schema with nothing to compare against now says so.** The emitted side of
+  the check is the `fields:` of `itemBuilders`, so a package whose compendium
+  content is committed JSON rather than built from field declarations has an empty
+  one — and every field the system declares would have been reported as unemitted.
+  That is hundreds of findings whose only content is that the package does not
+  build documents that way, which is not news and not a defect. It is announced
+  once instead, for the same reason the absent-schema case is: a check that quietly
+  does nothing reads exactly like one that passed. The moment a builder declares
+  `fields:`, the comparison starts running on its own.
+  
+  **Bump**
+  
+  _Minor._ A new command, a new optional configuration key, and a `lint` that
+  reports strictly less than before.
+
 ## 7.0.0
 
 ### Major Changes
