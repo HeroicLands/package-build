@@ -96,6 +96,37 @@ function propName(name) {
 }
 
 /**
+ * A *field* name, which unlike a property name elsewhere must be knowable.
+ *
+ * A computed key — `[`${name}Date`]: worldTimeDateField()` — depends on an
+ * argument this reader does not evaluate, so its real name is not in the file.
+ * {@link propName} would hand back the source text, and a field called
+ * ``[`${name}Date`]`` matches nothing a builder could ever emit: it is absent
+ * from the schema for checking purposes while *looking* present, and it shows
+ * up as permanently unemitted noise.
+ *
+ * So this refuses rather than guessing. The schema is a contract other
+ * repositories read, and a contract it cannot state is worth stopping for —
+ * the same reason `compareFields` refuses an artifact of the wrong version
+ * instead of resolving it anyway. Writing the keys out fixes it at the source,
+ * where the names are actually decided.
+ *
+ * @param {ts.PropertyName} name - The property name node.
+ * @param {string} file - For the message.
+ * @returns {string} The literal field name.
+ * @throws {Error} When the name is computed.
+ */
+function fieldName(name, file) {
+    if (ts.isIdentifier(name) || ts.isStringLiteral(name)) return name.text;
+    throw new Error(
+        `${path.basename(file)} declares a schema field with a computed name, ` +
+            `\`${name.getText()}\`, whose value depends on an argument this ` +
+            `reader does not evaluate. Write the keys out so the published ` +
+            `schema can name them.`,
+    );
+}
+
+/**
  * The `subtype: ClassName` entries of a registry object literal.
  *
  * @param {ts.SourceFile} src - The parsed file holding the registry.
@@ -424,16 +455,16 @@ function isSchemaField(expr) {
 }
 
 /** The keys of a `new SchemaField({ … })`, recursively dotted. */
-function nestedKeysOf(expr) {
+function nestedKeysOf(expr, file) {
     if (!isSchemaField(expr)) return [];
     const arg = expr.arguments?.[0];
     if (!arg || !ts.isObjectLiteralExpression(arg)) return [];
     const out = [];
     for (const p of arg.properties) {
         if (!ts.isPropertyAssignment(p)) continue;
-        const key = propName(p.name);
+        const key = fieldName(p.name, file);
         out.push(key);
-        for (const child of nestedKeysOf(p.initializer)) {
+        for (const child of nestedKeysOf(p.initializer, file)) {
             out.push(`${key}.${child}`);
         }
     }
@@ -445,7 +476,7 @@ function nestedKeysOf(expr) {
  *
  * @returns {{own: string[], edges: object[]}}
  */
-function readLiteral(literal) {
+function readLiteral(literal, file) {
     const own = [];
     const edges = [];
     for (const p of literal.properties) {
@@ -455,9 +486,9 @@ function readLiteral(literal) {
             continue;
         }
         if (!ts.isPropertyAssignment(p)) continue;
-        const key = propName(p.name);
+        const key = fieldName(p.name, file);
         own.push(key);
-        for (const child of nestedKeysOf(p.initializer)) {
+        for (const child of nestedKeysOf(p.initializer, file)) {
             own.push(`${key}.${child}`);
         }
     }
@@ -505,7 +536,7 @@ export function fieldsForClass({ file, className, aliases, cache, rootDir }) {
 
     /** Walk a schema literal, following the spreads inside it. */
     const walkLiteral = (located, literal, into, superName) => {
-        const { own: fields, edges } = readLiteral(literal);
+        const { own: fields, edges } = readLiteral(literal, located.file);
         into.push(...fields);
         for (const edge of edges) followEdge(located, edge, superName);
     };
@@ -516,12 +547,34 @@ export function fieldsForClass({ file, className, aliases, cache, rootDir }) {
             const key = `local:${located.file}:${edge.name}`;
             if (seen.has(key)) return;
             seen.add(key);
-            // A local spread inside a subtype's own definition is still the
-            // parent's contribution — a shared `defineXDataSchema()` is where
-            // the common fields come from — so it lands in `inherited`
-            // whichever file it is written in.
+            // A spread of a schema-building function is the parent's
+            // contribution — a shared `defineXDataSchema()` is where the common
+            // fields come from — so it lands in `inherited` whichever file it
+            // is written in.
             const lit = literalReturnedBy(located.src, edge.name);
-            if (lit) walkLiteral(located, lit, inherited, superName);
+            if (lit) {
+                walkLiteral(located, lit, inherited, superName);
+                return;
+            }
+            // Not declared here, so it was imported. Following it matters more
+            // than it looks: the shared base schema is spread by name from the
+            // file that exports it, and resolving only same-file functions
+            // dropped it **entirely and in silence** — every SoHL subtype lost
+            // `shortcode` and `actionDefs`, so content correctly authoring
+            // `system.shortcode` was reported as undeclared. A spread that
+            // resolves to nothing must not read as a spread of nothing.
+            const from = importSourceOf(located.src, edge.name, aliases);
+            if (!from) return;
+            const importedSrc = parse(from, cache);
+            const importedLit = literalReturnedBy(importedSrc, edge.name);
+            if (importedLit) {
+                walkLiteral(
+                    { file: from, src: importedSrc },
+                    importedLit,
+                    inherited,
+                    superName,
+                );
+            }
             return;
         }
         const name = edge.kind === "super" ? superName : edge.name;
