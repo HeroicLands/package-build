@@ -32,10 +32,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import {
-    pageFrontmatter,
-    writeSectionLandings,
-} from "../engine/site-build.mjs";
+import { pageFrontmatter, writeSectionLandings } from "../engine/site-build.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
 
 /** A throwaway mount directory. */
@@ -80,9 +77,7 @@ describe("a section can describe itself", () => {
                 },
             },
         });
-        expect(
-            fs.readFileSync(path.join(out, "affliction/_index.md"), "utf8"),
-        ).toBe(
+        expect(fs.readFileSync(path.join(out, "affliction/_index.md"), "utf8")).toBe(
             "---\ntitle: Afflictions\nbanner: banners/affliction.webp\n" +
                 "description: 'Ailments, poisons and the diseases they run.'\n" +
                 "---\n\n",
@@ -112,9 +107,7 @@ describe("a section can describe itself", () => {
                 },
             },
         });
-        expect(data.description).toBe(
-            "Architecture, extension points, testing.",
-        );
+        expect(data.description).toBe("Architecture, extension points, testing.");
     });
 
     it("carries it onto a content section's own README", () => {
@@ -153,9 +146,9 @@ describe("the writers emit what the section declared", () => {
         writeSectionLandings(out, {
             sections: { being: { title: "Beings", group: "Actors" } },
         });
-        expect(
-            fs.readFileSync(path.join(out, "being/_index.md"), "utf8"),
-        ).toContain("group: Actors");
+        expect(fs.readFileSync(path.join(out, "being/_index.md"), "utf8")).toContain(
+            "group: Actors",
+        );
         fs.rmSync(out, { recursive: true });
     });
 
@@ -172,9 +165,9 @@ describe("the writers emit what the section declared", () => {
                 },
             },
         });
-        expect(
-            fs.readFileSync(path.join(out, "credits/_index.md"), "utf8"),
-        ).toBe("---\ntitle: Credits\ndescription: Attributions.\n---\n\n");
+        expect(fs.readFileSync(path.join(out, "credits/_index.md"), "utf8")).toBe(
+            "---\ntitle: Credits\ndescription: Attributions.\n---\n\n",
+        );
         fs.rmSync(out, { recursive: true });
     });
 });
@@ -198,9 +191,9 @@ describe("a section that declares nothing new emits what it always did", () => {
         expect(fs.readFileSync(path.join(out, "being/_index.md"), "utf8")).toBe(
             "---\ntitle: Beings\nbanner: banners/creature.webp\n---\n\n",
         );
-        expect(
-            fs.readFileSync(path.join(out, "credits/_index.md"), "utf8"),
-        ).toBe("---\ntitle: Credits\n---\n\n");
+        expect(fs.readFileSync(path.join(out, "credits/_index.md"), "utf8")).toBe(
+            "---\ntitle: Credits\n---\n\n",
+        );
         fs.rmSync(out, { recursive: true });
     });
 
@@ -234,9 +227,7 @@ describe("the configuration is where the vocabulary is bounded", () => {
                 },
             },
         });
-        expect(config.site.readmeSections["dev-docs"].description).toBe(
-            "Docs.",
-        );
+        expect(config.site.readmeSections["dev-docs"].description).toBe("Docs.");
     });
 
     it("refuses an empty description rather than emitting a blank standfirst", () => {
@@ -244,9 +235,7 @@ describe("the configuration is where the vocabulary is bounded", () => {
             resolveWithSite({
                 sections: { x: { title: "X", description: "" } },
             }),
-        ).toThrow(
-            /`site\.sections\.x\.description` must be a non-empty string/,
-        );
+        ).toThrow(/`site\.sections\.x\.description` must be a non-empty string/);
     });
 
     it("still refuses a key it does not recognise, naming its path", () => {
@@ -262,8 +251,8 @@ describe("the configuration is where the vocabulary is bounded", () => {
     });
 
     it("names the vocabulary in the refusal, so the fix is in the message", () => {
-        expect(() =>
-            resolveWithSite({ sections: { x: { title: "X", nope: 1 } } }),
-        ).toThrow(/expected one of: title, banner, description/);
+        expect(() => resolveWithSite({ sections: { x: { title: "X", nope: 1 } } })).toThrow(
+            /expected one of: title, banner, description/,
+        );
     });
 });

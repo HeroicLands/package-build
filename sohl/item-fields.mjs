@@ -106,8 +106,7 @@ function noteContext(fm, type) {
 /** Aptitude weights per skill selector, validated as whole numbers. */
 const SKILL_APTITUDES = Object.freeze({
     shape: "map of skill selector → whole number",
-    read: (_raw, { fm }) =>
-        resolveSkillAptitudes(fm, noteContext(fm, "mystery")),
+    read: (_raw, { fm }) => resolveSkillAptitudes(fm, noteContext(fm, "mystery")),
 });
 
 /** Standings toward other affiliations, validated against the closed list. */
@@ -127,14 +126,10 @@ const STRIKE_MODES = Object.freeze({
         const seen = new Set();
         for (const { shortcode } of raw) {
             if (!shortcode) {
-                throw new Error(
-                    "weapongear strikeModes array element requires a 'shortcode'",
-                );
+                throw new Error("weapongear strikeModes array element requires a 'shortcode'");
             }
             if (seen.has(shortcode)) {
-                throw new Error(
-                    `weapongear has duplicate strike-mode shortcode "${shortcode}"`,
-                );
+                throw new Error(`weapongear has duplicate strike-mode shortcode "${shortcode}"`);
             }
             seen.add(shortcode);
         }
@@ -218,8 +213,7 @@ const GEAR_COMMON = Object.freeze([
     {
         to: "sharedWithCohortIds",
         value: () => [],
-        describe:
-            "Cohorts sharing the article. Possession state, never authored.",
+        describe: "Cohorts sharing the article. Possession state, never authored.",
     },
     {
         to: "containerId",
@@ -250,8 +244,7 @@ export const ITEM_FIELDS = Object.freeze({
             to: "subType",
             ...SUB_TYPE,
             required: true,
-            describe:
-                "Which kind of affiliation this is — the society's character.",
+            describe: "Which kind of affiliation this is — the society's character.",
         },
         {
             name: "society",
@@ -286,8 +279,7 @@ export const ITEM_FIELDS = Object.freeze({
             to: "relation",
             ...RELATION,
             default: {},
-            describe:
-                "How this society regards others: aligned, unaligned, rival or nemesis.",
+            describe: "How this society regards others: aligned, unaligned, rival or nemesis.",
         },
     ]),
 
@@ -371,16 +363,14 @@ export const ITEM_FIELDS = Object.freeze({
             to: "locations.flexible",
             ...BLANK_IS_DEFAULT,
             default: [],
-            describe:
-                "Body locations the article covers flexibly, by location shortcode.",
+            describe: "Body locations the article covers flexibly, by location shortcode.",
         },
         {
             name: "rigidloc",
             to: "locations.rigid",
             ...BLANK_IS_DEFAULT,
             default: [],
-            describe:
-                "Body locations the article covers rigidly, by location shortcode.",
+            describe: "Body locations the article covers rigidly, by location shortcode.",
         },
         {
             name: "facing",
@@ -463,16 +453,14 @@ export const ITEM_FIELDS = Object.freeze({
             to: "initDiceFormula",
             ...AS_AUTHORED,
             default: "",
-            describe:
-                "Dice expression rolled to generate the score during character creation.",
+            describe: "Dice expression rolled to generate the score during character creation.",
         },
         {
             name: "impairedByRoles",
             to: "impairedByRoles",
             ...AS_AUTHORED,
             default: [],
-            describe:
-                "Body-part roles whose impairment penalises tests against this attribute.",
+            describe: "Body-part roles whose impairment penalises tests against this attribute.",
         },
     ]),
 
@@ -701,24 +689,21 @@ export const ITEM_FIELDS = Object.freeze({
             ref: "skill",
             ...AS_AUTHORED,
             default: "",
-            describe:
-                "Shortcode of the skill this one specialises, for a specialisation.",
+            describe: "Shortcode of the skill this one specialises, for a specialisation.",
         },
         {
             name: "initSkillMult",
             to: "initSkillMult",
             ...NUMBER,
             default: 0,
-            describe:
-                "Multiplier applied to Skill Base when the skill opens on an actor.",
+            describe: "Multiplier applied to Skill Base when the skill opens on an actor.",
         },
         {
             name: "impairedByRoles",
             to: "impairedByRoles",
             ...AS_AUTHORED,
             default: [],
-            describe:
-                "Body-part roles whose impairment penalises tests against this skill.",
+            describe: "Body-part roles whose impairment penalises tests against this skill.",
         },
     ]),
 
@@ -742,8 +727,7 @@ export const ITEM_FIELDS = Object.freeze({
             to: "levelBase",
             ...NULLABLE_COUNT,
             default: null,
-            describe:
-                "Injury level. Unset on a descriptive condition, which has no level.",
+            describe: "Injury level. Unset on a descriptive condition, which has no level.",
         },
         {
             name: "healingRateBase",
@@ -757,16 +741,14 @@ export const ITEM_FIELDS = Object.freeze({
             to: "aspect",
             ...AS_AUTHORED,
             default: null,
-            describe:
-                "How the injury was inflicted. Unset on a descriptive condition.",
+            describe: "How the injury was inflicted. Unset on a descriptive condition.",
         },
         {
             name: "bodyLocationCode",
             to: "bodyLocationCode",
             ...AS_AUTHORED,
             default: null,
-            describe:
-                "Shortcode of the body location injured. Unset on a descriptive condition.",
+            describe: "Shortcode of the body location injured. Unset on a descriptive condition.",
         },
     ]),
 

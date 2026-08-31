@@ -277,10 +277,7 @@ export function resolveSchemaArtifact(config) {
     });
 
     // The system checking itself, against the schema its own build published.
-    if (
-        config.packageKind === "systems" &&
-        config.foundryPackage === systemId
-    ) {
+    if (config.packageKind === "systems" && config.foundryPackage === systemId) {
         const own = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
         return fs.existsSync(own) ? read(own) : null;
     }

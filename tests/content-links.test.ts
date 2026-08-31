@@ -57,9 +57,7 @@ const audit = (files: Record<string, string>) => {
 
 describe("anchorsOf", () => {
     it("finds an anchor declared on a heading", () => {
-        expect([
-            ...anchorsOf("# Title\n\n## Crafting {#crafting}\n\ntext"),
-        ]).toEqual(["crafting"]);
+        expect([...anchorsOf("# Title\n\n## Crafting {#crafting}\n\ntext")]).toEqual(["crafting"]);
     });
 
     it("finds nothing where no heading declares one", () => {
@@ -152,10 +150,7 @@ describe("auditLinks", () => {
                 { type: "skill", shortcode: "clmb" },
                 "## Crafting {#crafting}\n",
             ),
-            "Rules/A.md": note(
-                { type: "doc", shortcode: "a" },
-                "See [[skill-clmb#crafting]].",
-            ),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[skill-clmb#crafting]]."),
         });
         expect(r.deadAnchors).toEqual([]);
         expect(r.deadAddresses).toEqual([]);
@@ -165,10 +160,7 @@ describe("auditLinks", () => {
     it("reports an anchor no heading declares", () => {
         const r = audit({
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
-            "Rules/A.md": note(
-                { type: "doc", shortcode: "a" },
-                "See [[skill-clmb#nosuch]].",
-            ),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[skill-clmb#nosuch]]."),
         });
         expect(r.deadAnchors).toHaveLength(1);
         expect(r.deadAnchors[0].link).toBe("skill-clmb#nosuch");
@@ -176,10 +168,7 @@ describe("auditLinks", () => {
 
     it("reports a same-page anchor no heading declares", () => {
         const r = audit({
-            "Rules/A.md": note(
-                { type: "doc", shortcode: "a" },
-                "See [[#gone]].",
-            ),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[#gone]]."),
         });
         expect(r.deadAnchors).toHaveLength(1);
     });
@@ -187,10 +176,7 @@ describe("auditLinks", () => {
     it("reports a qualified address that resolves to nothing", () => {
         const r = audit({
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
-            "Rules/A.md": note(
-                { type: "doc", shortcode: "a" },
-                "See [[skill-nosuch]].",
-            ),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[skill-nosuch]]."),
         });
         expect(r.deadAddresses).toHaveLength(1);
         expect(r.deadAddresses[0].target).toBe("skill-nosuch");
@@ -238,10 +224,7 @@ describe("auditLinks", () => {
                 { type: "skill", shortcode: "clmb" },
                 "## Crafting {#crafting}\n",
             ),
-            "Rules/A.md": note(
-                { type: "doc", shortcode: "a" },
-                "See [[docskill-clmb#crafting]].",
-            ),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[docskill-clmb#crafting]]."),
         });
         expect(r.deadAnchors).toEqual([]);
         expect(r.deadAddresses).toEqual([]);
@@ -257,14 +240,8 @@ describe("walkReachability", () => {
 
     it("reaches every page linked from the root, transitively", () => {
         const index = guide({
-            "Guide/README.md": note(
-                { type: "doc", shortcode: "root" },
-                "See [[doc-one]].",
-            ),
-            "Guide/One.md": note(
-                { type: "doc", shortcode: "one" },
-                "Then [[doc-two]].",
-            ),
+            "Guide/README.md": note({ type: "doc", shortcode: "root" }, "See [[doc-one]]."),
+            "Guide/One.md": note({ type: "doc", shortcode: "one" }, "Then [[doc-two]]."),
             "Guide/Two.md": note({ type: "doc", shortcode: "two" }),
         });
         const r = walkReachability(index, { root: "Guide/README.md", scope });
@@ -276,10 +253,7 @@ describe("walkReachability", () => {
     // cannot be arrived at by reading.
     it("reports a page nothing links to", () => {
         const index = guide({
-            "Guide/README.md": note(
-                { type: "doc", shortcode: "root" },
-                "See [[doc-one]].",
-            ),
+            "Guide/README.md": note({ type: "doc", shortcode: "root" }, "See [[doc-one]]."),
             "Guide/One.md": note({ type: "doc", shortcode: "one" }),
             "Guide/Orphan.md": note({ type: "doc", shortcode: "orphan" }),
         });
@@ -290,10 +264,7 @@ describe("walkReachability", () => {
     // A link out of the corpus is a real link; it is simply not a page of it.
     it("does not follow a link out of the corpus", () => {
         const index = guide({
-            "Guide/README.md": note(
-                { type: "doc", shortcode: "root" },
-                "See [[skill-clmb]].",
-            ),
+            "Guide/README.md": note({ type: "doc", shortcode: "root" }, "See [[skill-clmb]]."),
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
         });
         const r = walkReachability(index, { root: "Guide/README.md", scope });
@@ -305,10 +276,7 @@ describe("walkReachability", () => {
     // the check vacuous.
     it("walks to a stopAt page but not through it", () => {
         const index = guide({
-            "Guide/README.md": note(
-                { type: "doc", shortcode: "root" },
-                "See [[doc-glossary]].",
-            ),
+            "Guide/README.md": note({ type: "doc", shortcode: "root" }, "See [[doc-glossary]]."),
             "Guide/Glossary.md": note(
                 { type: "doc", shortcode: "glossary" },
                 "Everything: [[doc-buried]].",
@@ -326,14 +294,8 @@ describe("walkReachability", () => {
 
     it("survives a cycle", () => {
         const index = guide({
-            "Guide/README.md": note(
-                { type: "doc", shortcode: "root" },
-                "See [[doc-one]].",
-            ),
-            "Guide/One.md": note(
-                { type: "doc", shortcode: "one" },
-                "Back to [[doc-root]].",
-            ),
+            "Guide/README.md": note({ type: "doc", shortcode: "root" }, "See [[doc-one]]."),
+            "Guide/One.md": note({ type: "doc", shortcode: "one" }, "Back to [[doc-root]]."),
         });
         const r = walkReachability(index, { root: "Guide/README.md", scope });
         expect(r.orphans).toEqual([]);
@@ -344,8 +306,8 @@ describe("walkReachability", () => {
         const index = guide({
             "Guide/One.md": note({ type: "doc", shortcode: "one" }),
         });
-        expect(() =>
-            walkReachability(index, { root: "Guide/README.md", scope }),
-        ).toThrow(/no note at Guide\/README\.md/);
+        expect(() => walkReachability(index, { root: "Guide/README.md", scope })).toThrow(
+            /no note at Guide\/README\.md/,
+        );
     });
 });

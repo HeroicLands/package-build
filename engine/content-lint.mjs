@@ -106,10 +106,7 @@ export function isValidShortcode(value) {
 function collectNotes(contentBase, { skipDirectories } = {}) {
     const notes = [];
     const walkOpts = skipDirectories ? { skipDirectories } : undefined;
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(
-        contentBase,
-        walkOpts,
-    )) {
+    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
         if (!fm || !fm.type) continue;
         notes.push({
             fm,
@@ -134,10 +131,7 @@ function collectNotes(contentBase, { skipDirectories } = {}) {
  *   severity: "error"|"warning", message: string}>, notes: number,
  *   keys: number}} The findings, and what was inspected to produce them.
  */
-export function lintContentTree(
-    contentBase,
-    { skipDirectories, contentPackage } = {},
-) {
+export function lintContentTree(contentBase, { skipDirectories, contentPackage } = {}) {
     const findings = [];
     const notes = collectNotes(contentBase, { skipDirectories });
 
@@ -211,15 +205,10 @@ export function lintContentTree(
         // is a place an author has to go and edit, and a finding naming only
         // the key sends them hunting for the other one.
         for (const { file, absPath } of files) {
-            const others = files
-                .filter((f) => f.file !== file)
-                .map((f) => f.file);
+            const others = files.filter((f) => f.file !== file).map((f) => f.file);
             findings.push({
                 file,
-                ...positionInFrontmatter(
-                    fs.readFileSync(absPath, "utf8"),
-                    "shortcode",
-                ),
+                ...positionInFrontmatter(fs.readFileSync(absPath, "utf8"), "shortcode"),
                 severity: "error",
                 message:
                     `duplicate address "${key}", also declared by ` +

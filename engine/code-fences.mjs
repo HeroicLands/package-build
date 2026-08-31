@@ -111,9 +111,7 @@ export function codeRegions(markdown, { spans = true } = {}) {
         const fence = FENCE_LINE.exec(line);
         if (fence) {
             const marker = fence[2];
-            const closer = new RegExp(
-                `^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`,
-            );
+            const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
             let close = i + 1;
             while (close < lines.length && !closer.test(lines[close])) close++;
             // An unclosed fence runs to the end of the document.
@@ -225,9 +223,7 @@ function inside(regions, offset) {
  */
 function offsetOf(args) {
     const last = args[args.length - 1];
-    return typeof last === "string" ?
-            args[args.length - 2]
-        :   args[args.length - 3];
+    return typeof last === "string" ? args[args.length - 2] : args[args.length - 3];
 }
 
 /**
@@ -263,9 +259,7 @@ export function replaceOutsideCode(markdown, pattern, replacer, options) {
 export function matchAllOutsideCode(markdown, pattern, options) {
     const src = String(markdown ?? "");
     const regions = codeRegions(src, options);
-    return [...src.matchAll(pattern)].filter(
-        (match) => !inside(regions, match.index),
-    );
+    return [...src.matchAll(pattern)].filter((match) => !inside(regions, match.index));
 }
 
 /**
@@ -304,8 +298,5 @@ export function protectCode(body, transform) {
         last = region.end;
     }
     masked += src.slice(last);
-    return transform(masked).replace(
-        /\u0000(\d+)\u0000/g,
-        (_m, i) => stash[Number(i)],
-    );
+    return transform(masked).replace(/\u0000(\d+)\u0000/g, (_m, i) => stash[Number(i)]);
 }

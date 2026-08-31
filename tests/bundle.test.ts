@@ -17,9 +17,7 @@ import {
 
 /** The first top-level statement of `source`, parsed as a classic script. */
 function firstStatement(source: string) {
-    return (
-        parse(source, { ecmaVersion: "latest", sourceType: "script" }) as any
-    ).body[0];
+    return (parse(source, { ecmaVersion: "latest", sourceType: "script" }) as any).body[0];
 }
 
 describe("declaredGlobals", () => {
@@ -30,40 +28,27 @@ describe("declaredGlobals", () => {
     });
 
     it("reports function and class declarations", () => {
-        expect(declaredGlobals(firstStatement("function f() {}"))).toEqual([
-            "f",
-        ]);
+        expect(declaredGlobals(firstStatement("function f() {}"))).toEqual(["f"]);
         expect(declaredGlobals(firstStatement("class K {}"))).toEqual(["K"]);
     });
 
     // A bundler emits these routinely; missing them would pass a bundle that
     // does collide.
     it("walks destructuring patterns", () => {
-        expect(declaredGlobals(firstStatement("const { a, b } = x;"))).toEqual([
-            "a",
-            "b",
+        expect(declaredGlobals(firstStatement("const { a, b } = x;"))).toEqual(["a", "b"]);
+        expect(declaredGlobals(firstStatement("const [c, d] = x;"))).toEqual(["c", "d"]);
+        expect(declaredGlobals(firstStatement("const { e: { f } = {} } = x;"))).toEqual(["f"]);
+        expect(declaredGlobals(firstStatement("const { g, ...rest } = x;"))).toEqual(["g", "rest"]);
+        expect(declaredGlobals(firstStatement("const [h = 1, ...tail] = x;"))).toEqual([
+            "h",
+            "tail",
         ]);
-        expect(declaredGlobals(firstStatement("const [c, d] = x;"))).toEqual([
-            "c",
-            "d",
-        ]);
-        expect(
-            declaredGlobals(firstStatement("const { e: { f } = {} } = x;")),
-        ).toEqual(["f"]);
-        expect(
-            declaredGlobals(firstStatement("const { g, ...rest } = x;")),
-        ).toEqual(["g", "rest"]);
-        expect(
-            declaredGlobals(firstStatement("const [h = 1, ...tail] = x;")),
-        ).toEqual(["h", "tail"]);
     });
 
     it("reports nothing for a statement that declares nothing", () => {
         expect(declaredGlobals(firstStatement("doThing();"))).toEqual([]);
         expect(declaredGlobals(firstStatement("x = 1;"))).toEqual([]);
-        expect(
-            declaredGlobals(firstStatement("if (a) { const inner = 1; }")),
-        ).toEqual([]);
+        expect(declaredGlobals(firstStatement("if (a) { const inner = 1; }"))).toEqual([]);
     });
 });
 
@@ -79,36 +64,23 @@ describe("globalDeclarations", () => {
     // Only top level matters — a declaration inside a block or a function is
     // not a global binding.
     it("ignores declarations nested inside a scope", () => {
-        expect(
-            globalDeclarations("function f() { const inner = 1; }").map(
-                (d) => d.name,
-            ),
-        ).toEqual(["f"]);
+        expect(globalDeclarations("function f() { const inner = 1; }").map((d) => d.name)).toEqual([
+            "f",
+        ]);
     });
 
     it("finds nothing in an IIFE-wrapped bundle", () => {
-        expect(globalDeclarations("(function(){ const a = 1; })();")).toEqual(
-            [],
-        );
+        expect(globalDeclarations("(function(){ const a = 1; })();")).toEqual([]);
     });
 });
 
 describe("entryDeclaration", () => {
     it("reads where the entry is declared", () => {
-        expect(entryDeclaration({ esmodules: ["x.js"] }, "x.js")).toBe(
-            "esmodules",
-        );
+        expect(entryDeclaration({ esmodules: ["x.js"] }, "x.js")).toBe("esmodules");
         expect(entryDeclaration({ scripts: ["x.js"] }, "x.js")).toBe("scripts");
-        expect(
-            entryDeclaration(
-                { esmodules: ["x.js"], scripts: ["x.js"] },
-                "x.js",
-            ),
-        ).toBe("both");
+        expect(entryDeclaration({ esmodules: ["x.js"], scripts: ["x.js"] }, "x.js")).toBe("both");
         expect(entryDeclaration({}, "x.js")).toBe("neither");
-        expect(entryDeclaration({ esmodules: ["other.js"] }, "x.js")).toBe(
-            "neither",
-        );
+        expect(entryDeclaration({ esmodules: ["other.js"] }, "x.js")).toBe("neither");
     });
 });
 
@@ -128,10 +100,7 @@ describe("checkBundleLoading", () => {
     // The v0.8.0 breakage: `const chrome` at top level of a classic script
     // collides with the non-configurable `window.chrome` at parse time.
     it("reports every global a script-declared bundle would declare", () => {
-        const r = check(
-            { scripts: ["sohl.js"] },
-            "const chrome = {};\nconst top = 1;\n",
-        );
+        const r = check({ scripts: ["sohl.js"] }, "const chrome = {};\nconst top = 1;\n");
         expect(r.findings).toHaveLength(2);
         expect(r.findings[0].message).toContain("chrome");
         expect(r.findings[0].line).toBe(1);
@@ -145,18 +114,12 @@ describe("checkBundleLoading", () => {
     });
 
     it("passes a script-declared bundle that declares nothing", () => {
-        const r = check(
-            { scripts: ["sohl.js"] },
-            "(function(){ const a = 1; })();",
-        );
+        const r = check({ scripts: ["sohl.js"] }, "(function(){ const a = 1; })();");
         expect(r.findings).toEqual([]);
     });
 
     it("reports an entry declared under both keys", () => {
-        const r = check(
-            { esmodules: ["sohl.js"], scripts: ["sohl.js"] },
-            "const a = 1;",
-        );
+        const r = check({ esmodules: ["sohl.js"], scripts: ["sohl.js"] }, "const a = 1;");
         expect(r.findings).toHaveLength(1);
         expect(r.findings[0].message).toContain("twice");
     });
@@ -171,17 +134,13 @@ describe("checkBundleLoading", () => {
     it("reports a module-declared bundle that is not a module", () => {
         const r = check({ esmodules: ["sohl.js"] }, "const a = 1; return 2;");
         expect(r.findings).toHaveLength(1);
-        expect(r.findings[0].message).toContain(
-            "does not parse as an ES module",
-        );
+        expect(r.findings[0].message).toContain("does not parse as an ES module");
     });
 
     it("reports a script-declared bundle that is not a script", () => {
         const r = check({ scripts: ["sohl.js"] }, "import x from 'y';");
         expect(r.findings).toHaveLength(1);
-        expect(r.findings[0].message).toContain(
-            "does not parse as a classic script",
-        );
+        expect(r.findings[0].message).toContain("does not parse as a classic script");
     });
 
     it("names the manifest in a message when told what to call it", () => {

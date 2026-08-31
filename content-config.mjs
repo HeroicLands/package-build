@@ -608,13 +608,7 @@ const SITE_TREE_KEYS = ["from", "section"];
 const SECTION_META_KEYS = ["title", "banner", "description"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
-const RELATIONSHIP_KEYS = [
-    "id",
-    "type",
-    "manifest",
-    "compatibility",
-    "itemCatalog",
-];
+const RELATIONSHIP_KEYS = ["id", "type", "manifest", "compatibility", "itemCatalog"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
 const PACK_KEYS = [
     "name",
@@ -644,9 +638,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  *
  * @type {symbol}
  */
-export const DERIVED_SYSTEM_VERSION = Symbol.for(
-    "package-build.derivedSystemVersion",
-);
+export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
 const PUBLISH_KEYS = ["site", "manifests", "address"];
 const MANIFEST_KEYS = ["publish", "consume"];
 const ADDRESS_KEYS = ["prefix", "landing"];
@@ -672,10 +664,7 @@ function isPlainObject(value) {
  * @returns {never}
  */
 function fail(field, problem) {
-    throw Object.assign(
-        new TypeError(`package-build config: \`${field}\` ${problem}.`),
-        { field },
-    );
+    throw Object.assign(new TypeError(`package-build config: \`${field}\` ${problem}.`), { field });
 }
 
 /**
@@ -752,10 +741,7 @@ function normalizePack(value, where, nested = false) {
         typeof type !== "string" ||
         !(/** @type {readonly string[]} */ (PACK_DOCUMENT_TYPES).includes(type))
     ) {
-        fail(
-            `${where}.type`,
-            `must be one of: ${PACK_DOCUMENT_TYPES.join(", ")}`,
-        );
+        fail(`${where}.type`, `must be one of: ${PACK_DOCUMENT_TYPES.join(", ")}`);
     }
 
     if (pack.folders !== undefined && pack.folders !== null) {
@@ -837,20 +823,14 @@ function normalizePack(value, where, nested = false) {
         name,
         type: /** @type {PackDocumentType} */ (type),
         label:
-            pack.label === undefined ?
-                name
-            :   requireNonEmptyString(pack.label, `${where}.label`),
+            pack.label === undefined ? name : requireNonEmptyString(pack.label, `${where}.label`),
         private: optionalBoolean(pack.private, `${where}.private`, false),
         folders:
             pack.folders === undefined || pack.folders === null ?
                 null
             :   /** @type {string} */ (pack.folders),
         companions: Object.freeze(companions),
-        mayBeEmpty: optionalBoolean(
-            pack.mayBeEmpty,
-            `${where}.mayBeEmpty`,
-            false,
-        ),
+        mayBeEmpty: optionalBoolean(pack.mayBeEmpty, `${where}.mayBeEmpty`, false),
         // Which pack of a type receives a note that declares none. Validated
         // across the whole list in `defineConfig` — at most one per type.
         default: optionalBoolean(pack.default, `${where}.default`, false),
@@ -938,10 +918,7 @@ function normalizeStats(value, derived) {
         // the package-wide answer for everything that has no pack in hand.
         systemId: derived.systemId,
         systemVersion: derived.systemVersion,
-        lastModifiedBy: requireNonEmptyString(
-            input.lastModifiedBy,
-            "stats.lastModifiedBy",
-        ),
+        lastModifiedBy: requireNonEmptyString(input.lastModifiedBy, "stats.lastModifiedBy"),
     });
 }
 
@@ -1056,10 +1033,7 @@ function normalizeSectionMeta(value, where) {
         out.banner = requireNonEmptyString(input.banner, `${where}.banner`);
     }
     if (input.description !== undefined) {
-        out.description = requireNonEmptyString(
-            input.description,
-            `${where}.description`,
-        );
+        out.description = requireNonEmptyString(input.description, `${where}.description`);
     }
     return Object.freeze(out);
 }
@@ -1075,9 +1049,7 @@ function normalizeSectionMap(value, where) {
     if (value === undefined) return Object.freeze({});
     if (!isPlainObject(value)) fail(where, "must be a mapping");
     const out = {};
-    for (const [name, meta] of Object.entries(
-        /** @type {Record<string, unknown>} */ (value),
-    )) {
+    for (const [name, meta] of Object.entries(/** @type {Record<string, unknown>} */ (value))) {
         out[name] = normalizeSectionMeta(meta, `${where}.${name}`);
     }
     return Object.freeze(out);
@@ -1124,10 +1096,7 @@ function normalizeSite(value) {
             trees.push(
                 Object.freeze({
                     from: requireNonEmptyString(tree.from, `${where}.from`),
-                    section: requireNonEmptyString(
-                        tree.section,
-                        `${where}.section`,
-                    ),
+                    section: requireNonEmptyString(tree.section, `${where}.section`),
                     // The tree's own path, POSIX-separated — what a
                     // repository-relative link inside it is resolved against.
                     rel: String(tree.from).split(path.sep).join("/"),
@@ -1141,9 +1110,7 @@ function normalizeSite(value) {
         if (!Array.isArray(input.packages)) {
             fail("site.packages", "must be a list");
         }
-        packages = input.packages.map((p, i) =>
-            requireNonEmptyString(p, `site.packages[${i}]`),
-        );
+        packages = input.packages.map((p, i) => requireNonEmptyString(p, `site.packages[${i}]`));
     }
 
     let landing = null;
@@ -1157,35 +1124,19 @@ function normalizeSite(value) {
     }
 
     return Object.freeze({
-        out:
-            input.out === undefined ?
-                ""
-            :   requireNonEmptyString(input.out, "site.out"),
-        base:
-            input.base === undefined ?
-                ""
-            :   requireNonEmptyString(input.base, "site.base"),
+        out: input.out === undefined ? "" : requireNonEmptyString(input.out, "site.out"),
+        base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
         packages: Object.freeze(packages),
         sections: normalizeSectionMap(input.sections, "site.sections"),
-        readmeSections: normalizeSectionMap(
-            input.readmeSections,
-            "site.readmeSections",
-        ),
+        readmeSections: normalizeSectionMap(input.readmeSections, "site.readmeSections"),
         landing,
         trees: Object.freeze(trees),
-        pass:
-            input.pass === undefined ?
-                ""
-            :   requireNonEmptyString(input.pass, "site.pass"),
+        pass: input.pass === undefined ? "" : requireNonEmptyString(input.pass, "site.pass"),
         passOptions:
             input.passOptions === undefined ?
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
-        backfillSections: optionalBoolean(
-            input.backfillSections,
-            "site.backfillSections",
-            false,
-        ),
+        backfillSections: optionalBoolean(input.backfillSections, "site.backfillSections", false),
     });
 }
 
@@ -1213,10 +1164,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
         out.minimum = requireNonEmptyString(input.minimum, `${where}.minimum`);
     }
     if (input.verified !== undefined) {
-        out.verified = requireNonEmptyString(
-            input.verified,
-            `${where}.verified`,
-        );
+        out.verified = requireNonEmptyString(input.verified, `${where}.verified`);
     }
     return Object.freeze(out);
 }
@@ -1255,8 +1203,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  */
 function normalizeSystems(value) {
     if (value === undefined || value === null) return Object.freeze({});
-    if (!isPlainObject(value))
-        fail("systems", "must be a mapping of id to spec");
+    if (!isPlainObject(value)) fail("systems", "must be a mapping of id to spec");
     const input = /** @type {Record<string, unknown>} */ (value);
 
     const out = {};
@@ -1276,10 +1223,7 @@ function normalizeSystems(value) {
         // `verified` is required because it is the value a pack stamps. A
         // declaration that cannot answer "which version was this built
         // against" is the gap this block exists to close.
-        const verified = requireNonEmptyString(
-            compat.verified,
-            `${at}.compatibility.verified`,
-        );
+        const verified = requireNonEmptyString(compat.verified, `${at}.compatibility.verified`);
 
         out[id] = Object.freeze({
             manifest:
@@ -1290,10 +1234,7 @@ function normalizeSystems(value) {
                 minimum:
                     compat.minimum === undefined || compat.minimum === null ?
                         null
-                    :   requireNonEmptyString(
-                            compat.minimum,
-                            `${at}.compatibility.minimum`,
-                        ),
+                    :   requireNonEmptyString(compat.minimum, `${at}.compatibility.minimum`),
                 verified,
             }),
         });
@@ -1346,10 +1287,7 @@ function normalizeRelationships(value) {
                 };
                 for (const key of ["type", "manifest"]) {
                     if (rel[key] !== undefined) {
-                        spec[key] = requireNonEmptyString(
-                            rel[key],
-                            `${at}.${key}`,
-                        );
+                        spec[key] = requireNonEmptyString(rel[key], `${at}.${key}`);
                     }
                 }
                 const compat = normalizeCompatibility(
@@ -1367,10 +1305,7 @@ function normalizeRelationships(value) {
                         fail(`${at}.itemCatalog`, "must be true or false");
                     }
                     if (rel.itemCatalog && spec.manifest === undefined) {
-                        fail(
-                            `${at}.itemCatalog`,
-                            "needs a `manifest` naming the package to fetch",
-                        );
+                        fail(`${at}.itemCatalog`, "needs a `manifest` naming the package to fetch");
                     }
                     spec.itemCatalog = rel.itemCatalog;
                 }
@@ -1397,9 +1332,7 @@ function normalizePackageBuild(value) {
                 "reads, and that package validates what is inside it",
         );
     }
-    return /** @type {Readonly<PackageBuildSection>} */ (
-        deepFreeze(structuredClone(value))
-    );
+    return /** @type {Readonly<PackageBuildSection>} */ (deepFreeze(structuredClone(value)));
 }
 
 /**
@@ -1467,10 +1400,7 @@ function normalizeItemBuilders(value) {
         }
         itemBuilders[type] = /** @type {Function} */ (paired.system);
         if (paired.img !== undefined) {
-            itemArt[type] = requireNonEmptyString(
-                paired.img,
-                `itemBuilders.${type}.img`,
-            );
+            itemArt[type] = requireNonEmptyString(paired.img, `itemBuilders.${type}.img`);
         }
         if (paired.fields !== undefined) {
             if (!Array.isArray(paired.fields)) {
@@ -1556,9 +1486,7 @@ function normalizePublish(value) {
     if (manifestsInput !== undefined && !isPlainObject(manifestsInput)) {
         fail("publish.manifests", "must be an object");
     }
-    const manifests = /** @type {Record<string, unknown>} */ (
-        manifestsInput ?? {}
-    );
+    const manifests = /** @type {Record<string, unknown>} */ (manifestsInput ?? {});
     rejectUnknownKeys(manifests, MANIFEST_KEYS, "publish.manifests.");
 
     const addressInput = publish.address;
@@ -1589,26 +1517,15 @@ function normalizePublish(value) {
             DEFAULT_ADDRESS_SCHEME.landing
         :   optionalString(address.landing, "publish.address.landing");
     if (!LANDING_RULES.includes(landing)) {
-        fail(
-            "publish.address.landing",
-            `must be one of ${LANDING_RULES.join(", ")}`,
-        );
+        fail("publish.address.landing", `must be one of ${LANDING_RULES.join(", ")}`);
     }
 
     return Object.freeze({
         site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix, landing }),
         manifests: Object.freeze({
-            publish: optionalBoolean(
-                manifests.publish,
-                "publish.manifests.publish",
-                false,
-            ),
-            consume: optionalBoolean(
-                manifests.consume,
-                "publish.manifests.consume",
-                false,
-            ),
+            publish: optionalBoolean(manifests.publish, "publish.manifests.publish", false),
+            consume: optionalBoolean(manifests.consume, "publish.manifests.consume", false),
         }),
     });
 }
@@ -1629,13 +1546,9 @@ function normalizePublish(value) {
  */
 export function defineConfig(config) {
     if (!isPlainObject(config)) {
-        throw new TypeError(
-            "package-build config: expected a configuration object.",
-        );
+        throw new TypeError("package-build config: expected a configuration object.");
     }
-    const input = /** @type {Record<string, unknown>} */ (
-        /** @type {unknown} */ (config)
-    );
+    const input = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (config));
     rejectUnknownKeys(input, CONFIG_KEYS, "");
 
     const rootDir = requireNonEmptyString(input.rootDir, "rootDir");
@@ -1650,21 +1563,14 @@ export function defineConfig(config) {
     const packageKind = input.packageKind;
     if (
         typeof packageKind !== "string" ||
-        !(
-            /** @type {readonly string[]} */ (PACKAGE_KINDS).includes(
-                packageKind,
-            )
-        )
+        !(/** @type {readonly string[]} */ (PACKAGE_KINDS).includes(packageKind))
     ) {
         fail("packageKind", `must be one of: ${PACKAGE_KINDS.join(", ")}`);
     }
 
     if (!Array.isArray(input.packs)) fail("packs", "must be an array");
-    if (input.packs.length === 0)
-        fail("packs", "must declare at least one pack");
-    const packs = input.packs.map((pack, index) =>
-        normalizePack(pack, `packs[${index}]`),
-    );
+    if (input.packs.length === 0) fail("packs", "must declare at least one pack");
+    const packs = input.packs.map((pack, index) => normalizePack(pack, `packs[${index}]`));
 
     // One list, so the compile order and the directory list cannot disagree —
     // they used to be `PACK_CONFIGS` and `SOURCE_PACKS`, maintained apart (#1508).
@@ -1686,9 +1592,7 @@ export function defineConfig(config) {
     const declaredSystems = new Set(Object.keys(systems));
     /** `relationships.systems`, for the derivations that still consult it. */
     const relationshipSystems = /** @type {{id?: string}[]} */ (
-        (isPlainObject(input.relationships) ?
-            input.relationships.systems
-        :   null) ?? []
+        (isPlainObject(input.relationships) ? input.relationships.systems : null) ?? []
     );
 
     // A name that resolves to nothing is a build error rather than a
@@ -1747,32 +1651,21 @@ export function defineConfig(config) {
         defaultsByType.set(pack.type, pack.name);
     }
 
-    if (
-        input.skipDirectories !== undefined &&
-        !Array.isArray(input.skipDirectories)
-    ) {
+    if (input.skipDirectories !== undefined && !Array.isArray(input.skipDirectories)) {
         fail("skipDirectories", "must be an array");
     }
     const skipDirectories = (input.skipDirectories ?? []).map((name, index) =>
         requireNonEmptyString(name, `skipDirectories[${index}]`),
     );
 
-    const foundryPackage = requireNonEmptyString(
-        input.foundryPackage,
-        "foundryPackage",
-    );
+    const foundryPackage = requireNonEmptyString(input.foundryPackage, "foundryPackage");
 
-    const { itemBuilders, itemArt, itemFields } = normalizeItemBuilders(
-        input.itemBuilders,
-    );
+    const { itemBuilders, itemArt, itemFields } = normalizeItemBuilders(input.itemBuilders);
     const itemTypes = Object.freeze(new Set(Object.keys(itemBuilders)));
 
     return Object.freeze({
         rootDir,
-        contentPackage: requireNonEmptyString(
-            input.contentPackage,
-            "contentPackage",
-        ),
+        contentPackage: requireNonEmptyString(input.contentPackage, "contentPackage"),
         foundryPackage,
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
@@ -1798,9 +1691,8 @@ export function defineConfig(config) {
                     // which is the duplication this whole change exists to
                     // remove. Several entries have no single answer and get
                     // none.
-                : relationshipSystems.length === 1 ?
-                    (relationshipSystems[0]?.id ?? null)
-                :   null,
+                : relationshipSystems.length === 1 ? (relationshipSystems[0]?.id ?? null)
+                : null,
             // Derived here where the answer is pure data — the `verified` of
             // whichever system the package-wide block takes — and supplied by
             // the loader otherwise. The loader is the half that may do I/O, and
@@ -1811,16 +1703,10 @@ export function defineConfig(config) {
                 (() => {
                     const id =
                         requiresSystem ??
-                        (Object.keys(systems).length === 1 ?
-                            Object.keys(systems)[0]
-                        :   null);
-                    return id ?
-                            (systems[id]?.compatibility?.verified ?? null)
-                        :   null;
+                        (Object.keys(systems).length === 1 ? Object.keys(systems)[0] : null);
+                    return id ? (systems[id]?.compatibility?.verified ?? null) : null;
                 })() ??
-                (isPlainObject(input.stats) ?
-                    input.stats[DERIVED_SYSTEM_VERSION]
-                :   null) ??
+                (isPlainObject(input.stats) ? input.stats[DERIVED_SYSTEM_VERSION] : null) ??
                 null,
         }),
         itemBuilders,
@@ -1833,18 +1719,13 @@ export function defineConfig(config) {
         // runtime. Two would drift, which is the whole reason the composition
         // was written down in one place to begin with.
         itemTypes,
-        docEntryTypes: Object.freeze(
-            new Set([...itemTypes, "macro", ...MAP_TYPES]),
-        ),
+        docEntryTypes: Object.freeze(new Set([...itemTypes, "macro", ...MAP_TYPES])),
         skipDirectories: Object.freeze(skipDirectories),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),
         site: normalizeSite(input.site),
-        compatibility: normalizeCompatibility(
-            input.compatibility,
-            "compatibility",
-        ),
+        compatibility: normalizeCompatibility(input.compatibility, "compatibility"),
         relationships: normalizeRelationships(input.relationships),
         systems,
         requiresSystem,

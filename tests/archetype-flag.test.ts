@@ -21,25 +21,21 @@ describe("resolveArchetype (build:compiledb archetype contract, #640)", () => {
     });
 
     it("returns undefined when sohl.archetype is null (not an archetype)", () => {
-        expect(resolveArchetype({ sohl: { archetype: null } }, "x")).toBe(
-            undefined,
-        );
+        expect(resolveArchetype({ sohl: { archetype: null } }, "x")).toBe(undefined);
     });
 
     it("throws when sohl.archetype is absent", () => {
-        expect(() => resolveArchetype({ sohl: {} }, "widget")).toThrow(
-            /archetype/i,
-        );
+        expect(() => resolveArchetype({ sohl: {} }, "widget")).toThrow(/archetype/i);
         expect(() => resolveArchetype({}, "widget")).toThrow(/archetype/i);
     });
 
     it("throws when sohl.archetype is a non-number, non-null value", () => {
-        expect(() =>
-            resolveArchetype({ sohl: { archetype: "0" } }, "widget"),
-        ).toThrow(/archetype/i);
-        expect(() =>
-            resolveArchetype({ sohl: { archetype: true } }, "widget"),
-        ).toThrow(/archetype/i);
+        expect(() => resolveArchetype({ sohl: { archetype: "0" } }, "widget")).toThrow(
+            /archetype/i,
+        );
+        expect(() => resolveArchetype({ sohl: { archetype: true } }, "widget")).toThrow(
+            /archetype/i,
+        );
     });
 
     it("accepts a top-level archetype key (sohlField fallback parity)", () => {
@@ -88,8 +84,6 @@ describe("withArchetypeFlag (build:compiledb archetype contract, #640)", () => {
     });
 
     it("throws when archetype is absent", () => {
-        expect(() => withArchetypeFlag({ sohl: {} }, {}, "widget")).toThrow(
-            /archetype/i,
-        );
+        expect(() => withArchetypeFlag({ sohl: {} }, {}, "widget")).toThrow(/archetype/i);
     });
 });

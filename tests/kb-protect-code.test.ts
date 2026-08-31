@@ -33,9 +33,7 @@ describe("protectCode", () => {
         // That masked the prose between them as code and left the span's own
         // content exposed — and pairing stayed wrong for the rest of the file,
         // which is how a documented `[[Grukar-ahk]]` example lost its brackets.
-        const body = ["a stray ` backtick", "", "then `[[kept]]` here"].join(
-            "\n",
-        );
+        const body = ["a stray ` backtick", "", "then `[[kept]]` here"].join("\n");
         expect(protectCode(body, mangle)).toContain("`[[kept]]`");
     });
 
@@ -62,9 +60,7 @@ describe("protectCode", () => {
     });
 
     it("still transforms ordinary prose", () => {
-        expect(protectCode("plain [[target]] here", mangle)).toBe(
-            "plain MANGLED here",
-        );
+        expect(protectCode("plain [[target]] here", mangle)).toBe("plain MANGLED here");
     });
 
     it("restores every stashed run in order", () => {
@@ -73,9 +69,7 @@ describe("protectCode", () => {
     });
 
     it("survives a body with no code at all", () => {
-        expect(protectCode("nothing to protect", mangle)).toBe(
-            "nothing to protect",
-        );
+        expect(protectCode("nothing to protect", mangle)).toBe("nothing to protect");
     });
 
     it("treats an absent body as empty rather than throwing", () => {

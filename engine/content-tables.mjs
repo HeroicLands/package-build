@@ -199,13 +199,7 @@ function tokenize(source) {
 const CLAUSE_RANK = { TABLE: 0, FROM: 1, WHERE: 2, SORT: 3, LIMIT: 4 };
 
 /** Query types and data commands that are recognised only to be refused. */
-const UNSUPPORTED_CLAUSES = new Set([
-    "LIST",
-    "TASK",
-    "CALENDAR",
-    "GROUP",
-    "FLATTEN",
-]);
+const UNSUPPORTED_CLAUSES = new Set(["LIST", "TASK", "CALENDAR", "GROUP", "FLATTEN"]);
 
 /**
  * Group a query's tokens by clause.
@@ -227,21 +221,15 @@ function splitClauses(tokens) {
             if (token.value === "(" || token.value === "[") depth++;
             else if (token.value === ")" || token.value === "]") depth--;
         }
-        const word =
-            token.kind === "ident" ? token.value.toUpperCase() : undefined;
+        const word = token.kind === "ident" ? token.value.toUpperCase() : undefined;
         if (depth === 0 && word && UNSUPPORTED_CLAUSES.has(word)) {
             // `GROUP BY` is two words; report it the way an author wrote it.
             const label =
-                (
-                    word === "GROUP" &&
-                    tokens[i + 1]?.value?.toUpperCase?.() === "BY"
-                ) ?
+                word === "GROUP" && tokens[i + 1]?.value?.toUpperCase?.() === "BY" ?
                     "GROUP BY"
                 :   word;
             if (current === null) {
-                throw new Error(
-                    `only TABLE queries are supported; this block is a ${label} query`,
-                );
+                throw new Error(`only TABLE queries are supported; this block is a ${label} query`);
             }
             throw new Error(`the ${label} clause is not supported`);
         }
@@ -333,25 +321,19 @@ class ExprParser {
     /** Is the next token this operator/punctuation? */
     at(value) {
         const t = this.peek();
-        return (
-            (t.kind === "op" || t.kind === "punct") && t.value === String(value)
-        );
+        return (t.kind === "op" || t.kind === "punct") && t.value === String(value);
     }
 
     /** Is the next token this (case-insensitive) bare word? */
     atWord(word) {
         const t = this.peek();
-        return (
-            t.kind === "ident" && t.value.toLowerCase() === word.toLowerCase()
-        );
+        return t.kind === "ident" && t.value.toLowerCase() === word.toLowerCase();
     }
 
     /** Consume the next token if it matches; report otherwise. */
     expect(value) {
         if (!this.at(value)) {
-            throw new Error(
-                `expected "${value}", got "${this.peek().text || "end of query"}"`,
-            );
+            throw new Error(`expected "${value}", got "${this.peek().text || "end of query"}"`);
         }
         return this.next();
     }
@@ -394,10 +376,7 @@ class ExprParser {
     parseComparison() {
         const left = this.parseUnary();
         const t = this.peek();
-        if (
-            t.kind === "op" &&
-            ["=", "==", "!=", ">", ">=", "<", "<="].includes(t.value)
-        ) {
+        if (t.kind === "op" && ["=", "==", "!=", ">", ">=", "<", "<="].includes(t.value)) {
             this.next();
             return {
                 kind: "compare",
@@ -502,9 +481,7 @@ class ExprParser {
             }
             return { kind: "field", path: t.value };
         }
-        throw new Error(
-            `unexpected "${t.text || "end of query"}" in expression`,
-        );
+        throw new Error(`unexpected "${t.text || "end of query"}" in expression`);
     }
 
     /**
@@ -544,9 +521,7 @@ export function parseDataviewQuery(source) {
     if (parser.atWord("without")) {
         parser.next();
         if (!parser.atWord("id")) {
-            throw new Error(
-                `expected "WITHOUT ID", got "WITHOUT ${parser.peek().text}"`,
-            );
+            throw new Error(`expected "WITHOUT ID", got "WITHOUT ${parser.peek().text}"`);
         }
         parser.next();
         withoutId = true;
@@ -586,9 +561,7 @@ export function parseDataviewQuery(source) {
         const fromParser = new ExprParser(clauses.get("FROM"), text);
         from = fromParser.parseExpression();
         if (!fromParser.done) {
-            throw new Error(
-                `unexpected "${fromParser.peek().text}" in the FROM clause`,
-            );
+            throw new Error(`unexpected "${fromParser.peek().text}" in the FROM clause`);
         }
     }
 
@@ -598,9 +571,7 @@ export function parseDataviewQuery(source) {
         const whereParser = new ExprParser(clauses.get("WHERE"), text);
         where = whereParser.parseExpression();
         if (!whereParser.done) {
-            throw new Error(
-                `unexpected "${whereParser.peek().text}" in the WHERE clause`,
-            );
+            throw new Error(`unexpected "${whereParser.peek().text}" in the WHERE clause`);
         }
     }
 
@@ -614,10 +585,7 @@ export function parseDataviewQuery(source) {
             if (sortParser.atWord("desc") || sortParser.atWord("descending")) {
                 sortParser.next();
                 descending = true;
-            } else if (
-                sortParser.atWord("asc") ||
-                sortParser.atWord("ascending")
-            ) {
+            } else if (sortParser.atWord("asc") || sortParser.atWord("ascending")) {
                 sortParser.next();
             }
             sort.push({ expr, descending });
@@ -648,8 +616,7 @@ const makeLink = (display) => ({ __link: true, display: String(display) });
 
 const isLink = (v) => Boolean(v) && typeof v === "object" && v.__link === true;
 
-const isEmpty = (v) =>
-    v == null || v === "" || (Array.isArray(v) && v.length === 0);
+const isEmpty = (v) => v == null || v === "" || (Array.isArray(v) && v.length === 0);
 
 /** Dataview treats an absent, empty, zero, or false value as false. */
 const truthy = (v) => {
@@ -813,9 +780,7 @@ function containsValue(haystack, needle, mode) {
     if (haystack == null) return false;
     if (Array.isArray(haystack)) {
         return haystack.some((v) =>
-            mode === "exact" ?
-                looseEquals(v, needle)
-            :   containsValue(v, needle, mode),
+            mode === "exact" ? looseEquals(v, needle) : containsValue(v, needle, mode),
         );
     }
     if (typeof haystack === "object" && !isLink(haystack)) {
@@ -842,8 +807,7 @@ function toRegExp(pattern, anchored) {
 
 /** The implementations behind {@link FUNCTIONS}. */
 const CALLS = {
-    link: (args) =>
-        makeLink(args.length > 1 && !isEmpty(args[1]) ? asText(args[1]) : ""),
+    link: (args) => makeLink(args.length > 1 && !isEmpty(args[1]) ? asText(args[1]) : ""),
     contains: ([a, b]) => containsValue(a, b, "loose"),
     icontains: ([a, b]) => containsValue(a, b, "insensitive"),
     econtains: ([a, b]) => containsValue(a, b, "exact"),
@@ -867,10 +831,8 @@ const CALLS = {
             .filter((v) => !isEmpty(v))
             .map(asText)
             .join(sep === undefined ? ", " : asText(sep)),
-    regexmatch: ([pattern, value]) =>
-        toRegExp(pattern, true).test(asText(value)),
-    regextest: ([pattern, value]) =>
-        toRegExp(pattern, false).test(asText(value)),
+    regexmatch: ([pattern, value]) => toRegExp(pattern, true).test(asText(value)),
+    regextest: ([pattern, value]) => toRegExp(pattern, false).test(asText(value)),
 };
 
 /**
@@ -980,11 +942,7 @@ function matchesSource(node, doc) {
             const folder = value.replace(/\/+$/, "");
             const path = doc.path ?? "";
             if (folder === "" || folder === "/") return true;
-            return (
-                path === folder ||
-                path === `${folder}.md` ||
-                path.startsWith(`${folder}/`)
-            );
+            return path === folder || path === `${folder}.md` || path.startsWith(`${folder}/`);
         }
         default:
             throw new Error(
@@ -1015,10 +973,7 @@ export function selectRows(spec, docs, self) {
     });
     matched.sort((a, b) => {
         for (const { expr, descending } of spec.sort) {
-            const order = compareValues(
-                evaluate(expr, a, self),
-                evaluate(expr, b, self),
-            );
+            const order = compareValues(evaluate(expr, a, self), evaluate(expr, b, self));
             if (order !== 0) return descending ? -order : order;
         }
         const byPath = compareValues(a.path, b.path);
@@ -1032,8 +987,7 @@ export function selectRows(spec, docs, self) {
 /* ------------------------------------------------------------------------ */
 
 /** Escape the characters that would break out of a markdown table cell. */
-const escapeCell = (text) =>
-    text.replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
+const escapeCell = (text) => text.replace(/\|/g, "\\|").replace(/[\r\n]+/g, " ");
 
 /**
  * Render one evaluated value as table text.
@@ -1074,8 +1028,7 @@ export function renderContentTable(spec, rows, linkable, self) {
         spec.columns.map((column) => {
             const value = evaluate(column.expr, doc, self);
             if (!isLink(value)) return formatValue(value, column.header);
-            const display =
-                value.display || asText(FILE_FIELDS.name(doc)) || EMPTY_CELL;
+            const display = value.display || asText(FILE_FIELDS.name(doc)) || EMPTY_CELL;
             const text = escapeCell(display);
             if (!linkable(doc)) return text;
             // A wikilink's own separator is a literal `|`, written `\|` inside a
@@ -1087,12 +1040,9 @@ export function renderContentTable(spec, rows, linkable, self) {
     );
 
     const align = spec.columns.map((_column, i) => {
-        const shown = cells
-            .map((row) => row[i])
-            .filter((c) => c !== EMPTY_CELL);
+        const shown = cells.map((row) => row[i]).filter((c) => c !== EMPTY_CELL);
         const numeric =
-            shown.length > 0 &&
-            shown.every((c) => Number.isFinite(Number(c)) && c.trim() !== "");
+            shown.length > 0 && shown.every((c) => Number.isFinite(Number(c)) && c.trim() !== "");
         return numeric ? "---:" : "---";
     });
 
@@ -1172,9 +1122,7 @@ export function expandContentTables(
         // Find this fence's closing line: the same marker character, at least
         // as long, with nothing after it.
         let close = i + 1;
-        const closer = new RegExp(
-            `^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`,
-        );
+        const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
         while (close < lines.length && !closer.test(lines[close])) close++;
         const isQuery = /^dataview\b/i.test(info.trim());
         const block = lines.slice(i, Math.min(close + 1, lines.length));
@@ -1204,8 +1152,7 @@ export function expandContentTables(
         }
         // A markdown table must be its own block: keep one blank line on each
         // side of it, without inventing a leading or trailing one.
-        if (out.length > 0 && out[out.length - 1].trim() !== "")
-            emit("", i, true);
+        if (out.length > 0 && out[out.length - 1].trim() !== "") emit("", i, true);
         for (const row of table.split("\n")) emit(`${indent}${row}`, i, true);
         if (close + 1 < lines.length && lines[close + 1].trim() !== "") {
             emit("", i, true);

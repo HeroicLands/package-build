@@ -150,10 +150,7 @@ export function registryOf(src, name) {
             }
             if (ts.isObjectLiteralExpression(init)) {
                 for (const p of init.properties) {
-                    if (
-                        ts.isPropertyAssignment(p) &&
-                        ts.isIdentifier(p.initializer)
-                    ) {
+                    if (ts.isPropertyAssignment(p) && ts.isIdentifier(p.initializer)) {
                         out.set(propName(p.name), p.initializer.text);
                     }
                 }
@@ -216,10 +213,7 @@ function resolveSpecifier(fromDir, spec, aliases) {
     }
     if (!base) return null;
     for (const ext of EXTENSIONS) {
-        for (const candidate of [
-            `${base}${ext}`,
-            path.join(base, `index${ext}`),
-        ]) {
+        for (const candidate of [`${base}${ext}`, path.join(base, `index${ext}`)]) {
             if (fs.existsSync(candidate)) return candidate;
         }
     }
@@ -243,11 +237,7 @@ function importSourceOf(src, name, aliases) {
         if (!bindings.elements.some((e) => e.name.text === name)) return;
         const spec = node.moduleSpecifier;
         if (!ts.isStringLiteral(spec)) return;
-        found = resolveSpecifier(
-            path.dirname(src.fileName),
-            spec.text,
-            aliases,
-        );
+        found = resolveSpecifier(path.dirname(src.fileName), spec.text, aliases);
     });
     return found;
 }
@@ -286,9 +276,7 @@ function locateClass(fromFile, className, aliases, cache) {
     if (!imported) return null;
     const importedSrc = parse(imported, cache);
     const importedDecl = classDeclIn(importedSrc, className);
-    return importedDecl ?
-            { file: imported, src: importedSrc, decl: importedDecl }
-        :   null;
+    return importedDecl ? { file: imported, src: importedSrc, decl: importedDecl } : null;
 }
 
 /**
@@ -303,8 +291,7 @@ function superClassOf(decl) {
     for (const clause of decl.heritageClauses ?? []) {
         if (clause.token !== ts.SyntaxKind.ExtendsKeyword) continue;
         const [type] = clause.types;
-        if (type && ts.isIdentifier(type.expression))
-            return type.expression.text;
+        if (type && ts.isIdentifier(type.expression)) return type.expression.text;
     }
     return null;
 }
@@ -350,9 +337,8 @@ function literalReturnedBy(src, fnName) {
         if (isTarget) {
             const body =
                 ts.isFunctionDeclaration(node) ? node.body
-                : node.initializer && ts.isArrowFunction(node.initializer) ?
-                    node.initializer.body
-                :   null;
+                : node.initializer && ts.isArrowFunction(node.initializer) ? node.initializer.body
+                : null;
             if (body) literal = returnedLiteral(body);
         }
         ts.forEachChild(node, visit);
@@ -404,14 +390,10 @@ function isObjectAssign(expr) {
  */
 function schemaContributions(src, decl) {
     const method = decl.members.find(
-        (m) =>
-            ts.isMethodDeclaration(m) &&
-            propName(m.name) === "defineSchema" &&
-            m.body,
+        (m) => ts.isMethodDeclaration(m) && propName(m.name) === "defineSchema" && m.body,
     );
     // No `defineSchema()` — the whole schema is the parent's.
-    if (!method)
-        return { literals: [], edges: [{ kind: "super", name: null }] };
+    if (!method) return { literals: [], edges: [{ kind: "super", name: null }] };
 
     const direct = returnedLiteral(method.body);
     if (direct) return { literals: [direct], edges: [] };
@@ -568,12 +550,7 @@ export function fieldsForClass({ file, className, aliases, cache, rootDir }) {
             const importedSrc = parse(from, cache);
             const importedLit = literalReturnedBy(importedSrc, edge.name);
             if (importedLit) {
-                walkLiteral(
-                    { file: from, src: importedSrc },
-                    importedLit,
-                    inherited,
-                    superName,
-                );
+                walkLiteral({ file: from, src: importedSrc }, importedLit, inherited, superName);
             }
             return;
         }
@@ -616,12 +593,7 @@ export function fieldsForClass({ file, className, aliases, cache, rootDir }) {
  * @param {string} opts.version - The package version.
  * @returns {object} The artifact `schema-check.mjs` reads.
  */
-export function buildSchemaArtifact({
-    rootDir,
-    registries,
-    packageId,
-    version,
-}) {
+export function buildSchemaArtifact({ rootDir, registries, packageId, version }) {
     const aliases = pathAliases(rootDir);
     const cache = new Map();
     const documents = {};

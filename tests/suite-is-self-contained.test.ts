@@ -65,28 +65,25 @@ describe("the content-build suite needs nothing from a consuming repository", ()
         expect(files.length).toBeGreaterThan(0);
     });
 
-    it.each(files)(
-        "%s stays free of Foundry, of src/, and of any host repository",
-        (file) => {
-            const offenders = fs
-                .readFileSync(file, "utf8")
-                .split("\n")
-                .map((line, i) => ({ line: line.trim(), n: i + 1 }))
-                .filter(
-                    ({ line }) =>
-                        FOUNDRY_GLOBAL.test(line) ||
-                        SRC_IMPORT.test(line) ||
-                        ESCAPES_PACKAGE.test(line),
-                );
-            expect(
-                offenders,
-                `${path.relative(HERE, file)} reaches a Foundry global, the ` +
-                    `system source, or a path above the package root. The ` +
-                    `package has none of those when it is installed from npm; ` +
-                    `a test that needs them belongs in the consuming ` +
-                    `repository's own tests/build/ suite:\n` +
-                    offenders.map((o) => `  L${o.n}: ${o.line}`).join("\n"),
-            ).toEqual([]);
-        },
-    );
+    it.each(files)("%s stays free of Foundry, of src/, and of any host repository", (file) => {
+        const offenders = fs
+            .readFileSync(file, "utf8")
+            .split("\n")
+            .map((line, i) => ({ line: line.trim(), n: i + 1 }))
+            .filter(
+                ({ line }) =>
+                    FOUNDRY_GLOBAL.test(line) ||
+                    SRC_IMPORT.test(line) ||
+                    ESCAPES_PACKAGE.test(line),
+            );
+        expect(
+            offenders,
+            `${path.relative(HERE, file)} reaches a Foundry global, the ` +
+                `system source, or a path above the package root. The ` +
+                `package has none of those when it is installed from npm; ` +
+                `a test that needs them belongs in the consuming ` +
+                `repository's own tests/build/ suite:\n` +
+                offenders.map((o) => `  L${o.n}: ${o.line}`).join("\n"),
+        ).toEqual([]);
+    });
 });

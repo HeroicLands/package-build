@@ -40,10 +40,7 @@ describe("ITEM_FIELDS is the one list (#22, #1504)", () => {
                 expect(field.describe, `${type}.${field.to}`).toBeTruthy();
             }
             for (const field of authoredFields(fields as any)) {
-                expect(
-                    (field as any).shape,
-                    `${type}.${(field as any).name}`,
-                ).toBeTruthy();
+                expect((field as any).shape, `${type}.${(field as any).name}`).toBeTruthy();
             }
         }
     });
@@ -51,23 +48,15 @@ describe("ITEM_FIELDS is the one list (#22, #1504)", () => {
 
 describe("the declarations preserve the vocabulary they replaced", () => {
     it("keeps a skill's unset mastery level distinct from zero", () => {
+        expect(build("skill", { subType: "craft" }).masteryLevelBase).toBeNull();
         expect(
-            build("skill", { subType: "craft" }).masteryLevelBase,
+            build("skill", { subType: "craft", masteryLevelBase: "" }).masteryLevelBase,
         ).toBeNull();
-        expect(
-            build("skill", { subType: "craft", masteryLevelBase: "" })
-                .masteryLevelBase,
-        ).toBeNull();
-        expect(
-            build("skill", { subType: "craft", masteryLevelBase: 0 })
-                .masteryLevelBase,
-        ).toBe(0);
+        expect(build("skill", { subType: "craft", masteryLevelBase: 0 }).masteryLevelBase).toBe(0);
     });
 
     it("requires a strike mode on a combat technique and sets none otherwise", () => {
-        expect(build("skill", { subType: "craft" })).not.toHaveProperty(
-            "strikeMode",
-        );
+        expect(build("skill", { subType: "craft" })).not.toHaveProperty("strikeMode");
         expect(() => build("skill", { subType: "combattechnique" })).toThrow(
             /requires sohl\.strikeMode/,
         );
@@ -85,8 +74,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
 
     it("renames contagionIndex onto its Base field", () => {
         expect(
-            build("affliction", { subType: "disease", contagionIndex: 7 })
-                .contagionIndexBase,
+            build("affliction", { subType: "disease", contagionIndex: 7 }).contagionIndexBase,
         ).toBe(7);
     });
 
@@ -133,12 +121,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
     });
 
     it("layers the gear constants onto every gear type", () => {
-        for (const type of [
-            "miscgear",
-            "weapongear",
-            "armorgear",
-            "containergear",
-        ]) {
+        for (const type of ["miscgear", "weapongear", "armorgear", "containergear"]) {
             const out = build(type, { subType: "x" });
             expect(out.quantity).toBe(1);
             expect(out.isCarried).toBe(true);
@@ -153,9 +136,9 @@ describe("the declarations preserve the vocabulary they replaced", () => {
                 strikeModes: [{ shortcode: "s" }, { shortcode: "s" }],
             }),
         ).toThrow(/duplicate strike-mode shortcode/);
-        expect(() =>
-            build("weapongear", { strikeModes: [{ name: "no code" }] }),
-        ).toThrow(/requires a 'shortcode'/);
+        expect(() => build("weapongear", { strikeModes: [{ name: "no code" }] })).toThrow(
+            /requires a 'shortcode'/,
+        );
     });
 
     it("validates an affiliation's standings against the closed list", () => {
@@ -198,13 +181,9 @@ describe("association codes reach the emitted document (#3)", () => {
     // not ship as `""`.
     it("ships an unset or cleared code as null on both types", () => {
         for (const type of ["mysticalability", "mystery"]) {
+            expect(build(type, { subType: "arcane" }).assocAffiliationCode, type).toBeNull();
             expect(
-                build(type, { subType: "arcane" }).assocAffiliationCode,
-                type,
-            ).toBeNull();
-            expect(
-                build(type, { subType: "arcane", assocAffiliationCode: "" })
-                    .assocAffiliationCode,
+                build(type, { subType: "arcane", assocAffiliationCode: "" }).assocAffiliationCode,
                 type,
             ).toBeNull();
         }
@@ -220,9 +199,9 @@ describe("association codes reach the emitted document (#3)", () => {
 // compiled ability shipped a value that was thrown away at load.
 describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => {
     it("omits the key when no note authors it", () => {
-        expect(
-            build("mysticalability", { subType: "arcane" }),
-        ).not.toHaveProperty("assocMysteryCode");
+        expect(build("mysticalability", { subType: "arcane" })).not.toHaveProperty(
+            "assocMysteryCode",
+        );
     });
 
     it("omits the key even when a note still authors one", () => {
@@ -268,18 +247,15 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 
     it("omits the key on every gear type when no note authors it", () => {
         for (const type of GEAR_TYPES) {
-            expect(build(type, { subType: "x" }), type).not.toHaveProperty(
-                "isEquipped",
-            );
+            expect(build(type, { subType: "x" }), type).not.toHaveProperty("isEquipped");
         }
     });
 
     it("omits the key even when a note tries to author one", () => {
         for (const type of GEAR_TYPES) {
-            expect(
-                build(type, { subType: "x", isEquipped: true }),
-                type,
-            ).not.toHaveProperty("isEquipped");
+            expect(build(type, { subType: "x", isEquipped: true }), type).not.toHaveProperty(
+                "isEquipped",
+            );
         }
     });
 

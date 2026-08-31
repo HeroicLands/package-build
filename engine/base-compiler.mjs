@@ -244,9 +244,7 @@ export class BasePackCompiler {
         routingReporter = false,
     } = {}) {
         if (!contentBase) {
-            throw new Error(
-                `${this.constructor.name} compiler requires \`contentBase\``,
-            );
+            throw new Error(`${this.constructor.name} compiler requires \`contentBase\``);
         }
         if (!fs.existsSync(contentBase)) {
             throw new Error(`Content tree not found at ${contentBase}`);
@@ -358,10 +356,7 @@ export class BasePackCompiler {
      */
     async prepare() {
         if (this.constructor.convertsWikilinks) {
-            this.linkIndex = buildContentLinkIndex(
-                this.contentBase,
-                this.router,
-            );
+            this.linkIndex = buildContentLinkIndex(this.contentBase, this.router);
             this.contentDocs = collectContentDocs(this.contentBase);
         }
         this.unresolvedLinks = 0;
@@ -457,9 +452,7 @@ export class BasePackCompiler {
      */
     // eslint-disable-next-line no-unused-vars
     buildEntry(fm, markdown) {
-        throw new Error(
-            `${this.constructor.name} must implement buildEntry(fm, markdown)`,
-        );
+        throw new Error(`${this.constructor.name} must implement buildEntry(fm, markdown)`);
     }
 
     /**
@@ -526,9 +519,7 @@ export class BasePackCompiler {
      */
     reportCompiled(stats) {
         const label = this.constructor.label;
-        log.info(
-            `Compiled ${stats.compiled} ${label}${stats.compiled === 1 ? "" : "s"}`,
-        );
+        log.info(`Compiled ${stats.compiled} ${label}${stats.compiled === 1 ? "" : "s"}`);
     }
 
     /**
@@ -538,9 +529,7 @@ export class BasePackCompiler {
      * @param {PassStats} stats - The pass's tallies.
      */
     reportDetail(stats) {
-        log.debug(
-            `Skipped ${stats.skippedOther} file(s) this pack does not claim`,
-        );
+        log.debug(`Skipped ${stats.skippedOther} file(s) this pack does not claim`);
     }
 
     /**
@@ -563,8 +552,7 @@ export class BasePackCompiler {
             // them in the skipped tally is the defect (#56). Each one has
             // already been named individually as a diagnostic.
             log.error(
-                `Declined ${stats.declined} note(s) declaring a retired ` +
-                    `frontmatter field`,
+                `Declined ${stats.declined} note(s) declaring a retired ` + `frontmatter field`,
             );
         }
         this.reportDetail(stats);
@@ -588,13 +576,9 @@ export class BasePackCompiler {
         const label = this.constructor.label;
         const Label = label.charAt(0).toUpperCase() + label.slice(1);
 
-        for (const {
-            frontmatter: fm,
-            body,
-            absPath,
-            bodyLine,
-            bodyColumn,
-        } of walkMarkdownTree(this.contentBase)) {
+        for (const { frontmatter: fm, body, absPath, bodyLine, bodyColumn } of walkMarkdownTree(
+            this.contentBase,
+        )) {
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one (#17).
             this.currentNote = { absPath, bodyLine, bodyColumn };
@@ -665,9 +649,7 @@ export class BasePackCompiler {
                 continue;
             }
 
-            log.debug(
-                `Processing ${this.noteLabel(fm)}: ${resolveName(fm)} (${absPath})`,
-            );
+            log.debug(`Processing ${this.noteLabel(fm)}: ${resolveName(fm)} (${absPath})`);
             try {
                 const doc = this.compileNote(fm, this.convertBody(fm, body));
                 stats.compiled++;

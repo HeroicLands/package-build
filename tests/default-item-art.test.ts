@@ -28,31 +28,21 @@ const EXPECTED_TYPES = [...itemTypes()];
 describe("default-item-art (single source of truth, #932)", () => {
     it("maps every known item type to a themed SoHL asset", () => {
         for (const type of EXPECTED_TYPES) {
-            expect(ART[type]).toMatch(
-                /^systems\/sohl\/assets\/icons\/.+\.svg$/,
-            );
+            expect(ART[type]).toMatch(/^systems\/sohl\/assets\/icons\/.+\.svg$/);
         }
     });
 
     it("has an entry for each expected type and no stray keys", () => {
-        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual(
-            [...EXPECTED_TYPES].sort(),
-        );
+        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...EXPECTED_TYPES].sort());
     });
 
     it("gives trauma and affliction the wound/sick icons (the regression)", () => {
-        expect(defaultItemArt("trauma")).toBe(
-            "systems/sohl/assets/icons/other/injury.svg",
-        );
-        expect(defaultItemArt("affliction")).toBe(
-            "systems/sohl/assets/icons/other/sick.svg",
-        );
+        expect(defaultItemArt("trauma")).toBe("systems/sohl/assets/icons/other/injury.svg");
+        expect(defaultItemArt("affliction")).toBe("systems/sohl/assets/icons/other/sick.svg");
     });
 
     it("returns the per-type default for a known type", () => {
-        expect(defaultItemArt("weapongear")).toBe(
-            "systems/sohl/assets/icons/other/sword.svg",
-        );
+        expect(defaultItemArt("weapongear")).toBe("systems/sohl/assets/icons/other/sword.svg");
         expect(defaultItemArt("miscgear")).toBe(
             "systems/sohl/assets/icons/other/question-mark.svg",
         );

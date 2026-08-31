@@ -133,13 +133,9 @@ export function contentSlug(name) {
         throw new Error("content note has no name, so it has no URL");
     }
     const normalised = slugify(raw);
-    const slug = abbreviateTokens(normalised.split("-").filter(Boolean)).join(
-        "-",
-    );
+    const slug = abbreviateTokens(normalised.split("-").filter(Boolean)).join("-");
     if (!slug) {
-        throw new Error(
-            `name "${raw}" has no URL-safe characters, so it cannot address a page`,
-        );
+        throw new Error(`name "${raw}" has no URL-safe characters, so it cannot address a page`);
     }
     return slug;
 }

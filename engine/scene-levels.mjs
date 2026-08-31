@@ -87,9 +87,7 @@ const LEVEL_SPLITTING_CLI = "3.0.3";
  */
 export function compendiumCliVersion() {
     try {
-        return createRequire(import.meta.url)(
-            "@foundryvtt/foundryvtt-cli/package.json",
-        ).version;
+        return createRequire(import.meta.url)("@foundryvtt/foundryvtt-cli/package.json").version;
     } catch {
         return undefined;
     }
@@ -128,8 +126,7 @@ function levelIdOf(entry) {
  * @returns {string} A phrase naming the entry, never `[object Object]`.
  */
 function describeEntry(entry, index) {
-    if (isInlineLevel(entry))
-        return `\`levels[${index}]\` is ${describeShape(entry)}`;
+    if (isInlineLevel(entry)) return `\`levels[${index}]\` is ${describeShape(entry)}`;
     return `\`levels[${index}]\` is ${JSON.stringify(entry) ?? String(entry)}`;
 }
 
@@ -234,15 +231,11 @@ function describeRemedy(cliVersion) {
  * @returns {string} One report covering every affected scene.
  */
 function describeWholesaleLoss(declaring, cliVersion) {
-    const inline = declaring.some(([, scene]) =>
-        declaredLevels(scene).some(isInlineLevel),
-    );
+    const inline = declaring.some(([, scene]) => declaredLevels(scene).some(isInlineLevel));
     const list = declaring
         .map(([sceneId, scene]) => {
             const entries = declaredLevels(scene)
-                .map((entry) =>
-                    isInlineLevel(entry) ? describeShape(entry) : `"${entry}"`,
-                )
+                .map((entry) => (isInlineLevel(entry) ? describeShape(entry) : `"${entry}"`))
                 .join(", ");
             return `${nameScene(sceneId, scene)} → ${entries}`;
         })
@@ -329,9 +322,7 @@ export function checkSceneLevels(records, { cliVersion } = {}) {
     // No scene in the pack has a Level record: one fact about the compile,
     // which saying per scene would bury. Scenes declaring nothing are not
     // covered by it, so they are still judged individually below.
-    const declaring = scenes.filter(
-        ([, scene]) => declaredLevels(scene).length,
-    );
+    const declaring = scenes.filter(([, scene]) => declaredLevels(scene).length);
     const wholesale = levelKeys.size === 0 && declaring.length > 0;
     if (wholesale) problems.push(describeWholesaleLoss(declaring, cliVersion));
 
@@ -357,9 +348,7 @@ export function checkSceneLevels(records, { cliVersion } = {}) {
                         `${LEVEL_SPLITTING_CLI} writes.`,
                 );
             } else if (!id) {
-                broken.push(
-                    `${where}: ${describeEntry(entry, index)}, not a Level id.`,
-                );
+                broken.push(`${where}: ${describeEntry(entry, index)}, not a Level id.`);
             } else if (!levelKeys.has(`${sceneId}.${id}`)) {
                 broken.push(
                     `${where} lists level "${id}", but no record exists at ` +
@@ -372,16 +361,13 @@ export function checkSceneLevels(records, { cliVersion } = {}) {
         // A broken entry is already reported above; only the declaration
         // itself is judged here, so nothing is reported twice.
         if (broken.length) problems.push(...broken);
-        else
-            problems.push(...checkDeclaredLevels(scene ?? {}, declared, where));
+        else problems.push(...checkDeclaredLevels(scene ?? {}, declared, where));
     }
 
     for (const adventure of adventures) {
         const inline = Array.isArray(adventure?.scenes) ? adventure.scenes : [];
         for (const scene of inline) {
-            const levelIds = declaredLevels(scene).map(
-                (level) => levelIdOf(level) ?? level,
-            );
+            const levelIds = declaredLevels(scene).map((level) => levelIdOf(level) ?? level);
             const where =
                 `Adventure "${adventure?.name ?? adventure?._id}" scene ` +
                 `"${scene?.name ?? scene?._id}"`;

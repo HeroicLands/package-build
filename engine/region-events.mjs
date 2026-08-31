@@ -54,9 +54,7 @@ export const REGION_EVENT_TO_TRIGGER = Object.freeze({
  *
  * @type {readonly string[]}
  */
-export const CURATED_REGION_EVENTS = Object.freeze(
-    Object.keys(REGION_EVENT_TO_TRIGGER),
-);
+export const CURATED_REGION_EVENTS = Object.freeze(Object.keys(REGION_EVENT_TO_TRIGGER));
 
 /**
  * Region events SoHL deliberately does **not** forward: the continuous

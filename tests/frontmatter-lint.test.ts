@@ -29,8 +29,7 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
 /** An index that resolves exactly the addresses it is given. */
 const indexOf = (...addresses: string[]) => ({
     notes: [],
-    resolve: (_n: unknown, target: string) =>
-        addresses.includes(target) ? {} : undefined,
+    resolve: (_n: unknown, target: string) => (addresses.includes(target) ? {} : undefined),
     manifestHit: () => null,
 });
 
@@ -99,18 +98,16 @@ describe("the five failure classes (#19)", () => {
     });
 
     it("reports a wrong value shape", () => {
-        const findings = lintNote(
-            note("skill", { subType: "craft", masteryLevelBase: "heavy" }),
-            { schemas },
-        );
+        const findings = lintNote(note("skill", { subType: "craft", masteryLevelBase: "heavy" }), {
+            schemas,
+        });
         expect(messages(findings)).toContain("`sohl.masteryLevelBase` should");
     });
 
     it("reports an unknown property and suggests the near miss", () => {
-        const findings = lintNote(
-            note("skill", { subType: "craft", masterylevelBase: 3 }),
-            { schemas },
-        );
+        const findings = lintNote(note("skill", { subType: "craft", masterylevelBase: 3 }), {
+            schemas,
+        });
         // The whole reason the silence mattered: a misspelling is discarded at
         // compile with no warning (#3).
         expect(messages(findings)).toContain("is not a property of a skill");
@@ -118,45 +115,38 @@ describe("the five failure classes (#19)", () => {
     });
 
     it("does not guess when nothing is close", () => {
-        const findings = lintNote(
-            note("skill", { subType: "craft", elephant: 1 }),
-            { schemas },
-        );
+        const findings = lintNote(note("skill", { subType: "craft", elephant: 1 }), { schemas });
         expect(messages(findings)).not.toContain("Did you mean");
     });
 
     it("reports a reference that lands nowhere, and accepts one that lands", () => {
-        const live = lintNote(
-            note("skill", { subType: "craft", parentSkillCode: "swrd" }),
-            { schemas, index: indexOf("skill-swrd") },
-        );
+        const live = lintNote(note("skill", { subType: "craft", parentSkillCode: "swrd" }), {
+            schemas,
+            index: indexOf("skill-swrd"),
+        });
         expect(live).toEqual([]);
 
-        const dead = lintNote(
-            note("skill", { subType: "craft", parentSkillCode: "nope" }),
-            { schemas, index: indexOf("skill-swrd") },
-        );
+        const dead = lintNote(note("skill", { subType: "craft", parentSkillCode: "nope" }), {
+            schemas,
+            index: indexOf("skill-swrd"),
+        });
         expect(messages(dead)).toContain("no note or vendored manifest");
     });
 
     it("skips the reference check when it has no index to check against", () => {
         // Reporting every reference as dead because nothing was loaded to
         // resolve it would be worse than not checking.
-        const findings = lintNote(
-            note("skill", { subType: "craft", parentSkillCode: "nope" }),
-            { schemas },
-        );
+        const findings = lintNote(note("skill", { subType: "craft", parentSkillCode: "nope" }), {
+            schemas,
+        });
         expect(findings).toEqual([]);
     });
 
     it("reports nothing for a correct note", () => {
         expect(
-            lintNote(
-                note("skill", { subType: "craft", masteryLevelBase: 30 }),
-                {
-                    schemas,
-                },
-            ),
+            lintNote(note("skill", { subType: "craft", masteryLevelBase: 30 }), {
+                schemas,
+            }),
         ).toEqual([]);
     });
 
@@ -180,9 +170,7 @@ describe("the five failure classes (#19)", () => {
 describe("keys every type accepts", () => {
     it("allows the universal keys on any type", () => {
         const schemas = { doc: [] } as any;
-        const sohl = Object.fromEntries(
-            [...UNIVERSAL_KEYS].map((k) => [k, "x"]),
-        );
+        const sohl = Object.fromEntries([...UNIVERSAL_KEYS].map((k) => [k, "x"]));
         expect(lintNote(note("doc", sohl), { schemas })).toEqual([]);
     });
 
@@ -209,14 +197,10 @@ describe("NOTE_SCHEMAS covers what the package compiles", () => {
             expect(NOTE_SCHEMAS[type], type).not.toBe(fields);
             // …but every compiled field is still in the schema.
             const declared = new Set(
-                authoredFields(NOTE_SCHEMAS[type] as any).map(
-                    (f: any) => f.name,
-                ),
+                authoredFields(NOTE_SCHEMAS[type] as any).map((f: any) => f.name),
             );
             for (const field of authoredFields(fields as any)) {
-                expect(declared, `${type}.${(field as any).name}`).toContain(
-                    (field as any).name,
-                );
+                expect(declared, `${type}.${(field as any).name}`).toContain((field as any).name);
             }
         }
     });
@@ -225,10 +209,7 @@ describe("NOTE_SCHEMAS covers what the package compiles", () => {
         for (const [type, fields] of Object.entries(NOTE_SCHEMAS as any)) {
             for (const field of authoredFields(fields as any)) {
                 expect((field as any).name, type).toBeTruthy();
-                expect(
-                    (field as any).describe,
-                    `${type}.${(field as any).name}`,
-                ).toBeTruthy();
+                expect((field as any).describe, `${type}.${(field as any).name}`).toBeTruthy();
             }
         }
     });
@@ -237,9 +218,7 @@ describe("NOTE_SCHEMAS covers what the package compiles", () => {
         for (const [type, fields] of Object.entries(NOTE_SCHEMAS as any)) {
             for (const field of fields as any[]) {
                 if (!field.ref) continue;
-                expect(NOTE_SCHEMAS, `${type}.${field.name}`).toHaveProperty(
-                    field.ref,
-                );
+                expect(NOTE_SCHEMAS, `${type}.${field.name}`).toHaveProperty(field.ref);
             }
         }
     });
@@ -264,8 +243,6 @@ describe("lintFrontmatter over an index", () => {
             resolve: () => ({}),
             manifestHit: () => null,
         } as any;
-        expect(
-            lintFrontmatter(index, { schemas: NOTE_SCHEMAS }).findings,
-        ).toEqual([]);
+        expect(lintFrontmatter(index, { schemas: NOTE_SCHEMAS }).findings).toEqual([]);
     });
 });

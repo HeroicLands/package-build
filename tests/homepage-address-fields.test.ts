@@ -47,18 +47,15 @@ describe("the address-bearing fields a homepage refuses (#53)", () => {
         // A closed, named class — not "anything unrecognised". A homepage's
         // frontmatter is passed through to Hugo, so an unknown key may be a
         // theme parameter this build has never heard of.
-        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual([
-            "name",
-            "shortcode",
-            "id",
-        ]);
+        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["name", "shortcode", "id"]);
     });
 
     it("refuses `shortcode`, at the line and column it is written on", () => {
-        const findings = lint(
-            [`type: ${HOMEPAGE_TYPE}`, "title: Repro", "shortcode: reprohome"],
-            { type: HOMEPAGE_TYPE, title: "Repro", shortcode: "reprohome" },
-        );
+        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "title: Repro", "shortcode: reprohome"], {
+            type: HOMEPAGE_TYPE,
+            title: "Repro",
+            shortcode: "reprohome",
+        });
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({
             file: "assets/content/homepage.md",
@@ -76,20 +73,20 @@ describe("the address-bearing fields a homepage refuses (#53)", () => {
     });
 
     it("refuses `id`, naming the document it would identify", () => {
-        const findings = lint(
-            [`type: ${HOMEPAGE_TYPE}`, "id: aBcDeFgHiJkLmNoP"],
-            { type: HOMEPAGE_TYPE, id: "aBcDeFgHiJkLmNoP" },
-        );
+        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "id: aBcDeFgHiJkLmNoP"], {
+            type: HOMEPAGE_TYPE,
+            id: "aBcDeFgHiJkLmNoP",
+        });
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({ line: 3, severity: "error" });
         expect(findings[0].message).toMatch(/compiles into no .*document/);
     });
 
     it("refuses `name`, and says `title:` is the field that was meant", () => {
-        const findings = lint(
-            [`type: ${HOMEPAGE_TYPE}`, "name:", "    full: Front Page"],
-            { type: HOMEPAGE_TYPE, name: { full: "Front Page" } },
-        );
+        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "name:", "    full: Front Page"], {
+            type: HOMEPAGE_TYPE,
+            name: { full: "Front Page" },
+        });
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({ line: 3, severity: "error" });
         expect(findings[0].message).toContain("`title:`");
@@ -113,11 +110,7 @@ describe("the address-bearing fields a homepage refuses (#53)", () => {
             shortcode: "reprohome",
             id: "aBcDeFgHiJkLmNoP",
         });
-        expect(findings.map((f: any) => f.key)).toEqual([
-            "name",
-            "shortcode",
-            "id",
-        ]);
+        expect(findings.map((f: any) => f.key)).toEqual(["name", "shortcode", "id"]);
     });
 
     it("refuses a field authored empty — presence is the whole test", () => {
@@ -159,14 +152,11 @@ describe("what a homepage may still write", () => {
         // the published page, so an unrecognised key is a theme parameter, and
         // a closed list would make every new one a package-build release.
         expect(
-            lint(
-                [`type: ${HOMEPAGE_TYPE}`, "weight: 30", "aliases:", "    - x"],
-                {
-                    type: HOMEPAGE_TYPE,
-                    weight: 30,
-                    aliases: ["x"],
-                },
-            ),
+            lint([`type: ${HOMEPAGE_TYPE}`, "weight: 30", "aliases:", "    - x"], {
+                type: HOMEPAGE_TYPE,
+                weight: 30,
+                aliases: ["x"],
+            }),
         ).toEqual([]);
     });
 

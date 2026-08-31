@@ -117,8 +117,7 @@ export function createPackRouter(packs) {
     }
 
     /** @param {object} fm */
-    const noteLabel = (fm) =>
-        fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "a note";
+    const noteLabel = (fm) => fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "a note";
 
     /**
      * The pack one pass should write this note's document to.

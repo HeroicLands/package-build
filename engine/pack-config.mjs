@@ -81,11 +81,7 @@ import { createRequire } from "node:module";
 import YAML from "yaml";
 
 import { defineConfig, DERIVED_SYSTEM_VERSION } from "../content-config.mjs";
-import {
-    formatDiagnostic,
-    positionOfYamlPath,
-    yamlKeyPath,
-} from "./diagnostics.mjs";
+import { formatDiagnostic, positionOfYamlPath, yamlKeyPath } from "./diagnostics.mjs";
 
 /** The stem every consuming repository declares its build under. */
 export const CONFIG_BASENAME = "package-build.config";
@@ -130,9 +126,9 @@ export const CONFIG_FILENAMES = Object.freeze([
 export function findConfigFile(from) {
     let dir = path.resolve(from);
     for (;;) {
-        const found = CONFIG_FILENAMES.map((name) =>
-            path.join(dir, name),
-        ).filter((candidate) => fs.existsSync(candidate));
+        const found = CONFIG_FILENAMES.map((name) => path.join(dir, name)).filter((candidate) =>
+            fs.existsSync(candidate),
+        );
         if (found.length > 1) {
             throw new Error(
                 `package-build: ${dir} holds more than one configuration ` +
@@ -275,11 +271,9 @@ function shippedSystemVersion(rootDir, input) {
         return pkg.version;
     }
 
-    const systemId = /** @type {Record<string, unknown>} */ (input.stats ?? {})
-        .systemId;
-    const declaredSystems = /** @type {Record<string, unknown>} */ (
-        input.relationships ?? {}
-    ).systems;
+    const systemId = /** @type {Record<string, unknown>} */ (input.stats ?? {}).systemId;
+    const declaredSystems = /** @type {Record<string, unknown>} */ (input.relationships ?? {})
+        .systems;
 
     // The `systems:` block declares without requiring (#48), so it is consulted
     // first: a package that has adopted it needs no relationship, and one that
@@ -288,10 +282,9 @@ function shippedSystemVersion(rootDir, input) {
     // otherwise a single declared system is unambiguous. With several and no
     // gate, there is no package-wide answer — each pack carries its own, and
     // {@link statsForPack} is what reads it.
-    const systemsBlock =
-        /** @type {Record<string, {compatibility?: {verified?: string}}>} */ (
-            input.systems ?? {}
-        );
+    const systemsBlock = /** @type {Record<string, {compatibility?: {verified?: string}}>} */ (
+        input.systems ?? {}
+    );
     const systemIds = Object.keys(systemsBlock);
     if (systemIds.length) {
         const chosen =
@@ -300,8 +293,7 @@ function shippedSystemVersion(rootDir, input) {
             : null;
         if (chosen) {
             const verified = systemsBlock[chosen]?.compatibility?.verified;
-            if (typeof verified === "string" && verified.length)
-                return verified;
+            if (typeof verified === "string" && verified.length) return verified;
         }
         // Several declared and none required: the package-wide value is
         // deliberately absent rather than one of them picked arbitrarily.
@@ -323,11 +315,9 @@ function shippedSystemVersion(rootDir, input) {
 
     const systems =
         /** @type {{id?: string, compatibility?: {verified?: string}}[]} */ (
-            /** @type {Record<string, unknown>} */ (input.relationships ?? {})
-                .systems
+            /** @type {Record<string, unknown>} */ (input.relationships ?? {}).systems
         ) ?? [];
-    const relationship =
-        systems.find((entry) => entry?.id === systemId) ?? systems[0];
+    const relationship = systems.find((entry) => entry?.id === systemId) ?? systems[0];
     const verified = relationship?.compatibility?.verified;
 
     if (typeof verified !== "string" || verified.length === 0) {
@@ -413,11 +403,7 @@ export function locateConfigError(err, configPath) {
             err
         );
     if (!(err instanceof Error)) return err;
-    if (
-        failure.located ||
-        typeof failure.field !== "string" ||
-        !failure.field
-    ) {
+    if (failure.located || typeof failure.field !== "string" || !failure.field) {
         return err;
     }
     if (!configPath) return err;
@@ -562,10 +548,7 @@ function loadCodeConfig(configPath) {
         // arrive here. There is no YAML to locate into, but the file is known —
         // `locateConfigError` names it and drops the line.
         locateConfigError(err, configPath);
-        if (
-            /** @type {{ code?: string }} */ (err)?.code ===
-            "ERR_REQUIRE_ASYNC_MODULE"
-        ) {
+        if (/** @type {{ code?: string }} */ (err)?.code === "ERR_REQUIRE_ASYNC_MODULE") {
             throw new Error(
                 `package-build: ${configPath} (or something it imports) uses ` +
                     `top-level await, which the configuration cannot: it is ` +
@@ -603,8 +586,7 @@ export function loadPackConfig() {
     if (loaded) return loaded;
 
     const explicit = process.env.PACKAGE_BUILD_CONFIG;
-    const configPath =
-        explicit ? path.resolve(explicit) : findConfigFile(import.meta.dirname);
+    const configPath = explicit ? path.resolve(explicit) : findConfigFile(import.meta.dirname);
 
     if (!configPath || !fs.existsSync(configPath)) {
         throw new Error(
@@ -621,10 +603,7 @@ export function loadPackConfig() {
     loaded =
         configPath.endsWith(".mjs") ?
             loadCodeConfig(configPath)
-        :   configFromData(
-                YAML.parse(fs.readFileSync(configPath, "utf8")),
-                configPath,
-            );
+        :   configFromData(YAML.parse(fs.readFileSync(configPath, "utf8")), configPath);
     loadedFrom = configPath;
     return loaded;
 }

@@ -28,9 +28,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PACKAGE_ROOT = path.resolve(HERE, "..");
-const CONFIG_URL = pathToFileURL(
-    path.join(PACKAGE_ROOT, "content-config.mjs"),
-).href;
+const CONFIG_URL = pathToFileURL(path.join(PACKAGE_ROOT, "content-config.mjs")).href;
 const ITEMS_URL = pathToFileURL(path.join(PACKAGE_ROOT, "sohl/items.mjs")).href;
 
 /** The `system` builder every variant below shares, as source. */
@@ -113,15 +111,11 @@ export default defineConfig({
  * @param body        The module body to run.
  */
 function underConfig(configPath: string, body: string): any {
-    const result = spawnSync(
-        process.execPath,
-        ["--input-type=module", "-e", body],
-        {
-            cwd: os.tmpdir(),
-            encoding: "utf8",
-            env: { ...process.env, PACKAGE_BUILD_CONFIG: configPath },
-        },
-    );
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", body], {
+        cwd: os.tmpdir(),
+        encoding: "utf8",
+        env: { ...process.env, PACKAGE_BUILD_CONFIG: configPath },
+    });
     if (result.status !== 0) {
         throw new Error(`consumer build failed:\n${result.stderr}`);
     }

@@ -85,9 +85,7 @@ describe("evaluateSkillBase — the skill.base scope, reproduced", () => {
     });
 
     it("does arithmetic around the helper", () => {
-        expect(
-            evaluateSkillBase("sb(attr.str, attr.agl) + 2", attrs).value,
-        ).toBe(14);
+        expect(evaluateSkillBase("sb(attr.str, attr.agl) + 2", attrs).value).toBe(14);
     });
 
     it("reports an unknown helper instead of evaluating around it", () => {
@@ -98,15 +96,11 @@ describe("evaluateSkillBase — the skill.base scope, reproduced", () => {
 
     it("reports a binding the scope does not declare", () => {
         // `skill.base` binds `attr` and nothing else.
-        expect(evaluateSkillBase("sb(item.str)", attrs).error).toMatch(
-            /unknown binding "item"/,
-        );
+        expect(evaluateSkillBase("sb(item.str)", attrs).error).toMatch(/unknown binding "item"/);
     });
 
     it("reports a formula it cannot parse", () => {
-        expect(evaluateSkillBase("sb(attr.str,", attrs).error).toMatch(
-            /could not be parsed/,
-        );
+        expect(evaluateSkillBase("sb(attr.str,", attrs).error).toMatch(/could not be parsed/);
     });
 
     it("refuses constructs outside the supported subset", () => {
@@ -121,12 +115,9 @@ describe("openingMasteryLevel — Skill Base × initSkillMult", () => {
     const formula = "sb(attr.str, attr.agl)"; // → 12
 
     it("opens a skill at the product", () => {
-        expect(
-            openingMasteryLevel(
-                { skillBaseFormula: formula, initSkillMult: 3 },
-                attrs,
-            ),
-        ).toEqual({ value: 36 });
+        expect(openingMasteryLevel({ skillBaseFormula: formula, initSkillMult: 3 }, attrs)).toEqual(
+            { value: 36 },
+        );
     });
 
     it("leaves a skill with no multiplier unopened rather than opening it at 0", () => {
@@ -134,10 +125,7 @@ describe("openingMasteryLevel — Skill Base × initSkillMult", () => {
         // writing the 0 the arithmetic yields would claim it opened at zero.
         for (const initSkillMult of [0, undefined, null]) {
             expect(
-                openingMasteryLevel(
-                    { skillBaseFormula: formula, initSkillMult },
-                    attrs,
-                ),
+                openingMasteryLevel({ skillBaseFormula: formula, initSkillMult }, attrs),
             ).toEqual({ value: null });
         }
     });
@@ -162,10 +150,7 @@ describe("openingMasteryLevel — Skill Base × initSkillMult", () => {
     });
 
     it("passes a broken formula's error up instead of opening the skill", () => {
-        const out = openingMasteryLevel(
-            { skillBaseFormula: "bogus()", initSkillMult: 2 },
-            attrs,
-        );
+        const out = openingMasteryLevel({ skillBaseFormula: "bogus()", initSkillMult: 2 }, attrs);
         expect(out.value).toBeNull();
         expect(out.error).toMatch(/unknown helper/);
     });
@@ -246,14 +231,8 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
 
     const build = (fm: any) => {
         const c = compiler();
-        const items = c.buildEmbeddedItems(
-            catalogue(),
-            "actor0000000000",
-            fm,
-            "test",
-        );
-        const skill = (code: string) =>
-            items.find((i: any) => i.system?.shortcode === code);
+        const items = c.buildEmbeddedItems(catalogue(), "actor0000000000", fm, "test");
+        const skill = (code: string) => items.find((i: any) => i.system?.shortcode === code);
         return { items, skill, errors: c.errorCount };
     };
 

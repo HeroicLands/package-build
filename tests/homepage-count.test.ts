@@ -121,10 +121,10 @@ describe("checkHomepageCount — the rule itself (#52)", () => {
         const first = path.join(root, "homepage.md");
         const second = path.join(root, "Landing.md");
 
-        const findings = checkHomepageCount(
-            [{ file: first }, { file: second }],
-            { contentBase: root, contentPackage: "sohl" },
-        );
+        const findings = checkHomepageCount([{ file: first }, { file: second }], {
+            contentBase: root,
+            contentPackage: "sohl",
+        });
         expect(findings).toHaveLength(2);
         expect(findings.every((f) => f.severity === "error")).toBe(true);
         expect(findings.map((f) => f.file)).toEqual([first, second]);
@@ -144,9 +144,7 @@ describe("checkHomepageCount — the rule itself (#52)", () => {
             contentBase: "assets/content",
             contentPackage: "sohl",
         });
-        expect(formatDiagnostic(f)).toMatch(
-            /^assets\/content: error: holds no /,
-        );
+        expect(formatDiagnostic(f)).toMatch(/^assets\/content: error: holds no /);
     });
 });
 
@@ -175,9 +173,7 @@ describe("`content-build lint` enforces it (#52)", () => {
             "Landing.md": homepage("Second"),
             "Gear.md": note(),
         });
-        const home = r.findings.filter((f) =>
-            f.message.includes("`type: homepage`"),
-        );
+        const home = r.findings.filter((f) => f.message.includes("`type: homepage`"));
         expect(home).toHaveLength(2);
         expect(home.map((f) => path.basename(f.file)).sort()).toEqual([
             "Landing.md",

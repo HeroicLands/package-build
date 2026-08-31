@@ -46,12 +46,7 @@ import path from "node:path";
  * beneath `site/` — but these four are common to all of them because they come
  * from the shared toolchain rather than from any one package's layout.
  */
-export const BUILD_ARTIFACT_DIRS = Object.freeze([
-    "build",
-    ".vite",
-    ".vitepress",
-    ".rollup.cache",
-]);
+export const BUILD_ARTIFACT_DIRS = Object.freeze(["build", ".vite", ".vitepress", ".rollup.cache"]);
 
 /**
  * A source that does not exist, described for a human.
@@ -66,9 +61,7 @@ export const BUILD_ARTIFACT_DIRS = Object.freeze([
  * @returns {string[]} Every source that is absent, in the order listed.
  */
 export function missingSources(entries, cwd = process.cwd()) {
-    return entries
-        .map(([src]) => src)
-        .filter((src) => !fs.existsSync(path.resolve(cwd, src)));
+    return entries.map(([src]) => src).filter((src) => !fs.existsSync(path.resolve(cwd, src)));
 }
 
 /**
@@ -157,10 +150,7 @@ export function stageAssets(entries, { cwd = process.cwd(), transform } = {}) {
  *   `distclean` case.
  * @returns {string[]} The directories removed, as listed.
  */
-export function cleanBuildArtifacts(
-    root,
-    { extra = [], includeNodeModules = false } = {},
-) {
+export function cleanBuildArtifacts(root, { extra = [], includeNodeModules = false } = {}) {
     const dirs = [
         ...BUILD_ARTIFACT_DIRS,
         ...extra,

@@ -40,12 +40,8 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 // package was vendored inside the system repository.
 const PKG_ROOT = path.resolve(HERE, "..");
 const PKG_SUBDIR = path.join(PKG_ROOT, "engine");
-const CONFIG_URL = pathToFileURL(
-    path.resolve(HERE, "../content-config.mjs"),
-).href;
-const HELPERS_URL = pathToFileURL(
-    path.resolve(HERE, "../engine/helpers.mjs"),
-).href;
+const CONFIG_URL = pathToFileURL(path.resolve(HERE, "../content-config.mjs")).href;
+const HELPERS_URL = pathToFileURL(path.resolve(HERE, "../engine/helpers.mjs")).href;
 
 /** A note the content walk will find, wherever the consumer put its tree. */
 const NOTE = `---
@@ -198,11 +194,10 @@ describe("path resolution does not depend on the working directory", () => {
 
         /** Run the script with `cwd` as the working directory. */
         const from = (cwd: string) => {
-            const result = spawnSync(
-                process.execPath,
-                ["--input-type=module", "-e", script],
-                { cwd, encoding: "utf8" },
-            );
+            const result = spawnSync(process.execPath, ["--input-type=module", "-e", script], {
+                cwd,
+                encoding: "utf8",
+            });
             expect(result.stderr).toBe("");
             expect(result.status).toBe(0);
             return result.stdout;

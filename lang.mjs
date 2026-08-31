@@ -116,9 +116,7 @@ export function validateLangSource(raw) {
     } catch (err) {
         // Nothing further can be said about a file that does not parse, and
         // guessing at its intended shape would only bury this finding.
-        return [
-            { severity: "error", message: `not valid JSON: ${err.message}` },
-        ];
+        return [{ severity: "error", message: `not valid JSON: ${err.message}` }];
     }
 
     if (!isRecord(json)) {

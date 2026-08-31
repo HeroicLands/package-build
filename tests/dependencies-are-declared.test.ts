@@ -41,9 +41,7 @@ import { fileURLToPath } from "node:url";
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
 
-const manifest = JSON.parse(
-    fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8"),
-) as {
+const manifest = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")) as {
     name: string;
     files: string[];
     dependencies?: Record<string, string>;
@@ -60,21 +58,17 @@ const declaredDev = Object.keys(manifest.devDependencies ?? {});
  * The lookbehind keeps the keyword from matching inside a string literal:
  * `["from", "to"]` would otherwise read as importing `", "`.
  */
-const SPECIFIER =
-    /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
+const SPECIFIER = /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
 
 /**
  * The npm package a specifier resolves to — `yargs/helpers` is `yargs`,
  * `@scope/name/deep` is `@scope/name`. Relative specifiers yield `undefined`.
  */
 function packageOf(specifier: string): string | undefined {
-    if (specifier.startsWith(".") || specifier.startsWith("/"))
-        return undefined;
+    if (specifier.startsWith(".") || specifier.startsWith("/")) return undefined;
     if (isBuiltin(specifier)) return undefined;
     const parts = specifier.split("/");
-    return specifier.startsWith("@") ?
-            `${parts[0]}/${parts[1]}`
-        :   (parts[0] as string);
+    return specifier.startsWith("@") ? `${parts[0]}/${parts[1]}` : (parts[0] as string);
 }
 
 /** Every `.mjs` under a path named in the manifest's `files` field. */
@@ -117,10 +111,7 @@ describe("the package declares what it imports", () => {
         "%s imports only builtins, itself, or a declared dependency",
         (relative) => {
             const undeclared = importsOf(path.join(PKG_ROOT, relative))
-                .filter(
-                    ({ pkg }) =>
-                        pkg !== manifest.name && !declared.includes(pkg),
-                )
+                .filter(({ pkg }) => pkg !== manifest.name && !declared.includes(pkg))
                 .map(({ pkg, line }) => `${relative}:${line} → ${pkg}`);
 
             expect(undeclared).toEqual([]);
@@ -132,10 +123,7 @@ describe("the package declares what it imports", () => {
         (relative) => {
             // A consumer installing the package never receives these.
             const devOnly = importsOf(path.join(PKG_ROOT, relative))
-                .filter(
-                    ({ pkg }) =>
-                        declaredDev.includes(pkg) && !declared.includes(pkg),
-                )
+                .filter(({ pkg }) => declaredDev.includes(pkg) && !declared.includes(pkg))
                 .map(({ pkg, line }) => `${relative}:${line} → ${pkg}`);
 
             expect(devOnly).toEqual([]);
@@ -149,9 +137,7 @@ describe("the package declares what it imports", () => {
     });
 
     it("declares no dependency it does not import", () => {
-        const imported = new Set(
-            files.flatMap((file) => importsOf(file).map(({ pkg }) => pkg)),
-        );
+        const imported = new Set(files.flatMap((file) => importsOf(file).map(({ pkg }) => pkg)));
         const unused = declared.filter((pkg) => !imported.has(pkg));
 
         expect(unused).toEqual([]);

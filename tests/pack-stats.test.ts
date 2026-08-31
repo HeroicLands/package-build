@@ -25,10 +25,7 @@ const buildStats = (systemVersion?: string, config?: unknown): any =>
 // supported floor becomes a `_stats.coreVersion`, which is package behaviour. It
 // used to read the *system repository's* real manifest, which only resolved
 // while this package was vendored inside it.
-const PKG_ROOT = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "..",
-);
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** The Foundry floor this repository's development configuration declares. */
 const CORE_FLOOR = loadPackConfig().compatibility.minimum;
 
@@ -104,9 +101,7 @@ describe("the `_stats` stamp is configuration, not a literal (#1508)", () => {
         const stats = buildStats();
         expect(stats.systemId).toBe(loadPackConfig().stats.systemId);
         expect(stats.systemVersion).toBe(loadPackConfig().stats.systemVersion);
-        expect(stats.lastModifiedBy).toBe(
-            loadPackConfig().stats.lastModifiedBy,
-        );
+        expect(stats.lastModifiedBy).toBe(loadPackConfig().stats.lastModifiedBy);
     });
 
     it("stamps a non-`sohl` consumer's own identity", () => {

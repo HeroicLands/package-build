@@ -104,10 +104,7 @@ export function searchableFrontmatter(fm, configured) {
  * @returns {void}
  * @throws {Error} When the note declares the field.
  */
-export function assertNoDeclaredPackage(
-    fm,
-    { file, absPath, configured } = {},
-) {
+export function assertNoDeclaredPackage(fm, { file, absPath, configured } = {}) {
     if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "package")) return;
 
     const target = configured ?? contentPackage();

@@ -39,12 +39,7 @@ describe("abbreviateTokens", () => {
 
     it("leaves a word with no entry alone", () => {
         expect(abbrev("Broadsword")).toEqual(["broadsword"]);
-        expect(abbrev("Wolf of the North")).toEqual([
-            "wolf",
-            "of",
-            "the",
-            "north",
-        ]);
+        expect(abbrev("Wolf of the North")).toEqual(["wolf", "of", "the", "north"]);
     });
 
     // `countess` has its own entry; `count`'s rule must not reach inside it.
@@ -73,13 +68,7 @@ describe("abbreviateTokens", () => {
     });
 
     it("abbreviates each occurrence, anywhere in the name", () => {
-        expect(abbrev("Lord Mayor and Lord Steward")).toEqual([
-            "ld",
-            "myr",
-            "and",
-            "ld",
-            "stw",
-        ]);
+        expect(abbrev("Lord Mayor and Lord Steward")).toEqual(["ld", "myr", "and", "ld", "stw"]);
     });
 
     it("is case-insensitive by way of the caller's lowercasing", () => {
@@ -140,10 +129,7 @@ describe("the table itself", () => {
                 .toLowerCase()
                 .split(/[^a-z0-9]+/)
                 .filter(Boolean);
-            expect(
-                tokens.length,
-                `${word} tokenises to nothing`,
-            ).toBeGreaterThan(0);
+            expect(tokens.length, `${word} tokenises to nothing`).toBeGreaterThan(0);
         }
     });
 

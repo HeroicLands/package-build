@@ -155,10 +155,7 @@ export function containerName(packageId, stage, base = null) {
  * @returns {number} The host port.
  * @throws {Error} When the stage has no port from any source.
  */
-export function resolveStagePort(
-    stage,
-    { env = process.env, stages = {} } = {},
-) {
+export function resolveStagePort(stage, { env = process.env, stages = {} } = {}) {
     const fromEnv = env[`FOUNDRYVTT_${stage.toUpperCase()}_PORT`]?.trim();
     const port =
         fromEnv ? Number(fromEnv)
@@ -205,12 +202,7 @@ const EXACT_BUILD = /^\d+\.\d+$/;
  */
 export function resolveFoundryVersion(
     stage,
-    {
-        env = process.env,
-        stages = {},
-        compatibilityMinimum = null,
-        e2eStage = "test",
-    } = {},
+    { env = process.env, stages = {}, compatibilityMinimum = null, e2eStage = "test" } = {},
 ) {
     const fromEnv = env[`FOUNDRYVTT_${stage.toUpperCase()}_VERSION`]?.trim();
     if (fromEnv) return fromEnv;
@@ -267,9 +259,7 @@ export function resolveWorld(stage, { env = process.env, stages = {} } = {}) {
     const fromEnv = env[`FOUNDRYVTT_${stage.toUpperCase()}_WORLD`];
     if (fromEnv !== undefined) return fromEnv.trim();
     const declared = stages[stage]?.world;
-    return declared === undefined || declared === null ?
-            null
-        :   String(declared);
+    return declared === undefined || declared === null ? null : String(declared);
 }
 
 /**
@@ -387,12 +377,7 @@ export function dockerRunArgs({
         `${dataRoot}:/data`,
     ];
     if (cacheDir) {
-        args.push(
-            "--volume",
-            `${cacheDir}:${CACHE_MOUNT}`,
-            "-e",
-            `CONTAINER_CACHE=${CACHE_MOUNT}`,
-        );
+        args.push("--volume", `${cacheDir}:${CACHE_MOUNT}`, "-e", `CONTAINER_CACHE=${CACHE_MOUNT}`);
     }
     for (const [key, value] of passthroughEnv(env)) {
         args.push("-e", `${key}=${value}`);
@@ -414,10 +399,7 @@ export function dockerRunArgs({
 export function runDocker(args) {
     const result = spawnSync("docker", args, { stdio: "inherit" });
     if (result.error) {
-        if (
-            /** @type {NodeJS.ErrnoException} */ (result.error).code ===
-            "ENOENT"
-        ) {
+        if (/** @type {NodeJS.ErrnoException} */ (result.error).code === "ENOENT") {
             throw new Error(
                 "docker was not found on PATH. Install Docker and make sure " +
                     "the `docker` CLI is available.",
@@ -464,13 +446,7 @@ export function containerExists(name, runningOnly = false) {
  * @returns {string[]} The container names.
  */
 export function runningFoundryContainers(except = "") {
-    return captureDocker([
-        "ps",
-        "--filter",
-        "name=-foundry-",
-        "--format",
-        "{{.Names}}",
-    ])
+    return captureDocker(["ps", "--filter", "name=-foundry-", "--format", "{{.Names}}"])
         .split("\n")
         .filter((name) => name && name !== except);
 }
@@ -559,26 +535,18 @@ export function resolveContainer({ stage, config, env = process.env }) {
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {number} The exit status.
  */
-export function startContainer(
-    container,
-    { dataRoot, env = process.env, log = () => {} },
-) {
+export function startContainer(container, { dataRoot, env = process.env, log = () => {} }) {
     if (containerExists(container.name)) {
         // Nothing is running against this data root — we are about to start it
         // — so any lock present was left by a previous crash.
-        if (!containerExists(container.name, true))
-            clearStaleLock(dataRoot, log);
-        log(
-            `Starting existing container '${container.name}' → ${container.url}`,
-        );
+        if (!containerExists(container.name, true)) clearStaleLock(dataRoot, log);
+        log(`Starting existing container '${container.name}' → ${container.url}`);
         return runDocker(["start", container.name]);
     }
 
     clearStaleLock(dataRoot, log);
     if (container.cacheDir && !fs.existsSync(container.cacheDir)) {
-        throw new Error(
-            `FOUNDRYVTT_CACHE directory does not exist: ${container.cacheDir}.`,
-        );
+        throw new Error(`FOUNDRYVTT_CACHE directory does not exist: ${container.cacheDir}.`);
     }
     log(
         `Creating container '${container.name}' from ${container.image}\n` +
@@ -634,13 +602,7 @@ export function removeContainer(name, log = () => {}) {
  * @returns {number} The exit status.
  * @throws {Error} On an unknown action, or a stage with no usable data root.
  */
-export function containerAction({
-    action,
-    stage,
-    config,
-    env = process.env,
-    log = () => {},
-}) {
+export function containerAction({ action, stage, config, env = process.env, log = () => {} }) {
     if (!CONTAINER_ACTIONS.includes(action)) {
         throw new Error(
             `Invalid container action '${action}'. Valid actions are: ` +
@@ -677,12 +639,7 @@ export function containerAction({
             removeContainer(container.name, log);
             return 0;
         case "status":
-            return runDocker([
-                "ps",
-                "-a",
-                "--filter",
-                `name=^${container.name}$`,
-            ]);
+            return runDocker(["ps", "-a", "--filter", `name=^${container.name}$`]);
         case "logs":
             return runDocker(["logs", "-f", container.name]);
         default:
@@ -702,8 +659,7 @@ function requireDataRoot(stage, env) {
     const dataRoot = resolveDataRoot(stage, { env });
     if (!fs.existsSync(dataRoot)) {
         throw new Error(
-            `Data directory does not exist: ${dataRoot} (from ` +
-                `${dataEnvVar(stage)}).`,
+            `Data directory does not exist: ${dataRoot} (from ` + `${dataEnvVar(stage)}).`,
         );
     }
     return dataRoot;

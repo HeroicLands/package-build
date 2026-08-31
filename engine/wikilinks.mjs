@@ -82,13 +82,7 @@
 
 import crypto from "crypto";
 
-import {
-    compendiumUuid,
-    ITEM_PACK,
-    packForType,
-    pageUuid,
-    PACK_BY_TYPE,
-} from "./ids.mjs";
+import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
@@ -194,11 +188,7 @@ export function readQualifier(target, types, packages) {
 
     const slash = target.lastIndexOf("/");
     if (slash > 0) {
-        const read = readTypeAndCode(
-            target.slice(0, slash),
-            target.slice(slash + 1),
-            types,
-        );
+        const read = readTypeAndCode(target.slice(0, slash), target.slice(slash + 1), types);
         // A slash means qualified whether or not the type is real.
         return read ?? { reason: "unknown-type" };
     }
@@ -206,11 +196,7 @@ export function readQualifier(target, types, packages) {
     const hyphen = target.indexOf("-");
     if (hyphen > 0) {
         // A hyphen qualifies only on a known type; otherwise it is part of a name.
-        return readTypeAndCode(
-            target.slice(0, hyphen),
-            target.slice(hyphen + 1),
-            types,
-        );
+        return readTypeAndCode(target.slice(0, hyphen), target.slice(hyphen + 1), types);
     }
     return null;
 }
@@ -313,23 +299,14 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
             // An item's prose compiles into a separate JournalEntry, addressed
             // by the virtual `doc<type>` qualifier. Its id is derived from the
             // item's, so its address is knowable here too.
-            docUuid: compendiumUuid(
-                packageId,
-                "doc",
-                itemDocEntryId(d.id),
-                d.docPack,
-            ),
+            docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
         });
 
-        if (d.shortcode)
-            byShortcode.set(`${norm(d.type)}/${norm(d.shortcode)}`, d);
+        if (d.shortcode) byShortcode.set(`${norm(d.type)}/${norm(d.shortcode)}`, d);
         for (const a of d.aliases ?? []) {
             const key = `${norm(d.type)}|${norm(a)}`;
             // Second claimant poisons the alias: it can no longer be resolved.
-            byAlias.set(
-                key,
-                byAlias.has(key) && byAlias.get(key) !== d ? null : d,
-            );
+            byAlias.set(key, byAlias.has(key) && byAlias.get(key) !== d ? null : d);
             // Every claimant is kept alongside, because poisoning the alias
             // discards exactly the information needed to report the problem.
             // The note that *cites* an ambiguous alias is innocent — whoever
@@ -411,11 +388,7 @@ function findForeign(index, read) {
     const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
     const shortcode = norm(read.shortcode);
     if (read.package) {
-        return (
-            index.foreign.get(
-                `${read.package}-${wanted}-${shortcode}`.toLowerCase(),
-            ) ?? null
-        );
+        return index.foreign.get(`${read.package}-${wanted}-${shortcode}`.toLowerCase()) ?? null;
     }
     const hits = [];
     for (const [key, v] of index.foreign) {
@@ -490,159 +463,134 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     // `offset` is the third replacer argument because the pattern has exactly
     // one capture group. It is what makes two identical unresolved links on
     // one note tellable apart, and a position reportable at all (#17).
-    const out = replaceOutsideCode(
-        markdown,
-        WIKILINK,
-        (all, rawInner, offset) => {
-            const parsed = parseWikilink(rawInner);
-            const { labelled } = parsed;
-            let target = parsed.target;
-            // An unlabelled link shows its interior verbatim, anchor included;
-            // a labelled one shows its label. An *empty* label is not a label
-            // — `[[x|]]` means "show the target's name" — and that reading
-            // comes from {@link authoredLabel} so the web resolver cannot draw
-            // the line somewhere else (#113).
-            let text = labelled ? (authoredLabel(parsed) ?? "") : parsed.inner;
-            const slug = parsed.anchor || null;
+    const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
+        const parsed = parseWikilink(rawInner);
+        const { labelled } = parsed;
+        let target = parsed.target;
+        // An unlabelled link shows its interior verbatim, anchor included;
+        // a labelled one shows its label. An *empty* label is not a label
+        // — `[[x|]]` means "show the target's name" — and that reading
+        // comes from {@link authoredLabel} so the web resolver cannot draw
+        // the line somewhere else (#113).
+        let text = labelled ? (authoredLabel(parsed) ?? "") : parsed.inner;
+        const slug = parsed.anchor || null;
 
-            // Resolve the document: same-page (empty target), type-shortcode, or alias.
-            let doc;
-            // Set when the qualifier was the virtual `doc<type>` form, so the UUID
-            // is built against the item doc entry rather than the item itself.
-            let itemDoc = false;
-            // Set when the target was read as `type-shortcode` — an address rather
-            // than prose, which decides what an unlabelled link shows (#1409).
-            let addressed = false;
-            // Kept for the foreign fallback below, which needs the parsed address.
-            let qualifiedRead = null;
-            if (target === "" && slug) {
-                doc = { type, id, pack, docPack };
-            } else {
-                const qualified = readQualifier(
+        // Resolve the document: same-page (empty target), type-shortcode, or alias.
+        let doc;
+        // Set when the qualifier was the virtual `doc<type>` form, so the UUID
+        // is built against the item doc entry rather than the item itself.
+        let itemDoc = false;
+        // Set when the target was read as `type-shortcode` — an address rather
+        // than prose, which decides what an unlabelled link shows (#1409).
+        let addressed = false;
+        // Kept for the foreign fallback below, which needs the parsed address.
+        let qualifiedRead = null;
+        if (target === "" && slug) {
+            doc = { type, id, pack, docPack };
+        } else {
+            const qualified = readQualifier(target, index.types, index.packages);
+            qualifiedRead = qualified;
+            if (qualified?.reason) {
+                unresolved.push({
+                    link: all,
                     target,
-                    index.types,
-                    index.packages,
-                );
-                qualifiedRead = qualified;
-                if (qualified?.reason) {
-                    unresolved.push({
-                        link: all,
-                        target,
-                        offset,
-                        reason: qualified.reason,
-                    });
-                    return unresolvedLink(text || target, target);
-                }
-                if (qualified) {
-                    addressed = true;
-                    itemDoc = qualified.itemDoc;
-                    doc = index.byShortcode.get(
-                        `${qualified.type}/${qualified.shortcode}`,
-                    );
-                } else {
-                    const aliasKey = `${norm(type)}|${norm(target)}`;
-                    const hit = index.byAlias.get(aliasKey);
-                    if (hit === null) {
-                        unresolved.push({
-                            link: all,
-                            target,
-                            offset,
-                            reason: "ambiguous",
-                            // Who claimed it, so the report can name the collision
-                            // rather than the note that merely cites it (#13).
-                            candidates: (
-                                index.aliasClaims?.get(aliasKey) ?? []
-                            ).map((d) => ({
-                                type: d.type,
-                                shortcode: d.shortcode,
-                                name: d.name,
-                            })),
-                        });
-                        return unresolvedLink(text || target, target);
-                    }
-                    doc = hit;
-                }
+                    offset,
+                    reason: qualified.reason,
+                });
+                return unresolvedLink(text || target, target);
             }
-            if (!doc) {
-                // Nothing local answers. A foreign package may publish this
-                // address, in which case the manifest hands back a complete UUID —
-                // including, for a section link, the anchor's own — so nothing is
-                // derived here.
-                const hit = findForeign(index, qualifiedRead);
-                if (hit) {
-                    const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
-                    if (uuid) {
-                        return `@UUID[${uuid}]{${text || hit.name || target}}`;
-                    }
+            if (qualified) {
+                addressed = true;
+                itemDoc = qualified.itemDoc;
+                doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
+            } else {
+                const aliasKey = `${norm(type)}|${norm(target)}`;
+                const hit = index.byAlias.get(aliasKey);
+                if (hit === null) {
                     unresolved.push({
                         link: all,
                         target,
                         offset,
-                        reason: "unknown-anchor",
-                        addressed: true,
+                        reason: "ambiguous",
+                        // Who claimed it, so the report can name the collision
+                        // rather than the note that merely cites it (#13).
+                        candidates: (index.aliasClaims?.get(aliasKey) ?? []).map((d) => ({
+                            type: d.type,
+                            shortcode: d.shortcode,
+                            name: d.name,
+                        })),
                     });
                     return unresolvedLink(text || target, target);
+                }
+                doc = hit;
+            }
+        }
+        if (!doc) {
+            // Nothing local answers. A foreign package may publish this
+            // address, in which case the manifest hands back a complete UUID —
+            // including, for a section link, the anchor's own — so nothing is
+            // derived here.
+            const hit = findForeign(index, qualifiedRead);
+            if (hit) {
+                const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
+                if (uuid) {
+                    return `@UUID[${uuid}]{${text || hit.name || target}}`;
                 }
                 unresolved.push({
                     link: all,
                     target,
                     offset,
-                    reason: "unknown",
-                    // A *qualified* address that resolves nowhere is a typo: every
-                    // package it could name is either built here or vendored, so
-                    // there is no third possibility left. A bare alias is not — it
-                    // may simply be prose.
-                    addressed: !!qualifiedRead && !qualifiedRead.reason,
+                    reason: "unknown-anchor",
+                    addressed: true,
                 });
                 return unresolvedLink(text || target, target);
             }
+            unresolved.push({
+                link: all,
+                target,
+                offset,
+                reason: "unknown",
+                // A *qualified* address that resolves nowhere is a typo: every
+                // package it could name is either built here or vendored, so
+                // there is no third possibility left. A bare alias is not — it
+                // may simply be prose.
+                addressed: !!qualifiedRead && !qualifiedRead.reason,
+            });
+            return unresolvedLink(text || target, target);
+        }
 
-            // With no explicit label, a *qualified* target has no prose to show — a
-            // shortcode is an address, not display text — so the document's own name
-            // stands in (#1409). A bare `[[Text]]` is already the prose the author
-            // wrote, and substituting the canonical name there would rewrite the
-            // sentence ("worsens the [[Shock State]]" must not render as "Shock").
-            // The knowledgebase build reads the same authored link the same way.
-            if (!text || (!labelled && addressed)) text = doc.name ?? target;
+        // With no explicit label, a *qualified* target has no prose to show — a
+        // shortcode is an address, not display text — so the document's own name
+        // stands in (#1409). A bare `[[Text]]` is already the prose the author
+        // wrote, and substituting the canonical name there would rewrite the
+        // sentence ("worsens the [[Shock State]]" must not render as "Shock").
+        // The knowledgebase build reads the same authored link the same way.
+        if (!text || (!labelled && addressed)) text = doc.name ?? target;
 
-            // Both addresses were computed when the target was indexed. An item
-            // doc lives in the journals pack under its own derived entry id, and
-            // its pages hash against *that* id — not the item's.
-            //
-            // The one target with no index entry is the note itself: a `[[#slug]]`
-            // self-link is resolved from the source's own type and id, which the
-            // caller supplied, so it is addressed the same way here.
-            const addresses = index.uuidByDoc.get(doc) ?? {
-                uuid: compendiumUuid(
-                    index.packageId,
-                    doc.type,
-                    doc.id,
-                    doc.pack,
-                ),
-                docUuid: compendiumUuid(
-                    index.packageId,
-                    "doc",
-                    itemDocEntryId(doc.id),
-                    doc.docPack,
-                ),
-            };
-            const entryUuid = itemDoc ? addresses.docUuid : addresses.uuid;
-            const entryId = itemDoc ? itemDocEntryId(doc.id) : doc.id;
-            const isJournal =
-                itemDoc || packForType(doc.type).docType === "JournalEntry";
-            // A JournalEntry link opens a journal — at its first page, or at the
-            // page an anchor names. An Item or Actor link opens that document's
-            // *sheet*, which has no sections, so the anchor has nothing to address
-            // and is dropped. Forging a JournalEntryPage id onto a document that
-            // can never hold one is what made such links dead-end (#1362); an
-            // item's pages are addressed through its `doc<type>` counterpart.
-            const uuid =
-                slug && isJournal ?
-                    pageUuid(entryUuid, anchorPageId(entryId, slug))
-                :   entryUuid;
-            return `@UUID[${uuid}]{${text}}`;
-        },
-    );
+        // Both addresses were computed when the target was indexed. An item
+        // doc lives in the journals pack under its own derived entry id, and
+        // its pages hash against *that* id — not the item's.
+        //
+        // The one target with no index entry is the note itself: a `[[#slug]]`
+        // self-link is resolved from the source's own type and id, which the
+        // caller supplied, so it is addressed the same way here.
+        const addresses = index.uuidByDoc.get(doc) ?? {
+            uuid: compendiumUuid(index.packageId, doc.type, doc.id, doc.pack),
+            docUuid: compendiumUuid(index.packageId, "doc", itemDocEntryId(doc.id), doc.docPack),
+        };
+        const entryUuid = itemDoc ? addresses.docUuid : addresses.uuid;
+        const entryId = itemDoc ? itemDocEntryId(doc.id) : doc.id;
+        const isJournal = itemDoc || packForType(doc.type).docType === "JournalEntry";
+        // A JournalEntry link opens a journal — at its first page, or at the
+        // page an anchor names. An Item or Actor link opens that document's
+        // *sheet*, which has no sections, so the anchor has nothing to address
+        // and is dropped. Forging a JournalEntryPage id onto a document that
+        // can never hold one is what made such links dead-end (#1362); an
+        // item's pages are addressed through its `doc<type>` counterpart.
+        const uuid =
+            slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
+        return `@UUID[${uuid}]{${text}}`;
+    });
 
     return { markdown: out, unresolved };
 }

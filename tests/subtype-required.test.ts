@@ -23,23 +23,17 @@ describe("requireSubType (pack builder — subType is mandatory, never defaulted
     });
 
     it("throws when subType is absent (no fallback is substituted)", () => {
-        expect(() => requireSubType({ sohl: {} }, "widget")).toThrow(
-            /subType/i,
-        );
+        expect(() => requireSubType({ sohl: {} }, "widget")).toThrow(/subType/i);
         expect(() => requireSubType({}, "widget")).toThrow(/subType/i);
     });
 
     it("throws when subType is blank", () => {
-        expect(() =>
-            requireSubType({ sohl: { subType: "" } }, "widget"),
-        ).toThrow(/subType/i);
+        expect(() => requireSubType({ sohl: { subType: "" } }, "widget")).toThrow(/subType/i);
     });
 
     it("labels the error with the given context, else the item title/name", () => {
         expect(() => requireSubType({}, "MyItem")).toThrow(/MyItem/);
         expect(() => requireSubType({ name: "Dagger" })).toThrow(/Dagger/);
-        expect(() => requireSubType({ title: "Broadsword" })).toThrow(
-            /Broadsword/,
-        );
+        expect(() => requireSubType({ title: "Broadsword" })).toThrow(/Broadsword/);
     });
 });

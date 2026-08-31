@@ -56,10 +56,7 @@ import { expandContentTables } from "./content-tables.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignManifests, manifestsComplete } from "./kb-manifest.mjs";
-import {
-    formatUnaddressableFinding,
-    unaddressableForeignPackages,
-} from "./foreign-manifests.mjs";
+import { formatUnaddressableFinding, unaddressableForeignPackages } from "./foreign-manifests.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
@@ -192,10 +189,7 @@ export function collectContentPages(contentBase, ctx) {
             // authoring folder, for grouped landings.
             folder: path.basename(path.dirname(file)),
             sec,
-            url:
-                isReadme ?
-                    `${ctx.mount}${sec}/`
-                :   `${ctx.mount}${sec}/${slug}/`,
+            url: isReadme ? `${ctx.mount}${sec}/` : `${ctx.mount}${sec}/${slug}/`,
             isReadme,
         });
     }
@@ -231,10 +225,8 @@ export function collectTreePages(tree, ctx) {
         const isReadme = base.toLowerCase() === "readme.md";
         const sec = fm.category ?? tree.section;
         const h1 = /^#\s+(.+?)\s*$/m.exec(body);
-        const h1Title =
-            h1 ? h1[1].replace(/\{@link\s+[^}]*\}/g, "").trim() : null;
-        const name =
-            fm.name?.full ?? fm.title ?? h1Title ?? path.basename(base, ".md");
+        const h1Title = h1 ? h1[1].replace(/\{@link\s+[^}]*\}/g, "").trim() : null;
+        const name = fm.name?.full ?? fm.title ?? h1Title ?? path.basename(base, ".md");
         const slug = fm.slug ?? slugify(path.basename(base, ".md"));
         const relNoExt = rel.slice(0, -3).toLowerCase();
         const dir = path.posix.dirname(relNoExt);
@@ -562,9 +554,7 @@ export function pageDestination(page) {
             :   path.join(page.sec, `${page.slug}.md`);
     }
     const rel =
-        page.isReadme ?
-            path.posix.join(path.posix.dirname(page.rel), "_index.md")
-        :   page.rel;
+        page.isReadme ? path.posix.join(path.posix.dirname(page.rel), "_index.md") : page.rel;
     return path.join(page.sec, rel);
 }
 
@@ -640,10 +630,7 @@ export function renderPages(pages, options) {
         const data = pageFrontmatter(page, { readmeSections, decorate });
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(
-            dest,
-            matter.stringify(protectCode(body, resolve), data),
-        );
+        fs.writeFileSync(dest, matter.stringify(protectCode(body, resolve), data));
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
@@ -676,10 +663,7 @@ export function renderPages(pages, options) {
  * @param {object} options - `{ sections, landing, sectionTitle }`.
  * @returns {number} How many landings were written.
  */
-export function writeSectionLandings(
-    outRoot,
-    { sections = {}, landing, sectionTitle },
-) {
+export function writeSectionLandings(outRoot, { sections = {}, landing, sectionTitle }) {
     let written = 0;
 
     // The mount's own landing carries a `type` of its own. Hugo's template
@@ -689,10 +673,7 @@ export function writeSectionLandings(
     // template out of the path where it could be inherited.
     if (landing) {
         fs.mkdirSync(outRoot, { recursive: true });
-        fs.writeFileSync(
-            path.join(outRoot, "_index.md"),
-            matter.stringify("", landing),
-        );
+        fs.writeFileSync(path.join(outRoot, "_index.md"), matter.stringify("", landing));
         written += 1;
     }
 
@@ -713,10 +694,7 @@ export function writeSectionLandings(
         if (!entry.isDirectory()) continue;
         const index = path.join(outRoot, entry.name, "_index.md");
         if (fs.existsSync(index)) continue;
-        fs.writeFileSync(
-            index,
-            matter.stringify("", { title: sectionTitle(entry.name) }),
-        );
+        fs.writeFileSync(index, matter.stringify("", { title: sectionTitle(entry.name) }));
         written += 1;
     }
     return written;
@@ -859,19 +837,16 @@ export function buildSite({ config, outRoot } = {}) {
     const outBase = resolveOutputRoot(resolved.rootDir, site.out);
     const out =
         outRoot ? path.resolve(outRoot)
-        : publishesContent ?
-            path.join(outBase, scheme.prefix.replace(/\/$/, ""))
+        : publishesContent ? path.join(outBase, scheme.prefix.replace(/\/$/, ""))
             // Homepage-only has no content mount, so the package's root *is*
             // the output root and `--out` redirects the whole of it.
-        :   outBase;
+        : outBase;
     // The homepage publishes at `/<contentPackage>/`, which is the package's
     // own root — one level above the content mount, and the same directory in
     // homepage-only mode.
     const homeRoot = publishesContent ? outBase : out;
 
-    const packages = new Set(
-        site.packages.length ? site.packages : [resolved.contentPackage],
-    );
+    const packages = new Set(site.packages.length ? site.packages : [resolved.contentPackage]);
 
     const ctx = {
         packages,

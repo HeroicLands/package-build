@@ -28,9 +28,9 @@ describe("resolveRelation (pack builder — affiliation standing map, #1404)", (
     });
 
     it("passes an authored map through, from the sohl block or the top level", () => {
-        expect(
-            resolveRelation({ sohl: { relation: { peoni: "nemesis" } } }),
-        ).toEqual({ peoni: "nemesis" });
+        expect(resolveRelation({ sohl: { relation: { peoni: "nemesis" } } })).toEqual({
+            peoni: "nemesis",
+        });
         expect(resolveRelation({ relation: { larani: "aligned" } })).toEqual({
             larani: "aligned",
         });
@@ -52,19 +52,15 @@ describe("resolveRelation (pack builder — affiliation standing map, #1404)", (
     it("throws on an unknown standing rather than shipping it", () => {
         // Foundry would drop the invalid choice at load, quietly turning an
         // authored hostility into neutrality.
-        expect(() =>
-            resolveRelation({ relation: { peoni: "hostile" } }, "Agrik"),
-        ).toThrow(/Agrik: relation\["peoni"\]/);
+        expect(() => resolveRelation({ relation: { peoni: "hostile" } }, "Agrik")).toThrow(
+            /Agrik: relation\["peoni"\]/,
+        );
     });
 
     it("throws when the map is not a map", () => {
         // A *populated* list is still an error: it is not a map, and dropping
         // its entries is the silent data loss this resolver exists to prevent.
-        expect(() => resolveRelation({ relation: ["peoni"] }, "Agrik")).toThrow(
-            /map of shortcode/,
-        );
-        expect(() => resolveRelation({ relation: "peoni" }, "Agrik")).toThrow(
-            /map of shortcode/,
-        );
+        expect(() => resolveRelation({ relation: ["peoni"] }, "Agrik")).toThrow(/map of shortcode/);
+        expect(() => resolveRelation({ relation: "peoni" }, "Agrik")).toThrow(/map of shortcode/);
     });
 });

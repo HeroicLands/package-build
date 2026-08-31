@@ -31,11 +31,7 @@
  * @module
  */
 
-import {
-    MARKDOWNLINT_CONFIG,
-    MARKDOWN_GLOBS,
-    MARKDOWN_IGNORES,
-} from "./engine/prose-config.mjs";
+import { MARKDOWNLINT_CONFIG, MARKDOWN_GLOBS, MARKDOWN_IGNORES } from "./engine/prose-config.mjs";
 
 export default {
     config: MARKDOWNLINT_CONFIG,

@@ -22,9 +22,9 @@ import {
 
 describe("normalizeRepoUrl", () => {
     it("passes through the plain form", () => {
-        expect(
-            normalizeRepoUrl({ url: "https://github.com/HeroicLands/sohl" }),
-        ).toBe("https://github.com/HeroicLands/sohl");
+        expect(normalizeRepoUrl({ url: "https://github.com/HeroicLands/sohl" })).toBe(
+            "https://github.com/HeroicLands/sohl",
+        );
     });
 
     // The form npm itself writes, and the one `sohl-kethira-basic` declares.
@@ -38,22 +38,16 @@ describe("normalizeRepoUrl", () => {
     });
 
     it("strips a trailing slash", () => {
-        expect(normalizeRepoUrl({ url: "https://github.com/a/b/" })).toBe(
-            "https://github.com/a/b",
-        );
+        expect(normalizeRepoUrl({ url: "https://github.com/a/b/" })).toBe("https://github.com/a/b");
     });
 
     it("accepts the shorthand string form", () => {
-        expect(normalizeRepoUrl("https://github.com/a/b.git")).toBe(
-            "https://github.com/a/b",
-        );
+        expect(normalizeRepoUrl("https://github.com/a/b.git")).toBe("https://github.com/a/b");
     });
 
     // A manifest with no addresses installs and never offers an update.
     it("refuses an absent or empty repository", () => {
-        expect(() => normalizeRepoUrl(undefined as never)).toThrow(
-            /no `repository.url`/,
-        );
+        expect(() => normalizeRepoUrl(undefined as never)).toThrow(/no `repository.url`/);
         expect(() => normalizeRepoUrl({})).toThrow();
         expect(() => normalizeRepoUrl({ url: "   " })).toThrow();
     });
@@ -159,11 +153,7 @@ describe("manifestPacks — one pack list, not two", () => {
     it("flattens companions, which Foundry sees no difference in", () => {
         // A companion is only a pack written by another pass rather than one of
         // its own; it ships as an ordinary compendium.
-        expect(manifestPacks(config).map((p) => p.name)).toEqual([
-            "items",
-            "scenes",
-            "adventures",
-        ]);
+        expect(manifestPacks(config).map((p) => p.name)).toEqual(["items", "scenes", "adventures"]);
     });
 });
 
@@ -259,9 +249,7 @@ describe("buildManifest", () => {
         expect(manifest.id).toBe("sohl");
         expect(manifest.version).toBe("1.2.3");
         expect(manifest.url).toBe("https://github.com/HeroicLands/sohl");
-        expect(manifest.bugs).toBe(
-            "https://github.com/HeroicLands/sohl/issues",
-        );
+        expect(manifest.bugs).toBe("https://github.com/HeroicLands/sohl/issues");
         expect(manifest.manifest).toBe(
             "https://github.com/HeroicLands/sohl/releases/latest/download/system.json",
         );
@@ -366,9 +354,7 @@ describe("buildManifest", () => {
 
         expect(keys.indexOf("id")).toBeLessThan(keys.indexOf("title"));
         expect(keys.indexOf("title")).toBeLessThan(keys.indexOf("version"));
-        expect(keys.indexOf("compatibility")).toBeLessThan(
-            keys.indexOf("packs"),
-        );
+        expect(keys.indexOf("compatibility")).toBeLessThan(keys.indexOf("packs"));
         expect(keys.indexOf("packs")).toBeLessThan(keys.indexOf("url"));
     });
 
@@ -387,10 +373,7 @@ describe("buildManifest", () => {
 
 describe("writeManifest", () => {
     it("writes <artifact>.json into the stage, creating it", async () => {
-        const outDir = path.join(
-            fs.mkdtempSync(path.join(os.tmpdir(), "pb-manifest-")),
-            "stage",
-        );
+        const outDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pb-manifest-")), "stage");
         const { path: written, manifest } = await writeManifest({
             config: {
                 foundryPackage: "sohl-thalorna",
@@ -467,10 +450,6 @@ describe("manifestPacks — the system is per pack (#40)", () => {
                 pack({ name: "actors-sohl", type: "Actor", system: "sohl" }),
             ],
         });
-        expect(entries.map((e) => e.system)).toEqual([
-            undefined,
-            "hm3",
-            "sohl",
-        ]);
+        expect(entries.map((e) => e.system)).toEqual([undefined, "hm3", "sohl"]);
     });
 });

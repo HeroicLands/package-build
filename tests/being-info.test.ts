@@ -20,12 +20,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import {
-    BEING_TYPE,
-    GEAR_TYPE_TO_KEY,
-    deriveBeingInfo,
-    isBeing,
-} from "../sohl/being-info.mjs";
+import { BEING_TYPE, GEAR_TYPE_TO_KEY, deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 
 /** The content index, `"<type>:<shortcode>"` → the item's page. */
 function index(entries: Record<string, { name?: string; url?: string }> = {}) {
@@ -157,10 +152,7 @@ describe("gear", () => {
     });
 
     it("ignores an item type that is not gear", () => {
-        const out = deriveBeingInfo(
-            { items: [{ type: "trauma", shortcode: "scar" }] },
-            index(),
-        );
+        const out = deriveBeingInfo({ items: [{ type: "trauma", shortcode: "scar" }] }, index());
 
         expect(out.gear).toBeUndefined();
     });

@@ -81,8 +81,7 @@ export const ARTIFACTS = Object.freeze(["system", "module"]);
  *   worse than a missing one: Foundry installs it and never offers an update.
  */
 export function normalizeRepoUrl(repository) {
-    const raw =
-        typeof repository === "string" ? repository : (repository?.url ?? "");
+    const raw = typeof repository === "string" ? repository : (repository?.url ?? "");
     const url = String(raw)
         .trim()
         .replace(/^git\+/, "")
@@ -177,10 +176,7 @@ const MANIFEST_KEY_ORDER = Object.freeze([
  * @returns {object[]} The manifest's `packs` array.
  */
 export function manifestPacks(config) {
-    const flatten = (pack) => [
-        pack,
-        ...(pack.companions ?? []).flatMap(flatten),
-    ];
+    const flatten = (pack) => [pack, ...(pack.companions ?? []).flatMap(flatten)];
     return config.packs.flatMap(flatten).map((pack) => {
         // Foundry requires `system` on ActiveEffect, Actor and Item packs and
         // on no others, so the value is per pack: its own declaration first,
@@ -205,11 +201,7 @@ export function manifestPacks(config) {
  *
  * @type {readonly string[]}
  */
-const PACK_FOLDERS_PATH = Object.freeze([
-    "packageBuild",
-    "manifest",
-    "packFolders",
-]);
+const PACK_FOLDERS_PATH = Object.freeze(["packageBuild", "manifest", "packFolders"]);
 
 /**
  * Every pack name a folder tree names, with the folder that named it.
@@ -371,8 +363,7 @@ export const BUILD_ONLY_RELATIONSHIP_KEYS = Object.freeze(["itemCatalog"]);
 export function publishedRelationships(relationships) {
     const published = {};
     for (const [kind, entries] of Object.entries(relationships)) {
-        published[kind] =
-            Array.isArray(entries) ? entries.map(withoutBuildKeys) : entries;
+        published[kind] = Array.isArray(entries) ? entries.map(withoutBuildKeys) : entries;
     }
     return published;
 }
@@ -388,9 +379,7 @@ function withoutBuildKeys(entry) {
         return entry;
     }
     return Object.fromEntries(
-        Object.entries(entry).filter(
-            ([key]) => !BUILD_ONLY_RELATIONSHIP_KEYS.includes(key),
-        ),
+        Object.entries(entry).filter(([key]) => !BUILD_ONLY_RELATIONSHIP_KEYS.includes(key)),
     );
 }
 
@@ -447,23 +436,18 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
         const entry = {
             id: config.requiresSystem,
             type: "system",
-            ...(declaredSystem?.manifest ?
-                { manifest: declaredSystem.manifest }
-            :   {}),
+            ...(declaredSystem?.manifest ? { manifest: declaredSystem.manifest } : {}),
             ...(declaredSystem?.compatibility ?
                 {
                     compatibility: Object.fromEntries(
-                        Object.entries(declaredSystem.compatibility).filter(
-                            ([, v]) => v != null,
-                        ),
+                        Object.entries(declaredSystem.compatibility).filter(([, v]) => v != null),
                     ),
                 }
             :   {}),
         };
         // An explicit `relationships.systems` still wins, so a repository
         // mid-migration is never told two different things about itself.
-        relationships.systems =
-            relationships.systems?.length ? relationships.systems : [entry];
+        relationships.systems = relationships.systems?.length ? relationships.systems : [entry];
     }
     if (Object.keys(relationships).length) {
         derived.relationships = publishedRelationships(relationships);
@@ -553,14 +537,7 @@ function reportPackFolders(findings, configFile) {
  * @throws {Error} When a `packFolders` entry names a pack the package does not
  *   ship. Nothing is written in that case.
  */
-export async function writeManifest({
-    config,
-    packageJson,
-    artifact,
-    outDir,
-    flags,
-    configFile,
-}) {
+export async function writeManifest({ config, packageJson, artifact, outDir, flags, configFile }) {
     const manifest = buildManifest({ config, packageJson, artifact, flags });
 
     const errors = reportPackFolders(
@@ -583,10 +560,6 @@ export async function writeManifest({
     const outPath = path.join(outDir, `${artifact}.json`);
     // Trailing newline: the file is committed to a release archive and read by
     // humans as often as by Foundry.
-    await fs.writeFile(
-        outPath,
-        `${JSON.stringify(manifest, null, 2)}\n`,
-        "utf8",
-    );
+    await fs.writeFile(outPath, `${JSON.stringify(manifest, null, 2)}\n`, "utf8");
     return { path: outPath, manifest };
 }

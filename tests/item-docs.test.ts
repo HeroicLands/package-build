@@ -14,12 +14,7 @@
 import { describe, it, expect } from "vitest";
 // Imported by relative path, not the `@src` alias, because the pack-build
 // scripts live outside that tree.
-import {
-    hasDocEntry,
-    itemDocEntryId,
-    itemDocPointer,
-    itemTypes,
-} from "../engine/item-docs.mjs";
+import { hasDocEntry, itemDocEntryId, itemDocPointer, itemTypes } from "../engine/item-docs.mjs";
 import { splitPages, buildPages, journalPageId } from "../engine/journals.mjs";
 
 const ITEM_ID = "xPisQgs7pKDaYaKs";
@@ -35,9 +30,7 @@ describe("itemDocEntryId (the JournalEntry an item's prose moves to)", () => {
     });
 
     it("differs per item, and from the item's own id", () => {
-        expect(itemDocEntryId(ITEM_ID)).not.toBe(
-            itemDocEntryId("aaaaaaaaaaaaaaa1"),
-        );
+        expect(itemDocEntryId(ITEM_ID)).not.toBe(itemDocEntryId("aaaaaaaaaaaaaaa1"));
         expect(itemDocEntryId(ITEM_ID)).not.toBe(ITEM_ID);
     });
 });
@@ -45,22 +38,13 @@ describe("itemDocEntryId (the JournalEntry an item's prose moves to)", () => {
 /** The pointer the items pass writes for a note, derived exactly as it does. */
 function pointerFor(itemId: string, name: string, markdown: string): string {
     const [lead] = splitPages(markdown, name);
-    return itemDocPointer(
-        "sohl",
-        itemId,
-        name,
-        journalPageId(itemDocEntryId(itemId), lead, 0),
-    );
+    return itemDocPointer("sohl", itemId, name, journalPageId(itemDocEntryId(itemId), lead, 0));
 }
 
 describe("itemDocPointer (the description an item carries instead of prose)", () => {
     it("addresses the entry's first page", () => {
         const entryId = itemDocEntryId(ITEM_ID);
-        const pages = buildPages(
-            splitPages("body", "Dehydrated"),
-            entryId,
-            "Dehydrated",
-        );
+        const pages = buildPages(splitPages("body", "Dehydrated"), entryId, "Dehydrated");
         expect(pointerFor(ITEM_ID, "Dehydrated", "body")).toBe(
             `@UUID[Compendium.sohl.journals.JournalEntry.${entryId}.JournalEntryPage.${pages[0]._id}]{Dehydrated}`,
         );
@@ -69,11 +53,7 @@ describe("itemDocPointer (the description an item carries instead of prose)", ()
     it("points at the first page when the note splits into several", () => {
         const markdown = "# One\n\nfirst\n\n# Two\n\nsecond";
         const entryId = itemDocEntryId(ITEM_ID);
-        const pages = buildPages(
-            splitPages(markdown, "Weaponcraft"),
-            entryId,
-            "Weaponcraft",
-        );
+        const pages = buildPages(splitPages(markdown, "Weaponcraft"), entryId, "Weaponcraft");
         expect(pages).toHaveLength(2);
         expect(pointerFor(ITEM_ID, "Weaponcraft", markdown)).toContain(
             `JournalEntryPage.${pages[0]._id}`,
@@ -81,9 +61,7 @@ describe("itemDocPointer (the description an item carries instead of prose)", ()
     });
 
     it("names the link after the item, so a broken pointer still says what it is", () => {
-        expect(pointerFor(ITEM_ID, "Dehydrated", "body")).toMatch(
-            /\{Dehydrated\}$/,
-        );
+        expect(pointerFor(ITEM_ID, "Dehydrated", "body")).toMatch(/\{Dehydrated\}$/);
     });
 });
 

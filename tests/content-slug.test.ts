@@ -95,10 +95,7 @@ describe("findSlugCollisions", () => {
         ]);
         expect(collisions).toHaveLength(1);
         expect(collisions[0].url).toBe("/armorgear/russet-robe/");
-        expect(collisions[0].sources).toEqual([
-            "Armor/Russet_Robe.md",
-            "Armor/Russet_Robe_Alt.md",
-        ]);
+        expect(collisions[0].sources).toEqual(["Armor/Russet_Robe.md", "Armor/Russet_Robe_Alt.md"]);
     });
 
     it("lists every claimant when more than two collide", () => {

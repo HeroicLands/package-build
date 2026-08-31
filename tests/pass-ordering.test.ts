@@ -28,10 +28,7 @@ import path from "node:path";
 import log from "loglevel";
 
 import { defineConfig } from "../content-config.mjs";
-import {
-    generatePacksJson,
-    orderPassesByDependency,
-} from "../engine/generate.mjs";
+import { generatePacksJson, orderPassesByDependency } from "../engine/generate.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 
 /* ---------------------------------------------------------------------- */
@@ -145,12 +142,9 @@ function packDocs(root: string, pack: string): Record<string, any> {
 /** The tree every end-to-end case below compiles. */
 const NOTES = {
     "Climbing.md": skillNote("Climbing", "AAAAAAAAAAAAAAAA", "climbing"),
-    "SecondSight.md": skillNote(
-        "Second Sight",
-        "BBBBBBBBBBBBBBBB",
-        "secondsight",
-        { pack: "mysteries" },
-    ),
+    "SecondSight.md": skillNote("Second Sight", "BBBBBBBBBBBBBBBB", "secondsight", {
+        pack: "mysteries",
+    }),
     "HillBandit.md": BEING,
 };
 
@@ -290,12 +284,8 @@ describe("generatePacksJson — Actor pack declared first, cold build/", () => {
     });
 
     it("still routes each item note to the pack it belongs in", () => {
-        expect(Object.keys(packDocs(root, "characteristics"))).toEqual([
-            "Climbing",
-        ]);
-        expect(Object.keys(packDocs(root, "mysteries"))).toEqual([
-            "Second Sight",
-        ]);
+        expect(Object.keys(packDocs(root, "characteristics"))).toEqual(["Climbing"]);
+        expect(Object.keys(packDocs(root, "mysteries"))).toEqual(["Second Sight"]);
     });
 });
 
@@ -325,12 +315,7 @@ describe("generatePacksJson — the same tree, packs declared in dependency orde
             }),
         ];
         expect([a, b]).toEqual([0, 0]);
-        for (const pack of [
-            "characters",
-            "characteristics",
-            "mysteries",
-            "journals",
-        ]) {
+        for (const pack of ["characters", "characteristics", "mysteries", "journals"]) {
             expect(packDocs(declared, pack)).toEqual(packDocs(derived, pack));
         }
     });
@@ -345,11 +330,9 @@ describe("generatePacksJson — one Actor pack named on its own, cold build/", (
         const root = repo(NOTES);
         roots.push(root);
         const messages: string[] = [];
-        const spy = vi
-            .spyOn(console, "error")
-            .mockImplementation((...args: unknown[]) => {
-                messages.push(args.join(" "));
-            });
+        const spy = vi.spyOn(console, "error").mockImplementation((...args: unknown[]) => {
+            messages.push(args.join(" "));
+        });
         let errors: number;
         try {
             errors = await generatePacksJson({
@@ -371,9 +354,7 @@ describe("generatePacksJson — one Actor pack named on its own, cold build/", (
         // It names the pack that waits, the pack it waits on, and the fix.
         expect(reported[0]).toContain('"characteristics"');
         expect(reported[1]).toContain('"mysteries"');
-        expect(reported.join("\n")).not.toContain(
-            "actors must be generated after",
-        );
+        expect(reported.join("\n")).not.toContain("actors must be generated after");
     });
 
     it("compiles one Item pack on its own without complaint", async () => {
@@ -384,8 +365,6 @@ describe("generatePacksJson — one Actor pack named on its own, cold build/", (
             config: baseConfig({ rootDir: root, packs: ACTOR_FIRST }),
         });
         expect(errors).toBe(0);
-        expect(Object.keys(packDocs(root, "characteristics"))).toEqual([
-            "Climbing",
-        ]);
+        expect(Object.keys(packDocs(root, "characteristics"))).toEqual(["Climbing"]);
     });
 });

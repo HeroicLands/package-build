@@ -89,8 +89,7 @@ export function parseMarkdownFile(filePath) {
     // be reported as a file position (#17). The frontmatter's lines and the
     // blank lines `trim()` removes both sit in between, and the trim can take
     // indentation off the first line as well — hence a column, not just a line.
-    const bodyStart =
-        content.length - raw.length + (raw.length - raw.trimStart().length);
+    const bodyStart = content.length - raw.length + (raw.length - raw.trimStart().length);
     const before = content.slice(0, bodyStart);
     const bodyLine = before.split("\n").length;
     const bodyColumn = bodyStart - before.lastIndexOf("\n");
@@ -321,10 +320,7 @@ export function supportedCoreVersion(config = loadPackConfig()) {
  *   The resolved build configuration. Defaults to this repository's.
  * @returns {object} The `_stats` block.
  */
-export function buildStats(
-    systemVersion = undefined,
-    config = loadPackConfig(),
-) {
+export function buildStats(systemVersion = undefined, config = loadPackConfig()) {
     return {
         systemId: config.stats.systemId,
         systemVersion: systemVersion ?? config.stats.systemVersion,
@@ -473,9 +469,7 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
     );
     if (stale.length) {
         for (const st of stale) {
-            log.error(
-                `Unusable link manifest for "${st.package}": ${st.reason}`,
-            );
+            log.error(`Unusable link manifest for "${st.package}": ${st.reason}`);
         }
         throw new Error(
             "Cross-package links cannot be resolved from a stale manifest; " +
@@ -486,12 +480,7 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
-    return buildWikilinkIndex(
-        docs,
-        foundryPackageId(),
-        foreign,
-        contentPackage(),
-    );
+    return buildWikilinkIndex(docs, foundryPackageId(), foreign, contentPackage());
 }
 
 /**
@@ -518,18 +507,7 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
  */
 export function convertNoteWikilinks(
     body,
-    {
-        type,
-        id,
-        pack,
-        docPack,
-        index,
-        name,
-        file,
-        bodyLine,
-        bodyColumn,
-        lineMap,
-    },
+    { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap },
 ) {
     const result = convertWikilinks(body ?? "", {
         type,
@@ -580,9 +558,7 @@ export function convertNoteWikilinks(
             const claims = u.candidates ?? [];
             const named =
                 claims.length ?
-                    claims
-                        .map((c) => `"${c.name}" (${c.type}-${c.shortcode})`)
-                        .join(" and ")
+                    claims.map((c) => `"${c.name}" (${c.type}-${c.shortcode})`).join(" and ")
                 :   "two or more notes";
             fail(
                 u,
@@ -613,9 +589,7 @@ export function convertNoteWikilinks(
                 `unresolved wikilink ${u.link} (${u.reason}) in "${name}"` +
                 // A link this build wrote is not at any authored position, so
                 // say where it came from instead of implying an edit site.
-                (at.generated ?
-                    " — emitted by the content table on this line"
-                :   ""),
+                (at.generated ? " — emitted by the content table on this line" : ""),
         });
     }
     return result;
@@ -668,8 +642,7 @@ export function collectContentDocs(contentBase) {
  * unlinkable; a note missing either renders as plain text rather than shipping a
  * literal wikilink into a journal.
  */
-const packLinkable = (doc) =>
-    Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type);
+const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type);
 
 /**
  * Expand the fenced `dataview` tables in one note's markdown, before wikilinks
@@ -710,9 +683,7 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine }) {
         self,
     });
     if (errors.length) {
-        const err = new Error(
-            errors.map((e) => `content table — ${e.reason}`).join("; "),
-        );
+        const err = new Error(errors.map((e) => `content table — ${e.reason}`).join("; "));
         // The first failing directive's line. Reporting one position for a
         // message that may name several is honest here: a caller opens the
         // file at the first thing to fix, and the message lists the rest.
@@ -735,18 +706,14 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine }) {
  */
 export function loadFolders(foldersFile) {
     if (!fs.existsSync(foldersFile)) {
-        log.warn(
-            `No folders.yaml at ${foldersFile}; no folders will be emitted`,
-        );
+        log.warn(`No folders.yaml at ${foldersFile}; no folders will be emitted`);
         return [];
     }
     const raw = fs.readFileSync(foldersFile, "utf8");
     const parsed = yaml.parse(raw);
     if (parsed == null) return [];
     if (!Array.isArray(parsed)) {
-        throw new Error(
-            `folders.yaml must contain a YAML list; got ${typeof parsed}`,
-        );
+        throw new Error(`folders.yaml must contain a YAML list; got ${typeof parsed}`);
     }
     return parsed;
 }
@@ -818,10 +785,7 @@ export function buildFolderResolver(folders) {
  * underscores.
  */
 export function folderFilename(name, id) {
-    return (
-        `folder_${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") +
-        ".json"
-    );
+    return `folder_${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";
 }
 
 /**
@@ -843,10 +807,7 @@ export function writeFolderDocs(folders, stats, destDir, documentType) {
             _stats: stats,
             _key: `!folders!${folder.id}`,
         };
-        const outPath = path.join(
-            destDir,
-            folderFilename(folder.name, folder.id),
-        );
+        const outPath = path.join(destDir, folderFilename(folder.name, folder.id));
         fs.writeFileSync(outPath, JSON.stringify(doc, null, 2), "utf8");
     }
     log.info(`Emitted ${folders.length} folder document(s) to ${destDir}`);

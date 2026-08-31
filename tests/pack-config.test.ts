@@ -14,10 +14,7 @@ import { fileURLToPath } from "node:url";
 // Build-time pack configuration (plain ESM, no Foundry). Imported by relative
 // path because the pack-build scripts live outside the `@src` alias tree.
 import { loadPackConfig } from "../engine/pack-config.mjs";
-import {
-    contentPackage,
-    foundryPackageId,
-} from "../engine/content-package.mjs";
+import { contentPackage, foundryPackageId } from "../engine/content-package.mjs";
 import { supportedCoreVersion } from "../engine/helpers.mjs";
 
 // Anchored on this file, not the working directory: the same paths have to
@@ -28,10 +25,7 @@ import { supportedCoreVersion } from "../engine/helpers.mjs";
 // is this package's own, supplied by the development config at the repository
 // root. It used to be the system repository's root, which only resolved while
 // this package was vendored inside it.
-const PKG_ROOT = path.resolve(
-    path.dirname(fileURLToPath(import.meta.url)),
-    "..",
-);
+const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
 /**
  * The resolved configuration these cases describe.
@@ -74,15 +68,9 @@ describe("this repository's resolved pack configuration", () => {
             expect(path.isAbsolute(value as string), key).toBe(true);
             expect(String(value).startsWith(PKG_ROOT), key).toBe(true);
         }
-        expect(packConfig.rootDir).toBe(
-            path.join(PKG_ROOT, "tests/fixtures/repo"),
-        );
-        expect(packConfig.paths.content).toBe(
-            path.join(packConfig.rootDir, "assets/content"),
-        );
-        expect(packConfig.paths.packJson).toBe(
-            path.join(packConfig.rootDir, "build/packs-json"),
-        );
+        expect(packConfig.rootDir).toBe(path.join(PKG_ROOT, "tests/fixtures/repo"));
+        expect(packConfig.paths.content).toBe(path.join(packConfig.rootDir, "assets/content"));
+        expect(packConfig.paths.packJson).toBe(path.join(packConfig.rootDir, "build/packs-json"));
     });
 
     it("derives the Foundry asset root from the package kind and id", () => {
@@ -152,12 +140,8 @@ describe("the core version is configuration, and the config is its source", () =
     });
 
     it("follows whatever the configuration declares", () => {
-        expect(
-            supportedCoreVersion({ compatibility: { minimum: "14.900" } }),
-        ).toBe("14.900");
-        expect(
-            supportedCoreVersion({ compatibility: { minimum: "14.001" } }),
-        ).toBe("14.001");
+        expect(supportedCoreVersion({ compatibility: { minimum: "14.900" } })).toBe("14.900");
+        expect(supportedCoreVersion({ compatibility: { minimum: "14.001" } })).toBe("14.001");
     });
 
     it("throws rather than falling back when none is declared", () => {

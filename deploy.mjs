@@ -146,9 +146,7 @@ export function resolveAgent(env, stageUpper, prefix = "SOHL") {
         env[`FOUNDRYVTT_${stageUpper}_AGENT`] ||
         env[`${prefix}_SFTP_AGENT`] ||
         env.SSH_AUTH_SOCK ||
-        (process.platform === "win32" ?
-            "\\\\.\\pipe\\openssh-ssh-agent"
-        :   undefined)
+        (process.platform === "win32" ? "\\\\.\\pipe\\openssh-ssh-agent" : undefined)
     );
 }
 
@@ -171,13 +169,8 @@ export async function buildConnection(
     remote,
     { env = process.env, prefix = "SOHL" } = {},
 ) {
-    const port = Number(
-        env[`FOUNDRYVTT_${stageUpper}_PORT`] ??
-            env[`${prefix}_SFTP_PORT`] ??
-            22,
-    );
-    const username =
-        remote.username || env[`FOUNDRYVTT_${stageUpper}_USER`] || env.USER;
+    const port = Number(env[`FOUNDRYVTT_${stageUpper}_PORT`] ?? env[`${prefix}_SFTP_PORT`] ?? 22);
+    const username = remote.username || env[`FOUNDRYVTT_${stageUpper}_USER`] || env.USER;
 
     const conn = { host: remote.host, port, username };
 
@@ -318,9 +311,7 @@ export async function deployStage({
             env,
             prefix,
         });
-        log(
-            `Deploying ${source} → ${conn.username}@${conn.host}:${remoteDir} (sftp)`,
-        );
+        log(`Deploying ${source} → ${conn.username}@${conn.host}:${remoteDir} (sftp)`);
         await deployRemote(conn, source, remoteDir, {
             onUpload: (f) => log(`  ${f}`),
         });

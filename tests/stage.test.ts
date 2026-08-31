@@ -52,10 +52,7 @@ describe("copyTree", () => {
             "src/nested/b.txt": "b",
             "src/nested/deep/c.txt": "c",
         });
-        const written = copyTree(
-            path.join(root, "src"),
-            path.join(root, "stage"),
-        );
+        const written = copyTree(path.join(root, "src"), path.join(root, "stage"));
         expect(written).toBe(3);
         expect(listed(path.join(root, "stage"))).toEqual([
             "a.txt",
@@ -66,13 +63,8 @@ describe("copyTree", () => {
 
     it("copies a single file, creating its parent", () => {
         const root = tree({ "LICENSE.md": "text" });
-        copyTree(
-            path.join(root, "LICENSE.md"),
-            path.join(root, "stage", "LICENSE.md"),
-        );
-        expect(
-            fs.readFileSync(path.join(root, "stage/LICENSE.md"), "utf8"),
-        ).toBe("text");
+        copyTree(path.join(root, "LICENSE.md"), path.join(root, "stage", "LICENSE.md"));
+        expect(fs.readFileSync(path.join(root, "stage/LICENSE.md"), "utf8")).toBe("text");
     });
 
     // The hook the system repository uses to theme icons as it stages them.
@@ -81,13 +73,9 @@ describe("copyTree", () => {
         copyTree(path.join(root, "src"), path.join(root, "stage"), {
             transform: (p) => (p.endsWith(".svg") ? "<svg themed/>" : null),
         });
-        expect(fs.readFileSync(path.join(root, "stage/icon.svg"), "utf8")).toBe(
-            "<svg themed/>",
-        );
+        expect(fs.readFileSync(path.join(root, "stage/icon.svg"), "utf8")).toBe("<svg themed/>");
         // Returning null falls back to a byte copy.
-        expect(fs.readFileSync(path.join(root, "stage/data.bin"), "utf8")).toBe(
-            "raw",
-        );
+        expect(fs.readFileSync(path.join(root, "stage/data.bin"), "utf8")).toBe("raw");
     });
 
     it("treats an undefined return as no transform", () => {
@@ -95,9 +83,7 @@ describe("copyTree", () => {
         copyTree(path.join(root, "src"), path.join(root, "stage"), {
             transform: () => undefined,
         });
-        expect(fs.readFileSync(path.join(root, "stage/a.txt"), "utf8")).toBe(
-            "a",
-        );
+        expect(fs.readFileSync(path.join(root, "stage/a.txt"), "utf8")).toBe("a");
     });
 });
 
@@ -184,12 +170,8 @@ describe("stageAssets", () => {
             ],
             { cwd: root, transform: () => "themed" },
         );
-        expect(
-            fs.readFileSync(path.join(root, "stage/a/one.svg"), "utf8"),
-        ).toBe("themed");
-        expect(
-            fs.readFileSync(path.join(root, "stage/b/two.svg"), "utf8"),
-        ).toBe("themed");
+        expect(fs.readFileSync(path.join(root, "stage/a/one.svg"), "utf8")).toBe("themed");
+        expect(fs.readFileSync(path.join(root, "stage/b/two.svg"), "utf8")).toBe("themed");
     });
 });
 
@@ -218,9 +200,7 @@ describe("cleanBuildArtifacts", () => {
         const root = tree({ "node_modules/pkg/index.js": "x" });
         expect(cleanBuildArtifacts(root)).toEqual([]);
         expect(fs.existsSync(path.join(root, "node_modules"))).toBe(true);
-        expect(cleanBuildArtifacts(root, { includeNodeModules: true })).toEqual(
-            ["node_modules"],
-        );
+        expect(cleanBuildArtifacts(root, { includeNodeModules: true })).toEqual(["node_modules"]);
         expect(fs.existsSync(path.join(root, "node_modules"))).toBe(false);
     });
 

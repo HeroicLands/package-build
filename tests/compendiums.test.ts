@@ -15,11 +15,7 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 
 // Build-time pack library (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
-import {
-    compilePacks,
-    unpackPacks,
-    cleanPacks,
-} from "../engine/compendiums.mjs";
+import { compilePacks, unpackPacks, cleanPacks } from "../engine/compendiums.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const LIBRARY = path.resolve(HERE, "../engine/compendiums.mjs");
@@ -45,14 +41,10 @@ const LIBRARY_URL = pathToFileURL(LIBRARY).href;
 // below: it induces package-id drift through configuration (#1508), since the
 // manifest is no longer located by the working directory.
 const CONFIG_URL = pathToFileURL(path.resolve(HERE, "../config.mjs")).href;
-const MANIFEST_URL = pathToFileURL(
-    path.resolve(HERE, "../engine/package-manifest.mjs"),
-).href;
+const MANIFEST_URL = pathToFileURL(path.resolve(HERE, "../engine/package-manifest.mjs")).href;
 // Resolved here, not in the child: the child runs from an empty temp
 // directory, where a bare `loglevel` specifier has no `node_modules` to find.
-const LOGLEVEL_URL = pathToFileURL(
-    createRequire(import.meta.url).resolve("loglevel"),
-).href;
+const LOGLEVEL_URL = pathToFileURL(createRequire(import.meta.url).resolve("loglevel")).href;
 
 /**
  * Import the library in a child process rooted at `cwd` — the only honest way
@@ -69,11 +61,10 @@ function importInCwd(
     argv: string[] = [],
 ): { status: number | null; stdout: string; stderr: string } {
     const source = `const lib = await import(${JSON.stringify(LIBRARY_URL)});\n${script}`;
-    const result = spawnSync(
-        process.execPath,
-        ["--input-type=module", "-e", source, ...argv],
-        { cwd, encoding: "utf8" },
-    );
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", source, ...argv], {
+        cwd,
+        encoding: "utf8",
+    });
     return {
         status: result.status,
         stdout: result.stdout,
@@ -196,9 +187,7 @@ describe("a prebuilt pack compiles without a content tree (#40)", () => {
             stats: { systemId: null, lastModifiedBy: "prebuilt00000000" },
         };
 
-        await expect(
-            compilePacks({ config, stageDest: stage }),
-        ).resolves.not.toThrow();
+        await expect(compilePacks({ config, stageDest: stage })).resolves.not.toThrow();
 
         // The compiled pack exists, and generation wrote nothing.
         expect(fs.existsSync(path.join(stage, "adventures"))).toBe(true);

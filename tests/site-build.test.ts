@@ -46,10 +46,7 @@ function write(rel: string, text: string) {
 }
 
 function note(rel: string, frontmatter: string, body = "Prose.\n") {
-    return write(
-        path.join("assets/content", rel),
-        `---\n${frontmatter.trim()}\n---\n\n${body}`,
-    );
+    return write(path.join("assets/content", rel), `---\n${frontmatter.trim()}\n---\n\n${body}`);
 }
 
 beforeAll(() => {
@@ -149,9 +146,7 @@ describe("the walk is ordered, because the index depends on it", () => {
     it("skips the directories the configuration names", () => {
         write("assets/content/Templates/T.md", "---\ntype: doc\n---\n");
         const all = walkSiteTree(path.join(root, "assets/content"));
-        const kept = walkSiteTree(path.join(root, "assets/content"), [
-            "Templates",
-        ]);
+        const kept = walkSiteTree(path.join(root, "assets/content"), ["Templates"]);
         expect(all.length - kept.length).toBe(1);
         fs.rmSync(path.join(root, "assets/content/Templates"), {
             recursive: true,
@@ -161,10 +156,7 @@ describe("the walk is ordered, because the index depends on it", () => {
 
 describe("a page's address comes from the shared scheme", () => {
     it("mounts content under the configured prefix", () => {
-        const { pages } = collectContentPages(
-            path.join(root, "assets/content"),
-            ctx,
-        );
+        const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const byName = Object.fromEntries(pages.map((p) => [p.name, p.url]));
         expect(byName.Dagger).toBe("/demo/kb/weapongear/dagger/");
         expect(byName.Combat).toBe("/demo/kb/rules/combat/");
@@ -176,10 +168,7 @@ describe("a page's address comes from the shared scheme", () => {
         // Nothing is selected by frontmatter any more: the tree holds one
         // package's notes and `package:` is retired, so a page's package is
         // the configuration's (#56).
-        const { pages } = collectContentPages(
-            path.join(root, "assets/content"),
-            ctx,
-        );
+        const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const content = pages.filter((p) => p.kind === "content");
         expect(content.map((p) => p.name)).toContain("Dagger");
         expect(content.every((p) => p.pkg === "demo")).toBe(true);
@@ -205,9 +194,7 @@ describe("a page's address comes from the shared scheme", () => {
             section: "dev-docs",
             route: "/demo/kb/dev-docs/",
         };
-        const page = collectTreePages(tree, ctx).pages.find(
-            (p) => p.name === "Testing",
-        )!;
+        const page = collectTreePages(tree, ctx).pages.find((p) => p.name === "Testing")!;
         // The title renders the heading, so leaving it in the body would show
         // it twice.
         expect(page.body).not.toMatch(/^#\s+Testing/m);
@@ -215,8 +202,7 @@ describe("a page's address comes from the shared scheme", () => {
 });
 
 describe("every gate reports; none exits", () => {
-    const base = () =>
-        collectContentPages(path.join(root, "assets/content"), ctx);
+    const base = () => collectContentPages(path.join(root, "assets/content"), ctx);
 
     it("passes a clean tree, and yields an index", () => {
         const gates = siteGates(base().pages, base(), {
@@ -329,27 +315,23 @@ describe("what a page publishes with", () => {
     });
 
     it("titles a section landing from its configured metadata", () => {
-        const data = pageFrontmatter(
-            { ...page, isReadme: true, sec: "rules" } as never,
-            { readmeSections: { rules: { title: "Rules", banner: "r.webp" } } },
-        );
+        const data = pageFrontmatter({ ...page, isReadme: true, sec: "rules" } as never, {
+            readmeSections: { rules: { title: "Rules", banner: "r.webp" } },
+        });
         expect(data.title).toBe("Rules");
         expect(data.banner).toBe("r.webp");
     });
 
     it("omits a banner rather than writing `undefined`", () => {
         // `banner: undefined` is not a value YAML can carry.
-        const data = pageFrontmatter(
-            { ...page, isReadme: true, sec: "credits" } as never,
-            { readmeSections: { credits: { title: "Credits" } } },
-        );
+        const data = pageFrontmatter({ ...page, isReadme: true, sec: "credits" } as never, {
+            readmeSections: { credits: { title: "Credits" } },
+        });
         expect("banner" in data).toBe(false);
     });
 
     it("routes a README to `_index.md` and a page to its slug", () => {
-        expect(pageDestination(page as never)).toBe(
-            path.join("weapongear", "dagger.md"),
-        );
+        expect(pageDestination(page as never)).toBe(path.join("weapongear", "dagger.md"));
         expect(pageDestination({ ...page, isReadme: true } as never)).toBe(
             path.join("weapongear", "_index.md"),
         );
@@ -363,9 +345,9 @@ describe("section landings", () => {
             sections: { being: { title: "Beings", banner: "b.webp" } },
             landing: { title: "Knowledgebase", type: "knowledgebase" },
         });
-        expect(
-            fs.readFileSync(path.join(out, "being/_index.md"), "utf8"),
-        ).toContain("title: Beings");
+        expect(fs.readFileSync(path.join(out, "being/_index.md"), "utf8")).toContain(
+            "title: Beings",
+        );
         expect(fs.readFileSync(path.join(out, "_index.md"), "utf8")).toContain(
             "type: knowledgebase",
         );
@@ -380,9 +362,9 @@ describe("section landings", () => {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "cb-land-"));
         fs.mkdirSync(path.join(out, "macro"), { recursive: true });
         writeSectionLandings(out, { sectionTitle: pluralTitle });
-        expect(
-            fs.readFileSync(path.join(out, "macro/_index.md"), "utf8"),
-        ).toContain("title: Macros");
+        expect(fs.readFileSync(path.join(out, "macro/_index.md"), "utf8")).toContain(
+            "title: Macros",
+        );
         fs.rmSync(out, { recursive: true });
     });
 
@@ -401,9 +383,7 @@ describe("the output root is refused unless it is safe to delete", () => {
     // to care.
     it("refuses an unset output, which resolves to the repository root", () => {
         expect(() => resolveOutputRoot("/repo", "")).toThrow(/not set/);
-        expect(() => resolveOutputRoot("/repo", undefined as never)).toThrow(
-            /not set/,
-        );
+        expect(() => resolveOutputRoot("/repo", undefined as never)).toThrow(/not set/);
     });
 
     it("refuses the repository root itself", () => {
@@ -411,18 +391,12 @@ describe("the output root is refused unless it is safe to delete", () => {
     });
 
     it("refuses a path that climbs out of the repository", () => {
-        expect(() => resolveOutputRoot("/repo", "../elsewhere")).toThrow(
-            /not inside/,
-        );
-        expect(() => resolveOutputRoot("/repo", "/tmp/x")).toThrow(
-            /not inside/,
-        );
+        expect(() => resolveOutputRoot("/repo", "../elsewhere")).toThrow(/not inside/);
+        expect(() => resolveOutputRoot("/repo", "/tmp/x")).toThrow(/not inside/);
     });
 
     it("accepts an ordinary build directory", () => {
-        expect(resolveOutputRoot("/repo", "kb/content")).toBe(
-            path.join("/repo", "kb/content"),
-        );
+        expect(resolveOutputRoot("/repo", "kb/content")).toBe(path.join("/repo", "kb/content"));
     });
 
     it("stops the whole build rather than wiping anything", () => {
@@ -456,9 +430,7 @@ describe("the consumer's own passes are named, not imported", () => {
     });
 
     it("names what it accepts when a configuration asks for something else", () => {
-        expect(() => resolveSitePass("nope", { repoRoot: root })).toThrow(
-            /unknown site pass/,
-        );
+        expect(() => resolveSitePass("nope", { repoRoot: root })).toThrow(/unknown site pass/);
     });
 
     it("is absent by default, so a package needs no pass at all", () => {
@@ -472,19 +444,14 @@ describe("buildSite end to end", () => {
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
         const out = path.join(root, "out/kb");
-        expect(fs.existsSync(path.join(out, "weapongear/dagger.md"))).toBe(
-            true,
-        );
+        expect(fs.existsSync(path.join(out, "weapongear/dagger.md"))).toBe(true);
         expect(fs.existsSync(path.join(out, "rules/_index.md"))).toBe(true);
         expect(result.wikiErrors).toEqual([]);
     });
 
     it("resolves a wikilink to the page's published address", () => {
         buildSite({ config: configFor() });
-        const page = fs.readFileSync(
-            path.join(root, "out/kb/weapongear/dagger.md"),
-            "utf8",
-        );
+        const page = fs.readFileSync(path.join(root, "out/kb/weapongear/dagger.md"), "utf8");
         expect(page).toContain("/demo/kb/weapongear/dagger/");
     });
 
@@ -501,10 +468,7 @@ name:
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const page = fs.readFileSync(
-                path.join(root, "out/kb/weapongear/sling.md"),
-                "utf8",
-            );
+            const page = fs.readFileSync(path.join(root, "out/kb/weapongear/sling.md"), "utf8");
             expect(page).toMatch(/^package: demo$/m);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));

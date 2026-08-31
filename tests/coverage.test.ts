@@ -37,35 +37,27 @@ const template = (source: string) =>
     });
 
 /** A localization file as it is authored, so positions are real. */
-const asLangFile = (entries: Record<string, string>) =>
-    JSON.stringify(entries, null, 4);
+const asLangFile = (entries: Record<string, string>) => JSON.stringify(entries, null, 4);
 
 describe("keyRootsOf", () => {
     it("takes the roots from the keys that are declared", () => {
-        expect(keyRootsOf(["SOHL.a.b", "SOHL.c", "TYPES.Item.skill"])).toEqual([
-            "SOHL",
-            "TYPES",
-        ]);
+        expect(keyRootsOf(["SOHL.a.b", "SOHL.c", "TYPES.Item.skill"])).toEqual(["SOHL", "TYPES"]);
     });
 
     // A shorter root must not claim the head of a longer one, whichever order
     // they arrive in.
     it("does not let one root shadow a longer one", () => {
-        const { keys } = collectScriptReferences(
-            'const a = "TYPES.Item.skill";',
-            { file: "src/a.ts", roots: keyRootsOf(["TYPE.a", "TYPES.b"]) },
-        );
+        const { keys } = collectScriptReferences('const a = "TYPES.Item.skill";', {
+            file: "src/a.ts",
+            roots: keyRootsOf(["TYPE.a", "TYPES.b"]),
+        });
         expect(keys.map((k) => k.key)).toEqual(["TYPES.Item.skill"]);
     });
 });
 
 describe("collectScriptReferences", () => {
     it("finds a key in a string literal, and says where it is", () => {
-        const source = [
-            "const label = localize(",
-            '    "SOHL.Skill.label",',
-            ");",
-        ].join("\n");
+        const source = ["const label = localize(", '    "SOHL.Skill.label",', ");"].join("\n");
         const { keys } = script(source);
 
         expect(keys).toHaveLength(1);
@@ -111,25 +103,20 @@ describe("collectScriptReferences", () => {
     // Joining the chunks either side of a `${…}` would mint a key that is not
     // in the file at all.
     it("never glues a key across a substitution", () => {
-        const { keys } = script(
-            "const k = `SOHL.Skill.Action.${kind}Test.label`;",
-        );
+        const { keys } = script("const k = `SOHL.Skill.Action.${kind}Test.label`;");
         expect(keys).toEqual([]);
     });
 
     it("still finds a concrete key inside a template literal", () => {
         // Inline markup in a helper is a template literal, so its keys are not
         // string-literal nodes and would otherwise be invisible.
-        const { keys } = script(
-            'const html = `<p>{{localize "SOHL.Skill.label"}}</p>`;',
-        );
+        const { keys } = script('const html = `<p>{{localize "SOHL.Skill.label"}}</p>`;');
         expect(keys.map((k) => k.key)).toEqual(["SOHL.Skill.label"]);
     });
 
     // A DataModel names the prefix; Foundry localizes the leaves beneath it.
     it("reads LOCALIZATION_PREFIXES as namespaces", () => {
-        const source =
-            'class X { static LOCALIZATION_PREFIXES = ["SOHL.Item.Skill"]; }';
+        const source = 'class X { static LOCALIZATION_PREFIXES = ["SOHL.Item.Skill"]; }';
         const { namespaces, keys } = script(source);
 
         expect(namespaces).toContain("SOHL.Item.Skill");
@@ -146,11 +133,7 @@ describe("collectScriptReferences", () => {
 
 describe("collectTemplateReferences", () => {
     it("finds a key a template localizes, and says where it is", () => {
-        const source = [
-            "<h2>",
-            '    {{localize "SOHL.Skill.label"}}',
-            "</h2>",
-        ].join("\n");
+        const source = ["<h2>", '    {{localize "SOHL.Skill.label"}}', "</h2>"].join("\n");
         const { keys } = template(source);
 
         expect(keys).toHaveLength(1);
@@ -158,9 +141,7 @@ describe("collectTemplateReferences", () => {
     });
 
     it("treats a concatenated key as a shape", () => {
-        const { keys, patterns } = template(
-            "{{localize (concat 'SOHL.Skill.' kind)}}",
-        );
+        const { keys, patterns } = template("{{localize (concat 'SOHL.Skill.' kind)}}");
 
         expect(keys).toEqual([]);
         expect(patterns.length).toBeGreaterThan(0);

@@ -96,13 +96,7 @@ import { packRelease } from "../release.mjs";
 import { writeManifest } from "../manifest.mjs";
 import { deployStage } from "../deploy.mjs";
 import { CONTAINER_ACTIONS, containerAction } from "../container.mjs";
-import {
-    E2E_MODES,
-    e2eFast,
-    e2eRun,
-    e2eSweep,
-    seedTestWorld,
-} from "../e2e.mjs";
+import { E2E_MODES, e2eFast, e2eRun, e2eSweep, seedTestWorld } from "../e2e.mjs";
 import { reportFindings } from "./report.mjs";
 
 /**
@@ -124,9 +118,7 @@ const ADVISORY_PREVIEW = 20;
  * @returns {string} The `version` field of this package's manifest.
  */
 function ownVersion() {
-    return JSON.parse(
-        fs.readFileSync(new URL("../package.json", import.meta.url), "utf8"),
-    ).version;
+    return JSON.parse(fs.readFileSync(new URL("../package.json", import.meta.url), "utf8")).version;
 }
 
 /**
@@ -141,9 +133,7 @@ function die(err) {
     // exactly the position a parser reads the path from — prefixing it would
     // yield a filename no editor can open (#95).
     console.error(
-        /** @type {{located?: boolean}} */ (err)?.located ? message : (
-            `package-build: ${message}`
-        ),
+        /** @type {{located?: boolean}} */ (err)?.located ? message : `package-build: ${message}`,
     );
     process.exit(1);
 }
@@ -195,9 +185,7 @@ async function loadEnvironment(config) {
  * @returns {object} The parsed manifest.
  */
 function readPackageJson(config) {
-    return JSON.parse(
-        fs.readFileSync(path.join(config.rootDir, "package.json"), "utf8"),
-    );
+    return JSON.parse(fs.readFileSync(path.join(config.rootDir, "package.json"), "utf8"));
 }
 
 /**
@@ -270,17 +258,13 @@ function assetsCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             if (!config.assets.length) {
-                console.log(
-                    "package-build: no `packageBuild.assets` declared; nothing to stage.",
-                );
+                console.log("package-build: no `packageBuild.assets` declared; nothing to stage.");
                 return;
             }
 
             let transform;
             if (config.assetTransform) {
-                const module = await import(
-                    `file://${config.assetTransform}`
-                ).catch((err) =>
+                const module = await import(`file://${config.assetTransform}`).catch((err) =>
                     die(
                         `cannot load \`packageBuild.assetTransform\` ` +
                             `(${config.assetTransform}): ${err.message}`,
@@ -307,9 +291,7 @@ function assetsCommand() {
                 cwd: config.rootDir,
                 transform,
             });
-            console.log(
-                `✅ Static assets staged (${count} entries, ${files} files).`,
-            );
+            console.log(`✅ Static assets staged (${count} entries, ${files} files).`);
         }),
     };
 }
@@ -368,8 +350,7 @@ function schemaCommand() {
             const config = loadPackageBuildConfig();
             if (!config.schema.length) {
                 console.log(
-                    "package-build: no `packageBuild.schema` declared; " +
-                        "nothing to publish.",
+                    "package-build: no `packageBuild.schema` declared; " + "nothing to publish.",
                 );
                 return;
             }
@@ -385,15 +366,11 @@ function schemaCommand() {
             const out = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
             const text = await formatGenerated(JSON.stringify(artifact), out);
             const counts = Object.entries(artifact.documents)
-                .map(
-                    ([kind, subtypes]) =>
-                        `${Object.keys(subtypes).length} ${kind}`,
-                )
+                .map(([kind, subtypes]) => `${Object.keys(subtypes).length} ${kind}`)
                 .join(", ");
 
             if (argv.check) {
-                const current =
-                    fs.existsSync(out) ? fs.readFileSync(out, "utf8") : null;
+                const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : null;
                 if (current !== text) {
                     die(
                         `${SCHEMA_ARTIFACT_FILE} does not match what this ` +
@@ -401,10 +378,7 @@ function schemaCommand() {
                             `it with \`package-build schema\`.`,
                     );
                 }
-                console.log(
-                    `✅ ${SCHEMA_ARTIFACT_FILE} is up to date ` +
-                        `(${counts} subtypes).`,
-                );
+                console.log(`✅ ${SCHEMA_ARTIFACT_FILE} is up to date ` + `(${counts} subtypes).`);
                 return;
             }
 
@@ -441,9 +415,7 @@ function manifestCommand() {
 
             let flags;
             if (config.manifestFlags) {
-                const module = await import(
-                    `file://${config.manifestFlags}`
-                ).catch((err) =>
+                const module = await import(`file://${config.manifestFlags}`).catch((err) =>
                     die(
                         `cannot load \`packageBuild.manifestFlags\` ` +
                             `(${config.manifestFlags}): ${err.message}`,
@@ -512,8 +484,7 @@ function langCheck(config) {
     const files = readMatching(config.langSources, config.rootDir);
     if (!files.length) {
         die(
-            `no localization files matched \`${config.langSources}\` under ` +
-                `${config.rootDir}.`,
+            `no localization files matched \`${config.langSources}\` under ` + `${config.rootDir}.`,
         );
     }
 
@@ -528,10 +499,7 @@ function langCheck(config) {
         if (config.langHelp) console.error(`\n${config.langHelp}`);
         process.exit(1);
     }
-    console.log(
-        `package-build: ${files.length} localization file(s) are ` +
-            `expandObject-safe.`,
-    );
+    console.log(`package-build: ${files.length} localization file(s) are ` + `expandObject-safe.`);
 }
 
 /**
@@ -578,10 +546,7 @@ async function langCoverage(config, args) {
         // Capped by default: the advisory half of a large package is pages
         // long, and pages of warnings on every build is how a guard stops being
         // read at all. The count is always stated, so nothing is hidden.
-        const shown =
-            args.unused ? unreferenced : (
-                unreferenced.slice(0, ADVISORY_PREVIEW)
-            );
+        const shown = args.unused ? unreferenced : unreferenced.slice(0, ADVISORY_PREVIEW);
         reportFindings(shown, {});
         if (shown.length < unreferenced.length) {
             console.error(
@@ -637,21 +602,18 @@ async function langCoverage(config, args) {
         );
     }
     const sets = [
-        ...scripts.map((file) =>
-            collectScriptReferences(file.text, { file: file.path, roots }),
-        ),
+        ...scripts.map((file) => collectScriptReferences(file.text, { file: file.path, roots })),
         ...templates.map((file) =>
             collectTemplateReferences(file.text, { file: file.path, roots }),
         ),
     ];
 
     if (config.langReferences) {
-        const module = await import(`file://${config.langReferences}`).catch(
-            (err) =>
-                die(
-                    `cannot load \`packageBuild.lang.references\` ` +
-                        `(${config.langReferences}): ${err.message}`,
-                ),
+        const module = await import(`file://${config.langReferences}`).catch((err) =>
+            die(
+                `cannot load \`packageBuild.lang.references\` ` +
+                    `(${config.langReferences}): ${err.message}`,
+            ),
         );
         if (typeof module.references !== "function") {
             die(
@@ -707,10 +669,9 @@ function langHardcoded(config) {
     let literals = 0;
     let broken = 0;
     for (const file of templates) {
-        literals += reportFindings(
-            findHardcodedText(file.text, { allow: config.langAllow }),
-            { file: file.path },
-        );
+        literals += reportFindings(findHardcodedText(file.text, { allow: config.langAllow }), {
+            file: file.path,
+        });
         broken += reportFindings(findTemplateSyntaxErrors(file.text), {
             file: file.path,
         });
@@ -737,8 +698,7 @@ function langHardcoded(config) {
     }
 
     console.log(
-        `package-build: ${templates.length} template(s) fully localized and ` +
-            `compiling.`,
+        `package-build: ${templates.length} template(s) fully localized and ` + `compiling.`,
     );
 }
 
@@ -768,8 +728,7 @@ function langCommand() {
                 .option("unused", {
                     type: "boolean",
                     default: false,
-                    describe:
-                        "coverage: list every unreferenced key, not a preview",
+                    describe: "coverage: list every unreferenced key, not a preview",
                 }),
         handler: handler(async (args) => {
             const config = loadPackageBuildConfig();
@@ -803,8 +762,7 @@ function bundleCommand() {
         builder: (y) =>
             y.positional("action", {
                 choices: ["check"],
-                describe:
-                    "check: verify the manifest and the staged bundle agree",
+                describe: "check: verify the manifest and the staged bundle agree",
             }),
         handler: handler(() => {
             const config = loadPackageBuildConfig();

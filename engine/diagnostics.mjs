@@ -145,11 +145,7 @@ export function emitDiagnostic(d) {
  *   {@link expandContentTables}.
  * @returns {{line: number, column: number|undefined, generated: boolean}}
  */
-export function positionInBody(
-    body,
-    offset,
-    { bodyLine = 1, bodyColumn = 1, lineMap } = {},
-) {
+export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lineMap } = {}) {
     const upTo = String(body ?? "").slice(0, Math.max(0, offset));
     const nl = upTo.lastIndexOf("\n");
     const scannedLine = upTo.length === 0 ? 0 : upTo.split("\n").length - 1;
@@ -209,10 +205,7 @@ export function positionInFrontmatter(raw, key, value = undefined) {
             keyLine = i;
             break;
         }
-        if (
-            keyLine === -1 &&
-            new RegExp(`^\\s*${escape(key)}\\s*:`).test(lines[i])
-        ) {
+        if (keyLine === -1 && new RegExp(`^\\s*${escape(key)}\\s*:`).test(lines[i])) {
             keyLine = i;
             if (wanted == null) break;
         }
@@ -321,13 +314,9 @@ export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
         if (key && node !== undefined) {
             const last = keyPath[keyPath.length - 1];
             const parent =
-                keyPath.length === 1 ?
-                    doc.contents
-                :   doc.getIn(keyPath.slice(0, -1), true);
+                keyPath.length === 1 ? doc.contents : doc.getIn(keyPath.slice(0, -1), true);
             const pair = parent?.items?.find?.(
-                (item) =>
-                    item?.key != null &&
-                    String(item.key.value) === String(last),
+                (item) => item?.key != null && String(item.key.value) === String(last),
             );
             if (pair?.key?.range) node = pair.key;
         }

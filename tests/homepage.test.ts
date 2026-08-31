@@ -25,11 +25,7 @@ import path from "node:path";
 import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { SITE_MODES, publishesContentPages } from "../content-config.mjs";
-import {
-    HOMEPAGE_TYPE,
-    homepageTitle,
-    isHomepage,
-} from "../engine/homepage.mjs";
+import { HOMEPAGE_TYPE, homepageTitle, isHomepage } from "../engine/homepage.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { buildSite, collectContentPages } from "../engine/site-build.mjs";
@@ -45,10 +41,7 @@ function write(rel: string, text: string) {
 }
 
 function note(rel: string, frontmatter: string, body = "Prose.\n") {
-    return write(
-        path.join("assets/content", rel),
-        `---\n${frontmatter.trim()}\n---\n\n${body}`,
-    );
+    return write(path.join("assets/content", rel), `---\n${frontmatter.trim()}\n---\n\n${body}`);
 }
 
 /** Every emitted file below a directory, POSIX-separated and sorted. */
@@ -74,11 +67,7 @@ beforeAll(() => {
     );
     fs.mkdirSync(path.join(root, "assets/manifests"), { recursive: true });
 
-    note(
-        "homepage.md",
-        `type: ${HOMEPAGE_TYPE}`,
-        "The module, in the author's own words.\n",
-    );
+    note("homepage.md", `type: ${HOMEPAGE_TYPE}`, "The module, in the author's own words.\n");
     note(
         "Gear/Dagger.md",
         `type: weapongear
@@ -151,25 +140,18 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
 
     it("defaults its title to the manifest's, and yields to an authored one", () => {
         const config = configFor();
-        expect(homepageTitle({ type: HOMEPAGE_TYPE }, config)).toBe(
-            "The Demo Module",
-        );
-        expect(
-            homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config),
-        ).toBe("Kethira");
+        expect(homepageTitle({ type: HOMEPAGE_TYPE }, config)).toBe("The Demo Module");
+        expect(homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config)).toBe("Kethira");
     });
 
     it("is not a content page, so it takes no slug from its name", () => {
-        const { pages } = collectContentPages(
-            path.join(root, "assets/content"),
-            {
-                packages: new Set(["demo"]),
-                contentPackage: "demo",
-                skipDirectories: [],
-                mount: "/demo/kb/",
-                scheme: { prefix: "kb/", landing: "readme" },
-            },
-        );
+        const { pages } = collectContentPages(path.join(root, "assets/content"), {
+            packages: new Set(["demo"]),
+            contentPackage: "demo",
+            skipDirectories: [],
+            mount: "/demo/kb/",
+            scheme: { prefix: "kb/", landing: "readme" },
+        });
         expect(pages.map((p) => p.name)).not.toContain("homepage");
         expect(pages.every((p) => p.kind === "content")).toBe(true);
     });
@@ -191,9 +173,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         const outDir = path.join(root, "manifest-out");
         const { entries } = emitLinkManifest({ config, outDir });
         expect(entries).toBeGreaterThan(0);
-        const written = JSON.parse(
-            fs.readFileSync(path.join(outDir, "demo.json"), "utf8"),
-        );
+        const written = JSON.parse(fs.readFileSync(path.join(outDir, "demo.json"), "utf8"));
         const keys = Object.keys(written.entries ?? written);
         expect(keys.some((k) => k.includes(HOMEPAGE_TYPE))).toBe(false);
     });
@@ -256,9 +236,7 @@ describe("`publish.site` distinguishes homepage-only from content (#55)", () => 
 
     it("records a web address on manifest entries only in content mode", () => {
         expect(manifestContext(configFor()).web).toBe(true);
-        expect(
-            manifestContext(configFor({ publish: { site: "homepage" } })).web,
-        ).toBe(false);
+        expect(manifestContext(configFor({ publish: { site: "homepage" } })).web).toBe(false);
     });
 });
 
@@ -347,9 +325,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         const result = buildSite({ config });
         expect(emitted(path.join(solo, "site"))).toEqual(["_index.md"]);
         expect(result.stats?.homepages).toBe(1);
-        expect(
-            fs.readFileSync(path.join(solo, "site/_index.md"), "utf8"),
-        ).toMatch(/^title: HârnMaster 3$/m);
+        expect(fs.readFileSync(path.join(solo, "site/_index.md"), "utf8")).toMatch(
+            /^title: HârnMaster 3$/m,
+        );
         fs.rmSync(solo, { recursive: true, force: true });
     });
 });

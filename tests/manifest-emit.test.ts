@@ -145,9 +145,7 @@ function emit(publish: Record<string, unknown>): Manifest {
     const config = configFor(publish);
     const out = path.join(root, "out", String(Math.random()).slice(2));
     emitLinkManifest({ config, outDir: out });
-    return JSON.parse(
-        fs.readFileSync(path.join(out, "demo.json"), "utf8"),
-    ) as Manifest;
+    return JSON.parse(fs.readFileSync(path.join(out, "demo.json"), "utf8")) as Manifest;
 }
 
 const WEB = {
@@ -158,17 +156,13 @@ const WEB = {
 describe("the address scheme is configuration, and both live rules work", () => {
     it("mounts the tree where the repository says (`sohl`'s `kb/`)", () => {
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe(
-            "kb/weapongear/dagger/",
-        );
+        expect(doc.entries["demo-weapongear-dagger"].path).toBe("kb/weapongear/dagger/");
         expect(doc.entries["demo-doc-combat"].path).toBe("kb/rules/combat/");
     });
 
     it("mounts at the package root when there is no prefix", () => {
         const doc = emit({ ...WEB });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe(
-            "weapongear/dagger/",
-        );
+        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear/dagger/");
     });
 
     it("`readme`: a README addresses its section, a collection is a page", () => {
@@ -176,9 +170,7 @@ describe("the address scheme is configuration, and both live rules work", () => 
         expect(doc.entries["demo-doc-rulesidx"].path).toBe("rules/");
         // The rule `sohl` relies on: its eleven collection notes publish under
         // a literal `collection/` section rather than becoming landing pages.
-        expect(doc.entries["demo-doc-creatures"].path).toBe(
-            "collection/creatures/",
-        );
+        expect(doc.entries["demo-doc-creatures"].path).toBe("collection/creatures/");
     });
 
     it("`collection`: a collection note addresses its authored section", () => {
@@ -199,17 +191,10 @@ id: 2222222222222222
 name:
     full: Nowhere`,
         );
-        const ctx = manifestContext(
-            configFor({ ...WEB, address: { landing: "collection" } }),
-        );
-        const { skipped } = collectManifestEntries(
-            path.join(root, "assets/content"),
-            ctx,
-        );
+        const ctx = manifestContext(configFor({ ...WEB, address: { landing: "collection" } }));
+        const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
         expect(skipped.map((s) => s.file)).toContain("Nowhere.md");
-        expect(skipped.find((s) => s.file === "Nowhere.md")?.reason).toMatch(
-            /lands nowhere/,
-        );
+        expect(skipped.find((s) => s.file === "Nowhere.md")?.reason).toMatch(/lands nowhere/);
         fs.rmSync(path.join(root, "assets/content/Nowhere.md"));
     });
 });
@@ -263,13 +248,8 @@ name:
 
     it("reports an unaddressable note rather than dropping it silently", () => {
         const ctx = manifestContext(configFor(WEB));
-        const { skipped } = collectManifestEntries(
-            path.join(root, "assets/content"),
-            ctx,
-        );
-        expect(skipped.map((s) => s.file)).toContain(
-            path.join("Rules", "Homeless.md"),
-        );
+        const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
+        expect(skipped.map((s) => s.file)).toContain(path.join("Rules", "Homeless.md"));
     });
 
     it("gives an item note two entries, the item pointing at its docs", () => {
@@ -278,9 +258,7 @@ name:
         expect(item.doc).toBe("demo-docweapongear-dagger");
         // The doc entry owns the documentation UUID; the item does not repeat
         // it (#1499).
-        expect(item.uuid).toBe(
-            "Compendium.demo-module.items.Item.aaaaaaaaaaaaaaaa",
-        );
+        expect(item.uuid).toBe("Compendium.demo-module.items.Item.aaaaaaaaaaaaaaaa");
         expect(doc.entries["demo-docweapongear-dagger"].uuid).toMatch(
             /^Compendium\.demo-module\.journals\.JournalEntry\./,
         );
@@ -302,18 +280,11 @@ describe("anchors are computed, never approximated", () => {
 
     it("puts a `doc` note's anchors on its own entry", () => {
         const doc = emit({ ...WEB });
-        expect(Object.keys(doc.entries["demo-doc-combat"].anchors!)).toContain(
-            "melee",
-        );
+        expect(Object.keys(doc.entries["demo-doc-combat"].anchors!)).toContain("melee");
     });
 
     it("names the lead page, which carries no authored slug of its own", () => {
-        const anchors = anchorsOf(
-            "Compendium.p.j.JournalEntry.x",
-            "x",
-            "Prose.",
-            "N",
-        );
+        const anchors = anchorsOf("Compendium.p.j.JournalEntry.x", "x", "Prose.", "N");
         expect(anchors[LEAD_ANCHOR]).toBe(
             "Compendium.p.j.JournalEntry.x.JournalEntryPage." +
                 Object.values(anchors)[0].split(".").pop(),
@@ -325,9 +296,7 @@ describe("anchors are computed, never approximated", () => {
         // page and therefore no `$lead`. Asserting the absence rather than
         // papering over it: inventing an anchor here would publish a page UUID
         // for a page the journals compiler never emitted.
-        expect(
-            anchorsOf("Compendium.p.j.JournalEntry.x", "x", "", "N"),
-        ).toEqual({});
+        expect(anchorsOf("Compendium.p.j.JournalEntry.x", "x", "", "N")).toEqual({});
     });
 });
 
@@ -416,8 +385,7 @@ describe("the emitted address is the one the site publishes", () => {
         const fm = { type: "weapongear", shortcode: "dagger" };
         const scheme = { prefix: "kb/", landing: "readme" };
         expect(packageAddress(fm, "Dagger", { scheme })).toBe(
-            emit({ ...WEB, address: scheme }).entries["demo-weapongear-dagger"]
-                .path,
+            emit({ ...WEB, address: scheme }).entries["demo-weapongear-dagger"].path,
         );
     });
 });

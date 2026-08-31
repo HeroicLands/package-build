@@ -23,15 +23,11 @@ describe("resolveSkillAptitudes (pack builder — selector → mastery modifier)
         // Same editor behaviour as `relation` (#8): an emptied property is
         // serialized as `[]`, and means the item authors no aptitudes.
         expect(resolveSkillAptitudes({ skillAptitudes: [] })).toEqual({});
-        expect(resolveSkillAptitudes({ sohl: { skillAptitudes: [] } })).toEqual(
-            {},
-        );
+        expect(resolveSkillAptitudes({ sohl: { skillAptitudes: [] } })).toEqual({});
     });
 
     it("passes an authored map through, from the sohl block or the top level", () => {
-        expect(
-            resolveSkillAptitudes({ sohl: { skillAptitudes: { awa: 2 } } }),
-        ).toEqual({ awa: 2 });
+        expect(resolveSkillAptitudes({ sohl: { skillAptitudes: { awa: 2 } } })).toEqual({ awa: 2 });
         expect(
             resolveSkillAptitudes({
                 skillAptitudes: { "subType:combat": -1 },
@@ -46,24 +42,21 @@ describe("resolveSkillAptitudes (pack builder — selector → mastery modifier)
     });
 
     it("throws on a fractional or non-numeric modifier rather than rounding it", () => {
-        expect(() =>
-            resolveSkillAptitudes({ skillAptitudes: { awa: 1.5 } }, "Sindarin"),
-        ).toThrow(/Sindarin: skillAptitudes\["awa"\]/);
-        expect(() =>
-            resolveSkillAptitudes(
-                { skillAptitudes: { awa: "up" } },
-                "Sindarin",
-            ),
-        ).toThrow(/whole number/);
+        expect(() => resolveSkillAptitudes({ skillAptitudes: { awa: 1.5 } }, "Sindarin")).toThrow(
+            /Sindarin: skillAptitudes\["awa"\]/,
+        );
+        expect(() => resolveSkillAptitudes({ skillAptitudes: { awa: "up" } }, "Sindarin")).toThrow(
+            /whole number/,
+        );
     });
 
     it("throws when the map is not a map", () => {
         // A *populated* list is still an error — see the empty-list case above.
-        expect(() =>
-            resolveSkillAptitudes({ skillAptitudes: ["awa"] }, "Sindarin"),
-        ).toThrow(/map of selector/);
-        expect(() =>
-            resolveSkillAptitudes({ skillAptitudes: "awa" }, "Sindarin"),
-        ).toThrow(/map of selector/);
+        expect(() => resolveSkillAptitudes({ skillAptitudes: ["awa"] }, "Sindarin")).toThrow(
+            /map of selector/,
+        );
+        expect(() => resolveSkillAptitudes({ skillAptitudes: "awa" }, "Sindarin")).toThrow(
+            /map of selector/,
+        );
     });
 });

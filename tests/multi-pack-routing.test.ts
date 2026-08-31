@@ -46,45 +46,36 @@ describe("createPackRouter — which pack a note's document lands in", () => {
     }
 
     it("routes an undeclared note to the default pack of its type", () => {
-        expect(router().resolve({ type: "skill" }, "Item")).toBe(
-            "characteristics",
-        );
+        expect(router().resolve({ type: "skill" }, "Item")).toBe("characteristics");
     });
 
     it("routes a note to the pack it declares", () => {
-        expect(
-            router().resolve({ type: "skill", pack: "mysteries" }, "Item"),
-        ).toBe("mysteries");
+        expect(router().resolve({ type: "skill", pack: "mysteries" }, "Item")).toBe("mysteries");
     });
 
     it("routes a single pack of a type without any declaration", () => {
-        const single = createPackRouter(
-            defineConfigPacks([{ name: "items", type: "Item" }]),
-        );
+        const single = createPackRouter(defineConfigPacks([{ name: "items", type: "Item" }]));
         expect(single.resolve({ type: "skill" }, "Item")).toBe("items");
     });
 
     it("routes a note's *derived* document by the default of that type", () => {
         // A skill note declaring an Item pack still has its prose compiled into
         // the JournalEntry pack — the declaration names where the *item* goes.
-        expect(
-            router().resolve(
-                { type: "skill", pack: "mysteries" },
-                "JournalEntry",
-            ),
-        ).toBe("journals");
+        expect(router().resolve({ type: "skill", pack: "mysteries" }, "JournalEntry")).toBe(
+            "journals",
+        );
     });
 
     it("fails loudly on a pack name nothing declares", () => {
-        expect(() =>
-            router().resolve({ type: "skill", pack: "nosuchpack" }, "Item"),
-        ).toThrow(/nosuchpack/);
+        expect(() => router().resolve({ type: "skill", pack: "nosuchpack" }, "Item")).toThrow(
+            /nosuchpack/,
+        );
     });
 
     it("fails loudly when the declared pack holds another document type", () => {
-        expect(() =>
-            router().resolve({ type: "skill", pack: "journals" }, "Item"),
-        ).toThrow(/journals/);
+        expect(() => router().resolve({ type: "skill", pack: "journals" }, "Item")).toThrow(
+            /journals/,
+        );
     });
 
     it("fails loudly on an undeclared note when no pack of the type is default", () => {
@@ -94,9 +85,7 @@ describe("createPackRouter — which pack a note's document lands in", () => {
                 { name: "mysteries", type: "Item" },
             ]),
         );
-        expect(() => undecided.resolve({ type: "skill" }, "Item")).toThrow(
-            /characteristics/,
-        );
+        expect(() => undecided.resolve({ type: "skill" }, "Item")).toThrow(/characteristics/);
     });
 
     it("never routes a note into a companion pack", () => {
@@ -110,18 +99,12 @@ describe("createPackRouter — which pack a note's document lands in", () => {
             ]),
         );
         expect(() =>
-            withCompanion.resolve(
-                { type: "battlemap", pack: "adventures" },
-                "Scene",
-            ),
+            withCompanion.resolve({ type: "battlemap", pack: "adventures" }, "Scene"),
         ).toThrow(/adventures/);
     });
 
     it("lists every pack of a type, and names the default", () => {
-        expect(router().packsOfType("Item")).toEqual([
-            "characteristics",
-            "mysteries",
-        ]);
+        expect(router().packsOfType("Item")).toEqual(["characteristics", "mysteries"]);
         expect(router().defaultOf("Item")).toBe("characteristics");
     });
 });
@@ -290,12 +273,9 @@ describe("generatePacksJson — two Item packs, notes routed between them", () =
                 {},
                 "Related to [[skill-secondsight|Second Sight]].",
             ),
-            "SecondSight.md": skillNote(
-                "Second Sight",
-                "BBBBBBBBBBBBBBBB",
-                "secondsight",
-                { pack: "mysteries" },
-            ),
+            "SecondSight.md": skillNote("Second Sight", "BBBBBBBBBBBBBBBB", "secondsight", {
+                pack: "mysteries",
+            }),
         });
         roots.push(root);
         errors = await generatePacksJson({
@@ -323,35 +303,23 @@ describe("generatePacksJson — two Item packs, notes routed between them", () =
     });
 
     it("still compiles every note's prose into the one JournalEntry pack", () => {
-        expect(packNames(root, "journals")).toEqual([
-            "Climbing",
-            "Second Sight",
-        ]);
+        expect(packNames(root, "journals")).toEqual(["Climbing", "Second Sight"]);
     });
 
     it("addresses a link by the pack its target actually landed in", () => {
         // The whole reason the collapse was breaking: a compendium UUID
         // carries its pack name. A link into the second Item pack that still
         // said `characteristics` would resolve nowhere.
-        const page = packDocs(root, "journals")["Climbing"].pages[0].text
-            .content;
-        expect(page).toContain(
-            "Compendium.sohl.mysteries.Item.BBBBBBBBBBBBBBBB",
-        );
-        expect(page).not.toContain(
-            "Compendium.sohl.characteristics.Item.BBBBBBBBBBBBBBBB",
-        );
+        const page = packDocs(root, "journals")["Climbing"].pages[0].text.content;
+        expect(page).toContain("Compendium.sohl.mysteries.Item.BBBBBBBBBBBBBBBB");
+        expect(page).not.toContain("Compendium.sohl.characteristics.Item.BBBBBBBBBBBBBBBB");
     });
 });
 
 describe("generatePacksJson — a note that routes nowhere", () => {
     it("fails the build rather than dropping the note", async () => {
         const root = repo({
-            "Climbing.md": skillNote(
-                "Climbing",
-                "AAAAAAAAAAAAAAAA",
-                "climbing",
-            ),
+            "Climbing.md": skillNote("Climbing", "AAAAAAAAAAAAAAAA", "climbing"),
             "Lost.md": skillNote("Lost", "CCCCCCCCCCCCCCCC", "lost", {
                 pack: "nosuchpack",
             }),
@@ -380,11 +348,7 @@ describe("generatePacksJson — a note that routes nowhere", () => {
         console.error = (...args: unknown[]) => messages.push(args.join(" "));
         try {
             const root = repo({
-                "Climbing.md": skillNote(
-                    "Climbing",
-                    "AAAAAAAAAAAAAAAA",
-                    "climbing",
-                ),
+                "Climbing.md": skillNote("Climbing", "AAAAAAAAAAAAAAAA", "climbing"),
                 "Lost.md": skillNote("Lost", "CCCCCCCCCCCCCCCC", "lost", {
                     pack: "nosuchpack",
                 }),

@@ -96,9 +96,7 @@ describe("what the loader derives from where the file sits", () => {
         // Any absolute path a data file wrote would be one machine's, and the
         // build would then read a tree that exists only there.
         const root = repoDir();
-        expect(() =>
-            resolveIn(root, { ...minimal(), rootDir: "/elsewhere" }),
-        ).toThrow(/rootDir/);
+        expect(() => resolveIn(root, { ...minimal(), rootDir: "/elsewhere" })).toThrow(/rootDir/);
     });
 
     it("takes the Foundry package id from the adjacent package.json name", () => {
@@ -115,9 +113,9 @@ describe("what the loader derives from where the file sits", () => {
     });
 
     it("refuses an authored foundryPackage", () => {
-        expect(() =>
-            resolveIn(repoDir(), { ...minimal(), foundryPackage: "elsewhere" }),
-        ).toThrow(/foundryPackage/);
+        expect(() => resolveIn(repoDir(), { ...minimal(), foundryPackage: "elsewhere" })).toThrow(
+            /foundryPackage/,
+        );
     });
 
     it("reads a system's stats.systemVersion from the adjacent package.json", () => {
@@ -155,9 +153,7 @@ describe("a module's system version comes from its system relationship", () => {
                     {
                         id: "sohl",
                         type: "system",
-                        ...(verified ?
-                            { compatibility: { minimum: "0.4.0", verified } }
-                        :   {}),
+                        ...(verified ? { compatibility: { minimum: "0.4.0", verified } } : {}),
                     },
                 ],
             },
@@ -174,9 +170,7 @@ describe("a module's system version comes from its system relationship", () => {
             }),
         });
 
-        expect(resolveIn(root, moduleConfig("0.4.3")).stats.systemVersion).toBe(
-            "0.4.3",
-        );
+        expect(resolveIn(root, moduleConfig("0.4.3")).stats.systemVersion).toBe("0.4.3");
     });
 
     it("never takes it from the module's own package.json version", () => {
@@ -189,18 +183,14 @@ describe("a module's system version comes from its system relationship", () => {
             }),
         });
 
-        expect(
-            resolveIn(root, moduleConfig("0.4.3")).stats.systemVersion,
-        ).not.toBe("0.0.1");
+        expect(resolveIn(root, moduleConfig("0.4.3")).stats.systemVersion).not.toBe("0.0.1");
     });
 
     it("fails when the module declares no usable system relationship", () => {
         // A wrong `_stats.systemVersion` is invisible until something migrates
         // on it, so this refuses rather than guessing.
         const data = moduleConfig();
-        expect(() => resolveIn(repoDir(), data)).toThrow(
-            /relationships\.systems/,
-        );
+        expect(() => resolveIn(repoDir(), data)).toThrow(/relationships\.systems/);
 
         // A module declaring *nothing* is system-agnostic on purpose and stamps
         // null — that is #43, and it is now the only reading available, since
@@ -252,19 +242,15 @@ describe("itemBuilders is named, because a registry is code", () => {
             itemBuilders: "sohl",
         });
         // The same table a code config imports — not a copy of it.
-        expect(Object.keys(config.itemBuilders).sort()).toEqual(
-            Object.keys(ITEM_BUILDERS).sort(),
-        );
+        expect(Object.keys(config.itemBuilders).sort()).toEqual(Object.keys(ITEM_BUILDERS).sort());
         // And the type whitelist is still derived from its keys (#1504).
-        expect([...config.itemTypes].sort()).toEqual(
-            Object.keys(ITEM_BUILDERS).sort(),
-        );
+        expect([...config.itemTypes].sort()).toEqual(Object.keys(ITEM_BUILDERS).sort());
     });
 
     it("names the known registries when given one it does not ship", () => {
-        expect(() =>
-            resolveIn(repoDir(), { ...minimal(), itemBuilders: "thalorna" }),
-        ).toThrow(/thalorna(.|\n)*sohl/);
+        expect(() => resolveIn(repoDir(), { ...minimal(), itemBuilders: "thalorna" })).toThrow(
+            /thalorna(.|\n)*sohl/,
+        );
     });
 
     it("points at the .mjs escape hatch when handed a table", () => {
@@ -282,15 +268,11 @@ describe("itemBuilders is named, because a registry is code", () => {
 describe("the same validator, whichever form the configuration took", () => {
     it("rejects a document that is not a mapping", () => {
         const root = repoDir();
-        expect(() =>
-            resolveIn(root, YAML.parse("- one\n- two") as never),
-        ).toThrow(/mapping/);
+        expect(() => resolveIn(root, YAML.parse("- one\n- two") as never)).toThrow(/mapping/);
     });
 
     it("rejects an unknown key exactly as defineConfig does", () => {
-        expect(() =>
-            resolveIn(repoDir(), { ...minimal(), notAKey: true }),
-        ).toThrow(/notAKey/);
+        expect(() => resolveIn(repoDir(), { ...minimal(), notAKey: true })).toThrow(/notAKey/);
     });
 
     it("freezes the result", () => {

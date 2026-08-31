@@ -51,12 +51,7 @@
 
 import log from "loglevel";
 
-import {
-    sohlField,
-    resolveName,
-    resolveImg,
-    defaultStats,
-} from "./helpers.mjs";
+import { sohlField, resolveName, resolveImg, defaultStats } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { splitPages } from "./journals.mjs";
 
@@ -256,10 +251,7 @@ export function resolveMacroScope(fm, label) {
  * @returns {MacroDocument} The Macro document.
  * @throws {Error} When the frontmatter's macro type or scope is unusable.
  */
-export function buildMacroEntry(
-    fm,
-    { command, folder = null, stats = defaultStats() },
-) {
+export function buildMacroEntry(fm, { command, folder = null, stats = defaultStats() }) {
     const name = resolveName(fm);
     const id = fm.id;
     return {

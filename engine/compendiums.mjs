@@ -87,17 +87,13 @@ export async function compilePacks({
     stageDest = config.paths.stage,
     packName,
 } = {}) {
-    const packNames = sourcePacks.filter(
-        (name) => !packName || name === packName,
-    );
+    const packNames = sourcePacks.filter((name) => !packName || name === packName);
 
     // A prebuilt pack's JSON is checked in rather than generated, so it is
     // compiled from where it lives. Anything else comes from the build-only
     // intermediate the generation pass writes.
     const prebuiltDirs = new Map(
-        config.packs
-            .filter((pack) => pack.prebuilt)
-            .map((pack) => [pack.name, pack.prebuilt]),
+        config.packs.filter((pack) => pack.prebuilt).map((pack) => [pack.name, pack.prebuilt]),
     );
     const needsGeneration = packNames.some((name) => !prebuiltDirs.has(name));
 
@@ -185,8 +181,7 @@ function cleanPackEntry(
     }
     delete data.flags?.importSource;
     delete data.flags?.exportSource;
-    if (data._stats?.lastModifiedBy)
-        data._stats.lastModifiedBy = lastModifiedBy;
+    if (data._stats?.lastModifiedBy) data._stats.lastModifiedBy = lastModifiedBy;
 
     // Remove empty entries in flags
     if (!data.flags) data.flags = {};
@@ -194,18 +189,11 @@ function cleanPackEntry(
         if (Object.keys(contents).length === 0) delete data.flags[key];
     });
 
-    if (data.effects)
-        data.effects.forEach((i) =>
-            cleanPackEntry(i, { clearSourceId: false }),
-        );
-    if (data.items)
-        data.items.forEach((i) => cleanPackEntry(i, { clearSourceId: false }));
-    if (data.pages)
-        data.pages.forEach((i) => cleanPackEntry(i, { ownership: -1 }));
-    if (data.system?.description)
-        data.system.description = cleanString(data.system.description);
-    if (data.system?.biography)
-        data.system.biography = cleanString(data.system.biography);
+    if (data.effects) data.effects.forEach((i) => cleanPackEntry(i, { clearSourceId: false }));
+    if (data.items) data.items.forEach((i) => cleanPackEntry(i, { clearSourceId: false }));
+    if (data.pages) data.pages.forEach((i) => cleanPackEntry(i, { ownership: -1 }));
+    if (data.system?.description) data.system.description = cleanString(data.system.description);
+    if (data.system?.biography) data.system.biography = cleanString(data.system.biography);
     if (data.system?.textReference)
         data.system.textReference = cleanString(data.system.textReference);
     if (data.system?.notes) data.system.notes = cleanString(data.system.notes);
@@ -249,10 +237,7 @@ export async function cleanPacks({
 
     const folders = fs
         .readdirSync(packDest, { withFileTypes: true })
-        .filter(
-            (file) =>
-                file.isDirectory() && (!packName || packName === file.name),
-        );
+        .filter((file) => file.isDirectory() && (!packName || packName === file.name));
 
     /**
      * Walk through directories to find JSON files.
@@ -273,9 +258,7 @@ export async function cleanPacks({
             const json = JSON.parse(await readFile(src, { encoding: "utf8" }));
             if (entryName && entryName !== json.name.toLowerCase()) continue;
             if (!json._id || !json._key) {
-                log.info(
-                    `Failed to clean \x1b[31m${src}\x1b[0m, must have _id and _key.`,
-                );
+                log.info(`Failed to clean \x1b[31m${src}\x1b[0m, must have _id and _key.`);
                 continue;
             }
             cleanPackEntry(json);
@@ -351,21 +334,14 @@ export async function unpackPacks({
         await extractPack(src, dest, {
             log: true,
             transformEntry: (entry) => {
-                if (entryName && entryName !== entry.name.toLowerCase())
-                    return false;
+                if (entryName && entryName !== entry.name.toLowerCase()) return false;
                 cleanPackEntry(entry);
             },
             transformName: (entry) => {
                 if (entry._id in folders)
-                    return path.join(
-                        "folder_",
-                        folders[entry._id].path,
-                        ".json",
-                    );
+                    return path.join("folder_", folders[entry._id].path, ".json");
                 const outputName = slugify(entry.name);
-                const parent =
-                    containers[entry.system?.container] ??
-                    folders[entry.folder];
+                const parent = containers[entry.system?.container] ?? folders[entry.folder];
                 return path.join(parent?.path ?? "", `${outputName}.json`);
             },
         });

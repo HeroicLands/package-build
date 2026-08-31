@@ -55,10 +55,7 @@ import { compendiumUuid, makeId, MAP_TYPES } from "./ids.mjs";
 // The curated region-event vocabulary is shared verbatim with the runtime
 // bridge (`SohlRegionTriggerBehavior`), so an event this build accepts is
 // exactly one the bridge forwards.
-import {
-    CURATED_REGION_EVENTS,
-    EXCLUDED_REGION_EVENTS,
-} from "./region-events.mjs";
+import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -266,10 +263,7 @@ export function assertPixelGeometry(coords, geom) {
  * @throws {Error} When the coordinates read as pixels.
  */
 export function assertGridLocation(at, geom) {
-    const [gx, gy] = [
-        geom.dimensions[0] / geom.pxPerGrid,
-        geom.dimensions[1] / geom.pxPerGrid,
-    ];
+    const [gx, gy] = [geom.dimensions[0] / geom.pxPerGrid, geom.dimensions[1] / geom.pxPerGrid];
     if (at[0] > gx || at[1] > gy) {
         throw new Error(
             `${geom.label}: [${at.join(", ")}] lies outside the map's ` +
@@ -408,9 +402,7 @@ function buildWall(segment, spec, geom, { sceneId, id }) {
  * The shape forms a map note may author. `rect` is the short spelling of
  * `rectangle`, as the design's own examples use.
  */
-const SHAPE_FORMS = Object.freeze(
-    new Set(["rect", "rectangle", "circle", "ellipse", "polygon"]),
-);
+const SHAPE_FORMS = Object.freeze(new Set(["rect", "rectangle", "circle", "ellipse", "polygon"]));
 
 /**
  * Compile one authored shape into a Foundry shape record.
@@ -448,20 +440,14 @@ export function buildShape(spec, geom) {
     }
     const raw = spec[form];
     if (!Array.isArray(raw) || raw.some((n) => !Number.isFinite(n))) {
-        throw new Error(
-            `${geom.label}: ${form} takes a flat list of numbers in pixels`,
-        );
+        throw new Error(`${geom.label}: ${form} takes a flat list of numbers in pixels`);
     }
     assertPixelGeometry(raw, geom);
 
     switch (form) {
         case "rect":
         case "rectangle":
-            expectLength(
-                raw,
-                4,
-                `${geom.label}: rectangle is [x, y, width, height]`,
-            );
+            expectLength(raw, 4, `${geom.label}: rectangle is [x, y, width, height]`);
             return {
                 type: "rectangle",
                 x: raw[0],
@@ -506,8 +492,7 @@ export function buildShape(spec, geom) {
             // which is a line segment and encloses nothing.
             if (raw.length < 6) {
                 throw new Error(
-                    `${geom.label}: a polygon needs at least 3 points; got ` +
-                        `${raw.length / 2}`,
+                    `${geom.label}: a polygon needs at least 3 points; got ` + `${raw.length / 2}`,
                 );
             }
             return { type: "polygon", points: [...raw], hole };
@@ -601,9 +586,7 @@ const BEHAVIOR_SPECS = Object.freeze({
  *
  * @type {ReadonlySet<string>}
  */
-export const REGION_BEHAVIOR_TYPES = Object.freeze(
-    new Set(Object.keys(BEHAVIOR_SPECS)),
-);
+export const REGION_BEHAVIOR_TYPES = Object.freeze(new Set(Object.keys(BEHAVIOR_SPECS)));
 
 /**
  * Behaviour types a map note may **never** carry, and why.
@@ -657,8 +640,7 @@ function buildBehavior(key, spec, ctx) {
     const [type] = types;
 
     const banned = BANNED_REGION_BEHAVIOR_TYPES.get(type);
-    if (banned)
-        throw new Error(`${label}: "${type}" is not permitted — ${banned}`);
+    if (banned) throw new Error(`${label}: "${type}" is not permitted — ${banned}`);
     const behaviorSpec = BEHAVIOR_SPECS[type];
     if (!behaviorSpec) {
         throw new Error(
@@ -680,13 +662,7 @@ function buildBehavior(key, spec, ctx) {
         }
     }
 
-    const system = compileBehaviorSystem(
-        type,
-        authored,
-        behaviorSpec,
-        label,
-        ctx,
-    );
+    const system = compileBehaviorSystem(type, authored, behaviorSpec, label, ctx);
     const id = behaviorDocId(ctx.regionId, key, spec._id);
     const doc = {
         _id: id,
@@ -730,23 +706,17 @@ function compileBehaviorSystem(type, authored, behaviorSpec, label, ctx) {
             const { to, ...rest } = authored;
             return {
                 ...rest,
-                destinations: toList(to).map((addr) =>
-                    ctx.resolveRegionRef(addr, label),
-                ),
+                destinations: toList(to).map((addr) => ctx.resolveRegionRef(addr, label)),
             };
         }
         case "toggleBehavior": {
             const { enable, disable, ...rest } = authored;
             const out = { ...rest, events: [...authored.events] };
             if (enable) {
-                out.enable = toList(enable).map((a) =>
-                    ctx.resolveBehaviorRef(a, label),
-                );
+                out.enable = toList(enable).map((a) => ctx.resolveBehaviorRef(a, label));
             }
             if (disable) {
-                out.disable = toList(disable).map((a) =>
-                    ctx.resolveBehaviorRef(a, label),
-                );
+                out.disable = toList(disable).map((a) => ctx.resolveBehaviorRef(a, label));
             }
             return out;
         }
@@ -765,9 +735,7 @@ function compileBehaviorSystem(type, authored, behaviorSpec, label, ctx) {
         }
         case "applyActiveEffect": {
             return {
-                effects: toList(authored.effects).map((a) =>
-                    ctx.resolveEffectRef(a, label),
-                ),
+                effects: toList(authored.effects).map((a) => ctx.resolveEffectRef(a, label)),
             };
         }
         default:
@@ -821,13 +789,7 @@ const REGION_VISIBILITY = Object.freeze({
 });
 
 /** `CONST.EDGE_RESTRICTION_TYPES`. */
-const RESTRICTION_TYPES = Object.freeze([
-    "light",
-    "darkness",
-    "sight",
-    "sound",
-    "move",
-]);
+const RESTRICTION_TYPES = Object.freeze(["light", "darkness", "sight", "sound", "move"]);
 
 /**
  * Compile one authored region into a Region document with its behaviours.
@@ -925,9 +887,7 @@ export function buildScene(fm, ctx) {
         dimensions.length !== 2 ||
         !dimensions.every((n) => Number.isInteger(n) && n > 0)
     ) {
-        throw new Error(
-            "`dimensions` is [width, height] in whole pixels — the map's own size",
-        );
+        throw new Error("`dimensions` is [width, height] in whole pixels — the map's own size");
     }
     const pxPerGrid = sohl.pxPerGrid;
     if (!Number.isInteger(pxPerGrid) || pxPerGrid <= 0) {
@@ -981,9 +941,7 @@ export function buildScene(fm, ctx) {
 
     if (ctx.journalEntryId) {
         if (!ctx.packageId) {
-            throw new Error(
-                "a map note with a journal needs `packageId` in its compile context",
-            );
+            throw new Error("a map note with a journal needs `packageId` in its compile context");
         }
         // `Scene.journal` is a plain ForeignDocumentField, which
         // `ForeignDocumentField#initialize` unconditionally nulls inside a
@@ -992,12 +950,7 @@ export function buildScene(fm, ctx) {
         // pack needs the flag to find the entry at all.
         scene.journal = ctx.journalEntryId;
         scene.flags[ctx.packageId] = {
-            docUuid: compendiumUuid(
-                ctx.packageId,
-                "doc",
-                ctx.journalEntryId,
-                ctx.journalPack,
-            ),
+            docUuid: compendiumUuid(ctx.packageId, "doc", ctx.journalEntryId, ctx.journalPack),
         };
     }
     return scene;
@@ -1050,9 +1003,7 @@ export function buildWalls(sohl, geom, ctx) {
         const label = `walls.${key}`;
         const segments = toList(spec.segments);
         if (!segments.length) {
-            throw new Error(
-                `${label}: a wall group needs at least one segment`,
-            );
+            throw new Error(`${label}: a wall group needs at least one segment`);
         }
         segments.forEach((segment, i) => {
             const id = makeId("scene-wall", `${ctx.sceneId}:${key}:${i}`);
@@ -1171,8 +1122,7 @@ export function buildSounds(sohl, geom, ctx) {
     return Object.entries(sohl.sounds ?? {}).map(([key, spec]) => {
         const label = `sounds.${key}`;
         const [x, y] = requirePosition(spec.position, { ...geom, label });
-        if (!spec.path)
-            throw new Error(`${label}: an ambient sound needs a path`);
+        if (!spec.path) throw new Error(`${label}: an ambient sound needs a path`);
         const id = spec._id || makeId("scene-sound", `${ctx.sceneId}:${key}`);
         return {
             _id: id,

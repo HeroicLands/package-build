@@ -117,15 +117,11 @@ describe("homepageAddresses", () => {
             {},
             "See [the rules](kb/rules/).\n\n```text\n[not a link](kb/nope/)\n```\n",
         );
-        expect(found.map((a) => [a.field, a.url, a.kind])).toEqual([
-            ["body", "kb/rules/", "body"],
-        ]);
+        expect(found.map((a) => [a.field, a.url, a.kind])).toEqual([["body", "kb/rules/", "body"]]);
     });
 
     it("finds nothing on a note that carries no landing and no body links", () => {
-        expect(
-            homepageAddresses({ title: "Kethira" }, "Plain prose.\n"),
-        ).toEqual([]);
+        expect(homepageAddresses({ title: "Kethira" }, "Plain prose.\n")).toEqual([]);
     });
 });
 
@@ -169,22 +165,15 @@ describe("auditLinks — the homepage", () => {
             ),
         });
         expect(found).toHaveLength(2);
-        expect(found[0]).toContain(
-            'content type "creature", retired in favour of "being"',
-        );
+        expect(found[0]).toContain('content type "creature", retired in favour of "being"');
         expect(found[0]).toContain('mechanical: "kb/being/"');
-        expect(found[1]).toContain(
-            'content type "character", retired in favour of "being"',
-        );
+        expect(found[1]).toContain('content type "character", retired in favour of "being"');
     });
 
     it("reports a retired type in a body link too", () => {
         expect(
             messages({
-                "homepage.md": homepage(
-                    "",
-                    "Every [creature](kb/creature/).\n",
-                ),
+                "homepage.md": homepage("", "Every [creature](kb/creature/).\n"),
             })[0],
         ).toContain('content type "creature", retired in favour of "being"');
     });
@@ -223,10 +212,7 @@ describe("auditLinks — the homepage", () => {
     // the finding still names the package and its base.
     it("reports a foreign package's landing with no manifest vendored (#87)", () => {
         const found = messages({
-            "homepage.md": homepage(
-                "",
-                "See [Thalorna](https://www.heroiclands.org/thalorna/).\n",
-            ),
+            "homepage.md": homepage("", "See [Thalorna](https://www.heroiclands.org/thalorna/).\n"),
         });
         expect(found).toHaveLength(1);
         expect(found[0]).toContain(`package "thalorna"'s landing`);
@@ -240,10 +226,7 @@ describe("auditLinks — the homepage", () => {
     it("leaves an in-site path that names no known package alone", () => {
         expect(
             messages({
-                "homepage.md": homepage(
-                    "",
-                    "See [the blog](https://www.heroiclands.org/news/).\n",
-                ),
+                "homepage.md": homepage("", "See [the blog](https://www.heroiclands.org/news/).\n"),
             }),
         ).toEqual([]);
     });

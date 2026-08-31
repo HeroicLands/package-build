@@ -33,11 +33,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
-import {
-    CONFIG_BASENAME,
-    configFromData,
-    locateConfigError,
-} from "../engine/pack-config.mjs";
+import { CONFIG_BASENAME, configFromData, locateConfigError } from "../engine/pack-config.mjs";
 import { yamlKeyPath, positionOfYamlPath } from "../engine/diagnostics.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -136,12 +132,7 @@ describe("yamlKeyPath", () => {
             1,
             "id",
         ]);
-        expect(yamlKeyPath("packs[1].folders[2]")).toEqual([
-            "packs",
-            1,
-            "folders",
-            2,
-        ]);
+        expect(yamlKeyPath("packs[1].folders[2]")).toEqual(["packs", 1, "folders", 2]);
     });
 
     it("yields nothing for what is not a path", () => {
@@ -151,12 +142,7 @@ describe("yamlKeyPath", () => {
 });
 
 describe("positionOfYamlPath, addressing the key rather than its value", () => {
-    const yaml = [
-        "site:",
-        "    sections:",
-        "        gear: { title: X }",
-        "",
-    ].join("\n");
+    const yaml = ["site:", "    sections:", "        gear: { title: X }", ""].join("\n");
 
     it("points at the declaring key when asked for it", () => {
         // The value is what a type error is about; the *key* is what a message
@@ -167,9 +153,10 @@ describe("positionOfYamlPath, addressing the key rather than its value", () => {
                 key: true,
             }),
         ).toEqual({ line: 3, column: 17 });
-        expect(
-            positionOfYamlPath(yaml, ["site", "sections", "gear", "title"]),
-        ).toEqual({ line: 3, column: 24 });
+        expect(positionOfYamlPath(yaml, ["site", "sections", "gear", "title"])).toEqual({
+            line: 3,
+            column: 24,
+        });
     });
 
     it("still yields nothing when the key is not there", () => {
@@ -199,9 +186,7 @@ describe("a configuration error carries the position of its key", () => {
         const text = `${MINIMAL}\n    - name: 42\n      type: Item\n`;
         const { err } = failureFor(text);
 
-        expect(err.message).toContain(
-            "`packs[1].name` must be a non-empty string.",
-        );
+        expect(err.message).toContain("`packs[1].name` must be a non-empty string.");
         const { line, column } = locatorOf(err.message);
         expect(textAt(text, line, column)).toMatch(/^name: 42/);
     });
@@ -213,9 +198,7 @@ describe("a configuration error carries the position of its key", () => {
         const text = `${MINIMAL}\n    - type: Item\n`;
         const { err } = failureFor(text);
 
-        expect(err.message).toContain(
-            "`packs[1].name` must be a non-empty string.",
-        );
+        expect(err.message).toContain("`packs[1].name` must be a non-empty string.");
         const { line, column } = locatorOf(err.message);
         expect(textAt(text, line, column)).toMatch(/^type: Item/);
     });
@@ -248,8 +231,7 @@ describe("a configuration error carries the position of its key", () => {
         const err = await loadFresh(file);
 
         expect(err.message).toBe(
-            `${file}:10:1: error: package-build config: ` +
-                "`skipDirectories` must be an array.",
+            `${file}:10:1: error: package-build config: ` + "`skipDirectories` must be an array.",
         );
     });
 });
@@ -259,10 +241,7 @@ describe("what cannot be located", () => {
         // There is no YAML text to resolve a key path against, and parsing JS
         // source as YAML would resolve some paths to positions that are not
         // there — which is worse than no position at all.
-        const entry = path
-            .join(HERE, "..", "content-config.mjs")
-            .split(path.sep)
-            .join("/");
+        const entry = path.join(HERE, "..", "content-config.mjs").split(path.sep).join("/");
         const file = configFile(
             [
                 `import { defineConfig } from "file://${entry}";`,

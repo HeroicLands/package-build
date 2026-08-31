@@ -178,9 +178,7 @@ export function setPath(target, dotted, value) {
  */
 export function readField(field, fm) {
     if (field.name === undefined) {
-        return typeof field.value === "function" ?
-                field.value(fm)
-            :   field.value;
+        return typeof field.value === "function" ? field.value(fm) : field.value;
     }
     const raw = sohlField(fm, field.name, field.default);
     return field.read ? field.read(raw, { fm, field }) : raw;

@@ -66,11 +66,7 @@ function inDirectory<T>(dir: string, fn: () => T): T {
 beforeAll(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-symbols-"));
     elsewhere = fs.mkdtempSync(path.join(os.tmpdir(), "cb-elsewhere-"));
-    writeMap(
-        root,
-        MAP_REL,
-        JSON.stringify({ SohlActor: "classes/SohlActor.html" }),
-    );
+    writeMap(root, MAP_REL, JSON.stringify({ SohlActor: "classes/SohlActor.html" }));
 });
 
 afterAll(() => {
@@ -106,11 +102,9 @@ describe("a configured, valid symbol map resolves its tags", () => {
         const empty = fs.mkdtempSync(path.join(os.tmpdir(), "cb-empty-"));
         writeMap(empty, MAP_REL, "{}");
         const lines: string[] = [];
-        const info = vi
-            .spyOn(log, "info")
-            .mockImplementation((...args: unknown[]) => {
-                lines.push(args.join(" "));
-            });
+        const info = vi.spyOn(log, "info").mockImplementation((...args: unknown[]) => {
+            lines.push(args.join(" "));
+        });
         try {
             sohlKbPass({
                 repoRoot: empty,
@@ -184,12 +178,8 @@ describe("the map resolves against the repository, not the cwd", () => {
             apiBase: API_BASE,
             symbolMap: MAP_REL,
         };
-        const fromRoot = inDirectory(root, () =>
-            sohlKbPass(options).beforeLinks(BODY),
-        );
-        const fromElsewhere = inDirectory(elsewhere, () =>
-            sohlKbPass(options).beforeLinks(BODY),
-        );
+        const fromRoot = inDirectory(root, () => sohlKbPass(options).beforeLinks(BODY));
+        const fromElsewhere = inDirectory(elsewhere, () => sohlKbPass(options).beforeLinks(BODY));
         expect(fromRoot).toContain(LINKED);
         expect(fromElsewhere).toBe(fromRoot);
     });
@@ -199,11 +189,7 @@ describe("the map resolves against the repository, not the cwd", () => {
         // relative path. A cwd-relative read finds it and silently publishes
         // the wrong links; a repo-relative read never sees it.
         const decoy = fs.mkdtempSync(path.join(os.tmpdir(), "cb-decoy-"));
-        writeMap(
-            decoy,
-            MAP_REL,
-            JSON.stringify({ SohlActor: "WRONG/decoy.html" }),
-        );
+        writeMap(decoy, MAP_REL, JSON.stringify({ SohlActor: "WRONG/decoy.html" }));
         try {
             const out = inDirectory(decoy, () =>
                 sohlKbPass({
@@ -221,8 +207,6 @@ describe("the map resolves against the repository, not the cwd", () => {
 
     it("refuses a relative map with no repository root to resolve it against", () => {
         // Falling back to the cwd here is how the defect would return.
-        expect(() => sohlKbPass({ symbolMap: MAP_REL } as never)).toThrow(
-            /repoRoot/,
-        );
+        expect(() => sohlKbPass({ symbolMap: MAP_REL } as never)).toThrow(/repoRoot/);
     });
 });

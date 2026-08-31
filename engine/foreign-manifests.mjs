@@ -106,10 +106,7 @@ export function formatUnaddressableFinding(finding, manifestDir) {
     const file = path.join(manifestDir, `${finding.package}.json`);
     let at = {};
     try {
-        at = positionOfLiteral(
-            fs.readFileSync(file, "utf8"),
-            `"${finding.sampleKey}"`,
-        );
+        at = positionOfLiteral(fs.readFileSync(file, "utf8"), `"${finding.sampleKey}"`);
     } catch {
         // Unreadable here is not itself the finding — `loadForeignManifests`
         // already reports that as a stale manifest. The file is simply all that

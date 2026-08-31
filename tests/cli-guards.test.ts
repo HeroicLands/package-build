@@ -74,14 +74,7 @@ describe("an invocation that names no command", () => {
         const { out, err } = run();
         const shown = out + err;
         expect(shown).toMatch(/command/i);
-        for (const command of [
-            "package",
-            "docs",
-            "lint",
-            "links",
-            "manifest",
-            "reachability",
-        ]) {
+        for (const command of ["package", "docs", "lint", "links", "manifest", "reachability"]) {
             expect(shown).toContain(command);
         }
     });
@@ -163,13 +156,7 @@ describe("what still answers without a configuration", () => {
         const { code, out } = run("--help");
 
         expect(code).toBe(0);
-        for (const command of [
-            "package",
-            "docs",
-            "lint",
-            "links",
-            "reachability",
-        ]) {
+        for (const command of ["package", "docs", "lint", "links", "reachability"]) {
             expect(out).toContain(command);
         }
     });

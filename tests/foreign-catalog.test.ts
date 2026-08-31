@@ -44,19 +44,14 @@ describe("pinning a dependency's manifest (#82)", () => {
     });
 
     it("does not double the v prefix when the version carries one", () => {
-        expect(pinnedManifestUrl(LATEST, "v0.8.2").url).toContain(
-            "/download/v0.8.2/",
-        );
+        expect(pinnedManifestUrl(LATEST, "v0.8.2").url).toContain("/download/v0.8.2/");
         expect(pinnedManifestUrl(LATEST, "v0.8.2").url).not.toContain("vv");
     });
 
     it("leaves a URL it cannot rewrite alone, and says so", () => {
         // Reported rather than rewritten: `fetchCatalog` checks the version it
         // gets back instead, so an unpinnable URL still cannot float silently.
-        const out = pinnedManifestUrl(
-            "https://example.invalid/m.json",
-            "1.0.0",
-        );
+        const out = pinnedManifestUrl("https://example.invalid/m.json", "1.0.0");
         expect(out).toEqual({
             url: "https://example.invalid/m.json",
             pinned: false,
@@ -91,9 +86,7 @@ describe("which relationships supply an item catalogue", () => {
                 { id: "other", manifest: LATEST },
             ],
         });
-        expect(itemCatalogRelationships(config).map((r) => r.id)).toEqual([
-            "sohl",
-        ]);
+        expect(itemCatalogRelationships(config).map((r) => r.id)).toEqual(["sohl"]);
     });
 
     it("walks every kind, not just systems", () => {
@@ -125,9 +118,9 @@ describe("which relationships supply an item catalogue", () => {
     });
 
     it("refuses `itemCatalog: true` with nothing to fetch", () => {
-        expect(() =>
-            withRelationships({ systems: [{ id: "sohl", itemCatalog: true }] }),
-        ).toThrow(/manifest/);
+        expect(() => withRelationships({ systems: [{ id: "sohl", itemCatalog: true }] })).toThrow(
+            /manifest/,
+        );
     });
 
     it("refuses a non-boolean", () => {
@@ -159,9 +152,7 @@ describe("reading the catalogue cache", () => {
     it("fails on a cold cache, naming the command that fills it", () => {
         // A compile must never reach the network: a build that downloads
         // silently is not reproducible and fails strangely offline.
-        expect(() => foreignItemCatalogDirs(config(root))).toThrow(
-            /content-build deps fetch/,
-        );
+        expect(() => foreignItemCatalogDirs(config(root))).toThrow(/content-build deps fetch/);
     });
 
     it("ignores a half-finished fetch", () => {
@@ -170,9 +161,7 @@ describe("reading the catalogue cache", () => {
         fs.mkdirSync(path.join(root, "sohl@0.8.2", "items", "items"), {
             recursive: true,
         });
-        expect(() => foreignItemCatalogDirs(config(root))).toThrow(
-            /deps fetch/,
-        );
+        expect(() => foreignItemCatalogDirs(config(root))).toThrow(/deps fetch/);
     });
 
     it("returns each extracted pack directory of a complete cache", () => {
@@ -222,17 +211,16 @@ describe("filling the cache from a local build (not a release)", () => {
         src = fs.mkdtempSync(path.join(os.tmpdir(), "cb-src-"));
     });
     afterEach(() => {
-        for (const d of [root, src])
-            fs.rmSync(d, { recursive: true, force: true });
+        for (const d of [root, src]) fs.rmSync(d, { recursive: true, force: true });
     });
 
     const config = () => ({ paths: { foreignCache: root } });
     const rel = { id: "sohl", manifest: "unused" };
 
     it("refuses a path that does not exist", async () => {
-        await expect(
-            fetchCatalogFromPath(config(), rel, path.join(src, "nope")),
-        ).rejects.toThrow(/nothing at/);
+        await expect(fetchCatalogFromPath(config(), rel, path.join(src, "nope"))).rejects.toThrow(
+            /nothing at/,
+        );
     });
 
     it("refuses a directory holding no manifest", async () => {
@@ -256,10 +244,7 @@ describe("filling the cache from a local build (not a release)", () => {
     });
 
     it("refuses an artifact declaring no version", async () => {
-        fs.writeFileSync(
-            path.join(src, "system.json"),
-            JSON.stringify({ id: "sohl", packs: [] }),
-        );
+        fs.writeFileSync(path.join(src, "system.json"), JSON.stringify({ id: "sohl", packs: [] }));
         await expect(fetchCatalogFromPath(config(), rel, src)).rejects.toThrow(
             /declares no `version`/,
         );

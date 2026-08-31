@@ -178,10 +178,7 @@ describe("what the fast loop was asked to do", () => {
     });
 
     it("rebuilds a named subset, still in declared order", () => {
-        expect(parseFastArgs(["--build=db,code"], build).targets).toEqual([
-            "code",
-            "db",
-        ]);
+        expect(parseFastArgs(["--build=db,code"], build).targets).toEqual(["code", "db"]);
     });
 
     it("builds nothing when asked for none", () => {
@@ -189,9 +186,7 @@ describe("what the fast loop was asked to do", () => {
     });
 
     it("refuses an unknown target rather than half-deploying", () => {
-        expect(() => parseFastArgs(["--build=styles"], build)).toThrow(
-            /styles/,
-        );
+        expect(() => parseFastArgs(["--build=styles"], build)).toThrow(/styles/);
     });
 
     it("recreates the container when a target says the world must relaunch", () => {
@@ -199,9 +194,7 @@ describe("what the fast loop was asked to do", () => {
         // running world deploys a file nothing will look at.
         expect(parseFastArgs(["--build=system"], build).recreate).toBe(true);
         expect(parseFastArgs(["--build=code"], build).recreate).toBe(false);
-        expect(
-            parseFastArgs(["--build=code", "--recreate"], build).recreate,
-        ).toBe(true);
+        expect(parseFastArgs(["--build=code", "--recreate"], build).recreate).toBe(true);
     });
 
     it("can stop once the environment is current", () => {

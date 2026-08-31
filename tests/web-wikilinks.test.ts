@@ -6,11 +6,7 @@
  */
 
 import { describe, it, expect } from "vitest";
-import {
-    slugify,
-    resolveWebWikilinks,
-    frontmatterWikilinks,
-} from "../engine/web-wikilinks.mjs";
+import { slugify, resolveWebWikilinks, frontmatterWikilinks } from "../engine/web-wikilinks.mjs";
 
 /**
  * A stand-in KB index. `index` holds the unambiguous keys (`section/slug` and
@@ -60,8 +56,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
  * than as two builds quietly disagreeing (#1665).
  */
 const unresolved = (text: string, target: string) =>
-    `<span class="sohl-unresolved-link" title="Unresolved link: ${target}">` +
-    `${text}</span>`;
+    `<span class="sohl-unresolved-link" title="Unresolved link: ${target}">` + `${text}</span>`;
 
 describe("slugify (KB heading/anchor slug)", () => {
     it("lowercases and hyphenates, trimming stray separators", () => {
@@ -70,9 +65,7 @@ describe("slugify (KB heading/anchor slug)", () => {
     });
 
     it("leaves an already-slugged anchor unchanged", () => {
-        expect(slugify("blood-loss-advance-test")).toBe(
-            "blood-loss-advance-test",
-        );
+        expect(slugify("blood-loss-advance-test")).toBe("blood-loss-advance-test");
     });
 });
 
@@ -101,12 +94,9 @@ describe("resolveWebWikilinks", () => {
 
     it("keeps an anchor on `doc<type>` an ordinary in-page anchor", () => {
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks(
-                "[[docskill/climb#crafting|how it is made]]",
-                ctx,
-            ),
-        ).toBe("[how it is made](/skill/climbing/#crafting)");
+        expect(resolveWebWikilinks("[[docskill/climb#crafting|how it is made]]", ctx)).toBe(
+            "[how it is made](/skill/climbing/#crafting)",
+        );
         expect(ctx.errors).toEqual([]);
     });
 
@@ -119,27 +109,24 @@ describe("resolveWebWikilinks", () => {
 
     it("appends a section anchor for a cross-page section link", () => {
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks(
-                "the [[doc/shock#shock-state-index|Index]]",
-                ctx,
-            ),
-        ).toBe("the [Index](/rules/sohl-shock/#shock-state-index)");
+        expect(resolveWebWikilinks("the [[doc/shock#shock-state-index|Index]]", ctx)).toBe(
+            "the [Index](/rules/sohl-shock/#shock-state-index)",
+        );
     });
 
     it("renders a same-page section link as a bare anchor href", () => {
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks("see [[#course-test|the Course Test]]", ctx),
-        ).toBe("see [the Course Test](#course-test)");
+        expect(resolveWebWikilinks("see [[#course-test|the Course Test]]", ctx)).toBe(
+            "see [the Course Test](#course-test)",
+        );
         expect(ctx.errors).toEqual([]);
     });
 
     it("crosses content directories to another KB section", () => {
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks("a [[skill/climb|Climbing]] test", ctx),
-        ).toBe("a [Climbing](/skill/climbing/) test");
+        expect(resolveWebWikilinks("a [[skill/climb|Climbing]] test", ctx)).toBe(
+            "a [Climbing](/skill/climbing/) test",
+        );
     });
 
     it("accepts a table-escaped pipe", () => {
@@ -151,18 +138,14 @@ describe("resolveWebWikilinks", () => {
 
     it("falls back to the target's own name when unlabelled", () => {
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc/shock]]", ctx)).toBe(
-            "[Shock](/rules/sohl-shock/)",
-        );
+        expect(resolveWebWikilinks("[[doc/shock]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
     it("falls back to the name for the hyphen form too (#1409)", () => {
         // `type-shortcode` is the canonical address (#1398), so it is no more
         // display text than `type/shortcode` is.
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc-shock]]", ctx)).toBe(
-            "[Shock](/rules/sohl-shock/)",
-        );
+        expect(resolveWebWikilinks("[[doc-shock]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
     it("keeps a hyphenated bare alias as the prose the author wrote (#1409)", () => {
@@ -180,9 +163,7 @@ describe("resolveWebWikilinks", () => {
 
     it("reports a qualified target whose key does not exist", () => {
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc/nosuch|X]]", ctx)).toBe(
-            unresolved("X", "doc/nosuch"),
-        );
+        expect(resolveWebWikilinks("[[doc/nosuch|X]]", ctx)).toBe(unresolved("X", "doc/nosuch"));
         expect(ctx.errors).toHaveLength(1);
         expect(ctx.errors[0]).toMatchObject({
             reason: "broken type/shortcode",
@@ -220,9 +201,9 @@ describe("resolveWebWikilinks", () => {
         // does — and until it did, every cross-type link written in the
         // canonical separator rendered as plain text on the knowledgebase.
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks("a [[skill-climb|Climbing]] test", ctx),
-        ).toBe("a [Climbing](/skill/climbing/) test");
+        expect(resolveWebWikilinks("a [[skill-climb|Climbing]] test", ctx)).toBe(
+            "a [Climbing](/skill/climbing/) test",
+        );
         expect(ctx.errors).toEqual([]);
     });
 
@@ -253,21 +234,16 @@ describe("resolveWebWikilinks", () => {
     it("treats an unknown bare target as an external reference, not an error", () => {
         // Worldbuilding notes kept outside this repo must not fail the build.
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks("the [[Empire of Tanvur|Tanvurans]] rode", ctx),
-        ).toBe(`the ${unresolved("Tanvurans", "Empire of Tanvur")} rode`);
+        expect(resolveWebWikilinks("the [[Empire of Tanvur|Tanvurans]] rode", ctx)).toBe(
+            `the ${unresolved("Tanvurans", "Empire of Tanvur")} rode`,
+        );
         expect(ctx.errors).toEqual([]);
     });
 
     it("treats an unknown prefix as external too", () => {
         const ctx = makeCtx();
-        expect(
-            resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar]]", ctx),
-        ).toBe(
-            unresolved(
-                "Setting/Creatures/Folk/Grukar",
-                "Setting/Creatures/Folk/Grukar",
-            ),
+        expect(resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar]]", ctx)).toBe(
+            unresolved("Setting/Creatures/Folk/Grukar", "Setting/Creatures/Folk/Grukar"),
         );
         expect(ctx.errors).toEqual([]);
     });
@@ -297,12 +273,9 @@ describe("cross-package addresses (link manifest)", () => {
 
     it("renders a foreign address as a real link", () => {
         const ctx = makeCtx({ foreign, manifestsComplete: true });
-        expect(
-            resolveWebWikilinks(
-                "the [[creature-grkrahk|Grukar-ahk]] spawn",
-                ctx,
-            ),
-        ).toBe("the [Grukar-ahk](/thalorna/creature/grukar-ahk/) spawn");
+        expect(resolveWebWikilinks("the [[creature-grkrahk|Grukar-ahk]] spawn", ctx)).toBe(
+            "the [Grukar-ahk](/thalorna/creature/grukar-ahk/) spawn",
+        );
         expect(ctx.errors).toHaveLength(0);
     });
 
@@ -315,9 +288,7 @@ describe("cross-package addresses (link manifest)", () => {
 
     it("prefers the local index — a live build outranks a vendored manifest", () => {
         const ctx = makeCtx({ foreign, manifestsComplete: true, type: null });
-        expect(resolveWebWikilinks("[[skill-climb]]", ctx)).toBe(
-            "[Climbing](/skill/climbing/)",
-        );
+        expect(resolveWebWikilinks("[[skill-climb]]", ctx)).toBe("[Climbing](/skill/climbing/)");
     });
 
     it("fails an address that resolves nowhere, once manifests are complete", () => {
@@ -361,9 +332,7 @@ describe("cross-package addresses (link manifest)", () => {
             ],
         ]);
         const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
-        expect(resolveWebWikilinks("a [[creature-wolf]] howls", ctx)).toBe(
-            "a Dire Wolf howls",
-        );
+        expect(resolveWebWikilinks("a [[creature-wolf]] howls", ctx)).toBe("a Dire Wolf howls");
         expect(ctx.errors).toHaveLength(0);
     });
 
@@ -372,9 +341,7 @@ describe("cross-package addresses (link manifest)", () => {
             ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
         const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
-        expect(resolveWebWikilinks("a [[creature-wolf|grey wolf]]", ctx)).toBe(
-            "a grey wolf",
-        );
+        expect(resolveWebWikilinks("a [[creature-wolf|grey wolf]]", ctx)).toBe("a grey wolf");
         expect(ctx.errors).toHaveLength(0);
     });
 
@@ -413,9 +380,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
 
     it("leaves a resolved link untouched", () => {
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc/shock|Shock]]", ctx)).toBe(
-            "[Shock](/rules/sohl-shock/)",
-        );
+        expect(resolveWebWikilinks("[[doc/shock|Shock]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
         expect(resolveWebWikilinks("[[doc/shock|Shock]]", ctx)).not.toContain(
             "sohl-unresolved-link",
         );
@@ -440,9 +405,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
         // must not introduce one.
         const ctx = makeCtx();
         const out = resolveWebWikilinks("| [[Nowhere At All]] |", ctx);
-        expect(out).toBe(
-            `| ${unresolved("Nowhere At All", "Nowhere At All")} |`,
-        );
+        expect(out).toBe(`| ${unresolved("Nowhere At All", "Nowhere At All")} |`);
         expect(out.split("|")).toHaveLength(3);
     });
 });
@@ -465,9 +428,7 @@ describe("a code fence is verbatim (#1505)", () => {
 
     it("leaves an inline code span alone", () => {
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("write `grid[[0]]` here", ctx)).toBe(
-            "write `grid[[0]]` here",
-        );
+        expect(resolveWebWikilinks("write `grid[[0]]` here", ctx)).toBe("write `grid[[0]]` here");
     });
 });
 
@@ -505,9 +466,7 @@ describe("frontmatterWikilinks (#1428)", () => {
     });
 
     it("reports every link in one value, in reading order", () => {
-        expect(
-            frontmatterWikilinks({ summary: "[[a-one]] then [[b-two|Two]]" }),
-        ).toEqual([
+        expect(frontmatterWikilinks({ summary: "[[a-one]] then [[b-two|Two]]" })).toEqual([
             { path: "summary", link: "[[a-one]]" },
             { path: "summary", link: "[[b-two|Two]]" },
         ]);

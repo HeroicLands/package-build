@@ -189,8 +189,6 @@ export class Items extends BasePackCompiler {
 
     /** @inheritdoc */
     reportDetail(stats) {
-        log.debug(
-            `Skipped ${stats.skippedOther} non-item file(s) (no recognized type)`,
-        );
+        log.debug(`Skipped ${stats.skippedOther} non-item file(s) (no recognized type)`);
     }
 }

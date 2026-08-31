@@ -82,8 +82,7 @@ const DOCS = [
 const index = buildWikilinkIndex(DOCS, "sohl");
 const from = { type: "doc", id: "aaaaaaaaaaaaaaa2" }; // "Bleeding"
 
-const convert = (src: string, ctx = from) =>
-    convertWikilinks(src, { ...ctx, index });
+const convert = (src: string, ctx = from) => convertWikilinks(src, { ...ctx, index });
 
 describe("packForType (content type → the pack it compiles into)", () => {
     it("routes the non-item types to their own packs", () => {
@@ -162,17 +161,13 @@ describe("anchorPageId (deterministic JournalEntryPage id for an anchor)", () =>
     it("differs by anchor slug and by note id", () => {
         const a = anchorPageId("aaaaaaaaaaaaaaa1", "shock-state-index");
         expect(a).not.toBe(anchorPageId("aaaaaaaaaaaaaaa1", "shock-states"));
-        expect(a).not.toBe(
-            anchorPageId("aaaaaaaaaaaaaaa9", "shock-state-index"),
-        );
+        expect(a).not.toBe(anchorPageId("aaaaaaaaaaaaaaa9", "shock-state-index"));
     });
 });
 
 describe("convertWikilinks", () => {
     it("converts a qualified link to a same-pack @UUID enricher", () => {
-        const { markdown, unresolved } = convert(
-            "see [[doc/shock|the Shock rules]].",
-        );
+        const { markdown, unresolved } = convert("see [[doc/shock|the Shock rules]].");
         expect(markdown).toBe(
             "see @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{the Shock rules}.",
         );
@@ -180,9 +175,7 @@ describe("convertWikilinks", () => {
     });
 
     it("converts a bare link via a unique alias in the source's own type", () => {
-        const { markdown } = convert(
-            "worsens the [[Shock State]] of the victim",
-        );
+        const { markdown } = convert("worsens the [[Shock State]] of the victim");
         expect(markdown).toBe(
             "worsens the @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock State} of the victim",
         );
@@ -218,9 +211,7 @@ describe("convertWikilinks", () => {
 
     it("converts a cross-page section link to a JournalEntryPage target", () => {
         const page = anchorPageId("aaaaaaaaaaaaaaa1", "shock-state-index");
-        const { markdown } = convert(
-            "the [[doc/shock#shock-state-index|Shock State Index]]",
-        );
+        const { markdown } = convert("the [[doc/shock#shock-state-index|Shock State Index]]");
         expect(markdown).toBe(
             "the @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1.JournalEntryPage." +
                 page +
@@ -230,9 +221,7 @@ describe("convertWikilinks", () => {
 
     it("resolves a same-page anchor against the source note itself", () => {
         const page = anchorPageId(from.id, "blood-loss-advance-test");
-        const { markdown } = convert(
-            "see [[#blood-loss-advance-test|the advance test]]",
-        );
+        const { markdown } = convert("see [[#blood-loss-advance-test|the advance test]]");
         expect(markdown).toBe(
             "see @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa2.JournalEntryPage." +
                 page +
@@ -271,9 +260,7 @@ describe("convertWikilinks", () => {
     });
 
     it("leaves an unknown shortcode untouched and reports it", () => {
-        const { markdown, unresolved } = convert(
-            "the [[doc/nosuchcode|Injury]] rules",
-        );
+        const { markdown, unresolved } = convert("the [[doc/nosuchcode|Injury]] rules");
         expect(markdown).toBe(
             `the ${'<span class="sohl-unresolved-link" title="Unresolved link: doc/nosuchcode">Injury</span>'} rules`,
         );
@@ -282,9 +269,7 @@ describe("convertWikilinks", () => {
     });
 
     it("rejects a qualifier that is not a content type — including the retired directory form", () => {
-        const { markdown, unresolved } = convert(
-            "the [[Rules/shock|Shock]] rules",
-        );
+        const { markdown, unresolved } = convert("the [[Rules/shock|Shock]] rules");
         expect(markdown).toBe(
             `the ${'<span class="sohl-unresolved-link" title="Unresolved link: Rules/shock">Shock</span>'} rules`,
         );
@@ -292,15 +277,12 @@ describe("convertWikilinks", () => {
     });
 
     it("never touches external markdown links or intra-page markdown", () => {
-        const src =
-            "see [Kelestia](https://www.kelestia.com/) and ![art](icons/a.svg)";
+        const src = "see [Kelestia](https://www.kelestia.com/) and ![art](icons/a.svg)";
         expect(convert(src).markdown).toBe(src);
     });
 
     it("converts every link on a line, and leaves surrounding prose alone", () => {
-        const { markdown } = convert(
-            "[[doc/shock|Shock]] and [[skill/climb|Climbing]] both",
-        );
+        const { markdown } = convert("[[doc/shock|Shock]] and [[skill/climb|Climbing]] both");
         expect(markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock} and " +
                 "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} both",
@@ -317,9 +299,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     const climbDoc = itemDocEntryId("bbbbbbbbbbbbbbb1");
 
     it("addresses the item doc entry, not the item", () => {
-        const { markdown, unresolved } = convert(
-            "see [[docskill/climb|the Climbing rules]]",
-        );
+        const { markdown, unresolved } = convert("see [[docskill/climb|the Climbing rules]]");
         expect(markdown).toBe(
             `see @UUID[Compendium.sohl.journals.JournalEntry.${climbDoc}]{the Climbing rules}`,
         );
@@ -330,9 +310,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
 
     it("addresses a page within the item doc via an anchor", () => {
         const page = anchorPageId(climbDoc, "crafting");
-        const { markdown } = convert(
-            "the [[docskill/climb#crafting|crafting rules]]",
-        );
+        const { markdown } = convert("the [[docskill/climb#crafting|crafting rules]]");
         expect(markdown).toBe(
             "the @UUID[Compendium.sohl.journals.JournalEntry." +
                 `${climbDoc}.JournalEntryPage.${page}]{crafting rules}`,
@@ -381,9 +359,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     });
 
     it("reports an unknown shortcode under a valid virtual qualifier", () => {
-        const { markdown, unresolved } = convert(
-            "[[docskill/nosuchcode|Nope]]",
-        );
+        const { markdown, unresolved } = convert("[[docskill/nosuchcode|Nope]]");
         expect(markdown).toBe(
             '<span class="sohl-unresolved-link" title="Unresolved link: docskill/nosuchcode">Nope</span>',
         );
@@ -394,12 +370,8 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         // Only a JournalEntry has pages. Rather than forge a JournalEntryPage id
         // onto a document that can never hold one (the #1362 defect), the anchor
         // is simply dropped and the link addresses the item.
-        const { markdown, unresolved } = convert(
-            "[[skill/climb#crafting|Climbing]]",
-        );
-        expect(markdown).toBe(
-            "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
-        );
+        const { markdown, unresolved } = convert("[[skill/climb#crafting|Climbing]]");
+        expect(markdown).toBe("@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}");
         expect(markdown).not.toContain("JournalEntryPage");
         expect(unresolved).toEqual([]);
     });
@@ -442,9 +414,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
             ...from,
             index: withReal,
         });
-        expect(markdown).toBe(
-            "@UUID[Compendium.sohl.items.Item.fffffffffffffff1]{X}",
-        );
+        expect(markdown).toBe("@UUID[Compendium.sohl.items.Item.fffffffffffffff1]{X}");
     });
 });
 
@@ -461,10 +431,7 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         // separator was understood this resolved only from a `doc` note and
         // silently failed from every other type — 283 links at the time.
         const fromSkill = { type: "skill", id: "bbbbbbbbbbbbbbb1" };
-        const { markdown, unresolved } = convert(
-            "[[doc-shock|Shock]]",
-            fromSkill,
-        );
+        const { markdown, unresolved } = convert("[[doc-shock|Shock]]", fromSkill);
         expect(markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock}",
         );
@@ -517,10 +484,10 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
             ],
             "sohl",
         );
-        const { markdown, unresolved } = convertWikilinks(
-            "[[trauma-self-pro|Self-Protective]]",
-            { ...from, index: withHyphenCode },
-        );
+        const { markdown, unresolved } = convertWikilinks("[[trauma-self-pro|Self-Protective]]", {
+            ...from,
+            index: withHyphenCode,
+        });
         expect(markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.99999999999999a1]{Self-Protective}",
         );
@@ -668,9 +635,7 @@ describe("readQualifier — the optional package segment (#1499)", () => {
     });
 
     it("still reads the virtual doc<type> form under a package", () => {
-        expect(
-            readQualifier("thalorna-docskill-wpnc", TYPES, PACKAGES),
-        ).toEqual({
+        expect(readQualifier("thalorna-docskill-wpnc", TYPES, PACKAGES)).toEqual({
             type: "skill",
             shortcode: "wpnc",
             itemDoc: true,
@@ -684,10 +649,7 @@ describe("an unresolved link keeps its text and is marked (#1499)", () => {
     const from = { type: "doc", id: "1111111111111111", index };
 
     it("keeps the label, so the sentence still reads", () => {
-        const { markdown } = convertWikilinks(
-            "the [[skill-nosuchcode|climbing]] check",
-            from,
-        );
+        const { markdown } = convertWikilinks("the [[skill-nosuchcode|climbing]] check", from);
         expect(markdown).toContain(">climbing</span>");
         expect(markdown).toContain("the ");
         expect(markdown).toContain(" check");
@@ -734,15 +696,11 @@ describe("a code fence is verbatim (#1505)", () => {
         expect(markdown).toContain(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock}",
         );
-        expect(markdown).toContain(
-            "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
-        );
+        expect(markdown).toContain("@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}");
     });
 
     it("does not report a would-be link inside a fence as unresolved", () => {
-        const { markdown, unresolved } = convert(
-            "```\n[[skill-nosuchcode]]\n```",
-        );
+        const { markdown, unresolved } = convert("```\n[[skill-nosuchcode]]\n```");
         expect(markdown).toBe("```\n[[skill-nosuchcode]]\n```");
         expect(unresolved).toEqual([]);
     });

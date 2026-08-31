@@ -230,12 +230,7 @@ function shapeOf(literal) {
 export function collectScriptReferences(source, { file, roots }) {
     const { whole, scan } = patternsFor(roots);
     const result = emptySet();
-    const sourceFile = ts.createSourceFile(
-        file,
-        source,
-        ts.ScriptTarget.Latest,
-        true,
-    );
+    const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true);
 
     // `parseDiagnostics` is TypeScript's own and not part of its published
     // surface, hence the guard. A file that does not parse contributes no
@@ -278,11 +273,7 @@ export function collectScriptReferences(source, { file, roots }) {
      * @returns {boolean} Whether its `.text` is the whole literal.
      */
     const isPlainString = (node) =>
-        Boolean(
-            node &&
-            (ts.isStringLiteral(node) ||
-                ts.isNoSubstitutionTemplateLiteral(node)),
-        );
+        Boolean(node && (ts.isStringLiteral(node) || ts.isNoSubstitutionTemplateLiteral(node)));
 
     /**
      * Read the concrete keys out of one literal chunk of a template.
@@ -316,11 +307,7 @@ export function collectScriptReferences(source, { file, roots }) {
     const prefixLiterals = new Set();
 
     const visit = (node) => {
-        if (
-            ts.isStringLiteral(node) &&
-            whole.test(node.text) &&
-            !prefixLiterals.has(node)
-        ) {
+        if (ts.isStringLiteral(node) && whole.test(node.text) && !prefixLiterals.has(node)) {
             addKey(node.text, node.getStart());
         }
 
@@ -328,20 +315,12 @@ export function collectScriptReferences(source, { file, roots }) {
         // not string-literal nodes — inline markup in a helper puts them inside
         // the literal's text — so they would otherwise be invisible.
         if (ts.isNoSubstitutionTemplateLiteral(node)) {
-            addChunkKeys(
-                node.text,
-                { openStart: false, openEnd: false },
-                node.getStart(),
-            );
+            addChunkKeys(node.text, { openStart: false, openEnd: false }, node.getStart());
         }
 
         if (ts.isTemplateExpression(node)) {
             const spans = node.templateSpans;
-            addChunkKeys(
-                node.head.text,
-                { openStart: false, openEnd: true },
-                node.getStart(),
-            );
+            addChunkKeys(node.head.text, { openStart: false, openEnd: true }, node.getStart());
             spans.forEach((span, index) => {
                 addChunkKeys(
                     span.literal.text,
@@ -366,8 +345,7 @@ export function collectScriptReferences(source, { file, roots }) {
         // it, so those leaves are never named in any source file.
         if (
             (ts.isPropertyDeclaration(node) || ts.isPropertyAssignment(node)) &&
-            node.name?.getText(sourceFile).replace(/["']/g, "") ===
-                "LOCALIZATION_PREFIXES" &&
+            node.name?.getText(sourceFile).replace(/["']/g, "") === "LOCALIZATION_PREFIXES" &&
             node.initializer &&
             ts.isArrayLiteralExpression(node.initializer)
         ) {
@@ -423,10 +401,7 @@ export function collectTemplateReferences(source, { file, roots }) {
 
         // A substitution written directly against the token completes its last
         // segment, so the namespace is one segment shorter than the token.
-        const namespace =
-            rest.startsWith("${") ?
-                token.replace(/\.[A-Za-z0-9_]*$/, "")
-            :   token;
+        const namespace = rest.startsWith("${") ? token.replace(/\.[A-Za-z0-9_]*$/, "") : token;
         result.namespaces.push(namespace);
 
         // Recover the whole literal so its shape, not merely its head, decides
@@ -436,9 +411,7 @@ export function collectTemplateReferences(source, { file, roots }) {
         const quote = source[index - 1];
         if (quote === "'" || quote === '"' || quote === "`") {
             const end = source.indexOf(quote, index);
-            const pattern = shapeOf(
-                source.slice(index, end === -1 ? undefined : end),
-            );
+            const pattern = shapeOf(source.slice(index, end === -1 ? undefined : end));
             if (pattern) result.patterns.push(pattern);
         }
     }
@@ -478,9 +451,7 @@ export function mergeReferences(sets) {
  * @returns {RegExp} The matcher.
  */
 function matcherFor(pattern) {
-    return new RegExp(
-        `^${pattern.split("*").map(escapeRegExp).join("[^.]+")}$`,
-    );
+    return new RegExp(`^${pattern.split("*").map(escapeRegExp).join("[^.]+")}$`);
 }
 
 /**
@@ -502,13 +473,7 @@ function matcherFor(pattern) {
  *   questions: one says the package is broken, the other that it carries
  *   something nobody could see a use for.
  */
-export function analyzeCoverage({
-    langSource,
-    langFile,
-    references,
-    retained = [],
-    roots,
-}) {
+export function analyzeCoverage({ langSource, langFile, references, retained = [], roots }) {
     let declared;
     try {
         declared = JSON.parse(langSource);
@@ -578,17 +543,14 @@ export function analyzeCoverage({
         });
     }
 
-    const referenced = new Set(
-        (references.keys ?? []).map((reference) => reference.key),
-    );
+    const referenced = new Set((references.keys ?? []).map((reference) => reference.key));
     const shapes = (references.patterns ?? []).map(matcherFor);
     // Foundry localizes a DataModel's field labels and hints off the declared
     // prefix, so no source names them one by one.
     const fieldShapes = [...namespaces].map(
         (namespace) =>
             new RegExp(
-                `^${escapeRegExp(namespace)}\\.FIELDS\\.` +
-                    `[A-Za-z0-9_.]+\\.(?:label|hint)$`,
+                `^${escapeRegExp(namespace)}\\.FIELDS\\.` + `[A-Za-z0-9_.]+\\.(?:label|hint)$`,
             ),
     );
 
@@ -596,13 +558,10 @@ export function analyzeCoverage({
         referenced.has(key) ||
         shapes.some((shape) => shape.test(key)) ||
         fieldShapes.some((shape) => shape.test(key));
-    const isRetained = (key) =>
-        retained.some((prefix) => key === prefix || key.startsWith(prefix));
+    const isRetained = (key) => retained.some((prefix) => key === prefix || key.startsWith(prefix));
 
     const unreferenced = declaredKeys
-        .filter((key) =>
-            known.some((root) => key === root || key.startsWith(`${root}.`)),
-        )
+        .filter((key) => known.some((root) => key === root || key.startsWith(`${root}.`)))
         .filter((key) => !isReferenced(key) && !isRetained(key))
         .map((key) => ({
             file: langFile,
