@@ -123,8 +123,6 @@ describe("the declarations preserve the vocabulary they replaced", () => {
             impact: { die: 6 },
         });
         expect(withDie.impactBase).toEqual({
-            overrideDice: true,
-            overrideModifier: false,
             numDice: 1,
             die: 6,
             modifier: 0,
@@ -132,7 +130,6 @@ describe("the declarations preserve the vocabulary they replaced", () => {
         });
         const withoutDie = build("projectilegear", { subType: "arrow" });
         expect(withoutDie.impactBase.numDice).toBe(0);
-        expect(withoutDie.impactBase.overrideDice).toBe(false);
     });
 
     it("layers the gear constants onto every gear type", () => {

@@ -312,11 +312,6 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "Whether it is currently dormant. Play state.",
         },
         {
-            to: "isTreated",
-            value: false,
-            describe: "Whether it has been treated. Play state.",
-        },
-        {
             name: "levelBase",
             to: "levelBase",
             ...NUMBER,
@@ -634,22 +629,6 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "What kind of projectile it is.",
         },
         {
-            name: "impact.overrideDice",
-            to: "impactBase.overrideDice",
-            shape: "boolean",
-            read: (raw, { fm }) => Boolean(raw ?? impactDie(fm) > 0),
-            describe:
-                "Whether the projectile's dice replace the launching weapon's. Defaults to true when the projectile declares a die.",
-        },
-        {
-            name: "impact.overrideModifier",
-            to: "impactBase.overrideModifier",
-            shape: "boolean",
-            read: (raw) => Boolean(raw ?? false),
-            describe:
-                "Whether the projectile's modifier replaces the launching weapon's.",
-        },
-        {
             to: "impactBase.numDice",
             value: (fm) => (impactDie(fm) > 0 ? 1 : 0),
             describe:
@@ -780,20 +759,6 @@ export const ITEM_FIELDS = Object.freeze({
             default: null,
             describe:
                 "How the injury was inflicted. Unset on a descriptive condition.",
-        },
-        {
-            name: "isTreated",
-            to: "isTreated",
-            ...BOOLEAN,
-            default: false,
-            describe: "Whether it has been treated.",
-        },
-        {
-            name: "isBleeding",
-            to: "isBleeding",
-            ...BOOLEAN,
-            default: false,
-            describe: "Whether it is bleeding.",
         },
         {
             name: "bodyLocationCode",
