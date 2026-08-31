@@ -72,6 +72,7 @@ const SECTION_KEYS = [
     "assetTransform",
     "manifest",
     "manifestFlags",
+    "schema",
     "clean",
     "lang",
     "deploy",
@@ -225,6 +226,41 @@ function normalizeAsset(value, index) {
         from: requireNonEmptyString(asset.from, `${where}.from`),
         to: requireNonEmptyString(asset.to, `${where}.to`),
     });
+}
+
+/**
+ * Validate the DataModel registries `package-build schema` reads.
+ *
+ * Each entry names a file and the binding in it that maps subtype to DataModel
+ * class. Two keys rather than a convention because the two repositories that
+ * declare this disagree on both: one keeps `ITEM_DM_DEF` and `ACTOR_DM_DEF` in
+ * a single configuration module, the other keeps `itemModels` and `actorModels`
+ * in a file apiece. Neither layout is more correct, and guessing between them
+ * would fail by reading nothing rather than by complaining.
+ *
+ * The document type is the key, so a package that models only Items simply says
+ * so — there is no empty `Actor` entry to write.
+ *
+ * @param {unknown} value - The `schema` block, or `undefined`.
+ * @returns {Readonly<object[]>} Registry entries; empty when absent.
+ */
+function normalizeSchema(value) {
+    if (value === undefined) return Object.freeze([]);
+    if (!isMapping(value)) fail("packageBuild.schema", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+
+    const entries = Object.entries(input).map(([documentType, entry]) => {
+        const where = `packageBuild.schema.${documentType}`;
+        if (!isMapping(entry)) fail(where, "must be a mapping");
+        const row = /** @type {Record<string, unknown>} */ (entry);
+        rejectUnknownKeys(row, ["from", "registry"], `${where}.`);
+        return Object.freeze({
+            documentType,
+            from: requireNonEmptyString(row.from, `${where}.from`),
+            registry: requireNonEmptyString(row.registry, `${where}.registry`),
+        });
+    });
+    return Object.freeze(entries);
 }
 
 /**
@@ -695,6 +731,7 @@ export function resolvePackageBuildConfig(shared) {
                     "packageBuild.release.artifact",
                 ),
         assets: Object.freeze(assets),
+        schema: normalizeSchema(section.schema),
         assetTransform:
             section.assetTransform === undefined ?
                 null

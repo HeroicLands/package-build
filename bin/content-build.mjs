@@ -414,9 +414,32 @@ function lintCommand() {
                             `\`content-build deps fetch\`.`,
                     );
                 }
-                if (schema) {
+                const fieldSpecs = config.itemFields ?? {};
+                const comparable = Object.keys(fieldSpecs).length > 0;
+                if (schema && !comparable) {
+                    // A schema, and nothing to compare it against. The emitted
+                    // side of this check is the `fields:` of `itemBuilders`, so
+                    // a package whose compendium content is committed JSON
+                    // rather than built from field declarations has an empty
+                    // one — and every field the system declares would be
+                    // reported as unemitted. That is hundreds of findings whose
+                    // only content is that this package does not build
+                    // documents this way, which is not news and not a defect.
+                    //
+                    // Said out loud rather than skipped in silence, for the
+                    // same reason the absent-schema case is: a check that
+                    // quietly does nothing reads exactly like one that passed.
+                    log.info(
+                        `Read ${config.stats?.systemId ?? "the system"}'s ` +
+                            `schema, but this package declares no ` +
+                            `\`itemBuilders\` field specifications — so there ` +
+                            `is nothing to compare it against and the ` +
+                            `emitted-versus-declared check does not apply.`,
+                    );
+                }
+                if (schema && comparable) {
                     const { undeclared, unemitted } = compareFields({
-                        builders: config.itemFields ?? {},
+                        builders: fieldSpecs,
                         artifact: schema.artifact,
                     });
                     for (const f of undeclared) {

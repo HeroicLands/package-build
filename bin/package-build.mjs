@@ -80,6 +80,8 @@ import { hideBin } from "yargs/helpers";
 import { loadPackageBuildConfig } from "../config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
+import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
+import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import {
     analyzeCoverage,
@@ -307,6 +309,109 @@ function assetsCommand() {
             });
             console.log(
                 `✅ Static assets staged (${count} entries, ${files} files).`,
+            );
+        }),
+    };
+}
+
+/**
+ * Format generated text the way the repository formats everything else.
+ *
+ * Not cosmetic. A generated file that Prettier would reformat leaves
+ * `lint:format` and the generator's own `--check` each demanding what the other
+ * forbids, and the repository cannot be made green. Resolving the config from
+ * the *output path* is what makes one implementation here serve repositories
+ * with different Prettier settings.
+ *
+ * Imported on use, as `prose-lint.mjs` does, so that commands which never
+ * format do not pay to load it.
+ *
+ * @param {string} text - The unformatted content.
+ * @param {string} filepath - Where it will be written.
+ * @returns {Promise<string>} The formatted content.
+ */
+async function formatGenerated(text, filepath) {
+    const prettier = await import("prettier");
+    const config = await prettier.resolveConfig(filepath);
+    return prettier.format(text, { ...config, filepath });
+}
+
+/**
+ * `schema` — publish this package's DataModel field sets as `schema.json`.
+ *
+ * The producing half of the check `content-build lint` runs: Foundry discards
+ * an unknown `system` key at construction and says nothing, so a content build
+ * needs to know what a document will actually receive (#60). It cannot ask a
+ * running Foundry, and it cannot read `defineSchema()` from a sibling checkout,
+ * so the system publishes the field sets as data — the same shape the link
+ * manifest already uses for addresses.
+ *
+ * `--check` fails when the committed copy disagrees with what the source would
+ * produce now, because a generated file nothing checks drifts from its
+ * generator silently — and this one is read by other repositories.
+ *
+ * @returns {object} The yargs command module.
+ */
+function schemaCommand() {
+    return {
+        command: "schema",
+        describe: "Publish this package's DataModel field sets as schema.json",
+        builder: (y) =>
+            y.option("check", {
+                type: "boolean",
+                default: false,
+                describe:
+                    "Fail when the committed schema.json is out of date " +
+                    "rather than rewriting it",
+            }),
+        handler: handler(async (argv) => {
+            const config = loadPackageBuildConfig();
+            if (!config.schema.length) {
+                console.log(
+                    "package-build: no `packageBuild.schema` declared; " +
+                        "nothing to publish.",
+                );
+                return;
+            }
+
+            const pkg = readPackageJson(config);
+            const artifact = buildSchemaArtifact({
+                rootDir: config.rootDir,
+                registries: config.schema,
+                packageId: config.packageId,
+                version: pkg.version,
+            });
+
+            const out = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
+            const text = await formatGenerated(JSON.stringify(artifact), out);
+            const counts = Object.entries(artifact.documents)
+                .map(
+                    ([kind, subtypes]) =>
+                        `${Object.keys(subtypes).length} ${kind}`,
+                )
+                .join(", ");
+
+            if (argv.check) {
+                const current =
+                    fs.existsSync(out) ? fs.readFileSync(out, "utf8") : null;
+                if (current !== text) {
+                    die(
+                        `${SCHEMA_ARTIFACT_FILE} does not match what this ` +
+                            `package's data models would produce — regenerate ` +
+                            `it with \`package-build schema\`.`,
+                    );
+                }
+                console.log(
+                    `✅ ${SCHEMA_ARTIFACT_FILE} is up to date ` +
+                        `(${counts} subtypes).`,
+                );
+                return;
+            }
+
+            fs.writeFileSync(out, text, "utf8");
+            console.log(
+                `✅ Wrote ${SCHEMA_ARTIFACT_FILE} for ${artifact.system} ` +
+                    `${artifact.systemVersion} (${counts} subtypes).`,
             );
         }),
     };
@@ -927,6 +1032,7 @@ yargs(hideBin(process.argv))
     .command(cleanCommand())
     .command(assetsCommand())
     .command(manifestCommand())
+    .command(schemaCommand())
     .command(langCommand())
     .command(bundleCommand())
     .command(releaseCommand())
