@@ -301,6 +301,109 @@ export const itemModels = {child: Child};
     });
 });
 
+describe("buildSchemaArtifact — a schema builder in another file", () => {
+    beforeAll(() => {
+        write(
+            "xfile/shared.ts",
+            `
+export function defineSharedSchema() {
+    return {
+        shortcode: new StringField({}),
+        actionDefs: new ArrayField(new SchemaField({title: new StringField({})}))
+    };
+}
+`,
+        );
+        write(
+            "xfile/models.ts",
+            `
+import {defineSharedSchema} from "./shared";
+
+export class ThingData {
+    static defineSchema() {
+        return {
+            ...defineSharedSchema(),
+            ...defineLocalCommon(),
+            own: new StringField({})
+        };
+    }
+}
+
+function defineLocalCommon() {
+    return {local: new StringField({})};
+}
+
+export const itemModels = {thing: ThingData};
+`,
+        );
+    });
+
+    it("follows a spread of an imported schema function", () => {
+        // The regression this was written for: the shared base schema is
+        // spread *by name* from the file that exports it, and resolving only
+        // same-file functions dropped it entirely and in silence. Every SoHL
+        // subtype lost `shortcode` and `actionDefs`, so content correctly
+        // authoring `system.shortcode` was reported as undeclared — the check
+        // accusing the content of the reader's own blind spot.
+        const { documents } = extract("xfile/models.ts");
+        expect(documents.Item.thing.own).toEqual(["own"]);
+        expect(documents.Item.thing.inherited).toEqual([
+            "actionDefs",
+            "local",
+            "shortcode",
+        ]);
+    });
+
+    it("still prefers a same-file definition over an import", () => {
+        // `defineLocalCommon` is declared in the importing file; the import
+        // lookup must not shadow it.
+        const { documents } = extract("xfile/models.ts");
+        expect(documents.Item.thing.inherited).toContain("local");
+    });
+});
+
+describe("buildSchemaArtifact — a field whose name is computed", () => {
+    beforeAll(() => {
+        write(
+            "computed/models.ts",
+            `
+function phaseFields(name) {
+    return {
+        [\`\${name}Date\`]: new StringField({})
+    };
+}
+
+export class PhasedData {
+    static defineSchema() {
+        return {
+            ...phaseFields("onset"),
+            plain: new StringField({})
+        };
+    }
+}
+
+export const itemModels = {phased: PhasedData};
+`,
+        );
+    });
+
+    it("refuses rather than publishing the source text as a field name", () => {
+        // Handing back `[`${name}Date`]` would put a field in the schema that
+        // no builder could ever emit: absent for checking while looking
+        // present, and permanently reported as unemitted. The schema is a
+        // contract other repositories read, so a contract this cannot state is
+        // worth stopping for.
+        expect(() => extract("computed/models.ts")).toThrow(
+            /computed name.*does not evaluate/s,
+        );
+    });
+
+    it("names the file and the key it could not resolve", () => {
+        expect(() => extract("computed/models.ts")).toThrow(/models\.ts/);
+        expect(() => extract("computed/models.ts")).toThrow(/\$\{name\}Date/);
+    });
+});
+
 describe("pathAliases", () => {
     it("is empty when the repository has no tsconfig.json", () => {
         // A JavaScript repository has no aliases to resolve, which is not an
