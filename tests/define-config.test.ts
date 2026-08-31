@@ -25,8 +25,6 @@ function minimal(): ContentBuildConfigInput {
         foundryPackage: "sohl",
         packageKind: "systems",
         stats: {
-            systemId: "sohl",
-            systemVersion: "0.6.0",
             lastModifiedBy: "sohlbuilder00000",
         },
         packs: [{ name: "items", type: "Item" }],
@@ -597,13 +595,28 @@ describe("prebuilt packs and per-pack systems (#40)", () => {
     });
 
     // `stats.systemId` was required, which forced one answer on every pack. A
-    // package whose packs are not all for one system needs none at that level.
-    it("allows a stats block with no systemId", () => {
+    // package whose packs are not all for one system needs none at that level —
+    // and the key is derived rather than authored now (#48), so a module that
+    // declares no system simply has none.
+    it("leaves a module that declares no system with none", () => {
         const config = defineConfig({
             ...minimal(),
-            stats: { systemVersion: "1", lastModifiedBy: "a" },
+            packageKind: "modules",
+            stats: { lastModifiedBy: "a" },
         });
         expect(config.stats.systemId).toBeNull();
+        expect(config.stats.systemVersion).toBeNull();
+    });
+
+    it("refuses an authored systemId or systemVersion", () => {
+        for (const key of ["systemId", "systemVersion"]) {
+            expect(() =>
+                defineConfig({
+                    ...minimal(),
+                    stats: { [key]: "x", lastModifiedBy: "a" },
+                }),
+            ).toThrow(/is derived and may not be authored/);
+        }
     });
 
     // Each of these describes a generation pass, and a prebuilt pack has none.

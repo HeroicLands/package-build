@@ -230,6 +230,11 @@ export function buildPages(rawPages, entryId, noteName) {
  *   heading; see {@link splitPages}.
  * @param {string|null} [params.folder] - The folder id, or `null`.
  * @param {object} [params.flags] - Document flags.
+ * @param {object} [params.stats] - The `_stats` block to stamp. Passed by the
+ *   caller because it is a property of the *pack* being written, not of the
+ *   entry: a module may ship the same content for two systems, and each pack's
+ *   documents record the system version they were built against (#48). A
+ *   caller with no pack in hand gets the package-wide block.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -239,6 +244,7 @@ export function buildJournalEntry({
     leadName,
     folder = null,
     flags,
+    stats = defaultStats(),
 }) {
     const rawPages = splitPages(markdown, leadName);
     const pages = buildPages(rawPages, id, name);
@@ -250,7 +256,7 @@ export function buildJournalEntry({
         ownership: { default: 0 },
         flags: flags || {},
         _id: id,
-        _stats: defaultStats(),
+        _stats: stats,
         _key: `!journal!${id}`,
     };
 }
@@ -347,6 +353,7 @@ export class Journals extends BasePackCompiler {
             leadName: ownsDoc ? name : undefined,
             folder,
             flags: fm.flags,
+            stats: this.stats,
         });
     }
 

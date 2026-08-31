@@ -414,7 +414,7 @@ export class Scenes extends BasePackCompiler {
             packageId: foundryPackageId(),
             name,
             folder,
-            stats: defaultStats(),
+            stats: this.stats,
             journalEntryId: entryId,
             // A map note's prose is a derived JournalEntry: it lands in the
             // default JournalEntry pack, not in whichever Scene pack the map
@@ -521,7 +521,7 @@ export class Scenes extends BasePackCompiler {
             sort: 0,
             flags: {},
             _id: id,
-            _stats: defaultStats(),
+            _stats: this.stats,
             _key: `!adventures!${id}`,
         };
     }

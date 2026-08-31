@@ -56,7 +56,7 @@ function resolveWithSite(site: Record<string, unknown>) {
             contentPackage: "sohl",
             packageKind: "systems",
             compatibility: { minimum: "14.359" },
-            stats: { systemId: "sohl", lastModifiedBy: "sohlbuilder00000" },
+            stats: { lastModifiedBy: "sohlbuilder00000" },
             packs: [{ name: "items", type: "Item" }],
             site: { out: "kb/content", ...site },
         },

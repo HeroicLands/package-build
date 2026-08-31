@@ -131,8 +131,6 @@ function configFor(publish: Record<string, unknown>) {
         foundryPackage: "demo-module",
         packageKind: "modules",
         stats: {
-            systemId: "sohl",
-            systemVersion: "1.0.0",
             lastModifiedBy: "demobuilder0000",
         },
         packs: [

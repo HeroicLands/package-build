@@ -654,7 +654,7 @@ export class Actors extends BasePackCompiler {
             // `sohl.archetype` (required nullable number) drives
             // `flags.sohl.docArchetype` (#640 / archetype contract #604).
             flags: withArchetypeFlag(fm, fm.flags, ctx),
-            _stats: defaultStats(),
+            _stats: this.stats,
             _key: `!actors!${id}`,
         };
     }

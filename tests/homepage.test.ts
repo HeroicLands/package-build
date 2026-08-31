@@ -107,8 +107,6 @@ function configFor(
         foundryPackage: "demo",
         packageKind: "modules",
         stats: {
-            systemId: "sohl",
-            systemVersion: "1.0.0",
             lastModifiedBy: "demobuilder0000",
         },
         packs: [{ name: "items", type: "Item" }],
@@ -213,8 +211,6 @@ describe("`publish.site` distinguishes homepage-only from content (#55)", () => 
             foundryPackage: "demo",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],
@@ -230,8 +226,6 @@ describe("`publish.site` distinguishes homepage-only from content (#55)", () => 
             foundryPackage: "demo",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [{ name: "items", type: "Item" }],
@@ -340,8 +334,6 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             foundryPackage: "hm3",
             packageKind: "systems",
             stats: {
-                systemId: "hm3",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "hm3builder000000",
             },
             // HM3 ships committed compendium JSON rather than a compiled tree,

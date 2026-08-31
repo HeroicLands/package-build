@@ -77,8 +77,6 @@ describe("which relationships supply an item catalogue", () => {
             foundryPackage: "thalorna",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "0.8.2",
                 lastModifiedBy: "sohlbuilder00000",
             },
             packs: [{ name: "items", type: "Item" }],

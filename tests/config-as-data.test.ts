@@ -47,7 +47,6 @@ function minimal(): Record<string, unknown> {
         packageKind: "systems",
         compatibility: { minimum: "14.359" },
         stats: {
-            systemId: "sohl",
             lastModifiedBy: "sohlbuilder00000",
         },
         packs: [{ name: "items", type: "Item" }],
@@ -203,26 +202,46 @@ describe("a module's system version comes from its system relationship", () => {
             /relationships\.systems/,
         );
 
+        // A module declaring *nothing* is system-agnostic on purpose and stamps
+        // null — that is #43, and it is now the only reading available, since
+        // `stats.systemId` can no longer be authored to say otherwise (#48).
         const none = { ...minimal(), packageKind: "modules" };
-        expect(() => resolveIn(repoDir(), none)).toThrow(
-            /relationships\.systems/,
-        );
+        expect(resolveIn(repoDir(), none).stats.systemVersion).toBeNull();
     });
 
-    it("matches the relationship by the systemId it stamps", () => {
-        const root = repoDir();
-        const config = resolveIn(root, {
+    // This used to be settled by an authored `stats.systemId` picking one of
+    // several relationships. That selector is gone with the key (#48), and
+    // `requiresSystem` is what says which system the package-wide block takes —
+    // which is the same question asked where it can also be validated.
+    it("takes the version of the system requiresSystem names", () => {
+        const config = resolveIn(repoDir(), {
             ...minimal(),
             packageKind: "modules",
-            relationships: {
-                systems: [
-                    { id: "other", compatibility: { verified: "9.9.9" } },
-                    { id: "sohl", compatibility: { verified: "0.4.3" } },
-                ],
+            systems: {
+                other: { compatibility: { verified: "9.9.9" } },
+                sohl: { compatibility: { verified: "0.4.3" } },
+            },
+            requiresSystem: "sohl",
+        });
+
+        expect(config.stats.systemId).toBe("sohl");
+        expect(config.stats.systemVersion).toBe("0.4.3");
+    });
+
+    // With several declared and no gate there is no package-wide answer, and
+    // one is not picked arbitrarily: each pack carries its own.
+    it("stamps null package-wide when several are declared and none required", () => {
+        const config = resolveIn(repoDir(), {
+            ...minimal(),
+            packageKind: "modules",
+            systems: {
+                other: { compatibility: { verified: "9.9.9" } },
+                sohl: { compatibility: { verified: "0.4.3" } },
             },
         });
 
-        expect(config.stats.systemVersion).toBe("0.4.3");
+        expect(config.stats.systemId).toBeNull();
+        expect(config.stats.systemVersion).toBeNull();
     });
 });
 
@@ -337,12 +356,18 @@ describe("a system-agnostic module stamps no system version (#43)", () => {
         expect(config.stats.systemVersion).toBeNull();
     });
 
-    // The two signals together are what separate deliberate from forgetful:
-    // naming a system but no relationship is still the mistake #1548 guards.
-    it("still throws when a systemId is named but no relationship is", () => {
+    // #1548 guarded "named a system but no relationship" by reading an
+    // *authored* `stats.systemId`. That key is derived now (#48), so the signal
+    // it carried has moved: a module says which system it is for by declaring
+    // it under `systems:`, and a declaration with no `verified` is the mistake.
+    it("throws when a declared system carries no verified version", () => {
         expect(() =>
-            resolveIn(repoDir(), { ...minimal(), packageKind: "modules" }),
-        ).toThrow(/relationships\.systems/);
+            resolveIn(repoDir(), {
+                ...minimal(),
+                packageKind: "modules",
+                systems: { sohl: { compatibility: { minimum: "0.4.0" } } },
+            }),
+        ).toThrow(/systems\.sohl\.compatibility\.verified/);
     });
 
     it("still derives from a relationship declared without a systemId", () => {

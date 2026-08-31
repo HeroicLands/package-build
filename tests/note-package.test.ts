@@ -460,8 +460,6 @@ describe("addresses are keyed from the configuration alone", () => {
             foundryPackage: "demo-module",
             packageKind: "modules",
             stats: {
-                systemId: "sohl",
-                systemVersion: "1.0.0",
                 lastModifiedBy: "demobuilder0000",
             },
             packs: [
