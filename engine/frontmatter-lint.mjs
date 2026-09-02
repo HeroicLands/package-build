@@ -57,7 +57,7 @@
 
 import { authoredFields } from "./field-spec.mjs";
 import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system-block.mjs";
-import { positionInFrontmatter } from "./diagnostics.mjs";
+import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
 import { draftRetiredMessage } from "./retired-fields.mjs";
@@ -205,6 +205,160 @@ export function matchesKind(value, kind) {
 }
 
 /**
+ * The `data:` container a note authored.
+ *
+ * An emptied map arrives from the property editor as `[]` and means the same
+ * thing `{}` does — this note authors no entries (#8) — so both read as an
+ * empty container rather than as a malformed one.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @returns {{present: boolean, entries: object, malformed: boolean}} What was
+ *   authored, and whether it is a container at all.
+ */
+function dataBlock(fm) {
+    if (!Object.hasOwn(fm ?? {}, "data")) {
+        return { present: false, entries: {}, malformed: false };
+    }
+    const value = fm.data;
+    if (value == null || (Array.isArray(value) && value.length === 0)) {
+        return { present: true, entries: {}, malformed: false };
+    }
+    if (typeof value !== "object" || Array.isArray(value)) {
+        return { present: true, entries: {}, malformed: true };
+    }
+    return { present: true, entries: value, malformed: false };
+}
+
+/**
+ * Check a note's `data:` container against the closed vocabulary its type
+ * declares (#128).
+ *
+ * Unlike the top level, which is passed through to the published page and so
+ * cannot be refused, `data:` holds the type-specific facts about the subject
+ * and every key of it is declared. An unrecognised key is therefore a finding
+ * naming the note, with the key it was most likely meant to be — the same
+ * capped edit distance {@link nearest} applies to a `sohl:` key, drawn from
+ * this type's own vocabulary rather than from every type's.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {string} opts.type - The note's type, for the message.
+ * @param {readonly object[]} opts.fields - The type's `data:` declaration.
+ * @returns {object[]} Findings.
+ */
+function checkDataContainer(note, { type, fields }) {
+    const findings = [];
+    const { present, entries, malformed } = dataBlock(note.fm ?? {});
+    if (!present) return findings;
+
+    const raw = note.raw ?? "";
+    if (malformed) {
+        findings.push({
+            file: note.file,
+            ...positionOfFrontmatterPath(raw, ["data"], { key: true }),
+            severity: "error",
+            message:
+                "`data:` must be a map of the note's own type-specific " +
+                `properties, but reads ${JSON.stringify(note.fm.data)}`,
+        });
+        return findings;
+    }
+
+    /** First segment of each declared name — `charges.value` is authored as `charges`. */
+    const declared = new Set(fields.map((f) => f.name.split(".")[0]));
+
+    for (const key of Object.keys(entries)) {
+        if (declared.has(key)) continue;
+        const guess = nearest(key, declared);
+        findings.push({
+            file: note.file,
+            ...positionOfFrontmatterPath(raw, ["data", key], { key: true }),
+            severity: "error",
+            message:
+                `"${key}" is not a \`data:\` property declared by ${type}; ` +
+                `the container is closed, so unlike a top-level key it is ` +
+                `not passed through to the page` +
+                (guess ? `. Did you mean "${guess}"?` : ""),
+        });
+    }
+
+    for (const field of fields) {
+        if (!field.kind) continue;
+        const segments = field.name.split(".");
+        let value = entries;
+        for (const segment of segments) {
+            value = value && typeof value === "object" ? value[segment] : undefined;
+        }
+        if (value === undefined || value === null) continue;
+        if (matchesKind(value, field.kind)) continue;
+        findings.push({
+            file: note.file,
+            ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+            severity: "error",
+            message:
+                `\`data.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                `but reads ${JSON.stringify(value)}`,
+        });
+    }
+
+    return findings;
+}
+
+/**
+ * Check a note's top-level `subType` against the values its type declares
+ * (#128).
+ *
+ * `subType` stays at the top level — it is what each system's map reads to
+ * derive a document type, so it describes the note rather than the subject —
+ * but it is not open like the rest of that region: a type either declares a
+ * `subType` or does not, and a type that does declares its values.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {string} opts.type - The note's type, for the message.
+ * @param {object} opts.entry - The type's vocabulary entry.
+ * @returns {object[]} Findings.
+ */
+function checkSubType(note, { type, entry }) {
+    const fm = note.fm ?? {};
+    if (!Object.hasOwn(fm, "subType") || fm.subType == null || fm.subType === "") return [];
+
+    const value = String(fm.subType);
+    const at = positionInFrontmatter(note.raw ?? "", "subType");
+
+    if (!Object.hasOwn(entry, "subTypes")) {
+        return [
+            {
+                file: note.file,
+                ...at,
+                severity: "error",
+                message:
+                    `\`subType\` is not a property declared by ${type}; it ` +
+                    `declares no subtypes, so nothing reads this value`,
+            },
+        ];
+    }
+
+    const values = entry.subTypes;
+    // `null` is "declared, values not yet enumerated" — presence is legal and
+    // the value is nobody's to check yet.
+    if (values == null || values.includes(value)) return [];
+
+    const guess = nearest(value, values);
+    return [
+        {
+            file: note.file,
+            ...at,
+            severity: "error",
+            message:
+                `\`subType\` "${value}" is not one of the subtypes ` +
+                `${type} declares (${values.join(", ")})` +
+                (guess ? `. Did you mean "${guess}"?` : ""),
+        },
+    ];
+}
+
+/**
  * Check one note against its type's schema.
  *
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
@@ -212,12 +366,18 @@ export function matchesKind(value, kind) {
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
  * @param {object} [opts.index] - The link index, for the reference check. Its
  *   absence skips that check rather than reporting every reference as dead.
+ * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
+ *   it declares, as `engine/note-vocabulary.mjs` states them (#128). Supplied
+ *   by the caller for the same reason `schemas` is: this module validates a
+ *   note against whatever its type declares and knows no type names of its
+ *   own. Its absence skips the `data:` and `subType` checks rather than
+ *   reporting every key as unknown.
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check, and what each accepts. See
  *   {@link DEFAULT_SYSTEM_BLOCKS}.
  * @returns {object[]} Findings, each with a locator where one is obtainable.
  */
-export function lintNote(note, { schemas, index, systems = DEFAULT_SYSTEM_BLOCKS }) {
+export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_SYSTEM_BLOCKS }) {
     const findings = [];
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
@@ -288,6 +448,17 @@ export function lintNote(note, { schemas, index, systems = DEFAULT_SYSTEM_BLOCKS
                 `can say what this note may write; declare it, or correct the type`,
         });
         return findings;
+    }
+
+    // The closed frontmatter regions (#128), checked beside the `sohl:` block
+    // because they are the same statement about the same note: this key is not
+    // one this type may write. Skipped entirely when the caller declares no
+    // vocabulary — reporting every key as unknown because nothing was loaded
+    // to recognise it would be worse than not checking.
+    const entry = vocabulary?.[type];
+    if (entry) {
+        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [] }));
+        findings.push(...checkSubType(note, { type, entry }));
     }
 
     const fields = authoredFields(schema);
@@ -383,13 +554,15 @@ export function lintNote(note, { schemas, index, systems = DEFAULT_SYSTEM_BLOCKS
  * @param {object} index - From `buildLinkIndex`.
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
+ * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
+ *   it declares (#128); see {@link lintNote}.
  * @param {boolean} [opts.references=true] - Whether to check references.
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(index, { schemas, references = true, systems }) {
+export function lintFrontmatter(index, { schemas, vocabulary, references = true, systems }) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -400,6 +573,7 @@ export function lintFrontmatter(index, { schemas, references = true, systems }) 
         findings.push(
             ...lintNote(note, {
                 schemas,
+                vocabulary,
                 index: references ? index : undefined,
                 ...(systems ? { systems } : {}),
             }),

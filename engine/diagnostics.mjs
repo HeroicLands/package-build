@@ -363,3 +363,36 @@ export function yamlKeyPath(field) {
     }
     return segments;
 }
+
+/**
+ * Where a key sits **inside a note's frontmatter fence**, addressed by path.
+ *
+ * {@link positionInFrontmatter} searches the fence for a key by name, which is
+ * the right tool while a note's vocabulary is flat: a key appears once and the
+ * first line matching it is the one. It stops being the right tool the moment
+ * the same name is legal in two regions — `data.weight` and a top-level
+ * `weight` are different keys, and a search finds whichever comes first.
+ *
+ * So this is the located form for the closed regions (#128). It reuses
+ * {@link positionOfYamlPath} rather than repeating its parse, which is what
+ * keeps a finding about `data.weight` pointing at `data.weight`.
+ *
+ * @param {string} raw - The note's full contents, frontmatter included.
+ * @param {ReadonlyArray<string|number>} keyPath - Path to the node, from the
+ *   top of the frontmatter.
+ * @param {object} [opts]
+ * @param {boolean} [opts.key=false] - Report where the last segment is
+ *   *declared* rather than where its value sits.
+ * @returns {{line?: number, column?: number}} Spreadable position fields, empty
+ *   when there is no fence or the path resolves to nothing — dropped rather
+ *   than guessed.
+ */
+export function positionOfFrontmatterPath(raw, keyPath, { key = false } = {}) {
+    if (typeof raw !== "string") return {};
+    const fence = raw.match(/^---\n([\s\S]*?)\n---/);
+    if (!fence) return {};
+    const position = positionOfYamlPath(fence[1], keyPath, { key });
+    // +1: the fence's line 1 is the file's line 2, the opening `---` being the
+    // first. `positionOfYamlPath` already counts from 1 within the block.
+    return position.line === undefined ? {} : { ...position, line: position.line + 1 };
+}

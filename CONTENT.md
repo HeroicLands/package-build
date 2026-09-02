@@ -740,6 +740,45 @@ builder, so schema and compiler cannot disagree. The hand-written compilers —
 
 Nothing here writes. A check reports and an author fixes.
 
+### The `data:` container is closed; the top level is not
+
+A note's frontmatter has three regions, and only one of them is open (#128):
+
+| region           | describes                                    | an unknown key is  |
+| ---------------- | -------------------------------------------- | ------------------ |
+| top level        | the note as a published artefact             | passed to the page |
+| `data:`          | the subject itself, whatever system reads it | an **error**       |
+| `sohl:` / `hm3:` | the subject as one system's documents        | an **error**       |
+
+**Top level is deliberately open**, for the reason the homepage rule above gives
+at length: every key of it is copied into the generated page, so an
+unrecognised one is a Hugo or theme parameter this build has no standing to
+refuse. `description` is the everyday case — not a document field at all, but
+the page's description.
+
+**`data:` is deliberately closed**, and that is the point of having it. The
+type-specific facts about a subject — a weapon's weight, an affliction's
+transmission, a being's species — used to sit at the top level, where the
+pass-through rule applied to them too. So a misspelled `wieght` became a theme
+parameter rather than a finding, indistinguishable from a weapon that weighs
+nothing. Under `data:` the same key is reported where it was written, with the
+key it was probably meant to be, drawn from that type's own vocabulary:
+
+```text
+assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
+```
+
+**`subType` stays at the top level**, and is closed in its own way: a type
+either declares a `subType` or does not, and a type that does declares its
+values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strike
+mode rather than by kind — so `subType` on one is a finding; a `skill` declares
+ten, so `subType: crafte` is a finding naming `craft`.
+
+The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
+taken from the content-format specification. It is note-format knowledge rather
+than any system's: `data:` holds what is true of the thing, and what a system
+makes of that value is declared in that system's own half.
+
 **A third rule was retired (#79).** Every note used to be required to repeat its
 own `type-shortcode` address in `aliases:`. That served one reader — Obsidian,
 so `[[type-shortcode]]` resolved in the editor — and no build ever read it: both

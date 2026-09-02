@@ -72,6 +72,9 @@ export * as homepage from "./homepage.mjs";
 /** The note types the engine itself declares, whatever a consumer registers. */
 export * as noteSchemas from "./note-schemas.mjs";
 
+/** The closed frontmatter regions: the `data:` container and each type's `subType`. */
+export * as noteVocabulary from "./note-vocabulary.mjs";
+
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
 /** The URL a content note is published at — the one web-address rule. */

@@ -94,6 +94,7 @@ import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
 import { emitLinkManifest } from "../engine/manifest-emit.mjs";
 import {
@@ -702,6 +703,11 @@ function lintCommand() {
                 });
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
+                    // The closed frontmatter regions (#128). Passed in rather
+                    // than reached for, so the linter stays a checker of
+                    // whatever it is handed and this stays the one place that
+                    // decides which vocabulary a tree is held to.
+                    vocabulary: NOTE_VOCABULARY,
                     references: argv.references,
                 });
 
