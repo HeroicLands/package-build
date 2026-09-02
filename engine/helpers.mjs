@@ -147,8 +147,8 @@ export function* walkMarkdownTree(
 
 /**
  * Resolve the required `sohl.archetype` frontmatter for an Item/Actor entry
- * (see the archetype contract, #604 — `flags.sohl.docArchetype`). The property
- * is a nullable number that authors must state explicitly:
+ * (the archetype contract, #604). The property is a nullable number that
+ * authors must state explicitly:
  *   - a number → the document is an archetype of that priority.
  *   - `null`   → the document is not an archetype.
  *   - absent   → an authoring error (throws), so "not an archetype" is never
@@ -182,30 +182,29 @@ export function resolveArchetype(fm, label) {
 }
 
 /**
- * Merge the required `sohl.archetype` frontmatter into a document's `flags`,
- * returning a new object (the input is never mutated). A numeric archetype
- * seeds `flags.sohl.docArchetype`; `null` omits the flag (and clears any stale
- * `docArchetype` while preserving sibling `sohl` flags); an absent value
- * throws. See {@link resolveArchetype}.
+ * The value a document's `system.archetype` carries, from the required
+ * `sohl.archetype` frontmatter (#126, sohl#1780).
  *
- * @param {object} fm              Parsed frontmatter.
- * @param {object} [flags]         The entry's existing flags (e.g. `fm.flags`).
- * @param {string} label           Human-readable context for error messages.
- * @returns {object}               The flags object with the archetype applied.
+ * A **schema field**, so the tri-state is written out in full rather than
+ * expressed by a key's presence: a number is an archetype at that priority,
+ * and `null` is not an archetype. This is where {@link resolveArchetype}'s
+ * `undefined` becomes the field's `null` — an emitted `undefined` would be
+ * dropped by `JSON.stringify`, leaving the compiled document with no
+ * `archetype` at all and the tri-state readable as two.
+ *
+ * **`0` is an archetype.** It is the priority SoHL's own archetypes ship at,
+ * and it is falsy, so this returns it unchanged and every caller must ask
+ * `typeof v === "number"` rather than testing truthiness.
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @returns {number|null}  The archetype priority, or `null` for a document
+ *   that is not an archetype.
  * @throws {Error} When `sohl.archetype` is absent or invalid.
  */
-export function withArchetypeFlag(fm, flags, label) {
+export function systemArchetype(fm, label) {
     const archetype = resolveArchetype(fm, label);
-    const out = { ...(flags || {}) };
-    const sohl = { ...(out.sohl || {}) };
-    if (archetype === undefined) {
-        delete sohl.docArchetype;
-    } else {
-        sohl.docArchetype = archetype;
-    }
-    if (Object.keys(sohl).length > 0) out.sohl = sohl;
-    else delete out.sohl;
-    return out;
+    return archetype === undefined ? null : archetype;
 }
 
 /**

@@ -41,7 +41,7 @@ import {
     resolveName,
     resolveImg,
     defaultStats,
-    withArchetypeFlag,
+    systemArchetype,
 } from "../engine/helpers.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 // Per-type default art lives in one framework-free module shared with the
@@ -95,11 +95,19 @@ function itemDescription(markdown, fm, name) {
 
 /**
  * Build the `system.*` fields shared by every item type:
- *   shortcode, actionDefs, notes, docHtml.
+ *   shortcode, archetype, actionDefs, notes, docHtml.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} description - The item's documentation pointer.
+ * @param {string} label - Human-readable context for error messages.
+ * @returns {object} The shared `system` fields.
  */
-function commonSystem(fm, description) {
+function commonSystem(fm, description, label) {
     return {
         shortcode: fm.shortcode,
+        // Required nullable number: a priority, or `null` for a document that
+        // is not an archetype (#126 / archetype contract #604).
+        archetype: systemArchetype(fm, label),
         actionDefs: Array.isArray(fm.actionDefs) ? fm.actionDefs : [],
         notes: "",
         docHtml: description || "",
@@ -211,7 +219,7 @@ export class Items extends BasePackCompiler {
         const id = fm.id;
         const subType = this.itemSubtype(fm);
         const system = {
-            ...commonSystem(fm, description),
+            ...commonSystem(fm, description, `item "${name}"`),
             ...itemBuilder(type, SYSTEM)(fm),
         };
         // Whatever the note authors under `sohl.system`, at the DataModel's own
@@ -238,9 +246,10 @@ export class Items extends BasePackCompiler {
             _id: id,
             system,
             effects: Array.isArray(effects) ? [...effects] : [],
-            // `sohl.archetype` (required nullable number) drives
-            // `flags.sohl.docArchetype` (#640 / archetype contract #604).
-            flags: withArchetypeFlag(fm, blockProperty(fm, SYSTEM, "flags"), `item "${name}"`),
+            // Whatever the note authors, and nothing else. `archetype` used to
+            // be spliced in here as `flags.sohl.docArchetype`; it is a schema
+            // field now and sits in `system` (#126).
+            flags: blockProperty(fm, SYSTEM, "flags", {}),
             _stats: this.stats,
             ownership: { default: 0 },
             folder,
