@@ -28,16 +28,25 @@ jobs:
             - run: npm ci
             - name: Formatting
               run: npm run format:check
-            # Separate step rather than folded into `npm run lint`, which chains
-            # the two with `&&`: a formatting failure would short-circuit the
-            # chain and hide every markdown finding behind it. As two steps the
+            # Separate steps rather than folded into `npm run lint`, which
+            # chains them with `&&`: a formatting failure would short-circuit
+            # the chain and hide every finding behind it. As separate steps the
             # failing one is named in the checks UI. `npm run lint` exists for
-            # running both locally in one command.
+            # running them all locally in one command.
             #
             # This repository *provides* `content-build markdown`, and until now
             # was the one repository that never ran it (#92).
             - name: Markdown
               run: npm run lint:markdown
+            # Every `system.*` target docs/content-format.md names, against a
+            # published schema.json (#130). Run against a committed fixture
+            # rather than a real system's artifact: this package ships no
+            # system, and SoHL's own schema has three gaps already tracked as
+            # Song-of-Heroic-Lands-FoundryVTT#1780, #1781 and #1782 — pointing
+            # CI at it would fail this build for a reason that is not this
+            # repository's. The fixture says so at the top of the file.
+            - name: Content format
+              run: npm run lint:content-format
             - name: Tests
               run: npm test
             # Declaration emit is what `prepack` runs at publish time, so a
