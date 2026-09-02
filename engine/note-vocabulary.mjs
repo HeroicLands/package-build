@@ -233,7 +233,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             "polity",
             "faithtradition",
             "arcanetradition",
-            "pantheon",
+            "spirittradition",
             "lineage",
             "venture",
             "criminal",

@@ -533,6 +533,20 @@ Represents a related group of beings.
 
 Note that affiliations may have multiple parent affiliations.
 
+**A pantheon is not a subType.** It is a `faithtradition` carrying subordinate
+faith traditions — the individual religions of that pantheon name it in
+`parents`. There is no `pantheon` value, because every other subType answers
+_what kind of body is this_ while a pantheon answers _where does it sit_, and an
+enum that mixes the two makes a note choose between a kind and a level. The
+hierarchy already carries the answer, so nothing is lost by deriving it: a faith
+tradition with faith traditions beneath it is a pantheon.
+
+The same reasoning is why the three traditions are siblings. `faithtradition`,
+`arcanetradition` and `spirittradition` partition by _what a practice concerns_ —
+the divine, magic, the spirit world — and that partition is load-bearing rather
+than descriptive: a system filtering which mystical practices may associate with
+an affiliation can only be as precise as the distinction it filters on.
+
 subType
 
 - guild: A sworn association of craftsmen holding monopoly over a trade within a locality.
@@ -540,7 +554,7 @@ subType
 - polity: A sovereign body ordering the persons within a territory — states, city-states, tribal confederations. Its ranks apply to all who fall under its authority.
 - faithtradition: A tradition of belief and practice concerning the divine, whether organized or not.
 - arcanetradition: A tradition of belief and practice concerning magic and its practice, whether organized or not.
-- pantheon: Families of gods or related celestial beings.
+- spirittradition: A tradition of belief and practice concerning spirits — ancestors, totems, and the numinous world — whether organized or not.
 - lineage: A body claiming common descent from a known ancestor, whose standing and obligations pass by birth — clans, houses, dynasties, septs.
 - venture: A band bound by contract or shared undertaking rather than by vow or public authority — free companies, ships' crews, trading expeditions, adventuring parties.
 - criminal: An association organized to profit from activity its host polity forbids, sustained by its own enforcement rather than by law.
