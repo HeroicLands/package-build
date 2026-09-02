@@ -36,6 +36,9 @@
 /** Deterministic document ids, the conventional pack map, and compendium UUIDs. */
 export * as ids from "./ids.mjs";
 
+/** The per-system frontmatter block, and the declared shared→system mapping. */
+export * as systemBlock from "./system-block.mjs";
+
 /** Fenced-code detection, so a rewrite never edits a code block. */
 export * as codeFences from "./code-fences.mjs";
 
@@ -51,6 +54,9 @@ export * as packConfig from "./pack-config.mjs";
 /** Which pack of a document type a note's document lands in (#1566). */
 export * as packRouter from "./pack-router.mjs";
 
+/** Which note types a configuration compiles, and the notes nothing claims (#146). */
+export * as noteClaims from "./note-claims.mjs";
+
 /** The content package a build compiles, and the Foundry package it ships in. */
 export * as contentPackage from "./content-package.mjs";
 
@@ -65,6 +71,9 @@ export * as homepage from "./homepage.mjs";
 
 /** The note types the engine itself declares, whatever a consumer registers. */
 export * as noteSchemas from "./note-schemas.mjs";
+
+/** The closed frontmatter regions: the `data:` container and each type's `subType`. */
+export * as noteVocabulary from "./note-vocabulary.mjs";
 
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
@@ -103,6 +112,9 @@ export * as helpers from "./helpers.mjs";
 
 /** The consumer's resolved item-type registry: the whitelist and its builders. */
 export * as itemRegistry from "./item-registry.mjs";
+
+/** The per-system note-type → document-subtype map, and looking a note up in it. */
+export * as documentSubtypes from "./document-subtypes.mjs";
 
 /** Which types carry documentation of their own, and where it is addressed. */
 export * as itemDocs from "./item-docs.mjs";

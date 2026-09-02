@@ -1,0 +1,23 @@
+---
+"@heroiclands/package-build": minor
+---
+
+Map a note's `<system>.system` block onto the document's `system` property, and let one note carry a block per system (part of #58, slice 2 of #127).
+
+**The rule.** A note is system-agnostic; the only system-specific things it carries are the properties named after a system. Within one, `<system>.system` maps straight onto `document.system` — the DataModel's own paths, verbatim, with no renaming layer — while `type`, `img`, `items`, `effects` and `flags` map onto their document properties and `pack` is a build directive that maps onto nothing. `archetype`, `kbcat` and the generators `items` and `attributes` are not `system` fields in any system, so they stay directly under the block.
+
+**The shared fallback is declared, not name-matched, and that is the load-bearing part.** `sohl.system.portrait` and `hm3.system.bioImage` both default from one shared property — two real fields with different names. SoHL's `Actor.being` and HM3's `Actor.character` share **no field name at all**, so a rule matching on spelling is not a rule with exceptions; it is a rule that never fires. Each field declares its source instead, and a source may be a dotted path (`data.portrait`) as `to` already may on the destination side. Resolution for a system `S`: `S.system.<to>`, else `S.<name>` (the legacy in-block position, kept until the corpus moves off it in #126), else the declared shared property, else the field's default.
+
+`FieldSpec.name` is reinterpreted accordingly — it is **the shared property this field draws from**, not "the frontmatter key under `sohl:`", which is the degenerate case where source and destination happen to share a name. `sohlField()` stops being the general rule; `blockField()` generalizes it to any block.
+
+**What is checked, that was not.** A key under `<system>.system` that the system's published `schema.json` does not declare for the subtype the note compiles into is an **error naming the note**, located at the offending line — Foundry discards an unknown `system` key at construction without a word, so the alternative is a field the author wrote and nobody ever sees. Unrecognised keys under a system block are reported against **that system's** vocabulary rather than only SoHL's, and a second system's block is checked once the build declares it.
+
+**`itemBuilders` becomes a set.** One registry is a ceiling as well as a vocabulary: the accepted types are its keys, so a type only the other system knows — `spell` and `invocation` are HM3's, `mysticalability` is SoHL's — cannot be accepted at all. A configuration may now name several (`itemBuilders: [sohl, hm3]`, or `[{ system, builders }, …]` in code) and the vocabulary is their **union**. A type both declare keeps a builder per system; `itemBuilder(type, system)` and `itemArt(type, system)` take the system that is asking, and asking without one for a contested type throws rather than answering with whichever registry was declared first. **The scalar form is unchanged** and still resolves to exactly the flat registry it always did.
+
+**Pack eligibility.** A pack declaring a `system:` compiles only notes carrying that system's block; one that declares none constrains nothing, and a pass whose document is not system data — journals, macros, scenes — is not subject to the rule at all. A violation fails naming the note and the pack, rather than emitting a hollow document with a subtype and none of the fields that subtype exists for. `pack:` itself needed no new mechanism: the block-override rule gives it, `effects` and `flags` their per-system form for free.
+
+**`(type, shortcode)` resolves inside one system's catalogue.** A being addresses its embedded items by that pair and never by pack, so the Item packs are read as one address space — which stops being one address space the moment two systems are in the tree, since `skill:sword` exists under both names over different data models. An Actor pass now reads the Item packs of its own system plus the system-neutral ones. The references themselves were never ambiguous; the resolver simply did not know which catalogue it was searching.
+
+**Nothing compiled changes.** No consumer authors a `<system>.system` block yet, and no consumer's packs declare a system that its notes do not carry, so this is purely additive to real output: `sohl`, `sohl-thalorna` and `sohl-kethira-basic` all compile byte-identically, and `content-build lint` reports the same findings in the same order. A note carrying no system block at all still compiles its system-neutral documents.
+
+The corpus migration that exercises all of this is #126, in the content repositories.

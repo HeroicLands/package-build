@@ -167,7 +167,7 @@ file can be asked for rather than told:
 | `rootDir`             | the directory the configuration file sits in                                                                                      |
 | `foundryPackage`      | the `name` of the adjacent `package.json`, verbatim                                                                               |
 | `stats.systemVersion` | a **system**: that `package.json`'s `version`. A **module**: the `verified` version of the system it declares a relationship with |
-| `itemBuilders`        | the named registry (`sohl`), required lazily so importing costs nothing                                                           |
+| `itemBuilders`        | the named registry (`sohl`) — or a list of names — required lazily so importing costs nothing                                     |
 
 **Authoring any of the first three is an error**, not an override. Each was
 previously transcribed from a file that already stated it, and a transcription
@@ -189,6 +189,23 @@ the name of the link manifest this build emits (`sohl.json`), and the package a
 cross-package wikilink writes to reach one of these notes. It is the
 repository's identity in the address space — not a filter — and a note does not
 restate it.
+
+Because it is a segment of an address, the value is **validated** rather than
+taken as written, and a violation fails the build naming the line it is on:
+
+- **Alphanumeric** (`^[A-Za-z0-9]+$`). An address is read by counting
+  hyphen-separated segments, so the hyphen has to be purely a separator — which
+  is why `harn-adventures` is configured as `harnadventures`. This is the same
+  rule `shortcode` is already held to, and the two are one constant.
+- **Not a note type.** The package and the type are adjacent segments, and the
+  two vocabularies are kept disjoint so a reader never has to decide which slot
+  a name is filling. `doc`, `being`, every map type, and every item type this
+  repository declares — with its `doc`-prefixed documentation form — are
+  refused.
+
+```text
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+```
 
 **`package:` in a note's frontmatter is retired, and declaring it fails the
 build**, naming the file, whatever the value says. An agreeing declaration is
@@ -354,6 +371,33 @@ object. Supplying `itemBuilders` is therefore all a consumer does to define an
 item type of its own; a table this package ships is one possible value, not the
 one the compiler holds.
 
+**A tree feeding two systems declares a set of registries.** One registry is
+also a ceiling: the accepted vocabulary is its keys, so a type only the _other_
+system knows — `spell` and `invocation` are HM3's, `mysticalability` is SoHL's —
+cannot be accepted at all. So `itemBuilders` takes either form:
+
+```yaml
+itemBuilders: sohl # one registry, and what every existing configuration says
+itemBuilders: [sohl, hm3] # a set; the vocabulary is their union
+```
+
+A registry's **name is the system it belongs to**, which is what lets a data
+configuration declare a set without naming each system twice. In an `.mjs`
+configuration the same set is written out:
+
+```js
+itemBuilders: [
+  { system: "sohl", builders: SOHL_ITEM_BUILDERS },
+  { system: "hm3", builders: HM3_ITEM_BUILDERS },
+],
+```
+
+A type **both** registries declare — `skill` is one name over two data models —
+keeps a builder on each side. `itemBuilder(type, system)` and `itemArt(type,
+system)` take the system that is asking; asking without one, for a type more
+than one registry declares, **throws** rather than answering with whichever was
+declared first.
+
 **Configuration is the source, and the manifest is generated from it.** That
 arrow used to point the other way: `paths.packageManifest` said where a
 hand-authored `system.template.json` lived, and the package-id guard and the
@@ -464,12 +508,98 @@ that same map, so there is still exactly one map — and the drift a test used t
 watch for is now unrepresentable, because building the registry throws if a type
 has no art.
 
+## The per-system block
+
+A note is **system-agnostic**. The only system-specific things it carries are
+the properties named after a system, and one note may carry more than one — a
+`being` in `harn-ensemble` compiles into a SoHL `being` _and_ an HM3
+`character`. Within a system's block:
+
+| property           | maps to                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| `<system>.system`  | `document.system` — the DataModel schema, verbatim paths      |
+| `<system>.type`    | `document.type` — the subtype the note compiles into          |
+| `<system>.img`     | `document.img`                                                |
+| `<system>.items`   | `document.items` — actors only                                |
+| `<system>.effects` | `document.effects`                                            |
+| `<system>.flags`   | `document.flags`                                              |
+| `<system>.pack`    | _nothing on the document_ — a build directive naming the pack |
+
+Everything else a system declares sits directly under the block. `kbcat` is
+toolchain vocabulary, and the _generators_ `items` and `attributes` expand into
+embedded documents rather than mapping anywhere, so neither has a `system` path
+to be written at.
+
+`archetype` is authored there too, and is the one such key that _is_ a field:
+the builder writes it to `system.archetype` — a number is an archetype at that
+priority, `null` is not an archetype — exactly as `portrait` reaches
+`sohl.system.portrait` from a shared top-level property. Its authored position
+is unchanged (#126).
+
+```yaml
+type: being # the content type — system-agnostic
+pack: actors # shared: unless a block says otherwise
+portrait: kaldor.webp # shared: reaches both systems' fields, differently named
+hm3:
+  type: character # this system's document subtype
+  pack: actors-hm3 # overrides the shared one, for HM3 only
+  system: # → document.system, verbatim
+    species: human
+    sunsign: ulandus
+  attributes: { str: 10, sta: 14 } # a generator, not a system field
+sohl:
+  type: being
+  system:
+    currentMoveMedium: walk
+  archetype: 1
+```
+
+**The shared fallback is declared, not name-matched.** `sohl.system.portrait`
+and `hm3.system.bioImage` both default from one shared property, and they are
+two real fields with different names — SoHL's `Actor.being` and HM3's
+`Actor.character` share **no** field name at all, so a rule matching on spelling
+would never fire. Each field declares its source instead, and resolution for a
+system `S` is:
+
+1. `S.system.<to>` — authored directly, wins outright;
+2. `S.<name>` — the legacy in-block position, until the corpus moves off it;
+3. the shared top-level property the field declares as its source, which may be
+   a **dotted path** (`data.portrait`) rather than a sibling key;
+4. the field's own default.
+
+`FieldSpec.name` is that declared source. It used to mean "frontmatter key under
+`sohl:`", which is the degenerate case where source and destination happen to
+share a name.
+
+**`<system>.system` is written through verbatim**, at the DataModel's own paths,
+with no renaming layer. A key the system's published `schema.json` does not
+declare for the subtype the note compiles into is an **error naming the note**,
+not a silent drop: Foundry discards an unknown `system` key at construction
+without a word, so the alternative is a field the author wrote and nobody will
+ever see. A path a declared field already writes is left to that field, so the
+value goes through one coercion rather than two.
+
+**A pack that declares a `system:` takes only notes carrying that block.** A
+note that says nothing about a system has no system data, and compiling it there
+would emit a hollow document — a subtype, and none of the fields the subtype
+exists for. The build fails naming the note and the pack. A pack declaring no
+system constrains nothing, and a pass whose document is not system data at all —
+journals, macros, scenes — is not subject to the rule.
+
+**`(type, shortcode)` resolves inside one system's catalogue.** A being names its
+embedded items by address and never by pack, so the Item packs are read as one
+address space; with two systems in the tree that space stops being one, because
+`skill:sword` exists under both names. An Actor pass reads the Item packs of its
+**own** system plus the system-neutral ones.
+
 ## Command line
 
 ```
 npx content-build package <compile|unpack|clean> [pack] [entry]
 npx content-build docs item-fields [--out <path>] [--title <title>]
 npx content-build lint [root] [--no-references]
+npx content-build content-format schema --schema <system>=<path>
+npx content-build content-format notes [root] [--strict]
 npx content-build links [root] [--manifests <dir>]
 npx content-build format [paths..] [--write]
 npx content-build markdown [paths..] [--fix]
@@ -479,18 +609,19 @@ npx content-build reachability <dir> [file] [--index <shortcode>]
 npx content-build addresses diff --from <zip|dir> [--strict]
 ```
 
-| Command        | What it does                                                                                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
-| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
-| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
-| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
-| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
-| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
-| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
-| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
-| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
-| `addresses`    | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
+| Command          | What it does                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package`        | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
+| `docs`           | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
+| `lint`           | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
+| `content-format` | Check the content format specification itself. See [The content format specification](#the-content-format-specification).                                               |
+| `links`          | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
+| `format`         | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
+| `markdown`       | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
+| `manifest`       | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
+| `site`           | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
+| `reachability`   | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
+| `addresses`      | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
 
 Every path, pack name and root it needs comes from the consuming repository's
 `package-build.config.yaml`, so the usual invocation takes no arguments beyond
@@ -609,6 +740,45 @@ builder, so schema and compiler cannot disagree. The hand-written compilers —
 
 Nothing here writes. A check reports and an author fixes.
 
+### The `data:` container is closed; the top level is not
+
+A note's frontmatter has three regions, and only one of them is open (#128):
+
+| region           | describes                                    | an unknown key is  |
+| ---------------- | -------------------------------------------- | ------------------ |
+| top level        | the note as a published artefact             | passed to the page |
+| `data:`          | the subject itself, whatever system reads it | an **error**       |
+| `sohl:` / `hm3:` | the subject as one system's documents        | an **error**       |
+
+**Top level is deliberately open**, for the reason the homepage rule above gives
+at length: every key of it is copied into the generated page, so an
+unrecognised one is a Hugo or theme parameter this build has no standing to
+refuse. `description` is the everyday case — not a document field at all, but
+the page's description.
+
+**`data:` is deliberately closed**, and that is the point of having it. The
+type-specific facts about a subject — a weapon's weight, an affliction's
+transmission, a being's species — used to sit at the top level, where the
+pass-through rule applied to them too. So a misspelled `wieght` became a theme
+parameter rather than a finding, indistinguishable from a weapon that weighs
+nothing. Under `data:` the same key is reported where it was written, with the
+key it was probably meant to be, drawn from that type's own vocabulary:
+
+```text
+assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
+```
+
+**`subType` stays at the top level**, and is closed in its own way: a type
+either declares a `subType` or does not, and a type that does declares its
+values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strike
+mode rather than by kind — so `subType` on one is a finding; a `skill` declares
+ten, so `subType: crafte` is a finding naming `craft`.
+
+The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
+taken from the content-format specification. It is note-format knowledge rather
+than any system's: `data:` holds what is true of the thing, and what a system
+makes of that value is declared in that system's own half.
+
 **A third rule was retired (#79).** Every note used to be required to repeat its
 own `type-shortcode` address in `aliases:`. That served one reader — Obsidian,
 so `[[type-shortcode]]` resolved in the editor — and no build ever read it: both
@@ -721,6 +891,79 @@ attempted:
   `https://www.heroiclands.org/<package>/` is left alone for the same reason it
   cannot be improved: a package homepage is in no link manifest, so there is no
   better form to write.
+
+## The content format specification
+
+`docs/content-format.md` is the contract this package honours: how a note
+becomes a Foundry document and a web page. Three frontmatter regions, a note
+vocabulary with its own `type` and `subType`, a declared map onto each system's
+document fields, the precedence between a shared source and a system's override,
+and the wikilink address grammar.
+
+**It does not define the `sohl:` or `hm3:` schemas.** Each system defines its
+own, and its published `schema.json` is the authoritative statement of it. The
+format says which shared source feeds which system field; what fields exist, and
+what they mean, belongs to the system.
+
+That makes a mapping row **checkable rather than declarative**, and two commands
+check it. Both read the document's own tables, so editing the specification
+changes what they assert — a transcribed copy would be free to drift from the
+prose the moment either was edited, which is the failure they exist to prevent.
+
+### `content-format schema` — the specification against a published schema
+
+```bash
+npx content-build content-format schema --schema sohl=./schema.json
+```
+
+Every `system.*` target the document names must appear in the naming system's
+published `schema.json`, in the `version: 1` shape `package-build schema` emits.
+A target no schema declares is an error naming the note type, the field, the
+system and the version it was checked at — because a field may be perfectly well
+defined on the system's `main` and simply unreleased, and that is the difference
+between "the specification is wrong" and "the schema has not caught up".
+
+A target is resolved against the **union** of the system's document subtypes.
+The mapping tables say which field a shared source reaches; _which subtype
+receives it_ is the note-type → subtype map, which does not exist yet — so the
+question asked is the one that can be answered honestly today, and it narrows to
+the subtype when that map lands.
+
+`--schema` is repeatable and takes `<system>=<path>`, because a consumer holds
+its system's artifact and this repository holds a committed fixture, and neither
+arrangement should have to pretend to be the other. A system the document maps
+onto but no schema was supplied for is reported as **unchecked**, with a count:
+HM3 publishes no artifact today, so that is the ordinary case for a fifth of the
+claims, and a check that skipped them in silence would read as one that passed.
+
+### `content-format notes` — a content tree against the declared vocabulary
+
+```bash
+npx content-build content-format notes            # the configured `paths.content`
+npx content-build content-format notes --strict   # and fail on what it finds
+```
+
+Measures every authored note against the per-type `data` tables, and counts the
+findings by class:
+
+| class                   | what it means                                                         |
+| ----------------------- | --------------------------------------------------------------------- |
+| `unknown-type`          | the format declares no `### type:` section for this note's `type`     |
+| `unknown-data-key`      | a key in `data:`, which is closed, that the type does not declare     |
+| `top-level-data-key`    | a declared `data` property written at top level instead               |
+| `system-block-data-key` | a declared shared source written straight into a `sohl:`/`hm3:` block |
+
+**It reports; it does not fail.** Every authored note predates the format, so a
+failing check would be red in every repository on the day it lands and would
+stay red for the length of the migration — which is a check nobody can act on
+and everybody learns to skip. The counts are the migration's progress bar
+instead, and each class is promoted to fatal, by turning `--strict` on, as it
+reaches zero.
+
+What it deliberately leaves alone is a key inside a system block that the format
+says nothing about. Those regions are closed against _the system's_ schema, not
+against this document, and `content-build lint` already checks them against the
+declared fields.
 
 ## Prose: formatting and markdown
 
