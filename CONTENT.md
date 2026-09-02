@@ -470,6 +470,8 @@ has no art.
 npx content-build package <compile|unpack|clean> [pack] [entry]
 npx content-build docs item-fields [--out <path>] [--title <title>]
 npx content-build lint [root] [--no-references]
+npx content-build content-format schema --schema <system>=<path>
+npx content-build content-format notes [root] [--strict]
 npx content-build links [root] [--manifests <dir>]
 npx content-build format [paths..] [--write]
 npx content-build markdown [paths..] [--fix]
@@ -479,18 +481,19 @@ npx content-build reachability <dir> [file] [--index <shortcode>]
 npx content-build addresses diff --from <zip|dir> [--strict]
 ```
 
-| Command        | What it does                                                                                                                                                            |
-| -------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `package`      | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
-| `docs`         | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
-| `lint`         | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
-| `links`        | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
-| `format`       | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
-| `markdown`     | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
-| `manifest`     | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
-| `site`         | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
-| `reachability` | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
-| `addresses`    | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
+| Command          | What it does                                                                                                                                                            |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `package`        | Compile the content tree into LevelDB packs, unpack a shipped pack back to JSON, or clean one. See [Install](#install).                                                 |
+| `docs`           | Render a generated reference from the configured registries. `item-fields` is the item-frontmatter page.                                                                |
+| `lint`           | Check a content tree's addresses and its frontmatter. See [Linting a content tree](#linting-a-content-tree).                                                            |
+| `content-format` | Check the content format specification itself. See [The content format specification](#the-content-format-specification).                                               |
+| `links`          | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
+| `format`         | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
+| `markdown`       | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
+| `manifest`       | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
+| `site`           | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
+| `reachability`   | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
+| `addresses`      | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
 
 Every path, pack name and root it needs comes from the consuming repository's
 `package-build.config.yaml`, so the usual invocation takes no arguments beyond
@@ -721,6 +724,79 @@ attempted:
   `https://www.heroiclands.org/<package>/` is left alone for the same reason it
   cannot be improved: a package homepage is in no link manifest, so there is no
   better form to write.
+
+## The content format specification
+
+`docs/content-format.md` is the contract this package honours: how a note
+becomes a Foundry document and a web page. Three frontmatter regions, a note
+vocabulary with its own `type` and `subType`, a declared map onto each system's
+document fields, the precedence between a shared source and a system's override,
+and the wikilink address grammar.
+
+**It does not define the `sohl:` or `hm3:` schemas.** Each system defines its
+own, and its published `schema.json` is the authoritative statement of it. The
+format says which shared source feeds which system field; what fields exist, and
+what they mean, belongs to the system.
+
+That makes a mapping row **checkable rather than declarative**, and two commands
+check it. Both read the document's own tables, so editing the specification
+changes what they assert — a transcribed copy would be free to drift from the
+prose the moment either was edited, which is the failure they exist to prevent.
+
+### `content-format schema` — the specification against a published schema
+
+```bash
+npx content-build content-format schema --schema sohl=./schema.json
+```
+
+Every `system.*` target the document names must appear in the naming system's
+published `schema.json`, in the `version: 1` shape `package-build schema` emits.
+A target no schema declares is an error naming the note type, the field, the
+system and the version it was checked at — because a field may be perfectly well
+defined on the system's `main` and simply unreleased, and that is the difference
+between "the specification is wrong" and "the schema has not caught up".
+
+A target is resolved against the **union** of the system's document subtypes.
+The mapping tables say which field a shared source reaches; _which subtype
+receives it_ is the note-type → subtype map, which does not exist yet — so the
+question asked is the one that can be answered honestly today, and it narrows to
+the subtype when that map lands.
+
+`--schema` is repeatable and takes `<system>=<path>`, because a consumer holds
+its system's artifact and this repository holds a committed fixture, and neither
+arrangement should have to pretend to be the other. A system the document maps
+onto but no schema was supplied for is reported as **unchecked**, with a count:
+HM3 publishes no artifact today, so that is the ordinary case for a fifth of the
+claims, and a check that skipped them in silence would read as one that passed.
+
+### `content-format notes` — a content tree against the declared vocabulary
+
+```bash
+npx content-build content-format notes            # the configured `paths.content`
+npx content-build content-format notes --strict   # and fail on what it finds
+```
+
+Measures every authored note against the per-type `data` tables, and counts the
+findings by class:
+
+| class                   | what it means                                                         |
+| ----------------------- | --------------------------------------------------------------------- |
+| `unknown-type`          | the format declares no `### type:` section for this note's `type`     |
+| `unknown-data-key`      | a key in `data:`, which is closed, that the type does not declare     |
+| `top-level-data-key`    | a declared `data` property written at top level instead               |
+| `system-block-data-key` | a declared shared source written straight into a `sohl:`/`hm3:` block |
+
+**It reports; it does not fail.** Every authored note predates the format, so a
+failing check would be red in every repository on the day it lands and would
+stay red for the length of the migration — which is a check nobody can act on
+and everybody learns to skip. The counts are the migration's progress bar
+instead, and each class is promoted to fatal, by turning `--strict` on, as it
+reaches zero.
+
+What it deliberately leaves alone is a key inside a system block that the format
+says nothing about. Those regions are closed against _the system's_ schema, not
+against this document, and `content-build lint` already checks them against the
+declared fields.
 
 ## Prose: formatting and markdown
 

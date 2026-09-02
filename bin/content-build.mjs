@@ -39,6 +39,8 @@
  *   npx content-build package clean [pack] [entry]
  *   npx content-build docs item-fields [--out <path>] [--title <title>]
  *   npx content-build lint [root] [--no-references]
+ *   npx content-build content-format schema --schema <system>=<path>
+ *   npx content-build content-format notes [root] [--strict]
  *   npx content-build links [root] [--manifests <dir>]
  *   npx content-build format [paths..] [--write]
  *   npx content-build markdown [paths..] [--fix]
@@ -69,6 +71,8 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { loadContentFormat } from "../engine/content-format.mjs";
+import { checkSchemaTargets, measureCorpus } from "../engine/content-format-check.mjs";
 import {
     compareFields,
     resolveSchemaArtifact,
@@ -99,6 +103,7 @@ import {
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
+import { walkMarkdownTree } from "../engine/helpers.mjs";
 import {
     formatUnaddressableFinding,
     unaddressableForeignPackages,
@@ -175,6 +180,7 @@ const argv = yargs(hideBin(process.argv))
     .command(depsCommand())
     .command(docsCommand())
     .command(lintCommand())
+    .command(contentFormatCommand())
     .command(linksCommand())
     .command(formatCommand())
     .command(markdownCommand())
@@ -307,6 +313,193 @@ function docsCommand() {
                 } else {
                     process.stdout.write(page);
                 }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-build content-format` — check the format specification itself (#130).
+ *
+ * Two checks, because the specification makes claims about two different
+ * worlds, and they fail for different reasons and at different times:
+ *
+ * - `schema` compares every `system.*` target the document names against the
+ *   naming system's published `schema.json`. A failure means the specification
+ *   and the system disagree, which is a defect in one of the two.
+ * - `notes` measures a content tree against the vocabulary the document
+ *   declares per type. During #127 it is the migration's progress bar rather
+ *   than a gate, so it **reports** by default and `--strict` makes it fatal —
+ *   turned on one class at a time as each slice lands.
+ *
+ * Both read the committed document rather than a transcription of it, so
+ * editing `docs/content-format.md` changes what they assert.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function contentFormatCommand() {
+    return {
+        command: "content-format <action>",
+        describe: "Check the content format specification against schemas and notes",
+        builder: (yargs) =>
+            yargs
+                .command(contentFormatSchemaCommand())
+                .command(contentFormatNotesCommand())
+                .demandCommand(1, "Name an action.")
+                .strict(),
+        handler: () => {},
+    };
+}
+
+/**
+ * The parsed specification a `content-format` action should read.
+ *
+ * @param {object} argv - The parsed command line.
+ * @returns {import("../engine/content-format.mjs").ContentFormat} The document.
+ */
+function specFrom(argv) {
+    return argv.spec ? loadContentFormat(path.resolve(argv.spec)) : loadContentFormat();
+}
+
+/**
+ * `content-format schema` — every `system.*` target, against a published schema.
+ *
+ * The schemas are named on the command line as `<system>=<path>`, because a
+ * consumer holds one and this repository holds a committed fixture, and neither
+ * arrangement should be the one the other has to pretend to. A system the
+ * document maps onto but no schema was supplied for is reported as unchecked —
+ * HM3 publishes no artifact today, so that is the ordinary case for a fifth of
+ * the claims, and a check that quietly skipped them would read as one that
+ * passed.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatSchemaCommand() {
+    return {
+        command: "schema",
+        describe: "Check every `system.*` target the format names against a published schema.json",
+        builder: (yargs) => {
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("schema", {
+                describe:
+                    "A published schema, as `<system>=<path>`. Repeatable; a system with none is reported unchecked.",
+                type: "string",
+                array: true,
+                demandOption: true,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const format = specFrom(argv);
+                /** @type {Record<string, object>} */
+                const schemas = {};
+                for (const entry of argv.schema) {
+                    const at = String(entry).indexOf("=");
+                    if (at <= 0) {
+                        log.error(`--schema takes \`<system>=<path>\`, not "${entry}".`);
+                        process.exitCode = 1;
+                        return;
+                    }
+                    const system = entry.slice(0, at);
+                    const file = path.resolve(entry.slice(at + 1));
+                    schemas[system] = JSON.parse(fs.readFileSync(file, "utf8"));
+                }
+
+                const { findings, checked, unchecked } = checkSchemaTargets({ format, schemas });
+                for (const finding of findings) emitDiagnostic(finding);
+                for (const [system, count] of Object.entries(unchecked)) {
+                    log.info(
+                        `${count} claim(s) about ${system} are unchecked — no ` +
+                            `schema was supplied for it, so nothing here confirms them.`,
+                    );
+                }
+                if (findings.length) {
+                    log.error(
+                        `${findings.length} of ${checked} checked claim(s) name a ` +
+                            `field no schema declares.`,
+                    );
+                    process.exitCode = 1;
+                } else {
+                    log.info(`${checked} mapping claim(s) confirmed against the supplied schemas.`);
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-format notes` — a content tree, against the declared vocabulary.
+ *
+ * **A report, not a gate.** Every authored note predates the format, so a
+ * failing check would be red in every repository from the day it lands and
+ * would stay red for the length of #127 — which is a check nobody can act on.
+ * `--strict` raises the findings to errors, and #127 turns it on slice by
+ * slice as each class of finding reaches zero.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatNotesCommand() {
+    return {
+        command: "notes [root]",
+        describe: "Measure a content tree against the vocabulary the format declares (a report)",
+        builder: (yargs) => {
+            yargs.positional("root", {
+                describe: "Content tree to measure. Defaults to the configured contentBase.",
+                type: "string",
+            });
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("strict", {
+                describe:
+                    "Fail on the findings instead of reporting them. Turned on per slice of #127, as each class reaches zero.",
+                type: "boolean",
+                default: false,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                const root = argv.root ?? config.paths.content;
+                const format = specFrom(argv);
+
+                const notes = [];
+                for (const { frontmatter, absPath } of walkMarkdownTree(root, {
+                    skipDirectories: config.skipDirectories,
+                })) {
+                    if (!frontmatter || typeof frontmatter.type !== "string") continue;
+                    notes.push({
+                        file: absPath,
+                        fm: frontmatter,
+                        raw: fs.readFileSync(absPath, "utf8"),
+                    });
+                }
+
+                const { findings, byClass } = measureCorpus(notes, format, {
+                    strict: argv.strict,
+                });
+                for (const finding of findings) emitDiagnostic(finding);
+
+                const counts = Object.entries(byClass).sort(([a], [b]) => (a < b ? -1 : 1));
+                for (const [cls, count] of counts) log.info(`${cls}: ${count}`);
+                log.info(
+                    `${findings.length} finding(s) across ${notes.length} note(s) ` +
+                        `measured against ${format.file}.`,
+                );
+                if (argv.strict && findings.length) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
