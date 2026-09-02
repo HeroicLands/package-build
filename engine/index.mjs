@@ -36,6 +36,9 @@
 /** Deterministic document ids, the conventional pack map, and compendium UUIDs. */
 export * as ids from "./ids.mjs";
 
+/** The per-system frontmatter block, and the declared shared→system mapping. */
+export * as systemBlock from "./system-block.mjs";
+
 /** Fenced-code detection, so a rewrite never edits a code block. */
 export * as codeFences from "./code-fences.mjs";
 

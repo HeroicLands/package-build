@@ -167,7 +167,7 @@ file can be asked for rather than told:
 | `rootDir`             | the directory the configuration file sits in                                                                                      |
 | `foundryPackage`      | the `name` of the adjacent `package.json`, verbatim                                                                               |
 | `stats.systemVersion` | a **system**: that `package.json`'s `version`. A **module**: the `verified` version of the system it declares a relationship with |
-| `itemBuilders`        | the named registry (`sohl`), required lazily so importing costs nothing                                                           |
+| `itemBuilders`        | the named registry (`sohl`) — or a list of names — required lazily so importing costs nothing                                     |
 
 **Authoring any of the first three is an error**, not an override. Each was
 previously transcribed from a file that already stated it, and a transcription
@@ -371,6 +371,33 @@ object. Supplying `itemBuilders` is therefore all a consumer does to define an
 item type of its own; a table this package ships is one possible value, not the
 one the compiler holds.
 
+**A tree feeding two systems declares a set of registries.** One registry is
+also a ceiling: the accepted vocabulary is its keys, so a type only the _other_
+system knows — `spell` and `invocation` are HM3's, `mysticalability` is SoHL's —
+cannot be accepted at all. So `itemBuilders` takes either form:
+
+```yaml
+itemBuilders: sohl # one registry, and what every existing configuration says
+itemBuilders: [sohl, hm3] # a set; the vocabulary is their union
+```
+
+A registry's **name is the system it belongs to**, which is what lets a data
+configuration declare a set without naming each system twice. In an `.mjs`
+configuration the same set is written out:
+
+```js
+itemBuilders: [
+  { system: "sohl", builders: SOHL_ITEM_BUILDERS },
+  { system: "hm3", builders: HM3_ITEM_BUILDERS },
+],
+```
+
+A type **both** registries declare — `skill` is one name over two data models —
+keeps a builder on each side. `itemBuilder(type, system)` and `itemArt(type,
+system)` take the system that is asking; asking without one, for a type more
+than one registry declares, **throws** rather than answering with whichever was
+declared first.
+
 **Configuration is the source, and the manifest is generated from it.** That
 arrow used to point the other way: `paths.packageManifest` said where a
 hand-authored `system.template.json` lived, and the package-id guard and the
@@ -480,6 +507,84 @@ costs the `sohl` package nothing: `ITEM_BUILDERS` reads each entry's image out o
 that same map, so there is still exactly one map — and the drift a test used to
 watch for is now unrepresentable, because building the registry throws if a type
 has no art.
+
+## The per-system block
+
+A note is **system-agnostic**. The only system-specific things it carries are
+the properties named after a system, and one note may carry more than one — a
+`being` in `harn-ensemble` compiles into a SoHL `being` _and_ an HM3
+`character`. Within a system's block:
+
+| property           | maps to                                                       |
+| ------------------ | ------------------------------------------------------------- |
+| `<system>.system`  | `document.system` — the DataModel schema, verbatim paths      |
+| `<system>.type`    | `document.type` — the subtype the note compiles into          |
+| `<system>.img`     | `document.img`                                                |
+| `<system>.items`   | `document.items` — actors only                                |
+| `<system>.effects` | `document.effects`                                            |
+| `<system>.flags`   | `document.flags`                                              |
+| `<system>.pack`    | _nothing on the document_ — a build directive naming the pack |
+
+Everything else a system declares — `archetype`, `kbcat`, and the _generators_
+`items` and `attributes`, which expand into embedded documents rather than
+mapping anywhere — sits directly under the block, which is why it has to be
+somewhere the schema cannot claim.
+
+```yaml
+type: being # the content type — system-agnostic
+pack: actors # shared: unless a block says otherwise
+portrait: kaldor.webp # shared: reaches both systems' fields, differently named
+hm3:
+  type: character # this system's document subtype
+  pack: actors-hm3 # overrides the shared one, for HM3 only
+  system: # → document.system, verbatim
+    species: human
+    sunsign: ulandus
+  attributes: { str: 10, sta: 14 } # a generator, not a system field
+sohl:
+  type: being
+  system:
+    currentMoveMedium: walk
+  archetype: 1
+```
+
+**The shared fallback is declared, not name-matched.** `sohl.system.portrait`
+and `hm3.system.bioImage` both default from one shared property, and they are
+two real fields with different names — SoHL's `Actor.being` and HM3's
+`Actor.character` share **no** field name at all, so a rule matching on spelling
+would never fire. Each field declares its source instead, and resolution for a
+system `S` is:
+
+1. `S.system.<to>` — authored directly, wins outright;
+2. `S.<name>` — the legacy in-block position, until the corpus moves off it;
+3. the shared top-level property the field declares as its source, which may be
+   a **dotted path** (`data.portrait`) rather than a sibling key;
+4. the field's own default.
+
+`FieldSpec.name` is that declared source. It used to mean "frontmatter key under
+`sohl:`", which is the degenerate case where source and destination happen to
+share a name.
+
+**`<system>.system` is written through verbatim**, at the DataModel's own paths,
+with no renaming layer. A key the system's published `schema.json` does not
+declare for the subtype the note compiles into is an **error naming the note**,
+not a silent drop: Foundry discards an unknown `system` key at construction
+without a word, so the alternative is a field the author wrote and nobody will
+ever see. A path a declared field already writes is left to that field, so the
+value goes through one coercion rather than two.
+
+**A pack that declares a `system:` takes only notes carrying that block.** A
+note that says nothing about a system has no system data, and compiling it there
+would emit a hollow document — a subtype, and none of the fields the subtype
+exists for. The build fails naming the note and the pack. A pack declaring no
+system constrains nothing, and a pass whose document is not system data at all —
+journals, macros, scenes — is not subject to the rule.
+
+**`(type, shortcode)` resolves inside one system's catalogue.** A being names its
+embedded items by address and never by pack, so the Item packs are read as one
+address space; with two systems in the tree that space stops being one, because
+`skill:sword` exists under both names. An Actor pass reads the Item packs of its
+**own** system plus the system-neutral ones.
 
 ## Command line
 

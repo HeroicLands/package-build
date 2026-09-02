@@ -472,6 +472,18 @@ export function publishesContentPages(config) {
  */
 
 /**
+ * One **registry** of a declared set, and the system it belongs to (#58).
+ *
+ * A repository shipping content for two systems declares one of these per
+ * system: the accepted type vocabulary is their union, and a type both declare
+ * keeps a builder on each side rather than one of them winning in silence.
+ *
+ * @typedef {object} ItemRegistrySpec
+ * @property {string} system  The system id whose vocabulary this registry is.
+ * @property {Record<string, ItemBuilderEntry>} builders  The registry itself.
+ */
+
+/**
  * The configuration a consumer writes.
  *
  * @typedef {object} ContentBuildConfigInput
@@ -486,7 +498,8 @@ export function publishesContentPages(config) {
  *                                          `system.json` / `module.json`.
  * @property {PackageKind} packageKind      Whether the package is a system or a module.
  * @property {StatsSpec} stats              Identity stamped into every document's `_stats`.
- * @property {Record<string, ItemBuilderEntry>} [itemBuilders]  The consumer's
+ * @property {Record<string, ItemBuilderEntry>|readonly ItemRegistrySpec[]} [itemBuilders]
+ *                                          The consumer's
  *                                          item-type registry: each content `type`
  *                                          that compiles into an Item, paired with
  *                                          the builder producing its `system` block
@@ -494,7 +507,11 @@ export function publishesContentPages(config) {
  *                                          note of that type gets when it sets no
  *                                          `img:` of its own. Default `{}` — a
  *                                          content module that ships no items
- *                                          declares none.
+ *                                          declares none. A repository feeding
+ *                                          two systems declares a **list** of
+ *                                          `{ system, builders }` registries
+ *                                          instead, and the accepted type
+ *                                          vocabulary is their union (#58).
  * @property {PackSpec[]} packs             Packs to compile. More than one entry
  *                                          may share a `type`: a note then names
  *                                          the pack it belongs in with its
@@ -548,10 +565,24 @@ export function publishesContentPages(config) {
  *                                     declared. Sparse, like `itemArt` — a type
  *                                     absent here compiles normally and is
  *                                     simply undocumented (#22).
+ * @property {Readonly<Record<string, Readonly<Record<string, Function>>>>} itemBuildersBySystem
+ *                                     Derived: the same builders, kept per
+ *                                     declaring system. `{}` for the single
+ *                                     registry form, which names no system
+ *                                     (#58).
+ * @property {Readonly<Record<string, Readonly<Record<string, string>>>>} itemArtBySystem
+ *                                     Derived: the default art, per system.
+ * @property {Readonly<Record<string, Readonly<Record<string, readonly object[]>>>>} itemFieldsBySystem
+ *                                     Derived: the declared fields, per system.
+ * @property {ReadonlySet<string>} itemTypesBySeveralSystems  Derived: the types
+ *                                     more than one registry declares — the
+ *                                     ones the flat tables cannot answer for
+ *                                     without choosing a system for the caller.
  * @property {ReadonlySet<string>} itemTypes       Derived: the keys of
  *                                     {@link ContentBuildConfigInput.itemBuilders},
- *                                     so the accepted item types and the builder
- *                                     table are one list (#1504).
+ *                                     unioned across every declared registry, so
+ *                                     the accepted item types and the builder
+ *                                     tables are one list (#1504).
  * @property {ReadonlySet<string>} docEntryTypes   Derived: every type whose prose
  *                                     compiles into a JournalEntry of its own —
  *                                     the item types, plus `macro`, plus the map
@@ -611,6 +642,7 @@ const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = ["id", "type", "manifest", "compatibility", "itemCatalog"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
+const ITEM_REGISTRY_KEYS = ["system", "builders"];
 const PACK_KEYS = [
     "name",
     "type",
@@ -1420,19 +1452,18 @@ function normalizePackageBuild(value) {
  * Art now travels with the builder it belongs to, which is the one place a type
  * is already declared.
  *
- * @param {unknown} value
- * @returns {{itemBuilders: Readonly<Record<string, Function>>,
- *            itemArt: Readonly<Record<string, string>>}}
+ * @param {unknown} value - One registry: type → entry.
+ * @param {string} at - The configuration path to report against.
+ * @returns {{itemBuilders: Record<string, Function>,
+ *            itemArt: Record<string, string>,
+ *            itemFields: Record<string, readonly object[]>}}
  *   The `system` builder for each type, and the default art for those types
  *   that paired one. The art table is deliberately *sparse*: a bare-function
  *   entry contributes no key, which is what distinguishes "no default art" from
  *   an empty one.
  */
-function normalizeItemBuilders(value) {
-    if (value === undefined) {
-        return { itemBuilders: Object.freeze({}), itemArt: Object.freeze({}) };
-    }
-    if (!isPlainObject(value)) fail("itemBuilders", "must be an object");
+function normalizeOneRegistry(value, at) {
+    if (!isPlainObject(value)) fail(at, "must be an object");
     const input = /** @type {Record<string, unknown>} */ (value);
 
     /** @type {Record<string, Function>} */
@@ -1449,43 +1480,167 @@ function normalizeItemBuilders(value) {
         }
         if (!isPlainObject(entry)) {
             fail(
-                `itemBuilders.${type}`,
+                `${at}.${type}`,
                 "must be a builder function, or an object with a `system` builder",
             );
         }
         const paired = /** @type {Record<string, unknown>} */ (entry);
-        rejectUnknownKeys(paired, ITEM_BUILDER_KEYS, `itemBuilders.${type}.`);
+        rejectUnknownKeys(paired, ITEM_BUILDER_KEYS, `${at}.${type}.`);
         if (typeof paired.system !== "function") {
-            fail(`itemBuilders.${type}.system`, "must be a function");
+            fail(`${at}.${type}.system`, "must be a function");
         }
         itemBuilders[type] = /** @type {Function} */ (paired.system);
         if (paired.img !== undefined) {
-            itemArt[type] = requireNonEmptyString(paired.img, `itemBuilders.${type}.img`);
+            itemArt[type] = requireNonEmptyString(paired.img, `${at}.${type}.img`);
         }
         if (paired.fields !== undefined) {
             if (!Array.isArray(paired.fields)) {
-                fail(`itemBuilders.${type}.fields`, "must be an array");
+                fail(`${at}.${type}.fields`, "must be an array");
             }
             for (const [index, field] of paired.fields.entries()) {
                 if (!isPlainObject(field)) {
-                    fail(
-                        `itemBuilders.${type}.fields[${index}]`,
-                        "must be a field declaration object",
-                    );
+                    fail(`${at}.${type}.fields[${index}]`, "must be a field declaration object");
                 }
                 requireNonEmptyString(
                     /** @type {Record<string, unknown>} */ (field).to,
-                    `itemBuilders.${type}.fields[${index}].to`,
+                    `${at}.${type}.fields[${index}].to`,
                 );
             }
             itemFields[type] = Object.freeze([...paired.fields]);
         }
     }
 
+    return { itemBuilders, itemArt, itemFields };
+}
+
+/**
+ * The declared item-builder registries, and the vocabulary their union gives
+ * (#58).
+ *
+ * **One registry is a ceiling, not a default.** The accepted type list is the
+ * registry's keys, which is what makes a type impossible to accept without a
+ * builder behind it (#1504) — and, with one registry, impossible to accept a
+ * type a *second* system declares. A tree feeding two systems has both:
+ * `spell`, `invocation` and `psionic` are HM3's, `mysticalability` and
+ * `projectilegear` are SoHL's, and `skill` is both systems' under one name and
+ * two data models.
+ *
+ * So `itemBuilders` accepts either form:
+ *
+ * - **A registry** — `{ skill: fn, … }`. Unchanged, and what every existing
+ *   configuration declares. It names no system, because there is only one.
+ * - **A list of registries** — `[{ system: "sohl", builders: {…} }, …]`. The
+ *   vocabulary is the **union** of their keys; a type more than one declares
+ *   keeps a builder per system, so nothing is chosen for the build silently.
+ *
+ * The **flat** tables — `itemBuilders`, `itemArt`, `itemFields` — are the union
+ * with the first declaring registry winning a collision. They answer a
+ * single-system build, where a collision cannot arise; a build with two systems
+ * asks by system, and `itemTypesBySeveralSystems` names the types where asking
+ * flatly would be answering the wrong question. See `engine/item-registry.mjs`,
+ * which refuses exactly those without a system.
+ *
+ * @param {unknown} value - The declared `itemBuilders`.
+ * @returns {{itemBuilders: Readonly<Record<string, Function>>,
+ *            itemArt: Readonly<Record<string, string>>,
+ *            itemFields: Readonly<Record<string, readonly object[]>>,
+ *            itemBuildersBySystem: Readonly<Record<string, Readonly<Record<string, Function>>>>,
+ *            itemArtBySystem: Readonly<Record<string, Readonly<Record<string, string>>>>,
+ *            itemFieldsBySystem: Readonly<Record<string, Readonly<Record<string, readonly object[]>>>>,
+ *            itemTypesBySeveralSystems: ReadonlySet<string>}}
+ *   The flat tables, the per-system ones, and the contested types.
+ */
+function normalizeItemBuilders(value) {
+    const empty = Object.freeze({});
+    if (value === undefined) {
+        return {
+            itemBuilders: empty,
+            itemArt: empty,
+            itemFields: empty,
+            itemBuildersBySystem: empty,
+            itemArtBySystem: empty,
+            itemFieldsBySystem: empty,
+            itemTypesBySeveralSystems: Object.freeze(new Set()),
+        };
+    }
+
+    /** @type {{system: string|null, tables: ReturnType<typeof normalizeOneRegistry>}[]} */
+    const registries = [];
+
+    if (Array.isArray(value)) {
+        const seen = new Set();
+        for (const [index, entry] of value.entries()) {
+            const at = `itemBuilders[${index}]`;
+            if (!isPlainObject(entry)) {
+                fail(
+                    at,
+                    "must be `{ system, builders }` — a registry and the system it belongs to",
+                );
+            }
+            const declared = /** @type {Record<string, unknown>} */ (entry);
+            rejectUnknownKeys(declared, ITEM_REGISTRY_KEYS, `${at}.`);
+            const system = requireNonEmptyString(declared.system, `${at}.system`);
+            if (seen.has(system)) {
+                fail(
+                    at,
+                    `declares a second registry for \`${system}\` — a system has one ` +
+                        `item vocabulary, so merge them at their source`,
+                );
+            }
+            seen.add(system);
+            registries.push({
+                system,
+                tables: normalizeOneRegistry(declared.builders, `${at}.builders`),
+            });
+        }
+    } else {
+        registries.push({ system: null, tables: normalizeOneRegistry(value, "itemBuilders") });
+    }
+
+    /** @type {Record<string, Function>} */
+    const itemBuilders = {};
+    /** @type {Record<string, string>} */
+    const itemArt = {};
+    /** @type {Record<string, readonly object[]>} */
+    const itemFields = {};
+    /** @type {Record<string, Readonly<Record<string, Function>>>} */
+    const itemBuildersBySystem = {};
+    /** @type {Record<string, Readonly<Record<string, string>>>} */
+    const itemArtBySystem = {};
+    /** @type {Record<string, Readonly<Record<string, readonly object[]>>>} */
+    const itemFieldsBySystem = {};
+    /** @type {Map<string, number>} */
+    const declaringSystems = new Map();
+
+    for (const { system, tables } of registries) {
+        for (const [type, builder] of Object.entries(tables.itemBuilders)) {
+            declaringSystems.set(type, (declaringSystems.get(type) ?? 0) + 1);
+            if (!(type in itemBuilders)) itemBuilders[type] = builder;
+        }
+        for (const [type, art] of Object.entries(tables.itemArt)) {
+            if (!(type in itemArt)) itemArt[type] = art;
+        }
+        for (const [type, fields] of Object.entries(tables.itemFields)) {
+            if (!(type in itemFields)) itemFields[type] = fields;
+        }
+        if (system === null) continue;
+        itemBuildersBySystem[system] = Object.freeze(tables.itemBuilders);
+        itemArtBySystem[system] = Object.freeze(tables.itemArt);
+        itemFieldsBySystem[system] = Object.freeze(tables.itemFields);
+    }
+
     return {
         itemBuilders: Object.freeze(itemBuilders),
         itemArt: Object.freeze(itemArt),
         itemFields: Object.freeze(itemFields),
+        itemBuildersBySystem: Object.freeze(itemBuildersBySystem),
+        itemArtBySystem: Object.freeze(itemArtBySystem),
+        itemFieldsBySystem: Object.freeze(itemFieldsBySystem),
+        itemTypesBySeveralSystems: Object.freeze(
+            new Set(
+                [...declaringSystems.entries()].filter(([, count]) => count > 1).map(([t]) => t),
+            ),
+        ),
     };
 }
 
@@ -1720,7 +1875,18 @@ export function defineConfig(config) {
 
     const foundryPackage = requireNonEmptyString(input.foundryPackage, "foundryPackage");
 
-    const { itemBuilders, itemArt, itemFields } = normalizeItemBuilders(input.itemBuilders);
+    const {
+        itemBuilders,
+        itemArt,
+        itemFields,
+        itemBuildersBySystem,
+        itemArtBySystem,
+        itemFieldsBySystem,
+        itemTypesBySeveralSystems,
+    } = normalizeItemBuilders(input.itemBuilders);
+    // The union across every declared registry (#58) — the flat table already
+    // holds every key any of them declares, so this stays "the registry's keys"
+    // rather than becoming a second list to keep in step (#1504).
     const itemTypes = Object.freeze(new Set(Object.keys(itemBuilders)));
     const docEntryTypes = Object.freeze(new Set([...itemTypes, "macro", ...MAP_TYPES]));
 
@@ -1773,6 +1939,10 @@ export function defineConfig(config) {
         itemBuilders,
         itemArt,
         itemFields,
+        itemBuildersBySystem,
+        itemArtBySystem,
+        itemFieldsBySystem,
+        itemTypesBySeveralSystems,
         // Resolved once, here, and read everywhere through
         // `loadPackConfig()`. The doc-entry *concept* is the engine's —
         // a note that carries documentation is not a SoHL idea — but the

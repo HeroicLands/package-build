@@ -431,9 +431,10 @@ export function locateConfigError(err, configPath) {
  * - **`rootDir`** is the configuration's own directory, always. A data file
  *   cannot write `import.meta.dirname`, and any absolute path it wrote instead
  *   would be one machine's — so authoring it is rejected rather than honoured.
- * - **`itemBuilders`** is a *name* (`sohl`), resolved against the built-in
- *   registries. A registry of a consumer's own is code, and code goes in an
- *   `.mjs` configuration.
+ * - **`itemBuilders`** is a *name* (`sohl`) — or a list of names, for a tree
+ *   feeding more than one system (#58) — resolved against the built-in
+ *   registries. A registry's name is the system it belongs to. A registry of a
+ *   consumer's own is code, and code goes in an `.mjs` configuration.
  * - **`stats.systemVersion`** is derived from the adjacent `package.json` when
  *   the configuration does not state it. Stating it is still allowed: a
  *   repository shipping content *for* another package (a module declaring
@@ -482,26 +483,42 @@ export function configFromData(data, configPath) {
     input.foundryPackage = foundryPackageId(rootDir);
 
     if (input.itemBuilders !== undefined) {
-        const named = input.itemBuilders;
+        const declared = input.itemBuilders;
         const known = Object.keys(ITEM_BUILDER_REGISTRIES).join(", ");
-        if (typeof named !== "string") {
-            throw new Error(
-                `package-build: ${configPath} must name its \`itemBuilders\` ` +
-                    `registry as a string — the registry is code, and data ` +
-                    `cannot carry it. Known registries: ${known}; a registry ` +
-                    `of your own goes in ${CONFIG_BASENAME}.mjs.`,
-            );
-        }
-        const load = ITEM_BUILDER_REGISTRIES[named];
-        if (!load) {
-            throw new Error(
-                `package-build: ${configPath} names the \`itemBuilders\` ` +
-                    `registry "${named}", which this package does not ship. ` +
-                    `Known registries: ${known}. To supply your own, declare ` +
-                    `it in ${CONFIG_BASENAME}.mjs.`,
-            );
-        }
-        input.itemBuilders = load();
+        // One name or several. A repository feeding two systems needs both
+        // vocabularies, and one registry can only carry one (#58); the scalar
+        // form every existing configuration uses is the one-element case and
+        // means exactly what it always did.
+        const names = Array.isArray(declared) ? declared : [declared];
+        const resolved = names.map((named, index) => {
+            const where = Array.isArray(declared) ? `itemBuilders[${index}]` : "itemBuilders";
+            if (typeof named !== "string") {
+                throw new Error(
+                    `package-build: ${configPath} must name its \`${where}\` ` +
+                        `registry as a string — the registry is code, and data ` +
+                        `cannot carry it. Known registries: ${known}; a registry ` +
+                        `of your own goes in ${CONFIG_BASENAME}.mjs.`,
+                );
+            }
+            const load = ITEM_BUILDER_REGISTRIES[named];
+            if (!load) {
+                throw new Error(
+                    `package-build: ${configPath} names the \`${where}\` ` +
+                        `registry "${named}", which this package does not ship. ` +
+                        `Known registries: ${known}. To supply your own, declare ` +
+                        `it in ${CONFIG_BASENAME}.mjs.`,
+                );
+            }
+            // A shipped registry's *name* is the system it belongs to, which is
+            // what lets a data configuration declare a set without carrying the
+            // system id a second time.
+            return { system: named, builders: load() };
+        });
+        // The scalar form stays the flat, system-less registry it has always
+        // resolved to. Wrapping it as a one-entry set would be tidier and would
+        // change what every existing configuration means — `itemBuildersBySystem`
+        // would gain an entry the consumer never declared.
+        input.itemBuilders = Array.isArray(declared) ? resolved : resolved[0].builders;
     }
 
     const stats = input.stats;
