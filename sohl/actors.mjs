@@ -64,7 +64,7 @@ import {
     resolveName,
     resolveImg,
     defaultStats,
-    withArchetypeFlag,
+    systemArchetype,
     md,
 } from "../engine/helpers.mjs";
 import { emitDiagnostic } from "../engine/diagnostics.mjs";
@@ -757,9 +757,12 @@ export class Actors extends BasePackCompiler {
 
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`
-            // key — and, for a `docArchetype`-flagged being, its archetype
+            // key — and, for a being that is an archetype, its archetype
             // identity (the dedup/override key of the Create-dialog picker, #604).
             shortcode: fm.shortcode || "",
+            // Required nullable number: a priority, or `null` for a being that
+            // is not an archetype (#126 / archetype contract #604).
+            archetype: systemArchetype(fm, ctx),
             portrait: resolveImg(blockProperty(fm, SYSTEM, "portrait")) || defaultImg,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
@@ -820,9 +823,10 @@ export class Actors extends BasePackCompiler {
             folder,
             sort: 0,
             ownership: { default: 0 },
-            // `sohl.archetype` (required nullable number) drives
-            // `flags.sohl.docArchetype` (#640 / archetype contract #604).
-            flags: withArchetypeFlag(fm, blockProperty(fm, SYSTEM, "flags"), ctx),
+            // Whatever the note authors, and nothing else. `archetype` used to
+            // be spliced in here as `flags.sohl.docArchetype`; it is a schema
+            // field now and sits in `system` (#126).
+            flags: blockProperty(fm, SYSTEM, "flags", {}),
             _stats: this.stats,
             _key: `!actors!${id}`,
         };

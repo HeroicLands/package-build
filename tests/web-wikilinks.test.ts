@@ -136,16 +136,16 @@ describe("resolveWebWikilinks", () => {
         );
     });
 
-    it("falls back to the target's own name when unlabelled", () => {
+    it("falls back to the target's own name for an address with no label", () => {
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc/shock]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
+        expect(resolveWebWikilinks("[[doc/shock|]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
     it("falls back to the name for the hyphen form too (#1409)", () => {
         // `type-shortcode` is the canonical address (#1398), so it is no more
         // display text than `type/shortcode` is.
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[doc-shock]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
+        expect(resolveWebWikilinks("[[doc-shock|]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
     it("keeps a hyphenated bare alias as the prose the author wrote (#1409)", () => {
@@ -184,15 +184,17 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    it("does not read a hyphenated *name* as a qualified target", () => {
-        // `Grukar-ahk` is a note name, not an address: a hyphen qualifies only
-        // when what precedes it is a known type. Reporting these would fail the
-        // build on every worldbuilding reference kept outside this repository.
+    // Under the pipe rule (#131) a hyphenated *name* is still not an address —
+    // but writing one with a pipe now says the author meant one, so it is a
+    // finding rather than prose. The same name unpiped stays an alias lookup.
+    it("reports a hyphenated *name* written as an address", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[Grukar-ahk|the Grukar]]", ctx)).toBe(
             unresolved("the Grukar", "Grukar-ahk"),
         );
-        expect(ctx.errors).toEqual([]);
+        expect(ctx.errors).toEqual([
+            { file: "rules/Bleeding.md", target: "Grukar-ahk", reason: "not-an-address" },
+        ]);
     });
 
     it("resolves the hyphen form across types, as the packs do", () => {
@@ -233,11 +235,23 @@ describe("resolveWebWikilinks", () => {
 
     it("treats an unknown bare target as an external reference, not an error", () => {
         // Worldbuilding notes kept outside this repo must not fail the build.
+        // Unpiped, so it is an alias lookup, and an alias that finds nothing
+        // may simply be a note not yet written (#131).
+        const ctx = makeCtx();
+        expect(resolveWebWikilinks("the [[Empire of Tanvur]] rode", ctx)).toBe(
+            `the ${unresolved("Empire of Tanvur", "Empire of Tanvur")} rode`,
+        );
+        expect(ctx.errors).toEqual([]);
+    });
+
+    it("reports the same target once a pipe declares it an address", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("the [[Empire of Tanvur|Tanvurans]] rode", ctx)).toBe(
             `the ${unresolved("Tanvurans", "Empire of Tanvur")} rode`,
         );
-        expect(ctx.errors).toEqual([]);
+        expect(ctx.errors).toEqual([
+            { file: "rules/Bleeding.md", target: "Empire of Tanvur", reason: "not-an-address" },
+        ]);
     });
 
     it("treats an unknown prefix as external too", () => {
@@ -281,14 +295,14 @@ describe("cross-package addresses (link manifest)", () => {
 
     it("uses the foreign document's name when the link carries no label", () => {
         const ctx = makeCtx({ foreign, manifestsComplete: true });
-        expect(resolveWebWikilinks("[[creature-grkrahk]]", ctx)).toBe(
+        expect(resolveWebWikilinks("[[creature-grkrahk|]]", ctx)).toBe(
             "[Grukar-ahk](/thalorna/creature/grukar-ahk/)",
         );
     });
 
     it("prefers the local index — a live build outranks a vendored manifest", () => {
         const ctx = makeCtx({ foreign, manifestsComplete: true, type: null });
-        expect(resolveWebWikilinks("[[skill-climb]]", ctx)).toBe("[Climbing](/skill/climbing/)");
+        expect(resolveWebWikilinks("[[skill-climb|]]", ctx)).toBe("[Climbing](/skill/climbing/)");
     });
 
     it("fails an address that resolves nowhere, once manifests are complete", () => {
@@ -332,7 +346,7 @@ describe("cross-package addresses (link manifest)", () => {
             ],
         ]);
         const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
-        expect(resolveWebWikilinks("a [[creature-wolf]] howls", ctx)).toBe("a Dire Wolf howls");
+        expect(resolveWebWikilinks("a [[creature-wolf|]] howls", ctx)).toBe("a Dire Wolf howls");
         expect(ctx.errors).toHaveLength(0);
     });
 
@@ -395,7 +409,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
             ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
         const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
-        const out = resolveWebWikilinks("a [[creature-wolf]] howls", ctx);
+        const out = resolveWebWikilinks("a [[creature-wolf|]] howls", ctx);
         expect(out).toBe("a Dire Wolf howls");
         expect(out).not.toContain("sohl-unresolved-link");
     });

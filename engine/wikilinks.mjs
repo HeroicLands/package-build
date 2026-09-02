@@ -16,11 +16,17 @@
  *
  * Content notes link to one another with wikilinks rather than file paths:
  *
- *   `[[type/shortcode|Text]]`   a document of that type
+ *   `[[type-shortcode|Text]]`   a document of that type
+ *   `[[type-shortcode|]]`       the same, showing the target's current name
  *   `[[Text]]`                  an alias unique within the source's own type
- *   `[[type/shortcode#slug|T]]` a section (see below)
+ *   `[[type-shortcode#slug|T]]` a section (see below)
  *   `[[#slug|Text]]`            a section of the source note itself
- *   `[[doctype/shortcode|T]]`   an item's *documentation* (see below)
+ *   `[[doctype-shortcode|T]]`   an item's *documentation* (see below)
+ *
+ * **The pipe decides which of the two namespaces a target belongs to** (#131),
+ * and neither falls back to the other — see {@link resolvesAsAddress}, which
+ * states the rule for both builds. A piped target is parsed by the address
+ * grammar; an unpiped one is looked up in the alias index.
  *
  * The qualifier is the note's **type**, which with its shortcode is the system's
  * logical identity: `(type, shortcode)` is unique by rule (see the Shortcode
@@ -28,13 +34,13 @@
  * unique per type, not per directory, so a directory qualifier would add nothing
  * to the address while breaking every inbound link the moment a note is refiled.
  *
- * The bare form is the same address with the qualifier left implicit: it resolves
- * against the aliases of the source's **own type**, so a `doc` reaches any other
- * `doc` by name wherever it is filed. Nothing narrower is consulted — a note's
+ * The bare form is a **name**, not an abbreviated address: it resolves against
+ * the aliases of the source's **own type**, so a `doc` reaches any other `doc`
+ * by name wherever it is filed. Nothing narrower is consulted — a note's
  * directory and its `category` play no part in resolution. Where two notes of a
  * type legitimately share a name (a rules page and a user-guide page both called
  * "Gear"), the bare form is ambiguous and resolves to neither; the author writes
- * the full `[[type/shortcode|Text]]` form instead.
+ * the `[[type-shortcode|Text]]` address instead.
  *
  * At compile time each becomes a Foundry UUID enricher, routed to the pack that
  * the target's type compiles into (see {@link packForType}):
@@ -87,7 +93,10 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
 // one cannot disagree about what counts as a link.
-import { authoredLabel, WIKILINK, parseWikilink } from "./wikilink-syntax.mjs";
+import { authoredLabel, WIKILINK, parseWikilink, resolvesAsAddress } from "./wikilink-syntax.mjs";
+// The alias half of the two namespaces: what may be claimed, and how a claim
+// is keyed. Shared with the site build and the link checker (#131).
+import { aliasKey } from "./alias-index.mjs";
 
 export { ITEM_PACK, PACK_BY_TYPE, packForType };
 
@@ -304,7 +313,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
 
         if (d.shortcode) byShortcode.set(`${norm(d.type)}/${norm(d.shortcode)}`, d);
         for (const a of d.aliases ?? []) {
-            const key = `${norm(d.type)}|${norm(a)}`;
+            const key = aliasKey(d.type, a);
             // Second claimant poisons the alias: it can no longer be resolved.
             byAlias.set(key, byAlias.has(key) && byAlias.get(key) !== d ? null : d);
             // Every claimant is kept alongside, because poisoning the alias
@@ -475,55 +484,60 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         let text = labelled ? (authoredLabel(parsed) ?? "") : parsed.inner;
         const slug = parsed.anchor || null;
 
-        // Resolve the document: same-page (empty target), type-shortcode, or alias.
+        // Resolve the document: same-page (empty target), an address, or an
+        // alias. **The pipe chooses which**, with no fallback either way
+        // (#131) — see {@link resolvesAsAddress}.
         let doc;
         // Set when the qualifier was the virtual `doc<type>` form, so the UUID
         // is built against the item doc entry rather than the item itself.
         let itemDoc = false;
-        // Set when the target was read as `type-shortcode` — an address rather
-        // than prose, which decides what an unlabelled link shows (#1409).
+        // Set when the target was read as an address, which is what decides
+        // whether a foreign manifest is consulted for it below.
         let addressed = false;
         // Kept for the foreign fallback below, which needs the parsed address.
         let qualifiedRead = null;
         if (target === "" && slug) {
             doc = { type, id, pack, docPack };
-        } else {
+        } else if (resolvesAsAddress(parsed)) {
             const qualified = readQualifier(target, index.types, index.packages);
             qualifiedRead = qualified;
-            if (qualified?.reason) {
+            // The author wrote a pipe, so they meant an address. A target that
+            // does not parse as one is therefore a defect and not, as it was
+            // under the old resolve-by-shape rule, an invitation to try the
+            // alias index — which is what let a note *name* resolve here.
+            if (!qualified || qualified.reason) {
                 unresolved.push({
                     link: all,
                     target,
                     offset,
-                    reason: qualified.reason,
+                    reason: qualified?.reason ?? "not-an-address",
+                    addressed: true,
                 });
                 return unresolvedLink(text || target, target);
             }
-            if (qualified) {
-                addressed = true;
-                itemDoc = qualified.itemDoc;
-                doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
-            } else {
-                const aliasKey = `${norm(type)}|${norm(target)}`;
-                const hit = index.byAlias.get(aliasKey);
-                if (hit === null) {
-                    unresolved.push({
-                        link: all,
-                        target,
-                        offset,
-                        reason: "ambiguous",
-                        // Who claimed it, so the report can name the collision
-                        // rather than the note that merely cites it (#13).
-                        candidates: (index.aliasClaims?.get(aliasKey) ?? []).map((d) => ({
-                            type: d.type,
-                            shortcode: d.shortcode,
-                            name: d.name,
-                        })),
-                    });
-                    return unresolvedLink(text || target, target);
-                }
-                doc = hit;
+            addressed = true;
+            itemDoc = qualified.itemDoc;
+            doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
+        } else {
+            const key = aliasKey(type, target);
+            const hit = index.byAlias.get(key);
+            if (hit === null) {
+                unresolved.push({
+                    link: all,
+                    target,
+                    offset,
+                    reason: "ambiguous",
+                    // Who claimed it, so the report can name the collision
+                    // rather than the note that merely cites it (#13).
+                    candidates: (index.aliasClaims?.get(key) ?? []).map((d) => ({
+                        type: d.type,
+                        shortcode: d.shortcode,
+                        name: d.name,
+                    })),
+                });
+                return unresolvedLink(text || target, target);
             }
+            doc = hit;
         }
         if (!doc) {
             // Nothing local answers. A foreign package may publish this
@@ -550,22 +564,24 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 target,
                 offset,
                 reason: "unknown",
-                // A *qualified* address that resolves nowhere is a typo: every
-                // package it could name is either built here or vendored, so
-                // there is no third possibility left. A bare alias is not — it
-                // may simply be prose.
-                addressed: !!qualifiedRead && !qualifiedRead.reason,
+                // An *address* that resolves nowhere is a typo: every package
+                // it could name is either built here or vendored, so there is
+                // no third possibility left. A bare alias is not — it may
+                // simply be prose, or a worldbuilding placeholder.
+                addressed,
             });
             return unresolvedLink(text || target, target);
         }
 
-        // With no explicit label, a *qualified* target has no prose to show — a
-        // shortcode is an address, not display text — so the document's own name
-        // stands in (#1409). A bare `[[Text]]` is already the prose the author
-        // wrote, and substituting the canonical name there would rewrite the
-        // sentence ("worsens the [[Shock State]]" must not render as "Shock").
-        // The knowledgebase build reads the same authored link the same way.
-        if (!text || (!labelled && addressed)) text = doc.name ?? target;
+        // An address with no label — `[[skill-clmb|]]` — has no prose to show,
+        // a shortcode being an address rather than display text, so the
+        // document's **current** name stands in and a rename shows at every
+        // citation with no link edited (#1409, #131). A bare `[[Text]]` is
+        // already the prose the author wrote, and substituting the canonical
+        // name there would rewrite the sentence ("worsens the [[Shock State]]"
+        // must not render as "Shock"). The knowledgebase build reads the same
+        // authored link the same way.
+        if (!text) text = doc.name ?? target;
 
         // Both addresses were computed when the target was indexed. An item
         // doc lives in the journals pack under its own derived entry id, and

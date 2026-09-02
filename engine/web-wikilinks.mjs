@@ -17,10 +17,15 @@
  * The same authored links the pack compilers turn into Foundry `@UUID` enrichers
  * (see `./wikilinks.mjs`) become site-local hrefs here:
  *
- *   `[[type/shortcode|Text]]`       → `[Text](/section/slug/)`
+ *   `[[type-shortcode|Text]]`       → `[Text](/section/slug/)`
+ *   `[[type-shortcode|]]`           → the same, showing the target's own name
  *   `[[Text]]`                      → the same, via a type-scoped alias
- *   `[[type/shortcode#slug|Text]]`   → `[Text](/section/slug/#slug)`
- *   `[[#slug|Text]]`                 → `[Text](#slug)`
+ *   `[[type-shortcode#slug|Text]]`  → `[Text](/section/slug/#slug)`
+ *   `[[#slug|Text]]`                → `[Text](#slug)`
+ *
+ * **The pipe decides which namespace a target belongs to** (#131), with no
+ * fallback either way — see {@link resolvesAsAddress}, which states the rule
+ * for this build and the pack build together.
  *
  * The KB *section* is not always the type: prose pages (`type: doc`) route by
  * their `category`, so `doc/quickstart` lands on `/user-guide/sohl-quickstart/`.
@@ -32,12 +37,21 @@
  * exactly the drift one rule with two implementations produces (#20).
  */
 
-// Whether a target is an *address* rather than prose is read with the pack
-// build's own rule, so the two builds cannot drift apart on it: they disagreed
-// once over the unlabelled hyphen form, which the packs showed as a raw
-// shortcode and the knowledgebase as a name (#1409).
+// How an address *parses* is the pack build's own rule, so the two builds
+// cannot drift apart on it: they disagreed once over the unlabelled hyphen
+// form, which the packs showed as a raw shortcode and the knowledgebase as a
+// name (#1409).
 import { readQualifier } from "./wikilinks.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
+// The canonical `package-type-shortcode` key, so a package-qualified address
+// is looked up the way a vendored manifest publishes it.
+import { canonicalKey } from "./kb-manifest.mjs";
+// The alias half of the two namespaces — the key rule, shared with the pack
+// build and the link checker (#131).
+import { aliasKey } from "./alias-index.mjs";
+// Which namespace a target belongs to. The pipe decides, and this is the one
+// place that says so.
+import { resolvesAsAddress } from "./wikilink-syntax.mjs";
 // One slug rule for the whole build — see `./content-slug.mjs`. This module
 // carried a copy that dropped non-ASCII letters rather than transliterating
 // them, so a link to a heading named `Kûrbúl Helm` pointed at `#k-rb-l-helm`.
@@ -51,43 +65,33 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
 /** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 
 /**
- * Whether a link target addresses a document as `type-shortcode` (or the legacy
- * `type/shortcode`) rather than naming it in prose.
- *
- * Delegates to the pack build's {@link readQualifier} so one rule serves both
- * builds. A `reason` is as much an address as a resolved qualifier is — the
- * target is qualified either way, it just names no known type — and the caller
- * only ever asks this of a target that already resolved.
- *
- * @param {string} target - The link target, anchor already removed.
- * @param {Set<string>} [contentTypes] - Every content type the KB build saw.
- * @returns {boolean} `true` when the target is an address.
- */
-function isAddress(target, contentTypes) {
-    return readQualifier(target, contentTypes ?? new Set()) !== null;
-}
-
-/**
- * The `type/shortcode` index key a qualified target resolves to, or `null`.
+ * The index key a **piped** target resolves to, or `null` when it does not
+ * parse as an address at all.
  *
  * The KB index is keyed by the canonical `type/shortcode`, so a target written
- * in the hyphen separator — which is what the vault authors (#1398) — has to be
- * rewritten to it before lookup. Uses the same {@link readQualifier} as
- * {@link isAddress}, so recognising an address and resolving one can never
- * disagree: the first-hyphen split and the known-type condition that keeps
- * `[[Grukar-ahk]]` an alias are stated once, in the pack build.
+ * in the hyphen separator — which is what the content tree authors (#1398) —
+ * has to be rewritten to it before lookup. Uses the pack build's own
+ * {@link readQualifier}, so recognising an address and resolving one can never
+ * disagree: the two separators and the optional leading package segment are
+ * stated once, there.
  *
  * The build indexes an item note under both `skill/climb` and `docskill/climb`,
  * and `contentTypes` carries both qualifiers, so either form finds the page.
  *
  * @param {string} target - The link target, anchor already removed.
  * @param {Set<string>} [contentTypes] - Every content type the KB build saw.
- * @returns {string | null} The index key, or `null` when not qualified.
+ * @param {Set<string>} [packages] - Every package an address may name.
+ * @returns {string | null} The index key, or `null` when not an address.
  */
-function qualifiedKey(target, contentTypes) {
-    const read = readQualifier(target, contentTypes ?? new Set());
+function qualifiedKey(target, contentTypes, packages) {
+    const read = readQualifier(target, contentTypes ?? new Set(), packages);
     if (!read || read.reason) return null;
-    return `${read.type}/${read.shortcode}`.toLowerCase();
+    // A package-qualified address keeps its package: the canonical key is what
+    // a vendored manifest publishes, and dropping the segment would resolve
+    // another package's address against this one's short key.
+    return read.package ?
+            canonicalKey(read.package, read.type, read.shortcode)
+        :   `${read.type}/${read.shortcode}`.toLowerCase();
 }
 
 /**
@@ -203,18 +207,27 @@ function isPlainMap(value) {
 /**
  * Rewrites the wikilinks in a markdown body as KB-local markdown links.
  *
- * A target is looked up case-insensitively: first as an alias scoped to the
- * source's own **type** (`ctx.typeAlias`, keyed `type|alias`) — a note's
- * directory and `category` play no part — then in the KB-wide `ctx.index` (keyed
- * by the unambiguous `section/slug` and `type/shortcode`, plus name/filename/slug
- * fallbacks).
+ * A target is looked up case-insensitively in **one** of two namespaces, and
+ * the pipe chooses which (#131):
  *
- * An unresolved target fails the build only when it is a genuine intra-KB
- * problem — an ambiguous alias, or a qualified `prefix/key` whose prefix is a
- * real KB section or content directory. Anything else is treated as an external
- * reference — until every package's manifest is present, after which any
- * `type-shortcode` address resolving nowhere fails too. Failures are collected
- * in `ctx.errors`.
+ * - **Unpiped** — an alias scoped to the source's own **type**
+ *   (`ctx.typeAlias`, keyed `type|alias`). A note's directory and `category`
+ *   play no part.
+ * - **Piped** — an address, parsed by {@link readQualifier} and looked up in
+ *   the KB-wide `ctx.index` (the canonical `package-type-shortcode`,
+ *   `type/shortcode`, and the site's own `section/slug`), then in the vendored
+ *   `ctx.foreign` manifests.
+ *
+ * Neither falls back to the other, so the name/basename/slug fallbacks that
+ * share `ctx.index` no longer answer for an address: only a slash-qualified
+ * target reaches the raw key, which is what keeps `section/slug` addressable.
+ *
+ * An unresolved target fails the build when it is a genuine intra-KB problem —
+ * an ambiguous alias, a qualified `prefix/key` whose prefix is a real KB
+ * section or content directory, or a **piped** target that is not an address
+ * at all. Anything else is treated as an external reference — until every
+ * package's manifest is present, after which any address resolving nowhere
+ * fails too. Failures are collected in `ctx.errors`.
  *
  * Whether or not it fails the build, a target that resolves nowhere renders
  * through {@link unresolvedLink} rather than as bare prose (#1665): the author's
@@ -229,7 +242,9 @@ function isPlainMap(value) {
  *
  * @param {string} body - The markdown body.
  * @param {object} ctx - `{ index, typeAlias, collide, typeCollide, sections,
- *   contentTypes, foreign, manifestsComplete, type, errors, src }`. `foreign`
+ *   contentTypes, packages, foreign, manifestsComplete, type, errors, src }`.
+ *   `packages` is every package an address may name, without which the leading
+ *   package segment of a canonical address reads as an unknown type; `foreign`
  *   is the cross-package manifest index (#1446); `manifestsComplete` says
  *   whether every linkable package is accounted for. Together they decide
  *   whether an unresolved address is a typo or a package merely absent.
@@ -239,7 +254,8 @@ export function resolveWebWikilinks(body, ctx) {
     // Code is verbatim: a `[[…]]` inside a code fence, an indented block or an
     // inline span is source text, not a link (#1505).
     return replaceOutsideCode(body, WIKILINK, (_m, rawInner) => {
-        const { target, anchor, display } = parseWikilink(rawInner);
+        const parsed = parseWikilink(rawInner);
+        const { target, anchor, display } = parsed;
         // An empty label is not a label: `[[x|]]` addresses the target and
         // shows its name, so `""` falls through to the same place `null` does
         // (#113). One reading, from {@link authoredLabel}.
@@ -250,32 +266,41 @@ export function resolveWebWikilinks(body, ctx) {
             return `[${label ?? anchor}](#${slugify(anchor)})`;
         }
 
-        const key = target.toLowerCase();
-        const typeKey = ctx.type ? `${ctx.type}|${key}`.toLowerCase() : null;
+        // **The pipe chooses the namespace, with no fallback either way**
+        // (#131). The two used to be tried in turn, so a note *name* that
+        // looked like an address resolved as one and a genuine address that
+        // resolved nowhere silently became a name lookup.
+        const addressed = resolvesAsAddress(parsed);
+        const typeKey = ctx.type ? aliasKey(ctx.type, target) : null;
         // The canonical separator (#1398) has to be resolved, not merely
-        // recognised. Without this the form resolved only when source and
-        // target shared a type, by way of the seeded alias below; every
-        // *cross-type* link written in it silently lost its href.
-        const hyphenKey = qualifiedKey(target, ctx.contentTypes);
+        // recognised. `null` here means the piped target is not an address at
+        // all, which is now a defect rather than a reason to try the aliases.
+        const hyphenKey = addressed ? qualifiedKey(target, ctx.contentTypes, ctx.packages) : null;
+        const rawKey = target.toLowerCase();
         const hit =
-            (typeKey ? ctx.typeAlias.get(typeKey) : undefined) ??
-            ctx.index.get(key) ??
-            (hyphenKey ? ctx.index.get(hyphenKey) : undefined) ??
-            // A manifest entry carries the same `{ url, name }` shape as a
-            // local one (#1446), so a cross-package hit needs no special case
-            // below. Local wins: a live build is authoritative and a vendored
-            // manifest can only be staler.
-            (hyphenKey ? ctx.foreign?.get(hyphenKey) : undefined);
+            addressed ?
+                ((hyphenKey ? ctx.index.get(hyphenKey) : undefined) ??
+                // `section/slug` is the site's own address for a page, and it
+                // is in the same map. Admitted only when the target carries a
+                // slash, which is what keeps the *alias* fallbacks sharing
+                // that map — a page's name, basename and slug — out of the
+                // address namespace.
+                (rawKey.includes("/") ? ctx.index.get(rawKey) : undefined) ??
+                // A manifest entry carries the same `{ url, name }` shape as a
+                // local one (#1446), so a cross-package hit needs no special
+                // case below. Local wins: a live build is authoritative and a
+                // vendored manifest can only be staler.
+                (hyphenKey ? ctx.foreign?.get(hyphenKey) : undefined))
+            : typeKey ? ctx.typeAlias.get(typeKey)
+            : undefined;
         if (hit) {
-            // With no explicit label, a *qualified* target has no prose to show
-            // (a shortcode is not display text), so fall back to the document's
-            // name. A bare `[[Text]]` is already the prose the author wrote —
-            // substituting the canonical name there would rewrite the sentence
-            // ("worsens the [[Shock State]]" must not render as "Shock").
-            // Both separators qualify: `type-shortcode` is the canonical form
-            // (#1398), and a hyphen inside a note *name* ("Grukar-ahk") is not
-            // one, which is why the rule is the packs' own (#1409).
-            const text = label ?? (isAddress(target, ctx.contentTypes) ? hit.name : target);
+            // An address with no label has no prose to show (a shortcode is
+            // not display text), so the document's **current** name stands in
+            // and a rename shows at every citation. A bare `[[Text]]` is
+            // already the prose the author wrote — substituting the canonical
+            // name there would rewrite the sentence ("worsens the [[Shock
+            // State]]" must not render as "Shock").
+            const text = label ?? (addressed ? hit.name : target);
             // A pack-only package publishes Foundry addresses and no pages
             // (#1516), so its entries carry no `path` and resolve to no URL.
             // The address is real — this is not a typo and must not fail the
@@ -289,15 +314,9 @@ export function resolveWebWikilinks(body, ctx) {
 
         const slash = target.indexOf("/");
         const prefix = slash === -1 ? null : target.slice(0, slash).toLowerCase();
-        // Deliberately *not* extended to the hyphen form, which is also how a
-        // note addresses content in a package this build does not publish
-        // (`Rules/Bestiary.md` → `being-grkrahk`, a real note in the `thalorna`
-        // package). Nothing in the syntax separates that from a typo,
-        // so failing here would break the build on correct content.
-        //
-        // A dead address is caught instead by `lint:content-links` (#1414),
-        // which holds the reviewed list of cross-package exceptions — and which,
-        // unlike this build, runs as part of `npm run lint` on every change.
+        // A slash-qualified target whose prefix is a real section or content
+        // type is definitely local, so it is a typo whatever the manifest
+        // situation.
         const badQualified =
             prefix !== null && (ctx.sections.has(prefix) || ctx.contentTypes.has(prefix));
         // The hyphen form is the canonical address (#1398) and is what the
@@ -316,7 +335,17 @@ export function resolveWebWikilinks(body, ctx) {
         // someone has to remember.
         const badAddress = ctx.manifestsComplete === true && hyphenKey !== null;
 
-        if ((typeKey && ctx.typeCollide.has(typeKey)) || ctx.collide.has(key)) {
+        if (addressed && hyphenKey === null && !badQualified) {
+            // The author wrote a pipe, so they meant an address — and this is
+            // not one. Distinct from a dead address, because the fix is
+            // different: a name has to become an address, not be corrected
+            // (#131).
+            ctx.errors.push({ file: ctx.src, target, reason: "not-an-address" });
+        } else if (
+            addressed ?
+                rawKey.includes("/") && ctx.collide.has(rawKey)
+            :   Boolean(typeKey && ctx.typeCollide.has(typeKey))
+        ) {
             ctx.errors.push({ file: ctx.src, target, reason: "ambiguous" });
         } else if (badQualified || badAddress) {
             ctx.errors.push({
@@ -325,6 +354,9 @@ export function resolveWebWikilinks(body, ctx) {
                 reason: "broken type/shortcode",
             });
         }
+        // An unresolved *alias* stays soft: it may be ordinary prose, or a
+        // worldbuilding placeholder for a note not yet written. It still
+        // renders marked, so a reader can see a link was intended.
         return unresolvedLink(label ?? target, target);
     });
 }

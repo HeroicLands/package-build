@@ -314,7 +314,7 @@ const convert = (md: string) =>
 
 describe("wikilinks to a macro and to its documentation", () => {
     it("addresses the Macro itself through the macros pack", () => {
-        expect(convert("[[macro-autoattack]]")).toBe(
+        expect(convert("[[macro-autoattack|]]")).toBe(
             `@UUID[Compendium.sohl.macros.Macro.${NOTE_ID}]{Automated Attack}`,
         );
     });

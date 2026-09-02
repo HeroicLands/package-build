@@ -39,6 +39,8 @@ import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
+// The alias sources every index shares (#131).
+import { aliasesOf } from "./alias-index.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { emitDiagnostic, positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -147,8 +149,8 @@ export function* walkMarkdownTree(
 
 /**
  * Resolve the required `sohl.archetype` frontmatter for an Item/Actor entry
- * (see the archetype contract, #604 — `flags.sohl.docArchetype`). The property
- * is a nullable number that authors must state explicitly:
+ * (the archetype contract, #604). The property is a nullable number that
+ * authors must state explicitly:
  *   - a number → the document is an archetype of that priority.
  *   - `null`   → the document is not an archetype.
  *   - absent   → an authoring error (throws), so "not an archetype" is never
@@ -182,30 +184,29 @@ export function resolveArchetype(fm, label) {
 }
 
 /**
- * Merge the required `sohl.archetype` frontmatter into a document's `flags`,
- * returning a new object (the input is never mutated). A numeric archetype
- * seeds `flags.sohl.docArchetype`; `null` omits the flag (and clears any stale
- * `docArchetype` while preserving sibling `sohl` flags); an absent value
- * throws. See {@link resolveArchetype}.
+ * The value a document's `system.archetype` carries, from the required
+ * `sohl.archetype` frontmatter (#126, sohl#1780).
  *
- * @param {object} fm              Parsed frontmatter.
- * @param {object} [flags]         The entry's existing flags (e.g. `fm.flags`).
- * @param {string} label           Human-readable context for error messages.
- * @returns {object}               The flags object with the archetype applied.
+ * A **schema field**, so the tri-state is written out in full rather than
+ * expressed by a key's presence: a number is an archetype at that priority,
+ * and `null` is not an archetype. This is where {@link resolveArchetype}'s
+ * `undefined` becomes the field's `null` — an emitted `undefined` would be
+ * dropped by `JSON.stringify`, leaving the compiled document with no
+ * `archetype` at all and the tri-state readable as two.
+ *
+ * **`0` is an archetype.** It is the priority SoHL's own archetypes ship at,
+ * and it is falsy, so this returns it unchanged and every caller must ask
+ * `typeof v === "number"` rather than testing truthiness.
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @returns {number|null}  The archetype priority, or `null` for a document
+ *   that is not an archetype.
  * @throws {Error} When `sohl.archetype` is absent or invalid.
  */
-export function withArchetypeFlag(fm, flags, label) {
+export function systemArchetype(fm, label) {
     const archetype = resolveArchetype(fm, label);
-    const out = { ...(flags || {}) };
-    const sohl = { ...(out.sohl || {}) };
-    if (archetype === undefined) {
-        delete sohl.docArchetype;
-    } else {
-        sohl.docArchetype = archetype;
-    }
-    if (Object.keys(sohl).length > 0) out.sohl = sohl;
-    else delete out.sohl;
-    return out;
+    return archetype === undefined ? null : archetype;
 }
 
 /**
@@ -449,12 +450,10 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
             name: fm.name?.full ?? base,
-            aliases: [
-                ...(Array.isArray(fm.aliases) ? fm.aliases : []),
-                ...(fm.name?.full ? [fm.name.full] : []),
-                ...(Array.isArray(fm.name?.aliases) ? fm.name.aliases : []),
-                base,
-            ].filter(Boolean),
+            // The shared alias sources (#131): `aliases`, `name.aliases` and
+            // `name.full`, and deliberately not the filename — see
+            // {@link aliasesOf} for what that admitted and why it went.
+            aliases: aliasesOf(fm),
         });
     }
     // Packages this build links *into* but does not publish. Their manifests
@@ -565,6 +564,19 @@ export function convertNoteWikilinks(
                 `ambiguous wikilink ${u.link} in "${name}" — claimed by ` +
                     `${named}. Rename one alias, or address the intended one ` +
                     `as [[type-shortcode|Text]].`,
+            );
+        }
+        // The author wrote a pipe, so they meant an address — and this target
+        // is not one. Its own message, because the correction is its own: a
+        // note *name* has to become an address, which is not the same job as
+        // fixing a shortcode that resolves nowhere (#131).
+        if (u.reason === "not-an-address") {
+            fail(
+                u,
+                `wikilink ${u.link} in "${name}" is written as an address — ` +
+                    `the "|" says so — but "${u.target}" is not one. Write ` +
+                    `[[type-shortcode|Text]], or drop the "|" to name it as ` +
+                    `an alias within this note's own type.`,
             );
         }
         // A qualified address resolving nowhere is a typo, now that every

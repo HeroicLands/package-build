@@ -525,10 +525,16 @@ the properties named after a system, and one note may carry more than one — a
 | `<system>.flags`   | `document.flags`                                              |
 | `<system>.pack`    | _nothing on the document_ — a build directive naming the pack |
 
-Everything else a system declares — `archetype`, `kbcat`, and the _generators_
-`items` and `attributes`, which expand into embedded documents rather than
-mapping anywhere — sits directly under the block, which is why it has to be
-somewhere the schema cannot claim.
+Everything else a system declares sits directly under the block. `kbcat` is
+toolchain vocabulary, and the _generators_ `items` and `attributes` expand into
+embedded documents rather than mapping anywhere, so neither has a `system` path
+to be written at.
+
+`archetype` is authored there too, and is the one such key that _is_ a field:
+the builder writes it to `system.archetype` — a number is an archetype at that
+priority, `null` is not an archetype — exactly as `portrait` reaches
+`sohl.system.portrait` from a shared top-level property. Its authored position
+is unchanged (#126).
 
 ```yaml
 type: being # the content type — system-agnostic
@@ -733,6 +739,45 @@ builder, so schema and compiler cannot disagree. The hand-written compilers —
 `sohl/note-schemas.mjs`.
 
 Nothing here writes. A check reports and an author fixes.
+
+### The `data:` container is closed; the top level is not
+
+A note's frontmatter has three regions, and only one of them is open (#128):
+
+| region           | describes                                    | an unknown key is  |
+| ---------------- | -------------------------------------------- | ------------------ |
+| top level        | the note as a published artefact             | passed to the page |
+| `data:`          | the subject itself, whatever system reads it | an **error**       |
+| `sohl:` / `hm3:` | the subject as one system's documents        | an **error**       |
+
+**Top level is deliberately open**, for the reason the homepage rule above gives
+at length: every key of it is copied into the generated page, so an
+unrecognised one is a Hugo or theme parameter this build has no standing to
+refuse. `description` is the everyday case — not a document field at all, but
+the page's description.
+
+**`data:` is deliberately closed**, and that is the point of having it. The
+type-specific facts about a subject — a weapon's weight, an affliction's
+transmission, a being's species — used to sit at the top level, where the
+pass-through rule applied to them too. So a misspelled `wieght` became a theme
+parameter rather than a finding, indistinguishable from a weapon that weighs
+nothing. Under `data:` the same key is reported where it was written, with the
+key it was probably meant to be, drawn from that type's own vocabulary:
+
+```text
+assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
+```
+
+**`subType` stays at the top level**, and is closed in its own way: a type
+either declares a `subType` or does not, and a type that does declares its
+values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strike
+mode rather than by kind — so `subType` on one is a finding; a `skill` declares
+ten, so `subType: crafte` is a finding naming `craft`.
+
+The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
+taken from the content-format specification. It is note-format knowledge rather
+than any system's: `data:` holds what is true of the thing, and what a system
+makes of that value is declared in that system's own half.
 
 **A third rule was retired (#79).** Every note used to be required to repeat its
 own `type-shortcode` address in `aliases:`. That served one reader — Obsidian,

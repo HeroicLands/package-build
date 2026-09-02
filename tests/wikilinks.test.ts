@@ -530,30 +530,34 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
     });
 });
 
-describe("convertWikilinks — an unlabelled link (#1409)", () => {
+// An address written with an *empty* label — `[[x|]]`. Since #131 that is the
+// only unlabelled address form: an unpiped target is an alias, so what these
+// used to write as `[[doc-shock]]` is now `[[doc-shock|]]`, and it still shows
+// the target's own name.
+describe("convertWikilinks — an address with no label (#1409, #131)", () => {
     it("shows a qualified target's document name, not its shortcode", () => {
         // `doc-shock` is an *address*, not prose: showing it to the reader
         // leaks the shortcode into the sentence.
-        expect(convert("see [[doc-shock]]").markdown).toBe(
+        expect(convert("see [[doc-shock|]]").markdown).toBe(
             "see @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock}",
         );
     });
 
     it("does the same for the legacy slash form", () => {
-        expect(convert("see [[doc/shock]]").markdown).toBe(
+        expect(convert("see [[doc/shock|]]").markdown).toBe(
             "see @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock}",
         );
     });
 
     it("shows the name of a target in another pack", () => {
-        expect(convert("a [[skill-climb]] test").markdown).toBe(
+        expect(convert("a [[skill-climb|]] test").markdown).toBe(
             "a @UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} test",
         );
     });
 
     it("keeps the name when the link carries an anchor", () => {
         const page = anchorPageId("aaaaaaaaaaaaaaa1", "shock-state-index");
-        expect(convert("[[doc-shock#shock-state-index]]").markdown).toBe(
+        expect(convert("[[doc-shock#shock-state-index|]]").markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1" +
                 `.JournalEntryPage.${page}]{Shock}`,
         );
@@ -561,7 +565,7 @@ describe("convertWikilinks — an unlabelled link (#1409)", () => {
 
     it("names the item behind the `doc<type>` virtual qualifier", () => {
         const climbDoc = itemDocEntryId("bbbbbbbbbbbbbbb1");
-        expect(convert("[[docskill-climb]]").markdown).toBe(
+        expect(convert("[[docskill-climb|]]").markdown).toBe(
             `@UUID[Compendium.sohl.journals.JournalEntry.${climbDoc}]{Climbing}`,
         );
     });
@@ -592,7 +596,7 @@ describe("convertWikilinks — an unlabelled link (#1409)", () => {
             ],
             "sohl",
         );
-        const { markdown } = convertWikilinks("[[doc-nameless]]", {
+        const { markdown } = convertWikilinks("[[doc-nameless|]]", {
             ...from,
             index: nameless,
         });
@@ -681,13 +685,13 @@ describe("a code fence is verbatim (#1505)", () => {
         // on the array's shape — `[[1,2],[3,4]]` survived — so the corruption
         // looked arbitrary.
         const src = [
-            "See [[doc-shock]] for the rules.",
+            "See [[doc-shock|]] for the rules.",
             "",
             "```js",
             "const first = grid[[0]];",
             "```",
             "",
-            "And [[skill-climb]] after.",
+            "And [[skill-climb|]] after.",
         ].join("\n");
         const { markdown, unresolved } = convert(src);
         expect(markdown).toContain("const first = grid[[0]];");
@@ -711,7 +715,7 @@ describe("a code fence is verbatim (#1505)", () => {
             "",
             "    grid[[0]]",
             "",
-            "Write `grid[[0]]` inline, and link [[doc-shock]].",
+            "Write `grid[[0]]` inline, and link [[doc-shock|]].",
         ].join("\n");
         const { markdown } = convert(src);
         expect(markdown).toContain("    grid[[0]]");

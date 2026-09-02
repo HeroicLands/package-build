@@ -330,7 +330,15 @@ describe("an unresolved wikilink names the file, line and column", () => {
     let tmp: string;
     let warned: string[];
 
-    /** The note that reproduces the reported symptom: four identical links. */
+    /**
+     * The note that reproduces the reported symptom: identical links, which
+     * are indistinguishable unless each is reported at its own position.
+     *
+     * Both are **unpiped**, so both are alias lookups. Since #131 a piped
+     * target declares itself an address, and one that is not an address fails
+     * the note rather than warning — a different finding, covered in
+     * `pipe-selects-resolution.test.ts`.
+     */
     const NOTE = [
         "---",
         'name: { "full": "The Capital Nome" }',
@@ -339,7 +347,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
         'type: "probe"',
         "---",
         "",
-        "The nome is administered from [[Kenbet_Pat|Kenbet-Pat]].",
+        "The nome is administered from [[Kenbet_Pat]].",
         "",
         "Its court, the [[Kenbet_Pat]], sits in the capital.",
         "",
@@ -366,8 +374,8 @@ describe("an unresolved wikilink names the file, line and column", () => {
         const lines = NOTE.split("\n");
         // 1-based file coordinates of each authored link.
         const first = {
-            line: lines.findIndex((l) => l.includes("[[Kenbet_Pat|")) + 1,
-            column: lines.find((l) => l.includes("[[Kenbet_Pat|"))!.indexOf("[[") + 1,
+            line: lines.findIndex((l) => l.includes("from [[Kenbet_Pat]]")) + 1,
+            column: lines.find((l) => l.includes("from [[Kenbet_Pat]]"))!.indexOf("[[") + 1,
         };
         const second = {
             line: lines.findIndex((l) => l.includes("the [[Kenbet_Pat]]")) + 1,
@@ -382,7 +390,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
 
     it("still says what is wrong, and about which link", () => {
         expect(warned[0]).toContain("unresolved wikilink");
-        expect(warned[0]).toContain("[[Kenbet_Pat|Kenbet-Pat]]");
+        expect(warned[0]).toContain("[[Kenbet_Pat]]");
         expect(warned[1]).toContain("[[Kenbet_Pat]]");
     });
 
