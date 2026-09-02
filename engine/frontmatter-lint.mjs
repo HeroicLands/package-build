@@ -56,11 +56,13 @@
  */
 
 import { authoredFields } from "./field-spec.mjs";
+import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system-block.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
 import {
     RETIRED_FIELD_ALIASES,
+    declaresRetiredAlias,
     draftRetiredMessage,
     readAliasedField,
     retiredAliasMessage,
@@ -95,6 +97,28 @@ import {
  * @type {ReadonlySet<string>}
  */
 export const UNIVERSAL_KEYS = Object.freeze(new Set(["folder", "pack", "archetype", "kbcat"]));
+
+/**
+ * The system blocks a build checks, and what each accepts beyond the shared
+ * vocabulary.
+ *
+ * One entry, because one system is what every existing tree declares — and the
+ * default is a *declaration*, not a hard-coded assumption: a build that ships
+ * content for two systems passes both, and each block is then checked against
+ * its own vocabulary rather than against the other's (#58). A block nothing
+ * declares is not checked, because nothing can say what it may carry, and
+ * inventing a rule for it would report a correct tree red.
+ *
+ * `fieldVocabulary` says the note type's own declared field names are keys of
+ * this block. True for `sohl` and untrue in general: those names come from the
+ * `itemBuilders` registry that this system declares, and a second system's
+ * notes write a second system's fields.
+ *
+ * @type {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>}
+ */
+export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
+    sohl: Object.freeze({ fieldVocabulary: true }),
+});
 
 /**
  * Edit distance, capped — enough to answer "did you mean".
@@ -187,17 +211,6 @@ export function matchesKind(value, kind) {
 }
 
 /**
- * The `sohl:` block a note authored, or an empty one.
- *
- * @param {object} fm - The note's frontmatter.
- * @returns {object} The block.
- */
-function sohlBlock(fm) {
-    const block = fm?.sohl;
-    return block && typeof block === "object" && !Array.isArray(block) ? block : {};
-}
-
-/**
  * Check one note against its type's schema.
  *
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
@@ -205,9 +218,12 @@ function sohlBlock(fm) {
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
  * @param {object} [opts.index] - The link index, for the reference check. Its
  *   absence skips that check rather than reporting every reference as dead.
+ * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
+ *   The system blocks to check, and what each accepts. See
+ *   {@link DEFAULT_SYSTEM_BLOCKS}.
  * @returns {object[]} Findings, each with a locator where one is obtainable.
  */
-export function lintNote(note, { schemas, index }) {
+export function lintNote(note, { schemas, index, systems = DEFAULT_SYSTEM_BLOCKS }) {
     const findings = [];
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
@@ -281,7 +297,6 @@ export function lintNote(note, { schemas, index }) {
     }
 
     const fields = authoredFields(schema);
-    const block = sohlBlock(fm);
     /** First segment of each declared name — `impact.die` is authored as `impact`. */
     const declared = new Set(fields.map((f) => f.name.split(".")[0]));
 
@@ -295,9 +310,11 @@ export function lintNote(note, { schemas, index }) {
         if (retired) renamed.set(retired, name);
     }
     for (const [retired, current] of renamed) {
-        // Both regions, because both are read: a note that moved the key to the
-        // top level without renaming it has done half the migration.
-        if (!Object.hasOwn(block, retired) && !Object.hasOwn(fm, retired)) continue;
+        // `declaresRetiredAlias` searches both regions, because both are read:
+        // a note that moved the key to the top level without renaming it has
+        // done half the migration. It is the same predicate the compile-time
+        // report asks, so the two cannot disagree about what a note declares.
+        if (!declaresRetiredAlias(fm, current)) continue;
         findings.push({
             file: note.file,
             ...at(retired),
@@ -310,43 +327,61 @@ export function lintNote(note, { schemas, index }) {
         });
     }
 
-    for (const key of Object.keys(block)) {
-        if (declared.has(key) || UNIVERSAL_KEYS.has(key)) continue;
-        // Reported above, with what to write instead — a retired spelling is a
-        // rename to schedule, not a key nobody recognises.
-        if (renamed.has(key)) continue;
-        const guess = nearest(key, declared);
-        findings.push({
-            file: note.file,
-            ...at(key),
-            severity: "error",
-            message:
-                `"${key}" is not a property of a ${type}; it is discarded at ` +
-                `compile with no warning` +
-                (guess ? `. Did you mean "${guess}"?` : ""),
-        });
+    // Every declared system's block, each against its own vocabulary (#58). A
+    // block carries the shared keys any system's does — `system`, `type`,
+    // `img`, `effects`, `flags`, `pack` — plus whatever that system declares:
+    // for `sohl`, the note type's own field names, which are still the position
+    // the corpus authors them at until #126 moves them.
+    for (const [blockName, spec] of Object.entries(systems ?? {})) {
+        const accepted = new Set([
+            ...UNIVERSAL_KEYS,
+            ...(spec?.known ?? []),
+            ...(spec?.fieldVocabulary ? declared : []),
+        ]);
+        for (const key of unknownBlockKeys(fm, blockName, { known: accepted })) {
+            // Reported above, with what to write instead — a retired spelling
+            // is a rename to schedule, not a key nobody recognises. Only where
+            // the block's vocabulary is this type's: the alias renames *this*
+            // system's field, and another system's like-spelled key is not it.
+            if (spec?.fieldVocabulary && renamed.has(key)) continue;
+            const guess = nearest(key, [...accepted, ...SYSTEM_BLOCK_KEYS]);
+            findings.push({
+                file: note.file,
+                ...at(key),
+                severity: "error",
+                message:
+                    `"${key}" is not a property of a ${type}` +
+                    (blockName === "sohl" ? "" : ` under \`${blockName}\``) +
+                    `; it is discarded at compile with no warning` +
+                    (guess ? `. Did you mean "${guess}"?` : ""),
+            });
+        }
     }
 
     for (const field of fields) {
         // Only top-level names are read here: a nested one (`impact.die`) is
         // reached through its parent, and reporting the parent twice — once as
         // itself and once as its child — helps nobody.
-        const [head, ...rest] = field.name.split(".");
-        let value = block[head];
-        for (const segment of rest) {
-            value = value && typeof value === "object" ? value[segment] : undefined;
+        const [head] = field.name.split(".");
+        // Resolved exactly as the compiler resolves it (#58): the system path
+        // first, then the block, then the declared shared source. A lint that
+        // read only one of the three would report a note's own field as missing
+        // the moment it moved to another of them. A **shared** field needs
+        // nothing extra here — the note's top level *is* the third step — so
+        // `shared` says only where the field's home is, for the message below.
+        let { value, from } = resolveFieldValue(field, fm, { block: "sohl" });
+        // A **renamed** field may still be written under its retired spelling,
+        // which that order knows nothing about. It resolves through the reader
+        // the compiler uses, so the lint cannot disagree with the build about
+        // which value a note carries (#142).
+        if ((from === "default" || value == null) && RETIRED_FIELD_ALIASES[field.name]) {
+            const aliased = readAliasedField(fm, field.name);
+            if (aliased !== undefined) {
+                value = aliased;
+                from = "block";
+            }
         }
-        // A **shared** field is authored at the note's top level, and a
-        // **renamed** one may still carry its retired spelling. Both resolve
-        // through the reader the compiler uses, so the lint cannot disagree
-        // with the build about which value a note carries (#142).
-        if (
-            (value === undefined || value === null) &&
-            (field.shared || RETIRED_FIELD_ALIASES[field.name])
-        ) {
-            value = readAliasedField(fm, field.name);
-        }
-        const absent = value === undefined || value === null;
+        const absent = from === "default" || value === undefined || value === null;
         // Where the field belongs, as a message names it: a shared field is not
         // under `sohl:`, so telling an author to write `sohl.img` would send
         // them to the wrong region.
@@ -404,10 +439,12 @@ export function lintNote(note, { schemas, index }) {
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
  * @param {boolean} [opts.references=true] - Whether to check references.
+ * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
+ *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(index, { schemas, references = true }) {
+export function lintFrontmatter(index, { schemas, references = true, systems }) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -419,6 +456,7 @@ export function lintFrontmatter(index, { schemas, references = true }) {
             ...lintNote(note, {
                 schemas,
                 index: references ? index : undefined,
+                ...(systems ? { systems } : {}),
             }),
         );
     }

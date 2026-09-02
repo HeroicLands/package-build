@@ -6,9 +6,11 @@
  */
 
 import { describe, it, expect, beforeEach, afterEach } from "vitest";
+import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
 import { MARKDOWNLINT_CONFIG, PRETTIER_CONFIG } from "../engine/prose-config.mjs";
@@ -162,6 +164,180 @@ describe("content-build format (#69)", () => {
         write("sub/b.md", "Some   *bad*   formatting.\n");
         const r = await checkFormatting(root, { paths: ["sub"] });
         expect(files(r.findings)).toEqual([path.join("sub", "b.md")]);
+    });
+});
+
+/**
+ * A stand-in Prettier whose `format` is deliberately not idempotent.
+ *
+ * The reported symptom (#125) is a `--write` pass that leaves a file its own
+ * next pass would still change. Whatever produced it in the wild, the shape is
+ * this: `format` applied once does not reach a fixpoint. Injecting that shape
+ * is the only way to test the guarantee rather than the accident — a fixture
+ * that happens to be idempotent under the installed Prettier proves nothing
+ * about a Prettier that is not.
+ *
+ * @param step - One formatting pass, applied to a file's text.
+ * @returns A module shaped like the parts of Prettier `checkFormatting` uses.
+ */
+const stubPrettier = (step: (source: string) => string) => ({
+    getFileInfo: async () => ({ ignored: false, inferredParser: "markdown" }),
+    resolveConfig: async () => ({}),
+    format: async (source: string) => step(source),
+    check: async (source: string) => step(source) === source,
+});
+
+/** Strips one `!` from before the final newline — converges after two passes. */
+const stripOneBang = (source: string) => source.replace(/!(\n)$/, "$1");
+
+/** Adds a `!` before the final newline on every pass — never converges. */
+const addOneBang = (source: string) => source.replace(/(\n)$/, "!$1");
+
+describe("content-build format --write converges (#125)", () => {
+    it("leaves nothing for a second pass to write", async () => {
+        // The regression test the issue asks for: format a tree once, then
+        // assert an immediately following pass writes nothing at all.
+        write("a.md", "Some   *emphasis*    here.\n");
+        write("b.md", "# Title\n## Sub\ntext\n");
+        write("c.js", "function x() {\n  return 1;\n}\n");
+
+        const first = await checkFormatting(root, { write: true });
+        expect(first.written.length).toBeGreaterThan(0);
+
+        const second = await checkFormatting(root, { write: true });
+        expect(second.written).toEqual([]);
+        expect(second.findings).toEqual([]);
+    });
+
+    it("formats to a fixpoint when one pass is not enough", async () => {
+        const file = write("a.md", "text!!\n");
+        const r = await checkFormatting(root, {
+            write: true,
+            prettier: stubPrettier(stripOneBang),
+        });
+
+        // One invocation, not two: the file arrives at the value a second run
+        // would have produced.
+        expect(r.written.map((f) => path.relative(root, f))).toEqual(["a.md"]);
+        expect(fs.readFileSync(file, "utf8")).toBe("text\n");
+        expect(r.findings).toEqual([]);
+    });
+
+    it("reports a file that never converges instead of writing it silently", async () => {
+        const file = write("a.md", "text\n");
+        const r = await checkFormatting(root, {
+            write: true,
+            prettier: stubPrettier(addOneBang),
+        });
+
+        const finding = r.findings.find((f) => f.file === file)!;
+        expect(finding).toBeDefined();
+        expect(finding.severity).toBe("error");
+        expect(finding.message).toMatch(/did not converge/);
+        // A whole-file verdict carries no line or column (#17).
+        expect((finding as any).line).toBeUndefined();
+        expect((finding as any).column).toBeUndefined();
+        // And the file is left as it was: a formatting the command cannot
+        // reproduce is not one it should commit to disk.
+        expect(fs.readFileSync(file, "utf8")).toBe("text\n");
+        expect(r.written).toEqual([]);
+    });
+});
+
+describe("content-build format --write reports what it could not do (#125)", () => {
+    /** The real binary, because the exit code is half of what is under test. */
+    const bin = fileURLToPath(new URL("../bin/content-build.mjs", import.meta.url));
+
+    it("emits the diagnostic and fails, instead of reporting a clean write", () => {
+        // `--write` used to discard `findings` entirely: an unparseable file
+        // was collected and thrown away, so the run said "Formatted N of M"
+        // and exited 0 having silently left a file unformatted. The same
+        // channel now carries a file that will not converge, so it has to
+        // reach the caller.
+        write("lang/en.json", '[\n    "KEY.One": "value"\n]\n');
+
+        const r = spawnSync(process.execPath, [bin, "format", "--write"], {
+            cwd: root,
+            encoding: "utf8",
+        });
+
+        expect(r.status).toBe(1);
+        const output = `${r.stdout}${r.stderr}`;
+        expect(output).toContain(path.join("lang", "en.json"));
+        expect(output).toMatch(/cannot be parsed/);
+    });
+});
+
+describe("content-build format agrees with Prettier itself (#125)", () => {
+    /**
+     * Prettier's own CLI, resolved from this package's dependency tree.
+     *
+     * The point of running the binary rather than the API is independence: it
+     * is a second implementation of the walk, the ignore files and the config
+     * search, which is precisely the part the command stands in for.
+     */
+    const prettierBin = fileURLToPath(new URL("../node_modules/.bin/prettier", import.meta.url));
+
+    /** Files `prettier --check .` warns about, relative to the fixture root. */
+    const prettierComplaints = (): string[] => {
+        let output = "";
+        try {
+            output = execFileSync(prettierBin, ["--check", "."], {
+                cwd: root,
+                encoding: "utf8",
+                stdio: ["ignore", "pipe", "pipe"],
+                // Its findings go to stderr, coloured; `NO_COLOR` keeps the
+                // `[warn] <path>` lines parseable without stripping escapes.
+                env: { ...process.env, NO_COLOR: "1" },
+            });
+        } catch (err: any) {
+            output = `${err.stdout ?? ""}${err.stderr ?? ""}`;
+        }
+        return output
+            .split("\n")
+            .filter((line) => line.startsWith("[warn] "))
+            .map((line) => line.slice("[warn] ".length).trim())
+            .filter((line) => !line.startsWith("Code style issues"))
+            .map((line) => path.normalize(line))
+            .sort();
+    };
+
+    it("names exactly the files Prettier names, and skips exactly what Prettier skips", async () => {
+        // A consumer, modelled: its own config file, which is what makes the
+        // two tools comparable at all. With no config the command applies the
+        // shared defaults and bare Prettier applies its own, so they are
+        // *meant* to differ — the promise only bites where a config exists.
+        write("prettier.config.mjs", `export default ${JSON.stringify(PRETTIER_CONFIG)};\n`);
+
+        write("clean.md", "# Title\n\nSome _emphasis_ here.\n");
+        write("dirty.md", "Some   *emphasis*    here.\n");
+        write("nested/dirty.js", "function x() {\n  return 1;\n}\n");
+        write("nested/clean.js", "function x() {\n    return 1;\n}\n");
+        // Correct exclusions, which must stay excluded on both sides.
+        write("ignored.md", "Some   *emphasis*    here.\n");
+        write("build/out.md", "Some   *emphasis*    here.\n");
+        write("node_modules/dep/index.md", "Some   *emphasis*    here.\n");
+        write("art/logo.svgz", "not something Prettier parses\n");
+        write(".prettierignore", "ignored.md\n");
+        write(".gitignore", "build/\n");
+
+        const r = await checkFormatting(root);
+        expect(files(r.findings)).toEqual(prettierComplaints());
+        // Guard against the assertion passing because both sides found
+        // nothing.
+        expect(files(r.findings)).toContain("dirty.md");
+    });
+
+    it("still agrees once the tree has been formatted", async () => {
+        write("prettier.config.mjs", `export default ${JSON.stringify(PRETTIER_CONFIG)};\n`);
+        write("a.md", "Some   *emphasis*    here.\n");
+        write("b.js", "function x() {\n  return 1;\n}\n");
+        write("note.md", "---\nname:\n  full: X\n  aliases:\n    - A\n---\n\ntext\n");
+
+        await checkFormatting(root, { write: true });
+
+        expect((await checkFormatting(root)).findings).toEqual([]);
+        expect(prettierComplaints()).toEqual([]);
     });
 });
 

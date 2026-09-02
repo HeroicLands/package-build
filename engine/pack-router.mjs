@@ -47,12 +47,18 @@
  * - A note's **derived** documents are routed by the default of *their* type,
  *   not by the note's declaration: an item note's prose compiles into a
  *   JournalEntry, and `pack:` names where the *item* goes.
+ * - A note feeding **more than one system** declares `pack:` inside the block
+ *   that differs (#58). `pack` needed no new mechanism for that: it is an
+ *   ordinary shared property, so `<system>.pack` overrides the top-level one
+ *   for that system's document and leaves it standing for every other. A note
+ *   wanting one pack for both says it once at the top.
  *
  * @module
  */
 
 import { packForType } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { blockProperty } from "./system-block.mjs";
 
 /**
  * A note that cannot be routed to a pack. Thrown rather than returned so no
@@ -84,8 +90,8 @@ export const PACK_FIELD = "pack";
  *
  * @param {readonly object[]} packs - The resolved `packs` list from
  *   `defineConfig`.
- * @returns {{resolve: (fm: object, docType: string) => string,
- *   resolveOrNull: (fm: object, docType: string) => string|undefined,
+ * @returns {{resolve: (fm: object, docType: string, system?: string) => string,
+ *   resolveOrNull: (fm: object, docType: string, system?: string) => string|undefined,
  *   packsOfType: (docType: string) => string[],
  *   defaultOf: (docType: string) => string|undefined}} The router.
  */
@@ -124,11 +130,15 @@ export function createPackRouter(packs) {
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} docType - The document type the calling pass writes.
+     * @param {string} [system] - The system whose document is being routed. Its
+     *   block's `pack:` wins over the shared one; without it only the shared
+     *   declaration is read, which is every single-system build.
      * @returns {string} The pack name.
      * @throws {PackRoutingError} When the note routes nowhere.
      */
-    function resolve(fm, docType) {
-        const declared = fm?.[PACK_FIELD];
+    function resolve(fm, docType, system) {
+        const declared =
+            system === undefined ? fm?.[PACK_FIELD] : blockProperty(fm, system, PACK_FIELD);
         // The declaration names where the note's *own* document goes. A pass
         // writing a document derived from it — an item's prose becoming a
         // JournalEntry — is not what the author was addressing.
@@ -189,11 +199,12 @@ export function createPackRouter(packs) {
          *
          * @param {object} fm - The note's frontmatter.
          * @param {string} docType - The document type being addressed.
+         * @param {string} [system] - The system whose document is addressed.
          * @returns {string|undefined} The pack name, or `undefined`.
          */
-        resolveOrNull(fm, docType) {
+        resolveOrNull(fm, docType, system) {
             try {
-                return resolve(fm, docType);
+                return resolve(fm, docType, system);
             } catch {
                 return undefined;
             }

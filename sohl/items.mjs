@@ -56,6 +56,15 @@ import { itemDocEntryId, itemDocPointer } from "../engine/item-docs.mjs";
 // them with are one table — the consuming repository's, not this package's
 // (#1504/#1563).
 import { itemTypes, itemBuilder, itemArt } from "../engine/item-registry.mjs";
+// Which Foundry Item subtype a note's `type` compiles into. Looked up in the
+// system's declared map, never inferred from the type itself (#79).
+import { documentSubtype, subtypeRow } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
+// The note-level `sohl:` block: `sohl.system` onto the document's `system`
+// verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
+// shared top-level forms for this system alone (#58).
+import { blockProperty, claimedPaths, mergeSystemData } from "../engine/system-block.mjs";
+import { itemFields } from "../engine/item-registry.mjs";
 
 /**
  * The description an item carries: a pointer to its **item doc**, the
@@ -105,9 +114,26 @@ function commonSystem(fm, description) {
 /*  Compiler                                                            */
 /* -------------------------------------------------------------------- */
 
+/**
+ * The system this pass compiles for — the block its notes write, and the
+ * registry its builders come from.
+ *
+ * Read from the map rather than spelled here, so the block name, the subtype
+ * map and the registry key are one statement (#58/#79).
+ *
+ * @type {string}
+ */
+const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
+
 export class Items extends BasePackCompiler {
     static id = "items";
     static label = "item";
+
+    /**
+     * An Item **is** a system's data, so this pack takes only notes carrying
+     * this system's block (#58).
+     */
+    static requiresSystemBlock = true;
 
     /**
      * How many of each item type this pass wrote, for the summary. Every type
@@ -121,11 +147,47 @@ export class Items extends BasePackCompiler {
     /**
      * Every content type that compiles into an item.
      *
+     * The whitelist is the consuming repository's `itemBuilders` keys (#1504),
+     * and the system's own map is a second filter on top of it: a type SoHL
+     * maps onto some *other* document class is not an item however a registry
+     * spells it, which is the "no wrongly-typed document" half of #79. A type
+     * the map does not name at all is left to the registry — see
+     * {@link Items#itemSubtype}.
+     *
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True for a whitelisted item type.
      */
     selects(fm) {
-        return Boolean(fm.type) && itemTypes().has(fm.type);
+        if (!fm.type || !itemTypes().has(fm.type)) return false;
+        const row = subtypeRow(SOHL_DOCUMENT_SUBTYPES, fm.type);
+        return !row || row.document === "Item";
+    }
+
+    /**
+     * The Foundry Item subtype a note compiles into.
+     *
+     * **Looked up, not inferred.** For every type this system declares, the
+     * emitted subtype is the map's, so the note vocabulary and the document
+     * vocabulary are two separately-stated things rather than one string
+     * written twice (#79).
+     *
+     * **A type the map does not name belongs to the consumer**, and its
+     * registry entry is the declaration: a repository shipping an item type of
+     * its own writes it once, in the `itemBuilders` table of its
+     * `package-build.config.yaml`, and that key is what the document is a
+     * subtype of. That is an authored statement in the consumer's own
+     * configuration, not a coincidence inside this package's source — and
+     * refusing it here would silently drop every document of a type SoHL has
+     * no opinion about (#7/#1563).
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {string} The document's `type`.
+     */
+    itemSubtype(fm) {
+        const declared = documentSubtype(SOHL_DOCUMENT_SUBTYPES, fm.type, fm, {
+            absPath: this.currentNote?.absPath,
+        });
+        return declared ?? fm.type;
     }
 
     /** An item is named by its own type in the log, not by "item". */
@@ -147,26 +209,38 @@ export class Items extends BasePackCompiler {
         const name = resolveName(fm);
         const description = itemDescription(markdown, fm, name);
         const id = fm.id;
+        const subType = this.itemSubtype(fm);
         const system = {
             ...commonSystem(fm, description),
-            ...itemBuilder(type)(fm),
+            ...itemBuilder(type, SYSTEM)(fm),
         };
+        // Whatever the note authors under `sohl.system`, at the DataModel's own
+        // paths. A path a declared field already writes is left to that field:
+        // its value came from the same authored place and went through the
+        // field's own coercion (#58).
+        mergeSystemData(system, fm, {
+            block: SYSTEM,
+            claimed: claimedPaths(itemFields(type, SYSTEM)),
+        });
+        this.reportUndeclaredSystemData(fm, SYSTEM, "Item", subType);
 
-        const effects = Array.isArray(fm.effects) ? [...fm.effects] : [];
-
+        const effects = blockProperty(fm, SYSTEM, "effects");
         const folderId = sohlField(fm, "folder", null);
         const folder = this.folderResolver(folderId);
 
         return {
             name,
-            type,
-            img: resolveImg(fm.img) || itemArt(type),
+            // The note's `type` addresses the builder and the default art —
+            // both registries are keyed by content type — while the document's
+            // own subtype comes from the system's map (#79).
+            type: subType,
+            img: resolveImg(blockProperty(fm, SYSTEM, "img")) || itemArt(type, SYSTEM),
             _id: id,
             system,
-            effects,
+            effects: Array.isArray(effects) ? [...effects] : [],
             // `sohl.archetype` (required nullable number) drives
             // `flags.sohl.docArchetype` (#640 / archetype contract #604).
-            flags: withArchetypeFlag(fm, fm.flags, `item "${name}"`),
+            flags: withArchetypeFlag(fm, blockProperty(fm, SYSTEM, "flags"), `item "${name}"`),
             _stats: this.stats,
             ownership: { default: 0 },
             folder,

@@ -14,7 +14,8 @@ read `img` through `sohlField`, so it resolves the way every other note's art
 does: the `sohl:` block first, then the note's own top level, which is where it
 belongs. Art is not system-specific — a Scene is a core Foundry document and a
 second system would want the identical one — so the field has no business inside
-a system block.
+a system block. `docs/content-format.md` states that rule now, in place of the
+callout that recorded the disagreement and pointed at this issue.
 
 **`image:` still compiles, and is reported.** This is the first of the three
 steps `package:` took (#56): both spellings are read, `img` wins where a note

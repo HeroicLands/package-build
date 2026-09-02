@@ -117,12 +117,15 @@ export function assertNoDraftField(fm, { file, absPath } = {}) {
  * both refusals need it and a second copy is a second thing to keep correct.
  *
  * @param {string|undefined} absPath - The note's file.
- * @param {string} key - The top-level frontmatter key.
+ * @param {string} key - The frontmatter key.
+ * @param {string} [value] - When given, prefer the occurrence whose line also
+ *   carries this text — so a finding about one entry of a block opens on that
+ *   entry rather than on the key that introduces it.
  * @returns {{line?: number, column?: number}|undefined} Spreadable position
  *   fields, dropped rather than guessed when the file cannot be read or the key
  *   cannot be found — as `formatDiagnostic` requires.
  */
-export function locateFrontmatterKey(absPath, key) {
+export function locateFrontmatterKey(absPath, key, value = undefined) {
     if (!absPath) return undefined;
     let raw;
     try {
@@ -130,7 +133,7 @@ export function locateFrontmatterKey(absPath, key) {
     } catch {
         return undefined;
     }
-    const at = positionInFrontmatter(raw, key);
+    const at = positionInFrontmatter(raw, key, value);
     return at.line === undefined ? undefined : at;
 }
 
