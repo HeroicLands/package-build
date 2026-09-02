@@ -144,7 +144,7 @@ NA on both sides for that type, and its table says so.
 
 ### WikiLinks
 
-Roughly forty fields in the tables below take a `WikiLink`, and a link is written
+Twenty-seven fields in the tables below take a `WikiLink`, and a link is written
 `[[target]]` or `[[target|label]]`. The target is an **address**.
 
 #### The canonical address
@@ -565,7 +565,7 @@ subType
 | -------------------- | ----------------- | ------------------------------------------------------------------------- |
 | `templatePriority`   | `number`          | Template priority, _null_ = not a template                                |
 | `demonym`            | `string`          | What a member of this affiliation is called (a Vylarian)                  |
-| `governance.model`   | `GovernanceModel` | Type of government structure, if applicable                               |
+| `government.model`   | `GovernanceModel` | Type of government structure, if applicable                               |
 | `government.summary` | `string`          | summary of the governance situation                                       |
 | `languages`          | `WikiLink[]`      | Official languages (skills)                                               |
 | `seat`               | `WikiLink`        | Where the affiliation's authority sits                                    |
@@ -580,7 +580,7 @@ subType
 | `title`              | `string`          | **Membership.** The title a member bears (Veteran, Sir)                   |
 | `level`              | `number`          | **Membership.** The member's rank within it                               |
 
-Four of those describe the **organisation**; three describe a **membership**.
+Thirteen of those describe the **organisation**; three describe a **membership**.
 `office`, `title` and `level` have no value on an affiliation as a catalogue
 entry — they are filled when the affiliation is embedded on a being to record
 that being's standing in it. That is why the 199 authored affiliation notes leave
@@ -1046,7 +1046,7 @@ The `data:` fields, of which three are required:
 
 | `data` property   | Values           | Description                                                                                        |
 | ----------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `img`             | `string`         | **Required.** The path to the map art. Becomes the level's `background.src` — what tokens stand on |
+| `image`           | `string`         | **Required.** The path to the map art. Becomes the level's `background.src` — what tokens stand on |
 | `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                |
 | `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                     |
 | `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                      |
@@ -1072,11 +1072,17 @@ one Level or it has no map at all, and nothing supplies one after the fact: the
 client-side `_preCreate` that would create it does not run during offline pack
 compilation, and the server-side migration shim is version-gated on
 `_stats.coreVersion`, so a pack stamped 14.x or later skips it entirely. The
-single Level is synthesised from `img`, `overlay`, `levelName` and
+single Level is synthesised from `image`, `overlay`, `levelName` and
 `backgroundColor`.
 
-> **Naming to settle:** this table says `img`, matching every other note type,
-> but `map-notes.mjs` reads `image`. One of the two has to move.
+> **`image`, not `img` — and it is the one type that spells it that way.** Every
+> other note type names its artwork `img:`, and this table used to say so; the
+> compiler does not. `map-notes.mjs` reads `image` and `scenes.mjs` reads
+> `image`, and all three authored map notes write `image`, so the table said
+> the opposite of what compiles. Which of the two spellings survives is a
+> decision rather than a documentation fix, and it is
+> [package-build#142](https://github.com/HeroicLands/package-build/issues/142);
+> until it is taken, this states what the build actually reads.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,
@@ -1164,3 +1170,63 @@ subType:
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - user-guide: How to operate the Foundry implementation to play by the rules.
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, indexes, glossaries.
+
+### type: macro
+
+A script offered on the macro bar, plus the prose explaining what it does and
+when to reach for it. Produces a Foundry **Macro** and, from the same note, the
+JournalEntry every note produces — so a macro's documentation is a document a
+player can open, not a comment nobody reads.
+
+**The script is a page of the note, addressed by an anchor.** The macro's
+`command` is the first **language-tagged** JavaScript fence on the page whose
+heading carries `{#script}`:
+
+````markdown
+# Script {#script}
+
+```js
+await CONFIG.SOHL.class.Utility.currentCombatantAttack();
+```
+````
+
+Three rules follow, and each is deliberate. The anchor names the **page**, not
+the heading text, so the heading may be worded freely and
+`[[docmacro-autoattack#script]]` still opens exactly this page. The fence must
+be **tagged** — an untagged fence is a code sample whose language nobody stated,
+and treating it as executable would make an illustrative snippet the macro. And
+only the **first** tagged fence counts, so a note may document its macro
+with examples that are plainly not the macro. A note with no `{#script}` page,
+or no tagged fence on it, is a **build error**: a macro with no command is a
+macro-bar button that does nothing.
+
+**The executable copy is read from the raw markdown.** The journal's copy of the
+same fence has been through table expansion and wikilink conversion first, so
+the two diverge on purpose — the journal renders prose _about_ the script, while
+the macro runs exactly what the author typed.
+
+**This is not compiling data into code.** A Macro's `command` is authored source
+shipped as content and run by Foundry's own macro runner under the permission
+model that governs every macro in a world. Nothing evaluates, compiles, or
+revives anything; the compiler copies text from a fence into a JSON field.
+
+| `data` property | Values                      | Description                                                          |
+| --------------- | --------------------------- | -------------------------------------------------------------------- |
+| `macroType`     | `script`                    | The Foundry macro type. Defaults to `script`, and `chat` is an error |
+| `macroScope`    | `global \| actors \| actor` | How far the macro reaches. Defaults to `global`                      |
+
+> **These fields are read from `sohl:` today, and should move to `data:`.** A
+> Macro is a core Foundry document — nothing about a script's type or scope is
+> system-specific — so authoring them under `sohl:` puts them where the only
+> available container was rather than where they belong. It is the same mistake
+> the map fields make, and no authored note carries either field today, so the
+> move costs nothing.
+
+**`macroType: chat` is an error, not an unimplemented feature.** A chat macro's
+`command` is chat text rather than source, so none of the `{#script}` fence
+rules describe it, and compiling one through this path would ship a macro whose
+body was a code block posted verbatim into chat. Chat macros as content would
+need an authoring convention of their own.
+
+The note's `img` is a content-relative path resolved the way every other note's
+is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
