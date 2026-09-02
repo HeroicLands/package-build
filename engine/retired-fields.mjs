@@ -34,12 +34,24 @@
  * *unresolvable*, silently — and it also suppressed real build failures, since
  * a note the compilers never reached could not fail on the defects it carried.
  *
+ * **A field retired in favour of another is a third case (#142).** `draft:` and
+ * `package:` were retired outright: nothing replaced them, so no value made
+ * writing one right and refusal was the only honest answer. A *renamed* field
+ * has a replacement, and the two spellings mean the same thing — so the note
+ * still compiles, correctly, and refusing it would fail a build over a document
+ * that is not wrong. Those retire in the three steps `package:` took (#56), and
+ * this module carries the **first**: both spellings are read, the current one
+ * wins, and the retired one is *reported* rather than refused. The sweep and
+ * the refusal come later, once no tree writes it. See
+ * {@link RETIRED_FIELD_ALIASES}.
+ *
  * @module
  */
 
 import fs from "node:fs";
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { sohlField } from "./frontmatter.mjs";
 
 /**
  * What a note declaring `draft:` is told, in one place.
@@ -123,4 +135,103 @@ export function locateFrontmatterKey(absPath, key, value = undefined) {
     }
     const at = positionInFrontmatter(raw, key, value);
     return at.line === undefined ? undefined : at;
+}
+
+/* -------------------------------------------------------------------- */
+/*  Retired *in favour of another field*                                 */
+/* -------------------------------------------------------------------- */
+
+/**
+ * The current field name a retired spelling was renamed to.
+ *
+ * Keyed by the **current** name, because that is what a type's schema declares
+ * and what every reader asks for; the value is the spelling still honoured.
+ * The table is therefore scoped by the schema without saying so twice: an alias
+ * applies to a note only where that note's type declares the current field, so
+ * `image` is retired on a map — which declares `img` — and remains an unknown
+ * key anywhere else.
+ *
+ * **`img` (#142).** Every note type names its artwork `img`, at the note's top
+ * level, and resolves it the same way. A map alone named its background art
+ * `image` and read it out of the `sohl:` block — two spellings for one idea,
+ * with nothing to reconcile them, and a specification that had to hedge rather
+ * than state a rule. Art is not system-specific: a Scene is a core Foundry
+ * document and HM3 would want the identical one, so the field belongs beside
+ * every other note's `img`, not inside a system block.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const RETIRED_FIELD_ALIASES = Object.freeze({ img: "image" });
+
+/**
+ * What a note writing a renamed field is told, in one place.
+ *
+ * Shared by the compile-time report and the frontmatter lint, because an author
+ * meets whichever runs first and they should read the same. It names the key to
+ * write rather than a value to correct — no value makes the retired spelling
+ * right — and it says the note compiles either way, so a reader knows this is a
+ * rename to schedule rather than a build to unbreak.
+ *
+ * @param {string} retired - The spelling the note used.
+ * @param {string} current - What to write instead.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function retiredAliasMessage(retired, current, file) {
+    return (
+        `\`${retired}:\` is a retired frontmatter field — write \`${current}:\` ` +
+        `instead` +
+        (file ? ` — ${file}` : "") +
+        `. Both are read and \`${current}\` wins, so the note compiles ` +
+        `identically either way; \`${retired}\` is removed in a later release`
+    );
+}
+
+/**
+ * Whether a note writes the retired spelling of a field, wherever it put it.
+ *
+ * Both regions are searched, because {@link sohlField} reads both: a note that
+ * moved the key to the top level without renaming it has done half the
+ * migration, and should be told so rather than passing in silence.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} current - The field's current name.
+ * @returns {boolean} Whether the retired spelling is declared.
+ */
+export function declaresRetiredAlias(fm, current) {
+    const retired = RETIRED_FIELD_ALIASES[current];
+    if (!retired || !fm || typeof fm !== "object") return false;
+    const block = fm.sohl;
+    const inBlock =
+        block &&
+        typeof block === "object" &&
+        !Array.isArray(block) &&
+        Object.hasOwn(block, retired);
+    return Boolean(inBlock) || Object.hasOwn(fm, retired);
+}
+
+/**
+ * Read a field that has a retired spelling, the current name winning.
+ *
+ * This is the whole of the retirement window's behaviour, in one function, so
+ * the compiler and the linter cannot disagree about which value a note carries.
+ * Resolution within each spelling is {@link sohlField}'s — the `sohl:` block
+ * first, then the note's top level — so a renamed field keeps working wherever
+ * it was already written while the canonical home is the top level.
+ *
+ * A blank value counts as absent: `img:` cleared in an editor means the note
+ * names no art there, and falling through to the retired spelling is what an
+ * author part-way through the rename means by it.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} current - The field's current name.
+ * @returns {any} The value, or `undefined` when neither spelling carries one.
+ */
+export function readAliasedField(fm, current) {
+    const value = sohlField(fm, current, undefined);
+    if (value !== undefined && value !== null && value !== "") return value;
+    const retired = RETIRED_FIELD_ALIASES[current];
+    return retired ? sohlField(fm, retired, undefined) : undefined;
 }

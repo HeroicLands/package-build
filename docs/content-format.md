@@ -1044,22 +1044,22 @@ are subTypes of one type rather than three types.
 
 The `data:` fields, of which three are required:
 
-| `data` property   | Values           | Description                                                                                        |
-| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------- |
-| `image`           | `string`         | **Required.** The path to the map art. Becomes the level's `background.src` — what tokens stand on |
-| `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                |
-| `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                     |
-| `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                      |
-| `levelName`       | `string`         | The name of the embedded level. Defaults to `Ground`                                               |
-| `backgroundColor` | `ColorHexValue`  | Shown where the art does not reach. Defaults to `#999999`                                          |
-| `overlay`         | `string`         | Path to **foreground** art                                                                         |
-| `walls`           | `WallSegment[]`  | List of wall segments                                                                              |
-| `doors`           | `Door[]`         | List of doors                                                                                      |
-| `lights`          | `Light[]`        | List of lights                                                                                     |
-| `tiles`           | `Tile[]`         | List of tiles                                                                                      |
-| `sounds`          | `Sound[]`        | List of sounds                                                                                     |
-| `regions`         | `SceneRegion[]`  | List of scene regions                                                                              |
-| `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                |
+| `data` property   | Values           | Description                                                                                                                                                    |
+| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `img`             | `string`         | **Required.** The path to the map art. Becomes the level's `background.src` — what tokens stand on. Authored at the note's **top level**, not here — see below |
+| `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                                                                            |
+| `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                                                                                 |
+| `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                                                                                  |
+| `levelName`       | `string`         | The name of the embedded level. Defaults to `Ground`                                                                                                           |
+| `backgroundColor` | `ColorHexValue`  | Shown where the art does not reach. Defaults to `#999999`                                                                                                      |
+| `overlay`         | `string`         | Path to **foreground** art                                                                                                                                     |
+| `walls`           | `WallSegment[]`  | List of wall segments                                                                                                                                          |
+| `doors`           | `Door[]`         | List of doors                                                                                                                                                  |
+| `lights`          | `Light[]`        | List of lights                                                                                                                                                 |
+| `tiles`           | `Tile[]`         | List of tiles                                                                                                                                                  |
+| `sounds`          | `Sound[]`        | List of sounds                                                                                                                                                 |
+| `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                          |
+| `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                            |
 
 Everything else a Scene holds is **derived**, not authored: padding, grid type,
 grid distance and units, token vision and fog mode all come from the subType, and
@@ -1072,17 +1072,22 @@ one Level or it has no map at all, and nothing supplies one after the fact: the
 client-side `_preCreate` that would create it does not run during offline pack
 compilation, and the server-side migration shim is version-gated on
 `_stats.coreVersion`, so a pack stamped 14.x or later skips it entirely. The
-single Level is synthesised from `image`, `overlay`, `levelName` and
+single Level is synthesised from `img`, `overlay`, `levelName` and
 `backgroundColor`.
 
-> **`image`, not `img` — and it is the one type that spells it that way.** Every
-> other note type names its artwork `img:`, and this table used to say so; the
-> compiler does not. `map-notes.mjs` reads `image` and `scenes.mjs` reads
-> `image`, and all three authored map notes write `image`, so the table said
-> the opposite of what compiles. Which of the two spellings survives is a
-> decision rather than a documentation fix, and it is
-> [package-build#142](https://github.com/HeroicLands/package-build/issues/142);
-> until it is taken, this states what the build actually reads.
+> **`img`, at the note's top level, as every other type's artwork is.** A map
+> alone named it `image` and read it out of the `sohl:` block, so one idea had
+> two spellings and this table had to hedge rather than state a rule
+> ([package-build#142](https://github.com/HeroicLands/package-build/issues/142)).
+> Art is not system-specific — a Scene is a core Foundry document, and a second
+> system would want the identical art — so the field sits beside every other
+> note's `img` rather than inside a system block.
+>
+> `image` is **retired in favour of it**, in the three steps `package:` took
+> (#56), and this is the first: both spellings are read, `img` wins where a note
+> carries both, and a note still writing `image` gets a located **warning**
+> rather than a refusal. It compiles to the byte-identical document, so failing
+> a build over it would red a tree that has done nothing wrong.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,

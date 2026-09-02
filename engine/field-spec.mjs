@@ -72,6 +72,15 @@ export { setPath };
  * @property {any} [default] - Emitted when the note does not carry the field.
  * @property {boolean} [required] - Whether a note must carry it. A required
  *   field's `read` is expected to throw when it is missing.
+ * @property {boolean} [shared] - Whether the field is authored at the note's
+ *   **top level** rather than inside a system block, because what it states is
+ *   not system-specific — a map's background art is the same art whichever
+ *   system reads the note. It changes no reader: the top level is already the
+ *   third step of {@link module:engine/system-block.resolveFieldValue}'s order,
+ *   so the value resolves whichever region carries it. What it tells the
+ *   author-facing surfaces is which of the two is the field's *home*, so a
+ *   message about it names `img` rather than sending an author to `sohl.img`
+ *   (#142).
  * @property {"string"|"number"|"boolean"|"list"|"map"} [kind] - The value's
  *   shape, for the frontmatter linter (#19). Distinct from `shape`, which is
  *   prose for a reader, and from `read`, which is what the compiler does: a

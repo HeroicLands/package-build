@@ -60,7 +60,13 @@ import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
-import { draftRetiredMessage } from "./retired-fields.mjs";
+import {
+    RETIRED_FIELD_ALIASES,
+    declaresRetiredAlias,
+    draftRetiredMessage,
+    readAliasedField,
+    retiredAliasMessage,
+} from "./retired-fields.mjs";
 
 /**
  * `sohl:` keys every type accepts, whatever its schema says.
@@ -465,6 +471,33 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     /** First segment of each declared name — `impact.die` is authored as `impact`. */
     const declared = new Set(fields.map((f) => f.name.split(".")[0]));
 
+    // The retired spelling of a field this type declares → what to write now.
+    // Built from the type's own vocabulary, so a renamed field is retired
+    // exactly where its replacement exists and the old name stays an unknown
+    // key everywhere else (#142).
+    const renamed = new Map();
+    for (const name of declared) {
+        const retired = RETIRED_FIELD_ALIASES[name];
+        if (retired) renamed.set(retired, name);
+    }
+    for (const [retired, current] of renamed) {
+        // `declaresRetiredAlias` searches both regions, because both are read:
+        // a note that moved the key to the top level without renaming it has
+        // done half the migration. It is the same predicate the compile-time
+        // report asks, so the two cannot disagree about what a note declares.
+        if (!declaresRetiredAlias(fm, current)) continue;
+        findings.push({
+            file: note.file,
+            ...at(retired),
+            // A warning, not an error: the note compiles to the correct
+            // document, so failing a build over it would red a tree that has
+            // done nothing wrong yet. The refusal comes after the sweep, as
+            // `package:`'s did (#56).
+            severity: "warning",
+            message: retiredAliasMessage(retired, current),
+        });
+    }
+
     // Every declared system's block, each against its own vocabulary (#58). A
     // block carries the shared keys any system's does — `system`, `type`,
     // `img`, `effects`, `flags`, `pack` — plus whatever that system declares:
@@ -477,6 +510,11 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
             ...(spec?.fieldVocabulary ? declared : []),
         ]);
         for (const key of unknownBlockKeys(fm, blockName, { known: accepted })) {
+            // Reported above, with what to write instead — a retired spelling
+            // is a rename to schedule, not a key nobody recognises. Only where
+            // the block's vocabulary is this type's: the alias renames *this*
+            // system's field, and another system's like-spelled key is not it.
+            if (spec?.fieldVocabulary && renamed.has(key)) continue;
             const guess = nearest(key, [...accepted, ...SYSTEM_BLOCK_KEYS]);
             findings.push({
                 file: note.file,
@@ -499,16 +537,33 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         // Resolved exactly as the compiler resolves it (#58): the system path
         // first, then the block, then the declared shared source. A lint that
         // read only one of the three would report a note's own field as missing
-        // the moment it moved to another of them.
-        const { value, from } = resolveFieldValue(field, fm, { block: "sohl" });
+        // the moment it moved to another of them. A **shared** field needs
+        // nothing extra here — the note's top level *is* the third step — so
+        // `shared` says only where the field's home is, for the message below.
+        let { value, from } = resolveFieldValue(field, fm, { block: "sohl" });
+        // A **renamed** field may still be written under its retired spelling,
+        // which that order knows nothing about. It resolves through the reader
+        // the compiler uses, so the lint cannot disagree with the build about
+        // which value a note carries (#142).
+        if ((from === "default" || value == null) && RETIRED_FIELD_ALIASES[field.name]) {
+            const aliased = readAliasedField(fm, field.name);
+            if (aliased !== undefined) {
+                value = aliased;
+                from = "block";
+            }
+        }
         const absent = from === "default" || value === undefined || value === null;
+        // Where the field belongs, as a message names it: a shared field is not
+        // under `sohl:`, so telling an author to write `sohl.img` would send
+        // them to the wrong region.
+        const label = field.shared ? `\`${field.name}\`` : `\`sohl.${field.name}\``;
 
         if (field.required && absent) {
             findings.push({
                 file: note.file,
                 ...at("type", type),
                 severity: "error",
-                message: `a ${type} must declare \`sohl.${field.name}\` — ${field.describe}`,
+                message: `a ${type} must declare ${label} — ${field.describe}`,
             });
             continue;
         }
@@ -520,7 +575,7 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                 ...at(head),
                 severity: "error",
                 message:
-                    `\`sohl.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                    `${label} should be ${field.shape ?? field.kind}, ` +
                     `but reads ${JSON.stringify(value)}`,
             });
             continue;
@@ -538,7 +593,7 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                     ...at(head, value),
                     severity: "error",
                     message:
-                        `\`sohl.${field.name}\` names ${field.ref} ` +
+                        `${label} names ${field.ref} ` +
                         `"${value}", and no note or vendored manifest declares it`,
                 });
             }
