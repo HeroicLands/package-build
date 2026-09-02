@@ -54,6 +54,9 @@ export * as packConfig from "./pack-config.mjs";
 /** Which pack of a document type a note's document lands in (#1566). */
 export * as packRouter from "./pack-router.mjs";
 
+/** Which note types a configuration compiles, and the notes nothing claims (#146). */
+export * as noteClaims from "./note-claims.mjs";
+
 /** The content package a build compiles, and the Foundry package it ships in. */
 export * as contentPackage from "./content-package.mjs";
 
