@@ -54,6 +54,9 @@ import path from "node:path";
 import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
+// The alias namespace: what a page may be called, and what happens when two
+// pages of one type claim one name (#131).
+import { aliasesOf, indexAliases } from "./alias-index.mjs";
 
 /**
  * One page the site will publish, as the index needs to see it.
@@ -180,11 +183,17 @@ function mergeForeign(index, foreignIndex) {
 export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     const index = new Map();
     const ambiguous = new Set();
-    const typeAlias = new Map();
-    const typeCollide = new Set();
+    /** One entry per page, fed to {@link indexAliases} in a pass of its own. */
+    const aliasEntries = [];
     const contentTypes = new Set();
     const sections = new Set();
     const refIndex = new Map();
+    // Every package an address may name: this build's own, plus every one a
+    // vendored manifest speaks for. Without it `readQualifier` cannot see the
+    // leading package segment of a canonical address, and `kethira-place-x`
+    // reads as the unknown type `kethira` (#131).
+    const ownPackage = contentPackage();
+    const packages = new Set(ownPackage ? [ownPackage] : []);
 
     // `section/slug` is unique by construction; the rest are fallbacks.
     for (const e of entries) {
@@ -203,6 +212,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     // without it the link reads as prose and silently loses its href.
     for (const value of foreignIndex.values()) {
         if (value.type) contentTypes.add(value.type);
+        if (value.package) packages.add(value.package);
     }
 
     // Merged *before* the local type-scoped pass below, so a local page always
@@ -239,7 +249,8 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             // The page's package is the configured one — the site collection
             // resolves it and records it as `pkg`. Never read out of
             // frontmatter: `package:` is retired (#56).
-            index.set(canonicalKey(e.pkg ?? contentPackage(), type, shortcode), value);
+            index.set(canonicalKey(e.pkg ?? ownPackage, type, shortcode), value);
+            if (e.pkg) packages.add(e.pkg);
             // In Foundry an item and its documentation are two documents, so
             // `skill/wpnc` and `docskill/wpnc` are two UUIDs (#1362). Here the
             // item note renders as one page which *is* its documentation, so
@@ -253,33 +264,38 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             }
         }
 
-        const aliases = [
-            ...(Array.isArray(e.fm.aliases) ? e.fm.aliases : []),
-            ...(Array.isArray(e.fm.name?.aliases) ? e.fm.name.aliases : []),
-            e.name,
-            path.basename(e.base, ".md").replace(/_/g, " "),
-        ].filter((a) => typeof a === "string" && a);
-
-        for (const alias of aliases) {
-            const key = `${type}|${alias}`.toLowerCase();
-            if (typeCollide.has(key)) continue;
-            const cur = typeAlias.get(key);
-            if (cur && cur.url !== value.url) {
-                typeAlias.delete(key);
-                typeCollide.add(key);
-            } else if (!cur) {
-                typeAlias.set(key, value);
-            }
-        }
+        // The alias sources are the shared ones — `aliases`, `name.aliases`
+        // and `name.full`, and deliberately **not** the filename (#131) — plus
+        // this page's display name, which is what `name.full` becomes on the
+        // site and is carried here already resolved.
+        aliasEntries.push({
+            type,
+            aliases: [...aliasesOf(e.fm), e.name],
+            value,
+        });
     }
+
+    // Built in one pass at the end, by the shared rule, so a collision is a
+    // reportable fact rather than a silently deleted key. Two pages of one
+    // type sharing an alias resolve to neither, and `aliasCollisions` names
+    // every claimant — the citing page is innocent (#13, #131).
+    const {
+        byKey: typeAlias,
+        collisions: aliasCollisions,
+        claims: aliasClaims,
+    } = indexAliases(aliasEntries, { same: (a, b) => a.url === b.url });
+    const typeCollide = new Set(aliasCollisions.map((c) => c.key));
 
     return {
         index,
         ambiguous,
         typeAlias,
         typeCollide,
+        aliasCollisions,
+        aliasClaims,
         contentTypes,
         sections,
+        packages,
         refIndex,
         conflicts,
     };
@@ -320,6 +336,7 @@ export function wikiContext(
         typeAlias: built.typeAlias,
         typeCollide: built.typeCollide,
         contentTypes: built.contentTypes,
+        packages: built.packages,
         type,
         errors,
         src,

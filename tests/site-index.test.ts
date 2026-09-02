@@ -169,7 +169,7 @@ describe("aliases are scoped to their type", () => {
         expect(typeCollide.has("skill|shock")).toBe(true);
     });
 
-    it("indexes authored aliases from both spellings, and the filename", () => {
+    it("indexes authored aliases from both spellings, and not the filename", () => {
         const { typeAlias } = buildSiteIndex([
             entry({
                 name: "Climbing",
@@ -184,8 +184,10 @@ describe("aliases are scoped to their type", () => {
 
         expect(typeAlias.get("skill|scrambling")?.url).toBe("/kb/skill/climbing/");
         expect(typeAlias.get("skill|clambering")?.url).toBe("/kb/skill/climbing/");
-        // Underscores in a filename stand for spaces.
-        expect(typeAlias.get("skill|rock climbing")?.url).toBe("/kb/skill/climbing/");
+        expect(typeAlias.get("skill|climbing")?.url).toBe("/kb/skill/climbing/");
+        // The filename is a file-system fact, not a name an author claimed, so
+        // it is no longer a source (#131).
+        expect(typeAlias.has("skill|rock climbing")).toBe(false);
     });
 });
 

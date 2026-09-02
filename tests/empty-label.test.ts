@@ -81,8 +81,14 @@ describe("the web resolver honours an empty label (#113)", () => {
         expect(web("[[doc-shock|]]")).toBe("[Shock](/rules/sohl-shock/)");
     });
 
-    it("renders identically to the unlabelled form", () => {
-        expect(web("[[doc-shock|]]")).toBe(web("[[doc-shock]]"));
+    // It used to render identically to `[[doc-shock]]`, because both resolvers
+    // fell back from the address namespace to the alias one. Since #131 the
+    // pipe *chooses* the namespace, so the empty label is the only way to
+    // write an address that shows its target's name — which is what makes it
+    // worth writing.
+    it("is the only unlabelled address form", () => {
+        expect(web("[[doc-shock|]]")).toBe("[Shock](/rules/sohl-shock/)");
+        expect(web("[[doc-shock]]")).toContain("sohl-unresolved-link");
     });
 
     it("shows the anchor for a same-page link", () => {

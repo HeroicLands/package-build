@@ -39,6 +39,8 @@ import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
+// The alias sources every index shares (#131).
+import { aliasesOf } from "./alias-index.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { emitDiagnostic, positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -449,12 +451,10 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
             name: fm.name?.full ?? base,
-            aliases: [
-                ...(Array.isArray(fm.aliases) ? fm.aliases : []),
-                ...(fm.name?.full ? [fm.name.full] : []),
-                ...(Array.isArray(fm.name?.aliases) ? fm.name.aliases : []),
-                base,
-            ].filter(Boolean),
+            // The shared alias sources (#131): `aliases`, `name.aliases` and
+            // `name.full`, and deliberately not the filename — see
+            // {@link aliasesOf} for what that admitted and why it went.
+            aliases: aliasesOf(fm),
         });
     }
     // Packages this build links *into* but does not publish. Their manifests
@@ -565,6 +565,19 @@ export function convertNoteWikilinks(
                 `ambiguous wikilink ${u.link} in "${name}" — claimed by ` +
                     `${named}. Rename one alias, or address the intended one ` +
                     `as [[type-shortcode|Text]].`,
+            );
+        }
+        // The author wrote a pipe, so they meant an address — and this target
+        // is not one. Its own message, because the correction is its own: a
+        // note *name* has to become an address, which is not the same job as
+        // fixing a shortcode that resolves nowhere (#131).
+        if (u.reason === "not-an-address") {
+            fail(
+                u,
+                `wikilink ${u.link} in "${name}" is written as an address — ` +
+                    `the "|" says so — but "${u.target}" is not one. Write ` +
+                    `[[type-shortcode|Text]], or drop the "|" to name it as ` +
+                    `an alias within this note's own type.`,
             );
         }
         // A qualified address resolving nowhere is a typo, now that every

@@ -90,7 +90,11 @@ import {
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
-import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
+import {
+    emitDiagnostic,
+    positionInFrontmatter,
+    positionOfLiteral,
+} from "../engine/diagnostics.mjs";
 import {
     readItemAddresses,
     diffItemAddresses,
@@ -653,6 +657,8 @@ function linksCommand() {
                 const {
                     deadAnchors,
                     deadAddresses,
+                    deadAliases,
+                    aliasCollisions,
                     frontmatterLinks,
                     homepageLinks,
                     usedManifest,
@@ -668,13 +674,61 @@ function linksCommand() {
                             `heading in ${d.dest.rel} declares`,
                     });
                 }
+                // The pipe says the author meant an address (#131), so all
+                // three of these are errors — but they read differently
+                // because the corrections differ.
                 for (const d of deadAddresses) {
                     emitDiagnostic({
                         file: d.note.file,
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
-                        message: `dead address [[${d.target}]] — no document has that identity`,
+                        message:
+                            d.reason === "not-an-address" ?
+                                `"${d.target}" is written as an address — the ` +
+                                `"|" says so — but it is not one; write ` +
+                                `[[type-shortcode|Text]], or drop the "|" to ` +
+                                `name it as an alias within this note's type`
+                            : d.reason === "unknown-type" ?
+                                `address [[${d.target}]] names no known ` + `content type`
+                            :   `dead address [[${d.target}]] — no document ` + `has that identity`,
                     });
+                }
+                // An alias that names nothing may be a worldbuilding
+                // placeholder — a long-standing convention in the setting
+                // trees — so it is reported and does not fail the build. The
+                // ambiguous case is the collision below, reported at its
+                // claimants rather than here.
+                for (const d of deadAliases) {
+                    emitDiagnostic({
+                        file: d.note.file,
+                        ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
+                        severity: "warning",
+                        message:
+                            d.ambiguous ?
+                                `alias [[${d.target}]] is claimed by ` +
+                                `${d.claimants.length} ${d.note.type} notes, ` +
+                                `so it names none of them; address the ` +
+                                `intended one as [[type-shortcode|Text]]`
+                            :   `unresolved alias [[${d.target}]] — no ` +
+                                `${d.note.type} note claims that name`,
+                    });
+                }
+                // Reported once per claimant, at the claimant, because the
+                // note that merely cites an ambiguous alias is innocent (#13).
+                for (const c of aliasCollisions) {
+                    const others = c.claimants.map((n) => n.rel).join(", ");
+                    for (const claimant of c.claimants) {
+                        emitDiagnostic({
+                            file: claimant.file,
+                            ...positionInFrontmatter(claimant.raw, "aliases", c.alias),
+                            severity: "error",
+                            message:
+                                `alias "${c.alias}" is claimed by ` +
+                                `${c.claimants.length} ${c.type} notes ` +
+                                `(${others}), so [[${c.alias}]] names none of ` +
+                                `them; rename all but one`,
+                        });
+                    }
                 }
                 for (const f of frontmatterLinks) {
                     emitDiagnostic({
@@ -700,9 +754,12 @@ function linksCommand() {
                     });
                 }
 
+                // Warnings are reported and do not fail: a dead alias may be a
+                // note not yet written, which is the placeholder convention.
                 const failures =
                     deadAnchors.length +
                     deadAddresses.length +
+                    aliasCollisions.reduce((n, c) => n + c.claimants.length, 0) +
                     frontmatterLinks.length +
                     homepageLinks.length;
                 if (failures) {
@@ -711,10 +768,18 @@ function linksCommand() {
                 } else {
                     log.info(
                         `${index.notes.length} notes: every anchor link lands ` +
-                            `and every qualified address resolves ` +
+                            `and every address resolves ` +
                             `(${usedManifest.size} cross-package reference(s) ` +
-                            `via manifest), no wikilink in frontmatter, ` +
-                            `every homepage address resolvable.`,
+                            `via manifest), no alias claimed twice, no ` +
+                            `wikilink in frontmatter, every homepage address ` +
+                            `resolvable.`,
+                    );
+                }
+                if (deadAliases.length) {
+                    log.warn(
+                        `${deadAliases.length} unresolved alias(es) — a bare ` +
+                            `[[Name]] naming no note may be a placeholder, so ` +
+                            `these are reported rather than failed.`,
                     );
                 }
             } catch (err) {
