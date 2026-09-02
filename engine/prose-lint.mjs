@@ -62,6 +62,23 @@ const NEVER_WALK = Object.freeze(new Set([".git", "node_modules"]));
 const IGNORE_FILES = Object.freeze([".gitignore", ".prettierignore"]);
 
 /**
+ * How many times `--write` will format one file looking for a fixpoint.
+ *
+ * `format` is *assumed* idempotent and is not guaranteed to be: a single pass
+ * can leave text the next pass would still change, and a `--write` run that
+ * takes one pass then reports success has called such a file formatted while
+ * `prettier --check` still rejects it (#125). Formatting to a fixpoint removes
+ * the assumption — the file lands on the value repeated formatting converges
+ * to, whatever it took to get there.
+ *
+ * Three, not "until it stops": a file that oscillates would loop forever, and
+ * the cap turns that into a report. Three is enough for the case this is for
+ * (one pass short) with a pass to spare, and costs nothing on a tree that is
+ * already formatted, where the first pass converges immediately.
+ */
+const MAX_FORMAT_PASSES = 3;
+
+/**
  * Every file under a root, minus the directories nothing should walk.
  *
  * @param {string} root - Absolute path to walk.
@@ -106,11 +123,15 @@ function walkFiles(root) {
  * @param {readonly string[]} [opts.paths] - Files or directories to check
  *   instead of the whole root.
  * @param {boolean} [opts.write=false] - Rewrite unformatted files in place
- *   rather than reporting them.
+ *   rather than reporting them. Each file is formatted to a fixpoint (up to
+ *   {@link MAX_FORMAT_PASSES} passes), so a written tree is one a second run
+ *   leaves alone; a file that will not converge is reported and left unchanged
+ *   (#125).
  * @param {object} [opts.prettier] - The Prettier module, for tests.
  * @returns {Promise<{findings: Array<{file: string, severity: string,
  *   message: string}>, checked: number, written: string[]}>} The findings, how
- *   many files were considered, and what was rewritten.
+ *   many files were considered, and what was rewritten. `--write` reports
+ *   findings too — a file it cannot parse, or cannot format to a fixpoint.
  */
 export async function checkFormatting(root, opts = {}) {
     const { paths, write = false } = opts;
@@ -155,7 +176,38 @@ export async function checkFormatting(root, opts = {}) {
         // every other one.
         try {
             if (write) {
-                const formatted = await prettier.format(source, options);
+                // Format to a fixpoint rather than once, so what lands on disk
+                // is what a second run would have produced (#125).
+                let formatted = source;
+                let converged = false;
+                for (let pass = 0; pass < MAX_FORMAT_PASSES; pass += 1) {
+                    const next = await prettier.format(formatted, options);
+                    if (next === formatted) {
+                        converged = true;
+                        break;
+                    }
+                    formatted = next;
+                }
+
+                if (!converged) {
+                    // Nothing is written. A formatting the command cannot
+                    // reproduce is not one to commit to disk — writing it
+                    // would make `--write` churn the file on every run — and a
+                    // file that never settles is a defect somewhere that has
+                    // to be named rather than absorbed.
+                    findings.push({
+                        file,
+                        severity: "error",
+                        // No line or column: the verdict is about the whole
+                        // file, and #17's rule is to drop a field rather than
+                        // invent one.
+                        message:
+                            `did not converge after ${MAX_FORMAT_PASSES} formatting passes; ` +
+                            "left unchanged",
+                    });
+                    continue;
+                }
+
                 if (formatted !== source) {
                     fs.writeFileSync(file, formatted);
                     written.push(file);

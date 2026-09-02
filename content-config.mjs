@@ -66,9 +66,10 @@
 
 import path from "node:path";
 
-// A leaf with no local imports of its own, so naming it here cannot close a
-// cycle around a consumer's config file (see `engine/pack-config.mjs`).
-import { MAP_TYPES } from "./engine/ids.mjs";
+// Leaves with no local imports of their own, so naming them here cannot close
+// a cycle around a consumer's config file (see `engine/pack-config.mjs`).
+import { isAddressSegment } from "./engine/address-charset.mjs";
+import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
 
 /**
  * The two kinds of Foundry package a content module can be built into. The
@@ -725,6 +726,65 @@ function requireNonEmptyString(value, field) {
         fail(field, "must be a non-empty string");
     }
     return /** @type {string} */ (value);
+}
+
+/**
+ * The `contentPackage`, checked against the two rules an address puts on it.
+ *
+ * It is the first segment of every canonical address this repository publishes
+ * (`sohl-skill-clmb`), and an address is read by counting hyphen-separated
+ * segments. So the value carries two obligations that the rest of the
+ * configuration does not, and #59 asks for both to be **enforced rather than
+ * assumed** — the alternative is a package whose addresses are simply
+ * unreadable, reported nowhere and discovered as links that resolve to nothing.
+ *
+ * 1. _Alphanumeric_, so the hyphen stays purely a separator. `harn-adventures`
+ *    was the one violator, and its keys read as four segments and failed as a
+ *    `null` return from `readCanonicalKey` — a silence, not an error.
+ * 2. _Not a note type_, because the package and the type are adjacent segments
+ *    drawn from two vocabularies. Keeping them disjoint is what lets a reader
+ *    take a name at face value instead of deciding which slot it is filling.
+ *    One such collision is structural and cannot be fixed — `sohl` is both a
+ *    content package and a system id, because Foundry requires a system
+ *    package's id to *be* its system id — which is the reason to prevent the
+ *    ones that are avoidable.
+ *
+ * @param {unknown} value - The configured `contentPackage`.
+ * @param {ReadonlySet<string>} docEntryTypes - Every type whose prose compiles
+ *   to a documentation entry: the item types plus `macro` and the map types.
+ *   With {@link PACK_BY_TYPE} and the `doc`-prefixed forms, this is the whole
+ *   type vocabulary an address may write.
+ * @returns {string} The value, unchanged.
+ */
+function requireContentPackage(value, docEntryTypes) {
+    const pkg = requireNonEmptyString(value, "contentPackage");
+    if (!isAddressSegment(pkg)) {
+        fail(
+            "contentPackage",
+            `is \`${pkg}\`, which is not alphanumeric. It is the first ` +
+                `segment of every address this package publishes ` +
+                `(\`${pkg}-<type>-<shortcode>\`), and an address is read by ` +
+                `counting hyphen-separated segments — so anything outside ` +
+                "`[A-Za-z0-9]` here makes those addresses unreadable rather " +
+                "than merely ugly. `harn-adventures` became `harnadventures`",
+        );
+    }
+    const typeNames = new Set([
+        ...Object.keys(PACK_BY_TYPE),
+        ...docEntryTypes,
+        ...[...docEntryTypes].map((type) => `doc${type}`),
+    ]);
+    if (typeNames.has(pkg)) {
+        fail(
+            "contentPackage",
+            `is \`${pkg}\`, which is also a note type — \`${pkg}-<shortcode>\` ` +
+                "already addresses one. The package and the type are adjacent " +
+                "segments of an address, and the two vocabularies are kept " +
+                "disjoint so a reader never has to decide which slot a name " +
+                "is filling. Rename the package",
+        );
+    }
+    return pkg;
 }
 
 /**
@@ -1828,10 +1888,11 @@ export function defineConfig(config) {
     // holds every key any of them declares, so this stays "the registry's keys"
     // rather than becoming a second list to keep in step (#1504).
     const itemTypes = Object.freeze(new Set(Object.keys(itemBuilders)));
+    const docEntryTypes = Object.freeze(new Set([...itemTypes, "macro", ...MAP_TYPES]));
 
     return Object.freeze({
         rootDir,
-        contentPackage: requireNonEmptyString(input.contentPackage, "contentPackage"),
+        contentPackage: requireContentPackage(input.contentPackage, docEntryTypes),
         foundryPackage,
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
@@ -1889,7 +1950,7 @@ export function defineConfig(config) {
         // runtime. Two would drift, which is the whole reason the composition
         // was written down in one place to begin with.
         itemTypes,
-        docEntryTypes: Object.freeze(new Set([...itemTypes, "macro", ...MAP_TYPES])),
+        docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
