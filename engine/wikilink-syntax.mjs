@@ -117,6 +117,36 @@ export function authoredLabel({ display }) {
 }
 
 /**
+ * Which namespace a link resolves in: the **address** space, or the **alias**
+ * space.
+ *
+ * **The pipe decides, and nothing else does** (#131). `[[x|…]]` is an address,
+ * parsed by the address grammar; `[[x]]` is an alias, looked up within the
+ * source note's own type. Neither falls back to the other.
+ *
+ * Both resolvers used to decide by *shape* instead — try the address, fall
+ * back to the alias — which had three costs. An author could not say which
+ * they meant, so a note whose **name** looked like an address (`Grukar-ahk`)
+ * was read as one, and a genuine address that resolved nowhere silently became
+ * a name lookup and reported nothing. And a positional address grammar could
+ * not split a target confidently until it had first ruled out every note name
+ * in the corpus.
+ *
+ * An **empty** label is still a pipe: `[[x|]]` is an address that renders the
+ * target's *current* name, so a rename shows at every citation with no link
+ * edited. That is why this reads {@link ParsedWikilink.labelled} and not
+ * {@link authoredLabel} — the two answer different questions, and only one of
+ * them is about namespaces.
+ *
+ * @param {{labelled: boolean}} parsed - A parsed wikilink, or anything
+ *   carrying its `labelled`.
+ * @returns {boolean} True when the target is an address.
+ */
+export function resolvesAsAddress({ labelled }) {
+    return Boolean(labelled);
+}
+
+/**
  * Whether a parsed link addresses a section of the page it is written on.
  *
  * `[[#some-heading]]` — no target, only an anchor. Both resolvers special-case

@@ -22,12 +22,20 @@
  *    anchor slug; nothing checks that a heading declaring that slug exists. A
  *    link to an anchor nobody declares compiles cleanly, emits an enricher, and
  *    dead-ends for the reader.
- * 2. **A dead address.** A *qualified* `type-shortcode` target resolving to no
- *    note is a typo. A bare `[[Name]]` that finds nothing is not — that is a
- *    worldbuilding placeholder by long-standing convention, and is left alone.
- * 3. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
+ * 2. **A dead address.** A *piped* target — `[[x|…]]` — is an address, and one
+ *    resolving to no note is a typo. So is one that does not parse as an
+ *    address at all: the pipe says the author meant one.
+ * 3. **A dead alias.** An *unpiped* target — `[[x]]` — names a note of the
+ *    source's own type. One that finds nothing may be a worldbuilding
+ *    placeholder, so it is reported as a warning rather than a failure; it is a
+ *    different problem from a dead address and reads differently.
+ * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
  *    and copy frontmatter through verbatim, so a link written in a
  *    `description` is never resolved and publishes as literal `[[…]]` text.
+ *    Frontmatter is data: a `WikiLink` field is parsed by the address grammar
+ *    and a bracketed link there is a finding naming the note and the field.
+ * 5. **An alias two notes of one type both claim.** It used to be deleted
+ *    silently, so the pair resolved to nothing and nobody was told (#131).
  *
  * **This resolves links the way the builds do**, calling the same
  * {@link readQualifier} and the same {@link parseWikilink} rather than a second
@@ -64,8 +72,9 @@ import {
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
-import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
+import { parseWikilink, resolvesAsAddress, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
+import { aliasesOf, aliasKey, indexAliases } from "./alias-index.mjs";
 
 /**
  * Every `{#anchor}` a note declares on a heading.
@@ -125,8 +134,6 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
     }
 
     const byKey = new Map();
-    const byAlias = new Map();
-    const aliasCollide = new Set();
 
     // The one package every note in this tree belongs to. Taken from the
     // configuration, never from a note: `package:` is retired, so there is no
@@ -145,24 +152,22 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
                 byKey.set(canonicalKey(pkg, `doc${type}`, fm.shortcode), note);
             }
         }
-        const aliases = [
-            ...(Array.isArray(fm.aliases) ? fm.aliases : []),
-            ...(Array.isArray(fm.name?.aliases) ? fm.name.aliases : []),
-            fm.name?.full,
-            path.basename(note.file, ".md").replace(/_/g, " "),
-        ].filter((a) => typeof a === "string" && a);
-        for (const a of aliases) {
-            const k = `${type}|${a}`.toLowerCase();
-            if (aliasCollide.has(k)) continue;
-            const cur = byAlias.get(k);
-            if (cur && cur !== note) {
-                byAlias.delete(k);
-                aliasCollide.add(k);
-            } else if (!cur) {
-                byAlias.set(k, note);
-            }
-        }
     }
+
+    // The alias half of the two namespaces, built by the shared rule so the
+    // checker, the pack build and the site build cannot disagree about what a
+    // bare `[[…]]` can name (#131).
+    const {
+        byKey: byAlias,
+        claims: aliasClaims,
+        collisions: aliasCollisions,
+    } = indexAliases(
+        notes.map((note) => ({
+            type: note.type,
+            aliases: aliasesOf(note.fm),
+            value: note,
+        })),
+    );
 
     const types = new Set(notes.map((n) => n.type));
 
@@ -195,7 +200,9 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
      *
      * @param {object} note - A note from this index.
      * @returns {Array<{target: string, anchor: string, text: string,
-     *   occurrence: number}>} `target` is `""` for a same-page `[[#anchor]]`.
+     *   occurrence: number, labelled: boolean}>} `target` is `""` for a
+     *   same-page `[[#anchor]]`; `labelled` says which namespace the target
+     *   belongs to (#131).
      */
     function linksOf(note) {
         let body = note.body;
@@ -215,39 +222,52 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         // Code is verbatim, so a `[[…]]` inside a fence, an indented block or
         // an inline span is not a link — the compilers make none of it either.
         for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
-            const { target, anchor } = parseWikilink(rawInner);
+            const parsed = parseWikilink(rawInner);
+            const { target, anchor } = parsed;
             const occurrence = (seen.get(all) ?? 0) + 1;
             seen.set(all, occurrence);
             // `text` is the link exactly as authored, which is what locates it
             // in the file. A link a table generated is not in the file at all,
             // so the search simply fails and a finding names the file.
-            out.push({ target, anchor, text: all, occurrence });
+            out.push({
+                target,
+                anchor,
+                text: all,
+                occurrence,
+                labelled: resolvesAsAddress(parsed),
+            });
         }
         return out;
     }
 
     /**
-     * Resolve a link target the way both builds do, or `undefined`.
+     * The note an **alias** names, or `undefined`.
+     *
+     * Scoped to the *source* note's own type, so one word may be an alias in
+     * several types without colliding. An alias two same-type notes claim is
+     * absent from the index entirely — see {@link indexAliases} — so this can
+     * never resolve to whichever was walked first.
+     *
+     * @param {object} note - The note the link is written in.
+     * @param {string} target - The link target, anchor already removed.
+     * @returns {object|undefined} The note it names.
+     */
+    function resolveAlias(note, target) {
+        return byAlias.get(aliasKey(note.type, target));
+    }
+
+    /**
+     * The note an **address** names, or `undefined`.
      *
      * The qualifier is read with {@link readQualifier} rather than a second
      * copy of the rule, so this cannot drift from what the builds do — the two
-     * separators, the first-hyphen split, and the known-type condition that
-     * keeps a hyphenated *name* an alias.
+     * separators, the first-hyphen split, and the optional leading package
+     * segment.
      *
-     * That condition is why the type-scoped alias index is not enough alone: it
-     * reaches only a target of the source's **own** type, so a cross-type
-     * `[[type-shortcode#anchor]]` would resolve to nothing and its anchor go
-     * unchecked — silently, since an unresolvable target is treated as
-     * external.
-     *
-     * @param {object} note - The note the link is written in.
-     * @param {string} target - The link target.
+     * @param {string} target - The link target, anchor already removed.
      * @returns {object|undefined} The note it addresses.
      */
-    function resolve(note, target) {
-        const direct =
-            byAlias.get(`${note.type}|${target}`.toLowerCase()) ?? byKey.get(target.toLowerCase());
-        if (direct) return direct;
+    function resolveAddress(target) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
         return byKey.get(
@@ -255,6 +275,24 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
                 canonicalKey(qualified.package, qualified.type, qualified.shortcode)
             :   `${qualified.type}/${qualified.shortcode}`.toLowerCase(),
         );
+    }
+
+    /**
+     * Resolve a link target the way both builds do, or `undefined`.
+     *
+     * **The pipe chooses the namespace, and there is no fallback either way**
+     * (#131) — see {@link resolvesAsAddress} for why. The caller therefore has
+     * to say which form was authored; it is a required argument rather than a
+     * defaulted one, because either default would silently resolve half the
+     * corpus through the wrong namespace.
+     *
+     * @param {object} note - The note the link is written in.
+     * @param {string} target - The link target.
+     * @param {boolean} labelled - Whether the link carried a `|`.
+     * @returns {object|undefined} The note it names.
+     */
+    function resolve(note, target, labelled) {
+        return labelled ? resolveAddress(target) : resolveAlias(note, target);
     }
 
     /**
@@ -295,8 +333,14 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         contentPackage: pkg,
         foreign,
         manifests: manifestsComplete(localPackages, foreign.packages),
+        /** Every note claiming each type-scoped alias, colliding ones included. */
+        aliasClaims,
+        /** One entry per alias two or more same-type notes claim (#131). */
+        aliasCollisions,
         linksOf,
         resolve,
+        resolveAlias,
+        resolveAddress,
         manifestHit,
         /** Whether a target reads as a qualified address at all. */
         isAddress: (target) => Boolean(readQualifier(target, types, packages)),
@@ -611,22 +655,35 @@ export function auditHomepageLinks(index) {
 /**
  * Every link in a tree that lands nowhere.
  *
+ * **The two failure modes are separate findings, because they are separate
+ * problems** (#131). A piped target the author declared to be an address, and
+ * which resolves nowhere, is a typo: every package it could name is either
+ * built here or vendored, so there is no third possibility. An unpiped target
+ * naming no note of the source's type may be exactly that typo — or a
+ * worldbuilding placeholder, which is a long-standing convention in the
+ * setting trees. So the first is an error and the second a warning, and the
+ * caller can tell them apart without parsing a message.
+ *
  * @param {ReturnType<typeof buildLinkIndex>} index - The built index.
  * @returns {{deadAnchors: object[], deadAddresses: object[],
+ *   deadAliases: object[], aliasCollisions: object[],
  *   frontmatterLinks: object[], homepageLinks: object[],
  *   usedManifest: Set<string>}} The findings, and which addresses a foreign
- *   manifest answered.
+ *   manifest answered. Each `deadAddresses` entry carries a `reason`:
+ *   `"not-an-address"` when the target does not parse as one at all,
+ *   `"unknown-type"` when it is qualified but names no known type, and
+ *   `"unresolved"` when it parses and nothing answers it.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
 
     const deadAnchors = [];
     for (const note of notes) {
-        for (const { target, anchor, text, occurrence } of linksOf(note)) {
+        for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
             if (!anchor) continue;
-            const dest = target ? resolve(note, target) : note;
-            // An unresolvable target is an external reference, not this
-            // check's business.
+            const dest = target ? resolve(note, target, labelled) : note;
+            // An unresolvable target is reported by the address or alias pass
+            // below; its anchor has nothing to be checked against.
             if (!dest) continue;
             if (!anchors.get(dest).has(slugify(anchor))) {
                 deadAnchors.push({
@@ -641,28 +698,47 @@ export function auditLinks(index) {
     }
 
     const deadAddresses = [];
+    const deadAliases = [];
     const usedManifest = new Set();
     for (const note of notes) {
-        for (const { target, text, occurrence } of linksOf(note)) {
+        for (const { target, text, occurrence, labelled } of linksOf(note)) {
             if (!target) continue; // a same-page `[[#anchor]]`
-            // Only a *qualified* target is an address. A bare `[[Name]]` that
-            // finds nothing is a worldbuilding placeholder by long-standing
-            // convention, and is deliberately left alone.
-            if (!isAddress(target)) continue;
-            if (resolve(note, target)) continue;
+            const at = { note, target, text, occurrence };
+
+            if (!labelled) {
+                if (index.resolveAlias(note, target)) continue;
+                // Kept alongside, so a report can say *why* nothing answered:
+                // an alias claimed twice is absent from the index, and blaming
+                // this note for it would blame the wrong file.
+                const claimants = index.aliasClaims.get(aliasKey(note.type, target)) ?? [];
+                deadAliases.push({ ...at, ambiguous: claimants.length > 1, claimants });
+                continue;
+            }
+
+            if (!isAddress(target)) {
+                deadAddresses.push({ ...at, reason: "not-an-address" });
+                continue;
+            }
+            if (index.resolveAddress(target)) continue;
             // A manifest answers with the target package's own build output
             // rather than a reviewed guess.
             if (manifestHit(target)) {
                 usedManifest.add(target.toLowerCase());
                 continue;
             }
-            deadAddresses.push({ note, target, text, occurrence });
+            const read = readQualifier(target, index.types, index.packages);
+            deadAddresses.push({
+                ...at,
+                reason: read?.reason === "unknown-type" ? "unknown-type" : "unresolved",
+            });
         }
     }
 
     return {
         deadAnchors,
         deadAddresses,
+        deadAliases,
+        aliasCollisions: index.aliasCollisions,
         frontmatterLinks: index.frontmatterLinks,
         homepageLinks: auditHomepageLinks(index),
         usedManifest,
@@ -716,9 +792,9 @@ export function walkReachability(index, { root, scope, stopAt = () => false }) {
     while (queue.length) {
         const note = queue.shift();
         if (stopAt(note)) continue;
-        for (const { target } of index.linksOf(note)) {
+        for (const { target, labelled } of index.linksOf(note)) {
             if (!target) continue;
-            const dest = index.resolve(note, target);
+            const dest = index.resolve(note, target, labelled);
             if (!dest || !scope(dest) || reached.has(dest)) continue;
             reached.add(dest);
             queue.push(dest);
