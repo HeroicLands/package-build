@@ -18,7 +18,11 @@
  * Both are read from the one resolved configuration, so they are literally the
  * same object's keys and values: a type cannot be whitelisted for compilation
  * without the builder that compiles it, which is the guarantee #1504 exists
- * for. The Item compiler dispatches through {@link itemBuilder}, so the table a
+ * for. Where a consumer declares **several** registries, one per system (#58),
+ * the vocabulary is their union and every lookup below takes the system that is
+ * asking — a type both systems declare has two builders, and answering with one
+ * of them because it was declared first is the silent-wrong-output failure this
+ * package spends its time removing. The Item compiler dispatches through {@link itemBuilder}, so the table a
  * consumer configured is the table its notes compile with — the whitelist and
  * the dispatch used to come from different places, and a consumer supplying its
  * own registry got the types it asked for and the builders it did not (#1563).
@@ -61,6 +65,43 @@ export function itemTypes() {
 }
 
 /**
+ * Look one type up in the table a system declared, or in the flat one.
+ *
+ * The flat table is the union with the first declaring registry winning, which
+ * is the right answer for every single-system build and no answer at all where
+ * two systems declare the type. So a contested type without a system **throws**
+ * rather than resolving: the alternative is a document built by one system's
+ * builder and stamped with another's, which is exactly the shape of defect the
+ * document-subtype map exists to stop (#79).
+ *
+ * @param {string} what - What is being looked up, for the message.
+ * @param {"itemBuilders"|"itemArt"|"itemFields"} table - Which table.
+ * @param {string} type - The item type.
+ * @param {string} [system] - The system asking, where a build has more than one.
+ * @returns {any} The entry, or `undefined`.
+ * @throws {Error} When several systems declare the type and none is named.
+ */
+function lookup(what, table, type, system) {
+    const config = loadPackConfig();
+    if (system !== undefined) {
+        const perSystem = /** @type {Record<string, Record<string, unknown>>} */ (
+            config[`${table}BySystem`]
+        );
+        // A consumer declaring one, system-less registry keeps answering for
+        // every system: it *is* the only vocabulary in the build.
+        if (Object.keys(perSystem).length) return perSystem[system]?.[type];
+    } else if (config.itemTypesBySeveralSystems.has(type)) {
+        throw new Error(
+            `More than one declared registry defines the item type "${type}", so ` +
+                `the ${what} of a "${type}" depends on which system is asking. ` +
+                `Name the system at the call site, or stop declaring the type ` +
+                `twice.`,
+        );
+    }
+    return /** @type {Record<string, unknown>} */ (config[table])[type];
+}
+
+/**
  * The builder the consuming repository registered for an item type.
  *
  * Unreachable through the compiler — its whitelist *is* this registry's keys —
@@ -68,11 +109,16 @@ export function itemTypes() {
  * failing as an anonymous `is not a function` (#1504).
  *
  * @param {string} type - The note's `type` frontmatter.
+ * @param {string} [system] - The system compiling it, where a build declares
+ *   more than one registry. Omitted, a type only one registry declares still
+ *   resolves; a contested one throws rather than picking a side.
  * @returns {(fm: object) => object} The builder for that type.
  * @throws {Error} When the configuration registers no builder for `type`.
  */
-export function itemBuilder(type) {
-    const builder = /** @type {Record<string, Function>} */ (loadPackConfig().itemBuilders)[type];
+export function itemBuilder(type, system) {
+    const builder = /** @type {Function|undefined} */ (
+        lookup("builder", "itemBuilders", type, system)
+    );
     if (typeof builder !== "function") {
         throw new Error(
             `No builder registered for item type "${type}" — add one to the ` +
@@ -81,6 +127,25 @@ export function itemBuilder(type) {
         );
     }
     return /** @type {(fm: object) => object} */ (builder);
+}
+
+/**
+ * The frontmatter fields a type's registry entry declares, if any.
+ *
+ * Sparse by design: a type whose entry declares none compiles normally and is
+ * simply undocumented (#22). What reads it is the `system`-block passthrough,
+ * which has to know which paths a declared field already writes before it
+ * writes the rest (#58).
+ *
+ * @param {string} type - The item type.
+ * @param {string} [system] - The system compiling it, where a build declares
+ *   more than one registry.
+ * @returns {readonly object[]|undefined} The declaration, or `undefined`.
+ */
+export function itemFields(type, system) {
+    return /** @type {readonly object[]|undefined} */ (
+        lookup("field declaration", "itemFields", type, system)
+    );
 }
 
 /**
@@ -106,11 +171,13 @@ export function itemBuilder(type) {
  * One spelling, one meaning, wherever it is written.
  *
  * @param {string} type - the item type.
+ * @param {string} [system] - The system compiling it, where a build declares
+ *   more than one registry.
  * @returns {string} The default image path for that type.
  * @throws {Error} When the type's registry entry pairs no `img`.
  */
-export function itemArt(type) {
-    const art = /** @type {Record<string, string|undefined>} */ (loadPackConfig().itemArt)[type];
+export function itemArt(type, system) {
+    const art = /** @type {string|undefined} */ (lookup("default art", "itemArt", type, system));
     if (!art) {
         throw new Error(
             `No default art for item type "${type}" — the note carries no ` +

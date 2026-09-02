@@ -59,12 +59,19 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 
 /**
  * The shape every `shortcode` must match: ASCII letters and digits only.
+ *
+ * This is {@link ADDRESS_SEGMENT_PATTERN}, not a second copy of it. A shortcode
+ * is the last segment of a canonical address, and the rule it is held to is the
+ * rule *every* segment is held to — so the two are one constant rather than two
+ * free to drift apart (#59). The name survives because this is where the rule
+ * is applied to a note.
  *
  * Case is deliberately **not** constrained: hundreds of authored shortcodes are
  * mixed-case and collide with nothing, so tightening that is a separate
@@ -74,7 +81,7 @@ import { checkHomepageCount, isHomepage } from "./homepage.mjs";
  * import a build-time dependency into shipped code — and is expected to pin the
  * two together with a test rather than trust that they still agree.
  */
-export const SHORTCODE_PATTERN = /^[A-Za-z0-9]+$/;
+export const SHORTCODE_PATTERN = ADDRESS_SEGMENT_PATTERN;
 
 /**
  * Whether a value is a well-formed shortcode.

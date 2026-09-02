@@ -39,6 +39,9 @@
  *   npx content-build package clean [pack] [entry]
  *   npx content-build docs item-fields [--out <path>] [--title <title>]
  *   npx content-build lint [root] [--no-references]
+ *   npx content-build content-format schema --schema <system>=<path>
+ *   npx content-build content-format fields [--fields <system>]
+ *   npx content-build content-format notes [root] [--strict]
  *   npx content-build links [root] [--manifests <dir>]
  *   npx content-build format [paths..] [--write]
  *   npx content-build markdown [paths..] [--fix]
@@ -69,6 +72,12 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { loadContentFormat } from "../engine/content-format.mjs";
+import {
+    checkDeclaredFields,
+    checkSchemaTargets,
+    measureCorpus,
+} from "../engine/content-format-check.mjs";
 import {
     compareFields,
     resolveSchemaArtifact,
@@ -79,6 +88,9 @@ import {
 // set — an adventure module ships skills, beings and magic swords — so no
 // consumer gets a subset (#19, #20).
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+// The shipped declarations, so this repository can check its own specification
+// against them without standing up a consumer's configuration (#136).
+import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -99,6 +111,7 @@ import {
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
+import { walkMarkdownTree } from "../engine/helpers.mjs";
 import {
     formatUnaddressableFinding,
     unaddressableForeignPackages,
@@ -170,11 +183,19 @@ function reportFailure(err) {
     else log.error(message);
 }
 
+/**
+ * The declaration sets this package ships, addressable by system id.
+ *
+ * @type {Record<string, Record<string, readonly object[]>>}
+ */
+const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS };
+
 const argv = yargs(hideBin(process.argv))
     .command(packageCommand())
     .command(depsCommand())
     .command(docsCommand())
     .command(lintCommand())
+    .command(contentFormatCommand())
     .command(linksCommand())
     .command(formatCommand())
     .command(markdownCommand())
@@ -307,6 +328,319 @@ function docsCommand() {
                 } else {
                     process.stdout.write(page);
                 }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-build content-format` — check the format specification itself (#130).
+ *
+ * Two checks, because the specification makes claims about two different
+ * worlds, and they fail for different reasons and at different times:
+ *
+ * - `schema` compares every `system.*` target the document names against the
+ *   naming system's published `schema.json`. A failure means the specification
+ *   and the system disagree, which is a defect in one of the two.
+ * - `fields` compares the per-type tables against the field declarations that
+ *   compile them, so the hand-written half cannot drift from the generated one
+ *   (#136).
+ * - `notes` measures a content tree against the vocabulary the document
+ *   declares per type. During #127 it is the migration's progress bar rather
+ *   than a gate, so it **reports** by default and `--strict` makes it fatal —
+ *   turned on one class at a time as each slice lands.
+ *
+ * Both read the committed document rather than a transcription of it, so
+ * editing `docs/content-format.md` changes what they assert.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function contentFormatCommand() {
+    return {
+        command: "content-format <action>",
+        describe: "Check the content format specification against schemas and notes",
+        builder: (yargs) =>
+            yargs
+                .command(contentFormatSchemaCommand())
+                .command(contentFormatFieldsCommand())
+                .command(contentFormatNotesCommand())
+                .demandCommand(1, "Name an action.")
+                .strict(),
+        handler: () => {},
+    };
+}
+
+/**
+ * The parsed specification a `content-format` action should read.
+ *
+ * @param {object} argv - The parsed command line.
+ * @returns {import("../engine/content-format.mjs").ContentFormat} The document.
+ */
+function specFrom(argv) {
+    return argv.spec ? loadContentFormat(path.resolve(argv.spec)) : loadContentFormat();
+}
+
+/**
+ * `content-format schema` — every `system.*` target, against a published schema.
+ *
+ * The schemas are named on the command line as `<system>=<path>`, because a
+ * consumer holds one and this repository holds a committed fixture, and neither
+ * arrangement should be the one the other has to pretend to. A system the
+ * document maps onto but no schema was supplied for is reported as unchecked —
+ * HM3 publishes no artifact today, so that is the ordinary case for a fifth of
+ * the claims, and a check that quietly skipped them would read as one that
+ * passed.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatSchemaCommand() {
+    return {
+        command: "schema",
+        describe: "Check every `system.*` target the format names against a published schema.json",
+        builder: (yargs) => {
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("schema", {
+                describe:
+                    "A published schema, as `<system>=<path>`. Repeatable; a system with none is reported unchecked.",
+                type: "string",
+                array: true,
+                demandOption: true,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const format = specFrom(argv);
+                /** @type {Record<string, object>} */
+                const schemas = {};
+                for (const entry of argv.schema) {
+                    const at = String(entry).indexOf("=");
+                    if (at <= 0) {
+                        log.error(`--schema takes \`<system>=<path>\`, not "${entry}".`);
+                        process.exitCode = 1;
+                        return;
+                    }
+                    const system = entry.slice(0, at);
+                    const file = path.resolve(entry.slice(at + 1));
+                    schemas[system] = JSON.parse(fs.readFileSync(file, "utf8"));
+                }
+
+                const { findings, checked, unchecked } = checkSchemaTargets({ format, schemas });
+                for (const finding of findings) emitDiagnostic(finding);
+                for (const [system, count] of Object.entries(unchecked)) {
+                    log.info(
+                        `${count} claim(s) about ${system} are unchecked — no ` +
+                            `schema was supplied for it, so nothing here confirms them.`,
+                    );
+                }
+                if (findings.length) {
+                    log.error(
+                        `${findings.length} of ${checked} checked claim(s) name a ` +
+                            `field no schema declares.`,
+                    );
+                    process.exitCode = 1;
+                } else {
+                    log.info(`${checked} mapping claim(s) confirmed against the supplied schemas.`);
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * The field declarations a `content-format fields` run should compare against.
+ *
+ * Either this package's own shipped registry, named on the command line, or the
+ * consuming repository's resolved configuration. Both are real arrangements and
+ * neither should have to pretend to be the other: this repository ships the
+ * specification *and* the SoHL declarations and configures no content tree,
+ * while a consumer configures `itemBuilders` and resolves the specification
+ * from its toolchain.
+ *
+ * @param {object} argv - The parsed command line.
+ * @returns {{itemFields: Record<string, readonly object[]>, system: string}}
+ *   The declarations, and the system column of the mapping tables they compile.
+ */
+function declarationsFrom(argv) {
+    if (argv.fields) return { itemFields: SHIPPED_ITEM_FIELDS[argv.fields], system: argv.fields };
+    const config = loadPackConfig();
+    const system = config.stats?.systemId;
+    if (!system) {
+        throw new Error(
+            "package-build: this repository's configuration names no system, so " +
+                "nothing says which column of the format's mapping tables its " +
+                "`itemBuilders` declarations compile. Name a shipped set with " +
+                "`--fields <system>` instead.",
+        );
+    }
+    return { itemFields: config.itemFields ?? {}, system };
+}
+
+/**
+ * `content-format fields` — the per-type tables, against the declarations.
+ *
+ * The specification hand-writes a `data` table under most of its type sections,
+ * covering ground {@link module:engine/field-reference} already generates from
+ * the `fields` on each `itemBuilders` entry — the duplication that module exists
+ * to prevent, one document over (#136).
+ *
+ * **Checked, not merged.** The document's vocabulary spans note types that
+ * produce Scenes, Macros and JournalEntries, which no item registry covers, so
+ * there is no wholesale generation to fall back on. What the two *can* be held
+ * to is agreement where they both speak: a mapping row saying `data.weight`
+ * reaches `system.weightBase` and a declaration writing `weight` to `weightBase`
+ * are one statement made twice, and a rename that moves only one of them is a
+ * defect. A type only one side describes is named as out of reach rather than
+ * skipped in silence.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatFieldsCommand() {
+    return {
+        command: "fields",
+        describe: "Check the format's per-type tables against the field declarations",
+        builder: (yargs) => {
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("fields", {
+                describe:
+                    "A declaration set this package ships, by system id. Defaults to the consuming repository's own `itemBuilders`.",
+                type: "string",
+                choices: Object.keys(SHIPPED_ITEM_FIELDS),
+            });
+            yargs.option("coverage", {
+                describe:
+                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until #127 lands.",
+                type: "boolean",
+                default: false,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const format = specFrom(argv);
+                const { itemFields, system } = declarationsFrom(argv);
+                const result = checkDeclaredFields({ format, itemFields, system });
+                for (const finding of result.findings) emitDiagnostic(finding);
+
+                // Named rather than left implicit: a check that silently
+                // compared nine of twenty-two types would read as one that
+                // covered them all.
+                log.info(
+                    `${result.checked.length} type(s) compared against ${system}'s ` +
+                        `declarations (${result.fields} field pair(s)).`,
+                );
+                log.info(
+                    `${result.skipped.spec.length} type(s) the format declares are ` +
+                        `out of reach — no \`itemBuilders\` entry covers them: ` +
+                        `${result.skipped.spec.join(", ")}.`,
+                );
+                if (result.skipped.registry.length) {
+                    log.info(
+                        `${result.skipped.registry.length} declared type(s) the ` +
+                            `format names no section for: ` +
+                            `${result.skipped.registry.join(", ")}.`,
+                    );
+                }
+                if (argv.coverage) {
+                    for (const entry of result.coverage) {
+                        log.info(
+                            `${entry.type}: format only [${entry.specOnly.join(", ")}], ` +
+                                `declaration only [${entry.registryOnly.join(", ")}]`,
+                        );
+                    }
+                }
+
+                if (result.findings.length) {
+                    log.error(
+                        `${result.findings.length} of ${result.fields} compared field ` +
+                            `pair(s) disagree between the specification and the ` +
+                            `declaration that compiles them.`,
+                    );
+                    process.exitCode = 1;
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-format notes` — a content tree, against the declared vocabulary.
+ *
+ * **A report, not a gate.** Every authored note predates the format, so a
+ * failing check would be red in every repository from the day it lands and
+ * would stay red for the length of #127 — which is a check nobody can act on.
+ * `--strict` raises the findings to errors, and #127 turns it on slice by
+ * slice as each class of finding reaches zero.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatNotesCommand() {
+    return {
+        command: "notes [root]",
+        describe: "Measure a content tree against the vocabulary the format declares (a report)",
+        builder: (yargs) => {
+            yargs.positional("root", {
+                describe: "Content tree to measure. Defaults to the configured contentBase.",
+                type: "string",
+            });
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("strict", {
+                describe:
+                    "Fail on the findings instead of reporting them. Turned on per slice of #127, as each class reaches zero.",
+                type: "boolean",
+                default: false,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                const root = argv.root ?? config.paths.content;
+                const format = specFrom(argv);
+
+                const notes = [];
+                for (const { frontmatter, absPath } of walkMarkdownTree(root, {
+                    skipDirectories: config.skipDirectories,
+                })) {
+                    if (!frontmatter || typeof frontmatter.type !== "string") continue;
+                    notes.push({
+                        file: absPath,
+                        fm: frontmatter,
+                        raw: fs.readFileSync(absPath, "utf8"),
+                    });
+                }
+
+                const { findings, byClass } = measureCorpus(notes, format, {
+                    strict: argv.strict,
+                });
+                for (const finding of findings) emitDiagnostic(finding);
+
+                const counts = Object.entries(byClass).sort(([a], [b]) => (a < b ? -1 : 1));
+                for (const [cls, count] of counts) log.info(`${cls}: ${count}`);
+                log.info(
+                    `${findings.length} finding(s) across ${notes.length} note(s) ` +
+                        `measured against ${format.file}.`,
+                );
+                if (argv.strict && findings.length) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -521,6 +855,17 @@ function formatCommand() {
                             `Formatted ${written.length} of ${checked} file(s).`
                         :   `Already formatted (${checked} file(s)).`,
                     );
+                    // `--write` collects findings too — a file Prettier cannot
+                    // parse, or one that will not format to a fixpoint — and
+                    // used to discard them, so a run that had left files
+                    // unformatted still reported success and exited 0 (#125).
+                    for (const finding of findings) emitDiagnostic(finding);
+                    if (findings.length) {
+                        log.error(
+                            `${findings.length} of ${checked} file(s) could not be formatted.`,
+                        );
+                        process.exitCode = 1;
+                    }
                     return;
                 }
                 for (const finding of findings) emitDiagnostic(finding);

@@ -33,6 +33,9 @@
 /** The item-type registry: every type that compiles into an Item, and its builder. */
 export * as itemBuilders from "./item-builders.mjs";
 
+/** This system's note-type → document-subtype map, identity rows included (#79). */
+export * as documentSubtypes from "./document-subtypes.mjs";
+
 /** The Item compiler. */
 export * as items from "./items.mjs";
 
