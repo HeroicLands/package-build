@@ -12,11 +12,11 @@
  */
 
 /**
- * The two things the content format asserts that can be checked (#130).
+ * The things the content format asserts that can be checked (#130, #136).
  *
  * `content-format.mjs` reads the specification as data; this compares it
- * against the two worlds it makes claims about — the systems it maps onto, and
- * the notes it governs.
+ * against the three worlds it makes claims about — the systems it maps onto,
+ * the notes it governs, and the field declarations that compile them.
  *
  * ## The specification against a system's published schema
  *
@@ -66,10 +66,41 @@
  * `frontmatter-lint.mjs` already checks them against the declared fields. This
  * module only reports a key whose home the format actually states.
  *
+ * ## The specification against the declarations that compile it
+ *
+ * The specification hand-writes a `data` table under most of its type sections,
+ * which is the ground {@link module:engine/field-reference} already generates
+ * from the `fields` on each `itemBuilders` entry — the duplication that module's
+ * docstring exists to prevent, one document over (#136).
+ *
+ * **Checked rather than generated, because a merge is not available.** The
+ * document's vocabulary spans note types that produce Scenes, Macros and
+ * JournalEntries — `place`, `scenario`, `map`, `lore`, `doc`, `macro`,
+ * `homepage` — and no `itemBuilders` entry covers any of them, so there is no
+ * whole the two halves could be folded into.
+ *
+ * **What they can be held to is agreement where they both speak.** A mapping row
+ * saying `data.weight` reaches `system.weightBase`, and a declaration writing
+ * `weight` to `weightBase`, are one statement made twice; a rename that moves
+ * only one of them is a defect in one of the two, and that is a fact a build can
+ * establish. {@link checkDeclaredFields} fails on exactly that.
+ *
+ * **The rest is reported, not asserted.** The two vocabularies are not the same
+ * set and are not meant to be: the document names the *shared* source a field is
+ * written as, while a declaration names every key the system's own block accepts
+ * — including the system-specific ones (`heft`, `strikeModes`) that the document
+ * correctly never maps. Until #127 has moved the corpus into `data:`, holding the
+ * sets equal would report the migration itself as a defect on every run. So the
+ * fields only one side names come back as *coverage*, and the types only one side
+ * describes come back **named** rather than skipped in silence — a check that
+ * quietly compared nine of twenty-three types would read as one that covered
+ * them all.
+ *
  * @module
  */
 
 import { SCHEMA_ARTIFACT_VERSION } from "./schema-check.mjs";
+import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 
 /**
@@ -380,4 +411,160 @@ export function measureCorpus(notes, format, { strict = false } = {}) {
         byClass[finding.class] = (byClass[finding.class] ?? 0) + 1;
     }
     return { findings, notes: count, byClass };
+}
+
+/**
+ * Where one declared field sends one authored value.
+ *
+ * @typedef {object} FieldPair
+ * @property {string} name - The authored key, as the declaration spells it.
+ * @property {string} to - The emitted path, `system.` prefix stripped.
+ */
+
+/**
+ * `path` read as `prefix`, or as a key beneath it.
+ *
+ * Matching on whole segments rather than on characters, so `charge` is not a
+ * prefix of `charges` — a substring match would pair two unrelated fields and
+ * then report their destinations as a contradiction.
+ *
+ * @param {string} path - The dotted path.
+ * @param {string} prefix - The candidate prefix.
+ * @returns {string|undefined} The remainder — `""` for an exact match, `.value`
+ *   for a key beneath it — or `undefined` when `path` does not sit under it.
+ */
+function under(path, prefix) {
+    if (path === prefix) return "";
+    if (path.startsWith(`${prefix}.`)) return path.slice(prefix.length);
+    return undefined;
+}
+
+/**
+ * What an author is told when the specification and the declaration disagree.
+ *
+ * @param {object} finding - `{noteType, source, target, name, to}`.
+ * @returns {string} The message.
+ */
+export function fieldDriftMessage({ noteType, source, target, name, to }) {
+    return (
+        `the format maps \`${source}\` on a \`${noteType}\` to \`${target}\`, ` +
+        `but the \`${noteType}\` field declaration writes \`${name}\` to ` +
+        `\`system.${to}\` — the specification and the declaration that compiles ` +
+        `it disagree, and one of the two is wrong`
+    );
+}
+
+/**
+ * The specification's mapping rows for one type and one system, as field paths.
+ *
+ * @param {import("./content-format.mjs").ContentFormat} format - The parsed
+ *   specification.
+ * @param {string} noteType - The type whose section to read.
+ * @param {string} system - The system column to read.
+ * @returns {import("./content-format.mjs").MappingClaim[]} Its claims.
+ */
+function claimsFor(format, noteType, system) {
+    return format.claims.filter((c) => c.noteType === noteType && c.system === system);
+}
+
+/**
+ * Check the specification's per-type tables against the field declarations that
+ * compile them (#136).
+ *
+ * @param {object} opts
+ * @param {import("./content-format.mjs").ContentFormat} opts.format - The
+ *   parsed specification.
+ * @param {Record<string, readonly object[]>} opts.itemFields - Item type → its
+ *   `fields` declaration, as `itemBuilders` carries it.
+ * @param {string} opts.system - Which system column of the mapping tables these
+ *   declarations compile. Supplied by the caller rather than assumed here: the
+ *   declarations belong to one system, and the document maps onto several.
+ * @param {"warning"|"error"} [opts.severity="error"] - What a contradiction is.
+ * @returns {{findings: object[], coverage: object[], checked: string[],
+ *   skipped: {spec: string[], registry: string[]}, fields: number}}
+ *   Contradictions ready for `emitDiagnostic`, the per-type coverage, the types
+ *   compared, the types out of reach on each side, and how many field pairs
+ *   were compared.
+ */
+export function checkDeclaredFields({ format, itemFields, system, severity = "error" }) {
+    const declared = itemFields ?? {};
+    const findings = [];
+    const coverage = [];
+    const checked = [];
+    const skippedSpec = [];
+    const skippedRegistry = [];
+    let fields = 0;
+
+    for (const noteType of format.types.keys()) {
+        if (!declared[noteType]) {
+            skippedSpec.push(noteType);
+            continue;
+        }
+        checked.push(noteType);
+
+        const authored = authoredFields(declared[noteType]);
+        for (const claim of claimsFor(format, noteType, system)) {
+            // A shared source is written `data.<path>`; a note-level one — the
+            // `subType` several tables name — carries no prefix.
+            const source = claim.source.replace(/^data\./, "");
+            const target = claim.target.replace(/^system\./, "");
+            // The longest declared name that the source sits under: a field
+            // declared `impact.die` claims `data.impact.die` ahead of any
+            // field declared `impact`.
+            let match;
+            let rest;
+            for (const field of authored) {
+                const remainder = under(source, field.name);
+                if (remainder === undefined) continue;
+                if (match && field.name.length <= match.name.length) continue;
+                match = field;
+                rest = remainder;
+            }
+            // No declaration names it. That is coverage, not a contradiction —
+            // the specification maps fields no builder emits yet, which is the
+            // ordinary mid-migration state (#127) and what `schema-check.mjs`
+            // already reports as unemitted.
+            if (!match) continue;
+            fields += 1;
+            if (under(target, match.to) === rest) continue;
+            findings.push({
+                file: format.file,
+                line: claim.line,
+                ...(claim.column === undefined ? {} : { column: claim.column }),
+                severity,
+                class: "field-drift",
+                message: fieldDriftMessage({
+                    noteType,
+                    source: claim.source,
+                    target: claim.target,
+                    name: match.name,
+                    to: match.to,
+                }),
+            });
+        }
+
+        // The two vocabularies, side by side. Reported rather than asserted
+        // equal: the document names the *shared* source a field is written as,
+        // and a declaration names every key the system's own block accepts, so
+        // the sets legitimately differ until #127 has moved the corpus.
+        const registryKeys = new Set(authored.map((field) => field.name.split(".")[0]));
+        const specKeys = format.types.get(noteType).dataKeys;
+        coverage.push({
+            type: noteType,
+            specOnly: [...specKeys].filter((key) => !registryKeys.has(key)).sort(),
+            registryOnly: [...registryKeys].filter((key) => !specKeys.has(key)).sort(),
+        });
+    }
+
+    for (const type of Object.keys(declared)) {
+        if (!format.types.has(type)) skippedRegistry.push(type);
+    }
+
+    return {
+        findings,
+        coverage,
+        checked,
+        skipped: { spec: skippedSpec, registry: skippedRegistry },
+        fields,
+    };
 }

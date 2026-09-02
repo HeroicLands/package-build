@@ -17,11 +17,14 @@ import {
     parseContentFormat,
 } from "../engine/content-format.mjs";
 import {
+    checkDeclaredFields,
     checkSchemaTargets,
+    fieldDriftMessage,
     measureCorpus,
     measureNote,
     undeclaredTargetMessage,
 } from "../engine/content-format-check.mjs";
+import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const FIXTURE_SCHEMA = path.join(here, "fixtures", "content-format", "schema-sohl.json");
@@ -256,5 +259,155 @@ describe("measuring a note against the declared vocabulary (#130)", () => {
     it("emits findings as warnings, so the report is not a failing check", () => {
         const { findings } = measureCorpus([note({ type: "weapon", weight: 3 })], format);
         expect(findings.every((f) => f.severity === "warning")).toBe(true);
+    });
+});
+
+describe("the specification against the declarations that compile it (#136)", () => {
+    /** A declaration set in the shape `itemBuilders` entries carry. */
+    const DECLARED = {
+        weapon: [
+            { name: "weight", to: "weightBase", shape: "number", describe: "Gear weight" },
+            { name: "subType", to: "subType", shape: "string", describe: "Kind" },
+            // Not authored — a constant is part of the emitted document and no
+            // part of the vocabulary, so it is never a field pair.
+            { to: "quantity", value: 1, describe: "Always one" },
+        ],
+        othergear: [{ name: "weight", to: "weightBase", shape: "number", describe: "Weight" }],
+    };
+
+    it("says nothing where the mapping and the declaration agree", () => {
+        const format = parseContentFormat(MINI, { file: "spec.md" });
+        const { findings, fields } = checkDeclaredFields({
+            format,
+            itemFields: DECLARED,
+            system: "sohl",
+        });
+        expect(findings).toEqual([]);
+        expect(fields).toBe(2);
+    });
+
+    it("fails on a target the declaration writes somewhere else, naming type and field", () => {
+        const format = parseContentFormat(MINI, { file: "spec.md" });
+        const drifted = {
+            ...DECLARED,
+            weapon: [{ name: "weight", to: "weight", shape: "number", describe: "Gear weight" }],
+        };
+        const { findings } = checkDeclaredFields({ format, itemFields: drifted, system: "sohl" });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("error");
+        expect(findings[0].class).toBe("field-drift");
+        expect(messages(findings)).toContain("`weapon`");
+        expect(messages(findings)).toContain("`weight`");
+        expect(messages(findings)).toContain("system.weightBase");
+    });
+
+    it("positions the finding at the cell in the specification that makes the claim", () => {
+        const format = parseContentFormat(MINI, { file: "spec.md" });
+        const drifted = {
+            ...DECLARED,
+            weapon: [{ name: "weight", to: "weight", shape: "number", describe: "Gear weight" }],
+        };
+        const { findings } = checkDeclaredFields({ format, itemFields: drifted, system: "sohl" });
+        expect(findings[0].file).toBe("spec.md");
+        expect(findings[0].line).toBe(13);
+        expect(MINI.split("\n")[findings[0].line - 1].slice(findings[0].column - 1)).toMatch(
+            /^`system\.weightBase`/,
+        );
+    });
+
+    it("agrees when a declared field carries a nested target the mapping spells out", () => {
+        const nested = [
+            "### type: mystery",
+            "",
+            "| shared source        | → sohl                 |",
+            "| -------------------- | ---------------------- |",
+            "| `data.charges.value` | `system.charges.value` |",
+            "",
+        ].join("\n");
+        const format = parseContentFormat(nested, { file: "spec.md" });
+        const { findings, fields } = checkDeclaredFields({
+            format,
+            itemFields: { mystery: [{ name: "charges", to: "charges", describe: "Charges" }] },
+            system: "sohl",
+        });
+        expect(findings).toEqual([]);
+        expect(fields).toBe(1);
+    });
+
+    it("fails when the nested remainder differs, not merely the head", () => {
+        const nested = [
+            "### type: mystery",
+            "",
+            "| shared source        | → sohl               |",
+            "| -------------------- | -------------------- |",
+            "| `data.charges.value` | `system.charges.max` |",
+            "",
+        ].join("\n");
+        const format = parseContentFormat(nested, { file: "spec.md" });
+        const { findings } = checkDeclaredFields({
+            format,
+            itemFields: { mystery: [{ name: "charges", to: "charges", describe: "Charges" }] },
+            system: "sohl",
+        });
+        expect(findings).toHaveLength(1);
+        expect(messages(findings)).toContain("system.charges.max");
+    });
+
+    it("skips the types only one side describes, and names them rather than passing them", () => {
+        const format = parseContentFormat(MINI, { file: "spec.md" });
+        const result = checkDeclaredFields({ format, itemFields: DECLARED, system: "sohl" });
+        expect(result.checked).toEqual(["weapon"]);
+        // `place` produces a JournalEntry, not an item, so no `itemBuilders`
+        // entry will ever cover it — out of reach, not undone.
+        expect(result.skipped.spec).toEqual(["place"]);
+        expect(result.skipped.registry).toEqual(["othergear"]);
+        expect(result.findings.some((f) => /place|othergear/.test(f.message))).toBe(false);
+    });
+
+    it("reports the fields only one side names as coverage, never as a contradiction", () => {
+        const format = parseContentFormat(MINI, { file: "spec.md" });
+        const partial = {
+            ...DECLARED,
+            weapon: [
+                { name: "weight", to: "weightBase", describe: "Gear weight" },
+                { name: "heft", to: "heftBase", describe: "System-specific" },
+            ],
+        };
+        const { findings, coverage } = checkDeclaredFields({
+            format,
+            itemFields: partial,
+            system: "sohl",
+        });
+        expect(findings).toEqual([]);
+        const weapon = coverage.find((c) => c.type === "weapon")!;
+        expect(weapon.registryOnly).toContain("heft");
+        // The document declares these; no declaration names them.
+        expect(weapon.specOnly).toEqual(expect.arrayContaining(["templatePriority", "charges"]));
+    });
+
+    it("says what a drifted field costs", () => {
+        expect(
+            fieldDriftMessage({
+                noteType: "weapon",
+                source: "data.weight",
+                target: "system.weightBase",
+                name: "weight",
+                to: "weight",
+            }),
+        ).toContain("`weapon`");
+    });
+});
+
+describe("the shipped specification against the shipped declarations (#136)", () => {
+    it("contradicts none of the SoHL item-field declarations", () => {
+        const format = loadContentFormat();
+        const result = checkDeclaredFields({ format, itemFields: ITEM_FIELDS, system: "sohl" });
+        expect(messages(result.findings)).toBe("");
+        expect(result.checked.length).toBeGreaterThan(0);
+        // Every type is accounted for: checked, or named as out of reach.
+        expect(result.checked.length + result.skipped.spec.length).toBe(format.types.size);
+        expect(result.checked.length + result.skipped.registry.length).toBe(
+            Object.keys(ITEM_FIELDS).length,
+        );
     });
 });
