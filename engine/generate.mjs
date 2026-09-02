@@ -53,6 +53,7 @@ import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
+import { unclaimedNoteFindings } from "./note-claims.mjs";
 
 /**
  * The compiler class for each Foundry document type a pack may hold.
@@ -397,6 +398,17 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         return 1;
     }
     log.info(`Content tree: ${noteCount} note(s) at ${contentBase}`);
+
+    // A note whose `type:` no configured pack claims compiles into nothing, and
+    // used to say nothing (#146) — no pass got far enough to reject it, so the
+    // silence had no owner. Asked once, of the whole configuration, because
+    // that is the only place it can be answered: a per-pass check would report
+    // every type a system deliberately does not map, which is exactly the
+    // silence #79 requires. Independent of `only`, since it is a fact about the
+    // configured pack list rather than about which passes this run executes.
+    const unclaimed = unclaimedNoteFindings(config);
+    for (const finding of unclaimed) emitDiagnostic(finding);
+
     fs.mkdirSync(config.paths.packJson, { recursive: true });
 
     // A companion pack has no pass of its own — naming it selects the pass that
@@ -435,10 +447,10 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         for (const message of unsatisfied) {
             emitDiagnostic({ severity: "error", message });
         }
-        return unsatisfied.length;
+        return unsatisfied.length + unclaimed.length;
     }
 
-    let totalErrors = 0;
+    let totalErrors = unclaimed.length;
     const passes = [];
     for (const pack of ordered) {
         const { errors, compiled } = await generatePack(
