@@ -40,6 +40,7 @@
  *   npx content-build docs item-fields [--out <path>] [--title <title>]
  *   npx content-build lint [root] [--no-references]
  *   npx content-build content-format schema --schema <system>=<path>
+ *   npx content-build content-format fields [--fields <system>]
  *   npx content-build content-format notes [root] [--strict]
  *   npx content-build links [root] [--manifests <dir>]
  *   npx content-build format [paths..] [--write]
@@ -72,7 +73,11 @@ import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
-import { checkSchemaTargets, measureCorpus } from "../engine/content-format-check.mjs";
+import {
+    checkDeclaredFields,
+    checkSchemaTargets,
+    measureCorpus,
+} from "../engine/content-format-check.mjs";
 import {
     compareFields,
     resolveSchemaArtifact,
@@ -83,6 +88,9 @@ import {
 // set — an adventure module ships skills, beings and magic swords — so no
 // consumer gets a subset (#19, #20).
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+// The shipped declarations, so this repository can check its own specification
+// against them without standing up a consumer's configuration (#136).
+import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -174,6 +182,13 @@ function reportFailure(err) {
     if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
     else log.error(message);
 }
+
+/**
+ * The declaration sets this package ships, addressable by system id.
+ *
+ * @type {Record<string, Record<string, readonly object[]>>}
+ */
+const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS };
 
 const argv = yargs(hideBin(process.argv))
     .command(packageCommand())
@@ -330,6 +345,9 @@ function docsCommand() {
  * - `schema` compares every `system.*` target the document names against the
  *   naming system's published `schema.json`. A failure means the specification
  *   and the system disagree, which is a defect in one of the two.
+ * - `fields` compares the per-type tables against the field declarations that
+ *   compile them, so the hand-written half cannot drift from the generated one
+ *   (#136).
  * - `notes` measures a content tree against the vocabulary the document
  *   declares per type. During #127 it is the migration's progress bar rather
  *   than a gate, so it **reports** by default and `--strict` makes it fatal —
@@ -348,6 +366,7 @@ function contentFormatCommand() {
         builder: (yargs) =>
             yargs
                 .command(contentFormatSchemaCommand())
+                .command(contentFormatFieldsCommand())
                 .command(contentFormatNotesCommand())
                 .demandCommand(1, "Name an action.")
                 .strict(),
@@ -429,6 +448,128 @@ function contentFormatSchemaCommand() {
                     process.exitCode = 1;
                 } else {
                     log.info(`${checked} mapping claim(s) confirmed against the supplied schemas.`);
+                }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * The field declarations a `content-format fields` run should compare against.
+ *
+ * Either this package's own shipped registry, named on the command line, or the
+ * consuming repository's resolved configuration. Both are real arrangements and
+ * neither should have to pretend to be the other: this repository ships the
+ * specification *and* the SoHL declarations and configures no content tree,
+ * while a consumer configures `itemBuilders` and resolves the specification
+ * from its toolchain.
+ *
+ * @param {object} argv - The parsed command line.
+ * @returns {{itemFields: Record<string, readonly object[]>, system: string}}
+ *   The declarations, and the system column of the mapping tables they compile.
+ */
+function declarationsFrom(argv) {
+    if (argv.fields) return { itemFields: SHIPPED_ITEM_FIELDS[argv.fields], system: argv.fields };
+    const config = loadPackConfig();
+    const system = config.stats?.systemId;
+    if (!system) {
+        throw new Error(
+            "package-build: this repository's configuration names no system, so " +
+                "nothing says which column of the format's mapping tables its " +
+                "`itemBuilders` declarations compile. Name a shipped set with " +
+                "`--fields <system>` instead.",
+        );
+    }
+    return { itemFields: config.itemFields ?? {}, system };
+}
+
+/**
+ * `content-format fields` — the per-type tables, against the declarations.
+ *
+ * The specification hand-writes a `data` table under most of its type sections,
+ * covering ground {@link module:engine/field-reference} already generates from
+ * the `fields` on each `itemBuilders` entry — the duplication that module exists
+ * to prevent, one document over (#136).
+ *
+ * **Checked, not merged.** The document's vocabulary spans note types that
+ * produce Scenes, Macros and JournalEntries, which no item registry covers, so
+ * there is no wholesale generation to fall back on. What the two *can* be held
+ * to is agreement where they both speak: a mapping row saying `data.weight`
+ * reaches `system.weightBase` and a declaration writing `weight` to `weightBase`
+ * are one statement made twice, and a rename that moves only one of them is a
+ * defect. A type only one side describes is named as out of reach rather than
+ * skipped in silence.
+ *
+ * @returns {object} The yargs command module.
+ */
+function contentFormatFieldsCommand() {
+    return {
+        command: "fields",
+        describe: "Check the format's per-type tables against the field declarations",
+        builder: (yargs) => {
+            yargs.option("spec", {
+                describe:
+                    "The specification to read. Defaults to the docs/content-format.md this package ships.",
+                type: "string",
+            });
+            yargs.option("fields", {
+                describe:
+                    "A declaration set this package ships, by system id. Defaults to the consuming repository's own `itemBuilders`.",
+                type: "string",
+                choices: Object.keys(SHIPPED_ITEM_FIELDS),
+            });
+            yargs.option("coverage", {
+                describe:
+                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until #127 lands.",
+                type: "boolean",
+                default: false,
+            });
+        },
+        handler: (argv) => {
+            try {
+                const format = specFrom(argv);
+                const { itemFields, system } = declarationsFrom(argv);
+                const result = checkDeclaredFields({ format, itemFields, system });
+                for (const finding of result.findings) emitDiagnostic(finding);
+
+                // Named rather than left implicit: a check that silently
+                // compared nine of twenty-two types would read as one that
+                // covered them all.
+                log.info(
+                    `${result.checked.length} type(s) compared against ${system}'s ` +
+                        `declarations (${result.fields} field pair(s)).`,
+                );
+                log.info(
+                    `${result.skipped.spec.length} type(s) the format declares are ` +
+                        `out of reach — no \`itemBuilders\` entry covers them: ` +
+                        `${result.skipped.spec.join(", ")}.`,
+                );
+                if (result.skipped.registry.length) {
+                    log.info(
+                        `${result.skipped.registry.length} declared type(s) the ` +
+                            `format names no section for: ` +
+                            `${result.skipped.registry.join(", ")}.`,
+                    );
+                }
+                if (argv.coverage) {
+                    for (const entry of result.coverage) {
+                        log.info(
+                            `${entry.type}: format only [${entry.specOnly.join(", ")}], ` +
+                                `declaration only [${entry.registryOnly.join(", ")}]`,
+                        );
+                    }
+                }
+
+                if (result.findings.length) {
+                    log.error(
+                        `${result.findings.length} of ${result.fields} compared field ` +
+                            `pair(s) disagree between the specification and the ` +
+                            `declaration that compiles them.`,
+                    );
+                    process.exitCode = 1;
                 }
             } catch (err) {
                 reportFailure(err);
