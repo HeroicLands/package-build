@@ -575,32 +575,53 @@ subType
 - Confederation: autonomous members retain sovereignty under a weak common center
 - Anarchic: no formal governing authority — custom or force fills the gap
 
-| `data` property      | Values            | Description                                                               |
-| -------------------- | ----------------- | ------------------------------------------------------------------------- |
-| `templatePriority`   | `number`          | Template priority, _null_ = not a template                                |
-| `demonym`            | `string`          | What a member of this affiliation is called (a Vylarian)                  |
-| `government.model`   | `GovernanceModel` | Type of government structure, if applicable                               |
-| `government.summary` | `string`          | summary of the governance situation                                       |
-| `languages`          | `WikiLink[]`      | Official languages (skills)                                               |
-| `seat`               | `WikiLink`        | Where the affiliation's authority sits                                    |
-| `domain`             | `WikiLink[]`      | Places over which this affiliation holds sway                             |
-| `population`         | `number`          | Number of people in the affiliation                                       |
-| `pantheons`          | `WikiLink[]`      | Official or dominant religious pantheons (affiliations)                   |
-| `peoples`            | `WikiLink[]`      | People (lore) who are associated with the affiliation                     |
-| `parents`            | `WikiLink[]`      | Affiliations that this affiliation is subordinate to                      |
-| `relations`          | `Relation[]`      | Relations with other affiliations                                         |
-| `society`            | `string`          | The kind of social order the affiliation operates within (feudal, tribal) |
-| `office`             | `string`          | **Membership.** The office a member holds within it                       |
-| `title`              | `string`          | **Membership.** The title a member bears (Veteran, Sir)                   |
-| `level`              | `number`          | **Membership.** The member's rank within it                               |
+**Rank**
+Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
-Thirteen of those describe the **organisation**; three describe a **membership**.
-`office`, `title` and `level` have no value on an affiliation as a catalogue
-entry — they are filled when the affiliation is embedded on a being to record
-that being's standing in it. That is why the 199 authored affiliation notes leave
-all three null.
+| Property      | Values | Description                                                                                                                          |
+| ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string | Title associated with the Rank                                                                                                       |
+| `description` | string | Description of the Rank                                                                                                              |
 
-**`domain` is territorial, and only territorial.** Seventy-seven divine
+**Standing**: aligned, unaligned, rival, nemesis
+
+| `data` property      | Values                    | Description                                                                                                |
+| -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
+| `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
+| `governance.model`   | `GovernanceModel`         | Type of government structure, if applicable                                                                |
+| `governance.summary` | `string`                  | summary of the governance situation                                                                        |
+| `governance.ranks`   | `Rank[]`                  | The ranks available to members of the affiliation                                                          |
+| `governance.offices` | `Map<name, description>`  | Official offices in the affiliation                                                                        |
+| `commonSkills`       | `WikiLink[]`              | Common skills among members (languages, etc.)                                                              |
+| `seat`               | `WikiLink`                | Where the affiliation's authority sits                                                                     |
+| `domains`            | `WikiLink[]`              | Places over which this affiliation holds sway                                                              |
+| `population`         | `number`                  | Number of people in the affiliation (precision 2 significant digits).                                      |
+| `economy`            | `WikiLink[]`              | Any wikilink referring to the economic activity of the affiliation (produced goods, currency systems, etc) |
+| `peoples`            | `WikiLink[]`              | People (lore) who are associated with the affiliation                                                      |
+| `parents`            | `WikiLink[]`              | Affiliations that this affiliation is subordinate to                                                       |
+| `relations`          | `Map<WikiLink, Standing>` | Relations with other affiliations                                                                          |
+
+**Every one of those describes the organisation.** A membership — which office a
+being holds, what title it bears, where it stands on the ladder — is recorded on
+the affiliation _as embedded on that being_, and nothing about it belongs in the
+catalogue entry. That is the split `governance` draws: the organisation publishes
+the ranks and offices that exist, and a membership names which of them it holds.
+
+**Rank is the organisation's, not the member's.** A bare `level: 4` on a
+membership says nothing on its own; it means _Knight_ only because the polity
+declared that rung. So the ladder is authored once, on the body that confers it,
+and a member's rank is an index into it. Level 0 is reserved for the excluded —
+outlawed, expelled, excommunicated — which is a standing the organisation still
+recognises, and so still has to define.
+
+**Offices are named, not ranked.** A Chancellor and a Marshal are both great
+officers and neither is above the other, so an office is a key with a
+description rather than a rung — and a being may hold an office at any rank, or a
+rank with no office at all.
+
+**`domains` is territorial, and only territorial.** Seventy-seven divine
 affiliations currently spell `domain:` the other way, holding a deity's sphere of
 influence as prose — _Love, Beauty, and Prosperity_; _Fertility, Agriculture,
 Peace, and Healing_. That sense **folds into `description`**, which those notes
@@ -621,13 +642,16 @@ If `sohl` is present, this becomes an `affiliation` item.
 | ---------------- | ------------------ | ----- |
 | `subType`        | `system.subType`   | NA    |
 | `data.seat`      | `system.seat`      | NA    |
-| `data.domain`    | `system.domain`    | NA    |
+| `data.domains`   | `system.domain`    | NA    |
 | `data.parents`   | `system.parents`   | NA    |
 | `data.relations` | `system.relations` | NA    |
-| `data.society`   | `system.society`   | NA    |
-| `data.office`    | `system.office`    | NA    |
-| `data.title`     | `system.title`     | NA    |
-| `data.level`     | `system.level`     | NA    |
+
+`governance` reaches no system field. Ranks and offices are the note's and the
+web page's — SoHL's affiliation item has nowhere to put them, and inventing a
+mapping for a field no schema declares is the drift these tables exist to catch.
+`system.society`, `system.office`, `system.title` and `system.level` are
+likewise absent here: they are filled on an embedded membership, never from a
+catalogue note's `data:`.
 
 ### type: affliction
 
@@ -679,7 +703,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
-### type: armor
+### type: armorgear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
@@ -725,7 +749,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
 
-### type: concoction
+### type: concoctiongear
 
 **subType**:
 
@@ -811,6 +835,7 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 - boost: One or more temporary mastery boosts to an associated skill (Mastery Boost table).
 - fate: A mystery that quantifies the ability to alter destiny or fate.
 - grace: A mystery that quantifies ability to call effectually on divine favor.
+- birthsign: A mystery that describes the arcane sign under which the being was born.
 - other: A mystery that does not fit into the other predefined categories.
 - piety: A mystery that quantifies devotion to a religion.
 
@@ -883,7 +908,7 @@ If `hm3.type` is specified, it must be `psionic`, `spell` or `invocation`.
 | `data.charges.value`    | `system.charges.value`        | NA            |
 | `data.charges.max`      | `system.charges.max`          | NA            |
 
-### type: projectile
+### type: projectilegear
 
 **subTypes**:
 
@@ -981,7 +1006,7 @@ If an `hm3` property is present, an HM3 item is created. `hm3.type` must be spec
 | ------------- | ---------------- | ----- |
 | `subType`     | `system.subType` | NA    |
 
-### type: weapon
+### type: weapongear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 

@@ -252,43 +252,40 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...TEXT,
                 describe: "How the affiliation is governed, where it is.",
             },
-            // The specification spells this row `government.summary` while its
-            // neighbour is `governance.model`. Declared as written rather than
-            // silently corrected, because the vocabulary is closed and a
-            // closed vocabulary is exactly the wrong place to guess: the two
-            // roots have to be reconciled in the specification, not here.
             {
-                name: "government.summary",
+                name: "governance.summary",
                 ...TEXT,
                 describe: "A sentence on how the governance actually works.",
             },
-            { name: "languages", ...LINKS, describe: "Official languages, as skill notes." },
+            {
+                name: "governance.ranks",
+                ...LIST,
+                describe: "The ladder of ranks the body confers — level, title, description.",
+            },
+            {
+                name: "governance.offices",
+                ...ANY,
+                describe: "The named offices it appoints, each with what the office does.",
+            },
+            {
+                name: "commonSkills",
+                ...LINKS,
+                describe: "Skills common among members — languages first among them.",
+            },
             { name: "seat", ...LINK, describe: "Where the affiliation's authority sits." },
-            { name: "domain", ...LINKS, describe: "Places over which it holds sway." },
+            { name: "domains", ...LINKS, describe: "Places over which it holds sway." },
             { name: "population", ...NUM, describe: "How many people it counts." },
-            { name: "pantheons", ...LINKS, describe: "Pantheons it is bound to." },
+            {
+                name: "economy",
+                ...LINKS,
+                describe: "What its economic life runs on — currencies, banking bodies, goods.",
+            },
             { name: "peoples", ...LINKS, describe: "Peoples associated with it." },
             { name: "parents", ...LINKS, describe: "Affiliations it is subordinate to." },
-            { name: "relations", ...ANY, describe: "Standing with other affiliations." },
             {
-                name: "society",
-                ...TEXT,
-                describe: "The social order it operates within — feudal, tribal.",
-            },
-            {
-                name: "office",
-                ...TEXT,
-                describe: "Membership: the office a member holds. Empty on a catalogue entry.",
-            },
-            {
-                name: "title",
-                ...TEXT,
-                describe: "Membership: the title a member bears. Empty on a catalogue entry.",
-            },
-            {
-                name: "level",
-                ...NUM,
-                describe: "Membership: the member's rank. Empty on a catalogue entry.",
+                name: "relations",
+                ...ANY,
+                describe: "Standing with other affiliations — aligned, unaligned, rival, nemesis.",
             },
         ]),
     }),
@@ -366,7 +363,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     mystery: Object.freeze({
-        subTypes: Object.freeze(["boon", "boost", "fate", "grace", "other", "piety"]),
+        subTypes: Object.freeze(["boon", "boost", "fate", "grace", "birthsign", "other", "piety"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
             { name: "assocSkill", ...LINK, describe: "The skill it is associated with." },
