@@ -53,9 +53,18 @@
  *           subTypes: ["character", "creature"] }
  * ```
  *
+ * **A note is not the only thing that names a type.** A being's frontmatter
+ * addresses each of its embedded items by `(type, shortcode)`, and that `type`
+ * is the note vocabulary too — while the items it resolves against are
+ * *compiled documents*, which carry only the subtype. {@link referencedSubtype}
+ * is the translation for that side, and the reason it is separate from
+ * {@link documentSubtype} is that a reference has no frontmatter of its own to
+ * read a discriminator from (#140).
+ *
  * @module
  */
 
+import { assertTypeNotRetired } from "./ids.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
@@ -282,6 +291,96 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
         );
     }
     return declared;
+}
+
+/**
+ * The answer {@link referencedSubtype} gives: a subtype, or why there is none.
+ *
+ * Exactly one of the two fields is set. A `problem` is a sentence a caller
+ * prefixes with its own context and emits as a finding — it never throws,
+ * because the caller resolving a reference is walking a list and has to report
+ * this one and carry on.
+ *
+ * @typedef {object} ReferencedSubtype
+ * @property {string} [subType] - The document subtype the reference addresses.
+ * @property {string} [problem] - Why the reference names no document subtype.
+ */
+
+/**
+ * The document subtype a `(type, shortcode)` **reference** addresses (#140).
+ *
+ * A being's frontmatter names each embedded item by the *note's* type — the
+ * vocabulary an author writes — while the predefined items it resolves against
+ * are compiled documents, which carry only the *subtype*. One side has to
+ * translate, and it is this one: the map is a function from note type to
+ * subtype by construction, whereas the reverse is not — two note types may
+ * compile into one subtype, and a compiled document records nothing about the
+ * note that produced it. So the addresses stay keyed on the **document
+ * subtype**, which is the only vocabulary both a local pack and an extracted
+ * dependency catalogue actually carry, and a reference is translated forward
+ * here before it is looked up.
+ *
+ * Four answers, and only the first resolves:
+ *
+ * - _A one-to-one row_ → the subtype it declares. `armor` addresses an
+ *   `armorgear`.
+ * - _No row at all_ → the note type itself. A consumer declares its own item
+ *   types in its `itemBuilders` table rather than in this system's map, and the
+ *   Item pass stamps such a document with the note type; the reference has to
+ *   agree, or a consumer's own items would stop resolving the moment a map
+ *   existed.
+ * - _A row for another document class_ → a problem. A being is not an item,
+ *   however the address is spelled.
+ * - _A one-to-many row_ → a problem naming the candidates. The note that owns
+ *   such a row resolves it from its own frontmatter block; a reference has no
+ *   block, so nothing here can choose, and choosing anyway would be right about
+ *   half the time. No system declares a one-to-many **Item** row today, so this
+ *   is a guard rather than a behaviour — but it is a loud one, which is the
+ *   whole point of the issue.
+ *
+ * A **retired** spelling is refused by name before any of that. Without it a
+ * reference left behind by a rename would take the unmapped fallback and
+ * address a document of the old name — resolving silently, which is precisely
+ * what a retirement exists to stop (#78).
+ *
+ * @param {DocumentSubtypeMap} map - The system's map.
+ * @param {string|undefined} noteType - The type the reference names.
+ * @param {string} document - The Foundry document class the reference must
+ *   address — `"Item"` for a being's embedded items.
+ * @returns {ReferencedSubtype} The subtype, or why there is none.
+ */
+export function referencedSubtype(map, noteType, document) {
+    if (!noteType || typeof noteType !== "string") {
+        return { problem: "the reference names no type" };
+    }
+    try {
+        assertTypeNotRetired(noteType);
+    } catch (err) {
+        return { problem: /** @type {Error} */ (err).message };
+    }
+
+    const row = subtypeRow(map, noteType);
+    // No row: the type is the consumer's own, and its document is stamped with
+    // the note type. See the note on the unmapped fallback above.
+    if (!row) return { subType: noteType };
+
+    if (row.document !== document) {
+        return {
+            problem:
+                `${map.system} compiles a "${noteType}" note into a ` +
+                `${row.document}, not a ${document}`,
+        };
+    }
+    if (!row.subType) {
+        const permitted = /** @type {readonly string[]} */ (row.subTypes);
+        return {
+            problem:
+                `a "${noteType}" note compiles into more than one ${map.system} ` +
+                `${document} subtype (${list(permitted)}), and a ` +
+                `(type, shortcode) reference cannot say which`,
+        };
+    }
+    return { subType: row.subType };
 }
 
 /**

@@ -26,7 +26,7 @@
  * SoHL#1580 and are now reported by `assertTypeNotRetired` in
  * `engine/ids.mjs`.
  *
- * Each actor's embedded items are resolved by looking up `<type>:<shortcode>`
+ * Each actor's embedded items are resolved by looking `(type, shortcode)` up
  * against the generated JSON tree of every Item pack (built in prior items
  * passes and named by the caller as `itemsSourceDirs`). All of them, because a
  * repository may group its items into several Item packs (#1566) and a being
@@ -35,6 +35,14 @@
  * `scoreBase` set from the map value. Each entry in `sohl.items` is similarly
  * resolved by `(type, shortcode)` and deep-merged with the entry's other
  * properties. `sohl.skills` is ignored.
+ *
+ * **Those references are in the note vocabulary and the addresses are in the
+ * document's**, and the difference is stated rather than assumed away (#140):
+ * {@link itemAddress} keys a predefined item by the subtype its compiled
+ * document carries, and {@link Actors#embeddedSubtype} translates each
+ * authored reference forward through the system's map before the lookup. A
+ * reference that then resolves to nothing is a finding naming the note and the
+ * reference — never an item quietly missing from the compiled actor.
  *
  * Not a standalone script — exports the `Actors` compiler class, imported and
  * driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`). Must run
@@ -66,8 +74,14 @@ import { contentPackage } from "../engine/content-package.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into, and which note
 // types are actors at all. Looked up in the system's declared map, never
 // inferred from the type itself (#79).
-import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
+import {
+    documentSubtype,
+    mapsNoteType,
+    noteTypesFor,
+    referencedSubtype,
+} from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
+import { locateFrontmatterKey } from "../engine/retired-fields.mjs";
 // The note-level `sohl:` block: `sohl.system` onto the document's `system`
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
 // shared top-level forms for this system alone (#58).
@@ -210,10 +224,30 @@ function extractBodyAndMovement(fm) {
 }
 
 /**
+ * The key one predefined item is held under, and every place that spells it.
+ *
+ * **The vocabulary is the document's, not the note's** — `subType` is the
+ * Foundry Item subtype the compiled document carries, which is the only thing a
+ * compiled pack (or an extracted dependency catalogue) records about what an
+ * item *is*. A being's frontmatter addresses the same item in the *note*
+ * vocabulary, so a reference is translated forward through the system's map
+ * before it reaches this function; see {@link Actors#embeddedSubtype} for why
+ * the translation goes that way and not the other (#140).
+ *
+ * @param {string} subType - The Foundry Item subtype.
+ * @param {string} shortcode - The item's `system.shortcode`.
+ * @returns {string} The address, `subType:shortcode`.
+ */
+function itemAddress(subType, shortcode) {
+    return `${subType}:${shortcode}`;
+}
+
+/**
  * Load every JSON file under each of `itemsSourceDirs`, returning one Map keyed
- * by `${type}:${system.shortcode}`. Folder docs and entries without a
- * shortcode are skipped. The `_key` field is stripped from each entry —
- * it is not part of the item data model.
+ * by {@link itemAddress} — the compiled document's **subtype** and its
+ * `system.shortcode`. Folder docs and entries without a shortcode are skipped.
+ * The `_key` field is stripped from each entry — it is not part of the item
+ * data model.
  *
  * The directories are read as one address space, because a being names an item
  * by `(type, shortcode)` and never by the pack it happens to ship in. Two local
@@ -267,7 +301,7 @@ function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             }
             const shortcode = doc?.system?.shortcode;
             if (!doc?.type || !shortcode) continue;
-            const address = `${doc.type}:${shortcode}`;
+            const address = itemAddress(doc.type, shortcode);
             const owner = source.get(address);
             if (owner && owner !== itemsSourceDir) {
                 throw new Error(
@@ -301,7 +335,7 @@ function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             }
             const shortcode = doc?.system?.shortcode;
             if (!doc?.type || !shortcode) continue;
-            const address = `${doc.type}:${shortcode}`;
+            const address = itemAddress(doc.type, shortcode);
             if (map.has(address)) {
                 // Deliberate: this repository defines it, so its version wins.
                 if (source.has(address)) shadowed.push(address);
@@ -419,11 +453,25 @@ export class Actors extends BasePackCompiler {
     }
 
     /**
+     * The note-type → document-subtype map this pass compiles against.
+     *
+     * Stated by the class rather than reached for through the module import, so
+     * every subtype decision the pass makes — the actor's own, and each
+     * embedded item reference's — reads one declaration that a subclass
+     * compiling for another system can replace. That is also what lets the
+     * non-identity behaviour be exercised without introducing a non-identity
+     * row into SoHL's own map, which is #78's job and moves compiled bytes.
+     *
+     * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
+     */
+    static documentSubtypes = SOHL_DOCUMENT_SUBTYPES;
+
+    /**
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True for a note type the system maps onto an `Actor`.
      */
     selects(fm) {
-        return mapsNoteType(SOHL_DOCUMENT_SUBTYPES, fm.type, "Actor");
+        return mapsNoteType(this.constructor.documentSubtypes, fm.type, "Actor");
     }
 
     /**
@@ -465,36 +513,108 @@ export class Actors extends BasePackCompiler {
     }
 
     /**
+     * The Foundry Item subtype an embedded reference's `type` addresses.
+     *
+     * **The reference is in the note vocabulary; the address is in the
+     * document's** (#140). A being writes `(type, shortcode)` with the type an
+     * author authors, while {@link itemAddress} keys the predefined items by
+     * the subtype each compiled document carries — so exactly one of the two
+     * sides has to translate, and it is this one. The system's map is a
+     * function from note type to subtype by construction; the reverse is not,
+     * and a compiled document records nothing about the note that produced it,
+     * so there is no honest way to key the addresses the other way round.
+     *
+     * The two vocabularies are the same string in every SoHL row today, which
+     * is why looking a reference up verbatim worked. The first non-identity row
+     * (#78: `armor` → `armorgear`) ends that, and a reference resolving to
+     * nothing must be a finding rather than an item quietly missing from the
+     * compiled actor.
+     *
+     * @param {string} type - The type the reference names.
+     * @returns {import("../engine/document-subtypes.mjs").ReferencedSubtype}
+     *   The subtype, or why the reference names none.
+     */
+    embeddedSubtype(type) {
+        return referencedSubtype(this.constructor.documentSubtypes, type, "Item");
+    }
+
+    /**
      * Resolve one embedded item from a `(type, shortcode?, overlay)`
      * descriptor. If `shortcode` is given, the predefined item is fetched
      * from `itemsMap` and the overlay deep-merged on top. If absent, the
      * descriptor must carry enough fields to stand alone. The embedded
      * item's `_id` is regenerated deterministically from
-     * `(actorId, type, shortcode, indexKey)` so re-exports are stable.
+     * `(actorId, subType, shortcode, indexKey)` so re-exports are stable —
+     * from the **document subtype**, so that renaming a note type (#78) leaves
+     * every embedded id exactly where it was.
      * Returns null if the descriptor cannot be resolved.
+     *
+     * @param {Map<string, object>} itemsMap - The predefined items, by address.
+     * @param {string} actorId - The owning actor's id, seeding embedded ids.
+     * @param {string} type - The **note** type the reference names.
+     * @param {string|null} shortcode - The referenced item's shortcode, or
+     *   `null` for a stand-alone entry.
+     * @param {object} [overlay] - The entry's remaining properties.
+     * @param {string} indexKey - Distinguishes two references to one item.
+     * @param {string} ctx - Diagnostic context (the actor's label).
+     * @param {object} [at] - Where to locate a finding.
+     * @param {string} [at.fmKey] - The frontmatter key the reference sits
+     *   under, so an unresolved one is reported at the reference rather than
+     *   at the note.
+     * @returns {object|null} The embedded item, or null when it resolved to
+     *   nothing — always with a finding emitted.
      */
-    resolveEmbedded(itemsMap, actorId, type, shortcode, overlay, indexKey, ctx) {
+    resolveEmbedded(itemsMap, actorId, type, shortcode, overlay, indexKey, ctx, { fmKey } = {}) {
+        // Where a finding about this reference points. The value locates the
+        // exact entry in a list; the key is the fallback when it cannot be
+        // found, which still beats naming the note alone.
+        const where = () =>
+            locateFrontmatterKey(this.currentNote?.absPath, fmKey ?? "items", shortcode || type);
+
+        const { subType, problem } = this.embeddedSubtype(type);
+        if (problem) {
+            this.noteError(`${ctx}: ${indexKey}: ${problem}`, where());
+            this.errorCount++;
+            return null;
+        }
+        const address = itemAddress(/** @type {string} */ (subType), shortcode ?? "");
+
         let base = null;
         if (shortcode) {
-            base = itemsMap.get(`${type}:${shortcode}`);
+            base = itemsMap.get(address);
             if (!base) {
-                this.noteError(`${ctx}: no predefined item for "${type}:${shortcode}"`);
+                // Both vocabularies where they differ, so an author sees why an
+                // address they wrote did not land where they expected.
+                const translated =
+                    subType === type ? "" : (
+                        ` (looked up as "${address}", the ` +
+                        `${this.constructor.documentSubtypes.system} Item subtype a ` +
+                        `"${type}" note compiles into)`
+                    );
+                this.noteError(
+                    `${ctx}: no predefined item for "${type}:${shortcode}"${translated}`,
+                    where(),
+                );
                 this.errorCount++;
                 return null;
             }
             base = stripCompendiumFields(base);
         } else if (overlay && overlay.name && overlay.system) {
-            base = { type, name: overlay.name, system: {} };
+            base = { type: subType, name: overlay.name, system: {} };
         } else {
             this.noteError(
                 `${ctx}: embedded item missing shortcode and not enough fields to stand alone`,
+                where(),
             );
             this.errorCount++;
             return null;
         }
         const merged = overlay ? deepMerge(base, overlay) : base;
-        merged.type = type;
-        merged._id = makeId(actorId, `${type}:${shortcode || merged.name}:${indexKey}`);
+        merged.type = subType;
+        merged._id = makeId(
+            actorId,
+            `${itemAddress(/** @type {string} */ (subType), shortcode || merged.name)}:${indexKey}`,
+        );
         // Foundry's pack compiler flattens the document hierarchy into LevelDB,
         // storing each embedded document under its own `_key`. Embedded items
         // therefore need a hierarchical key, as do any effects they carry
@@ -529,6 +649,7 @@ export class Actors extends BasePackCompiler {
                     overlay,
                     `attr:${shortcode}`,
                     ctx,
+                    { fmKey: "attributes" },
                 );
                 if (embedded) items.push(embedded);
             }
@@ -556,6 +677,7 @@ export class Actors extends BasePackCompiler {
                     rest,
                     `items:${index}`,
                     ctx,
+                    { fmKey: "items" },
                 );
                 if (embedded) items.push(embedded);
             });
@@ -622,7 +744,7 @@ export class Actors extends BasePackCompiler {
         // The document's own subtype, and the art that goes with it. Both are
         // looked up from the note's `type` rather than spelled here (#79).
         const subType = /** @type {string} */ (
-            documentSubtype(SOHL_DOCUMENT_SUBTYPES, fm.type, fm, {
+            documentSubtype(this.constructor.documentSubtypes, fm.type, fm, {
                 absPath: this.currentNote?.absPath,
             })
         );
