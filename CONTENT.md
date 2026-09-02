@@ -525,10 +525,16 @@ the properties named after a system, and one note may carry more than one — a
 | `<system>.flags`   | `document.flags`                                              |
 | `<system>.pack`    | _nothing on the document_ — a build directive naming the pack |
 
-Everything else a system declares — `archetype`, `kbcat`, and the _generators_
-`items` and `attributes`, which expand into embedded documents rather than
-mapping anywhere — sits directly under the block, which is why it has to be
-somewhere the schema cannot claim.
+Everything else a system declares sits directly under the block. `kbcat` is
+toolchain vocabulary, and the _generators_ `items` and `attributes` expand into
+embedded documents rather than mapping anywhere, so neither has a `system` path
+to be written at.
+
+`archetype` is authored there too, and is the one such key that _is_ a field:
+the builder writes it to `system.archetype` — a number is an archetype at that
+priority, `null` is not an archetype — exactly as `portrait` reaches
+`sohl.system.portrait` from a shared top-level property. Its authored position
+is unchanged (#126).
 
 ```yaml
 type: being # the content type — system-agnostic
