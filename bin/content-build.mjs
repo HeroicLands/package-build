@@ -714,6 +714,17 @@ function formatCommand() {
                             `Formatted ${written.length} of ${checked} file(s).`
                         :   `Already formatted (${checked} file(s)).`,
                     );
+                    // `--write` collects findings too — a file Prettier cannot
+                    // parse, or one that will not format to a fixpoint — and
+                    // used to discard them, so a run that had left files
+                    // unformatted still reported success and exited 0 (#125).
+                    for (const finding of findings) emitDiagnostic(finding);
+                    if (findings.length) {
+                        log.error(
+                            `${findings.length} of ${checked} file(s) could not be formatted.`,
+                        );
+                        process.exitCode = 1;
+                    }
                     return;
                 }
                 for (const finding of findings) emitDiagnostic(finding);

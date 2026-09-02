@@ -15,10 +15,16 @@
  * Actors pack compiler — produces JSON pack files for the "actors" Foundry
  * compendium from markdown `being` notes in the `assets/content/` tree.
  *
- * One content type, named for the Foundry actor it produces. It was two —
- * `character` and `creature` — which compiled to the same `being` with no
- * branch anywhere between them; they were retired in SoHL#1580 and are now
- * reported by `assertTypeNotRetired` in `engine/ids.mjs`.
+ * One content type today, and the actor subtype it produces is **declared**
+ * rather than assumed to be the same word: `sohl/document-subtypes.mjs` maps
+ * `being` → `Actor` / `being`, and this pass looks it up (#79). It read
+ * `ACTOR_VAULT_TYPE = "being"` here and emitted `type: "being"` several hundred
+ * lines below, which made the two vocabularies agree by coincidence.
+ *
+ * It was two content types — `character` and `creature` — which compiled to the
+ * same `being` with no branch anywhere between them; they were retired in
+ * SoHL#1580 and are now reported by `assertTypeNotRetired` in
+ * `engine/ids.mjs`.
  *
  * Each actor's embedded items are resolved by looking up `<type>:<shortcode>`
  * against the generated JSON tree of every Item pack (built in prior items
@@ -57,19 +63,53 @@ import { emitDiagnostic } from "../engine/diagnostics.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
+// Which Foundry Actor subtype a note's `type` compiles into, and which note
+// types are actors at all. Looked up in the system's declared map, never
+// inferred from the type itself (#79).
+import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 
 /**
- * The content type this pass claims. A note's `type` names the Foundry document
- * it compiles into, exactly as every other content type does.
+ * The note types this pass claims — every one the system's map sends to an
+ * `Actor`.
+ *
+ * Read from the map rather than restated as a constant. It *was* a constant:
+ * `ACTOR_VAULT_TYPE = "being"` sat here and `type: "being"` was emitted several
+ * hundred lines below, with nothing relating them, so a change to either
+ * followed the other only by coincidence (#79).
+ *
+ * @type {readonly string[]}
  */
-const ACTOR_VAULT_TYPE = "being";
+const ACTOR_NOTE_TYPES = Object.freeze(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor"));
 
-// Default art per actor type, applied when frontmatter supplies no `img` /
-// `portrait`. Beings default to the generic person icon; other actor types add
-// their own default here as they gain a builder.
+// Default art per actor **subtype**, applied when frontmatter supplies no `img`
+// / `portrait`. Beings default to the generic person icon; another subtype adds
+// its own entry here as the map gains a row for it.
 const DEFAULT_IMG = {
     being: "systems/sohl/assets/icons/game-icons/delapouite/person.svg",
 };
+
+/**
+ * The default art for an actor subtype.
+ *
+ * Fail-fast, for the reason {@link itemArt} is: a subtype with no art would
+ * otherwise ship a document with no image and nothing said about it.
+ *
+ * @param {string} subType - The Foundry actor subtype.
+ * @returns {string} The default image path.
+ * @throws {Error} When this map pairs no art with the subtype.
+ */
+function defaultActorImg(subType) {
+    const img = /** @type {Record<string, string|undefined>} */ (DEFAULT_IMG)[subType];
+    if (!img) {
+        throw new Error(
+            `No default art for actor subtype "${subType}" — add an entry to ` +
+                `\`DEFAULT_IMG\` in sohl/actors.mjs, beside the map row that ` +
+                `introduced the subtype.`,
+        );
+    }
+    return img;
+}
 
 /**
  * Strip compendium-only fields from a predefined item before embedding it
@@ -366,10 +406,10 @@ export class Actors extends BasePackCompiler {
 
     /**
      * @param {object} fm - The note's frontmatter.
-     * @returns {boolean} True for a `being` note.
+     * @returns {boolean} True for a note type the system maps onto an `Actor`.
      */
     selects(fm) {
-        return fm.type === ACTOR_VAULT_TYPE;
+        return mapsNoteType(SOHL_DOCUMENT_SUBTYPES, fm.type, "Actor");
     }
 
     /**
@@ -400,7 +440,7 @@ export class Actors extends BasePackCompiler {
     reportDetail(stats) {
         log.debug(
             `Skipped ${stats.skippedOther} non-actor file(s) ` +
-                `(not ${ACTOR_VAULT_TYPE}, package:${contentPackage()})`,
+                `(not ${ACTOR_NOTE_TYPES.join("/")}, package:${contentPackage()})`,
         );
     }
 
@@ -559,6 +599,14 @@ export class Actors extends BasePackCompiler {
         const name = resolveName(fm);
         const id = fm.id;
         const ctx = `actor "${name}"`;
+        // The document's own subtype, and the art that goes with it. Both are
+        // looked up from the note's `type` rather than spelled here (#79).
+        const subType = /** @type {string} */ (
+            documentSubtype(SOHL_DOCUMENT_SUBTYPES, fm.type, fm, {
+                absPath: this.currentNote?.absPath,
+            })
+        );
+        const defaultImg = defaultActorImg(subType);
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
@@ -570,7 +618,7 @@ export class Actors extends BasePackCompiler {
             // key — and, for a `docArchetype`-flagged being, its archetype
             // identity (the dedup/override key of the Create-dialog picker, #604).
             shortcode: fm.shortcode || "",
-            portrait: resolveImg(fm.portrait) || DEFAULT_IMG.being,
+            portrait: resolveImg(fm.portrait) || defaultImg,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };
@@ -602,8 +650,8 @@ export class Actors extends BasePackCompiler {
 
         return {
             name,
-            type: "being",
-            img: resolveImg(fm.img) || DEFAULT_IMG.being,
+            type: subType,
+            img: resolveImg(fm.img) || defaultImg,
             _id: id,
             system,
             items,
@@ -611,7 +659,7 @@ export class Actors extends BasePackCompiler {
                 name,
                 displayName: 0,
                 actorLink: false,
-                texture: { src: resolveImg(fm.img) || DEFAULT_IMG.being },
+                texture: { src: resolveImg(fm.img) || defaultImg },
                 width: 1,
                 height: 1,
                 sight: { enabled: false },
