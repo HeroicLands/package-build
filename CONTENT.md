@@ -190,6 +190,23 @@ cross-package wikilink writes to reach one of these notes. It is the
 repository's identity in the address space — not a filter — and a note does not
 restate it.
 
+Because it is a segment of an address, the value is **validated** rather than
+taken as written, and a violation fails the build naming the line it is on:
+
+- **Alphanumeric** (`^[A-Za-z0-9]+$`). An address is read by counting
+  hyphen-separated segments, so the hyphen has to be purely a separator — which
+  is why `harn-adventures` is configured as `harnadventures`. This is the same
+  rule `shortcode` is already held to, and the two are one constant.
+- **Not a note type.** The package and the type are adjacent segments, and the
+  two vocabularies are kept disjoint so a reader never has to decide which slot
+  a name is filling. `doc`, `being`, every map type, and every item type this
+  repository declares — with its `doc`-prefixed documentation form — are
+  refused.
+
+```text
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+```
+
 **`package:` in a note's frontmatter is retired, and declaring it fails the
 build**, naming the file, whatever the value says. An agreeing declaration is
 refused exactly as a disagreeing one is: there is no value that makes writing
