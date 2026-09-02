@@ -104,6 +104,9 @@ export * as helpers from "./helpers.mjs";
 /** The consumer's resolved item-type registry: the whitelist and its builders. */
 export * as itemRegistry from "./item-registry.mjs";
 
+/** The per-system note-type → document-subtype map, and looking a note up in it. */
+export * as documentSubtypes from "./document-subtypes.mjs";
+
 /** Which types carry documentation of their own, and where it is addressed. */
 export * as itemDocs from "./item-docs.mjs";
 
