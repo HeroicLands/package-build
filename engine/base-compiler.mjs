@@ -80,7 +80,7 @@ import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDraftField } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
-import { checkAuthoredSystemData } from "./schema-check.mjs";
+import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
@@ -199,6 +199,19 @@ export class BasePackCompiler {
     folderResolver;
     /** @type {number} */
     errorCount = 0;
+
+    /**
+     * Emitted-`system` findings, one per `documentType|subtype|field` (#155).
+     *
+     * A key the compiler writes is on **every** document of a subtype, so
+     * reporting it where it is found would print the same sentence 3,126 times
+     * and bury the one that is not systemic. Collected here instead and flushed
+     * once at the end of the pass, keyed so the class of defect is reported
+     * once and the first document carrying it names a file a reader can open.
+     *
+     * @type {Map<string, {message: string, file: string|undefined}>}
+     */
+    emittedFindings = new Map();
 
     /**
      * The pack this pass writes, and the Foundry document type it holds.
@@ -527,6 +540,82 @@ export class BasePackCompiler {
     }
 
     /**
+     * Record every `system` key the *compiled document* carries that the
+     * receiving subtype does not declare (#155).
+     *
+     * The sibling of {@link BasePackCompiler#reportUndeclaredSystemData}, and
+     * the half that sees what no declaration states. A compiler writes keys of
+     * its own alongside the declared fields — `shortcode`, `actionDefs`,
+     * `notes`, `docHtml`, `archetype` — and neither the field-declaration check
+     * nor the authored-`system` check can see them, so until this nothing
+     * compared them at all. Foundry's discard is the same silent one either
+     * way.
+     *
+     * Called with the block **after** the builder, the authored merge and any
+     * conditional fields have all written into it, so what is checked is what
+     * the pack file receives.
+     *
+     * Recorded rather than reported: see {@link BasePackCompiler#emittedFindings}
+     * for why, and {@link BasePackCompiler#reportEmittedFindings} for where they
+     * come out.
+     *
+     * @param {object} system - The `system` block just assembled.
+     * @param {object} opts
+     * @param {object} opts.fm - The note's frontmatter.
+     * @param {string} opts.block - The system block the note writes.
+     * @param {string} opts.documentType - `Item`, `Actor`, …
+     * @param {string} opts.subType - The subtype this note compiles into.
+     * @param {string} opts.type - The note's content type.
+     * @param {readonly {to?: string}[]} [opts.fields] - The type's field
+     *   declaration, which tells a builder emission from a compiler one.
+     * @param {object} [opts.config] - The resolved build configuration.
+     * @returns {number} How many findings were new to this pass.
+     */
+    reportEmittedSystemData(system, { fm, block, documentType, subType, type, fields, config }) {
+        const findings = checkEmittedSystemData(system, {
+            fm,
+            block,
+            documentType,
+            subType,
+            type,
+            fields,
+            ...(config ? { config } : {}),
+        });
+        let added = 0;
+        for (const finding of findings) {
+            const key = `${finding.documentType}|${finding.subtype}|${finding.field}`;
+            if (this.emittedFindings.has(key)) continue;
+            this.emittedFindings.set(key, {
+                message: finding.message,
+                file: this.currentNote?.absPath,
+            });
+            added++;
+        }
+        return added;
+    }
+
+    /**
+     * Emit the collected emitted-`system` findings, once each.
+     *
+     * An **error**, for the reason #60 made its sibling one: the value is gone
+     * at load and the build says nothing, and severity that varied by *which
+     * part of the build wrote the key* would make the less fixable half the
+     * quieter one. What varies is the message, which says whose fix it is —
+     * see {@link module:engine/schema-check.emittedUndeclaredMessage}.
+     *
+     * @returns {number} How many were reported.
+     */
+    reportEmittedFindings() {
+        const found = this.emittedFindings;
+        this.emittedFindings = new Map();
+        for (const finding of found.values()) {
+            this.errorCount++;
+            emitDiagnostic({ file: finding.file, severity: "error", message: finding.message });
+        }
+        return found.size;
+    }
+
+    /**
      * One note → one document. **Required.**
      *
      * @param {object} fm - The note's frontmatter.
@@ -765,6 +854,10 @@ export class BasePackCompiler {
 
         this.compiledCount = stats.compiled;
         await this.finish(stats);
+        // After `finish`, because a pass that writes documents there (the
+        // scenes pass bundles an Adventure) has emitted them by now; before
+        // `report`, so the pass's summary counts them.
+        this.reportEmittedFindings();
         this.report(stats);
     }
 }

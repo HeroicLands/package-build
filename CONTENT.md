@@ -579,6 +579,23 @@ without a word, so the alternative is a field the author wrote and nobody will
 ever see. A path a declared field already writes is left to that field, so the
 value goes through one coercion rather than two.
 
+**What the compiler writes on its own is checked too.** A compiled document
+carries keys no field declaration and no note ever names — `shortcode`,
+`archetype`, `actionDefs`, `notes`, `docHtml` — because the pass writes them
+itself, and they were compared against nothing: the declaration-derived check
+reads `itemBuilders`, the note-side check reads `<system>.system`, and these are
+in neither. A compile now reads the `system` block each pass **assembled** and
+checks its keys against the same published `schema.json`, so the emitted set is
+observed rather than listed and a compiler that grows a key is covered without
+anyone remembering to add it. A key the schema does not declare is an error,
+reported once per subtype rather than once per document, and the message says
+which of two things wrote it: a `fields:` entry, which the repository can change,
+or the compiler, which it cannot — that one means the build is running ahead of
+the system it compiles for, and the fixes are to declare the field there or to
+hold this package at a build that does not write it. A subtree the schema
+declares but describes no further — a discriminated `TypedSchemaField`, stored
+flat — is left alone rather than reported wholesale.
+
 **A pack that declares a `system:` takes only notes carrying that block.** A
 note that says nothing about a system has no system data, and compiling it there
 would emit a hollow document — a subtype, and none of the fields the subtype

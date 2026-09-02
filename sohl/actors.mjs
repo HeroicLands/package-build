@@ -799,6 +799,16 @@ export class Actors extends BasePackCompiler {
         // are what a note that authors none still gets.
         mergeSystemData(system, fm, { block: SYSTEM });
         this.reportUndeclaredSystemData(fm, SYSTEM, "Actor", subType);
+        // And what this pass wrote itself. There is no field declaration for a
+        // being at all, so *every* key here is a compiler emission — including
+        // `archetype` (#126), which nothing compared until #155.
+        this.reportEmittedSystemData(system, {
+            fm,
+            block: SYSTEM,
+            documentType: "Actor",
+            subType,
+            type: fm.type,
+        });
 
         const effects = blockProperty(fm, SYSTEM, "effects");
 
