@@ -1,0 +1,428 @@
+{
+    "_comment": [
+        "A stand-in for a real system's published schema.json, so this repository can run",
+        "`content-build content-format schema` in its own CI. package-build ships no system,",
+        "so there is no real artifact here to point the check at.",
+        "",
+        "It is SoHL's own published schema.json at 0.8.2, plus exactly the fields the",
+        "specification names that SoHL does not declare yet. Those three gaps are already",
+        "tracked, so pointing CI at the real artifact would fail this repository's build for",
+        "a reason that is not this repository's:",
+        "",
+        "  - Song-of-Heroic-Lands-FoundryVTT#1780 — the archetype/template field, which lives",
+        "    in flags.sohl.docArchetype today and moves into the schema. The specification",
+        "    spells the target `system.template` and #1780 proposes `system.archetype`; the",
+        "    two disagree, and settling that is #1780's. The fixture takes the specification's",
+        "    spelling so the check is green on what is committed here.",
+        "  - Song-of-Heroic-Lands-FoundryVTT#1781 — AffiliationDataModel gains `parents`,",
+        "    `seat` and `domain`, and `relation` is renamed `relations`. The fixture adds all",
+        "    four and keeps `relation`, since the artifact it was copied from still has it.",
+        "  - Song-of-Heroic-Lands-FoundryVTT#1782 — `outcomeTrauma` is renamed",
+        "    `outcomeTraumas`.",
+        "",
+        "So the delta above is the whole of the disagreement between the specification and a",
+        "real published schema, and every other claim in the document is confirmed against a",
+        "field SoHL genuinely declares. As those three land, this fixture is replaced by a",
+        "fresh copy of the artifact and the delta goes to zero.",
+        "",
+        "Adding a `system.*` target to docs/content-format.md without adding it here fails",
+        "CI, which is the point: the fixture is committed so the claim and the schema that",
+        "receives it move together."
+    ],
+    "version": 1,
+    "system": "sohl",
+    "systemVersion": "0.8.2",
+    "documents": {
+        "Item": {
+            "affiliation": {
+                "own": [
+                    "domain",
+                    "level",
+                    "office",
+                    "parents",
+                    "relation",
+                    "relations",
+                    "seat",
+                    "society",
+                    "subType",
+                    "template",
+                    "title"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "affliction": {
+                "own": [
+                    "category",
+                    "contagionIndexBase",
+                    "contractDate",
+                    "healingCheckDurationBase",
+                    "healingCheckDurationFormula",
+                    "healingRateBase",
+                    "isDormant",
+                    "levelBase",
+                    "onsetDate",
+                    "onsetDurationBase",
+                    "onsetDurationFormula",
+                    "onsetFormula",
+                    "onsetMacroUuid",
+                    "outcome",
+                    "outcomeTrauma",
+                    "outcomeTraumas",
+                    "resolutionDate",
+                    "resolutionDurationBase",
+                    "resolutionDurationFormula",
+                    "subType",
+                    "template",
+                    "transmission",
+                    "treatmentDate"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "armorgear": {
+                "own": [
+                    "encumbrance",
+                    "encumbranceGroup",
+                    "isWorn",
+                    "locations",
+                    "locations.facing",
+                    "locations.flexible",
+                    "locations.rigid",
+                    "material",
+                    "perceptionPenaltyBase",
+                    "protectionBase",
+                    "protectionBase.blunt",
+                    "protectionBase.edged",
+                    "protectionBase.fire",
+                    "protectionBase.piercing",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            },
+            "attribute": {
+                "own": ["impairedByRoles", "initDiceFormula", "scoreBase", "template", "valueDesc"],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "concoctiongear": {
+                "own": ["potency", "strength", "subType", "template"],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            },
+            "containergear": {
+                "own": ["maxCapacityBase", "template"],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            },
+            "miscgear": {
+                "own": ["template"],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            },
+            "mystery": {
+                "own": [
+                    "assocAffiliationCode",
+                    "assocSkillCode",
+                    "charges",
+                    "charges.max",
+                    "charges.value",
+                    "levelBase",
+                    "skillAptitudes",
+                    "subType",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "mysticalability": {
+                "own": [
+                    "assocAffiliationCode",
+                    "assocSkillCode",
+                    "charges",
+                    "charges.max",
+                    "charges.value",
+                    "improveFlag",
+                    "levelBase",
+                    "masteryLevelBase",
+                    "subType",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "projectilegear": {
+                "own": [
+                    "impactBase",
+                    "impactBase.aspect",
+                    "impactBase.die",
+                    "impactBase.modifier",
+                    "impactBase.numDice",
+                    "impactBase.traits",
+                    "impactBase.traits.broadhead",
+                    "subType",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            },
+            "skill": {
+                "own": [
+                    "adoptParentMasteryLevel",
+                    "combatCategory",
+                    "impairedByRoles",
+                    "improveFlag",
+                    "initSkillMult",
+                    "masteryLevelBase",
+                    "parentSkillCode",
+                    "skillBaseFormula",
+                    "strikeMode",
+                    "subType",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "trauma": {
+                "own": [
+                    "aspect",
+                    "bloodLossAdvanceDurationBase",
+                    "bloodLossAdvanceDurationFormula",
+                    "bodyLocationCode",
+                    "category",
+                    "contractDate",
+                    "courseDurationBase",
+                    "courseDurationFormula",
+                    "healingCheckDurationBase",
+                    "healingCheckDurationFormula",
+                    "healingRateBase",
+                    "infectable",
+                    "levelBase",
+                    "permanentImpairmentEligible",
+                    "subType",
+                    "template",
+                    "treatmentDate",
+                    "treatmentModifierBase"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "docHtml",
+                    "lastRun",
+                    "notes",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "weapongear": {
+                "own": ["encumbranceBase", "heftBase", "strikeModes", "template"],
+                "inherited": [
+                    "actionDefs",
+                    "containerId",
+                    "docHtml",
+                    "durabilityBase",
+                    "isCarried",
+                    "lastRun",
+                    "notes",
+                    "qualityBase",
+                    "quantity",
+                    "scheduledActions",
+                    "sharedWithCohortIds",
+                    "shortcode",
+                    "valueBase",
+                    "weightBase"
+                ]
+            }
+        },
+        "Actor": {
+            "being": {
+                "own": [
+                    "body",
+                    "body.bodyScaleBase",
+                    "body.personalFatigue",
+                    "body.reachBase",
+                    "body.structure",
+                    "body.structure.locations",
+                    "body.structure.parts",
+                    "body.structure.zones",
+                    "body.weight",
+                    "body.weight.base",
+                    "body.weight.calc",
+                    "defaultCombatGroup",
+                    "template"
+                ],
+                "inherited": [
+                    "actionDefs",
+                    "appearance",
+                    "currentMoveMedium",
+                    "dossier",
+                    "health",
+                    "health.max",
+                    "health.value",
+                    "lastRun",
+                    "movementProfiles",
+                    "portrait",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "cohort": {
+                "own": ["leaderCode", "members", "template"],
+                "inherited": [
+                    "actionDefs",
+                    "appearance",
+                    "currentMoveMedium",
+                    "dossier",
+                    "health",
+                    "health.max",
+                    "health.value",
+                    "lastRun",
+                    "movementProfiles",
+                    "portrait",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "structure": {
+                "own": ["template"],
+                "inherited": [
+                    "actionDefs",
+                    "appearance",
+                    "currentMoveMedium",
+                    "dossier",
+                    "health",
+                    "health.max",
+                    "health.value",
+                    "lastRun",
+                    "movementProfiles",
+                    "portrait",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            },
+            "vehicle": {
+                "own": ["occupants", "template"],
+                "inherited": [
+                    "actionDefs",
+                    "appearance",
+                    "currentMoveMedium",
+                    "dossier",
+                    "health",
+                    "health.max",
+                    "health.value",
+                    "lastRun",
+                    "movementProfiles",
+                    "portrait",
+                    "scheduledActions",
+                    "shortcode"
+                ]
+            }
+        }
+    }
+}
