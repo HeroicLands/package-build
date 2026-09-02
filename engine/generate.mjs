@@ -94,16 +94,30 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * order among packs of one type — and every one of them is written before the
  * actors pass that reads them.
  *
+ * **Scoped to one system when the caller has one (#58).** A being addresses an
+ * item by `(type, shortcode)`, and that address is unique within one system and
+ * not across two: `skill:sword` is an HM3 skill *and* a SoHL skill, with
+ * different data models behind them. The reference itself is unambiguous — it
+ * sits inside a system block, so position says which it means — but the
+ * resolver has to know which catalogue it is searching, or it resolves the pair
+ * by whichever pack was read first. So an Actor pass reads the Item packs of
+ * **its own** system plus the system-neutral ones, which belong to every
+ * system. Asking for no system reads them all, which is every single-system
+ * build and the behaviour this always had.
+ *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
+ * @param {string|null} [system] - The system whose catalogue is wanted. Omitted
+ *   or `null`, every Item pack is read.
  * @returns {string[]} Each Item pack's JSON directory. Empty when the
  *   repository ships no items at all, which is a legitimate package: the actors
  *   pass accepts an empty list and reports an item it cannot resolve per
  *   `(type, shortcode)` instead, naming the being (#49).
  */
-export function itemPackJsonDirs(config = loadPackConfig()) {
+export function itemPackJsonDirs(config = loadPackConfig(), system = null) {
     return config.packs
         .filter((pack) => pack.type === "Item")
+        .filter((pack) => system == null || !pack.system || pack.system === system)
         .map((pack) => packJsonDir(pack.name, config));
 }
 
@@ -296,7 +310,9 @@ async function generatePack(
         // the Item packs, so the dependency is stated rather than assumed
         // (#1508) — and it is every Item pack, since a repository may ship more
         // than one (#1566).
-        itemsSourceDirs: itemPackJsonDirs(config),
+        // Scoped to this pack's system, so a being resolves `(type, shortcode)`
+        // against its own system's catalogue and the neutral one (#58).
+        itemsSourceDirs: itemPackJsonDirs(config, system ?? null),
         // The catalogue of a package this repository depends on but does
         // not contain, for a repository that authors beings without
         // holding the items they are assembled from. Cache-only: a cold

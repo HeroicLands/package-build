@@ -68,6 +68,20 @@ import { contentPackage } from "../engine/content-package.mjs";
 // inferred from the type itself (#79).
 import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
+// The note-level `sohl:` block: `sohl.system` onto the document's `system`
+// verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
+// shared top-level forms for this system alone (#58).
+import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
+
+/**
+ * The system this pass compiles for — the block its notes write.
+ *
+ * Read from the map rather than spelled here, so the block name and the subtype
+ * map are one statement (#58/#79).
+ *
+ * @type {string}
+ */
+const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
 
 /**
  * The note types this pass claims — every one the system's map sends to an
@@ -413,6 +427,12 @@ export class Actors extends BasePackCompiler {
     }
 
     /**
+     * An Actor **is** a system's data, so this pack takes only notes carrying
+     * this system's block (#58).
+     */
+    static requiresSystemBlock = true;
+
+    /**
      * The predefined items each being's embedded items resolve against, loaded
      * before the walk from the items passes' output.
      *
@@ -618,7 +638,7 @@ export class Actors extends BasePackCompiler {
             // key — and, for a `docArchetype`-flagged being, its archetype
             // identity (the dedup/override key of the Create-dialog picker, #604).
             shortcode: fm.shortcode || "",
-            portrait: resolveImg(fm.portrait) || defaultImg,
+            portrait: resolveImg(blockProperty(fm, SYSTEM, "portrait")) || defaultImg,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };
@@ -648,10 +668,19 @@ export class Actors extends BasePackCompiler {
             system.defaultCombatGroup = defaultCombatGroup;
         }
 
+        // Whatever the note authors under `sohl.system`, at the DataModel's own
+        // paths (#58). This pass has no field declaration, so it claims
+        // nothing: every authored path is the author's, and the fields above
+        // are what a note that authors none still gets.
+        mergeSystemData(system, fm, { block: SYSTEM });
+        this.reportUndeclaredSystemData(fm, SYSTEM, "Actor", subType);
+
+        const effects = blockProperty(fm, SYSTEM, "effects");
+
         return {
             name,
             type: subType,
-            img: resolveImg(fm.img) || defaultImg,
+            img: resolveImg(blockProperty(fm, SYSTEM, "img")) || defaultImg,
             _id: id,
             system,
             items,
@@ -659,19 +688,19 @@ export class Actors extends BasePackCompiler {
                 name,
                 displayName: 0,
                 actorLink: false,
-                texture: { src: resolveImg(fm.img) || defaultImg },
+                texture: { src: resolveImg(blockProperty(fm, SYSTEM, "img")) || defaultImg },
                 width: 1,
                 height: 1,
                 sight: { enabled: false },
                 detectionModes: [],
             },
-            effects: [],
+            effects: Array.isArray(effects) ? [...effects] : [],
             folder,
             sort: 0,
             ownership: { default: 0 },
             // `sohl.archetype` (required nullable number) drives
             // `flags.sohl.docArchetype` (#640 / archetype contract #604).
-            flags: withArchetypeFlag(fm, fm.flags, ctx),
+            flags: withArchetypeFlag(fm, blockProperty(fm, SYSTEM, "flags"), ctx),
             _stats: this.stats,
             _key: `!actors!${id}`,
         };

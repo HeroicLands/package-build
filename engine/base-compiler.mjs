@@ -79,6 +79,9 @@ import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDraftField } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
+import { carriesSystemBlock } from "./system-block.mjs";
+import { checkAuthoredSystemData } from "./schema-check.mjs";
+import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
@@ -93,8 +96,9 @@ import { assertTypeNotRetired, packForType } from "./ids.mjs";
  * @property {number} compiled - Notes that became a document.
  * @property {number} skippedNoId - Notes with no `id`, where that is tolerated.
  * @property {number} skippedOther - Notes this pass does not claim.
- * @property {number} declined - Notes refused because they declare a retired
- *   frontmatter field. Counted as errors, never as skips.
+ * @property {number} declined - Notes this pack **refused** — one declaring a
+ *   retired frontmatter field, or one routed to a system pack whose system it
+ *   says nothing about (#58). Counted as errors, never as skips.
  */
 
 /**
@@ -166,6 +170,26 @@ export class BasePackCompiler {
      * @type {readonly string[]}
      */
     static readsPackOutputOf = Object.freeze([]);
+
+    /**
+     * Whether this pass's document **is** a system's data, and therefore takes
+     * only notes that carry that system's block (#58).
+     *
+     * A pack may declare a `system:` — `harn-ensemble` ships an `actors-hm3`
+     * and an `actors-sohl` from one tree — and the note-side half of that is
+     * the block named after the system. A note carrying no such block has
+     * nothing to say about it, so compiling it there would emit a **hollow
+     * document**: a subtype, and none of the fields the subtype exists for.
+     *
+     * False by default, because most passes write documents that are not
+     * system data at all. A JournalEntry of prose is the same document under
+     * either system, and a journals pack that declared one must not turn every
+     * doc note in the tree into a finding. The Item and Actor passes say so;
+     * anything else that genuinely writes a system's data says so too.
+     *
+     * @type {boolean}
+     */
+    static requiresSystemBlock = false;
 
     /** @type {string} */
     contentBase;
@@ -300,7 +324,36 @@ export class BasePackCompiler {
      */
     routesHere(fm) {
         if (!this.router || !this.packName || !this.docType) return true;
-        return this.router.resolve(fm, this.docType) === this.packName;
+        return (
+            this.router.resolve(fm, this.docType, this.packSystem ?? undefined) === this.packName
+        );
+    }
+
+    /**
+     * Whether a claimed, routed note may become this pack's document at all.
+     *
+     * The pack-eligibility gate, and it fails rather than skipping: a note that
+     * routed *here* and carries nothing for this pack's system is an authoring
+     * mistake with a hollow document at the end of it, not a note that belongs
+     * to another pass. Skipping it quietly is how a whole tree compiles to
+     * documents nobody can use — the failure mode #1502 and #56 are both
+     * instances of.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {boolean} True when the note may be compiled here.
+     * @throws {Error} When this pack's system is absent from the note. The
+     *   error carries a `position` where the note's own file can be read.
+     */
+    eligibleFor(fm) {
+        if (!this.constructor.requiresSystemBlock || !this.packSystem) return true;
+        if (carriesSystemBlock(fm, this.packSystem)) return true;
+        const label = fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "this note";
+        throw new Error(
+            `${label} carries no \`${this.packSystem}:\` block, so it has no ` +
+                `${this.packSystem} data to compile — but it routes to pack ` +
+                `"${this.packName}", which declares \`system: ${this.packSystem}\`. ` +
+                `Add the block, or route the note to a pack of another system.`,
+        );
     }
 
     /**
@@ -443,6 +496,37 @@ export class BasePackCompiler {
     }
 
     /**
+     * Report every `<system>.system` key the receiving subtype does not declare
+     * (#58).
+     *
+     * An **error**, not a warning: Foundry drops an unknown `system` key at
+     * construction without a word, so the alternative is a document shipped
+     * with a field the author wrote and nobody will ever see. Each finding is
+     * located at the offending key where the file can be read, so it points at
+     * a line rather than at a note.
+     *
+     * Silent where nothing can answer — no published schema, or a subtype the
+     * artifact does not name. `content-build lint` says that out loud once for
+     * the whole build rather than once per note.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @param {string} block - The system block to read.
+     * @param {string} documentType - `Item`, `Actor`, …
+     * @param {string} subType - The subtype this note compiles into.
+     * @returns {number} How many findings were reported.
+     */
+    reportUndeclaredSystemData(fm, block, documentType, subType) {
+        const absPath = this.currentNote?.absPath;
+        const findings = checkAuthoredSystemData(fm, { block, documentType, subType });
+        for (const finding of findings) {
+            this.errorCount++;
+            const leaf = finding.path.split(".").pop();
+            this.noteError(finding.message, locateFrontmatterKey(absPath, leaf));
+        }
+        return findings.length;
+    }
+
+    /**
      * One note → one document. **Required.**
      *
      * @param {object} fm - The note's frontmatter.
@@ -552,7 +636,8 @@ export class BasePackCompiler {
             // them in the skipped tally is the defect (#56). Each one has
             // already been named individually as a diagnostic.
             log.error(
-                `Declined ${stats.declined} note(s) declaring a retired ` + `frontmatter field`,
+                `Declined ${stats.declined} note(s) — each named above, with ` +
+                    `the reason this pack would not compile it`,
             );
         }
         this.reportDetail(stats);
@@ -642,6 +727,18 @@ export class BasePackCompiler {
                     this.errorCount++;
                     this.noteError(err.message, err.position);
                 }
+                continue;
+            }
+            // Whether this pack's system is one the note speaks for. Checked
+            // after routing — a note bound for another pack is none of this
+            // pass's business — and before `skipNote`, so a pass's own
+            // rejection rules never run on a note it may not compile.
+            try {
+                this.eligibleFor(fm);
+            } catch (err) {
+                stats.declined++;
+                this.errorCount++;
+                this.noteError(err.message, err.position);
                 continue;
             }
             if (this.skipNote(fm, body)) {
