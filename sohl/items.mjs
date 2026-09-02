@@ -231,6 +231,19 @@ export class Items extends BasePackCompiler {
             claimed: claimedPaths(itemFields(type, SYSTEM)),
         });
         this.reportUndeclaredSystemData(fm, SYSTEM, "Item", subType);
+        // And what *this* pass wrote on its own initiative — `shortcode`,
+        // `archetype`, `actionDefs`, `notes`, `docHtml` — which no field
+        // declaration states and so no other check can see (#155). Read off the
+        // assembled block, so a key added to `commonSystem` is checked without
+        // anyone remembering to list it.
+        this.reportEmittedSystemData(system, {
+            fm,
+            block: SYSTEM,
+            documentType: "Item",
+            subType,
+            type,
+            fields: itemFields(type, SYSTEM),
+        });
 
         const effects = blockProperty(fm, SYSTEM, "effects");
         const folderId = sohlField(fm, "folder", null);
