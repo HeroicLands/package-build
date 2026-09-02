@@ -56,6 +56,10 @@ import { itemDocEntryId, itemDocPointer } from "../engine/item-docs.mjs";
 // them with are one table — the consuming repository's, not this package's
 // (#1504/#1563).
 import { itemTypes, itemBuilder, itemArt } from "../engine/item-registry.mjs";
+// Which Foundry Item subtype a note's `type` compiles into. Looked up in the
+// system's declared map, never inferred from the type itself (#79).
+import { documentSubtype, subtypeRow } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 
 /**
  * The description an item carries: a pointer to its **item doc**, the
@@ -121,11 +125,47 @@ export class Items extends BasePackCompiler {
     /**
      * Every content type that compiles into an item.
      *
+     * The whitelist is the consuming repository's `itemBuilders` keys (#1504),
+     * and the system's own map is a second filter on top of it: a type SoHL
+     * maps onto some *other* document class is not an item however a registry
+     * spells it, which is the "no wrongly-typed document" half of #79. A type
+     * the map does not name at all is left to the registry — see
+     * {@link Items#itemSubtype}.
+     *
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True for a whitelisted item type.
      */
     selects(fm) {
-        return Boolean(fm.type) && itemTypes().has(fm.type);
+        if (!fm.type || !itemTypes().has(fm.type)) return false;
+        const row = subtypeRow(SOHL_DOCUMENT_SUBTYPES, fm.type);
+        return !row || row.document === "Item";
+    }
+
+    /**
+     * The Foundry Item subtype a note compiles into.
+     *
+     * **Looked up, not inferred.** For every type this system declares, the
+     * emitted subtype is the map's, so the note vocabulary and the document
+     * vocabulary are two separately-stated things rather than one string
+     * written twice (#79).
+     *
+     * **A type the map does not name belongs to the consumer**, and its
+     * registry entry is the declaration: a repository shipping an item type of
+     * its own writes it once, in the `itemBuilders` table of its
+     * `package-build.config.yaml`, and that key is what the document is a
+     * subtype of. That is an authored statement in the consumer's own
+     * configuration, not a coincidence inside this package's source — and
+     * refusing it here would silently drop every document of a type SoHL has
+     * no opinion about (#7/#1563).
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {string} The document's `type`.
+     */
+    itemSubtype(fm) {
+        const declared = documentSubtype(SOHL_DOCUMENT_SUBTYPES, fm.type, fm, {
+            absPath: this.currentNote?.absPath,
+        });
+        return declared ?? fm.type;
     }
 
     /** An item is named by its own type in the log, not by "item". */
@@ -159,7 +199,10 @@ export class Items extends BasePackCompiler {
 
         return {
             name,
-            type,
+            // The note's `type` addresses the builder and the default art —
+            // both registries are keyed by content type — while the document's
+            // own subtype comes from the system's map (#79).
+            type: this.itemSubtype(fm),
             img: resolveImg(fm.img) || itemArt(type),
             _id: id,
             system,
