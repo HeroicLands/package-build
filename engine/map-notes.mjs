@@ -56,6 +56,9 @@ import { compendiumUuid, makeId, MAP_TYPES } from "./ids.mjs";
 // bridge (`SohlRegionTriggerBehavior`), so an event this build accepts is
 // exactly one the bridge forwards.
 import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.mjs";
+// A map's background art is `img`, as every other note type's art is; `image`
+// is the retired spelling, still read through the retirement window (#142).
+import { readAliasedField } from "./retired-fields.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -896,7 +899,11 @@ export function buildScene(fm, ctx) {
                 "match the art",
         );
     }
-    if (!sohl.image) throw new Error("a map note needs an `image`");
+    // Read from the note rather than from its `sohl:` block: art is not
+    // system-specific, so `img` is authored at the top level like every other
+    // type's, and `sohlField` honours the block for anything already there.
+    const img = readAliasedField(fm, "img");
+    if (!img) throw new Error("a map note needs an `img`");
 
     const warn = (message) => {
         if (ctx.warnings) ctx.warnings.push(message);
@@ -921,7 +928,7 @@ export function buildScene(fm, ctx) {
         tokenVision: profile.tokenVision,
         fog: { mode: profile.fog.mode },
         initialLevel: DEFAULT_LEVEL_ID,
-        levels: [buildLevel(sohl, sceneId)],
+        levels: [buildLevel(sohl, sceneId, img)],
         drawings: [],
         tokens: [],
         lights: buildLights(sohl, geom, inner),
@@ -957,7 +964,7 @@ export function buildScene(fm, ctx) {
 }
 
 /**
- * Synthesise the scene's single embedded Level from `image:` / `overlay:`.
+ * Synthesise the scene's single embedded Level from `img:` / `overlay:`.
  *
  * Authors never write `levels:`. A scene must ship at least one Level — the
  * client-side `_preCreate` net that would create one does not run for offline
@@ -967,16 +974,20 @@ export function buildScene(fm, ctx) {
  *
  * @param {object} sohl - The note's `sohl:` block.
  * @param {string} sceneId - The owning scene's `_id`.
+ * @param {string} [img] - The background art, already resolved from the note.
+ *   Passed by {@link buildScene}, which reads it from the note rather than from
+ *   the block; defaults to whichever spelling the block itself carries, so a
+ *   direct two-argument call still works (#142).
  * @returns {object} The Level document, keyed for the pack.
  */
-export function buildLevel(sohl, sceneId) {
+export function buildLevel(sohl, sceneId, img = readAliasedField({ sohl }, "img")) {
     const level = {
         _id: DEFAULT_LEVEL_ID,
         name: sohl.levelName ?? "Ground",
         elevation: { bottom: 0, top: 20 },
         background: {
             color: sohl.backgroundColor ?? "#999999",
-            src: sohl.image,
+            src: img,
         },
         foreground: { src: sohl.overlay ?? null },
         sort: 0,

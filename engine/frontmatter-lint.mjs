@@ -59,7 +59,12 @@ import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
-import { draftRetiredMessage } from "./retired-fields.mjs";
+import {
+    RETIRED_FIELD_ALIASES,
+    draftRetiredMessage,
+    readAliasedField,
+    retiredAliasMessage,
+} from "./retired-fields.mjs";
 
 /**
  * `sohl:` keys every type accepts, whatever its schema says.
@@ -280,8 +285,36 @@ export function lintNote(note, { schemas, index }) {
     /** First segment of each declared name — `impact.die` is authored as `impact`. */
     const declared = new Set(fields.map((f) => f.name.split(".")[0]));
 
+    // The retired spelling of a field this type declares → what to write now.
+    // Built from the type's own vocabulary, so a renamed field is retired
+    // exactly where its replacement exists and the old name stays an unknown
+    // key everywhere else (#142).
+    const renamed = new Map();
+    for (const name of declared) {
+        const retired = RETIRED_FIELD_ALIASES[name];
+        if (retired) renamed.set(retired, name);
+    }
+    for (const [retired, current] of renamed) {
+        // Both regions, because both are read: a note that moved the key to the
+        // top level without renaming it has done half the migration.
+        if (!Object.hasOwn(block, retired) && !Object.hasOwn(fm, retired)) continue;
+        findings.push({
+            file: note.file,
+            ...at(retired),
+            // A warning, not an error: the note compiles to the correct
+            // document, so failing a build over it would red a tree that has
+            // done nothing wrong yet. The refusal comes after the sweep, as
+            // `package:`'s did (#56).
+            severity: "warning",
+            message: retiredAliasMessage(retired, current),
+        });
+    }
+
     for (const key of Object.keys(block)) {
         if (declared.has(key) || UNIVERSAL_KEYS.has(key)) continue;
+        // Reported above, with what to write instead — a retired spelling is a
+        // rename to schedule, not a key nobody recognises.
+        if (renamed.has(key)) continue;
         const guess = nearest(key, declared);
         findings.push({
             file: note.file,
@@ -303,14 +336,28 @@ export function lintNote(note, { schemas, index }) {
         for (const segment of rest) {
             value = value && typeof value === "object" ? value[segment] : undefined;
         }
+        // A **shared** field is authored at the note's top level, and a
+        // **renamed** one may still carry its retired spelling. Both resolve
+        // through the reader the compiler uses, so the lint cannot disagree
+        // with the build about which value a note carries (#142).
+        if (
+            (value === undefined || value === null) &&
+            (field.shared || RETIRED_FIELD_ALIASES[field.name])
+        ) {
+            value = readAliasedField(fm, field.name);
+        }
         const absent = value === undefined || value === null;
+        // Where the field belongs, as a message names it: a shared field is not
+        // under `sohl:`, so telling an author to write `sohl.img` would send
+        // them to the wrong region.
+        const label = field.shared ? `\`${field.name}\`` : `\`sohl.${field.name}\``;
 
         if (field.required && absent) {
             findings.push({
                 file: note.file,
                 ...at("type", type),
                 severity: "error",
-                message: `a ${type} must declare \`sohl.${field.name}\` — ${field.describe}`,
+                message: `a ${type} must declare ${label} — ${field.describe}`,
             });
             continue;
         }
@@ -322,7 +369,7 @@ export function lintNote(note, { schemas, index }) {
                 ...at(head),
                 severity: "error",
                 message:
-                    `\`sohl.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                    `${label} should be ${field.shape ?? field.kind}, ` +
                     `but reads ${JSON.stringify(value)}`,
             });
             continue;
@@ -340,7 +387,7 @@ export function lintNote(note, { schemas, index }) {
                     ...at(head, value),
                     severity: "error",
                     message:
-                        `\`sohl.${field.name}\` names ${field.ref} ` +
+                        `${label} names ${field.ref} ` +
                         `"${value}", and no note or vendored manifest declares it`,
                 });
             }

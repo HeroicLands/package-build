@@ -58,6 +58,13 @@ import { sohlField } from "./frontmatter.mjs";
  * @property {any} [default] - Emitted when the note does not carry the field.
  * @property {boolean} [required] - Whether a note must carry it. A required
  *   field's `read` is expected to throw when it is missing.
+ * @property {boolean} [shared] - Whether the field is authored at the note's
+ *   **top level** rather than inside a system block, because what it states is
+ *   not system-specific — a map's background art is the same art whichever
+ *   system reads the note. `sohlField` already resolves the block *then* the
+ *   top level, so this changes no reader; it tells the author-facing surfaces
+ *   which of the two is the field's home, so a note writing it where it belongs
+ *   is not reported as missing it (#142).
  * @property {"string"|"number"|"boolean"|"list"|"map"} [kind] - The value's
  *   shape, for the frontmatter linter (#19). Distinct from `shape`, which is
  *   prose for a reader, and from `read`, which is what the compiler does: a

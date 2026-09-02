@@ -59,6 +59,13 @@ import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
 import { behaviorDocId, buildScene, isMapType, regionDocId } from "./map-notes.mjs";
+import {
+    RETIRED_FIELD_ALIASES,
+    declaresRetiredAlias,
+    locateFrontmatterKey,
+    readAliasedField,
+    retiredAliasMessage,
+} from "./retired-fields.mjs";
 
 /**
  * Every SoHL action name this build knows about, for the `action:` warning on a
@@ -378,6 +385,17 @@ export class Scenes extends BasePackCompiler {
         // pass has to read the other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
         const folder = this.folderResolver(sohlField(fm, "folder", null));
+        // The retired spelling of the background art, reported where an author
+        // meets it soonest — every consumer runs the compile, and not every
+        // one runs the lint (#142). Located by reading the note back, which is
+        // what the other retired-field reports do: this is the one path that
+        // needs the position, so it is paid for only here.
+        if (declaresRetiredAlias(fm, "img")) {
+            this.noteWarn(
+                retiredAliasMessage(RETIRED_FIELD_ALIASES.img, "img"),
+                locateFrontmatterKey(this.currentNote?.absPath, RETIRED_FIELD_ALIASES.img),
+            );
+        }
         const warnings = [];
         const scene = buildScene(fm, {
             packageId: foundryPackageId(),
@@ -423,7 +441,7 @@ export class Scenes extends BasePackCompiler {
             this.places.set(placeKey, {
                 key: placeKey,
                 name: sohlField(fm, "placeName", null) || name,
-                img: sohlField(fm, "image", null),
+                img: readAliasedField(fm, "img") ?? null,
                 pinned: false,
                 scenes: [],
                 journal: [],

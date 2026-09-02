@@ -91,6 +91,7 @@ import {
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { emitDiagnostic, positionOfLiteral } from "../engine/diagnostics.mjs";
+import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
     diffItemAddresses,
@@ -445,10 +446,23 @@ function lintCommand() {
                     ...frontmatter.findings,
                     ...schemaFindings,
                 ];
-                for (const finding of findings) emitDiagnostic(finding);
-                if (findings.length) {
+                // Only an **error** fails the run. Every finding was an error
+                // until #142, so this changed nothing on the day it landed —
+                // but a field retired in favour of another is reported while
+                // both spellings still compile, and failing a build over a note
+                // that produces the correct document would red a tree that has
+                // done nothing wrong. `reportFindings` already draws exactly
+                // that line, so the rule is the shared one rather than a second
+                // copy here. Each finding names its own file.
+                const errors = reportFindings(findings, {});
+                if (errors) {
                     log.error(`${findings.length} finding(s) across ${addresses.notes} note(s).`);
                     process.exitCode = 1;
+                } else if (findings.length) {
+                    log.warn(
+                        `${findings.length} advisory finding(s) across ` +
+                            `${addresses.notes} note(s); none fails the build.`,
+                    );
                 } else {
                     log.info(
                         `Addresses and frontmatter are well-formed ` +
