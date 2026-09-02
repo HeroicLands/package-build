@@ -565,15 +565,34 @@ subType
 
 - Autocracy: a single person holds unchecked authority, however acquired
 - Monarchy: one ruler legitimated by descent, election, or sacred office
-- Oligarchy: a small closed group rules, whether by birth, wealth, or rank
+- Oligarchy: a small closed group rules, whether by birth, wealth, or rank — membership is not
+  conferred by election and its authority is not held for a term
+- Republic: sovereignty rests in the citizen body and is exercised through offices held for a fixed
+  term by election, which a ruling class supplies the holders of in practice
 - Council: a deliberating body governs collectively with no single head
-- Democracy: the general membership decides, directly or through representatives
+- Democracy: the general membership decides, directly or through representatives, and any member may
+  hold office
 - Theocracy: authority derives from divine mandate and rests with its clergy
 - Meritocracy: position is earned by demonstrated skill, achievement, or expertise
 - Stratocracy: the armed force is itself the government
 - Feudal: authority flows through nested personal oaths rather than a central office
 - Confederation: autonomous members retain sovereignty under a weak common center
 - Anarchic: no formal governing authority — custom or force fills the gap
+
+**Republic, Oligarchy and Democracy are three answers to one question**, and the
+boundaries are testable rather than a matter of taste. Ask who fills the offices
+and on what terms. If a closed group holds authority outright, with no election
+and no term, it is an **Oligarchy**. If offices are elective and time-limited but
+a propertied or senatorial order supplies nearly everyone who holds them, it is a
+**Republic**. If any member may hold office and the general body decides, it is a
+**Democracy**.
+
+The distinction is not academic: it is the difference between a ladder whose top
+rungs are a class one is born or bought into, and one whose top rungs are an
+office one is voted into and then vacates. A republic's ladder therefore carries
+**both** — the civic status (Citizen) and the standing in the governing body above
+it (Senator) — because a citizen is not a member of the Senate, and conflating the
+two is the commonest way to get a non-monarchy wrong.
 
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)

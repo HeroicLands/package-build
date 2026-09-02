@@ -30,6 +30,16 @@ with a comment saying the two had to be reconciled somewhere else. They are
 reconciled here, on `governance` — the root that names the concept rather than
 the institution, and the one the new `ranks` and `offices` read naturally under.
 
+**`Republic` joins `GovernanceModel`, and the three civic models are given a
+test.** A Roman-shaped republic was none of the existing values exactly: not an
+`Oligarchy`, whose closed group holds authority with no election and no term; not
+a `Democracy`, where any member may hold office. Ask who fills the offices and on
+what terms and the three separate cleanly, which the enum now says. Naming it
+`Republic` rather than `Senatorial Oligarchy` keeps the enum a partition of
+one-word answers to _where does authority rest_ — "senatorial" is a culture's word
+for its ruling order, and culture words belong in a body's rank titles, not in the
+shared vocabulary every culture is described with.
+
 **Two renames and a new field.** `domain` becomes `domains`, which is what a list
 of places wants to be called; `languages` becomes `commonSkills`, since what
 members share is not only speech; and `economy` is new — the currencies, banking
