@@ -90,18 +90,47 @@ export function canonicalKey(pkg, type, shortcode) {
 }
 
 /**
+ * How many segments a canonical key has, and therefore how many the reader
+ * below counts.
+ *
+ * Named rather than written as a literal because it is the *grammar*, not an
+ * implementation detail of one function: it is the number a change to the
+ * address form would move, and the thing a reader of that change has to find.
+ *
+ * @type {number}
+ */
+export const CANONICAL_KEY_SEGMENTS = 3;
+
+/**
  * Reads a canonical key back into its parts.
  *
- * Unambiguous because no package, type or shortcode contains a hyphen — types
- * are bare words and shortcodes are `^[A-Za-z0-9]+$` (#1397).
+ * Parsing is plain positional counting: split on the separator, require
+ * {@link CANONICAL_KEY_SEGMENTS} of them, and assign each position its field.
+ * **The charset rule is what makes that sound** — every segment is
+ * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN` in `engine/address-charset.mjs`),
+ * so the hyphen is purely a separator and the count alone determines every
+ * field. That is enforced at each of the three sources rather than assumed of
+ * the data: shortcodes by `content-lint.mjs` (#1397), `contentPackage` by
+ * `defineConfig` (#59), and types are bare words. Were any of them free to
+ * carry a hyphen, no amount of counting would recover the fields and the reader
+ * would need a vocabulary to match against instead.
  *
- * @param {string} key - A canonical key.
- * @returns {{package: string, type: string, shortcode: string}|null} The parts,
- *   or `null` when the key is not in canonical form.
+ * **Nothing to read and nothing readable are different answers.** A key that
+ * cannot be canonical — `harn-adventures-skill-melee`, four segments — yields
+ * `null`, while an absent or blank input yields `undefined`. Both are falsy, so
+ * every call site (all of which test the result for truthiness) is unaffected;
+ * the distinction is there so a caller reporting "this key is unreadable" can
+ * tell that it has a key to report about.
+ *
+ * @param {unknown} key - A canonical key, or nothing.
+ * @returns {{package: string, type: string, shortcode: string}|null|undefined}
+ *   The parts; `null` when there is a string that is not in canonical form;
+ *   `undefined` when there is no key at all.
  */
 export function readCanonicalKey(key) {
+    if (key == null || key === "") return undefined;
     const parts = String(key).split("-");
-    if (parts.length !== 3) return null;
+    if (parts.length !== CANONICAL_KEY_SEGMENTS) return null;
     const [pkg, type, shortcode] = parts;
     if (!pkg || !type || !shortcode) return null;
     return { package: pkg, type, shortcode };

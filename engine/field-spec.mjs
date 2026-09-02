@@ -43,14 +43,28 @@
  * @module
  */
 
-import { sohlField } from "./frontmatter.mjs";
+import { resolveFieldValue, setPath } from "./system-block.mjs";
+
+export { setPath };
 
 /**
  * @typedef {object} FieldSpec
- * @property {string} to - Dotted path in the emitted `system` block.
- * @property {string} [name] - Frontmatter key under `sohl:`, dotted for a
- *   nested one (`impact.die`). Absent means the value is not authored — see
- *   `value`.
+ * @property {string} to - Dotted path in the emitted `system` block — and,
+ *   since #58, the path a note authors the field at directly:
+ *   `<system>.system.<to>`.
+ * @property {string} [name] - The **shared, top-level property this field draws
+ *   from** when the note authors no value at `<system>.system.<to>`. Dotted for
+ *   a path into a shared container (`data.portrait`), which is now the ordinary
+ *   case: `data:` (#128) puts every type-specific fact under one.
+ *
+ *   It used to mean "frontmatter key under `sohl:`", and that reading is the
+ *   degenerate case where the shared source and the system destination happen
+ *   to share a name. They constantly do not — one shared `data.portrait` feeds
+ *   `sohl.system.portrait` *and* `hm3.system.bioImage` — so the source is
+ *   declared rather than matched by spelling (#58). The in-block position is
+ *   still read, second, until #126 moves the corpus off it.
+ *
+ *   Absent means the value is not authored at all — see `value`.
  * @property {string} [shape] - Human-readable shape, for documentation. Comes
  *   paired with `read` from one of the coercion constants below.
  * @property {(raw: any, ctx: {fm: object, field: FieldSpec}) => any} [read] -
@@ -140,61 +154,44 @@ export const BLANK_IS_DEFAULT = Object.freeze({
 /* --------------------------------------------------------------------- */
 
 /**
- * Write `value` at a dotted path, creating the intermediate objects.
- *
- * Insertion order is the emitted JSON's key order, so a declaration's order is
- * the compiled document's order — which is what lets a field list replace a
- * hand-written object literal without changing a single byte of output.
- *
- * @param {object} target - The object to write into (mutated).
- * @param {string} dotted - Path, e.g. `"locations.flexible"`.
- * @param {any} value - The value to set.
- * @returns {object} `target`, for chaining.
- */
-export function setPath(target, dotted, value) {
-    const parts = dotted.split(".");
-    const leaf = parts.pop();
-    let cursor = target;
-    for (const part of parts) {
-        if (
-            cursor[part] == null ||
-            typeof cursor[part] !== "object" ||
-            Array.isArray(cursor[part])
-        ) {
-            cursor[part] = {};
-        }
-        cursor = cursor[part];
-    }
-    cursor[leaf] = value;
-    return target;
-}
-
-/**
  * Read one declared field out of a note's frontmatter.
+ *
+ * The *position* is resolved by {@link resolveFieldValue} — `<system>.system`
+ * first, then the legacy in-block key, then the declared shared source, then
+ * the default (#58). The **coercion** is applied here, once, wherever the value
+ * came from: a field's `read` is a statement about the field, not about where
+ * an author happened to write it, so `weight: "7"` reads as `7` at every one of
+ * those positions.
  *
  * @param {FieldSpec} field - The declaration.
  * @param {object} fm - The note's frontmatter.
+ * @param {object} [options] - Options.
+ * @param {string} [options.block="sohl"] - Which system's block to resolve
+ *   against. The default is the one block every existing tree authors; a
+ *   second system passes its own.
  * @returns {any} The value to emit.
  */
-export function readField(field, fm) {
-    if (field.name === undefined) {
-        return typeof field.value === "function" ? field.value(fm) : field.value;
-    }
-    const raw = sohlField(fm, field.name, field.default);
-    return field.read ? field.read(raw, { fm, field }) : raw;
+export function readField(field, fm, { block = "sohl" } = {}) {
+    const { value, from } = resolveFieldValue(field, fm, { block });
+    if (from === "value") return value;
+    return field.read ? field.read(value, { fm, field }) : value;
 }
 
 /**
  * Turn a field declaration into the builder it declares.
  *
  * @param {readonly FieldSpec[]} fields - The declaration, in emission order.
+ * @param {object} [options] - Options.
+ * @param {string} [options.block="sohl"] - Which system's block the builder
+ *   reads. One declaration compiles against any block, which is what lets two
+ *   systems declare the same shared source and different destinations.
  * @returns {(fm: object) => object} A `system`-block builder.
  */
-export function buildFromFields(fields) {
+export function buildFromFields(fields, { block = "sohl" } = {}) {
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
-            setPath(out, field.to, readField(field, fm));
+            setPath(out, field.to, readField(field, fm, { block }));
         }
         return out;
     };

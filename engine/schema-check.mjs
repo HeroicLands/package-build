@@ -56,6 +56,8 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { cachedSchemaPath, SCHEMA_ARTIFACT_FILE } from "./foreign-catalog.mjs";
+import { loadPackConfig } from "./pack-config.mjs";
+import { systemData, undeclaredPaths } from "./system-block.mjs";
 
 /**
  * The artifact version this module reads.
@@ -326,4 +328,75 @@ export function unemittedMessage(finding) {
         `\`${finding.type}\` never emits — every compiled document will carry the ` +
         `field's initial value rather than an authored one`
     );
+}
+
+/** One resolved schema artifact per resolved configuration. */
+const artifacts = new WeakMap();
+
+/**
+ * {@link resolveSchemaArtifact}, read once per configuration.
+ *
+ * The per-note check below runs thousands of times in a build and the artifact
+ * never changes inside one, so reading and parsing it per note would be a
+ * megabyte of JSON per hundred documents for an answer that is already known.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {{artifact: SchemaArtifact, source: string}|null} The schema.
+ */
+function schemaFor(config) {
+    if (!artifacts.has(config)) artifacts.set(config, resolveSchemaArtifact(config));
+    return artifacts.get(config);
+}
+
+/**
+ * What a note authors under `<system>.system`, against what the receiving
+ * subtype declares (#58).
+ *
+ * The **note-side** half of the check `compareFields` performs on the
+ * declarations. A field list is checked once for the whole build because it is
+ * the same for every document; an authored `system` block is a property of one
+ * note, so it is checked where that note is compiled and reported against that
+ * note's file.
+ *
+ * It is the same failure either way, and the reason both halves exist: Foundry
+ * discards an unknown `system` key at construction and says nothing, so a
+ * mistyped path is lost at load while the build reports success.
+ *
+ * **Silent where there is nothing to check against.** A module pinning a system
+ * version released before the artifact existed, or a subtype the artifact does
+ * not name, produces no findings — the same stance `compareFields` takes, where
+ * an unknown subtype is a routing question rather than a field one. The
+ * whole-build check in `content-build lint` is where a missing artifact is said
+ * out loud, once, instead of per note.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {object} opts
+ * @param {string} opts.block - The system block to read, e.g. `"sohl"`.
+ * @param {string} opts.documentType - `Item`, `Actor`, …
+ * @param {string} opts.subType - The document subtype the note compiles into.
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @returns {{path: string, message: string}[]} One finding per undeclared path,
+ *   shallowest-first.
+ */
+export function checkAuthoredSystemData(
+    fm,
+    { block, documentType, subType, config = loadPackConfig() },
+) {
+    const data = systemData(fm, block);
+    if (!Object.keys(data).length) return [];
+
+    const schema = schemaFor(config);
+    if (!schema) return [];
+    const declared = declaredFields(schema.artifact, documentType, subType);
+    if (!declared) return [];
+
+    return undeclaredPaths(data, declared.all).map((path) => ({
+        path,
+        message:
+            `\`${block}.system.${path}\` is not a field ${documentType} subtype ` +
+            `"${subType}" declares at ${schema.artifact.systemVersion} — Foundry ` +
+            `discards an unknown \`system\` key when the document is constructed, ` +
+            `without a warning, so the value is lost at load while the build ` +
+            `reports success`,
+    }));
 }
