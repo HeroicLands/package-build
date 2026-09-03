@@ -75,11 +75,11 @@ name:
         "Lead prose.\n\n## Crafting {#crafting}\n\nHow it is made.\n",
     );
 
-    // A `doc` note routes by its category, and owns its own anchors.
+    // A `doc` note routes by its subtype, and owns its own anchors.
     note(
         "Rules/Combat.md",
         `type: doc
-category: rules
+subType: rules
 shortcode: combat
 id: bbbbbbbbbbbbbbbb
 name:
@@ -91,7 +91,7 @@ name:
     note(
         "Rules/README.md",
         `type: doc
-category: rules
+subType: rules
 shortcode: rulesidx
 id: cccccccccccccccc
 name:
@@ -103,7 +103,7 @@ name:
     note(
         "Creatures.md",
         `type: doc
-category: collection
+subType: collection
 section: creature
 shortcode: creatures
 id: dddddddddddddddd
@@ -111,7 +111,7 @@ name:
     full: Creatures`,
     );
 
-    // No section: a `doc` with no category has no address at all.
+    // No section: a `doc` with no subtype has no address at all.
     note(
         "Rules/Homeless.md",
         `type: doc
@@ -185,7 +185,7 @@ describe("the address scheme is configuration, and both live rules work", () => 
         note(
             "Nowhere.md",
             `type: doc
-category: collection
+subType: collection
 shortcode: nowhere
 id: 2222222222222222
 name:
