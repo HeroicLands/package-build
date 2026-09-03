@@ -666,7 +666,7 @@ each finding in the located form below:
 - **Uniqueness** — `(type, shortcode)` names one note. A document is addressed
   across _every_ pack of its document type, so routing two same-address notes to
   different packs with `pack:` does not separate them.
-- **The package's own address** — exactly one note claims `/<package>/`. See
+- **One front page** — exactly one note declares `type: homepage`. See
   [Exactly one homepage](#exactly-one-homepage) below.
 
 It compiles nothing, opens no LevelDB and needs no Foundry manifest, so it runs
@@ -675,11 +675,12 @@ rather than passing: "every one of nothing is unique" is a vacuous pass, and it
 is exactly what a tree that failed to check out produces.
 
 What that guard reports is an **empty walk**, not an empty set of addresses. A
-note may be keyless by design — a homepage carries no `shortcode`, because it is
-addressed by the package rather than by a slug — so a package in
-`publish.site: homepage` mode has a content tree that is populated, correct and
-permanently unkeyed. That tree passes; a tree holding no notes at all still
-fails.
+note may be keyless — a folder document carries no `shortcode` — so a tree of
+them is populated, correct and unkeyed. That tree passes; a tree holding no
+notes at all still fails. (The homepage used to be the headline example, because
+it was addressed by the package rather than by a slug. It carries an address
+like every other note now (#182); the guard is unchanged, because what it reads
+was never the key count.)
 
 ### Exactly one homepage
 
@@ -690,11 +691,15 @@ package whose front page is not the page a person chose.
 - _Zero_ and the package serves nothing at `/<package>/` — the failure the
   authored homepage exists to prevent, and a silent one: the site build reports
   `wrote 0 homepage(s)` and exits 0.
-- _Two_ and it serves a page nobody chose. Every homepage is written to the same
-  `_index.md`, so the second overwrites the first and the front page is decided
-  by the order the walk reached the files in — by _filename_, on a type whose
-  whole point is that it is routed by frontmatter. There is no "first wins"
-  convention to fall back on, so nothing can pick the right one.
+- _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
+  since #182 it is only that.** It used to rest on the fixed destination every
+  homepage shared — the second overwrote the first — so the address rule
+  enforced it as a side effect. A homepage is written at its own address now, so
+  two of them publish two pages and collide over nothing: the duplicate-address
+  check catches only the pair that happen to share a shortcode, and says nothing
+  at all about a `homepage-root` beside a `homepage-front`. Which of the two the
+  redirect at `/<package>/` should name is a question nothing here can answer,
+  and both being reachable is not an answer to it.
 
 Neither has a safe default, so neither is a warning: a build that proceeded past
 either would publish the wrong front page while reporting success, which is
@@ -720,7 +725,7 @@ naming the other, because each note is a place an author has to open and edit:
 
 ```text
 assets/content: error: holds no `type: homepage` note, so package "sohl" publishes nothing at its own address /sohl/ — a package's front page is one authored note in this tree, routed by `type:` rather than by filename
-assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and every homepage is written to the same `_index.md` — so the one the walk reaches last silently overwrites the rest
+assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and each of these publishes at an address of its own — so nothing here can say which one that address should redirect to. Keep one, and make the rest ordinary notes
 ```
 
 ### Frontmatter, against the schema its type declares
@@ -805,54 +810,135 @@ does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
 
-### The homepage carries no address of its own
+### The homepage is addressed like every other note
 
-A note's URL derives from `name.full` and its identity from
-`(type, shortcode)`. The homepage is the one page for which neither holds: it
-publishes at `/<package>/`, fixed by the package id. So `content-build lint`
-**refuses** `name`, `shortcode` and `id` on a `type: homepage` note (#53) rather
-than ignoring them — an author fluent in the conventions writes them here
-expecting exactly what they do everywhere else, and gets none of it.
+A homepage declares a `shortcode` — conventionally `root` — and publishes at its
+address, `/<package>/homepage-root/`, written by the same rule as everything
+else (#182). So `[[homepage-root|Read the introduction]]` is an ordinary
+wikilink, resolving to the page the build actually writes.
 
-They were never inert, which is why ignoring them was the wrong answer. A
-`shortcode` puts the note in the address index and in the `dataview` link
-universe, so `[[homepage-<shortcode>]]` resolves _green_ — to `homepage/<slug>/`,
-an address derived from `name.full` that the site build never writes, because a
-homepage goes to `_index.md` at the package root. A build reporting a live link
-to a 404 is worse than one saying nothing. It also inflates this command's own
-address tally, so the lint and the link manifest disagree about what the package
-publishes: SoHL's tree reports `1607 address(es) across 1607 note(s)` with a
-`shortcode` on its landing and `1606 address(es) across 1607 note(s)` without
-one. That is one defect, not two — the tally is only ever printed on a clean run,
-so refusing the field is what makes the count honest.
+It did not use to be. A page's URL derived from `name.full` while a homepage's
+destination was fixed at `_index.md`, so `content-build lint` **refused** `name`
+and `shortcode` on one (#53) — not out of tidiness, but because they were not
+inert. A `shortcode` put the note in the address index, so
+`[[homepage-<shortcode>]]` resolved _green_ to a page the site build never
+wrote, and a build reporting a live link to a 404 is worse than one saying
+nothing.
 
-Each finding is located at the offending key and says what the field would have
-decided, not merely that it does not belong:
+[A page's URL is its address](#a-pages-url-is-its-address) removed the premise:
+the address a `shortcode` computes is now the address the build publishes. Both
+fields are therefore permitted, and `shortcode` is **required**, like every
+other note's. A homepage that declares none is refused, located at the `type:`
+value that makes it necessary:
 
 ```text
-assets/content/homepage.md:26:1: error: `shortcode` decides nothing on a `type: homepage` note: this page's address is the package's own, `/<package>/`, fixed by the package id. It is not ignored either — it puts the note in the address index, so `[[homepage-<shortcode>]]` resolves to a page the site build never writes. Delete it
-assets/content/homepage.md:28:1: error: `name` decides nothing on a `type: homepage` note: a page's slug derives from `name.full`, and a homepage's destination is fixed — it is written to `_index.md` at the package's own address, `/<package>/`. Write `title:` for what the page is called, and delete `name`
+assets/content/homepage.md:3:7: error: a `type: homepage` note declares a `shortcode`, like every other note: it is addressed as `homepage-<shortcode>` and published at `/<package>/homepage-<shortcode>/`, which is where `[[homepage-<shortcode>|Text]]` lands. Write `shortcode: root` — the package landing is `homepage-root` in every package
 ```
 
-**A named class, not an allow-list.** The documented envelope is `type` plus an
-optional `title`, with `landing`, `description` and `banner` legitimate beside
-them — but an unknown top-level key is **not** refused, and that boundary is the
-decision rather than an omission. A homepage's frontmatter is emitted into the
-published page, so an unrecognised key is a Hugo or theme parameter this build
-has never heard of and has no standing to reject; a closed list would make every
-new theme parameter wait on a package-build release. What is refused is the
-specific class that makes a false claim about _where this page is_. `aliases` is
-not in that class either: it is already dropped from every emitted page, so
-authoring one here is the same no-op it is anywhere else.
+`root` is a **convention, not a rule**: the address only has to be unique within
+the package, which `(type, shortcode)` already guarantees, and nothing here
+knows better than an author what their landing is called. What the convention
+buys is one spelling shared by all six trees, so `[[homepage-root|…]]` is the
+same link in every package.
+
+**Not a bare `[[homepage]]`.** With no hyphen it does not parse as an address,
+so it would need a hardcoded single-token exception in the grammar — the one
+thing the addressing work removes.
+
+#### `id` is still refused
+
+One field is left in the class, and on ground the change does not touch: `id` is
+the Foundry document id a compendium UUID is built from, and a homepage compiles
+into **no document**.
+
+```text
+assets/content/homepage.md:4:1: error: `id` decides nothing on a `type: homepage` note: it is the Foundry document id a compendium UUID is built from, and a homepage compiles into no document — it appears in no pack and in no link manifest. Delete it
+```
+
+That is also why a homepage stays **out of the link manifest**, now that a
+shortcode alone would put it in. A manifest entry is how another package
+resolves a _document_; a cross-package link to a package's front page is its
+bare `/<package>/` address, which needs no index.
+
+**A named class, not an allow-list.** The documented envelope is `type` and
+`shortcode`, with `name`, `title`, `landing`, `description` and `banner`
+legitimate beside them — but an unknown top-level key is **not** refused, and
+that boundary is the decision rather than an omission. A homepage's frontmatter
+is emitted into the published page, so an unrecognised key is a Hugo or theme
+parameter this build has never heard of and has no standing to reject; a closed
+list would make every new theme parameter wait on a package-build release.
+`aliases` is not in the class either: it is already dropped from every emitted
+page, so authoring one here is the same no-op it is anywhere else.
 
 **Where it fires: `content-build lint` only.** Unlike a rule about the shape of
 the _tree_, which the site build has its own reason to gate on, this is a
-_frontmatter-schema_ rule and `content-build site` runs none of them — wiring in one type's field
-rule would have the site build refuse `shortcode` on a homepage while accepting
-`weight: heavy` on a weapon. The gap that leaves is `HarnMaster-3-FoundryVTT`,
-which runs no `content-build lint` at all and so receives no frontmatter finding
-of any kind; that is a missing script in that repository, not a rule to duplicate
-one at a time.
+_frontmatter-schema_ rule and `content-build site` runs none of them — wiring in
+one type's field rule would have the site build refuse `id` on a homepage while
+accepting `weight: heavy` on a weapon. The site build does refuse a homepage it
+cannot address, because it cannot write the page otherwise, and it reports that
+beside the count so the finding reaches `publish.site: homepage` mode as well.
+The remaining gap is `HarnMaster-3-FoundryVTT`, which runs no `content-build
+lint` at all and so receives no frontmatter finding of any kind; that is a
+missing script in that repository, not a rule to duplicate one at a time.
+
+### `/<package>/` is a redirect the package authors
+
+Nothing is written at `/<package>/` any more. The package's own address is a
+**routing fact**, and it belongs in the package's own `_redirects`:
+
+```text
+# _redirects
+/sohl/   /sohl/homepage-root/   301
+/sohl    /sohl/homepage-root/   301
+```
+
+Both forms, because Cloudflare Pages matches the raw path: redirect matching
+runs before any trailing-slash or `index.html` handling, so `/sohl` and `/sohl/`
+are distinct keys and a rule on one does not catch the other. A redirect also
+**wins over a static asset at the same path** — _"Redirects are always followed,
+regardless of whether or not an asset matches the incoming request"_ — so the
+rule fires whatever else happens to be published there.
+
+**The 301 carries a pinned lifetime**, and that is the part worth being
+deliberate about:
+
+```text
+# _headers
+/sohl/
+  Cache-Control: max-age=3600
+/sohl
+  Cache-Control: max-age=3600
+```
+
+Cloudflare Pages sets **no** `Cache-Control` on a redirect it generates — its
+redirect responses carry `location` and nothing else — and a 301 with no
+`Cache-Control` is cacheable indefinitely by default under RFC 9111. Browsers
+persist one to disk and stop asking the server, so a scheme that later changed
+would strand every returning visitor on the package's most-linked URL. An
+explicit `Cache-Control` overrides that heuristic and keeps the 301's canonical
+signal without the permanence.
+
+**`_headers` does apply to a `_redirects` response, and this is verified rather
+than documented.** Cloudflare's docs say only that _"redirects are applied
+before headers, so when a request matches both a redirect and a header, the
+redirect takes priority"_ — a sentence routinely misread as "headers are skipped
+on a redirect". Its open-source asset server settles it: the redirect response
+returns from `generateResponse()` and then flows through `attachHeaders()`, and
+the only short-circuit past that is `status >= 500`. The one documented "headers
+are not applied" carve-out is Pages Functions, not redirects.
+
+Because that is observed behaviour rather than a documented guarantee, **verify
+it once after deploying** and treat a regression as a Cloudflare change rather
+than a content bug:
+
+```bash
+curl -sSI https://www.heroiclands.org/sohl/ | grep -i 'location\|cache-control'
+```
+
+If it ever stops holding, the documented alternative is a zone-level **Response
+Header Transform Rule** (or Bulk Redirects, which sets both), not a Pages
+Function — `_redirects` and `_headers` both stop applying to a route a Function
+serves.
 
 ### The homepage's own links
 
@@ -1176,6 +1262,7 @@ written by a person:
 ```markdown
 ---
 type: homepage
+shortcode: root
 title: HârnMaster Kethira Basic # optional; defaults to packageBuild.manifest.title
 ---
 
@@ -1187,9 +1274,13 @@ A package declares **exactly one** of these, and both `content-build lint` and
 [Exactly one homepage](#exactly-one-homepage).
 
 That is the whole envelope. A homepage **compiles into no compendium
-document**, appears in no pack and in no link manifest, and is addressed by the
-_package_ rather than by its own name — so `name.full`, `shortcode` and `id`
-decide nothing on it. It is dispatched on `type` like every other note, not on a
+document**, and so appears in no pack and in no link manifest — which is why it
+still refuses `id`. Everything else about its address is ordinary: it declares a
+`shortcode`, publishes at `/<contentPackage>/homepage-root/`, and is cited as
+`[[homepage-root|Text]]` (#182 — see
+[The homepage is addressed like every other note](#the-homepage-is-addressed-like-every-other-note)).
+`/<contentPackage>/` itself is a redirect the package authors, not a page this
+build writes. It is dispatched on `type` like every other note, not on a
 filename: `README.md` is already a section landing under `landing: readme`, and
 in `sohl-thalorna` it is a developer explainer about the source tree.
 
@@ -1225,9 +1316,11 @@ That is separate from `publish.manifests.publish`, which stays off for both for
 an unrelated reason: a link manifest is the dependency edge that would stop the
 module being withdrawable, and a homepage is one row in a routing table.
 
-The homepage is written at the root of `site.out` — the package's own address —
-one level above the content mount, which is where `publish.address.prefix` puts
-everything else.
+The homepage's file is written at the root of `site.out` — the package's own
+site root, one level above the content mount, which is where
+`publish.address.prefix` puts everything else — under the name its address gives
+it, `homepage-root.md`. As with every other page, the file's location decides
+the Hugo section and the front matter's `url` decides where it publishes.
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the link manifest reads, so a page and its manifest entry cannot
