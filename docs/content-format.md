@@ -271,6 +271,36 @@ name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not
 The link part may still be an anchor: `[[#slug|Text]]` addresses a section of the
 page it is written on. It is the label that is required, not a target.
 
+#### Every address resolves, and every build says so the same way
+
+An address that names no note **fails the build** (#184) — in the link checker,
+in the pack compilers and in the site build alike.
+
+It was a warning in the checker and, in the site build, nothing at all while any
+linkable package had no vendored manifest. The reasoning was that `[[Sunless
+Vault]]` might be a placeholder for a note somebody meant to write. That was a
+property of the **bare** form, which is retired, and the intent behind it has a
+real spelling now: a note tagged `draft` exists, resolves, compiles and
+publishes, and a link to it renders visibly marked (#183). So an address landing
+nowhere is a typo or an omission, and both want fixing.
+
+There are six ways a link can fail, and each is one **error** with one message
+wherever it is met:
+
+| finding          | what it means                                  | the fix                                   |
+| ---------------- | ---------------------------------------------- | ----------------------------------------- |
+| `unlabelled`     | no `\|`, so the link addresses nothing         | write `[[type-shortcode\|Text]]`          |
+| `not-an-address` | labelled, but the target is not an address     | write the address, not the name           |
+| `unknown-type`   | qualified, but names no type this build knows  | correct the type segment                  |
+| `unresolved`     | parses as an address; nothing publishes it     | fix the shortcode, or vendor the manifest |
+| `ambiguous`      | more than one package publishes the short form | write `[[package-type-shortcode\|Text]]`  |
+| `unknown-anchor` | the address resolves; the `#section` does not  | correct the anchor                        |
+
+The vocabulary and the messages live in one module (`engine/wikilink-syntax.mjs`)
+precisely because an author meets whichever build ran first. Three resolvers read
+one authored link; they must not describe the same mistake in three ways, and
+they must never disagree about whether it is a mistake at all.
+
 #### In frontmatter, a link is a bare address
 
 A `WikiLink` **field** takes the address with no brackets:

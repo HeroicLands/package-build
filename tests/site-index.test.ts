@@ -257,9 +257,11 @@ describe("the resolver context", () => {
         expect(ctx.src).toBe("Skills/Climbing.md");
         expect(ctx.type).toBe("skill");
         expect(ctx.errors).toBe(errors);
-        // Defaults: no cross-package links, nothing missing.
-        expect(ctx.manifestsComplete).toBe(true);
+        // Default: no cross-package links.
         expect(ctx.foreign.size).toBe(0);
+        // No `manifestsComplete`: an unresolved address fails unconditionally
+        // now, so there is no flag left for a caller to soften it with (#184).
+        expect("manifestsComplete" in ctx).toBe(false);
     });
 });
 

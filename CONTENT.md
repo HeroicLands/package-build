@@ -1412,7 +1412,7 @@ form every C-family compiler, `tsc` and ESLint already use, so an editor, a CI
 annotator or a `grep` parses it with no knowledge of this build:
 
 ```text
-assets/content/Regions/Capital_Nome.md:43:635: warning: unresolved wikilink [[Kenbet_Pat|Kenbet'Pat]] (unknown) in "The Capital Nome"
+assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or vendor the link manifest of the package that does — in "The Capital Nome".
 ```
 
 `file:line:column: severity: message`. The path is relative to the working

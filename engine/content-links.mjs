@@ -243,27 +243,47 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
     }
 
     /**
+     * Every foreign manifest entry an address names, in package order.
+     *
+     * A **package-qualified** address names at most one, by construction. An
+     * unqualified one names no package, so it resolves against any foreign one
+     * that publishes it — and only when exactly one does. Two claimants make it
+     * ambiguous, which is a different finding from resolving nowhere and has a
+     * different fix, so the count is returned rather than collapsed here
+     * (#184).
+     *
+     * @param {string} target - The link target.
+     * @returns {object[]} The foreign entries, each carrying its `package`.
+     */
+    function foreignHits(target) {
+        const q = readQualifier(target, types, packages);
+        if (!q || q.reason) return [];
+        if (q.package) {
+            const one = foreign.index.get(canonicalKey(q.package, q.type, q.shortcode));
+            return one ? [one] : [];
+        }
+        const type = String(q.type).toLowerCase();
+        const shortcode = String(q.shortcode).toLowerCase();
+        return [...foreign.index]
+            .filter(([k]) => {
+                const parts = readCanonicalKey(k);
+                return parts?.type === type && parts.shortcode === shortcode;
+            })
+            .map(([, v]) => v);
+    }
+
+    /**
      * The manifest entry a qualified address names in another package, or null.
+     *
+     * The single-hit reading of {@link foreignHits}: an address two packages
+     * publish names neither.
      *
      * @param {string} target - The link target.
      * @returns {object|null} The foreign entry.
      */
     function manifestHit(target) {
-        const q = readQualifier(target, types, packages);
-        if (!q || q.reason) return null;
-        if (q.package) {
-            return foreign.index.get(canonicalKey(q.package, q.type, q.shortcode)) ?? null;
-        }
-        // An unqualified address names no package, so it resolves against any
-        // foreign one that publishes it. Claimed by two, it is ambiguous and
-        // the author must write the qualified form.
-        const type = String(q.type).toLowerCase();
-        const shortcode = String(q.shortcode).toLowerCase();
-        const hits = [...foreign.index].filter(([k]) => {
-            const parts = readCanonicalKey(k);
-            return parts?.type === type && parts.shortcode === shortcode;
-        });
-        return hits.length === 1 ? hits[0][1] : null;
+        const hits = foreignHits(target);
+        return hits.length === 1 ? hits[0] : null;
     }
 
     return {
@@ -289,6 +309,7 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         resolve: resolveAddress,
         resolveAddress,
         manifestHit,
+        foreignHits,
         /** Whether a target reads as a qualified address at all. */
         isAddress: (target) => Boolean(readQualifier(target, types, packages)),
     };
@@ -613,9 +634,10 @@ export function auditHomepageLinks(index) {
  *   unlabelledLinks: object[], frontmatterLinks: object[],
  *   homepageLinks: object[], usedManifest: Set<string>}} The findings, and
  *   which addresses a foreign manifest answered. Each `deadAddresses` entry
- *   carries a `reason`: `"not-an-address"` when the target does not parse as
- *   one at all, `"unknown-type"` when it is qualified but names no known type,
- *   and `"unresolved"` when it parses and nothing answers it.
+ *   carries a `reason` from {@link LINK_FINDING_REASONS} —
+ *   `"not-an-address"`, `"unknown-type"`, `"ambiguous"` (with the claiming
+ *   `packages`), or `"unresolved"` — and every one of them is an **error**:
+ *   the three resolvers agree on severity for every class (#184).
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
@@ -653,6 +675,9 @@ export function auditLinks(index) {
                     target: target || (anchor ? `#${anchor}` : ""),
                     text,
                     occurrence,
+                    // Carried like every other finding's, so a reporter reads
+                    // one field rather than knowing which list it drew from.
+                    reason: "unlabelled",
                 });
                 continue;
             }
@@ -666,8 +691,21 @@ export function auditLinks(index) {
             if (index.resolveAddress(target)) continue;
             // A manifest answers with the target package's own build output
             // rather than a reviewed guess.
-            if (manifestHit(target)) {
+            const hits = index.foreignHits(target);
+            if (hits.length === 1) {
                 usedManifest.add(target.toLowerCase());
+                continue;
+            }
+            if (hits.length > 1) {
+                // Two packages publish the short address, so it names neither.
+                // Reported as its own class: "no document has that identity" is
+                // false here — two do — and the fix is the qualified form
+                // rather than a corrected shortcode (#184).
+                deadAddresses.push({
+                    ...at,
+                    reason: "ambiguous",
+                    packages: hits.map((h) => h.package).filter(Boolean),
+                });
                 continue;
             }
             const read = readQualifier(target, index.types, index.packages);

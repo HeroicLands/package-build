@@ -39,8 +39,9 @@ import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
-// The one rule about a link's shape both builds share: it carries a label.
-import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
+// One vocabulary of link findings, and one message per class, so the three
+// resolvers cannot word the same defect differently (#184).
+import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -548,34 +549,15 @@ export function convertNoteWikilinks(
     };
 
     for (const u of result.unresolved) {
-        // **Every link carries a label** (#180). The bare form named an alias,
-        // the alias namespace is retired, and nothing replaced it — so this is
-        // a defect in how the link is written and the correction is always the
-        // same. It fails rather than warning because one authored link must
-        // not get two verdicts: the link checker reports it as an error too.
-        if (u.reason === "unlabelled") {
-            fail(u, `${unlabelledLinkMessage(u.target)} — in "${name}".`);
-        }
-        // The author wrote a pipe, so they meant an address — and this target
-        // is not one. Its own message, because the correction is its own: a
-        // note *name* has to become an address, which is not the same job as
-        // fixing a shortcode that resolves nowhere.
-        if (u.reason === "not-an-address") {
-            fail(
-                u,
-                `wikilink ${u.link} in "${name}" is written as an address — ` +
-                    `the "|" says so — but "${u.target}" is not one. Write ` +
-                    `[[type-shortcode|Text]].`,
-            );
-        }
-        // A qualified address resolving nowhere is a typo, now that every
-        // linkable package is either built here or vendored (#1499).
-        fail(
-            u,
-            `unresolved address ${u.link} in "${name}" — no package ` +
-                `publishes it. Fix the shortcode, or re-vendor that ` +
-                `package's manifest into assets/manifests/.`,
-        );
+        // Every class fails, and every class is worded by the shared table
+        // (#184). The three resolvers read one authored link, so an author who
+        // ran the pack build first and the link checker second must not be told
+        // two different things about the same mistake — and a class the pack
+        // build alone knew how to describe is how they came apart before.
+        //
+        // The note's name is appended rather than woven in: the message is the
+        // defect, the name is the context this build can add.
+        fail(u, `${linkFindingMessage(u)} — in "${name}".`);
     }
     return result;
 }

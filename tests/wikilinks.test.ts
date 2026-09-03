@@ -252,7 +252,7 @@ describe("convertWikilinks", () => {
             `the ${'<span class="sohl-unresolved-link" title="Unresolved link: doc/nosuchcode">Injury</span>'} rules`,
         );
         expect(unresolved).toHaveLength(1);
-        expect(unresolved[0].reason).toBe("unknown");
+        expect(unresolved[0].reason).toBe("unresolved");
     });
 
     it("rejects a qualifier that is not a content type — including the retired directory form", () => {
@@ -350,7 +350,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         expect(markdown).toBe(
             '<span class="sohl-unresolved-link" title="Unresolved link: docskill/nosuchcode">Nope</span>',
         );
-        expect(unresolved[0]).toMatchObject({ reason: "unknown" });
+        expect(unresolved[0]).toMatchObject({ reason: "unresolved" });
     });
 
     it("ignores an anchor applied to an Item — an Item has no pages", () => {
@@ -497,7 +497,7 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         expect(markdown).toBe(
             '<span class="sohl-unresolved-link" title="Unresolved link: doc-nosuchcode">Nope</span>',
         );
-        expect(unresolved[0]).toMatchObject({ reason: "unknown" });
+        expect(unresolved[0]).toMatchObject({ reason: "unresolved" });
     });
 });
 

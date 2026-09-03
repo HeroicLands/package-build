@@ -172,6 +172,10 @@ export function collectContentPages(contentBase, ctx) {
         pages.push({
             kind: "content",
             fm,
+            // The note's own path on disk. Carried so a link finding can be
+            // reported as `file:line:column:` against the source an author
+            // edits, rather than against the page this build emits (#184).
+            file,
             // The page's package, recorded once here so every consumer — the
             // index's canonical keys, the table universe, the local-package set
             // — reads one configured value and never frontmatter (#56).
@@ -236,6 +240,8 @@ export function collectTreePages(tree, ctx) {
             kind: "tree",
             tree,
             fm,
+            // As above: the source file, for a located link diagnostic (#184).
+            file,
             // The H1 is stripped: the page title renders it.
             body: body.replace(/^\s*#\s+.*$\r?\n?/m, ""),
             name,
@@ -586,7 +592,6 @@ export function renderPages(pages, options) {
         outRoot,
         index,
         foreign,
-        manifests,
         universe,
         pass = {},
         readmeSections,
@@ -602,10 +607,10 @@ export function renderPages(pages, options) {
         const src = page.rel ?? `${page.sec}/${page.base}`;
         const ctx = wikiContext(index, {
             src,
+            file: page.file,
             type: page.fm.type ?? null,
             errors: wikiErrors,
             foreignIndex: foreign.index,
-            manifestsComplete: manifests.complete,
         });
 
         const resolve = (text) => {
@@ -944,7 +949,6 @@ export function buildSite({ config, outRoot } = {}) {
         outRoot: out,
         index: gates.index,
         foreign: gates.foreign,
-        manifests: gates.manifests,
         universe: tableUniverse(pages),
         pass,
         readmeSections: site.readmeSections,

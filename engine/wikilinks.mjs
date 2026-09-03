@@ -374,11 +374,30 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
  * @returns {object|null} The manifest entry.
  */
 function findForeign(index, read) {
-    if (!read || read.reason || !index.foreign?.size) return null;
+    const hits = foreignHits(index, read);
+    return hits.length === 1 ? hits[0] : null;
+}
+
+/**
+ * Every foreign manifest entry an address names.
+ *
+ * The count is what separates *nothing publishes this* from *two packages do*,
+ * and those are different findings with different fixes (#184), so the caller
+ * gets the list rather than a single answer that has already collapsed the
+ * distinction.
+ *
+ * @param {object} index - From {@link buildWikilinkIndex}.
+ * @param {object|null} read - The parsed qualifier, or `null` when the target
+ *   did not parse as an address.
+ * @returns {object[]} The manifest entries.
+ */
+function foreignHits(index, read) {
+    if (!read || read.reason || !index.foreign?.size) return [];
     const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
     const shortcode = norm(read.shortcode);
     if (read.package) {
-        return index.foreign.get(`${read.package}-${wanted}-${shortcode}`.toLowerCase()) ?? null;
+        const one = index.foreign.get(`${read.package}-${wanted}-${shortcode}`.toLowerCase());
+        return one ? [one] : [];
     }
     const hits = [];
     for (const [key, v] of index.foreign) {
@@ -386,7 +405,7 @@ function findForeign(index, read) {
         if (parts.length !== 3) continue;
         if (parts[1] === wanted && parts[2] === shortcode) hits.push(v);
     }
-    return hits.length === 1 ? hits[0] : null;
+    return hits;
 }
 
 /**
@@ -444,10 +463,12 @@ function unresolvedLink(text, target) {
  * @param {{byShortcode: Map, types: Set}} ctx.index - From
  *   {@link buildWikilinkIndex}.
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
- *   offset: number, reason: "unlabelled"|"not-an-address"|"unknown-type"|
- *   "unknown"|"unknown-anchor"}>}} `offset` is the link's 0-based position in
- *   `markdown`, which is what lets a caller report the line and column it sits
- *   on (#17).
+ *   offset: number, reason: string, packages?: string[], anchor?: string}>}}
+ *   Each `reason` is one of {@link LINK_FINDING_REASONS}, the vocabulary all
+ *   three resolvers share (#184) — `ambiguous` carries the claiming `packages`
+ *   and `unknown-anchor` the section it named. `offset` is the link's 0-based
+ *   position in `markdown`, which is what lets a caller report the line and
+ *   column it sits on (#17).
  */
 export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     const unresolved = [];
@@ -516,7 +537,22 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             // address, in which case the manifest hands back a complete UUID —
             // including, for a section link, the anchor's own — so nothing is
             // derived here.
-            const hit = findForeign(index, qualifiedRead);
+            const hits = foreignHits(index, qualifiedRead);
+            if (hits.length > 1) {
+                // Two packages publish the short address, so it names neither.
+                // Its own class: the fix is the package-qualified form, not a
+                // corrected shortcode (#184).
+                unresolved.push({
+                    link: all,
+                    target,
+                    offset,
+                    reason: "ambiguous",
+                    packages: hits.map((h) => h.package).filter(Boolean),
+                    addressed: true,
+                });
+                return unresolvedLink(text || target, target);
+            }
+            const hit = hits[0] ?? null;
             if (hit) {
                 const uuid = slug ? hit.anchors?.[slug] : hit.uuid;
                 if (uuid) {
@@ -527,6 +563,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                     target,
                     offset,
                     reason: "unknown-anchor",
+                    anchor: slug,
                     addressed: true,
                 });
                 return unresolvedLink(text || target, target);
@@ -535,7 +572,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 link: all,
                 target,
                 offset,
-                reason: "unknown",
+                reason: "unresolved",
                 // An address that resolves nowhere is a typo: every package it
                 // could name is either built here or vendored, so there is no
                 // third possibility left.
