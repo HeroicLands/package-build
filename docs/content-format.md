@@ -597,11 +597,24 @@ two is the commonest way to get a non-monarchy wrong.
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
-| Property      | Values | Description                                                                                                                          |
-| ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `level`       | number | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
-| `title`       | string | Title associated with the Rank                                                                                                       |
-| `description` | string | Description of the Rank                                                                                                              |
+| Property      | Values     | Description                                                                                                                          |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number     | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string     | Title associated with the Rank                                                                                                       |
+| `description` | string     | Description of the Rank                                                                                                              |
+| `lore`        | `WikiLink` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+
+**A rank's `lore` is shared; its `title` is not.** A Normen kingdom calls it
+`Thrall` and a Vylarian province calls it `Slave`, and they mean one standing:
+owned outright, with no standing at law except through an owner. The title is
+what this body calls it and the description is how this body puts it, but the
+obligations and rights belong to the standing itself, so they are written once
+and cited by every ladder that confers it. In the authored corpus 237 distinct
+titles across 2,602 rank entries resolve onto 43 standings.
+
+That is also what makes a rank answerable across bodies. Without it, asking what
+a `Naukrátissa` may do means reading the Bethûan fleet's ladder; with it, the
+rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
