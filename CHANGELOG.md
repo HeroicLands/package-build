@@ -1,5 +1,699 @@
 # @heroiclands/package-build
 
+## 10.0.0
+
+### Major Changes
+
+- 7f5c14b: **The pipe decides how a wikilink resolves** (#131). `[[x]]` is an **alias**;
+  `[[x|…]]` is an **address**. Neither falls back to the other, so a target is
+  read by the punctuation the author wrote rather than by whether its shape
+  happens to look like an address.
+  
+  Both resolvers previously tried the address grammar and fell through to the
+  alias index — or the reverse — so one authored link had two chances to land and
+  the author could not say which they meant. A note whose _name_ looked like an
+  address (`Grukar-ahk`) was read as one, and a genuine address that resolved
+  nowhere silently became a name lookup and reported nothing.
+  
+  **What changes for a content tree**
+  
+  | Written                    | Was                              | Now                                      |
+  | -------------------------- | -------------------------------- | ---------------------------------------- |
+  | `[[type-shortcode\|Text]]` | address                          | address — _unchanged_                    |
+  | `[[type-shortcode\|]]`     | address, shows the target's name | _unchanged_                              |
+  | `[[Some Name]]`            | alias                            | alias — _unchanged_                      |
+  | `[[type-shortcode]]`       | address                          | **alias lookup**, so it must gain a `\|` |
+  | `[[Some Name\|Text]]`      | alias                            | **address**, so the name must become one |
+  
+  An empty label stays writable and now carries its full weight: `[[x|]]` is the
+  one way to write an address that renders the target's _current_ name, so a
+  rename shows at every citation with no link edited.
+  
+  **The alias index no longer carries the filename.** Its sources are the
+  authored ones — `aliases`, `name.aliases`, `name.full`. `basename(file, ".md")`
+  with underscores turned to spaces admitted keys nobody could cite: thirteen
+  `_Introduction.md` notes all claimed `" introduction"`, leading space included.
+  Measured across five content trees, not one link that resolves today resolves
+  through the filename alone.
+  
+  **A same-type alias collision is now a finding, naming every claimant.** It was
+  silently deleted, so the pair resolved to nothing and nobody was told. The
+  finding is reported at each claiming note, never at the note that merely cites
+  the alias — whoever added the second claimant broke every existing citation.
+  
+  **The two failure modes read differently.** A piped target that resolves
+  nowhere, or does not parse as an address at all, is an **error**: the pipe says
+  the author meant an address. An unpiped target naming no note of the source's
+  type is a **warning**, since a bare `[[Name]]` may be a worldbuilding
+  placeholder for a note not yet written.
+  
+  Resolution is stated once for both builds: `resolvesAsAddress` in
+  `engine/wikilink-syntax.mjs`, and the new `engine/alias-index.mjs` for what may
+  be claimed and how a claim is keyed.
+
+### Minor Changes
+
+- 3e6f3a4: Give an affiliation the ranks and offices it confers, settle the
+  `government`/`governance` split on one root, and stop the mapping table claiming
+  system fields for things that reach none (#160).
+  
+  **An affiliation now publishes its own social structure.** `governance.ranks` is
+  the ladder the body confers — `level`, `title`, `description` per rung — and
+  `governance.offices` is a map of named post to what that post does. Level 0 is
+  reserved for the excluded: outlawed, expelled, excommunicated is a standing an
+  organisation still recognises, so it still has to define it.
+  
+  The reason to put them here rather than on a membership is that a bare `level: 4`
+  says nothing on its own. It means _Knight_ only because the polity declared that
+  rung, so the ladder is authored once, on the body that confers it, and a member's
+  rank is an index into it. Offices are not ranked at all — a Chancellor and a
+  Marshal are both great officers and neither is above the other — so an office is a
+  key with a description rather than a rung.
+  
+  **The membership fields leave `data:`.** `society`, `office`, `title` and `level`
+  described a being's standing in a body, not the body, and all 199 authored
+  affiliation notes left them null. They are filled on the affiliation _as embedded
+  on a being_, which is where they always belonged.
+  
+  **One root: `governance`.** The specification mixed `governance.model` with
+  `government.summary` and `engine/note-vocabulary.mjs` declared exactly that pair,
+  with a comment saying the two had to be reconciled somewhere else. They are
+  reconciled here, on `governance` — the root that names the concept rather than
+  the institution, and the one the new `ranks` and `offices` read naturally under.
+  
+  **`Republic` joins `GovernanceModel`, and the three civic models are given a
+  test.** A Roman-shaped republic was none of the existing values exactly: not an
+  `Oligarchy`, whose closed group holds authority with no election and no term; not
+  a `Democracy`, where any member may hold office. Ask who fills the offices and on
+  what terms and the three separate cleanly, which the enum now says. Naming it
+  `Republic` rather than `Senatorial Oligarchy` keeps the enum a partition of
+  one-word answers to _where does authority rest_ — "senatorial" is a culture's word
+  for its ruling order, and culture words belong in a body's rank titles, not in the
+  shared vocabulary every culture is described with.
+  
+  **Two renames and a new field.** `domain` becomes `domains`, which is what a list
+  of places wants to be called; `languages` becomes `commonSkills`, since what
+  members share is not only speech; and `economy` is new — the currencies, banking
+  bodies and goods an affiliation's economic life runs on, as wikilinks rather than
+  prose.
+  
+  **The mapping table stops overclaiming.** `governance` reaches no `system.*`
+  field: SoHL's affiliation item has nowhere to put ranks or offices, and inventing
+  a mapping for a field no schema declares is the drift these tables exist to
+  catch. The four membership rows go with the fields, leaving 84 mapping claims and
+  66 checked against SoHL's published schema.
+  
+  **`mystery` accepts `birthsign`**, which the specification declares and the
+  vocabulary did not, and the four gear headings are spelled as the vocabulary
+  enforces them — `armorgear`, `concoctiongear`, `projectilegear`, `weapongear` —
+  rather than as #78 will rename them.
+- 1c4517f: Let an affiliation cite any lore, and declare its epithet and its symbol (#166).
+  
+  **`peoples` becomes `lore`**, as it did on `place` in #164 and for the same
+  reason: peoples are one kind of lore among many, and the target's own subType
+  already distinguishes a `folk` from a `law` or a `calendar`.
+  
+  **The case that made it urgent is the deity.** A `faithtradition` is a religion —
+  a practice, which can outlive belief in its god, and one god may be venerated by
+  several religions that agree on nothing else. The god is `lore` of subType
+  `deity`. With only `peoples` available a faith had nowhere to name the god it
+  venerates, and the authored corpus worked around it with an undeclared top-level
+  `deity` string on 75 notes: a name nothing could follow.
+  
+  **`epithet` and `symbol` are declared.** Seventy-seven affiliations carried them
+  at the top level, where nothing checked them and nothing compiled them. Neither
+  is a faith's alone — they are what the members call the thing and what they carve,
+  so a guild has them as much as a cult does. What a god _is_ belongs on the deity
+  note, where every religion that venerates it can point at one account.
+  
+  **A rank names the standing it is.** `Rank` gains `lore`, a link to a `lore` note
+  of subType `law`, and the note is **shared**: a Normen kingdom calls it `Thrall`
+  and a Vylarian province calls it `Slave`, and they mean one thing — owned
+  outright, with no standing at law except through an owner. The title is what this
+  body calls it and the description is how this body puts it, but the obligations
+  and rights belong to the standing, so they are written once and cited by every
+  ladder that confers them. In the authored corpus 237 distinct titles across 2,602
+  rank entries resolve onto 43 standings, which is also what makes a rank
+  answerable across bodies: asking what a `Naukrátissa` may do no longer means
+  reading the Bethûan fleet's ladder.
+  
+  **A being cites lore too.** Its `peoples` becomes `lore` for the same reason
+  `place` and `affiliation` did: the people a character is of, the standing they
+  hold and the law they live under are all lore, and the target's own subType tells
+  a `culture` from a `law`. A being that names its culture and its rank in one list
+  is saying two things of one kind, which is what the field is for.
+- 65a4ba1: **Affiliation subTypes: `spirittradition` added, `pantheon` removed.**
+  
+  A totemic or ancestor cult had nowhere to go. `faithtradition` is defined as
+  concerning _the divine_, and `sohl-thalorna` carries 47 affiliations that are
+  not — 44 animal totems plus `Nyaluba_Spirits`, `The_Kindred` and `Astrokyklos`.
+  Folding them into `faithtradition` would also have collapsed the partition
+  `MYSTICALABILITY_SUBTYPE` distinguishes the spirit families by, and a picker
+  filter is only as useful as the partition it filters on. `spirittradition` is
+  worded symmetrically with its two siblings.
+  
+  `pantheon` is gone because it answered a different question from every other
+  value. The rest state _what kind of body this is_; `pantheon` stated _where it
+  sits in a hierarchy_. A pantheon is a `faithtradition` carrying subordinate
+  faith traditions, and that hierarchy is already authored — 77 divine
+  affiliations carry a `pantheon:` key holding an affiliation shortcode which
+  resolves on all 77, while `parents` is set on none of them.
+  
+  **No content changes.** None of the eleven values is authored anywhere yet, so
+  removing one and adding another costs no note an edit.
+  
+  Closes #157.
+- 20e51a7: Write a document's archetype to `system.archetype` instead of `flags.sohl.docArchetype` (part of #126, part of #127).
+  
+  **Requires an unreleased SoHL.** This must not ship before HeroicLands/Song-of-Heroic-Lands-FoundryVTT#1780 declares `system.archetype` on SoHL's shared data schema and that release is out. Foundry discards an undeclared `system` key at construction without a word, so a package built with this against an older system carries an archetype nothing can read. The order is: the field, then this, then rebuild.
+  
+  **What changed.** `sohl/items.mjs` and `sohl/actors.mjs` stop calling `withArchetypeFlag` and write the value into `system` — a number for an archetype at that priority, `null` for a document that is not one. `flags` becomes a plain passthrough of what the note authors, defaulting to `{}` exactly as before. `withArchetypeFlag` is deleted; `resolveArchetype` stays, and so does its required-ness, so an absent `archetype` is still an authoring error rather than a silent "not an archetype".
+  
+  `engine/helpers.mjs` gains `systemArchetype`, which is where `resolveArchetype`'s `undefined` becomes the field's `null`. That conversion has to be somewhere: an emitted `undefined` is dropped by `JSON.stringify`, which would leave the compiled document with no `archetype` at all and a tri-state readable as two.
+  
+  **The falsy trap, held by tests.** `0` means "is an archetype, at priority 0" — the priority SoHL's own archetypes ship at — while `null` means "is not one". `resolveArchetype(fm) || null` passes every other case and turns 1,470 SoHL documents from archetypes into non-archetypes, so the suite asserts `0` through the builder and through a `JSON` round trip.
+  
+  **Compiled output moves, and this is the one change in this stack where it should.** Characterised document by document across three trees, every difference is a `flags.sohl.docArchetype` disappearing and a `system.archetype` appearing with the identical value, plus the now-empty `flags: {}` that the removed flag leaves behind. No `_id` and no `_key` moves anywhere.
+  
+  Counts, with the last four columns the value each **top-level** document carries (embedded items carry it too, as they carried the flag):
+  
+  | tree                 | compiled | changed | `0`   | `1` | `100` | `null` |
+  | -------------------- | -------- | ------- | ----- | --- | ----- | ------ |
+  | `sohl`               | 3,126    | 1,474   | 1,470 | 1   | —     | 3      |
+  | `sohl-thalorna`      | 2,561    | 1,273   | 157   | —   | —     | 1,116  |
+  | `sohl-kethira-basic` | 385      | 363     | 343   | 10  | 10    | —      |
+  
+  **One diagnostic moves.** Seven `sohl-thalorna` affiliation notes that already fail to compile now report the missing `archetype` rather than a folder id or a missing `subType`, because the requirement is checked earlier in `buildEntry` than the flag it replaces. Same files, same count, same severity; every other finding in all three trees is unchanged, message for message.
+  
+  **Neither schema check has anything to say about it**, before or after the field is declared. `compareFields` derives what a builder emits from its `itemBuilders` field declarations, and `archetype` is written by the compiler itself — as `shortcode`, `actionDefs`, `notes` and `docHtml` already are — while the note-side check reads only what a note authors under `<system>.system`, and `archetype` is authored at the block's top level. So the ordering constraint above binds at Foundry's silent discard, not at a check that would catch it; the suite records that, so nobody reads the quiet as coverage.
+- 6f59add: Declare `lore` subType `bestiary` and `doc` subType `collection` (#162).
+  
+  **A creature that is not a people had nowhere to go.** `folk` is _related sapient
+  beings — kindreds, ancestries_, and `spirit` is the non-divine numinous; a beast
+  is neither. `bestiary` is what `folk` is for the sapient, applied to everything
+  else — including the made things that were never born.
+  
+  **A note that indexes other notes had nowhere either.** A roster, a table of
+  settlements, an index of languages is not `rules`, not `user-guide`, and not
+  `reference` — and the distinction is where the content comes from. A reference
+  **states** facts of its own; a collection **derives** them from the tree, almost
+  always through a query. The author's test is whether the page would still say
+  anything if every other note vanished. `reference`'s own description drops
+  "indexes" accordingly.
+  
+  **The value earns its keep by making a silent failure nameable.** A collection
+  whose query matches nothing renders a header and no rows, which looks exactly
+  like a full table until it is read — and `sohl-thalorna` has thirteen in that
+  state right now, having filtered on a frontmatter key its content format no
+  longer has. Nothing failed and nothing reported it. A checker can only say so
+  about a note class it can name.
+- 103c307: Check the `system` keys a compiler writes itself against the receiving DataModel (closes #155, part of #127).
+  
+  **What a consumer sees.** A compile can now fail with a line naming one of its
+  notes:
+  
+  ```
+  assets/content/Skills/Social/Charm.md: error: the compiler writes `system.archetype` into every Item of subtype "skill", and no field declaration names it — Item subtype "skill" does not define it at 0.8.2, and Foundry discards an unknown `system` key when the document is constructed, without a warning, so the value is lost at load while the build reports success. No `itemBuilders` change fixes this: declare the field in the receiving system, or hold this package at a build that does not write it
+  ```
+  
+  It means the build is running **ahead of the system it compiles for**. Nothing
+  in the repository's own configuration writes the key, so nothing there can stop
+  it; the two real fixes are the ones the message names. For `archetype`
+  specifically that is HeroicLands/Song-of-Heroic-Lands-FoundryVTT#1785 — SoHL
+  checks against its **own** committed `schema.json`, so merging it is enough and
+  no release is needed; a module checks against the cached schema of the SoHL
+  release it pins, so it needs that release.
+  
+  **The gap.** The emitted-versus-declared check (#60) derives what a build emits
+  from the `itemBuilders` **field declarations**, so a key a compiler writes on its
+  own initiative is in neither set it compares and was never compared at all.
+  That is not a residue: it is `shortcode`, `actionDefs`, `notes`, `docHtml`, and
+  since #126 `archetype`. #145's authored-`system` check does not reach them
+  either — it reads `<system>.system`, and these are written rather than authored.
+  So #126's ordering constraint, stated in the issue and real, was enforced by
+  nothing: get the order wrong and every compiled document silently loses
+  `system.archetype`, no check fires, the build is green, and the Create dialog
+  simply stops finding archetypes.
+  
+  **Derived by observation, not by a list.** The compilers assemble a `system`
+  object, so `compareEmittedSystem` reads the keys off what they produced — after
+  the JSON round trip the pack file actually receives, which is why a key whose
+  value is `undefined` is correctly not a finding. A compiler that grows a key is
+  covered on the next build without anyone remembering to add it anywhere, and a
+  `system` block that is checked is the one that was written.
+  
+  **Two conditions, because the fixes differ.** Both name the version, as the
+  existing message already does. A key a `fields:` entry declares is the
+  consumer's own — change the field's `to`, or get the system to declare it. A key
+  the compiler writes has no declaration to correct, and the message says so
+  rather than sending a reader looking through `itemBuilders` for something that
+  is not there.
+  
+  **An error, deliberately.** The failure is Foundry's silent discard either way,
+  and the sibling condition has been an error since #60; making the _less_ fixable
+  half the quieter one would invert the point. Measured read-only against five
+  consuming trees, the whole cost is 11 findings in
+  `Song-of-Heroic-Lands-FoundryVTT` — one `archetype` per subtype, exactly what
+  #1785 declares. The satellites are unaffected today: sohl 0.8.2 published no
+  `schema.json`, so there is nothing for them to check against and the check stays
+  silent, and by the time they pin a release that publishes one the field is in
+  it.
+  
+  **A subtree the schema describes no further is not checked.** SoHL's
+  `strikeMode` is a discriminated `TypedSchemaField`: published as one path,
+  stored flat as `{ type, name, … }`. Walking into it against a schema that
+  enumerates nothing beneath it reported all ten of a combat technique's stored
+  keys — ten findings, every one wrong, about a document that is correct. What the
+  artifact does not describe is left alone, the same stance the check already takes
+  on a subtype the artifact does not name.
+  
+  **Compiled output does not move.** This adds a check, not an emission: the SoHL
+  tree compiles to the same 3,126 `build/packs-json` files, byte for byte.
+- 808ef55: Add the closed `data:` container, and close `subType` (#128, part of #127).
+  
+  **What it is.** A note's frontmatter has three regions and only one of them is
+  open. The top level describes the note as a published artefact and every key of
+  it is copied into the generated web page, so an unrecognised key there is a Hugo
+  or theme parameter this build has no standing to refuse. `data:` holds the
+  type-specific facts about the _subject_ — a weapon's weight, an affliction's
+  transmission, a being's species — and every note type declares which keys it may
+  carry.
+  
+  **Why it earns its place.** Those facts previously sat at the top level, where
+  the pass-through rule applied to them too, so a misspelled `wieght` became a
+  theme parameter rather than a finding — indistinguishable, from the outside,
+  from a weapon that weighs nothing. Under `data:` the same key is reported where
+  it was written, with the key it was probably meant to be, drawn from that type's
+  own vocabulary and using the capped edit distance the `sohl:` check already
+  applies:
+  
+  ```text
+  assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property declared by weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
+  ```
+  
+  **`subType` stays at the top level**, and is closed in its own way: a type either
+  declares a `subType` or does not, and a type that does declares its values. A
+  `weapon` declares none — SoHL distinguishes a weapon's uses by strike mode rather
+  than by kind — so `subType` on one is a finding; a `skill` declares ten, so
+  `subType: crafte` is a finding naming `craft`.
+  
+  **Additive.** Nothing reads `data:` into a document's `system` block yet — that
+  is the passthrough slice — and no note in any tree authors one today, so no
+  compiled output changes. `engine/note-vocabulary.mjs` carries the declaration,
+  one entry per note type, taken from the content-format specification;
+  `lintNote` and `lintFrontmatter` take it as a `vocabulary` option, so the linter
+  stays a checker of whatever it is handed rather than gaining type names of its
+  own, and a caller that supplies none is checked exactly as before.
+- 3542a73: Commit the content format specification as `docs/content-format.md`, and add
+  `content-build content-format` to check it.
+  
+  The specification — how a note becomes a Foundry document and a web page: three
+  frontmatter regions, a note vocabulary with its own `type` and `subType`, the
+  declared map onto each system's document fields, the precedence between a shared
+  source and a system's override, and the wikilink address grammar — lived in a
+  gitignored draft. Nothing could link to it, it had no history, and it was
+  invisible to everyone but its author while four other issues were being
+  implemented against it. It is this package's contract: `content-build` is what
+  reads notes and writes documents, so the format belongs beside the code that
+  honours it.
+  
+  **The document is checkable, and two throwaway scripts written while drafting it
+  are now real commands.**
+  
+  `content-build content-format schema --schema <system>=<path>` resolves every
+  `system.*` target the document names against the naming system's published
+  `schema.json`, in the `version: 1` shape `package-build schema` emits. This is
+  the emitted-versus-declared idea pointed at prose rather than at code: the format
+  does not define the `sohl:` or `hm3:` schemas — each system does, and its
+  artifact is the authority — so a mapping row is a claim, and a claim naming a
+  field no schema declares means the two disagree. There are 88 such claims today.
+  
+  `content-build content-format notes` measures a content tree against the
+  per-type `data` tables, counting findings in four classes: a note type the
+  document declares no section for, an unknown key in the closed `data:` region, a
+  declared shared source written at top level instead, and one written straight
+  into a system block.
+  
+  **Both read the document's own tables.** A transcribed list of targets and
+  vocabularies would be a second copy of the specification, free to drift from the
+  first the moment either was edited — the exact failure these checks exist to
+  prevent, moved one level up. No type name, field name or system name is written
+  in the code; editing the specification changes what the checks assert.
+  
+  **A target resolves against the union of a system's subtypes.** The mapping
+  tables say which field a shared source reaches; _which document subtype receives
+  it_ is the note-type → subtype map, which is not built yet. Resolving per subtype
+  before that map exists would mean inferring it from the prose around each table,
+  which is the transcription the whole design avoids. It narrows when that map
+  lands.
+  
+  **A system with no schema supplied is counted unchecked, not passed.** HM3
+  publishes no artifact today, so that is the ordinary case for 18 of the 88
+  claims, and a check skipping them in silence would read exactly like one that
+  passed.
+  
+  **The corpus meter is a report, and `--strict` is the opt-in.** All ~6,210
+  authored notes predate the format, so a failing check would be red in every
+  repository on the day it landed and would stay red for the length of the
+  migration — a check nobody can act on and everybody learns to skip. The counts
+  are the migration's progress bar instead, and each class is promoted to fatal, by
+  turning the flag on, as it reaches zero.
+  
+  Part of HeroicLands/package-build#127; closes HeroicLands/package-build#130.
+  
+  **Bump**
+  
+  _Minor._ A new command group, a document added to the published files, and no
+  change to any existing behaviour.
+- 1120e3f: Close the gaps in the content format specification that the compiler can answer,
+  and add `content-build content-format fields` so the hand-written per-type tables
+  cannot drift from the declarations that compile them.
+  
+  **A `### type: macro` section, written from what the compiler does.** `macro` was
+  named in the note vocabulary with no section of its own, so
+  `content-build content-format notes` reported every authored macro note as an
+  unknown type — a false finding caused by the document being incomplete rather
+  than by the note being wrong. The section states the `{#script}` anchor and its
+  three fence rules, why the executable copy is read from the raw markdown, why
+  `macroType: chat` is an error, and the two fields (`macroType`, `macroScope`) the
+  compiler reads from `sohl:` today and that belong in `data:` for the same reason
+  the map fields do. Measured against SoHL's tree, the `unknown-type` count falls
+  from 435 to 434 and no new finding appears.
+  
+  **`government.model`, not `governance.model`.** The `affiliation` table carried
+  two roots for one concept — `governance.model` beside `government.summary`.
+  `government` is the established spelling: `engine/web-wikilinks.mjs` documents
+  `government.summary` as its example key path, `tests/web-wikilinks.test.ts`
+  fixtures it, and 79 authored notes in `sohl-thalorna` write `government:` while
+  none writes `governance:`. Only the odd root moved; `GovernanceModel` remains the
+  name of the value's vocabulary.
+  
+  **A map note's art is `image:`, and the document now says so.** The table said
+  `img` and a standing note admitted the compiler disagreed. It does:
+  `map-notes.mjs` and `scenes.mjs` both read `image`, and all three authored map
+  notes write it. Which of the two spellings survives is a decision rather than a
+  documentation fix, so the document states what the build reads and points at the
+  issue that will settle it.
+  
+  **Two stale counts corrected.** Twenty-seven fields take a `WikiLink`, not
+  "roughly forty"; thirteen of an `affiliation`'s properties describe the
+  organisation, not four. The "sixteen tables" the shared-mapping section speaks of
+  is exact — there are sixteen per-type mapping tables — and is left alone.
+  
+  **The drift guard.** The specification hand-writes a `data` table under most of
+  its type sections, which is ground `engine/field-reference.mjs` already generates
+  from the `fields` on each `itemBuilders` entry. Generating the document is not
+  available: its vocabulary spans note types that produce Scenes, Macros and
+  JournalEntries, which no item registry covers. So the two are **checked** where
+  they both speak — a mapping row saying `data.weight` reaches `system.weightBase`
+  and a declaration writing `weight` to `weightBase` are one statement made twice,
+  and a rename that moves only one of them now fails, positioned at the cell in the
+  specification that makes the claim.
+  
+  Everything else is reported rather than asserted, because the two vocabularies
+  differ by design until the corpus migration lands: fields only one side names come
+  back as coverage, and types only one side describes are **named** as out of reach
+  rather than skipped in silence. Against the shipped SoHL declarations it compares
+  9 types and 26 field pairs, names the 14 the format declares that no
+  `itemBuilders` entry covers and the 4 declared types the format has no section
+  for, and finds no disagreement. Wired into `npm run lint:content-format`.
+- 7cf58f3: `contentPackage` is validated as an address segment, and `readCanonicalKey` counts segments explicitly.
+  
+  A canonical address (`sohl-skill-clmb`) is read by counting hyphen-separated segments, which is sound only while the hyphen is _purely_ a separator — no segment may contain one. #59 names three charset guarantees behind that and asks for each to be **enforced rather than assumed**. Shortcodes already were; `contentPackage` was not, and its absence had a live cost: `harn-adventures` produced four-segment keys that failed as a `null` return rather than as an error saying what was wrong.
+  
+  **`contentPackage` is now checked twice.** It must be alphanumeric (`^[A-Za-z0-9]+$`), and it must not equal a note type — `doc`, `being`, the map types, and every declared item type with its `doc`-prefixed documentation form. A violation is a build error in the usual `file:line:column: severity: message` form, naming the key's own line in the configuration file (#95). Every package in use today passes: `sohl`, `hm3`, `thalorna`, `kethira`, `harnensemble`, `harnadventures`.
+  
+  **The shortcode rule and the package rule are one constant.** `SHORTCODE_PATTERN` now _is_ `ADDRESS_SEGMENT_PATTERN`, from the new `engine/address-charset.mjs` leaf, rather than a second copy of the same regex free to drift from it.
+  
+  **`readCanonicalKey` states its premise instead of assuming it.** It counts against a named `CANONICAL_KEY_SEGMENTS`, and its documentation says the charset rule is what makes counting sound — rather than restating "nothing contains a hyphen" as a fact about the data that nothing checked. It also distinguishes its two failures: a string that cannot be a key still yields `null`, while an absent or blank input yields `undefined`. Both are falsy and all four call sites test only for truthiness, so no behaviour changes.
+  
+  Deliberately **not** in this change, because they depend on decisions still open in #59: the system segment, `none`, the manifest format-version bump, partial-address resolution, and the single-hit rule. The key format is unchanged — three segments, `<package>-<type>-<shortcode>`.
+  
+  Part of #127. Part of #59.
+- 00706df: Declare the tags that classify, and say that every other tag stays open (#172).
+  
+  `tags:` lives at the open top level, and most tags belong there: a theme, a
+  region, a working state is the author's own. **A tag that classifies the subject
+  is different, because something queries it.** A settlement tagged `village`
+  appears in the list of villages and an untagged one does not, so `vilage` does
+  not merely look wrong — it removes the note from an index, silently, while the
+  index still renders a table that looks complete. That is the failure the closed
+  `data:` container was introduced to end, in a region that is still open.
+  
+  Four groups are declared: a place's **kind** (`city`, `town`, `village`, `port`,
+  `fortress`, `hall`, …), its **character** (`fortified`, `temple`, `market`,
+  `fishing`, `coastal`, …), its **scale** (`continent`), and a note's **state**
+  (`draft`).
+  
+  **Kind and character are separate because one slot could not hold both.** The
+  single-valued field these replaced ran to 101 values over 196 notes, 72% of them
+  used exactly once, because `Fishing Village` and `Market Town / Seat of Local
+  Nobility` each had to be a value of its own — and a query for villages found two
+  of the eleven that existed.
+  
+  **A continent is a region carrying a tag, not a subtype**, because structurally it
+  is a region: the same fields, the same parent chain, everything but scale.
+  
+  **And the declaration is checked.** `lintFrontmatter` reports a tag that is a near
+  miss for a declared one — `vilage` for `village` — while leaving every other tag
+  alone, because the region is open and a theme or a region is the author's own.
+  The group's **scope** is what makes that sound rather than noisy: distance alone
+  was wrong on all eight notes it touched in `sohl-thalorna`, since `azravan`,
+  `barter` and `secret` each sit a typo's distance from a place tag while sitting
+  on a faith, an economy note and three lore notes. Scoped to the types each group
+  applies to, both authored trees report nothing.
+  
+  **A being's station is declared too**, and it is not a rank: which kind of body a
+  person belongs to — the clergy, the soldiery, the tradesfolk — is a different
+  axis from where they stand inside one, which `data.lore` carries by naming the
+  rank. A tag holds the first, because a person may be several at once and because
+  nothing ranks `clergy` against `mages`.
+- 215ba23: Key a being's embedded-item references and the predefined-items map on the same vocabulary, and report a reference that resolves to nothing (closes #140, part of #127).
+  
+  **The defect.** Two vocabularies met in embedded-item resolution and disagreed about which one they were speaking. `Actors.loadItemsMap` keyed each predefined item by the **compiled document's** subtype (`doc.type`), while a being's frontmatter addresses its embedded items by the **note's** `type`. They are the same string in every SoHL row today, so the lookup succeeded by coincidence; the note-type → document-subtype map (#79) made the coincidence visible without creating it.
+  
+  The first non-identity row breaks it. #78 introduces exactly that — `armorgear` → `armor` and its two siblings — at which point a being's `armor` reference is looked up in a map keyed `armorgear`, finds nothing, and the item is missing from the compiled actor. `harn-ensemble` alone carries 30,741 such references.
+  
+  **Which vocabulary, and why that one.** The addresses stay keyed on the **document subtype**, and each authored reference is translated forward through the system's map before the lookup. The map is a function from note type to subtype by construction; the reverse is not — two note types may compile into one subtype — and a compiled document records nothing about the note that produced it, so there is no honest way to key the addresses the other way round. The translation lives in one place, `Actors#embeddedSubtype`, over a new `referencedSubtype` in `engine/document-subtypes.mjs`, and both are documented as saying which side translates rather than leaving it implied.
+  
+  | a reference naming…                           | before                        | after                                  |
+  | --------------------------------------------- | ----------------------------- | -------------------------------------- |
+  | a mapped type                                 | looked up verbatim            | looked up as the subtype the row names |
+  | a type the system does not map                | looked up verbatim            | unchanged — the consumer's own type    |
+  | a type the system compiles into another class | resolved to nothing, silently | a finding naming the note              |
+  | a one-to-many row                             | resolved to nothing, silently | a finding listing the candidates       |
+  | a retired spelling                            | resolved to the old name      | a finding naming the replacement       |
+  
+  **A stand-alone entry moved too.** An entry carrying no shortcode is built from the reference alone, so the note type became the document's subtype outright — a document of a subtype the system does not define, with nothing said. It now carries the mapped subtype, and the embedded `_id` seed is the subtype as well, so a later note-type rename leaves every embedded id exactly where it was.
+  
+  **Every finding is located.** An unresolved reference is now reported at the line the reference sits on rather than at the note, in the usual `path:line:column: severity: message` form.
+  
+  **Nothing compiled changes, and no tree gains a finding.** SoHL's map is the identity throughout: its 3,126 compiled pack files are byte-identical across the change. Compiled read-only against `harn-ensemble`, `sohl-thalorna`, `sohl-kethira-basic`, `harn-adventures` and `sohl`, the diagnostic output is the same finding for finding — 64 pre-existing `sohl-thalorna` findings gain a line and column, and nothing else moves.
+- 3ea6f64: **A map is one type, and the three spellings are its subTypes.**
+  
+  `docs/content-format.md` has always described a map that way, and said why:
+  _the three differ only in the canvas defaults derived for them, which is why
+  they are subTypes of one type rather than three types._ The implementation
+  declared the opposite, so a map note written to the specification was refused
+  with `no schema is declared for content type "map"`.
+  
+  The three names cost three entries in the pack router, three in the claims set,
+  three in `NOTE_SCHEMAS`, and three in every consumer's `sections` config — for
+  one idea. `mapProfile()` now keys the derived canvas off `subType`, which is
+  the one thing the spellings ever decided, and `MAP_SUBTYPES` names them.
+  
+  `battlemap`, `localmap` and `regionalmap` join `RETIRED_TYPES`, so a note or a
+  link still writing one is **told what to write instead** rather than routed
+  silently to the items pack — the treatment `character` and `creature` got.
+  
+  **`data.place` is declared**, closing a second gap in the same table: the link
+  from a map to the place it depicts was specified and not declared, so authoring
+  it was an error. It is named on the map and not on the place, because a place
+  has several maps and a map depicts one place.
+  
+  Closes #174
+- 6d3ffa1: Stop inferring a Foundry document's subtype from the markdown note's `type`, and look it up in a map each system declares (part of #79, slice 3 of #127).
+  
+  **The defect.** The two vocabularies were the same identifier for one reason: a builder wrote the same string twice. `sohl/actors.mjs` declared `ACTOR_VAULT_TYPE = "being"` and emitted `type: "being"` several hundred lines below it, under a comment reading _"One content type, named for the Foundry actor it produces."_ Nothing related them, so changing one and not the other produced a wrongly-typed document in silence — a wrong-output risk with **one** system, not only with two.
+  
+  **The mechanism** is `engine/document-subtypes.mjs` and the declaration is the system's, which is the `engine/` ÷ `sohl/` line this package draws everywhere else: note-format knowledge in the engine, game-system knowledge in the system half. `sohl/document-subtypes.mjs` declares SoHL's own map — _identity rows included_. `skill` → `skill` is written out rather than derived from the item registry's keys, because deriving it is exactly the coincidence the map exists to remove.
+  
+  | behaviour                                          | before                              | after                                       |
+  | -------------------------------------------------- | ----------------------------------- | ------------------------------------------- |
+  | an item's emitted subtype                          | `fm.type`, verbatim                 | the row the system declares                 |
+  | an actor's emitted subtype                         | the literal `"being"`               | the row the system declares                 |
+  | which notes the actors pass claims                 | `fm.type === "being"`               | every note type the map sends to an `Actor` |
+  | a type the system maps onto another document class | claimed by whichever pass got there | claimed by neither                          |
+  
+  A markdown type with **no** row for a given system produces no document for that system — silently and correctly, exactly as the thousands of notes belonging to another pass already are. A one-to-many row is resolved by the note, which supplies the discriminator in that system's own block; an absent one is an error that names the note and lists the permitted values, never a default. SoHL has no one-to-many row, so that path is exercised against a fixture system in the suite rather than by inventing one.
+  
+  **Nothing compiled changes.** Every SoHL row is the identity today, so the lookup returns what the inference returned: `sohl`'s 3,126 compiled pack files and the build's whole diagnostic output are byte-identical across the change. The renames the content format calls for (`armorgear` → `armor` and its three siblings) are #78 and stay deferred — when one lands it edits one row here and the notes that address it, which is a data change rather than a mechanism change.
+  
+  Additive throughout: `itemBuilders`, the pack list and every other configured surface are untouched, and a consumer shipping an item type this system does not map keeps compiling it exactly as before.
+- b292fba: Reduce a `place`'s `data` properties to what is true of ground, and let a map name
+  the place it depicts (#164).
+  
+  Eight properties become four. Measured against the 246 authored place notes,
+  three of the eight were used by **no note at all**, one was declared as the wrong
+  type, and two were the wrong end of a relation.
+  
+  **`languages` is a fact about a polity.** A place's languages change when its
+  ruler changes, which is what makes them the ruler's property; `commonSkills` on
+  the affiliation already holds them. The corpus agrees — of 206 places carrying
+  `languages`, 190 were settlements and 16 were regions, and not one was a site, a
+  structure or a feature, because a ruin has no language.
+  
+  **`peoples` widens to `lore`.** It was the only lore-pointing property a place
+  had, so a place with a calendar, a body of law or a local history had nowhere to
+  cite it. The target's own subType already distinguishes a `folk` from a `law`,
+  which is the same reason `affiliation` carries no `pantheons`.
+  
+  **`demonym` is a `string`**, which is what all 24 uses are and what
+  `affiliation.demonym` has always been.
+  
+  **`summary` duplicated the top-level `description`** — no note carried it.
+  
+  **`affiliations` and `maps` were authored from the wrong end.** `affiliations` is
+  the inverse of `affiliation.domains`, which 91 polities populate and no place
+  does; a relation authored from both ends drifts the moment one is edited. `maps`
+  moves onto the map, which gains a `place` property — optional, because an
+  encounter map depicts no named place, but that is the exception the map section
+  already describes. A place's maps are now derived: every map whose `place` is
+  this one.
+- caea6e3: Map a note's `<system>.system` block onto the document's `system` property, and let one note carry a block per system (part of #58, slice 2 of #127).
+  
+  **The rule.** A note is system-agnostic; the only system-specific things it carries are the properties named after a system. Within one, `<system>.system` maps straight onto `document.system` — the DataModel's own paths, verbatim, with no renaming layer — while `type`, `img`, `items`, `effects` and `flags` map onto their document properties and `pack` is a build directive that maps onto nothing. `archetype`, `kbcat` and the generators `items` and `attributes` are not `system` fields in any system, so they stay directly under the block.
+  
+  **The shared fallback is declared, not name-matched, and that is the load-bearing part.** `sohl.system.portrait` and `hm3.system.bioImage` both default from one shared property — two real fields with different names. SoHL's `Actor.being` and HM3's `Actor.character` share **no field name at all**, so a rule matching on spelling is not a rule with exceptions; it is a rule that never fires. Each field declares its source instead, and a source may be a dotted path (`data.portrait`) as `to` already may on the destination side. Resolution for a system `S`: `S.system.<to>`, else `S.<name>` (the legacy in-block position, kept until the corpus moves off it in #126), else the declared shared property, else the field's default.
+  
+  `FieldSpec.name` is reinterpreted accordingly — it is **the shared property this field draws from**, not "the frontmatter key under `sohl:`", which is the degenerate case where source and destination happen to share a name. `sohlField()` stops being the general rule; `blockField()` generalizes it to any block.
+  
+  **What is checked, that was not.** A key under `<system>.system` that the system's published `schema.json` does not declare for the subtype the note compiles into is an **error naming the note**, located at the offending line — Foundry discards an unknown `system` key at construction without a word, so the alternative is a field the author wrote and nobody ever sees. Unrecognised keys under a system block are reported against **that system's** vocabulary rather than only SoHL's, and a second system's block is checked once the build declares it.
+  
+  **`itemBuilders` becomes a set.** One registry is a ceiling as well as a vocabulary: the accepted types are its keys, so a type only the other system knows — `spell` and `invocation` are HM3's, `mysticalability` is SoHL's — cannot be accepted at all. A configuration may now name several (`itemBuilders: [sohl, hm3]`, or `[{ system, builders }, …]` in code) and the vocabulary is their **union**. A type both declare keeps a builder per system; `itemBuilder(type, system)` and `itemArt(type, system)` take the system that is asking, and asking without one for a contested type throws rather than answering with whichever registry was declared first. **The scalar form is unchanged** and still resolves to exactly the flat registry it always did.
+  
+  **Pack eligibility.** A pack declaring a `system:` compiles only notes carrying that system's block; one that declares none constrains nothing, and a pass whose document is not system data — journals, macros, scenes — is not subject to the rule at all. A violation fails naming the note and the pack, rather than emitting a hollow document with a subtype and none of the fields that subtype exists for. `pack:` itself needed no new mechanism: the block-override rule gives it, `effects` and `flags` their per-system form for free.
+  
+  **`(type, shortcode)` resolves inside one system's catalogue.** A being addresses its embedded items by that pair and never by pack, so the Item packs are read as one address space — which stops being one address space the moment two systems are in the tree, since `skill:sword` exists under both names over different data models. An Actor pass now reads the Item packs of its own system plus the system-neutral ones. The references themselves were never ambiguous; the resolver simply did not know which catalogue it was searching.
+  
+  **Nothing compiled changes.** No consumer authors a `<system>.system` block yet, and no consumer's packs declare a system that its notes do not carry, so this is purely additive to real output: `sohl`, `sohl-thalorna` and `sohl-kethira-basic` all compile byte-identically, and `content-build lint` reports the same findings in the same order. A note carrying no system block at all still compiles its system-neutral documents.
+  
+  The corpus migration that exercises all of this is #126, in the content repositories.
+- b45c0f9: Report a note whose `type:` no configured pack claims, instead of compiling it into nothing in silence (#146, part of #127).
+  
+  **The defect.** Every compile pass answers one question about a note — _is this mine?_ — and a note every pass answers "no" to is skipped as quietly as the thousands that legitimately belong to another pass. Where **no** pass would ever have said yes, that quiet was the whole of the report. `harn-ensemble` declares no `itemBuilders`, so its five `affiliation` notes were a type nothing selected: the journals pass rejected them, the Actor passes rejected them, and no Item pack existed to claim them. They vanished from the build with no error, no warning and no census line — while its 2,512 `being` notes each produced a routing error, which is the correct behaviour. The two cases differed only in whether some pass got far enough to complain, and the quieter one had no owner.
+  
+  **The finding.** A note whose type no pack in the resolved configuration claims now fails the build, named and located at its `type:` key in the project's diagnostic form:
+  
+  ```text
+  assets/content/Affiliations/fff-901-pentacle.md:6:7: error: no configured pack claims a note of type "affiliation", so it compiles into nothing. The "sohl" system compiles it into an Item, but `packs:` declares no Item pack and no `itemBuilders` registry declares "affiliation" — declare both in package-build.config.yaml, or stop authoring the type.
+  ```
+  
+  **Two conditions, two fixes.** The **vocabulary** — what this toolchain and the systems it ships know a note type to be — is deliberately wider than any one repository's configuration. `affiliation` is a SoHL Item however a given repository is configured, so a tree of `affiliation` notes with no Item pack behind them is a repository that has not finished configuring itself, and the message says which piece is missing. A type in **no** vocabulary is the other finding — nothing anywhere compiles it, so the fix is the note's `type:`, not the configuration. Collapsing the two would have sent `harn-ensemble` to correct five perfectly good notes.
+  
+  **#79's silence is preserved, and is why the question is asked once.** A markdown type with no mapping in a given system produces no document _for that system_, silently and correctly. A per-pass check would report every such type against every system that does not map it, which is exactly the noise that rule forbids — so the question is put once, to the whole configured pack list, and "no system claims it at all" is the only statement made. A type one system maps and another does not stays silent as long as some pack claims it.
+  
+  `engine/note-claims.mjs` holds the claim table, which restates each pass's `selects` in the only form that can be asked of a pack the configuration does **not** declare; the suite compares the two for every type in the vocabulary, so they cannot drift apart. `homepage` is exempt by name: it compiles into a page rather than a compendium document, and its absence from every pack is the intended state.
+  
+  **Measured before it became an error.** Against every content tree in the org, this adds findings to exactly one repository and exactly the notes it was filed for: `harn-ensemble` 2514 → 2519 errors, the five `affiliation` notes; `sohl-thalorna` 150 → 150; `sohl-kethira-basic` 0 → 0; `harn-adventures` 2 → 2; `Song-of-Heroic-Lands-FoundryVTT` 0 → 0, with its 3,126 compiled pack files and its whole diagnostic output byte-identical across the change.
+  
+  **Bump**
+  
+  _Minor._ No consumer that builds green today has to change anything to upgrade — the one repository that gains findings is already red for an unrelated reason, and its five findings are the defect this exists to surface rather than a new demand on it. A repository that was silently shipping nothing for a type will now be told so, which is the correction.
+- ad0cfd8: A map note's background art is `img:`, and `image:` is retired (#142).
+  
+  Every note type names its artwork `img` and carries it at the note's **top
+  level**. A map alone named it `image` and read it out of the `sohl:` block, so
+  one idea had two spellings with nothing to reconcile them — and the content
+  format specification had to hedge rather than state a rule.
+  
+  **`img` is now the name, at the top level.** `buildScene` and the place index
+  read `img` through `sohlField`, so it resolves the way every other note's art
+  does: the `sohl:` block first, then the note's own top level, which is where it
+  belongs. Art is not system-specific — a Scene is a core Foundry document and a
+  second system would want the identical one — so the field has no business inside
+  a system block. `docs/content-format.md` states that rule now, in place of the
+  callout that recorded the disagreement and pointed at this issue.
+  
+  **`image:` still compiles, and is reported.** This is the first of the three
+  steps `package:` took (#56): both spellings are read, `img` wins where a note
+  carries both, and a note still writing `image` gets a finding naming the file,
+  the line and the replacement. The sweep of the authored notes and the eventual
+  refusal are separate, later work — nothing has to be renamed to take this
+  release.
+  
+  **The finding is a warning, not an error.** A note writing `image` compiles to
+  the byte-identical document, so failing a build over it would red a tree that
+  has done nothing wrong on a key that still works. It is emitted on both paths an
+  author meets — the **compile**, which every consumer runs, and `content-build
+  lint` — so it is not a lint-only notice a project might never see.
+  
+  Two consequences worth knowing:
+  
+  | what                     | before                 | after                                                  |
+  | ------------------------ | ---------------------- | ------------------------------------------------------ |
+  | `content-build lint`     | any finding set exit 1 | only an **error** does; warnings are reported and pass |
+  | a map with no art at all | "needs an `image`"     | "needs an `img`"                                       |
+  
+  The exit-code change is `reportFindings`' existing rule applied to the lint
+  command rather than a second copy of it. Every finding was an error until now,
+  so it changed nothing the day it landed.
+  
+  Verified against the `sohl` content tree, whose three map notes still write
+  `image`: 3,126 compiled documents, byte-identical before and after, plus the
+  three warnings.
+
+### Patch Changes
+
+- 291f5b3: Declare `section` on a `doc` of subType `collection` (#170).
+  
+  The address engine already reads it — a collection is a section's landing page,
+  and `section` is the URL segment that page occupies — but the specification never
+  declared it, so nothing could check it and an author had no way to learn it
+  existed. Fifteen notes in `sohl-thalorna` carry it.
+  
+  Two things the declaration says that the code alone did not. **Two collections may
+  not claim the same segment**, so a collection listing a _subset_ of a section
+  names none and falls back to its own slug: five of that tree's collections list
+  places and three list affiliations, and they cannot all be `/place/`. And it is
+  **authored rather than derived** because a note's title is presentation — a
+  collection called "Creatures" heads the `being` section, and slugging the title
+  would put it somewhere else.
+- d6a6b0b: Route a `doc` note by its subtype, not by the retired `category` key (#168).
+  
+  `sectionOf()` read `fm.category`, and a `doc` is the one type that routes by its
+  subtype label rather than by its type — so when the content format retired
+  `category`, every `doc` note began answering `undefined` and, as the function's
+  own documentation says, _a `doc` with no section has no address and is not
+  published_. `sohl-thalorna` has 24 such notes and `sohl` has 128. The site build
+  emitted fewer pages and exited 0.
+  
+  Two further call sites read the same key: `landingOf()` tested
+  `category === "collection"`, so a collection stopped being a landing page and its
+  authored `section` — which is its URL segment — was ignored; and `site-build`
+  fell back to the tree's section rather than the note's.
+  
+  Four tests now cover a `doc` of each subtype, and one asserts that a note
+  carrying the retired key gets no section at all — the regression was visible only
+  by reading the source, which is what a test is for.
+- 42c03b6: **`content-build format --write` now formats to a fixpoint** (#125)
+  
+  `--write` formatted each file exactly once and reported success. Prettier's
+  `format` is _assumed_ idempotent and is not guaranteed to be, so a single pass
+  could leave text the next pass would still change — and the run would call such
+  a file formatted while `prettier --check` still rejected it. Each file is now
+  formatted repeatedly until it stops changing, capped at three passes, so what
+  lands on disk is what a second run would have produced.
+  
+  **A file that will not converge is reported, not written.** At the cap the file
+  is left exactly as it was and a diagnostic names it, because a formatting the
+  command cannot reproduce would otherwise churn the file on every run.
+  
+  **`--write` now surfaces its findings and fails.** It collected them and threw
+  them away, so a run that could not parse a file still printed
+  `Formatted N of M file(s).` and exited 0. It now emits each diagnostic and exits
+  1, which is the same channel the non-convergence report uses.
+
 ## 9.0.0
 
 ### Major Changes
