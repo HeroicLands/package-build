@@ -34,3 +34,9 @@ was wrong on all eight notes it touched in `sohl-thalorna`, since `azravan`,
 `barter` and `secret` each sit a typo's distance from a place tag while sitting
 on a faith, an economy note and three lore notes. Scoped to the types each group
 applies to, both authored trees report nothing.
+
+**A being's station is declared too**, and it is not a rank: which kind of body a
+person belongs to — the clergy, the soldiery, the tradesfolk — is a different
+axis from where they stand inside one, which `data.lore` carries by naming the
+rank. A tag holds the first, because a person may be several at once and because
+nothing ranks `clergy` against `mages`.

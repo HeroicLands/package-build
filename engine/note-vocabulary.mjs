@@ -270,6 +270,22 @@ export const DECLARED_TAGS = Object.freeze({
     }),
     /** A place's scale, where the subtype does not distinguish it. */
     placeScale: Object.freeze({ types: ["place"], tags: Object.freeze(["continent"]) }),
+    /** Which kind of body a being belongs to — a station rather than a rank. */
+    beingStation: Object.freeze({
+        types: ["being"],
+        tags: Object.freeze([
+            "tradesfolk",
+            "common-folk",
+            "soldiery",
+            "administration",
+            "clergy",
+            "mages",
+            "underworld",
+            "dependents",
+            "guilded",
+            "unguilded",
+        ]),
+    }),
     /** A note's working state, which any note may carry. */
     state: Object.freeze({ types: null, tags: Object.freeze(["draft"]) }),
 });
