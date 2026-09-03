@@ -287,9 +287,6 @@ name:
                 packages: new Set(["demo"]),
                 contentPackage: "demo",
                 skipDirectories: [],
-                // Where the package is served, and where its content tree
-                // mounts inside it. A page's URL *is* its address and hangs off
-                // the first; only a section landing takes the second (#181).
                 base: "/demo/",
                 mount: "/demo/kb/",
                 scheme: { prefix: "kb/", landing: "readme" },
