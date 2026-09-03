@@ -343,7 +343,7 @@ consumer keeps it somewhere else.
 **The configuration is resolved on first read, never at import.** Every module
 here can be imported — and `content-build --version` and `--help` answered — in a
 directory with no `package-build.config.yaml` and no Foundry package manifest, so
-a consumer can reach for one pure helper (`engine/content-slug`,
+a consumer can reach for one pure helper (`engine/content-address`,
 `engine/wikilinks`) without standing up a pack build. Anything derived from
 configuration is therefore an accessor rather than a hoisted constant —
 `loadPackConfig()`, `contentPackage()`, `foundryPackageId()`, `itemTypes()`,
@@ -1077,6 +1077,40 @@ vendored by other repositories and read as authoritative, so emitting one is a
 statement about this package. With the switch off the command fails rather than
 writing.
 
+### A page's URL is its address
+
+```text
+/<package>/<type>-<shortcode>/
+```
+
+`(type, shortcode)` names one note within a package — that is the rule
+`content-build lint` enforces — so the URL is **unique by construction**. There
+is no collision check behind it, there never can be one to fail, and renaming a
+note changes nothing: no part of the address comes from a display string.
+
+It used to come from `name.full`. That made a display name load-bearing three
+ways at once — a rename silently 404'd every inbound link, two notes in one
+section could derive the same URL so a uniqueness gate had to run, and long names
+had to be shortened through a table of 200 abbreviations. The header of the
+module doing it justified the cost by promising redirects "every change appends
+to the legacy-URL map" — and no such map was ever written, here or in any
+consumer. All of it is gone (#181).
+
+The `type-` half earns its place: it keeps every content address clear of the
+package's fixed mounts (`/<package>/` for the landing page, `/<package>/api/` for
+generated API docs), neither of which contains a hyphen or names a type. So the
+namespace is provably disjoint rather than conventionally so.
+
+**Sections stay, as directories.** Hugo derives a page's section from where the
+file is written, not from its URL, and that section is what gives a landing page,
+`.CurrentSection` and the per-section layout lookup. So a page is still written
+into `<section>/`, and carries a front-matter `url:` publishing it at its
+address. The two are free to differ, and do.
+
+**A landing page is the one exception**, because it is not addressed by
+`(type, shortcode)` at all: it _is_ its section, so it addresses the section —
+under the content mount, where the section directories live (`kb/rules/`).
+
 ### The address scheme
 
 Where the content tree mounts _inside the package_, and which note addresses a
@@ -1095,14 +1129,15 @@ publish:
     landing: readme # default: readme
 ```
 
-- **`prefix`** — the content tree's mount within the package. `sohl` publishes a
-  knowledgebase alongside generated API docs, so its notes sit under `kb/`
-  (`kb/affliction/aconite/`); `thalorna`'s site is nothing but its content, so it
-  has no prefix (`affiliation/the-aerarium-imperii/`). It must end in a slash and
+- **`prefix`** — the content tree's mount within the package: where its section
+  directories and their landing pages live. `sohl` publishes a knowledgebase
+  alongside generated API docs, so its sections sit under `kb/` (`kb/affliction/`)
+  while its pages address the package root (`affliction-aconite/`); `thalorna`'s
+  site is nothing but its content, so it has no prefix. It must end in a slash and
   must not begin with one — where the _package_ is mounted is the consuming
   build's knowledge and is never recorded here.
-- **`landing`** — which note is a section's landing page, and so has no slug of
-  its own:
+- **`landing`** — which note is a section's landing page, and so is addressed by
+  the section rather than by `(type, shortcode)`:
   - `readme` — a `README.md` addresses its section. A `doc` note then routes by
     its `category` like any other, so a `category: collection` note publishes
     under a literal `collection/` section.
@@ -1112,8 +1147,9 @@ publish:
   The two are alternatives rather than a pair that could both apply: each live
   content tree holds notes the other rule would move.
 
-A note the scheme yields no address for — a `doc` with no category, a collection
-note naming no section — is **reported and omitted**, never guessed. The command
+A note the scheme yields no address for — one carrying no `shortcode`, a `doc`
+with no subtype (so no section to be filed under), a collection note naming no
+section — is **reported and omitted**, never guessed. The command
 prints one located diagnostic per note and still writes the file, because a note
 with no address is ordinary while a manifest entry pointing at a page that does
 not exist is not.
@@ -1320,8 +1356,7 @@ after the links that failed because of it reads as a pile of broken notes.
 | Gate                   | What it catches                                                                    |
 | ---------------------- | ---------------------------------------------------------------------------------- |
 | Frontmatter wikilinks  | A link in frontmatter, which is copied verbatim and reaches the reader as `[[…]]`. |
-| Slugs                  | A name that yields no URL.                                                         |
-| Collisions             | Two notes claiming one page URL.                                                   |
+| Addresses              | A note with no shortcode to be addressed by, or no section to be filed under.      |
 | Unusable manifest      | A vendored manifest this build cannot read.                                        |
 | Unaddressable manifest | One it can read but cannot look anything up in.                                    |
 | Package conflicts      | One address claimed by two packages.                                               |
