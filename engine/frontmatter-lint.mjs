@@ -642,9 +642,16 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         // link index's own resolver, so a cross-package reference answered by a
         // vendored manifest lands exactly as the same address in a wikilink
         // would — rather than through a second, subtly different rule.
+        //
+        // **As an address, always.** The resolver's third argument chooses the
+        // namespace and has no fallback (#144): omitted, it reads the target as
+        // an *alias*, and `type-shortcode` is never an alias, so every value a
+        // `ref:` field carries was reported unresolvable (#176). A frontmatter
+        // reference is a bare address by construction — there is no pipe to
+        // read intent from, and the field supplies the type — so it says so.
         if (field.ref && index && typeof value === "string" && value) {
             const target = `${field.ref}-${value}`;
-            if (!index.resolve(note, target) && !index.manifestHit(target)) {
+            if (!index.resolve(note, target, true) && !index.manifestHit(target)) {
                 findings.push({
                     file: note.file,
                     ...at(head, value),
