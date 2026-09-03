@@ -57,6 +57,8 @@ import { contentPackage } from "./content-package.mjs";
 // The alias namespace: what a page may be called, and what happens when two
 // pages of one type claim one name (#131).
 import { aliasesOf, indexAliases } from "./alias-index.mjs";
+// The declared tag vocabulary (#172), which is where `draft` is stated.
+import { isDraftNote } from "./note-vocabulary.mjs";
 
 /**
  * One page the site will publish, as the index needs to see it.
@@ -79,10 +81,14 @@ import { aliasesOf, indexAliases } from "./alias-index.mjs";
  * The resolved index and everything a wikilink resolver reads beside it.
  *
  * @typedef {object} SiteIndex
- * @property {Map<string, {url: string, name?: string}>} index  Address → page.
+ * @property {Map<string, {url: string, name?: string, draft?: boolean}>} index
+ *                                       Address → page. `draft` says the page
+ *                                       carries the `draft` tag, which marks a
+ *                                       link *into* it (#183).
  * @property {Set<string>} ambiguous     Keys claimed by two pages, and so
  *                                       deliberately absent from `index`.
- * @property {Map<string, {url: string, name?: string}>} typeAlias  `type|alias`.
+ * @property {Map<string, {url: string, name?: string, draft?: boolean}>} typeAlias
+ *                                       `type|alias`.
  * @property {Set<string>} typeCollide   Type-scoped aliases claimed twice.
  * @property {Set<string>} contentTypes  Every type the resolver should read as
  *                                       an address qualifier, local and foreign.
@@ -198,7 +204,11 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     // `section/slug` is unique by construction; the rest are fallbacks.
     for (const e of entries) {
         sections.add(String(e.sec).toLowerCase());
-        const value = { url: e.url, name: e.name };
+        // `draft` rides on every key a page is addressable by, because a link
+        // into a draft note renders marked whichever of them the author wrote
+        // (#183). It decides nothing about resolution: the page is indexed and
+        // published as any other.
+        const value = { url: e.url, name: e.name, draft: isDraftNote(e.fm) };
         index.set(`${e.sec}/${e.slug}`.toLowerCase(), value);
         addFallback(index, ambiguous, e.name, value);
         if (!e.isReadme) {
@@ -233,7 +243,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
         if (e.kind !== "content") continue;
         const type = String(e.fm.type).toLowerCase();
         contentTypes.add(type);
-        const value = { url: e.url, name: e.name };
+        const value = { url: e.url, name: e.name, draft: isDraftNote(e.fm) };
 
         const shortcode = e.fm.shortcode;
         if (typeof shortcode === "string" && shortcode) {
