@@ -196,14 +196,14 @@ describe("what a homepage may still write", () => {
                     `type: ${HOMEPAGE_TYPE}`,
                     `shortcode: ${HOMEPAGE_SHORTCODE}`,
                     "weight: 30",
-                    "aliases:",
-                    "    - x",
+                    "cascade:",
+                    "    noindex: true",
                 ],
                 {
                     type: HOMEPAGE_TYPE,
                     shortcode: HOMEPAGE_SHORTCODE,
                     weight: 30,
-                    aliases: ["x"],
+                    cascade: { noindex: true },
                 },
             ),
         ).toEqual([]);

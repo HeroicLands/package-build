@@ -39,13 +39,13 @@ import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
-// The alias sources every index shares (#131).
-import { aliasesOf } from "./alias-index.mjs";
+// The one rule about a link's shape both builds share: it carries a label.
+import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
 // The declared tag vocabulary (#172), which is where `draft` is stated. Read
 // from there rather than respelt, so the tag and its one reader cannot drift.
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { emitDiagnostic, positionInBody } from "./diagnostics.mjs";
+import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one (#1504).
 // Re-exported here so every existing importer keeps its single import path.
@@ -432,7 +432,7 @@ import { assertTypeNotRetired, packForType } from "./ids.mjs";
  * @param {object} [router] - The pack router. Supplied by the calling pass so
  *   the index and the compile agree about where each note landed; defaults to
  *   this repository's own.
- * @returns {{byShortcode: Map, byAlias: Map}} From `buildWikilinkIndex`.
+ * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(contentBase, router = packRouter()) {
     const docs = [];
@@ -453,10 +453,6 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
             name: fm.name?.full ?? base,
-            // The shared alias sources (#131): `aliases`, `name.aliases` and
-            // `name.full`, and deliberately not the filename — see
-            // {@link aliasesOf} for what that admitted and why it went.
-            aliases: aliasesOf(fm),
             // Whether the note is tagged `draft` (#183). Read from the tag
             // vocabulary that declares it, and used for one thing: a link
             // *into* this note renders marked. It takes no part in resolution,
@@ -508,7 +504,8 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
  *   entry. Position is carried by `{ file, bodyLine, bodyColumn, lineMap }`,
  *   the last from {@link expandNoteTables}.
  * @returns {{markdown: string, unresolved: Array<object>}}
- * @throws {Error} On an ambiguous alias or a dead qualified address. The error
+ * @throws {Error} On any link that does not resolve — an unlabelled one, a
+ *   target that is not an address, or an address nothing publishes. The error
  *   carries `file` and `position`, so a caller reports it in the same form
  *   rather than re-deriving one.
  */
@@ -547,70 +544,46 @@ export function convertNoteWikilinks(
      * @returns {never}
      */
     const fail = (u, message) => {
-        const err = new Error(message);
+        const at = locate(u);
+        // A link this build wrote is not at any authored position, so say
+        // where it came from rather than implying an edit site.
+        const err = new Error(
+            at.generated ? `${message} Emitted by the content table on this line.` : message,
+        );
         err.file = file;
-        err.position = locate(u);
+        err.position = at;
         throw err;
     };
 
     for (const u of result.unresolved) {
-        // An ambiguous alias matched real content — twice. There is no
-        // defensible way to pick one, and the correction is mechanical: write
-        // the qualified form. So it fails rather than warning, which also puts
-        // the failure in front of whoever created the collision instead of
-        // leaving it in a log line attributed to an innocent citing note.
-        // The knowledgebase build has always treated this as fatal; agreeing
-        // means one authored note cannot get two verdicts (#13).
-        if (u.reason === "ambiguous") {
-            const claims = u.candidates ?? [];
-            const named =
-                claims.length ?
-                    claims.map((c) => `"${c.name}" (${c.type}-${c.shortcode})`).join(" and ")
-                :   "two or more notes";
-            fail(
-                u,
-                `ambiguous wikilink ${u.link} in "${name}" — claimed by ` +
-                    `${named}. Rename one alias, or address the intended one ` +
-                    `as [[type-shortcode|Text]].`,
-            );
+        // **Every link carries a label** (#180). The bare form named an alias,
+        // the alias namespace is retired, and nothing replaced it — so this is
+        // a defect in how the link is written and the correction is always the
+        // same. It fails rather than warning because one authored link must
+        // not get two verdicts: the link checker reports it as an error too.
+        if (u.reason === "unlabelled") {
+            fail(u, `${unlabelledLinkMessage(u.target)} — in "${name}".`);
         }
         // The author wrote a pipe, so they meant an address — and this target
         // is not one. Its own message, because the correction is its own: a
         // note *name* has to become an address, which is not the same job as
-        // fixing a shortcode that resolves nowhere (#131).
+        // fixing a shortcode that resolves nowhere.
         if (u.reason === "not-an-address") {
             fail(
                 u,
                 `wikilink ${u.link} in "${name}" is written as an address — ` +
                     `the "|" says so — but "${u.target}" is not one. Write ` +
-                    `[[type-shortcode|Text]], or drop the "|" to name it as ` +
-                    `an alias within this note's own type.`,
+                    `[[type-shortcode|Text]].`,
             );
         }
         // A qualified address resolving nowhere is a typo, now that every
-        // linkable package is either built here or vendored (#1499) — so it
-        // fails the note rather than degrading to text. A bare alias stays a
-        // warning: it may be ordinary prose that merely looks like a link.
-        if (u.addressed) {
-            fail(
-                u,
-                `unresolved address ${u.link} in "${name}" — no package ` +
-                    `publishes it. Fix the shortcode, or re-vendor that ` +
-                    `package's manifest into assets/manifests/.`,
-            );
-        }
-        const at = locate(u);
-        emitDiagnostic({
-            file,
-            line: at.line,
-            column: at.column,
-            severity: "warning",
-            message:
-                `unresolved wikilink ${u.link} (${u.reason}) in "${name}"` +
-                // A link this build wrote is not at any authored position, so
-                // say where it came from instead of implying an edit site.
-                (at.generated ? " — emitted by the content table on this line" : ""),
-        });
+        // linkable package is either built here or vendored (#1499).
+        fail(
+            u,
+            `unresolved address ${u.link} in "${name}" — no package ` +
+                `publishes it. Fix the shortcode, or re-vendor that ` +
+                `package's manifest into assets/manifests/.`,
+        );
     }
     return result;
 }

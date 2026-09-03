@@ -65,7 +65,6 @@ beforeAll(() => {
         `type: weapongear
 shortcode: dagger
 id: aaaaaaaaaaaaaaaa
-aliases: [weapongear-dagger, "A Fine Dagger"]
 name:
     full: Dagger`,
         "A blade. See [[weapongear-dagger|itself]].\n",
@@ -342,8 +341,9 @@ describe("what a page publishes with", () => {
     });
 
     it("drops an authored `aliases`", () => {
-        // Obsidian reads `aliases` as names; Hugo reads it as URL redirects, so
-        // passing them through would publish a redirect stub at each name.
+        // The field is retired and refused at compile (#180), so this is a
+        // guard rather than a live path: Hugo reads `aliases` as URL redirects,
+        // so passing one through would publish a redirect stub at each name.
         const data = pageFrontmatter(page as never, {});
         expect(data.aliases).toBeUndefined();
         expect(data.custom).toBe(1);

@@ -81,13 +81,12 @@ describe("buildLinkIndex", () => {
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
             "Rules/Moving.md": note({ type: "doc", shortcode: "moving" }),
         });
-        const src = index.notes.find((n) => n.type === "doc");
-        expect(index.resolve(src, "skill-clmb", true)?.fm.shortcode).toBe("clmb");
+        expect(index.resolve("skill-clmb")?.fm.shortcode).toBe("clmb");
     });
 
-    // The alias index is scoped to the source's own type, which is why the
-    // qualifier has to be read as well.
-    it("resolves a bare alias only within the source's own type", () => {
+    // An address is the only namespace, so it resolves the same wherever it is
+    // cited — and a note's *name* is not one (#180).
+    it("resolves an address from any note, and a name from none", () => {
         const { index } = audit({
             "Skills/Climbing.md": note({
                 type: "skill",
@@ -97,17 +96,15 @@ describe("buildLinkIndex", () => {
             "Skills/Jumping.md": note({ type: "skill", shortcode: "jmp" }),
             "Rules/Moving.md": note({ type: "doc", shortcode: "moving" }),
         });
-        const sameType = index.notes.find((n) => n.fm.shortcode === "jmp");
-        const otherType = index.notes.find((n) => n.type === "doc");
-        expect(index.resolve(sameType, "Climbing", false)?.fm.shortcode).toBe("clmb");
-        expect(index.resolve(otherType, "Climbing", false)).toBeUndefined();
+        expect(index.resolve("skill-clmb")?.fm.shortcode).toBe("clmb");
+        expect(index.resolve("Climbing")).toBeUndefined();
     });
 
     it("reads a wikilink with the shared syntax", () => {
         const { index } = audit({
             "Rules/A.md": note(
                 { type: "doc", shortcode: "a" },
-                "See [[skill-clmb|Climbing]] and [[#here]].",
+                "See [[skill-clmb|Climbing]] and [[#here|here]].",
             ),
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
         });
@@ -168,7 +165,7 @@ describe("auditLinks", () => {
 
     it("reports a same-page anchor no heading declares", () => {
         const r = audit({
-            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[#gone]]."),
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[#gone|there]]."),
         });
         expect(r.deadAnchors).toHaveLength(1);
     });

@@ -65,7 +65,7 @@ import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { isHomepage } from "./homepage.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoDraftField } from "./retired-fields.mjs";
+import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -232,6 +232,7 @@ export function collectManifestEntries(contentBase, ctx) {
             configured: ctx.contentPackage,
         });
         assertNoDraftField(fm, { file: rel, absPath });
+        assertNoAliasesField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
         // A homepage is addressed like every other note since #182, and a
         // shortcode alone would now put it here. It stays out for the reason it

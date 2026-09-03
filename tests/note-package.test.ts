@@ -452,7 +452,7 @@ describe("addresses are keyed from the configuration alone", () => {
         const root = tree("links");
         const index = buildLinkIndex(path.join(root, "assets/content"));
         // The package-qualified form is what a cross-package link writes.
-        expect(index.resolve({ type: "doc" }, `${OWN}-skill-clmb`, true)).toBeTruthy();
+        expect(index.resolve(`${OWN}-skill-clmb`)).toBeTruthy();
         expect(index.packages.has(OWN)).toBe(true);
     });
 

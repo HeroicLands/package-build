@@ -25,57 +25,48 @@ const DOCS = [
         id: "aaaaaaaaaaaaaaa1",
         shortcode: "shock",
         name: "Shock",
-        aliases: ["Shock", "Shock State"],
     },
     {
         type: "doc",
         id: "aaaaaaaaaaaaaaa2",
         shortcode: "bleeding",
         name: "Bleeding",
-        aliases: ["Bleeding"],
     },
     {
         type: "doc",
         id: "aaaaaaaaaaaaaaa3",
         shortcode: "coma",
         name: "Coma",
-        aliases: ["Coma"],
     },
-    // Shares the "Coma" alias with the doc above — ambiguous, so unusable bare.
     {
         type: "doc",
         id: "aaaaaaaaaaaaaaa4",
         shortcode: "extshock",
         name: "Extreme Shock",
-        aliases: ["Coma"],
     },
     {
         type: "skill",
         id: "bbbbbbbbbbbbbbb1",
         shortcode: "climb",
         name: "Climbing",
-        aliases: ["Climbing"],
     },
     {
         type: "being",
         id: "ccccccccccccccc1",
         shortcode: "condor",
         name: "Condor",
-        aliases: ["Condor"],
     },
     {
         type: "macro",
         id: "ddddddddddddddd1",
         shortcode: "rollit",
         name: "Roll It",
-        aliases: ["Roll It"],
     },
     {
         type: "containergear",
         id: "eeeeeeeeeeeeeee1",
         shortcode: "backpack",
         name: "Backpack",
-        aliases: ["Backpack"],
     },
 ];
 
@@ -167,11 +158,12 @@ describe("convertWikilinks", () => {
         expect(unresolved).toEqual([]);
     });
 
-    it("converts a bare link via a unique alias in the source's own type", () => {
-        const { markdown } = convert("worsens the [[Shock State]] of the victim");
+    it("reports an unlabelled link, keeping the author's prose (#180)", () => {
+        const { markdown, unresolved } = convert("worsens the [[Shock State]] of the victim");
         expect(markdown).toBe(
-            "worsens the @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock State} of the victim",
+            `worsens the ${'<span class="sohl-unresolved-link" title="Unresolved link: Shock State">Shock State</span>'} of the victim`,
         );
+        expect(unresolved[0]).toMatchObject({ reason: "unlabelled" });
     });
 
     it("crosses packs: a doc linking a skill reaches the items pack", () => {
@@ -229,18 +221,20 @@ describe("convertWikilinks", () => {
         );
     });
 
-    it("cannot resolve a bare alias that belongs to another type", () => {
-        const { markdown } = convert("[[Coma]]", {
+    it("resolves an address from any source type", () => {
+        // An address is not scoped to the citing note, so the same link means
+        // the same document wherever it is written (#180).
+        const { markdown, unresolved } = convert("[[doc-coma|Coma]]", {
             type: "skill",
             id: "bbbbbbbbbbbbbbb1",
         });
-        // "Coma" is not an alias of any skill — unresolvable from there.
         expect(markdown).toBe(
-            '<span class="sohl-unresolved-link" title="Unresolved link: Coma">Coma</span>',
+            "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa3]{Coma}",
         );
+        expect(unresolved).toEqual([]);
     });
 
-    it("leaves an ambiguous bare alias untouched and reports it", () => {
+    it("leaves an unlabelled link untouched and reports it", () => {
         const { markdown, unresolved } = convert("a [[Coma]] state");
         expect(markdown).toBe(
             `a ${'<span class="sohl-unresolved-link" title="Unresolved link: Coma">Coma</span>'} state`,
@@ -248,7 +242,7 @@ describe("convertWikilinks", () => {
         expect(unresolved).toHaveLength(1);
         expect(unresolved[0]).toMatchObject({
             target: "Coma",
-            reason: "ambiguous",
+            reason: "unlabelled",
         });
     });
 
@@ -398,7 +392,6 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
                     type: "docskill",
                     id: "fffffffffffffff1",
                     shortcode: "climb",
-                    aliases: [],
                 },
             ],
             "sohl",
@@ -419,10 +412,10 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         expect(hyphen.unresolved).toEqual([]);
     });
 
-    it("crosses types, which a bare alias cannot", () => {
-        // The alias index is scoped to the *source* note's type, so until the
-        // separator was understood this resolved only from a `doc` note and
-        // silently failed from every other type — 283 links at the time.
+    it("crosses types", () => {
+        // Until the separator was understood this resolved only from a `doc`
+        // note and silently failed from every other type — 283 links at the
+        // time.
         const fromSkill = { type: "skill", id: "bbbbbbbbbbbbbbb1" };
         const { markdown, unresolved } = convert("[[doc-shock|Shock]]", fromSkill);
         expect(markdown).toBe(
@@ -472,7 +465,6 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
                     type: "trauma",
                     id: "99999999999999a1",
                     shortcode: "self-pro",
-                    aliases: [],
                 },
             ],
             "sohl",
@@ -487,31 +479,17 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         expect(unresolved).toEqual([]);
     });
 
-    it("leaves a hyphenated bare alias alone — it is not a qualified target", () => {
-        // `Grukar-ahk` is a note *name*, not `type-shortcode`. A hyphen only
+    it("does not split a hyphenated *name* — it is not a qualified target", () => {
+        // `Grukar-ahk` is a note name, not `type-shortcode`. A hyphen only
         // qualifies when what precedes it is a known type, which is why the
-        // hyphen form cannot be treated as unconditionally qualified the way the
-        // slash form is.
-        const withDash = buildWikilinkIndex(
-            [
-                ...DOCS,
-                {
-                    type: "doc",
-                    id: "77777777777777a1",
-                    shortcode: "grukarahk",
-                    aliases: ["Grukar-ahk"],
-                },
-            ],
-            "sohl",
-        );
-        const { markdown, unresolved } = convertWikilinks("[[Grukar-ahk]]", {
-            ...from,
-            index: withDash,
-        });
+        // hyphen form cannot be treated as unconditionally qualified the way
+        // the slash form is. Written with a label it is a defect; the point
+        // here is that it is *not* read as `Grukar` + `ahk`.
+        const { markdown, unresolved } = convert("[[Grukar-ahk|the Ahk]]");
         expect(markdown).toBe(
-            "@UUID[Compendium.sohl.journals.JournalEntry.77777777777777a1]{Grukar-ahk}",
+            '<span class="sohl-unresolved-link" title="Unresolved link: Grukar-ahk">the Ahk</span>',
         );
-        expect(unresolved).toEqual([]);
+        expect(unresolved[0]).toMatchObject({ reason: "not-an-address" });
     });
 
     it("reports an unknown shortcode under a valid type", () => {
@@ -523,11 +501,10 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
     });
 });
 
-// An address written with an *empty* label — `[[x|]]`. Since #131 that is the
-// only unlabelled address form: an unpiped target is an alias, so what these
-// used to write as `[[doc-shock]]` is now `[[doc-shock|]]`, and it still shows
-// the target's own name.
-describe("convertWikilinks — an address with no label (#1409, #131)", () => {
+// An address written with an *empty* label — `[[x|]]`. It is the one form that
+// shows the target's own name rather than text the author wrote, so a rename
+// reaches every citation with no link edited.
+describe("convertWikilinks — an address with an empty label (#1409)", () => {
     it("shows a qualified target's document name, not its shortcode", () => {
         // `doc-shock` is an *address*, not prose: showing it to the reader
         // leaks the shortcode into the sentence.
@@ -563,14 +540,6 @@ describe("convertWikilinks — an address with no label (#1409, #131)", () => {
         );
     });
 
-    it("leaves a bare alias as the prose the author wrote", () => {
-        // The bare form *is* the sentence: substituting the canonical name
-        // would rewrite it ("worsens the Shock State" → "worsens the Shock").
-        expect(convert("worsens the [[Shock State]]").markdown).toBe(
-            "worsens the @UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock State}",
-        );
-    });
-
     it("prefers the author's label over the document name", () => {
         expect(convert("[[doc-shock|the Shock rules]]").markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{the Shock rules}",
@@ -584,7 +553,6 @@ describe("convertWikilinks — an address with no label (#1409, #131)", () => {
                     type: "doc",
                     id: "88888888888888a1",
                     shortcode: "nameless",
-                    aliases: [],
                 },
             ],
             "sohl",
@@ -624,7 +592,7 @@ describe("readQualifier — the optional package segment (#1499)", () => {
     });
 
     it("does not treat a note name as a package just because it has hyphens", () => {
-        // "Grukar-ahk" is an alias, not an address — the segment before the
+        // "Grukar-ahk" is a note name, not an address — the segment before the
         // hyphen has to be a package this build knows, and the remainder has to
         // parse as an address in its own right.
         expect(readQualifier("Grukar-ahk", TYPES, PACKAGES)).toBeNull();

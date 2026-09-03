@@ -19,13 +19,13 @@
  *
  *   `[[type-shortcode|Text]]`       → `[Text](/section/slug/)`
  *   `[[type-shortcode|]]`           → the same, showing the target's own name
- *   `[[Text]]`                      → the same, via a type-scoped alias
  *   `[[type-shortcode#slug|Text]]`  → `[Text](/section/slug/#slug)`
  *   `[[#slug|Text]]`                → `[Text](#slug)`
  *
- * **The pipe decides which namespace a target belongs to** (#131), with no
- * fallback either way — see {@link resolvesAsAddress}, which states the rule
- * for this build and the pack build together.
+ * **Every link is an address and carries a label** (#180). One written without
+ * a label addresses nothing and is reported — see
+ * {@link unlabelledLinkMessage}, which states the rule for this build and the
+ * pack build together.
  *
  * The KB *section* is not always the type: prose pages (`type: doc`) route by
  * their `category`, so `doc/quickstart` lands on `/user-guide/sohl-quickstart/`.
@@ -46,12 +46,9 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-type-shortcode` key, so a package-qualified address
 // is looked up the way a vendored manifest publishes it.
 import { canonicalKey } from "./kb-manifest.mjs";
-// The alias half of the two namespaces — the key rule, shared with the pack
-// build and the link checker (#131).
-import { aliasKey } from "./alias-index.mjs";
-// Which namespace a target belongs to. The pipe decides, and this is the one
-// place that says so.
-import { resolvesAsAddress } from "./wikilink-syntax.mjs";
+// The one rule about a link's shape both builds share: it carries a label, and
+// {@link unlabelledLinkMessage} is the one place that says so (#180).
+import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
 // One slug rule for the whole build — see `./content-slug.mjs`. This module
 // carried a copy that dropped non-ASCII letters rather than transliterating
 // them, so a link to a heading named `Kûrbúl Helm` pointed at `#k-rb-l-helm`.
@@ -240,27 +237,22 @@ function isPlainMap(value) {
 /**
  * Rewrites the wikilinks in a markdown body as KB-local markdown links.
  *
- * A target is looked up case-insensitively in **one** of two namespaces, and
- * the pipe chooses which (#131):
+ * **Every target is an address**, parsed by {@link readQualifier} and looked up
+ * case-insensitively in the KB-wide `ctx.index` (the canonical
+ * `package-type-shortcode`, `type/shortcode`, and the site's own
+ * `section/slug`), then in the vendored `ctx.foreign` manifests. A link written
+ * without a label addresses nothing at all and is reported as such (#180) —
+ * there is no second namespace left for it to name.
  *
- * - **Unpiped** — an alias scoped to the source's own **type**
- *   (`ctx.typeAlias`, keyed `type|alias`). A note's directory and `category`
- *   play no part.
- * - **Piped** — an address, parsed by {@link readQualifier} and looked up in
- *   the KB-wide `ctx.index` (the canonical `package-type-shortcode`,
- *   `type/shortcode`, and the site's own `section/slug`), then in the vendored
- *   `ctx.foreign` manifests.
- *
- * Neither falls back to the other, so the name/basename/slug fallbacks that
- * share `ctx.index` no longer answer for an address: only a slash-qualified
- * target reaches the raw key, which is what keeps `section/slug` addressable.
+ * Only a slash-qualified target reaches the raw key, which is what keeps
+ * `section/slug` addressable without a page's own slug answering for it.
  *
  * An unresolved target fails the build when it is a genuine intra-KB problem —
- * an ambiguous alias, a qualified `prefix/key` whose prefix is a real KB
- * section or content directory, or a **piped** target that is not an address
- * at all. Anything else is treated as an external reference — until every
- * package's manifest is present, after which any address resolving nowhere
- * fails too. Failures are collected in `ctx.errors`.
+ * an unlabelled link, an ambiguous address, a qualified `prefix/key` whose
+ * prefix is a real KB section or content directory, or a target that is not an
+ * address at all. Anything else is treated as an external reference — until
+ * every package's manifest is present, after which any address resolving
+ * nowhere fails too. Failures are collected in `ctx.errors`.
  *
  * Whether or not it fails the build, a target that resolves nowhere renders
  * through {@link unresolvedLink} rather than as bare prose (#1665): the author's
@@ -274,8 +266,8 @@ function isPlainMap(value) {
  * link to.
  *
  * @param {string} body - The markdown body.
- * @param {object} ctx - `{ index, typeAlias, collide, typeCollide, sections,
- *   contentTypes, packages, foreign, manifestsComplete, type, errors, src }`.
+ * @param {object} ctx - `{ index, collide, sections, contentTypes, packages,
+ *   foreign, manifestsComplete, type, errors, src }`.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type; `foreign`
  *   is the cross-package manifest index (#1446); `manifestsComplete` says
@@ -294,46 +286,43 @@ export function resolveWebWikilinks(body, ctx) {
         // (#113). One reading, from {@link authoredLabel}.
         const label = authoredLabel({ display });
 
+        // **Every link carries a label** (#180). Without one there is nothing
+        // to resolve against — the alias namespace a bare `[[Text]]` named is
+        // retired — and nothing to show either, a shortcode being an address
+        // rather than prose. Reported before the same-page form, because the
+        // rule is about how the link is *written*: `[[#slug]]` needs the pipe
+        // exactly as `[[skill-clmb]]` does.
+        if (!parsed.labelled) {
+            ctx.errors.push({ file: ctx.src, target: parsed.inner, reason: "unlabelled" });
+            return unresolvedLink(parsed.inner, parsed.inner);
+        }
+
         // `[[#section-slug|Text]]` — a section of this same page.
         if (isSamePage({ target, anchor })) {
             return `[${label ?? anchor}](#${slugify(anchor)})`;
         }
 
-        // **The pipe chooses the namespace, with no fallback either way**
-        // (#131). The two used to be tried in turn, so a note *name* that
-        // looked like an address resolved as one and a genuine address that
-        // resolved nowhere silently became a name lookup.
-        const addressed = resolvesAsAddress(parsed);
-        const typeKey = ctx.type ? aliasKey(ctx.type, target) : null;
         // The canonical separator (#1398) has to be resolved, not merely
-        // recognised. `null` here means the piped target is not an address at
-        // all, which is now a defect rather than a reason to try the aliases.
-        const hyphenKey = addressed ? qualifiedKey(target, ctx.contentTypes, ctx.packages) : null;
+        // recognised. `null` here means the target is not an address at all,
+        // which is a defect: there is no other namespace to try.
+        const hyphenKey = qualifiedKey(target, ctx.contentTypes, ctx.packages);
         const rawKey = target.toLowerCase();
         const hit =
-            addressed ?
-                ((hyphenKey ? ctx.index.get(hyphenKey) : undefined) ??
-                // `section/slug` is the site's own address for a page, and it
-                // is in the same map. Admitted only when the target carries a
-                // slash, which is what keeps the *alias* fallbacks sharing
-                // that map — a page's name, basename and slug — out of the
-                // address namespace.
-                (rawKey.includes("/") ? ctx.index.get(rawKey) : undefined) ??
-                // A manifest entry carries the same `{ url, name }` shape as a
-                // local one (#1446), so a cross-package hit needs no special
-                // case below. Local wins: a live build is authoritative and a
-                // vendored manifest can only be staler.
-                (hyphenKey ? ctx.foreign?.get(hyphenKey) : undefined))
-            : typeKey ? ctx.typeAlias.get(typeKey)
-            : undefined;
+            (hyphenKey ? ctx.index.get(hyphenKey) : undefined) ??
+            // `section/slug` is the site's own address for a page, and it is in
+            // the same map. Admitted only when the target carries a slash, so
+            // a page's bare slug cannot answer for an address.
+            (rawKey.includes("/") ? ctx.index.get(rawKey) : undefined) ??
+            // A manifest entry carries the same `{ url, name }` shape as a
+            // local one (#1446), so a cross-package hit needs no special case
+            // below. Local wins: a live build is authoritative and a vendored
+            // manifest can only be staler.
+            (hyphenKey ? ctx.foreign?.get(hyphenKey) : undefined);
         if (hit) {
-            // An address with no label has no prose to show (a shortcode is
-            // not display text), so the document's **current** name stands in
-            // and a rename shows at every citation. A bare `[[Text]]` is
-            // already the prose the author wrote — substituting the canonical
-            // name there would rewrite the sentence ("worsens the [[Shock
-            // State]]" must not render as "Shock").
-            const text = label ?? (addressed ? hit.name : target);
+            // An address with an *empty* label has no prose to show (a
+            // shortcode is not display text), so the document's **current**
+            // name stands in and a rename shows at every citation.
+            const text = label ?? hit.name;
             // A pack-only package publishes Foundry addresses and no pages
             // (#1516), so its entries carry no `path` and resolve to no URL.
             // The address is real — this is not a typo and must not fail the
@@ -373,17 +362,14 @@ export function resolveWebWikilinks(body, ctx) {
         // someone has to remember.
         const badAddress = ctx.manifestsComplete === true && hyphenKey !== null;
 
-        if (addressed && hyphenKey === null && !badQualified) {
-            // The author wrote a pipe, so they meant an address — and this is
-            // not one. Distinct from a dead address, because the fix is
-            // different: a name has to become an address, not be corrected
-            // (#131).
+        if (hyphenKey === null && !badQualified) {
+            // Every link is an address, and this is not one. Distinct from a
+            // dead address, because the fix is different: a name has to become
+            // an address, not be corrected (#180).
             ctx.errors.push({ file: ctx.src, target, reason: "not-an-address" });
-        } else if (
-            addressed ?
-                rawKey.includes("/") && ctx.collide.has(rawKey)
-            :   Boolean(typeKey && ctx.typeCollide.has(typeKey))
-        ) {
+        } else if (ctx.collide?.has(hyphenKey ?? rawKey)) {
+            // Two packages publish the short address, so it names neither; the
+            // author writes the package-qualified form.
             ctx.errors.push({ file: ctx.src, target, reason: "ambiguous" });
         } else if (badQualified || badAddress) {
             ctx.errors.push({
@@ -392,9 +378,9 @@ export function resolveWebWikilinks(body, ctx) {
                 reason: "broken type/shortcode",
             });
         }
-        // An unresolved *alias* stays soft: it may be ordinary prose, or a
-        // worldbuilding placeholder for a note not yet written. It still
-        // renders marked, so a reader can see a link was intended.
+        // Whether or not it failed the build, the link renders marked: the
+        // author's text is kept so the sentence still reads, and a reader can
+        // see that something was meant to be a link.
         return unresolvedLink(label ?? target, target);
     });
 }

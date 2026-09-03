@@ -24,23 +24,20 @@
  * scheme, the section a note is filed under, whether developer docs are part of
  * the site at all — those genuinely differ, and the two builds differ on all
  * three. So this takes *entries that already know their own URL* and does the
- * part that is the same everywhere: index them, index their aliases, merge the
- * foreign packages in, and report what cannot be addressed unambiguously.
+ * part that is the same everywhere: index them, merge the foreign packages in,
+ * and report what cannot be addressed unambiguously.
  *
- * **Three key spaces, one map.**
+ * **Two key spaces, one map**, and both are addresses. `section/slug` and
+ * `type/shortcode` are unique by construction, so they always resolve.
+ * `type/shortcode` is the authored form; the canonical
+ * `package-type-shortcode` is set alongside it, which is what a cross-package
+ * link and every merged foreign entry use (#1499).
  *
- * - `section/slug` and `type/shortcode` are unique by construction, so they
- *   always resolve. `type/shortcode` is the authored form; the canonical
- *   `package-type-shortcode` is set alongside it, which is what a cross-package
- *   link and every merged foreign entry use (#1499).
- * - A bare name, filename, or slug is a **collision-aware fallback**: a key
- *   that would map to two different pages is dropped and remembered, so
- *   `[[Name]]` on it fails the build rather than silently picking one. The
- *   author disambiguates with `[[section/slug|Label]]`.
- * - Aliases are indexed **scoped to their type**, which is what makes a bare
- *   `[[Shock]]` resolvable when "Shock" is both a rules page and a trauma item.
- *   Two notes *of the same type* sharing a name poison it, and the author
- *   writes `[[type/shortcode|Text]]`.
+ * **A page's *name* is not a key** (#180). It was, as one of a set of
+ * collision-aware fallbacks a bare `[[Name]]` was looked up in — which is what
+ * made two pages of one type forbidden from sharing a display name (#179). The
+ * bare form is retired, so the fallbacks answer nothing and the constraint they
+ * imposed is gone with them.
  *
  * **It reports rather than exits.** A build script owns its diagnostics and its
  * exit code; this returns what it found. That is the same rule the rest of the
@@ -54,9 +51,6 @@ import path from "node:path";
 import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
-// The alias namespace: what a page may be called, and what happens when two
-// pages of one type claim one name (#131).
-import { aliasesOf, indexAliases } from "./alias-index.mjs";
 // The declared tag vocabulary (#172), which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
@@ -85,11 +79,9 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  *                                       Address → page. `draft` says the page
  *                                       carries the `draft` tag, which marks a
  *                                       link *into* it (#183).
- * @property {Set<string>} ambiguous     Keys claimed by two pages, and so
- *                                       deliberately absent from `index`.
- * @property {Map<string, {url: string, name?: string, draft?: boolean}>} typeAlias
- *                                       `type|alias`.
- * @property {Set<string>} typeCollide   Type-scoped aliases claimed twice.
+ * @property {Set<string>} ambiguous     Short addresses claimed by two
+ *                                       packages, and so deliberately absent
+ *                                       from `index`.
  * @property {Set<string>} contentTypes  Every type the resolver should read as
  *                                       an address qualifier, local and foreign.
  * @property {Set<string>} sections      Section names, lowercased.
@@ -102,31 +94,6 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  */
 
 /**
- * Add a collision-aware fallback key.
- *
- * First writer wins *until* a second, different page claims the key — at which
- * point the key is removed and blacklisted, so neither page answers to it. That
- * is deliberate: resolving to whichever note happened to be walked first is a
- * silently wrong link, and a failed build is not.
- *
- * @param {Map<string, object>} index - The index being built.
- * @param {Set<string>} collide - Keys already found ambiguous.
- * @param {string} key - The candidate key, in any case.
- * @param {{url: string}} value - The page it would resolve to.
- */
-function addFallback(index, collide, key, value) {
-    const k = String(key).toLowerCase();
-    if (collide.has(k)) return;
-    const cur = index.get(k);
-    if (cur && cur.url !== value.url) {
-        index.delete(k);
-        collide.add(k);
-    } else if (!cur) {
-        index.set(k, value);
-    }
-}
-
-/**
  * Merge the packages this build does not publish into the local index.
  *
  * Every canonical key is globally unique, so a foreign manifest merges straight
@@ -137,14 +104,18 @@ function addFallback(index, collide, key, value) {
  * The short `type/shortcode` form is merged too, because a bare `[[doc-xyz]]`
  * carries no package and must still find a foreign note when exactly one
  * package publishes that address. Claimed by two, it is genuinely ambiguous and
- * the author writes the qualified form — the same rule the type-scoped aliases
- * use, one level out. **Local wins**: a live build is authoritative and a
+ * the author writes the qualified form. **Local wins**: a live build is
+ * authoritative and a
  * vendored manifest can only be staler, so a short key the local tree already
  * claims is left alone.
  *
  * @param {Map<string, object>} index - The local index, mutated.
  * @param {Map<string, {package: string, type?: string}>} foreignIndex - Merged in.
- * @returns {{key: string, package: string}[]} Addresses claimed twice.
+ * @returns {{conflicts: {key: string, package: string}[],
+ *   ambiguous: Set<string>}} The addresses two packages both claim outright,
+ *   and the short `type/shortcode` forms two foreign packages claim — those are
+ *   left out of the index, so a resolver can say *ambiguous* rather than
+ *   *nothing answers*.
  */
 function mergeForeign(index, foreignIndex) {
     const conflicts = [];
@@ -172,7 +143,7 @@ function mergeForeign(index, foreignIndex) {
     for (const [key, value] of short) {
         if (!index.has(key)) index.set(key, value);
     }
-    return conflicts;
+    return { conflicts, ambiguous };
 }
 
 /**
@@ -188,9 +159,6 @@ function mergeForeign(index, foreignIndex) {
  */
 export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     const index = new Map();
-    const ambiguous = new Set();
-    /** One entry per page, fed to {@link indexAliases} in a pass of its own. */
-    const aliasEntries = [];
     const contentTypes = new Set();
     const sections = new Set();
     const refIndex = new Map();
@@ -201,20 +169,22 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     const ownPackage = contentPackage();
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
-    // `section/slug` is unique by construction; the rest are fallbacks.
+    // `section/slug` is unique by construction. A page's name, filename and
+    // bare slug were indexed here too, as collision-aware fallbacks the bare
+    // `[[Name]]` form looked up; that form is retired and nothing consults
+    // them, so they are gone and with them the rule that two pages of a type
+    // may not share a name (#179, #180).
     for (const e of entries) {
         sections.add(String(e.sec).toLowerCase());
         // `draft` rides on every key a page is addressable by, because a link
         // into a draft note renders marked whichever of them the author wrote
         // (#183). It decides nothing about resolution: the page is indexed and
         // published as any other.
-        const value = { url: e.url, name: e.name, draft: isDraftNote(e.fm) };
-        index.set(`${e.sec}/${e.slug}`.toLowerCase(), value);
-        addFallback(index, ambiguous, e.name, value);
-        if (!e.isReadme) {
-            addFallback(index, ambiguous, path.basename(e.base, ".md"), value);
-        }
-        addFallback(index, ambiguous, e.slug, value);
+        index.set(`${e.sec}/${e.slug}`.toLowerCase(), {
+            url: e.url,
+            name: e.name,
+            draft: isDraftNote(e.fm),
+        });
     }
 
     // A foreign package may use a type this build has never seen. Seeding those
@@ -235,7 +205,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     // The corollary is that a conflict can only be reported against the keys
     // that exist at this point — the addressing ones, `section/slug` and the
     // bare fallbacks — which is precisely the overlap worth refusing.
-    const conflicts = mergeForeign(index, foreignIndex);
+    const { conflicts, ambiguous } = mergeForeign(index, foreignIndex);
 
     for (const e of entries) {
         // A page with no type or shortcode — a developer doc — is addressable
@@ -273,36 +243,11 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
                 index.set(`doc${type}/${shortcode}`.toLowerCase(), value);
             }
         }
-
-        // The alias sources are the shared ones — `aliases`, `name.aliases`
-        // and `name.full`, and deliberately **not** the filename (#131) — plus
-        // this page's display name, which is what `name.full` becomes on the
-        // site and is carried here already resolved.
-        aliasEntries.push({
-            type,
-            aliases: [...aliasesOf(e.fm), e.name],
-            value,
-        });
     }
-
-    // Built in one pass at the end, by the shared rule, so a collision is a
-    // reportable fact rather than a silently deleted key. Two pages of one
-    // type sharing an alias resolve to neither, and `aliasCollisions` names
-    // every claimant — the citing page is innocent (#13, #131).
-    const {
-        byKey: typeAlias,
-        collisions: aliasCollisions,
-        claims: aliasClaims,
-    } = indexAliases(aliasEntries, { same: (a, b) => a.url === b.url });
-    const typeCollide = new Set(aliasCollisions.map((c) => c.key));
 
     return {
         index,
         ambiguous,
-        typeAlias,
-        typeCollide,
-        aliasCollisions,
-        aliasClaims,
         contentTypes,
         sections,
         packages,
@@ -323,8 +268,8 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  * @param {object} options - Per-page inputs.
  * @param {string} options.src - Source path of the page being resolved, for
  *   diagnostics.
- * @param {string|null} [options.type] - The citing note's type, which scopes a
- *   bare alias lookup.
+ * @param {string|null} [options.type] - The citing note's type, carried for a
+ *   consumer's own diagnostics.
  * @param {object[]} options.errors - Collector the resolver appends to.
  * @param {Map<string, object>} [options.foreignIndex] - The foreign index, for
  *   resolvers that distinguish a foreign hit from a local one.
@@ -343,8 +288,6 @@ export function wikiContext(
         manifestsComplete,
         collide: built.ambiguous,
         sections: built.sections,
-        typeAlias: built.typeAlias,
-        typeCollide: built.typeCollide,
         contentTypes: built.contentTypes,
         packages: built.packages,
         type,

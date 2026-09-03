@@ -77,7 +77,7 @@ import {
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoDraftField } from "./retired-fields.mjs";
+import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
@@ -770,6 +770,11 @@ export class BasePackCompiler {
             // - `draft:` (#69): it excluded the note from the packs, the
             //   manifest and the site, and no checker reported the links that
             //   left dangling.
+            // - `aliases:` (#180): it fed the alias index, which the bare
+            //   `[[Alias]]` form was looked up in; the form is retired, so the
+            //   list has no reader left. The nested `name.aliases` is a
+            //   different field and is **not** refused — it is reserved, and
+            //   deliberately neither read nor validated.
             //
             // Both are reported and counted — never skipped, which is how a
             // tree naming a package nothing answers to used to compile zero
@@ -778,6 +783,7 @@ export class BasePackCompiler {
             try {
                 assertNoDeclaredPackage(fm, { absPath });
                 assertNoDraftField(fm, { absPath });
+                assertNoAliasesField(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;

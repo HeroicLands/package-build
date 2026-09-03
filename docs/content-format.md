@@ -246,49 +246,48 @@ resolution with nothing to say so.
 `type/shortcode` with a slash is the legacy form, still resolved so links written
 before the vault migrated do not silently die. A slash is _unconditionally_ an
 address separator — pipe or no pipe — so an unknown type before one is an error
-rather than a fallback to the alias index.
+rather than something to guess at.
 
-#### The pipe decides how a target resolves
+#### Every link is an address, and every link carries a label
 
-There are two namespaces, and the pipe says which one to consult:
+There is one namespace, and the pipe is required:
 
 | written              | resolved as | displays                   |
 | -------------------- | ----------- | -------------------------- |
-| `[[Alias]]`          | an alias    | the alias, as written      |
 | `[[WikiLink\|]]`     | an address  | the target note's own name |
 | `[[WikiLink\|Text]]` | an address  | `Text`                     |
+| `[[Name]]`           | nothing     | a finding                  |
 
-**No pipe means look this up in the alias index. A pipe means parse this as an
-address.** The two never compete, and neither falls back to the other: a failure
-in one namespace is a dead link, not an invitation to try the other.
+**A link written without a label addresses nothing** (#180), and the correction
+is always the same: write `[[type-shortcode|Text]]`.
 
-That is what makes positional parsing safe. Note names contain hyphens —
-`Grukar-ahk` is a name, not a `Grukar` of type `ahk` — and under a
-resolve-by-shape rule the reader would have to consult the type vocabulary before
-it dared split. Under the pipe rule it never faces the question: an unpiped
-target is taken whole, hyphens and all, and only a piped target is ever split.
+The bare form used to name an **alias** — a note's own display name, or one of
+the names it listed in `aliases:` — looked up within the citing note's type. It
+was measured before it was retired, and the namespace was empty in practice:
+across 8,305 wikilinks in three content trees, **not one** bare link resolved to
+a note. What the index behind it did do was fold every note's `name.full` into
+itself, so two notes of one type could not share a display name — a rules page
+and a user-guide page both called "Gear" were a build failure whose every
+available fix moved a published URL (#179).
 
-The empty label is not an oversight and not a way of writing no label. It says
-_address this target, and show whatever it calls itself_ — so a note renamed later
-takes its new name at every citation with no link edited. Omitting the pipe says
-something else entirely: the phrase in the brackets is the alias, and the alias is
-also what the reader sees.
+The top-level `aliases:` that fed it is **retired** and refused. The nested
+`name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
+it is permitted and read by nothing — no index, no resolver, no lint rule, no
+derived address. A note carrying one behaves exactly as one without it.
 
-So the two are worth keeping distinct even though both display a name: one is a
-promise to follow the target, the other is a phrase the author chose.
+Requiring the label is also what makes positional parsing safe. Note names
+contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
+target that does not parse as an address is reported as one that does not, rather
+than split at an arbitrary place or quietly looked up somewhere else.
 
-#### An alias resolves only within its own type
+The **empty** label is not a way of writing no label. It says _address this
+target, and show whatever it calls itself_ — so a note renamed later takes its new
+name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not.
 
-A bare `[[awareness]]` in a `skill` note finds the `skill` whose alias is
-`awareness` — not an `affliction` that happens to share the name. The alias index
-is keyed by `(source note's type, alias)`, so the same word may be an alias in
-several types without colliding.
+The link part may still be an anchor: `[[#slug|Text]]` addresses a section of the
+page it is written on. It is the label that is required, not a target.
 
-Two notes of the **same** type claiming one alias is an error, and the report
-names the claimants rather than the note that merely cited them. An ambiguous
-alias never resolves to whichever was indexed first.
-
-#### In frontmatter, a link is a bare address — never an alias
+#### In frontmatter, a link is a bare address
 
 A `WikiLink` **field** takes the address with no brackets:
 
@@ -303,17 +302,10 @@ not `[[hexhodai]]`. The field is declared as a `WikiLink`, so the schema already
 knows the value is an address and reads it as one; brackets would be punctuation
 the reader has to strip before it can do anything.
 
-**Aliases are not permitted here.** A frontmatter value is always parsed by the
-address grammar above, so a single-segment value such as `hexhodai` is a
-_shortcode_, not an alias — the same spelling means different things in a
-frontmatter field and in body prose, and this is the rule that says which.
-
-The reason is that frontmatter is structure rather than prose. An alias is an
-authorial convenience for writing a sentence that reads well; a field value is a
-reference something else will compile against, and it should say exactly what it
-points at. There is also nowhere to put the pipe: the distinction body text draws
-with punctuation has no equivalent in a YAML scalar, so the region as a whole
-picks one namespace and keeps it.
+A frontmatter value is parsed by the address grammar above, so a single-segment
+value such as `hexhodai` is a _shortcode_. Frontmatter is structure rather than
+prose: a field value is a reference something else will compile against, and it
+should say exactly what it points at.
 
 **The field supplies the type.** Every `WikiLink` field declares the note type it
 targets — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
@@ -350,15 +342,10 @@ So the ladder has one rung where the field helps and three where it only checks:
 a bare shortcode takes its type from the declaration, and every longer form
 states the type itself and is verified against it.
 
-This also settles the alias question on its own. Aliases resolve within the
-_source_ note's type, and a field almost always points at a different type — a
-being's `stations` are `lore` notes — so an alias in a field would be looked up
-in the wrong namespace even where one existed to find.
-
 This is enforced rather than merely preferred: the build walks every frontmatter
-value, reports each bracketed link it finds, each value that resolves only as an
-alias, and each value whose qualification contradicts its field. A successful run says so — _no wikilink in frontmatter_ is part
-of what `content-build links` reports when it passes.
+value, reports each bracketed link it finds, and reports each value whose
+qualification contradicts its field. A successful run says so — _no wikilink in
+frontmatter_ is part of what `content-build links` reports when it passes.
 
 Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
@@ -366,21 +353,16 @@ from.
 
 #### Not yet implemented
 
-Two rules in this section are settled but unbuilt, and describe the target rather
+One rule in this section is settled but unbuilt, and describes the target rather
 than current behaviour:
 
 - **The `<system>` segment.** `readQualifier` reads package, type and shortcode;
   there is no system segment. A four-segment target today parses as
   `package-type-shortcode` with a hyphenated shortcode, or fails.
-- **The pipe rule.** Today the pipe affects only the _label_: resolution runs the
-  same either way, trying the address first and falling back to the alias — so a
-  target is read by shape rather than by punctuation, and an author cannot say
-  which of the two they meant.
-
-The corpus is close to the rule already. Of 12,056 links, 10,413 are
-`[[type-shortcode|Label]]`, which is correct as written. Two authored links use
-an unpiped multi-segment target, and 69 use a pipe with a note name where an
-address belongs; those are the migration.
+  The corpus is close to the rule already. Of 12,056 links, 10,413 are
+  `[[type-shortcode|Label]]`, which is correct as written. Two authored links use
+  an unpiped multi-segment target, and 69 use a pipe with a note name where an
+  address belongs; those are the migration.
 
 ### What a note produces
 

@@ -37,9 +37,7 @@ function ctx(overrides = {}) {
             ["rules/sohl-shock", shock],
             ["doc/shock", shock],
         ]),
-        typeAlias: new Map<string, object>([["doc|shock state", shock]]),
         collide: new Set<string>(),
-        typeCollide: new Set<string>(),
         sections: new Set<string>(["rules"]),
         contentTypes: new Set<string>(["doc", "skill", "docskill"]),
         type: "doc",
@@ -106,9 +104,12 @@ describe("the web resolver honours an empty label (#113)", () => {
         expect(web("[[doc-shock|Shock State]]")).toBe("[Shock State](/rules/sohl-shock/)");
     });
 
-    // #1409: a bare `[[Text]]` is already the prose the author wrote, so the
-    // canonical name must not be substituted there. Unchanged by this fix.
-    it("keeps an unlabelled alias showing the author's own prose", () => {
-        expect(web("[[Shock State]]")).toBe("[Shock State](/rules/sohl-shock/)");
+    // An unlabelled link addresses nothing at all now (#180), so it renders
+    // marked rather than resolving — but the author's prose is still what it
+    // shows, which is the half of #1409 that survives.
+    it("keeps an unlabelled link showing the author's own prose", () => {
+        const out = web("[[Shock State]]");
+        expect(out).toContain("sohl-unresolved-link");
+        expect(out).toContain("Shock State");
     });
 });
