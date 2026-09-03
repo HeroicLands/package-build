@@ -565,9 +565,13 @@ subType
 
 - Autocracy: a single person holds unchecked authority, however acquired
 - Monarchy: one ruler legitimated by descent, election, or sacred office
-- Oligarchy: a small closed group rules, whether by birth, wealth, or rank
+- Oligarchy: a small closed group rules, whether by birth, wealth, or rank — membership is not
+  conferred by election and its authority is not held for a term
+- Republic: sovereignty rests in the citizen body and is exercised through offices held for a fixed
+  term by election, which a ruling class supplies the holders of in practice
 - Council: a deliberating body governs collectively with no single head
-- Democracy: the general membership decides, directly or through representatives
+- Democracy: the general membership decides, directly or through representatives, and any member may
+  hold office
 - Theocracy: authority derives from divine mandate and rests with its clergy
 - Meritocracy: position is earned by demonstrated skill, achievement, or expertise
 - Stratocracy: the armed force is itself the government
@@ -575,32 +579,68 @@ subType
 - Confederation: autonomous members retain sovereignty under a weak common center
 - Anarchic: no formal governing authority — custom or force fills the gap
 
-| `data` property      | Values            | Description                                                               |
-| -------------------- | ----------------- | ------------------------------------------------------------------------- |
-| `templatePriority`   | `number`          | Template priority, _null_ = not a template                                |
-| `demonym`            | `string`          | What a member of this affiliation is called (a Vylarian)                  |
-| `government.model`   | `GovernanceModel` | Type of government structure, if applicable                               |
-| `government.summary` | `string`          | summary of the governance situation                                       |
-| `languages`          | `WikiLink[]`      | Official languages (skills)                                               |
-| `seat`               | `WikiLink`        | Where the affiliation's authority sits                                    |
-| `domain`             | `WikiLink[]`      | Places over which this affiliation holds sway                             |
-| `population`         | `number`          | Number of people in the affiliation                                       |
-| `pantheons`          | `WikiLink[]`      | Official or dominant religious pantheons (affiliations)                   |
-| `peoples`            | `WikiLink[]`      | People (lore) who are associated with the affiliation                     |
-| `parents`            | `WikiLink[]`      | Affiliations that this affiliation is subordinate to                      |
-| `relations`          | `Relation[]`      | Relations with other affiliations                                         |
-| `society`            | `string`          | The kind of social order the affiliation operates within (feudal, tribal) |
-| `office`             | `string`          | **Membership.** The office a member holds within it                       |
-| `title`              | `string`          | **Membership.** The title a member bears (Veteran, Sir)                   |
-| `level`              | `number`          | **Membership.** The member's rank within it                               |
+**Republic, Oligarchy and Democracy are three answers to one question**, and the
+boundaries are testable rather than a matter of taste. Ask who fills the offices
+and on what terms. If a closed group holds authority outright, with no election
+and no term, it is an **Oligarchy**. If offices are elective and time-limited but
+a propertied or senatorial order supplies nearly everyone who holds them, it is a
+**Republic**. If any member may hold office and the general body decides, it is a
+**Democracy**.
 
-Thirteen of those describe the **organisation**; three describe a **membership**.
-`office`, `title` and `level` have no value on an affiliation as a catalogue
-entry — they are filled when the affiliation is embedded on a being to record
-that being's standing in it. That is why the 199 authored affiliation notes leave
-all three null.
+The distinction is not academic: it is the difference between a ladder whose top
+rungs are a class one is born or bought into, and one whose top rungs are an
+office one is voted into and then vacates. A republic's ladder therefore carries
+**both** — the civic status (Citizen) and the standing in the governing body above
+it (Senator) — because a citizen is not a member of the Senate, and conflating the
+two is the commonest way to get a non-monarchy wrong.
 
-**`domain` is territorial, and only territorial.** Seventy-seven divine
+**Rank**
+Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
+
+| Property      | Values | Description                                                                                                                          |
+| ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string | Title associated with the Rank                                                                                                       |
+| `description` | string | Description of the Rank                                                                                                              |
+
+**Standing**: aligned, unaligned, rival, nemesis
+
+| `data` property      | Values                    | Description                                                                                                |
+| -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
+| `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
+| `governance.model`   | `GovernanceModel`         | Type of government structure, if applicable                                                                |
+| `governance.summary` | `string`                  | summary of the governance situation                                                                        |
+| `governance.ranks`   | `Rank[]`                  | The ranks available to members of the affiliation                                                          |
+| `governance.offices` | `Map<name, description>`  | Official offices in the affiliation                                                                        |
+| `commonSkills`       | `WikiLink[]`              | Common skills among members (languages, etc.)                                                              |
+| `seat`               | `WikiLink`                | Where the affiliation's authority sits                                                                     |
+| `domains`            | `WikiLink[]`              | Places over which this affiliation holds sway                                                              |
+| `population`         | `number`                  | Number of people in the affiliation (precision 2 significant digits).                                      |
+| `economy`            | `WikiLink[]`              | Any wikilink referring to the economic activity of the affiliation (produced goods, currency systems, etc) |
+| `peoples`            | `WikiLink[]`              | People (lore) who are associated with the affiliation                                                      |
+| `parents`            | `WikiLink[]`              | Affiliations that this affiliation is subordinate to                                                       |
+| `relations`          | `Map<WikiLink, Standing>` | Relations with other affiliations                                                                          |
+
+**Every one of those describes the organisation.** A membership — which office a
+being holds, what title it bears, where it stands on the ladder — is recorded on
+the affiliation _as embedded on that being_, and nothing about it belongs in the
+catalogue entry. That is the split `governance` draws: the organisation publishes
+the ranks and offices that exist, and a membership names which of them it holds.
+
+**Rank is the organisation's, not the member's.** A bare `level: 4` on a
+membership says nothing on its own; it means _Knight_ only because the polity
+declared that rung. So the ladder is authored once, on the body that confers it,
+and a member's rank is an index into it. Level 0 is reserved for the excluded —
+outlawed, expelled, excommunicated — which is a standing the organisation still
+recognises, and so still has to define.
+
+**Offices are named, not ranked.** A Chancellor and a Marshal are both great
+officers and neither is above the other, so an office is a key with a
+description rather than a rung — and a being may hold an office at any rank, or a
+rank with no office at all.
+
+**`domains` is territorial, and only territorial.** Seventy-seven divine
 affiliations currently spell `domain:` the other way, holding a deity's sphere of
 influence as prose — _Love, Beauty, and Prosperity_; _Fertility, Agriculture,
 Peace, and Healing_. That sense **folds into `description`**, which those notes
@@ -621,13 +661,16 @@ If `sohl` is present, this becomes an `affiliation` item.
 | ---------------- | ------------------ | ----- |
 | `subType`        | `system.subType`   | NA    |
 | `data.seat`      | `system.seat`      | NA    |
-| `data.domain`    | `system.domain`    | NA    |
+| `data.domains`   | `system.domain`    | NA    |
 | `data.parents`   | `system.parents`   | NA    |
 | `data.relations` | `system.relations` | NA    |
-| `data.society`   | `system.society`   | NA    |
-| `data.office`    | `system.office`    | NA    |
-| `data.title`     | `system.title`     | NA    |
-| `data.level`     | `system.level`     | NA    |
+
+`governance` reaches no system field. Ranks and offices are the note's and the
+web page's — SoHL's affiliation item has nowhere to put them, and inventing a
+mapping for a field no schema declares is the drift these tables exist to catch.
+`system.society`, `system.office`, `system.title` and `system.level` are
+likewise absent here: they are filled on an embedded membership, never from a
+catalogue note's `data:`.
 
 ### type: affliction
 
@@ -679,7 +722,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
-### type: armor
+### type: armorgear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
@@ -725,7 +768,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
 
-### type: concoction
+### type: concoctiongear
 
 **subType**:
 
@@ -811,6 +854,7 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 - boost: One or more temporary mastery boosts to an associated skill (Mastery Boost table).
 - fate: A mystery that quantifies the ability to alter destiny or fate.
 - grace: A mystery that quantifies ability to call effectually on divine favor.
+- birthsign: A mystery that describes the arcane sign under which the being was born.
 - other: A mystery that does not fit into the other predefined categories.
 - piety: A mystery that quantifies devotion to a religion.
 
@@ -883,7 +927,7 @@ If `hm3.type` is specified, it must be `psionic`, `spell` or `invocation`.
 | `data.charges.value`    | `system.charges.value`        | NA            |
 | `data.charges.max`      | `system.charges.max`          | NA            |
 
-### type: projectile
+### type: projectilegear
 
 **subTypes**:
 
@@ -981,7 +1025,7 @@ If an `hm3` property is present, an HM3 item is created. `hm3.type` must be spec
 | ------------- | ---------------- | ----- |
 | `subType`     | `system.subType` | NA    |
 
-### type: weapon
+### type: weapongear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
@@ -1024,6 +1068,8 @@ subType:
 - material: Substances and their properties — minerals, reagents, herbs, and preparations.
 - folk: Related sapient beings of a single or tightly related species: kindreds, ancestries.
 - culture: A social grouping of individuals with common beliefs, mores, and values.
+- bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
+  that were never born. What `folk` covers for the sapient, this covers for everything else.
 
 | `data` property | Values | Description |
 | --------------- | ------ | ----------- |
@@ -1214,7 +1260,14 @@ subType:
 
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - user-guide: How to operate the Foundry implementation to play by the rules.
-- reference: Out-of-world lookup material about the setting or system — correspondences, conversions, indexes, glossaries.
+- reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
+- collection: A note whose content is **derived from the tree** — a roster, a table of
+  settlements, an index of languages, almost always a query. It differs from `reference` in
+  where its content comes from, not in who reads it: a reference **states** facts of its own,
+  and a collection **derives** them. The author's test is whether the page would still say
+  anything if every other note vanished. A collection can therefore collect nothing and still
+  render — an empty table looks exactly like a full one until you read it — which is the
+  failure this value exists to make nameable.
 
 ### type: macro
 
