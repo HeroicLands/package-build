@@ -1091,6 +1091,12 @@ it a document rather than a field.
 A map may also exist with no place at all — an ambush on a road is an encounter
 map and not a named location.
 
+**The place is named on the map, not the other way round.** A place commonly has
+several maps, so listing them from the place is the end that goes stale; naming
+the place from the map is the end that cannot, because a map is written once and
+depicts what it depicts. A place's maps are therefore derived — every map whose
+`place` is this one — and the relation exists in exactly one place.
+
 subType:
 
 - battlemap: Tactical scale, for a scene played out square by square.
@@ -1119,6 +1125,7 @@ The `data:` fields, of which three are required:
 | `tiles`           | `Tile[]`         | List of tiles                                                                                                                                                  |
 | `sounds`          | `Sound[]`        | List of sounds                                                                                                                                                 |
 | `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                          |
+| `place`           | `WikiLink`       | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere   |
 | `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                            |
 
 Everything else a Scene holds is **derived**, not authored: padding, grid type,
@@ -1196,16 +1203,35 @@ subType:
 - structure: A single building or habitation — halls, keeps, temples, inns, towers.
 - feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
 
-| `data` property | Values       | Description                                                                              |
-| --------------- | ------------ | ---------------------------------------------------------------------------------------- |
-| `demonym`       | `string[]`   | The name for a person from a particular place                                            |
-| `peoples`       | `WikiLink[]` | The peoples (lore) who populate the place — kindreds and cultures, not individuals       |
-| `parents`       | `WikiLink[]` | Enclosing places within which this place is located                                      |
-| `maps`          | `WikiLink[]` | Maps associated with this place                                                          |
-| `summary`       | `string`     | Summary description of the place                                                         |
-| `population`    | `number`     | approximate population of the place                                                      |
-| `languages`     | `WikiLink[]` | Languages (skill) spoken in the place                                                    |
-| `affiliations`  | `WikiLink[]` | Affilliations associated with this place (e.g., arcane/divine traditions, polities, etc) |
+| `data` property | Values       | Description                                                                  |
+| --------------- | ------------ | ---------------------------------------------------------------------------- |
+| `demonym`       | `string`     | What a person from this place is called — a Vylarian                         |
+| `lore`          | `WikiLink[]` | Lore concerning this place — its peoples, its law, its calendar, its history |
+| `parents`       | `WikiLink[]` | Enclosing places within which this place is located                          |
+| `population`    | `number`     | Approximate population (precision 2 significant digits)                      |
+
+**A place declares only what is true of ground.** Four properties were removed
+because they were true of something else, and each removal has a home to go to.
+
+**`languages` is a fact about a polity.** A place's languages change when its
+ruler changes, which is what makes them the ruler's property — and
+`affiliation.commonSkills` already holds them. The authored corpus agrees: of 206
+places carrying `languages`, 190 were settlements and 16 were regions, and not one
+was a site, a structure or a feature. A ruin has no language.
+
+**`peoples` widens to `lore`.** It was the only lore-pointing property a place
+had, so a place with a calendar, a body of law or a local history had nowhere to
+cite it. Nothing is lost by widening: the target's own subType already
+distinguishes a `folk` from a `law`, which is the same reason `affiliation`
+carries no `pantheons`.
+
+**`summary` duplicated `description`**, which every note already has and which is
+what the page renders.
+
+**`affiliations` and `maps` were the wrong end of a relation.** `affiliations` is
+the inverse of `affiliation.domains`, and a relation authored from both ends
+drifts the moment one is edited. `maps` moves onto the map, which now names the
+place it depicts — see `type: map` below.
 
 ### type: scenario
 
