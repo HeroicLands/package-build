@@ -19,9 +19,18 @@ notes of one type could not share a display name — five `doc` notes in the `so
 tree collided, and every available fix moved a published URL (#179). The rule had
 never prevented a broken link; it had only ever forbidden a name.
 
-**`aliases:` and `name.aliases:` are retired fields.** They fed nothing else, so
-they are now **refused** naming the file and the line, the same way `draft:` and
+**The top-level `aliases:` is a retired field.** It fed nothing else, so it is
+now **refused** naming the file and the line, the same way `draft:` and
 `package:` are, and reported by the frontmatter lint as well as at compile.
+
+**`name.aliases` is kept, and is read by nothing.** It fed the same index and
+lost the same reader, but it is **reserved** — held for a use that does not
+exist yet — so it is deliberately neither retired nor consulted. No index folds
+it in, no rule validates it, nothing derives a name, address or URL from it, and
+the refusal above never mentions it. A note carrying one compiles, resolves and
+addresses exactly as the same note without it, and `tests/name-aliases-reserved.test.ts`
+pins that equivalence across the pack compile, both wikilink resolvers, the link
+manifest and the site index, so a reader cannot be reintroduced unnoticed.
 
 **Removed.** `engine/alias-index.mjs` in its entirety — `aliasesOf`, `aliasKey`,
 `indexAliases`, and the `engine.aliasIndex` namespace export — along with
@@ -46,9 +55,10 @@ nothing consults them now. `ambiguous` / `collide` becomes the set of short
 `type/shortcode` addresses two **foreign packages** both publish, which the web
 resolver now reports as ambiguous rather than as merely broken.
 
-**Consumer impact, measured.** Every tree needs a mechanical frontmatter sweep,
-because `aliases:` is authored almost everywhere: 1,609 notes in `sohl`, 1,850 in
-`thalorna`, 370 in `kethira`. Links are cheaper — `sohl` has **0** unlabelled
+**Consumer impact, measured.** Every tree needs a mechanical frontmatter sweep
+of the **top-level** field, which is authored almost everywhere: 1,609 notes in
+`sohl`, 1,850 in `thalorna`, 370 in `kethira`. A `name.aliases:` is left exactly
+where it is — the sweep must delete the top-level list only. Links are cheaper — `sohl` has **0** unlabelled
 links and `kethira` has none at all; `thalorna` carries 70 (68 bare links and 2
 pipe-less anchors), which is content work in its own repository. The five `sohl`
 alias collisions and `thalorna`'s thirteen cease to exist with no note renamed

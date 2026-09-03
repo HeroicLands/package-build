@@ -181,16 +181,27 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
  * a line of prose — sending the reader to a position that is not the problem,
  * which is the one thing the located form exists to prevent.
  *
+ * The key match tolerates leading whitespace by default, so a nested key of the
+ * same name answers when no top-level one is present — which is usually what a
+ * reader wants, the key being unique in nearly every note. Pass `topLevel` where
+ * it is not: `aliases` is both a retired top-level field and a **permitted**
+ * `name.aliases` (#180), and a finding about the first must never open on the
+ * second, which would tell an author to delete a field they are allowed to
+ * write.
+ *
  * @param {string} raw - The file's full contents, frontmatter included.
  * @param {string} key - The top-level frontmatter key.
  * @param {string} [value] - When given, prefer the occurrence whose line also
  *   carries this text. A list-valued key (`aliases`) is reported at the entry
  *   that is wrong, not at the key that introduces it.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.topLevel=false] - Require the key at column 1, so
+ *   an identically named nested key cannot answer for it.
  * @returns {{line?: number, column?: number}} Spreadable position fields, empty
  *   when the key cannot be located — dropped rather than guessed, as
  *   {@link formatDiagnostic} requires.
  */
-export function positionInFrontmatter(raw, key, value = undefined) {
+export function positionInFrontmatter(raw, key, value = undefined, { topLevel = false } = {}) {
     if (typeof raw !== "string" || !key) return {};
     const fence = raw.match(/^---\n([\s\S]*?)\n---/);
     if (!fence) return {};
@@ -205,7 +216,10 @@ export function positionInFrontmatter(raw, key, value = undefined) {
             keyLine = i;
             break;
         }
-        if (keyLine === -1 && new RegExp(`^\\s*${escape(key)}\\s*:`).test(lines[i])) {
+        if (
+            keyLine === -1 &&
+            new RegExp(`^${topLevel ? "" : "\\s*"}${escape(key)}\\s*:`).test(lines[i])
+        ) {
             keyLine = i;
             if (wanted == null) break;
         }

@@ -770,9 +770,11 @@ export class BasePackCompiler {
             // - `draft:` (#69): it excluded the note from the packs, the
             //   manifest and the site, and no checker reported the links that
             //   left dangling.
-            // - `aliases:` / `name.aliases:` (#180): they fed the alias index,
-            //   which the bare `[[Alias]]` form was looked up in; both are
-            //   retired, so the list has no reader left.
+            // - `aliases:` (#180): it fed the alias index, which the bare
+            //   `[[Alias]]` form was looked up in; the form is retired, so the
+            //   list has no reader left. The nested `name.aliases` is a
+            //   different field and is **not** refused — it is reserved, and
+            //   deliberately neither read nor validated.
             //
             // Both are reported and counted — never skipped, which is how a
             // tree naming a package nothing answers to used to compile zero

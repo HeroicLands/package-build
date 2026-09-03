@@ -270,6 +270,11 @@ itself, so two notes of one type could not share a display name — a rules page
 and a user-guide page both called "Gear" were a build failure whose every
 available fix moved a published URL (#179).
 
+The top-level `aliases:` that fed it is **retired** and refused. The nested
+`name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
+it is permitted and read by nothing — no index, no resolver, no lint rule, no
+derived address. A note carrying one behaves exactly as one without it.
+
 Requiring the label is also what makes positional parsing safe. Note names
 contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
 target that does not parse as an address is reported as one that does not, rather

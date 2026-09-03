@@ -65,7 +65,7 @@ import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
     aliasesRetiredMessage,
-    declaredAliasField,
+    declaresRetiredAliasesField,
     draftRetiredMessage,
     readAliasedField,
     retiredAliasMessage,
@@ -468,15 +468,15 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
             message: draftRetiredMessage(),
         });
     }
-    const aliasField = declaredAliasField(fm);
-    if (aliasField) {
+    // Only the top-level `aliases` is retired. `name.aliases` writes the same
+    // key indented under `name:` and is **permitted** — reserved and unread —
+    // so both the test and the locator are anchored at column 1 (#180).
+    if (declaresRetiredAliasesField(fm)) {
         findings.push({
             file: note.file,
-            // Both spellings write the key `aliases`; the nested one simply
-            // indents it under `name:`, so one locator finds either.
-            ...at("aliases"),
+            ...positionInFrontmatter(raw(), "aliases", undefined, { topLevel: true }),
             severity: "error",
-            message: aliasesRetiredMessage(aliasField),
+            message: aliasesRetiredMessage(),
         });
     }
 

@@ -810,13 +810,24 @@ does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
 
-**And the field itself is now retired (#180).** `aliases:` and `name.aliases:`
-fed the alias index, which is what a bare `[[Alias]]` was looked up in. That
-form resolved to nothing anywhere in the corpus, while the collision rule
-guarding it folded in every note's `name.full` and so decided what a note could
-be named (#179). Both are gone: every wikilink is an address, written
-`[[type-shortcode|Text]]`, and declaring either field is refused naming the file
+**And the top-level field itself is now retired (#180).** `aliases:` fed the
+alias index, which is what a bare `[[Alias]]` was looked up in. That form
+resolved to nothing anywhere in the corpus, while the collision rule guarding it
+folded in every note's `name.full` and so decided what a note could be named
+(#179). Both are gone: every wikilink is an address, written
+`[[type-shortcode|Text]]`, and declaring `aliases:` is refused naming the file
 and the line.
+
+**`name.aliases` is kept, and is read by nothing.** It fed the same index and
+lost the same reader, but unlike the top-level list it is **reserved** — held
+for a use that does not exist yet. So it is the one field in the format that is
+neither retired nor consulted: no index folds it in, no rule validates it,
+nothing derives a name, address or URL from it, and no build branches on it. A
+note carrying one compiles, resolves and addresses exactly as the same note
+without it; it rides through into a page's emitted front matter untouched,
+because the emitter spreads a note's frontmatter wholesale and stripping it
+there would mean referencing it. Write it if you have a use for it later —
+nothing today will read it.
 
 ### The homepage is addressed like every other note
 
