@@ -486,7 +486,7 @@ describe("expandContentTables — rendering", () => {
 
 describe("expandContentTables — errors", () => {
     it("renders an empty table, not an error, when nothing matches", () => {
-        // A category with no content yet is a normal state of the corpus, and
+        // A section with no content yet is a normal state of the corpus, and
         // it is what the author already sees in Obsidian.
         const { markdown, errors } = expand(
             block(

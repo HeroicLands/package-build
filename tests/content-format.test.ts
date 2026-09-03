@@ -10,6 +10,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
+import { sectionOf } from "../engine/content-address.mjs";
 
 import {
     CONTENT_FORMAT_PATH,
@@ -409,5 +410,33 @@ describe("the shipped specification against the shipped declarations (#136)", ()
         expect(result.checked.length + result.skipped.registry.length).toBe(
             Object.keys(ITEM_FIELDS).length,
         );
+    });
+});
+
+describe("a doc routes by its subtype (#168)", () => {
+    // The address engine read `category` until the content format retired it,
+    // at which point every `doc` note silently lost its address: `sectionOf`
+    // answered `undefined`, and a note with no section is not published. Only
+    // `doc` was affected, being the one type that routes by its subtype label
+    // rather than by its type.
+    it("gives each doc subtype its own section", () => {
+        expect(sectionOf({ type: "doc", subType: "rules" })).toBe("rules");
+        expect(sectionOf({ type: "doc", subType: "user-guide" })).toBe("user-guide");
+        expect(sectionOf({ type: "doc", subType: "reference" })).toBe("reference");
+        expect(sectionOf({ type: "doc", subType: "collection" })).toBe("collection");
+    });
+
+    it("routes every other type by its type, subtype or none", () => {
+        expect(sectionOf({ type: "place", subType: "region" })).toBe("place");
+        expect(sectionOf({ type: "affiliation", subType: "faithtradition" })).toBe("affiliation");
+        expect(sectionOf({ type: "lore", subType: "deity" })).toBe("lore");
+    });
+
+    it("gives a doc with no subtype no section, and so no address", () => {
+        expect(sectionOf({ type: "doc" })).toBeUndefined();
+    });
+
+    it("ignores the retired `category` key entirely", () => {
+        expect(sectionOf({ type: "doc", category: "rules" })).toBeUndefined();
     });
 });
