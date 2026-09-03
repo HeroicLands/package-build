@@ -74,8 +74,8 @@ silently become a theme parameter, which is exactly why these cannot live
 together.
 
 **Tags are open, except the ones that classify.** `tags:` shares the top level's
-openness: a tag naming a theme, a region or a working state — `underworld`,
-`byzaria`, `draft` — is the author's own and this build has no opinion about it.
+openness: a tag naming a theme or a region — `underworld`,
+`byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
 A tag that classifies the subject is different, because something queries it. A
 settlement tagged `village` appears in the list of villages and an untagged one
 does not, so `vilage` does not merely look wrong: it removes the note from an
@@ -90,6 +90,17 @@ is declared, so a near miss is a finding that names what you probably meant.
 | **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                          |
 | **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                     |
 | **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                              |
+
+**`draft` is the one tag either build reads.** A note tagged `draft` exists so a
+link into it is not dead, and a link into it renders marked — as
+`<span class="sohl-draft-link" title="Draft — not yet written">…</span>` in a
+compiled journal and on the website alike, with the appearance supplied by the
+consuming system's stylesheet or the site theme. **Nothing else changes**: the
+note compiles, validates, publishes and resolves exactly as any other, and it
+stays in the packs, in the link manifest and on the site. That is what separates
+the tag from the retired `draft:` field, whose whole effect was to move a note
+from published to unresolvable without saying so — and which is refused, by name,
+if you write it.
 
 **The group's scope is what makes the check work.** A group names the types it
 applies to, and a place's kinds are only ever checked on a place. Without that

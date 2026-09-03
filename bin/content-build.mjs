@@ -1239,15 +1239,12 @@ function siteCommand() {
                             `page verbatim, and reaches the reader as brackets`,
                     });
                 }
-                for (const f of gates.slugErrors) {
+                for (const f of gates.addressErrors) {
                     emitDiagnostic({
                         file: f.file,
                         severity: "error",
                         message: `cannot derive a URL: ${f.reason}`,
                     });
-                }
-                for (const c of gates.collisions) {
-                    log.error(`${c.url} claimed by ${c.sources.join(", ")}`);
                 }
                 for (const s of gates.staleManifests) {
                     emitDiagnostic({

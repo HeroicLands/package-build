@@ -289,7 +289,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         const result = buildSite({ config });
         const files = emitted(path.join(root, "out-content"));
         expect(files).toContain("_index.md");
-        expect(files).toContain("kb/weapongear/dagger.md");
+        // Written into its section directory under the mount; published at
+        // its address, `/demo/weapongear-dagger/` (#181).
+        expect(files).toContain("kb/weapongear/weapongear-dagger.md");
         expect(result.stats?.homepages).toBe(1);
     });
 

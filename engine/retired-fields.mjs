@@ -81,8 +81,9 @@ export function draftRetiredMessage(file) {
         ". It excluded the note from the compiled packs, the link manifest " +
         "and the site, and no checker reported the exclusion, so every " +
         "wikilink into it read as a link to a note that does not exist. To " +
-        "mark a note as unfinished, tag it `#draft` instead: the build " +
-        "ignores tags, and a `FROM #draft` query still finds it"
+        "mark a note as unfinished, tag it `#draft` instead: the note still " +
+        "compiles and publishes, a link into it renders marked, and a " +
+        "`FROM #draft` query still finds it"
     );
 }
 

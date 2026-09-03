@@ -49,8 +49,8 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import matter from "gray-matter";
 
-import { contentSlug, findSlugCollisions, slugify } from "./content-slug.mjs";
-import { sectionOf } from "./content-address.mjs";
+import { slugify } from "./content-slug.mjs";
+import { addressSlug, sectionOf } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
@@ -125,14 +125,15 @@ function readNote(file) {
  * The content tree's pages, and what could not be addressed.
  *
  * @param {string} contentBase - Absolute path to the content tree.
- * @param {object} ctx - `{ packages, contentPackage, skipDirectories, mount,
- *   scheme }`. `contentPackage` is the package a note that declares none
- *   belongs to.
- * @returns {{pages: object[], slugFindings: object[], fmLinkFindings: object[]}}
+ * @param {object} ctx - `{ packages, contentPackage, skipDirectories, base,
+ *   mount, scheme }`. `contentPackage` is the package a note that declares none
+ *   belongs to; `base` is where the package is served and `mount` is where its
+ *   content tree sits inside it.
+ * @returns {{pages: object[], addressFindings: object[], fmLinkFindings: object[]}}
  */
 export function collectContentPages(contentBase, ctx) {
     const pages = [];
-    const slugFindings = [];
+    const addressFindings = [];
     const fmLinkFindings = [];
 
     for (const file of walkSiteTree(contentBase, ctx.skipDirectories)) {
@@ -154,20 +155,32 @@ export function collectContentPages(contentBase, ctx) {
         }
 
         const name = fm.name?.full ?? path.basename(file, ".md");
-        // The URL segment derives from the name (#1278), never from the
-        // shortcode, which is identity referenced by saved world data rather
-        // than presentation.
+        // The page's address, and therefore its URL (#181). `name` is the
+        // display string and nothing else: it titles the page and labels an
+        // inbound link, and moving it moves no address.
         let slug;
         try {
-            slug = contentSlug(name);
+            slug = addressSlug(fm);
         } catch (err) {
-            slugFindings.push({ file, reason: err.message });
+            addressFindings.push({ file, reason: err.message });
             continue;
         }
 
         const base = path.basename(file);
         const isReadme = base.toLowerCase() === "readme.md";
         const sec = sectionOf(fm);
+        // A page's URL no longer contains its section, but the section is still
+        // what decides the directory the file is written to — and Hugo derives
+        // a page's section from that directory, not from its URL. So a note
+        // with none is still a note with nowhere to be published, and is
+        // reported rather than written to `undefined/`.
+        if (typeof sec !== "string" || !sec) {
+            addressFindings.push({
+                file,
+                reason: `type "${fm.type}" has no section, so there is nowhere to file the page`,
+            });
+            continue;
+        }
         const rel = path.relative(contentBase, file);
         pages.push({
             kind: "content",
@@ -191,11 +204,17 @@ export function collectContentPages(contentBase, ctx) {
             // authoring folder, for grouped landings.
             folder: path.basename(path.dirname(file)),
             sec,
-            url: isReadme ? `${ctx.mount}${sec}/` : `${ctx.mount}${sec}/${slug}/`,
+            // A landing page **is** its section, so it is addressed by the
+            // mount the section lives at; every other page is addressed by
+            // `(type, shortcode)` at the package root, which takes no mount
+            // (#181). The file is still written into `<sec>/` either way — see
+            // {@link pageDestination} — and the front matter carries this `url`
+            // so Hugo publishes it at its address rather than at its path.
+            url: isReadme ? `${ctx.mount}${sec}/` : `${ctx.base}${slug}/`,
             isReadme,
         });
     }
-    return { pages, slugFindings, fmLinkFindings };
+    return { pages, addressFindings, fmLinkFindings };
 }
 
 /**
@@ -326,15 +345,19 @@ export function writeHomepages(outRoot, pages, config) {
  *
  * - **Frontmatter wikilinks** first, because frontmatter is copied to the page
  *   verbatim and a link written in one reaches the reader as literal `[[…]]`.
- * - **Slugs and collisions** next: a note that derives no URL, or two that
- *   derive the same one, would silently drop or overwrite a page.
+ * - **Addresses** next: a note that has no address — no shortcode to be
+ *   addressed by, or no section to be filed under — would silently drop a page.
+ *   There is no collision gate beside it: an address is `(type, shortcode)`,
+ *   which is unique within a package by rule, so two pages cannot claim one URL
+ *   (#181).
  * - **Foreign manifests** last, in two steps. *Unusable* is a file this build
  *   cannot read; *unaddressable* is one it can read but cannot look anything up
  *   in — a distinction worth keeping, because the second surfaces as a pile of
  *   dead links blaming the notes that cite them rather than the file at fault.
  *
  * @param {object[]} pages - Every page, from both walks.
- * @param {object} findings - `{ slugFindings, fmLinkFindings }` from collection.
+ * @param {object} findings - `{ addressFindings, fmLinkFindings }` from
+ *   collection.
  * @param {object} options - `{ manifestDir }`.
  * @returns {object} The gate results and, when they pass, the built index.
  */
@@ -345,8 +368,7 @@ export function siteGates(pages, findings, { manifestDir }) {
         // reaching these gates (#52). Present so every caller reads one shape.
         homepages: [],
         frontmatterLinks: findings.fmLinkFindings ?? [],
-        slugErrors: findings.slugFindings ?? [],
-        collisions: [],
+        addressErrors: findings.addressFindings ?? [],
         staleManifests: [],
         unaddressable: [],
         conflicts: [],
@@ -354,18 +376,9 @@ export function siteGates(pages, findings, { manifestDir }) {
         foreign: null,
         manifests: null,
     };
-    if (out.frontmatterLinks.length || out.slugErrors.length) return out;
+    if (out.frontmatterLinks.length || out.addressErrors.length) return out;
 
     const content = pages.filter((p) => p.kind === "content");
-    out.collisions = findSlugCollisions(
-        content.map((p) => ({
-            sec: p.sec,
-            slug: p.slug,
-            src: `${p.tld}/${p.base}`,
-        })),
-    );
-    if (out.collisions.length) return out;
-
     // Which packages are *local* is what decides which manifests are foreign,
     // and that is only known once the tree is walked — reading it from a
     // configured list instead silently discarded the manifest of any package
@@ -404,8 +417,7 @@ export function emptyGates() {
     return {
         homepages: [],
         frontmatterLinks: [],
-        slugErrors: [],
-        collisions: [],
+        addressErrors: [],
         staleManifests: [],
         unaddressable: [],
         conflicts: [],
@@ -420,8 +432,7 @@ export function gatesFailed(gates) {
     return Boolean(
         gates.homepages.length ||
         gates.frontmatterLinks.length ||
-        gates.slugErrors.length ||
-        gates.collisions.length ||
+        gates.addressErrors.length ||
         gates.staleManifests.length ||
         gates.unaddressable.length ||
         gates.conflicts.length,
@@ -500,6 +511,14 @@ export function sectionFrontmatter(meta) {
  * redirect stub at each name. They are dropped, and this build emits no
  * redirects of its own.
  *
+ * A content page states its own **`url`**, which is its address rather than its
+ * path (#181). Hugo would otherwise publish it where the file sits — under the
+ * mount, inside its section directory — and the file sits there for a reason:
+ * Hugo derives a page's section from its directory, which is what gives the
+ * section its landing page, `.CurrentSection` and its per-section layout
+ * lookup. So the directory stays and the address is stated, and the two are
+ * free to differ.
+ *
  * A content page carries the package the build **derived** (#65). No note
  * declares one — `package:` is retired (#56) — so the note's frontmatter alone
  * would publish a page that does not say which package it belongs to. The
@@ -523,7 +542,13 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
             // Spread after the note's own frontmatter. Guarded because
             // `package: undefined` is not a value YAML can carry.
             ...(page.pkg ? { package: page.pkg } : {}),
+            // The address, stated. `slug` is written beside it because it is
+            // the last segment of that address and Hugo's own key for one; it
+            // decides nothing while `url` is present, but a page that carried
+            // only `url` would report a slug Hugo had inferred from the
+            // filename.
             slug,
+            url: page.url,
             title: fm.title ?? name,
             kbfolder: page.folder,
         };
@@ -550,7 +575,20 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
     return data;
 }
 
-/** Where a page is written, relative to the output root. */
+/**
+ * Where a page is written, relative to the output root.
+ *
+ * **Into its section directory, which is not where it publishes** (#181). A
+ * content page's URL is its address — `/<package>/<type>-<shortcode>/` — and it
+ * is stated in the front matter; the file still goes to `<section>/`, because
+ * Hugo reads a page's section from its path and nothing else. Flattening the
+ * tree to match the URL would take the section landings, `.CurrentSection` and
+ * every per-section layout with it.
+ *
+ * The filename is the address rather than the section-relative half of it, so
+ * two sections cannot fight over one file: a `doc` note routes by its `subType`,
+ * which may be spelled the same as another note's `type`.
+ */
 export function pageDestination(page) {
     if (page.kind === "content") {
         return page.isReadme ?
@@ -858,6 +896,10 @@ export function buildSite({ config, outRoot } = {}) {
         // retired, so this is the only source of it (#56).
         contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
+        // Where the package is served, which is where an addressed page
+        // publishes: an address is `(type, shortcode)`, a package-wide
+        // identity that takes no content mount (#181).
+        base,
         mount,
         scheme,
     };
