@@ -65,11 +65,12 @@ function note(shortcode = "dagger"): string {
  * finding that reports a real position is distinguishable from one that
  * defaults to `1:1`.
  */
-function homepage(title = "The Demo Module"): string {
+function homepage(title = "The Demo Module", shortcode = "root"): string {
     return [
         "---",
         `title: ${title}`,
         `type: ${HOMEPAGE_TYPE}`,
+        `shortcode: ${shortcode}`,
         "---",
         "",
         "The module, in the author's own words.",
@@ -137,6 +138,28 @@ describe("checkHomepageCount — the rule itself (#52)", () => {
         // Each finding names the other path, so two findings name both files.
         expect(findings[0].message).toContain("Landing.md");
         expect(findings[1].message).toContain("homepage.md");
+    });
+
+    // The rule used to rest on the fixed destination every homepage shared:
+    // the second silently overwrote the first. A homepage is written at its own
+    // address now (#182), so two of them publish two pages — and the rule is a
+    // cardinality rule, stated as one, rather than a consequence of a
+    // collision that no longer happens.
+    it("does not justify itself by a shared destination any more", () => {
+        const root = tree({
+            "homepage.md": homepage(),
+            "Landing.md": homepage("Second", "front"),
+        });
+        const findings = checkHomepageCount(
+            [{ file: path.join(root, "homepage.md") }, { file: path.join(root, "Landing.md") }],
+            { contentBase: root, contentPackage: "sohl" },
+        );
+        expect(findings).toHaveLength(2);
+        expect(findings[0].message).not.toContain("_index.md");
+        expect(findings[0].message).not.toContain("overwrite");
+        // Two homepages are two front pages even when their addresses differ,
+        // which is exactly what the address rule cannot say.
+        expect(findings[0].message).toContain("one front page");
     });
 
     it("emits in the parseable form, path first", () => {
@@ -265,7 +288,27 @@ describe("the site build enforces it, in both publishing modes (#52)", () => {
         const result = buildSite({ config: configFor(root, "content") });
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
-        expect(fs.existsSync(path.join(root, "out/_index.md"))).toBe(true);
+        // Written at its address, not at a destination of its own (#182).
+        expect(fs.existsSync(path.join(root, "out/homepage-root.md"))).toBe(true);
+    });
+
+    it("fails a homepage that declares no shortcode, before the wipe", () => {
+        // The address rule reaches homepage-only mode too, which runs no other
+        // gate at all — so it is reported here, beside the count (#182).
+        const root = sandbox({
+            "homepage.md": ["---", `type: ${HOMEPAGE_TYPE}`, "---", "", "Prose.", ""].join("\n"),
+            "Gear/Dagger.md": note(),
+        });
+        const stale = path.join(root, "out/keep.md");
+        fs.mkdirSync(path.dirname(stale), { recursive: true });
+        fs.writeFileSync(stale, "the previous build\n");
+
+        const result = buildSite({ config: configFor(root, "content") });
+        expect(gatesFailed(result.gates)).toBe(true);
+        expect(result.gates.homepages).toHaveLength(1);
+        expect(result.gates.homepages[0].message).toContain("shortcode");
+        expect(result.stats).toBeNull();
+        expect(fs.existsSync(stale)).toBe(true);
     });
 
     it("fails before it wipes the previous output", () => {

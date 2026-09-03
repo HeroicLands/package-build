@@ -6,15 +6,16 @@
  */
 
 /**
- * A homepage carries no address of its own, so it refuses the fields that would
- * decide one (#53).
+ * A homepage is addressed like every other note, so it **requires** a
+ * `shortcode` and refuses only the field that still decides nothing (#182).
  *
- * Every other note's URL derives from `name.full`, and its identity from
- * `(type, shortcode)`. The homepage is the one page for which neither is true:
- * it publishes at `/<package>/`, fixed by the package id. Ignoring the fields
- * silently left the author's mental model wrong, and it was not inert —
- * `shortcode` puts the note in the address index, so a wikilink to it resolves
- * green at build time to a page the site build never writes.
+ * It used to refuse `name`, `shortcode` and `id` alike (#53), and the reason
+ * for two of the three was that a page's URL derived from `name.full` while a
+ * homepage's destination was fixed — so a `shortcode` put the note in the
+ * address index and `[[homepage-<shortcode>]]` resolved *green* to a page the
+ * site build never wrote. A page's URL is now its address (#181), which makes
+ * that address the one the build publishes. `id` stays refused on its own
+ * unaffected ground: a homepage compiles into no compendium document.
  */
 
 import { describe, it, expect } from "vitest";
@@ -23,6 +24,7 @@ import { formatDiagnostic } from "../engine/diagnostics.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import {
     HOMEPAGE_REFUSED_FIELDS,
+    HOMEPAGE_SHORTCODE,
     HOMEPAGE_TYPE,
     checkHomepageAddressFields,
 } from "../engine/homepage.mjs";
@@ -42,84 +44,119 @@ function lint(lines: string[], fm: Record<string, unknown>) {
     return lintNote(note(lines, fm), { schemas: ENGINE_NOTE_SCHEMAS }) as any[];
 }
 
-describe("the address-bearing fields a homepage refuses (#53)", () => {
-    it("declares exactly the three fields that decide an address", () => {
-        // A closed, named class — not "anything unrecognised". A homepage's
-        // frontmatter is passed through to Hugo, so an unknown key may be a
-        // theme parameter this build has never heard of.
-        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["name", "shortcode", "id"]);
+describe("a homepage is addressed, so `shortcode` is required (#182)", () => {
+    it("conventionally addresses the package landing as `homepage-root`", () => {
+        expect(HOMEPAGE_SHORTCODE).toBe("root");
     });
 
-    it("refuses `shortcode`, at the line and column it is written on", () => {
-        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "title: Repro", "shortcode: reprohome"], {
-            type: HOMEPAGE_TYPE,
+    it("refuses a homepage that declares none, located at its `type:` value", () => {
+        // There is no `shortcode:` line to point at, so the locator is the
+        // `homepage` value that makes one required — a real position, rather
+        // than a 1:1 invented for a key that is not there.
+        const findings = lint(["title: Repro", `type: ${HOMEPAGE_TYPE}`], {
             title: "Repro",
-            shortcode: "reprohome",
+            type: HOMEPAGE_TYPE,
         });
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({
             file: "assets/content/homepage.md",
-            line: 4,
-            column: 1,
+            line: 3,
+            column: 7,
             severity: "error",
         });
-        // The reason, not merely the verdict: where this page actually is.
-        expect(findings[0].message).toMatch(/`shortcode`/);
-        expect(findings[0].message).toMatch(/\/<package>\//);
-        // `file:line:column: severity: message`, the path first (#17).
+        expect(findings[0].message).toContain("`shortcode`");
+        // Names the address it would publish at, and the convention to write.
+        expect(findings[0].message).toContain("homepage-root");
         expect(formatDiagnostic(findings[0])).toMatch(
-            /^assets\/content\/homepage\.md:4:1: error: /,
+            /^assets\/content\/homepage\.md:3:7: error: /,
         );
     });
 
-    it("refuses `id`, naming the document it would identify", () => {
-        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "id: aBcDeFgHiJkLmNoP"], {
-            type: HOMEPAGE_TYPE,
-            id: "aBcDeFgHiJkLmNoP",
-        });
-        expect(findings).toHaveLength(1);
-        expect(findings[0]).toMatchObject({ line: 3, severity: "error" });
-        expect(findings[0].message).toMatch(/compiles into no .*document/);
-    });
-
-    it("refuses `name`, and says `title:` is the field that was meant", () => {
-        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "name:", "    full: Front Page"], {
-            type: HOMEPAGE_TYPE,
-            name: { full: "Front Page" },
-        });
-        expect(findings).toHaveLength(1);
-        expect(findings[0]).toMatchObject({ line: 3, severity: "error" });
-        expect(findings[0].message).toContain("`title:`");
-    });
-
-    it("refuses a bare `name:` string as well as `name.full`", () => {
-        // `resolveName` reads either spelling, so refusing only the mapping
-        // would leave the same mistake available one line shorter.
-        const findings = lint([`type: ${HOMEPAGE_TYPE}`, "name: Front Page"], {
-            type: HOMEPAGE_TYPE,
-            name: "Front Page",
-        });
-        expect(findings).toHaveLength(1);
-        expect(findings[0].message).toMatch(/`name`/);
-    });
-
-    it("reports every one it finds, not the first", () => {
-        const findings = checkHomepageAddressFields({
-            type: HOMEPAGE_TYPE,
-            name: { full: "Front Page" },
-            shortcode: "reprohome",
-            id: "aBcDeFgHiJkLmNoP",
-        });
-        expect(findings.map((f: any) => f.key)).toEqual(["name", "shortcode", "id"]);
-    });
-
-    it("refuses a field authored empty — presence is the whole test", () => {
-        // `shortcode:` with no value still says "this page has an address".
+    it("refuses one authored empty — a blank shortcode is no address", () => {
         const findings = lint([`type: ${HOMEPAGE_TYPE}`, "shortcode:"], {
             type: HOMEPAGE_TYPE,
             shortcode: null,
         });
         expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`shortcode`");
+    });
+
+    it("accepts a shortcode, and says nothing about it", () => {
+        expect(
+            lint([`type: ${HOMEPAGE_TYPE}`, `shortcode: ${HOMEPAGE_SHORTCODE}`], {
+                type: HOMEPAGE_TYPE,
+                shortcode: HOMEPAGE_SHORTCODE,
+            }),
+        ).toEqual([]);
+    });
+
+    it("accepts any shortcode: `root` is a convention, not a rule", () => {
+        // The address only has to be unique within the package, and nothing
+        // here knows better than an author what their landing is called.
+        expect(
+            lint([`type: ${HOMEPAGE_TYPE}`, "shortcode: front"], {
+                type: HOMEPAGE_TYPE,
+                shortcode: "front",
+            }),
+        ).toEqual([]);
+    });
+
+    it("permits `name`, which titles the page like every other note's", () => {
+        expect(
+            lint(
+                [
+                    `type: ${HOMEPAGE_TYPE}`,
+                    `shortcode: ${HOMEPAGE_SHORTCODE}`,
+                    "name:",
+                    "    full: Kethira Basic",
+                ],
+                {
+                    type: HOMEPAGE_TYPE,
+                    shortcode: HOMEPAGE_SHORTCODE,
+                    name: { full: "Kethira Basic" },
+                },
+            ),
+        ).toEqual([]);
+    });
+
+    it("says nothing about any other type — the rule is the homepage's", () => {
+        expect(
+            checkHomepageAddressFields({ type: "doc", subType: "rules", shortcode: "combat" }),
+        ).toEqual([]);
+        // A `doc` with no shortcode is reported by the address derivation, not
+        // by this rule.
+        expect(checkHomepageAddressFields({ type: "doc", subType: "rules" })).toEqual([]);
+        expect(checkHomepageAddressFields(undefined)).toEqual([]);
+    });
+});
+
+describe("the one field a homepage still refuses (#53, narrowed by #182)", () => {
+    it("refuses `id` and nothing else", () => {
+        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["id"]);
+    });
+
+    it("refuses `id`, naming the document it would identify", () => {
+        const findings = lint(
+            [`type: ${HOMEPAGE_TYPE}`, `shortcode: ${HOMEPAGE_SHORTCODE}`, "id: aBcDeFgHiJkLmNoP"],
+            {
+                type: HOMEPAGE_TYPE,
+                shortcode: HOMEPAGE_SHORTCODE,
+                id: "aBcDeFgHiJkLmNoP",
+            },
+        );
+        expect(findings).toHaveLength(1);
+        expect(findings[0]).toMatchObject({ line: 4, column: 1, severity: "error" });
+        expect(findings[0].message).toMatch(/compiles into no .*document/);
+    });
+
+    it("reports the missing shortcode first, then what was authored", () => {
+        // Both findings stand: one field is owed and another may not be
+        // written, and neither answers the other.
+        const findings = checkHomepageAddressFields({
+            type: HOMEPAGE_TYPE,
+            id: "aBcDeFgHiJkLmNoP",
+        });
+        expect(findings.map((f: any) => f.field)).toEqual(["shortcode", "id"]);
     });
 });
 
@@ -129,6 +166,7 @@ describe("what a homepage may still write", () => {
             lint(
                 [
                     `type: ${HOMEPAGE_TYPE}`,
+                    `shortcode: ${HOMEPAGE_SHORTCODE}`,
                     "title: Repro Demo",
                     "description: A module.",
                     "banner: brand/banner.webp",
@@ -137,6 +175,7 @@ describe("what a homepage may still write", () => {
                 ],
                 {
                     type: HOMEPAGE_TYPE,
+                    shortcode: HOMEPAGE_SHORTCODE,
                     title: "Repro Demo",
                     description: "A module.",
                     banner: "brand/banner.webp",
@@ -152,26 +191,21 @@ describe("what a homepage may still write", () => {
         // the published page, so an unrecognised key is a theme parameter, and
         // a closed list would make every new one a package-build release.
         expect(
-            lint([`type: ${HOMEPAGE_TYPE}`, "weight: 30", "aliases:", "    - x"], {
-                type: HOMEPAGE_TYPE,
-                weight: 30,
-                aliases: ["x"],
-            }),
+            lint(
+                [
+                    `type: ${HOMEPAGE_TYPE}`,
+                    `shortcode: ${HOMEPAGE_SHORTCODE}`,
+                    "weight: 30",
+                    "aliases:",
+                    "    - x",
+                ],
+                {
+                    type: HOMEPAGE_TYPE,
+                    shortcode: HOMEPAGE_SHORTCODE,
+                    weight: 30,
+                    aliases: ["x"],
+                },
+            ),
         ).toEqual([]);
-    });
-
-    it("leaves every other type alone", () => {
-        // The three fields are how every other note is addressed; the rule is
-        // about the one page whose address is not its own.
-        expect(
-            checkHomepageAddressFields({
-                type: "doc",
-                subType: "rules",
-                shortcode: "combat",
-                id: "aBcDeFgHiJkLmNoP",
-                name: { full: "Combat" },
-            }),
-        ).toEqual([]);
-        expect(checkHomepageAddressFields(undefined)).toEqual([]);
     });
 });

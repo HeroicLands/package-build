@@ -25,7 +25,14 @@ import path from "node:path";
 import { defineConfig } from "../index.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { SITE_MODES, publishesContentPages } from "../content-config.mjs";
-import { HOMEPAGE_TYPE, homepageTitle, isHomepage } from "../engine/homepage.mjs";
+import * as homepageModule from "../engine/homepage.mjs";
+import {
+    HOMEPAGE_SHORTCODE,
+    HOMEPAGE_TYPE,
+    homepageDestination,
+    homepageTitle,
+    isHomepage,
+} from "../engine/homepage.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { buildSite, collectContentPages } from "../engine/site-build.mjs";
@@ -67,7 +74,14 @@ beforeAll(() => {
     );
     fs.mkdirSync(path.join(root, "assets/manifests"), { recursive: true });
 
-    note("homepage.md", `type: ${HOMEPAGE_TYPE}`, "The module, in the author's own words.\n");
+    note(
+        "homepage.md",
+        `type: ${HOMEPAGE_TYPE}
+shortcode: ${HOMEPAGE_SHORTCODE}
+name:
+    full: The Demo Module`,
+        "The module, in the author's own words.\n",
+    );
     note(
         "Gear/Dagger.md",
         `type: weapongear
@@ -123,9 +137,9 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
     it("lints clean against the engine schemas alone, with no item registry", () => {
         const findings = lintNote(
             {
-                fm: { type: HOMEPAGE_TYPE, title: "Kethira Basic" },
+                fm: { type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE, title: "Kethira Basic" },
                 file: "assets/content/homepage.md",
-                raw: "---\ntype: homepage\n---\n",
+                raw: `---\ntype: homepage\nshortcode: ${HOMEPAGE_SHORTCODE}\n---\n`,
             },
             { schemas: ENGINE_NOTE_SCHEMAS },
         );
@@ -144,7 +158,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         expect(homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config)).toBe("Kethira");
     });
 
-    it("is not a content page, so it takes no slug from its name", () => {
+    it("is collected by its own walk, not as a content page", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), {
             packages: new Set(["demo"]),
             contentPackage: "demo",
@@ -156,16 +170,58 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         expect(pages.every((p) => p.kind === "content")).toBe(true);
     });
 
-    it("publishes at the package prefix, not below the content mount", () => {
+    it("publishes at its own address, like every other note (#182)", () => {
         const config = configFor();
         buildSite({ config });
-        // `/demo/` — the package's own address — which is the root of the
-        // configured `site.out`, one level above the `kb/` content mount.
-        expect(fs.existsSync(path.join(root, "out/_index.md"))).toBe(true);
-        const page = fs.readFileSync(path.join(root, "out/_index.md"), "utf8");
+        // `/demo/homepage-root/` — the note's address — written at the root of
+        // the configured `site.out`, one level above the `kb/` content mount.
+        // The package's own `/demo/` is a redirect a consumer authors, not a
+        // page this build writes.
+        expect(fs.existsSync(path.join(root, "out/_index.md"))).toBe(false);
+        const dest = path.join(
+            root,
+            `out/${homepageDestination({ type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE })}`,
+        );
+        expect(fs.existsSync(dest)).toBe(true);
+        const page = fs.readFileSync(dest, "utf8");
         expect(page).toMatch(/^title: The Demo Module$/m);
         expect(page).toMatch(/^package: demo$/m);
+        expect(page).toMatch(/^url: \/demo\/homepage-root\/$/m);
+        expect(page).toMatch(/^slug: homepage-root$/m);
         expect(page).toContain("The module, in the author's own words.");
+    });
+
+    it("no longer has a fixed destination of its own", () => {
+        // `HOMEPAGE_DESTINATION` named `_index.md`, and it was the whole reason
+        // a `shortcode` was refused: the computed address named a page nothing
+        // wrote. With the address published, there is nothing left for a fixed
+        // destination to be.
+        expect(homepageModule).not.toHaveProperty("HOMEPAGE_DESTINATION");
+        expect(homepageDestination({ type: HOMEPAGE_TYPE, shortcode: "front" })).toBe(
+            "homepage-front.md",
+        );
+    });
+
+    it("resolves `[[homepage-root|Text]]` to the page it publishes", () => {
+        // The whole point of giving the landing an address: it is citable like
+        // any other note, and the address the citation computes is the one the
+        // build writes. Indexed but not rendered — a homepage takes no part in
+        // the content pipeline, so this asserts the index holds it.
+        note(
+            "Rules/Welcome.md",
+            `type: doc
+subType: rules
+shortcode: welcome
+name:
+    full: Welcome`,
+            "Start at [[homepage-root|the module's front page]].\n",
+        );
+        const config = configFor({ site: { out: "out-links" } });
+        const result = buildSite({ config });
+        expect(result.wikiErrors).toEqual([]);
+        const page = fs.readFileSync(path.join(root, "out-links/kb/rules/doc-welcome.md"), "utf8");
+        expect(page).toContain("(/demo/homepage-root/)");
+        expect(page).toContain("the module's front page");
     });
 
     it("compiles into no compendium document, so it is absent from the manifest", () => {
@@ -255,7 +311,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
 
         // Measured, not assumed: the tree holds a weapon and a rules note, and
         // neither may reach the web.
-        expect(emitted(out)).toEqual(["_index.md"]);
+        expect(emitted(out)).toEqual(["homepage-root.md"]);
         expect(result.stats?.homepages).toBe(1);
         expect(result.stats?.content ?? 0).toBe(0);
     });
@@ -281,14 +337,14 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             },
         });
         buildSite({ config });
-        expect(emitted(out)).toEqual(["_index.md"]);
+        expect(emitted(out)).toEqual(["homepage-root.md"]);
     });
 
     it("still publishes every content page in content mode", () => {
         const config = configFor({ site: { out: "out-content" } });
         const result = buildSite({ config });
         const files = emitted(path.join(root, "out-content"));
-        expect(files).toContain("_index.md");
+        expect(files).toContain("homepage-root.md");
         // Written into its section directory under the mount; published at
         // its address, `/demo/weapongear-dagger/` (#181).
         expect(files).toContain("kb/weapongear/weapongear-dagger.md");
@@ -306,7 +362,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         fs.mkdirSync(path.join(solo, "assets/content"), { recursive: true });
         fs.writeFileSync(
             path.join(solo, "assets/content/homepage.md"),
-            `---\ntype: ${HOMEPAGE_TYPE}\n---\n\nHârnMaster 3 for Foundry VTT.\n`,
+            `---\ntype: ${HOMEPAGE_TYPE}\nshortcode: ${HOMEPAGE_SHORTCODE}\n---\n\nHârnMaster 3 for Foundry VTT.\n`,
         );
         const config = defineConfig({
             rootDir: solo,
@@ -325,9 +381,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         } as ContentBuildConfigInput);
 
         const result = buildSite({ config });
-        expect(emitted(path.join(solo, "site"))).toEqual(["_index.md"]);
+        expect(emitted(path.join(solo, "site"))).toEqual(["homepage-root.md"]);
         expect(result.stats?.homepages).toBe(1);
-        expect(fs.readFileSync(path.join(solo, "site/_index.md"), "utf8")).toMatch(
+        expect(fs.readFileSync(path.join(solo, "site/homepage-root.md"), "utf8")).toMatch(
             /^title: HârnMaster 3$/m,
         );
         fs.rmSync(solo, { recursive: true, force: true });

@@ -178,13 +178,17 @@ export function lintContentTree(contentBase, { skipDirectories, contentPackage }
     // green on the one state it most needs to catch.
     //
     // The state that catches is an **empty walk**, not an empty key set (#77).
-    // A note may be keyless by design: a homepage carries no `shortcode`
-    // because it is addressed by the package rather than by a slug, so a
-    // package in `publish.site: homepage` mode has a content tree that is
-    // populated, correct, and permanently unkeyed. Reporting that as a missing
-    // checkout trains its author to stop reading the output — the one thing
-    // this guard needs them to do. A tree holding notes is therefore a tree;
-    // only a tree holding none is the absent one.
+    // Notes may be keyless: a folder document carries no `shortcode`, and a
+    // tree of them is populated, correct, and unkeyed. Reporting that as a
+    // missing checkout trains its author to stop reading the output — the one
+    // thing this guard needs them to do. A tree holding notes is therefore a
+    // tree; only a tree holding none is the absent one.
+    //
+    // The homepage used to be the headline example, because it was addressed
+    // by the package rather than by a slug — so a `publish.site: homepage`
+    // package had a tree with exactly one note and no key at all. It carries an
+    // address like every other note now (#182); the guard is unchanged, because
+    // what it reads was never the key count.
     if (notes.length === 0) {
         findings.push({
             file: path.relative(process.cwd(), contentBase) || contentBase,
