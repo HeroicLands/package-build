@@ -1297,6 +1297,20 @@ subType:
   render — an empty table looks exactly like a full one until you read it — which is the
   failure this value exists to make nameable.
 
+| `data` property | Values   | Description                                                                                               |
+| --------------- | -------- | --------------------------------------------------------------------------------------------------------- |
+| `section`       | `string` | For a `collection` only: the URL segment of the section it heads. Omit it and the note's own slug is used |
+
+**`section` is the segment, not a label.** A collection is a section's landing
+page, so what it names is where that section lives — and two collections may not
+claim the same one. A collection that lists a _subset_ of a section therefore
+names none: five of `sohl-thalorna`'s list places and three list affiliations, and
+each falls back to its own slug rather than fighting over `/place/`.
+
+It is authored rather than derived because the note's own title is presentation:
+a collection called "Creatures" heads the `being` section, and slugging the title
+would put it somewhere else.
+
 ### type: macro
 
 A script offered on the macro bar, plus the prose explaining what it does and
