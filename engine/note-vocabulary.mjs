@@ -206,6 +206,21 @@ const CHARGES = Object.freeze([
  * fishing village is a `village` that is `fishing`, and the single-valued field
  * this replaced had to spell it `Fishing Village` as a value of its own.
  */
+/**
+ * The declared tag that marks a note as **unfinished** (#183).
+ *
+ * Named once and referenced from the declaration below, because a second
+ * spelling is how the two come apart: rename the tag in `DECLARED_TAGS` and a
+ * private copy elsewhere keeps matching the old word, silently.
+ *
+ * It is a **presentation** fact and nothing more. A draft note compiles,
+ * validates, publishes and resolves like any other; only a link *into* it
+ * renders marked. What it emphatically is not is the retired `draft:` field,
+ * whose entire effect was to move a note from published to unresolvable — see
+ * {@link draftRetiredMessage}.
+ */
+export const DRAFT_TAG = "draft";
+
 export const DECLARED_TAGS = Object.freeze({
     /** What a place *is*. */
     placeKind: Object.freeze({
@@ -287,7 +302,7 @@ export const DECLARED_TAGS = Object.freeze({
         ]),
     }),
     /** A note's working state, which any note may carry. */
-    state: Object.freeze({ types: null, tags: Object.freeze(["draft"]) }),
+    state: Object.freeze({ types: null, tags: Object.freeze([DRAFT_TAG]) }),
 });
 
 /**
@@ -300,6 +315,48 @@ export const DECLARED_TAGS = Object.freeze({
 export function declaredTags(type, groups = DECLARED_TAGS) {
     const applies = Object.values(groups).filter((g) => !g.types || g.types.includes(type));
     return Object.freeze(applies.flatMap((g) => g.tags));
+}
+
+/**
+ * Whether a note carries a given tag, however the author wrote it.
+ *
+ * `tags:` is authored by hand and Obsidian is permissive about it: a single tag
+ * may be a scalar rather than a list, a value may carry the leading `#` it is
+ * written with in prose, and case and surrounding space are not significant.
+ * The spelling of the tag *itself* still is — a near miss is a near miss, and
+ * the frontmatter lint is what reports it; nothing here guesses.
+ *
+ * Reads `tags` and, as Dataview does, `tag` — the singular spelling Obsidian
+ * also accepts.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} tag - The tag to look for, in its declared spelling.
+ * @returns {boolean} Whether the note carries it.
+ */
+export function hasTag(fm, tag) {
+    const raw = fm?.tags ?? fm?.tag;
+    if (raw == null) return false;
+    const wanted = String(tag).toLowerCase();
+    for (const entry of Array.isArray(raw) ? raw : [raw]) {
+        if (typeof entry !== "string") continue;
+        if (entry.trim().replace(/^#/, "").toLowerCase() === wanted) return true;
+    }
+    return false;
+}
+
+/**
+ * Whether a note is tagged as an unfinished **draft** (#183).
+ *
+ * The one reader of {@link DRAFT_TAG}, so both builds ask the same question of
+ * the same field. Presentation only: a draft note is in the packs, in the
+ * manifest and on the site exactly as any other, and this decides nothing but
+ * whether a link into it renders marked.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @returns {boolean} Whether the note carries the `draft` tag.
+ */
+export function isDraftNote(fm) {
+    return hasTag(fm, DRAFT_TAG);
 }
 
 export const NOTE_VOCABULARY = Object.freeze({

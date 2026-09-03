@@ -41,6 +41,9 @@ import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // The alias sources every index shares (#131).
 import { aliasesOf } from "./alias-index.mjs";
+// The declared tag vocabulary (#172), which is where `draft` is stated. Read
+// from there rather than respelt, so the tag and its one reader cannot drift.
+import { isDraftNote } from "./note-vocabulary.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { emitDiagnostic, positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -454,6 +457,11 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             // `name.full`, and deliberately not the filename — see
             // {@link aliasesOf} for what that admitted and why it went.
             aliases: aliasesOf(fm),
+            // Whether the note is tagged `draft` (#183). Read from the tag
+            // vocabulary that declares it, and used for one thing: a link
+            // *into* this note renders marked. It takes no part in resolution,
+            // so the note is indexed, compiled and published as any other.
+            draft: isDraftNote(fm),
         });
     }
     // Packages this build links *into* but does not publish. Their manifests
