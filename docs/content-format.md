@@ -90,6 +90,14 @@ is declared, so a near miss is a finding that names what you probably meant.
 | **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                          |
 | **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                              |
 
+**The group's scope is what makes the check work.** A group names the types it
+applies to, and a place's kinds are only ever checked on a place. Without that
+the rule is wrong on every note it touches: `azravan` on a faith, `barter` on an
+economy note and `secret` on three lore notes each sit a typo's distance from
+`caravan`, `border` and `sacred`, and none of them is a mistake. Scoped, the same
+corpus reports nothing — while a settlement tagged `vilage` is still caught, even
+beside a correct `town`.
+
 **Kind and character are separate because one slot could not hold both.** A
 fishing village is a `village` that is `fishing`, and the field this list
 replaced had to spell that `Fishing Village` as a value of its own — which is why

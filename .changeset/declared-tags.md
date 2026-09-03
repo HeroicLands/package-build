@@ -25,3 +25,12 @@ of the eleven that existed.
 
 **A continent is a region carrying a tag, not a subtype**, because structurally it
 is a region: the same fields, the same parent chain, everything but scale.
+
+**And the declaration is checked.** `lintFrontmatter` reports a tag that is a near
+miss for a declared one — `vilage` for `village` — while leaving every other tag
+alone, because the region is open and a theme or a region is the author's own.
+The group's **scope** is what makes that sound rather than noisy: distance alone
+was wrong on all eight notes it touched in `sohl-thalorna`, since `azravan`,
+`barter` and `secret` each sit a typo's distance from a place tag while sitting
+on a faith, an economy note and three lore notes. Scoped to the types each group
+applies to, both authored trees report nothing.
