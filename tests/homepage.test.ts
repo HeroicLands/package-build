@@ -149,6 +149,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
             packages: new Set(["demo"]),
             contentPackage: "demo",
             skipDirectories: [],
+            base: "/demo/",
             mount: "/demo/kb/",
             scheme: { prefix: "kb/", landing: "readme" },
         });
