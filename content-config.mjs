@@ -211,6 +211,34 @@ export function publishesContentPages(config) {
 }
 
 /**
+ * Every URL section this repository names, in declaration order (#197).
+ *
+ * A section is *declared* by describing it: `site.sections` for one whose
+ * landing this build generates, `site.readmeSections` for one whose landing is
+ * a `README`. Between them they are the open set of addresses a repository
+ * says it publishes under — which is what a `README` landing's `subType` names,
+ * since `sectionOf` reads that field as the section rather than as a genre.
+ *
+ * Read from the same two maps the site build renders each landing from, so the
+ * set a note is checked against and the set a landing is written from cannot
+ * come to disagree. A repository that describes no section declares none, and
+ * the answer is empty rather than a guess assembled from the tree.
+ *
+ * @param {{site: {sections: object, readmeSections: object}}} config - A
+ *   resolved configuration.
+ * @returns {readonly string[]} The section names, deduplicated.
+ */
+export function declaredSections(config) {
+    const site = config?.site ?? {};
+    return Object.freeze([
+        ...new Set([
+            ...Object.keys(site.sections ?? {}),
+            ...Object.keys(site.readmeSections ?? {}),
+        ]),
+    ]);
+}
+
+/**
  * @typedef {"systems" | "modules"} PackageKind
  */
 
