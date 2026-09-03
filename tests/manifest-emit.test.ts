@@ -30,6 +30,7 @@ import {
     LEAD_ANCHOR,
 } from "../engine/manifest-emit.mjs";
 import { packageAddress } from "../engine/content-address.mjs";
+import { readCanonicalKey } from "../engine/kb-manifest.mjs";
 
 /** The manifest document's shape — see the note in `kb-manifest.test.ts`. */
 interface Manifest {
@@ -154,23 +155,26 @@ const WEB = {
 };
 
 describe("the address scheme is configuration, and both live rules work", () => {
-    it("mounts the tree where the repository says (`sohl`'s `kb/`)", () => {
+    it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
+        // The prefix says where the content *tree* sits inside the package, so
+        // it addresses the section landings; an ordinary page is addressed by a
+        // package-wide identity and takes no mount at all (#181).
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe("kb/weapongear/dagger/");
-        expect(doc.entries["demo-doc-combat"].path).toBe("kb/rules/combat/");
+        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
+        expect(doc.entries["demo-doc-combat"].path).toBe("doc-combat/");
     });
 
-    it("mounts at the package root when there is no prefix", () => {
+    it("addresses it identically when there is no prefix", () => {
         const doc = emit({ ...WEB });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear/dagger/");
+        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
     });
 
     it("`readme`: a README addresses its section, a collection is a page", () => {
-        const doc = emit({ ...WEB, address: { landing: "readme" } });
-        expect(doc.entries["demo-doc-rulesidx"].path).toBe("rules/");
-        // The rule `sohl` relies on: its eleven collection notes publish under
-        // a literal `collection/` section rather than becoming landing pages.
-        expect(doc.entries["demo-doc-creatures"].path).toBe("collection/creatures/");
+        const doc = emit({ ...WEB, address: { landing: "readme", prefix: "kb/" } });
+        expect(doc.entries["demo-doc-rulesidx"].path).toBe("kb/rules/");
+        // The rule `sohl` relies on: its eleven collection notes are ordinary
+        // pages rather than landing pages, so they take an address.
+        expect(doc.entries["demo-doc-creatures"].path).toBe("doc-creatures/");
     });
 
     it("`collection`: a collection note addresses its authored section", () => {
@@ -178,7 +182,7 @@ describe("the address scheme is configuration, and both live rules work", () => 
         expect(doc.entries["demo-doc-creatures"].path).toBe("creature/");
         // And the README is then an ordinary page, so the two rules really are
         // alternatives rather than a pair that could both be applied.
-        expect(doc.entries["demo-doc-rulesidx"].path).toBe("rules/the-rules/");
+        expect(doc.entries["demo-doc-rulesidx"].path).toBe("doc-rulesidx/");
     });
 
     it("a collection note naming no section is reported, never guessed", () => {
@@ -321,7 +325,7 @@ name:
         );
         const doc = emit({ ...WEB });
         const entry = doc.entries["demo-weapongear-idless"];
-        expect(entry.path).toBe("weapongear/idless-blade/");
+        expect(entry.path).toBe("weapongear-idless/");
         expect(entry.uuid).toBeUndefined();
         expect(doc.entries["demo-docweapongear-idless"].uuid).toBeUndefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Idless.md"));
@@ -384,8 +388,45 @@ describe("the emitted address is the one the site publishes", () => {
         // scheme is the string the manifest records, character for character.
         const fm = { type: "weapongear", shortcode: "dagger" };
         const scheme = { prefix: "kb/", landing: "readme" };
-        expect(packageAddress(fm, "Dagger", { scheme })).toBe(
+        expect(packageAddress(fm, { scheme })).toBe(
             emit({ ...WEB, address: scheme }).entries["demo-weapongear-dagger"].path,
         );
+    });
+
+    it("is derivable from the key it is filed under (#181)", () => {
+        // The manifest still writes `path` — a landing page is the one entry
+        // that is not derivable, and an absent `path` already means something
+        // else — but for every ordinary page a consumer can compute it from the
+        // key alone, with no knowledge of the emitting repository's scheme.
+        const doc = emit({ ...WEB, address: { prefix: "kb/", landing: "readme" } });
+        // A landing page addresses the section it *is*, under the content
+        // mount, so it is the one entry whose path is not its address.
+        const landings = new Set(["demo-doc-rulesidx"]);
+        for (const [key, entry] of Object.entries(doc.entries)) {
+            if (landings.has(key)) continue;
+            const parts = readCanonicalKey(key)!;
+            // On the web an item note renders as one page which *is* its
+            // documentation, so `docweapongear-dagger` resolves to the item's
+            // own address — a pre-existing aliasing of two Foundry documents
+            // onto one page, not an exception to the rule.
+            const type = parts.type.replace(/^doc(?=.)/, "");
+            expect(entry.path, key).toBe(`${type}-${parts.shortcode}/`);
+        }
+    });
+
+    it("is stable across a rename, because no part of it is a name", () => {
+        const before = emit({ ...WEB }).entries["demo-weapongear-dagger"].path;
+        const file = path.join(root, "assets/content/Gear/Dagger.md");
+        const original = fs.readFileSync(file, "utf8");
+        try {
+            fs.writeFileSync(file, original.replace("full: Dagger", "full: A Very Fine Dagger"));
+            const after = emit({ ...WEB }).entries["demo-weapongear-dagger"];
+            expect(after.path).toBe(before);
+            // The name moved, which is the only thing a rename is allowed to
+            // move: it labels an inbound link and titles the page.
+            expect(after.name).toBe("A Very Fine Dagger");
+        } finally {
+            fs.writeFileSync(file, original);
+        }
     });
 });

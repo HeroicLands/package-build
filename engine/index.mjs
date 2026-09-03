@@ -77,10 +77,10 @@ export * as noteVocabulary from "./note-vocabulary.mjs";
 
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
-/** The URL a content note is published at — the one web-address rule. */
+/** The one normalisation this build makes: prose to a URL-safe token. */
 export * as contentSlug from "./content-slug.mjs";
 
-/** Section and address derivation on top of {@link contentSlug}. */
+/** Where a content note publishes: its section, and its `type-shortcode` URL. */
 export * as contentAddress from "./content-address.mjs";
 
 /** Whether a vendored manifest can still be addressed, not merely read. */

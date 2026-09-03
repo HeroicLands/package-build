@@ -124,6 +124,9 @@ const ctx = {
     // configuration, never from a note (#56).
     contentPackage: "demo",
     skipDirectories: [],
+    // Where the package is served, and where its content tree mounts inside
+    // it. A page is addressed by the first; a section landing by the second.
+    base: "/demo/",
     mount: "/demo/kb/",
     scheme: { prefix: "kb/", landing: "readme" },
 };
@@ -152,13 +155,32 @@ describe("the walk is ordered, because the index depends on it", () => {
 });
 
 describe("a page's address comes from the shared scheme", () => {
-    it("mounts content under the configured prefix", () => {
+    it("publishes a page at its address, and a landing at its section", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const byName = Object.fromEntries(pages.map((p) => [p.name, p.url]));
-        expect(byName.Dagger).toBe("/demo/kb/weapongear/dagger/");
-        expect(byName.Combat).toBe("/demo/kb/rules/combat/");
-        // A README addresses its section rather than a page within it.
+        // `(type, shortcode)`, at the package root: an address is a
+        // package-wide identity and takes no content mount (#181).
+        expect(byName.Dagger).toBe("/demo/weapongear-dagger/");
+        expect(byName.Combat).toBe("/demo/doc-combat/");
+        // A README addresses the section it *is*, which does sit under the
+        // mount — so the section landings and their layouts are untouched.
         expect(byName["The Rules"]).toBe("/demo/kb/rules/");
+    });
+
+    it("takes nothing from a name, so a rename moves no URL", () => {
+        const file = path.join(root, "assets/content/Gear/Dagger.md");
+        const original = fs.readFileSync(file, "utf8");
+        const url = () => {
+            const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
+            return pages.find((p) => p.fm.shortcode === "dagger")!.url;
+        };
+        const before = url();
+        try {
+            fs.writeFileSync(file, original.replace("full: Dagger", "full: Poignard"));
+            expect(url()).toBe(before);
+        } finally {
+            fs.writeFileSync(file, original);
+        }
     });
 
     it("publishes every note in the tree, under the configured package", () => {
@@ -226,20 +248,39 @@ summary: "see [[weapongear-dagger]]"`,
         fs.rmSync(path.join(root, "assets/content/Gear/Linky.md"));
     });
 
-    it("catches a name that yields no slug", () => {
+    it("catches a note with no shortcode to be addressed by", () => {
         note(
             "Gear/Blank.md",
             `type: weapongear
-shortcode: blank
 name:
-    full: "···"`,
+    full: Blank`,
         );
         const got = collectContentPages(path.join(root, "assets/content"), ctx);
-        expect(got.slugFindings.length).toBe(1);
+        expect(got.addressFindings.length).toBe(1);
+        expect(got.addressFindings[0].reason).toMatch(/no shortcode/);
         fs.rmSync(path.join(root, "assets/content/Gear/Blank.md"));
     });
 
-    it("catches two pages claiming one URL", () => {
+    it("catches a note with no section to be filed under", () => {
+        // The URL no longer names the section, but Hugo still reads a page's
+        // section from its directory — so a note with none has nowhere to go.
+        note(
+            "Rules/Homeless.md",
+            `type: doc
+shortcode: homeless
+name:
+    full: Homeless`,
+        );
+        const got = collectContentPages(path.join(root, "assets/content"), ctx);
+        expect(got.addressFindings.length).toBe(1);
+        expect(got.addressFindings[0].reason).toMatch(/no section/);
+        fs.rmSync(path.join(root, "assets/content/Rules/Homeless.md"));
+    });
+
+    it("has no collision gate, because two addresses cannot collide", () => {
+        // Two notes of one type sharing a *name* used to claim one URL and had
+        // to be caught; `(type, shortcode)` is unique within a package by rule,
+        // so the URL is unique by construction and the gate is gone (#181).
         note(
             "Gear/Dagger2.md",
             `type: weapongear
@@ -251,10 +292,10 @@ name:
         const gates = siteGates(got.pages, got, {
             manifestDir: path.join(root, "assets/manifests"),
         });
-        expect(gates.collisions.length).toBe(1);
-        expect(gatesFailed(gates)).toBe(true);
-        // Reported, not thrown — the point of the extraction.
-        expect(gates.index).toBeNull();
+        expect("collisions" in gates).toBe(false);
+        expect(gatesFailed(gates)).toBe(false);
+        const urls = got.pages.filter((p) => p.kind === "content").map((p) => p.url);
+        expect(new Set(urls).size).toBe(urls.length);
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger2.md"));
     });
 
@@ -276,7 +317,8 @@ describe("what a page publishes with", () => {
         fm: { type: "weapongear", aliases: ["a", "b"], custom: 1 },
         pkg: "demo",
         name: "Dagger",
-        slug: "dagger",
+        slug: "weapongear-dagger",
+        url: "/demo/weapongear-dagger/",
         sec: "weapongear",
         folder: "Gear",
         isReadme: false,
@@ -327,11 +369,22 @@ describe("what a page publishes with", () => {
         expect("banner" in data).toBe(false);
     });
 
-    it("routes a README to `_index.md` and a page to its slug", () => {
-        expect(pageDestination(page as never)).toBe(path.join("weapongear", "dagger.md"));
+    it("routes a README to `_index.md` and a page to its address", () => {
+        expect(pageDestination(page as never)).toBe(
+            path.join("weapongear", "weapongear-dagger.md"),
+        );
         expect(pageDestination({ ...page, isReadme: true } as never)).toBe(
             path.join("weapongear", "_index.md"),
         );
+    });
+
+    it("keeps writing into the section directory, whatever the URL says", () => {
+        // Hugo derives a page's section from its path, not from its URL — the
+        // section landings, `.CurrentSection` and per-section layout lookup all
+        // depend on it — so the file stays in `<sec>/` and the page states its
+        // address instead (#181).
+        expect(path.dirname(pageDestination(page as never))).toBe("weapongear");
+        expect(pageFrontmatter(page as never, {}).url).toBe("/demo/weapongear-dagger/");
     });
 });
 
@@ -441,15 +494,20 @@ describe("buildSite end to end", () => {
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
         const out = path.join(root, "out/kb");
-        expect(fs.existsSync(path.join(out, "weapongear/dagger.md"))).toBe(true);
+        expect(fs.existsSync(path.join(out, "weapongear/weapongear-dagger.md"))).toBe(true);
         expect(fs.existsSync(path.join(out, "rules/_index.md"))).toBe(true);
         expect(result.wikiErrors).toEqual([]);
     });
 
     it("resolves a wikilink to the page's published address", () => {
         buildSite({ config: configFor() });
-        const page = fs.readFileSync(path.join(root, "out/kb/weapongear/dagger.md"), "utf8");
-        expect(page).toContain("/demo/kb/weapongear/dagger/");
+        const page = fs.readFileSync(
+            path.join(root, "out/kb/weapongear/weapongear-dagger.md"),
+            "utf8",
+        );
+        // Both the resolved wikilink and the page's own stated address.
+        expect(page).toContain("/demo/weapongear-dagger/");
+        expect(page).toMatch(/^url: \/demo\/weapongear-dagger\/$/m);
     });
 
     it("writes the derived package into a swept note's page", () => {
@@ -465,7 +523,10 @@ name:
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const page = fs.readFileSync(path.join(root, "out/kb/weapongear/sling.md"), "utf8");
+            const page = fs.readFileSync(
+                path.join(root, "out/kb/weapongear/weapongear-sling.md"),
+                "utf8",
+            );
             expect(page).toMatch(/^package: demo$/m);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));
@@ -478,7 +539,8 @@ name:
             `type: weapongear
 shortcode: dagger3
 name:
-    full: Dagger`,
+    full: Dagger
+summary: "see [[weapongear-dagger]]"`,
         );
         const out = path.join(root, "out");
         fs.rmSync(out, { recursive: true, force: true });
