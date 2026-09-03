@@ -287,6 +287,7 @@ name:
                 packages: new Set(["demo"]),
                 contentPackage: "demo",
                 skipDirectories: [],
+                base: "/demo/",
                 mount: "/demo/kb/",
                 scheme: { prefix: "kb/", landing: "readme" },
             });
@@ -302,8 +303,8 @@ name:
             // The draft target is marked; the finished one, cited in the same
             // sentence, is not.
             expect(out.trim()).toBe(
-                `Worse than ${draft("[Coma](/demo/kb/rules/coma/)")}, ` +
-                    "better than [Shock](/demo/kb/rules/shock/).",
+                `Worse than ${draft("[Coma](/demo/doc-coma/)")}, ` +
+                    "better than [Shock](/demo/doc-shock/).",
             );
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
