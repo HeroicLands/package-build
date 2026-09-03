@@ -609,6 +609,8 @@ Definition of a level within the organization (e.g., Priest, Layperson, Member, 
 | -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
 | `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
+| `epithet`            | `string`                  | The by-name it is known by — a god's, an order's, a company's                                              |
+| `symbol`             | `string`                  | Its emblem in words: a feather atop a golden scale, a chisel carving a star                                |
 | `governance.model`   | `GovernanceModel`         | Type of government structure, if applicable                                                                |
 | `governance.summary` | `string`                  | summary of the governance situation                                                                        |
 | `governance.ranks`   | `Rank[]`                  | The ranks available to members of the affiliation                                                          |
@@ -618,9 +620,22 @@ Definition of a level within the organization (e.g., Priest, Layperson, Member, 
 | `domains`            | `WikiLink[]`              | Places over which this affiliation holds sway                                                              |
 | `population`         | `number`                  | Number of people in the affiliation (precision 2 significant digits).                                      |
 | `economy`            | `WikiLink[]`              | Any wikilink referring to the economic activity of the affiliation (produced goods, currency systems, etc) |
-| `peoples`            | `WikiLink[]`              | People (lore) who are associated with the affiliation                                                      |
+| `lore`               | `WikiLink[]`              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar             |
 | `parents`            | `WikiLink[]`              | Affiliations that this affiliation is subordinate to                                                       |
 | `relations`          | `Map<WikiLink, Standing>` | Relations with other affiliations                                                                          |
+
+**A faith tradition is not its god.** An `affiliation` of subType
+`faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
+calendar and a body of observance — and it can outlive belief in the god
+entirely, while one god may be venerated by several religions that agree on
+nothing else. So the god is `lore` of subType `deity`, cited from the faith
+through `lore`, and never a property of it.
+
+`epithet` and `symbol` stay with the religion for the same reason, and they are
+not a faith's alone: they are what the members call the thing and what they
+carve, so a guild has them as much as a cult does. What a god _is_ — its nature,
+its domains, its aspects — belongs on the deity note, where every religion that
+venerates it can point at one account.
 
 **Every one of those describes the organisation.** A membership — which office a
 being holds, what title it bears, where it stands on the ladder — is recorded on
