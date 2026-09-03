@@ -1,5 +1,284 @@
 # @heroiclands/package-build
 
+## 11.0.0
+
+### Major Changes
+
+- 51f9b4f: **The package homepage becomes an ordinary addressed note** (#182).
+  
+  A homepage declares a `shortcode` — conventionally `root` — and publishes at
+  its address, `/<package>/homepage-root/`, written by the same rule as every
+  other page. `[[homepage-root|Read the introduction]]` is an ordinary wikilink
+  now, resolving to the page the build actually writes.
+  
+  **Why it was the exception, and why it is not one any more.** A page's URL used
+  to derive from `name.full` while a homepage's destination was fixed at
+  `_index.md`, so a `shortcode` on one put the note in the address index and
+  `[[homepage-<shortcode>]]` resolved _green_ to a page nothing wrote. That is
+  what `HOMEPAGE_REFUSED_FIELDS` refused, and the reason was entirely an artifact
+  of name-derived URLs. #181 removed the premise: the address a `shortcode`
+  computes is the address the build publishes.
+  
+  **Breaking, two ways.**
+  
+  - **Every homepage note must now declare a `shortcode`.** Without one the note
+    has no address, and both `content-build lint` and `content-build site` refuse
+    it, located at the `type:` value that makes it necessary. All six trees need
+    the same one-line edit: `shortcode: root`.
+  - **The landing moves** from `/<package>/` to `/<package>/homepage-root/`.
+    `/<package>/` becomes a `301` the package authors in its own `_redirects`,
+    with a pinned `Cache-Control: max-age=3600` in `_headers` — Cloudflare Pages
+    sets no `Cache-Control` on a redirect it generates, and an unpinned 301 is
+    cacheable indefinitely under RFC 9111. See `CONTENT.md`.
+  
+  | Field       | Was     | Now                                          |
+  | ----------- | ------- | -------------------------------------------- |
+  | `shortcode` | refused | **required**                                 |
+  | `name`      | refused | permitted, like any other note's             |
+  | `id`        | refused | refused — a homepage compiles to no document |
+  
+  `id` is unaffected because its reason is: a homepage appears in no pack, and it
+  stays out of the **link manifest** for the same reason, now that a shortcode
+  alone would put it in.
+  
+  **What is deleted.** `HOMEPAGE_DESTINATION`, and the comment describing the
+  homepage as "the one page for which neither addressing rule holds" — it no
+  longer is. `homepageDestination(fm)` replaces the constant, and
+  `homepageFrontmatter` takes a `base` so the emitted page can state its `url`.
+  
+  **Singularity is now stated as a cardinality rule.** It used to rest on the
+  fixed destination every homepage shared — the second silently overwrote the
+  first — so the address rule enforced it as a side effect. Two homepages publish
+  two pages now and collide over nothing, so `checkHomepageCount` says what it
+  means: a package has one front page, and nothing here can decide which of two
+  `/<package>/` should redirect to.
+- 6291dec: **A published page's URL is its address, not its display name** (#181).
+  
+  Every content page now serves at `/<package>/<type>-<shortcode>/`. `(type,
+  shortcode)` names one note within a package — the rule `content-build lint`
+  already enforces — so the URL is unique _by construction_: there is no
+  collision check behind it, and renaming a note moves no URL, because no part of
+  the address comes from a display string.
+  
+  **Every published URL moves**, which is what makes this a major. `sohl`'s
+  `/sohl/kb/rules/shock/` becomes `/sohl/doc-shock/`; `thalorna`'s
+  `/thalorna/affiliation/the-aerarium-imperii/` becomes
+  `/thalorna/affiliation-aerarium/`. Measured across the three live trees: 1,595
+  `sohl` pages, 1,848 `thalorna`, 370 `kethira` — every one of them unique, and no
+  content edit required in any repository.
+  
+  **What it replaces.** The URL derived from `name.full`, which made a display
+  name load-bearing three ways at once: a rename silently 404'd every inbound
+  link, two notes in one section could derive one URL so a uniqueness gate had to
+  run, and long names were shortened through a table of 200 abbreviations. The
+  module doing it justified the cost by promising redirects — _"every change
+  appends to the legacy-URL map"_ — and no such map was ever written, here or in
+  any consumer. An address needs none of it.
+  
+  **Sections stay, as directories.** Hugo derives a page's section from where its
+  file is written, not from its URL, and that section is what supplies the section
+  landing pages, `.CurrentSection` and per-section layout lookup. So a page is
+  still written into `<section>/` and now carries a front-matter `url:` publishing
+  it at its address. A **landing page** is the one exception: it _is_ its section,
+  so it still addresses the section under the configured `publish.address.prefix`
+  (`kb/rules/`), which is why an entry's `path` is still written to the manifest
+  rather than left for a consumer to compute.
+  
+  **The `type-` prefix is deliberate.** Flattening to `<shortcode>` would put
+  content in the same namespace as a package's fixed mounts — `/<package>/` for
+  the landing page, `/<package>/api/` for generated API docs — neither of which
+  contains a hyphen or names a type. With it the namespace is provably disjoint.
+  
+  **Removed**
+  
+  | Gone                                            | Why                                          |
+  | ----------------------------------------------- | -------------------------------------------- |
+  | `contentSlug`                                   | Nothing derives a URL from a name.           |
+  | `findSlugCollisions`, and the site build's gate | Two addresses cannot collide.                |
+  | `ABBREVIATIONS` / `abbreviateTokens`            | They only ever shortened a name-derived URL. |
+  
+  `slugify` stays, unchanged and un-abbreviated, in the two places it was always
+  right for: heading anchors and pack filenames.
+  
+  **Breaking, for a consumer calling the engine directly**
+  
+  - `packageAddress(fm, name, options)` → `packageAddress(fm, options)`, and
+    `contentAddress(fm, name, isReadme)` → `contentAddress(fm, isReadme)`. The
+    name was the input the address no longer has.
+  - `addressSlug(fm)` is new: the `type-shortcode` segment, lowercased, so it is
+    exactly the tail of the canonical key.
+  - The site build's gate result renames `slugErrors` to `addressErrors` and drops
+    `collisions` entirely. A note with no `shortcode`, or no section to be filed
+    under, is reported there rather than published.
+  - `engine/abbreviations.mjs` is deleted.
+- a9fb0fc: **Retire the bare `[[Alias]]` wikilink form and the alias index** (#180, resolving #179).
+  
+  Every wikilink is now an **address**, and every wikilink carries a **label**. The
+  pipe no longer selects between two namespaces — there is only one — so a link
+  written without one addresses nothing and is a finding wherever it is met:
+  `content-build links` fails on it, the pack compilers fail the note, and the site
+  resolver reports it. The correction is always the same, and the message says so:
+  write `[[type-shortcode|Text]]`. `[[#slug|Text]]` still resolves; the link part
+  may be an anchor, it is the label that is required.
+  
+  **Why.** The alias namespace was empty in practice. Across 8,305 wikilinks in the
+  three content trees, **not one** bare `[[Alias]]` resolved to a note. What the
+  index behind it did do was fold every note's `name.full` into itself, so two
+  notes of one type could not share a display name — five `doc` notes in the `sohl`
+  tree collided, and every available fix moved a published URL (#179). The rule had
+  never prevented a broken link; it had only ever forbidden a name.
+  
+  **The top-level `aliases:` is a retired field.** It fed nothing else, so it is
+  now **refused** naming the file and the line, the same way `draft:` and
+  `package:` are, and reported by the frontmatter lint as well as at compile.
+  
+  **`name.aliases` is kept, and is read by nothing.** It fed the same index and
+  lost the same reader, but it is **reserved** — held for a use that does not
+  exist yet — so it is deliberately neither retired nor consulted. No index folds
+  it in, no rule validates it, nothing derives a name, address or URL from it, and
+  the refusal above never mentions it. A note carrying one compiles, resolves and
+  addresses exactly as the same note without it, and `tests/name-aliases-reserved.test.ts`
+  pins that equivalence across the pack compile, both wikilink resolvers, the link
+  manifest and the site index, so a reader cannot be reintroduced unnoticed.
+  
+  **Removed.** `engine/alias-index.mjs` in its entirety — `aliasesOf`, `aliasKey`,
+  `indexAliases`, and the `engine.aliasIndex` namespace export — along with
+  `resolvesAsAddress` from `engine/wikilink-syntax.mjs`, replaced by
+  `unlabelledLinkMessage`, which is the one place that states the rule for both
+  builds.
+  
+  **API changes** for anything importing the engine directly:
+  
+  | was                                                    | now                            |
+  | ------------------------------------------------------ | ------------------------------ |
+  | `index.resolve(note, target, labelled)`                | `index.resolve(target)`        |
+  | `index.resolveAlias`, `aliasClaims`, `aliasCollisions` | gone                           |
+  | `auditLinks().deadAliases` / `.aliasCollisions`        | `auditLinks().unlabelledLinks` |
+  | `buildWikilinkIndex().byAlias` / `.aliasClaims`        | gone                           |
+  | `buildSiteIndex().typeAlias` / `.typeCollide`          | gone                           |
+  | `wikiContext()`'s `typeAlias` / `typeCollide`          | gone                           |
+  
+  `buildSiteIndex` no longer indexes a page by its **name**, filename or bare slug
+  — those were the collision-aware fallbacks the bare form was looked up in, and
+  nothing consults them now. `ambiguous` / `collide` becomes the set of short
+  `type/shortcode` addresses two **foreign packages** both publish, which the web
+  resolver now reports as ambiguous rather than as merely broken.
+  
+  **Consumer impact, measured.** Every tree needs a mechanical frontmatter sweep
+  of the **top-level** field, which is authored almost everywhere: 1,609 notes in
+  `sohl`, 1,850 in `thalorna`, 370 in `kethira`. A `name.aliases:` is left exactly
+  where it is — the sweep must delete the top-level list only. Links are cheaper — `sohl` has **0** unlabelled
+  links and `kethira` has none at all; `thalorna` carries 70 (68 bare links and 2
+  pipe-less anchors), which is content work in its own repository. The five `sohl`
+  alias collisions and `thalorna`'s thirteen cease to exist with no note renamed
+  and no published URL moved.
+- ffb1b04: **An address that resolves to no note fails every build** (#184).
+  
+  A wikilink whose address names no document was a **warning** in `content-build
+  links`, a **failure** in the pack compilers, and — in the site build — _nothing
+  at all_ while any linkable package had no vendored manifest. One authored link,
+  three verdicts. This makes it an error everywhere, and makes the three resolvers
+  name and word every class of link failure identically.
+  
+  **Why the tolerance is spent.** It existed because a bare `[[Sunless Vault]]`
+  might be a worldbuilding placeholder for a note nobody had written. That was a
+  property of the bare form, which #180 retired, and the intent behind it now has
+  a real spelling: a note tagged `draft` exists, resolves, compiles, publishes,
+  and renders its inbound links marked (#183). An address naming no note is a typo
+  or an omission, and both want fixing.
+  
+  **One vocabulary, one message.** `engine/wikilink-syntax.mjs` — which already
+  held the syntax the three resolvers share — now also holds the closed set of
+  failure classes (`LINK_FINDING_REASONS`) and the message each reports through
+  (`linkFindingMessage`, `unresolvedAddressMessage`, `ambiguousAddressMessage`).
+  An author meets whichever build ran first, and a consumer switching on a
+  `reason` should not be switching on which build produced it.
+  
+  | finding          | checker | pack build | site build |
+  | ---------------- | ------- | ---------- | ---------- |
+  | `unlabelled`     | error   | error      | error      |
+  | `not-an-address` | error   | error      | error      |
+  | `unknown-type`   | error   | error      | error      |
+  | `unresolved`     | error   | error      | **error**  |
+  | `ambiguous`      | error   | error      | error      |
+  
+  **Breaking changes.**
+  
+  - _The site build fails an unresolved address unconditionally._
+    `wikiContext()` no longer takes `manifestsComplete`, and `resolveWebWikilinks`
+    ignores one on the context. A missing manifest is now advice inside the
+    message rather than a reason to let the link through.
+  - _Two reason strings were renamed into the shared vocabulary._ The pack
+    build's `"unknown"` and the site build's `"broken type/shortcode"` are both
+    `"unresolved"`. A slash-qualified target naming no known type reports as
+    `"unknown-type"` on the site build too, matching the checker.
+  - _`ambiguous` is a class in all three._ An address more than one package
+    publishes was reported by the checker and the pack build as though nothing
+    published it. The finding carries the claiming `packages`, and the message
+    names them.
+  - _Site-build wikilink findings are compiler-parseable._ They were
+    `log.error("bad wikilink [[x]]: reason  (file)")` — a `loglevel` timestamp
+    sitting exactly where a parser reads the path from. They are now
+    `file:line:column: error: message`, located by the authored link's own
+    position in the source note, like every other diagnostic.
+  - _Pack-build failure messages are reworded_ by the shared table, and name the
+    address rather than the whole authored link.
+  
+  **Consumer impact: none measured.** Across the three content trees — `sohl`
+  (1,607 notes / 3,618 links), `thalorna` (1,849 / 7,913) and `kethira` (371 / 0)
+  — the promotion produces **zero** new findings. `thalorna`'s 66 dead addresses
+  are all `not-an-address`, which was already an error, and its 70 unlabelled
+  links are #180's. No tree carries an address that resolves nowhere.
+
+### Minor Changes
+
+- ba51273: Mark a link whose target is tagged `draft` (#183).
+  
+  A note that exists only so a link is not dead is now visibly distinct from one
+  that is written. Both builds wrap such a link in
+  `<span class="sohl-draft-link" title="Draft — not yet written">…</span>` —
+  byte-identically, as `unresolvedLink` already does, so one authored link carries
+  the same cue in a compiled journal and on the website. The link inside is
+  untouched: Foundry enriches inside HTML and Goldmark parses markdown inside an
+  inline span, so it is still a live link either way.
+  
+  **The note stays in the graph.** This marks at presentation and nothing else.
+  Resolution, validation, pack compilation and manifest membership are unchanged
+  for a draft note, which is what separates the tag from the retired `draft:`
+  field — that field moved a note from _published_ to unresolvable without saying
+  so, and suppressed the build failures the note carried. Nothing here reinstates
+  any of it, and declaring the field is still refused by name.
+  
+  **Read from the tag vocabulary, not respelt.** `draft` is declared in
+  `DECLARED_TAGS.state` (#172) and exported as `DRAFT_TAG`, with `isDraftNote()`
+  as its one reader — so the declared tag and the thing that acts on it cannot
+  drift apart. This is the first thing in either build to read `tags`.
+  
+  **For consumers.** The class carries no appearance of its own. A Foundry system
+  supplies it in an SCSS partial beside `_unresolved-link.scss`; a site supplies
+  it in its theme. Until one does, a draft link renders exactly as it did before.
+
+### Patch Changes
+
+- 743b303: **`collectContentPages` refuses a missing `base` instead of publishing to `undefined/`.**
+  
+  A page's URL is built as `` `${ctx.base}${slug}/` `` since _a page URL is its
+  address_ (#181). When `base` was absent the template still ran, so every
+  non-landing page in that build published at `undefineddoc-<shortcode>/` with no
+  diagnostic. The function already guards the section immediately below, on the
+  stated grounds that a note with none "is reported rather than written to
+  `undefined/`" — the same reasoning applies to `base`, which affects _every_ page
+  rather than one.
+  
+  It is a caller contract rather than a note defect, so it throws rather than being
+  collected as a finding.
+  
+  Fixes the two in-repo callers that still supplied the pre-#181 options and had
+  gone unnoticed: the end-to-end draft-link case (#183) and a homepage case, whose
+  combination with #181 left `main` red — neither pull request failed alone.
+  
+  Closes #195
+
 ## 10.0.1
 
 ### Patch Changes
