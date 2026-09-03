@@ -1,5 +1,101 @@
 # @heroiclands/package-build
 
+## 11.1.0
+
+### Minor Changes
+
+- 8906d7a: **A `README` landing's `subType` is checked against the sections the repository declares, not the genre list.**
+  
+  Two vocabularies were spelled with one key. For every note, `subType` is a
+  sub-kind of its type, checked against a closed list. For a `README` under
+  `publish.address.landing: readme` it is additionally the **URL section** —
+  `sectionOf` reads a `doc`'s `subType` as the segment the landing addresses — and
+  that is an open set the consuming repository names in `site.sections` /
+  `site.readmeSections`. `engine/frontmatter-lint.mjs` applied the closed reading
+  while `engine/content-address.mjs` applied the open one, so the two halves of the
+  toolchain disagreed about the same note: `content-build site` addressed and
+  published `Weapons/README.md` at `weapongear/`, and `content-build lint` refused
+  it because `doc` declares only `rules`, `user-guide` and `reference`. An item
+  section's landing was not expressible.
+  
+  The check now widens **for a landing only**, and only under `landing: readme`: a
+  `README` whose `subType` is its section may name any section the repository
+  declares, as well as any of its type's own genres — a genre is a section a `doc`
+  tree publishes under whether or not the repository describes it, so narrowing to
+  the configured set alone would refuse a correct `README`. An ordinary note's
+  `subType` stays closed to its type's genres, unchanged.
+  
+  **The guard survives**, checked against the set that actually decides where the
+  page goes:
+  
+  ```text
+  Weapons/README.md:4:1: error: `subType` "weapongeer" is the section this README
+  lands at, and nothing declares it: it is neither a section this repository
+  configures under `site.sections` / `site.readmeSections` (rules, user-guide,
+  weapongear, …) nor one of the subtypes doc declares (rules, user-guide,
+  reference). Did you mean "weapongear"?
+  ```
+  
+  Whether the value is an address is asked of `sectionOf` rather than by naming a
+  type, so the linter still knows no type names of its own; the section list is
+  read from the resolved configuration the site build renders those landings from,
+  through a new `declaredSections(config)`, so neither can name a section the other
+  does not.
+  
+  _Minor rather than patch_: `lintNote` and `lintFrontmatter` take two new
+  options (`landing`, `sections`) and `content-config.mjs` exports
+  `declaredSections`. Both options default to today's behaviour, so a caller that
+  passes neither — and a repository that declares no sections — is unaffected.
+  
+  Closes #197
+
+### Patch Changes
+
+- 68910b6: **A `README` landing may name any section that exists, not only a configured one.**
+  
+  #197 widened a landing's `subType` check by one term and it was the wrong one:
+  the sections the repository configures in `site.sections` /
+  `site.readmeSections`. That keys on configuration a consumer may legitimately not
+  have. `sohl-thalorna` has **no `site:` block at all** — it renders its site
+  through a local fork of the emitter — so `declaredSections` answered `[]`, the
+  accepted set collapsed back to the three `doc` genres, and five of its landings
+  were still refused for naming their own content type:
+  
+  ```text
+  assets/content/Characters/README.md:7:1: error: `subType` "being" is not one of the subtypes doc declares (rules, user-guide, reference)
+  ```
+  
+  A landing's `subType` is an **address**, so it is now checked against the
+  addresses that exist — the range of `sectionOf` over every note the format
+  permits, plus whatever the repository names:
+  
+  1. **Every content type the specification declares.** `sectionOf` returns
+     `fm.type` for a non-`doc` note, so `being`, `lore`, `scenario` and
+     `weapongear` are sections _by construction_, configured or not.
+  2. **The type's own subtypes** — `rules`, `user-guide`, `reference`.
+  3. **The configured sections**, which may name one that is neither: `sohl` has
+     `credits` and `dev-docs`.
+  
+  **The guard survives.** A misspelling is in none of the three, so it still fails,
+  and the near miss is drawn from the whole union. What is deliberately no longer
+  caught is a landing for a section that exists but is currently empty — which is
+  legitimate, and is why the set is the types the format _declares_ rather than
+  those _present in the tree_: `sohl` ships two such landings above tables that
+  stay empty until the first note of each type does.
+  
+  **The type list is the specification's, not the schema map's.** `NOTE_SCHEMAS`
+  declares 18 types and `docs/content-format.md` declares 23; `lore`, `place`,
+  `scenario`, `vehicle` and `armorlocation` are in the second only. Checking an
+  address against the schema map would refuse `Lore/README.md` for a reason that
+  is not about addresses, and would report one gap twice in two vocabularies.
+  Whether a note's fields can be checked is a different question, answered
+  elsewhere and reported on the notes themselves.
+  
+  `lintNote` / `lintFrontmatter` take a `types` option beside `sections`; both
+  default to empty, so a caller that passes neither is unaffected.
+  
+  Closes #200
+
 ## 11.0.0
 
 ### Major Changes
