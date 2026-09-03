@@ -41,6 +41,12 @@
  * two used to state it in their own words and the author met whichever ran
  * first.
  *
+ * For the same reason, so does the **vocabulary of link findings**
+ * ({@link LINK_FINDING_REASONS}) and the message each one reports through
+ * ({@link linkFindingMessage}). Three builds read one authored link; an author
+ * meets whichever ran first, and a consumer switching on a `reason` should not
+ * be switching on which build produced it (#184).
+ *
  * @module
  */
 
@@ -151,6 +157,133 @@ export function unlabelledLinkMessage(target) {
         `write [[type-shortcode|Text]]. Every link is an address; the bare ` +
         `[[Name]] form named an alias, and the alias namespace is retired`
     );
+}
+
+/**
+ * Every way a link can fail, named once for all three resolvers (#184).
+ *
+ * A link is read in three places — the checker (`content-links.mjs`), the pack
+ * compilers (`wikilinks.mjs`) and the web resolver (`web-wikilinks.mjs`) — and
+ * each used to name the failures in its own words. `unknown` in one was
+ * `unresolved` in another and `broken type/shortcode` in the third, so a
+ * consumer switching on a `reason` was switching on which build had produced
+ * it. The set is closed and lives here, beside the syntax the three share.
+ *
+ * - `unlabelled` — no `|`, so the link addresses nothing (#180).
+ * - `not-an-address` — labelled, but the target does not parse as an address.
+ * - `unknown-type` — definitely qualified, but names no type this build knows.
+ * - `unresolved` — parses as an address, and nothing publishes it.
+ * - `ambiguous` — more than one package publishes the short address.
+ * - `unknown-anchor` — the address resolved, the `#section` it names did not.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const LINK_FINDING_REASONS = Object.freeze(
+    new Set([
+        "unlabelled",
+        "not-an-address",
+        "unknown-type",
+        "unresolved",
+        "ambiguous",
+        "unknown-anchor",
+    ]),
+);
+
+/**
+ * What an author writing an address that resolves to nothing is told.
+ *
+ * **Both corrections, because the author cannot tell which applies.** An
+ * address lands nowhere either because the shortcode is wrong or because the
+ * package publishing it has no manifest vendored here, and the link itself
+ * looks identical in the two cases.
+ *
+ * This used to be a **warning** in the checker and, in the site build, nothing
+ * at all until every linkable package had vendored a manifest — on the
+ * reasoning that a bare `[[Name]]` might be a placeholder for a note nobody had
+ * written yet. That reasoning was a property of the bare form, which is retired
+ * (#180); the intent behind it now has a real spelling, a `draft`-tagged note
+ * that exists and resolves and renders marked (#183). So an address naming no
+ * note is a typo or an omission, both want fixing, and all three builds say so.
+ *
+ * @param {string} target - The address as authored, named in the message.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function unresolvedAddressMessage(target) {
+    return (
+        `address [[${target}]] resolves to no note — no package publishes ` +
+        `it. Fix the shortcode, or vendor the link manifest of the package ` +
+        `that does`
+    );
+}
+
+/**
+ * What an author writing a short address more than one package publishes is
+ * told.
+ *
+ * There is no defensible way to pick one, and the correction is mechanical:
+ * write the package-qualified form. So it fails rather than warning, and the
+ * message names the claimants so the author can choose between them without
+ * going looking.
+ *
+ * @param {string} target - The address as authored.
+ * @param {Iterable<string>} [packages] - The packages that publish it.
+ * @returns {string} The message.
+ */
+export function ambiguousAddressMessage(target, packages = []) {
+    const named = [...packages].filter(Boolean).sort();
+    return (
+        `address [[${target}]] is published by ` +
+        (named.length ? `${named.join(" and ")}` : `more than one package`) +
+        `, so it names neither — write the package-qualified ` +
+        `[[package-type-shortcode|Text]]`
+    );
+}
+
+/**
+ * The message for one link finding, whichever resolver found it.
+ *
+ * The single table the checker, the pack compilers and the web resolver all
+ * report through, so one authored link cannot get three different explanations
+ * of the same mistake depending on which build the author ran first. Callers
+ * add their own context around it — the note's name, the file it sits in — and
+ * never their own wording for the defect.
+ *
+ * @param {object} finding
+ * @param {string} finding.reason - One of {@link LINK_FINDING_REASONS}.
+ * @param {string} finding.target - The link target as authored.
+ * @param {Iterable<string>} [finding.packages] - For `ambiguous`, the
+ *   claimants.
+ * @param {string} [finding.anchor] - For `unknown-anchor`, the section named.
+ * @returns {string} The message.
+ * @throws {Error} On a reason outside the closed set — a resolver inventing one
+ *   would otherwise report a link with no explanation at all.
+ */
+export function linkFindingMessage({ reason, target, packages, anchor }) {
+    switch (reason) {
+        case "unlabelled":
+            return unlabelledLinkMessage(target);
+        case "not-an-address":
+            return (
+                `"${target}" is not an address — the "|" says one was meant, ` +
+                `so write [[type-shortcode|Text]]`
+            );
+        case "unknown-type":
+            return `address [[${target}]] names no known content type`;
+        case "ambiguous":
+            return ambiguousAddressMessage(target, packages ?? []);
+        case "unknown-anchor":
+            return (
+                `address [[${target}]] resolves, but no section "#${anchor ?? ""}" ` +
+                `is published for it`
+            );
+        case "unresolved":
+            return unresolvedAddressMessage(target);
+        default:
+            throw new Error(
+                `linkFindingMessage: "${reason}" is not one of ` +
+                    `${[...LINK_FINDING_REASONS].join(", ")}`,
+            );
+    }
 }
 
 /**

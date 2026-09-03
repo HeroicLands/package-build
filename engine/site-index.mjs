@@ -271,21 +271,22 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  * @param {string|null} [options.type] - The citing note's type, carried for a
  *   consumer's own diagnostics.
  * @param {object[]} options.errors - Collector the resolver appends to.
+ * @param {string} [options.file] - The page's source file, which a link
+ *   diagnostic names. Absent, `src` stands in.
  * @param {Map<string, object>} [options.foreignIndex] - The foreign index, for
  *   resolvers that distinguish a foreign hit from a local one.
- * @param {boolean} [options.manifestsComplete] - Whether every package this
- *   build links into supplied a manifest. When false, a resolver may soften an
- *   unresolved cross-package link rather than fail.
  * @returns {object} The resolver context.
+ *
+ * There is deliberately **no `manifestsComplete`**. It used to let a resolver
+ * soften an unresolved cross-package address while any package's manifest was
+ * missing; #184 retired the softening, since the pack compilers and the link
+ * checker never had it and one authored link must not get two verdicts. A
+ * caller still passing it is ignored rather than obeyed.
  */
-export function wikiContext(
-    built,
-    { src, type = null, errors, foreignIndex = new Map(), manifestsComplete = true },
-) {
+export function wikiContext(built, { src, file, type = null, errors, foreignIndex = new Map() }) {
     return {
         index: built.index,
         foreign: foreignIndex,
-        manifestsComplete,
         collide: built.ambiguous,
         sections: built.sections,
         contentTypes: built.contentTypes,
@@ -293,5 +294,6 @@ export function wikiContext(
         type,
         errors,
         src,
+        file,
     };
 }

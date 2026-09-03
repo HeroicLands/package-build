@@ -49,6 +49,17 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
 const unresolved = (text: string, target: string) =>
     `<span class="sohl-unresolved-link" title="Unresolved link: ${target}">` + `${text}</span>`;
 
+/**
+ * A finding's identity, without the fields that only locate it.
+ *
+ * Since #184 every error also carries the authored `link`, its `occurrence` and
+ * the page's `src`, so a diagnostic can name a line and column. Those are
+ * asserted where they are the subject (`unresolved-address.test.ts`); here what
+ * matters is which note, which target, and which class.
+ */
+const findings = (ctx: { errors: Record<string, unknown>[] }) =>
+    ctx.errors.map(({ file, target, reason }) => ({ file, target, reason }));
+
 describe("slugify (KB heading/anchor slug)", () => {
     it("lowercases and hyphenates, trimming stray separators", () => {
         expect(slugify("Shock State Index")).toBe("shock-state-index");
@@ -96,7 +107,7 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("worsens the [[Shock State]]", ctx)).toBe(
             `worsens the ${unresolved("Shock State", "Shock State")}`,
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             { file: "rules/Bleeding.md", target: "Shock State", reason: "unlabelled" },
         ]);
     });
@@ -150,7 +161,7 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("the [[Grukar-ahk]] raid", ctx)).toBe(
             `the ${unresolved("Grukar-ahk", "Grukar-ahk")} raid`,
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             { file: "rules/Bleeding.md", target: "Grukar-ahk", reason: "unlabelled" },
         ]);
     });
@@ -159,23 +170,23 @@ describe("resolveWebWikilinks", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[doc/nosuch|X]]", ctx)).toBe(unresolved("X", "doc/nosuch"));
         expect(ctx.errors).toHaveLength(1);
-        expect(ctx.errors[0]).toMatchObject({
-            reason: "broken type/shortcode",
-        });
+        expect(ctx.errors[0]).toMatchObject({ reason: "unresolved" });
     });
 
-    it("tolerates an unresolved hyphen-qualified target (#1398)", () => {
-        // The hyphen form is what the *vault* writes, and the vault holds
-        // packages this build does not publish — `[[creature-grkrahk]]` is a
-        // real setting note carrying exactly that alias. Nothing in the syntax
-        // separates it from a typo, so an unresolved one is left as prose
-        // rather than failing the build on correct content. The slash form,
-        // written only by this repository's own older links, still errors.
+    it("fails an unresolved hyphen-qualified target (#184)", () => {
+        // The hyphen form used to be left as prose while any linkable package
+        // was invisible here: `[[creature-grkrahk]]` is a real note in the
+        // `thalorna` package, and nothing in the syntax separated it from a
+        // typo. The manifest settles it now, and the other two resolvers never
+        // made the allowance — so the address fails, and the message names the
+        // missing manifest as one of the two possible corrections.
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[creature-grkrahk|the Ahk]]", ctx)).toBe(
             unresolved("the Ahk", "creature-grkrahk"),
         );
-        expect(ctx.errors).toEqual([]);
+        expect(findings(ctx)).toEqual([
+            { file: "rules/Bleeding.md", target: "creature-grkrahk", reason: "unresolved" },
+        ]);
     });
 
     // A hyphenated *name* is not an address, and there is no second namespace
@@ -186,7 +197,7 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("[[Grukar-ahk|the Grukar]]", ctx)).toBe(
             unresolved("the Grukar", "Grukar-ahk"),
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             { file: "rules/Bleeding.md", target: "Grukar-ahk", reason: "not-an-address" },
         ]);
     });
@@ -232,7 +243,7 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("the [[Empire of Tanvur]] rode", ctx)).toBe(
             `the ${unresolved("Empire of Tanvur", "Empire of Tanvur")} rode`,
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             { file: "rules/Bleeding.md", target: "Empire of Tanvur", reason: "unlabelled" },
         ]);
     });
@@ -242,23 +253,26 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("the [[Empire of Tanvur|Tanvurans]] rode", ctx)).toBe(
             `the ${unresolved("Tanvurans", "Empire of Tanvur")} rode`,
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             { file: "rules/Bleeding.md", target: "Empire of Tanvur", reason: "not-an-address" },
         ]);
     });
 
-    it("reports an unknown prefix as not an address", () => {
+    it("reports an unknown prefix as naming no known type", () => {
         // A vault path is not an address in any package, and there is no other
-        // namespace it could name — so it is a finding rather than prose.
+        // namespace it could name — so it is a finding rather than prose. A
+        // slash is unconditionally a qualifier, so the class is `unknown-type`
+        // rather than `not-an-address`: the same reading the link checker has
+        // always had, which the site build now shares (#184).
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar|Grukar]]", ctx)).toBe(
             unresolved("Grukar", "Setting/Creatures/Folk/Grukar"),
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             {
                 file: "rules/Bleeding.md",
                 target: "Setting/Creatures/Folk/Grukar",
-                reason: "not-an-address",
+                reason: "unknown-type",
             },
         ]);
     });
@@ -287,7 +301,7 @@ describe("cross-package addresses (link manifest)", () => {
     ]);
 
     it("renders a foreign address as a real link", () => {
-        const ctx = makeCtx({ foreign, manifestsComplete: true });
+        const ctx = makeCtx({ foreign });
         expect(resolveWebWikilinks("the [[creature-grkrahk|Grukar-ahk]] spawn", ctx)).toBe(
             "the [Grukar-ahk](/thalorna/creature/grukar-ahk/) spawn",
         );
@@ -295,40 +309,48 @@ describe("cross-package addresses (link manifest)", () => {
     });
 
     it("uses the foreign document's name when the link carries no label", () => {
-        const ctx = makeCtx({ foreign, manifestsComplete: true });
+        const ctx = makeCtx({ foreign });
         expect(resolveWebWikilinks("[[creature-grkrahk|]]", ctx)).toBe(
             "[Grukar-ahk](/thalorna/creature/grukar-ahk/)",
         );
     });
 
     it("prefers the local index — a live build outranks a vendored manifest", () => {
-        const ctx = makeCtx({ foreign, manifestsComplete: true, type: null });
+        const ctx = makeCtx({ foreign, type: null });
         expect(resolveWebWikilinks("[[skill-climb|]]", ctx)).toBe("[Climbing](/skill/climbing/)");
     });
 
-    it("fails an address that resolves nowhere, once manifests are complete", () => {
-        const ctx = makeCtx({ foreign, manifestsComplete: true });
+    it("fails an address that resolves nowhere", () => {
+        const ctx = makeCtx({ foreign });
         expect(resolveWebWikilinks("[[creature-notreal|Nope]]", ctx)).toBe(
             unresolved("Nope", "creature-notreal"),
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             {
                 file: "rules/Bleeding.md",
                 target: "creature-notreal",
-                reason: "broken type/shortcode",
+                reason: "unresolved",
             },
         ]);
     });
 
-    it("tolerates the same address while a package is still missing", () => {
-        // The pre-#1446 behaviour, and why the guard is gated: with `thalorna`
-        // invisible, a correct cross-package link is indistinguishable from
-        // this and failing here would break the build on good content.
-        const ctx = makeCtx({ manifestsComplete: false });
+    it("fails the same address with no manifest vendored at all (#184)", () => {
+        // The pre-#184 behaviour was to tolerate this: with `thalorna`
+        // invisible, a correct cross-package link is indistinguishable from a
+        // typo. But the pack compilers and the link checker failed it anyway,
+        // so the tolerance only meant one authored link got two verdicts. The
+        // missing manifest is named in the message instead.
+        const ctx = makeCtx();
         expect(resolveWebWikilinks("[[creature-notreal|Nope]]", ctx)).toBe(
             unresolved("Nope", "creature-notreal"),
         );
-        expect(ctx.errors).toHaveLength(0);
+        expect(findings(ctx)).toEqual([
+            {
+                file: "rules/Bleeding.md",
+                target: "creature-notreal",
+                reason: "unresolved",
+            },
+        ]);
     });
 
     it("renders an address with no page as its name, not a dead href", () => {
@@ -346,7 +368,7 @@ describe("cross-package addresses (link manifest)", () => {
                 },
             ],
         ]);
-        const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
+        const ctx = makeCtx({ foreign: packOnly });
         expect(resolveWebWikilinks("a [[creature-wolf|]] howls", ctx)).toBe("a Dire Wolf howls");
         expect(ctx.errors).toHaveLength(0);
     });
@@ -355,20 +377,20 @@ describe("cross-package addresses (link manifest)", () => {
         const packOnly = new Map<string, object>([
             ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
-        const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
+        const ctx = makeCtx({ foreign: packOnly });
         expect(resolveWebWikilinks("a [[creature-wolf|grey wolf]]", ctx)).toBe("a grey wolf");
         expect(ctx.errors).toHaveLength(0);
     });
 
-    it("marks a target that is not an address but does not fail the build", () => {
-        // Only a *qualified* target is checked against the manifests, so a
-        // worldbuilding placeholder that names no type is still not an error —
-        // but it is *marked*, so the author can see it went nowhere (#1665).
-        const ctx = makeCtx({ foreign, manifestsComplete: true });
+    it("marks and reports a target that is not an address", () => {
+        // A worldbuilding placeholder naming no type. It is *marked*, so the
+        // author can see it went nowhere (#1665), and reported, because there
+        // is no namespace left for a bare name to be in (#180).
+        const ctx = makeCtx({ foreign });
         expect(resolveWebWikilinks("[[Some Unwritten Place|there]]", ctx)).toBe(
             unresolved("there", "Some Unwritten Place"),
         );
-        expect(ctx.errors).toEqual([
+        expect(findings(ctx)).toEqual([
             {
                 file: "rules/Bleeding.md",
                 target: "Some Unwritten Place",
@@ -415,7 +437,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
         const packOnly = new Map<string, object>([
             ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
-        const ctx = makeCtx({ foreign: packOnly, manifestsComplete: true });
+        const ctx = makeCtx({ foreign: packOnly });
         const out = resolveWebWikilinks("a [[creature-wolf|]] howls", ctx);
         expect(out).toBe("a Dire Wolf howls");
         expect(out).not.toContain("sohl-unresolved-link");

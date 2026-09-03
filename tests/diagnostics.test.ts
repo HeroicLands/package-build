@@ -391,8 +391,14 @@ describe("an unresolved wikilink names the file, line and column", () => {
 
     it("still says what is wrong, and about which link", async () => {
         const [only] = await compile(line(1));
-        expect(only).toContain("unresolved address");
-        expect(only).toContain("[[probe-nosuch|Kenbet Pat]]");
+        // The message names the **address**, not the whole authored link: the
+        // label is not at fault, and it is the same message the link checker
+        // and the site build report through (#184). The position, already
+        // asserted above, is what locates the exact link on the line.
+        expect(only).toContain("resolves to no note");
+        expect(only).toContain("[[probe-nosuch]]");
+        // And the note it sits in, which is the pack build's own context.
+        expect(only).toContain("The Capital Nome");
     });
 
     it("carries no log prefix ahead of the path", async () => {

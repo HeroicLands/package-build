@@ -238,7 +238,7 @@ describe("the pack resolver requires a label", () => {
     it("still fails a labelled target that is not an address", () => {
         const at = { ...from, name: "Jumping", file: "Skills/Jumping.md" };
         expect(() => convertNoteWikilinks("[[Nowhere|somewhere]]", at)).toThrow(
-            /written as an address/,
+            /"Nowhere" is not an address/,
         );
     });
 
@@ -255,7 +255,6 @@ describe("the web resolver requires a label", () => {
         sections: new Set<string>(["kb"]),
         contentTypes: new Set<string>(["skill", "doc"]),
         foreign: new Map<string, object>(),
-        manifestsComplete: true,
         type: "skill",
         errors: [] as object[],
         src: "Skills/Jumping.md",

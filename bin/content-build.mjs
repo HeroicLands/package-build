@@ -103,8 +103,8 @@ import {
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
-// The one place that says a link carries a label, shared with both builds.
-import { unlabelledLinkMessage } from "../engine/wikilink-syntax.mjs";
+// The one place a link finding is worded, shared with both builds (#184).
+import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
     emitDiagnostic,
     positionInFrontmatter,
@@ -189,6 +189,26 @@ function reportFailure(err) {
     const message = err instanceof Error ? err.message : String(err);
     if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
     else log.error(message);
+}
+
+/**
+ * A note's source text, or `""` when it cannot be read.
+ *
+ * Used only to turn a link finding into a position. A path that no longer
+ * resolves — a page a build generated, a tree walked from somewhere else —
+ * yields `""`, and {@link positionOfLiteral} then reports nothing, so the
+ * diagnostic drops the line and column rather than guessing them.
+ *
+ * @param {string|undefined} file - Absolute path to the note.
+ * @returns {string} The file's contents, or `""`.
+ */
+function readRawNote(file) {
+    if (!file) return "";
+    try {
+        return fs.readFileSync(file, "utf8");
+    } catch {
+        return "";
+    }
 }
 
 /**
@@ -1040,32 +1060,17 @@ function linksCommand() {
                             `heading in ${d.dest.rel} declares`,
                     });
                 }
-                // Every link is an address (#180), so all three of these are
-                // errors — but they read differently because the corrections
-                // differ.
-                for (const d of deadAddresses) {
+                // Every link is an address (#180) and every address must
+                // resolve (#184), so all of these are errors — but they read
+                // differently because the corrections differ. The wording comes
+                // from the shared table, so the checker cannot describe a
+                // defect differently from the build that also refuses it.
+                for (const d of [...deadAddresses, ...unlabelledLinks]) {
                     emitDiagnostic({
                         file: d.note.file,
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
-                        message:
-                            d.reason === "not-an-address" ?
-                                `"${d.target}" is not an address; write ` +
-                                `[[type-shortcode|Text]]`
-                            : d.reason === "unknown-type" ?
-                                `address [[${d.target}]] names no known ` + `content type`
-                            :   `dead address [[${d.target}]] — no document ` + `has that identity`,
-                    });
-                }
-                // How the link is *written*, which is a different finding
-                // from where it points: the correction is the form, not the
-                // target (#180).
-                for (const d of unlabelledLinks) {
-                    emitDiagnostic({
-                        file: d.note.file,
-                        ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
-                        severity: "error",
-                        message: unlabelledLinkMessage(d.target),
+                        message: linkFindingMessage(d),
                     });
                 }
                 for (const f of frontmatterLinks) {
@@ -1271,8 +1276,21 @@ function siteCommand() {
                 for (const e of result.tableErrors) {
                     log.error(`bad content table: ${e.reason}  (${e.source})`);
                 }
+                // Reported the way the pack build reports the very same
+                // finding: `file:line:column: error: message`, path first, and
+                // the message from the shared table (#184). It used to be a
+                // `log.error` whose timestamp prefix sat where a parser reads
+                // the path from, and whose text named a `reason` code rather
+                // than saying what to do — so one authored link produced a
+                // machine-readable diagnostic from one build and prose from
+                // another.
                 for (const e of result.wikiErrors) {
-                    log.error(`bad wikilink [[${e.target}]]: ${e.reason}  (${e.file})`);
+                    emitDiagnostic({
+                        file: e.file,
+                        ...positionOfLiteral(readRawNote(e.file), e.link, e.occurrence),
+                        severity: "error",
+                        message: linkFindingMessage(e),
+                    });
                 }
                 if (result.tableErrors.length || result.wikiErrors.length) {
                     process.exitCode = 1;
@@ -1280,11 +1298,16 @@ function siteCommand() {
                 }
 
                 if (result.manifests && !result.manifests.complete) {
+                    // Not a softening any more (#184): an address into one of
+                    // these packages fails like any other that resolves
+                    // nowhere. The warning names them so an author meeting that
+                    // failure knows the fix may be to vendor a manifest rather
+                    // than to correct a shortcode.
                     log.warn(
-                        `cross-package address checking is OFF — no manifest ` +
-                            `for ${result.manifests.missing.join(", ")}. ` +
-                            `Unresolved addresses are tolerated until every ` +
-                            `package publishes one.`,
+                        `no link manifest vendored for ` +
+                            `${result.manifests.missing.join(", ")} — an ` +
+                            `address into one of those packages resolves ` +
+                            `nowhere and fails the build.`,
                     );
                 }
 
