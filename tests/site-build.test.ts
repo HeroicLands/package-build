@@ -73,7 +73,7 @@ name:
     note(
         "Rules/Combat.md",
         `type: doc
-category: rules
+subType: rules
 shortcode: combat
 name:
     full: Combat`,
@@ -81,19 +81,16 @@ name:
     note(
         "Rules/README.md",
         `type: doc
-category: rules
+subType: rules
 shortcode: rulesidx
 name:
     full: The Rules`,
     );
 
-    write(
-        "docs/README.md",
-        `---\ncategory: dev-docs\n---\n\n# Developer Documentation\n\nIntro.\n`,
-    );
+    write("docs/README.md", `---\nsubType: dev-docs\n---\n\n# Developer Documentation\n\nIntro.\n`);
     write(
         "docs/how-to/testing.md",
-        `---\ncategory: dev-docs\n---\n\n# Testing\n\nSee [architecture](../concepts/arch.md) and [the source](../../src/x.ts).\n`,
+        `---\nsubType: dev-docs\n---\n\n# Testing\n\nSee [architecture](../concepts/arch.md) and [the source](../../src/x.ts).\n`,
     );
 });
 

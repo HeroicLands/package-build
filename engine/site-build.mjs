@@ -223,7 +223,7 @@ export function collectTreePages(tree, ctx) {
         const rel = path.relative(tree.from, file).replace(/\\/g, "/");
         const base = path.basename(rel);
         const isReadme = base.toLowerCase() === "readme.md";
-        const sec = fm.category ?? tree.section;
+        const sec = fm.subType ?? tree.section;
         const h1 = /^#\s+(.+?)\s*$/m.exec(body);
         const h1Title = h1 ? h1[1].replace(/\{@link\s+[^}]*\}/g, "").trim() : null;
         const name = fm.name?.full ?? fm.title ?? h1Title ?? path.basename(base, ".md");
