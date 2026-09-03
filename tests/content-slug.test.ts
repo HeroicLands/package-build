@@ -5,105 +5,95 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+/**
+ * The one normalisation this build makes (#181).
+ *
+ * `slugify` reduces prose to a URL-safe token for a **heading anchor** and a
+ * **pack filename**. It no longer addresses anything: a page's URL is its
+ * `type-shortcode` address, so `contentSlug` — the name-derived, abbreviated,
+ * collision-checked page slug — and `findSlugCollisions` are gone, along with
+ * the abbreviation table that existed only to keep a name-derived URL short.
+ */
+
 import { describe, it, expect } from "vitest";
 // Build-time content helper (plain ESM, no Foundry). Imported by relative path
 // because the build scripts live outside the `@src` alias tree.
-import { contentSlug, findSlugCollisions } from "../engine/content-slug.mjs";
+import * as contentSlugModule from "../engine/content-slug.mjs";
 
-describe("contentSlug", () => {
-    it("is the note's name, lowercased and hyphenated", () => {
-        expect(contentSlug("Mail Byrnie")).toBe("mail-byrnie");
-        expect(contentSlug("Russet Robe")).toBe("russet-robe");
+const { slugify } = contentSlugModule;
+
+describe("slugify", () => {
+    it("is the text, lowercased and hyphenated", () => {
+        expect(slugify("Mail Byrnie")).toBe("mail-byrnie");
+        expect(slugify("Russet Robe")).toBe("russet-robe");
     });
 
     it("drops apostrophes rather than turning them into separators", () => {
-        // `armorers-kit`, never `armorer-s-kit` — this is the published URL.
-        expect(contentSlug("Armorer's Kit")).toBe("armorers-kit");
-        expect(contentSlug("Dye, Dragon’s Blood")).toBe("dye-dragons-blood");
+        // `armorers-kit`, never `armorer-s-kit` — an apostrophe marks a
+        // pronunciation break inside one word.
+        expect(slugify("Armorer's Kit")).toBe("armorers-kit");
+        expect(slugify("Dye, Dragon’s Blood")).toBe("dye-dragons-blood");
     });
 
     it("transliterates accented characters instead of dropping them", () => {
-        // The old slugifier reduced these to `n-sv-rroth` / `lverrik-t-rvallor`,
-        // which is why they needed a hand-written slug.
-        expect(contentSlug("Nüsvōrroth")).toBe("nusvorroth");
-        expect(contentSlug("Ālverrik Tārvallor")).toBe("alverrik-tarvallor");
-        expect(contentSlug("Tānvüran Elephant")).toBe("tanvuran-elephant");
+        // Stripping reduced these to `n-sv-rroth` / `lverrik-t-rvallor`, which
+        // is how one note's page, its pack file and a link to its heading came
+        // to disagree about its own name.
+        expect(slugify("Nüsvōrroth")).toBe("nusvorroth");
+        expect(slugify("Ālverrik Tārvallor")).toBe("alverrik-tarvallor");
+        expect(slugify("Tānvüran Elephant")).toBe("tanvuran-elephant");
     });
 
     it("spells out ligatures the way a reader would", () => {
-        expect(contentSlug("Þorn Þegn")).toBe("thorn-thegn");
-        expect(contentSlug("Ærik Ælfwine")).toBe("aerik-aelfwine");
-        expect(contentSlug("Œuvre")).toBe("oeuvre");
-        expect(contentSlug("Straße")).toBe("strasse");
-        expect(contentSlug("ĲsseImeer")).toBe("ijsseimeer");
-        expect(contentSlug("Ŋara")).toBe("ngara");
+        expect(slugify("Þorn Þegn")).toBe("thorn-thegn");
+        expect(slugify("Ærik Ælfwine")).toBe("aerik-aelfwine");
+        expect(slugify("Œuvre")).toBe("oeuvre");
+        expect(slugify("Straße")).toBe("strasse");
+        expect(slugify("ĲsseImeer")).toBe("ijsseimeer");
+        expect(slugify("Ŋara")).toBe("ngara");
         // Eth follows the Icelandic convention of a bare `d`.
-        expect(contentSlug("Óðinn")).toBe("odinn");
+        expect(slugify("Óðinn")).toBe("odinn");
         // Slashed and ringed vowels reduce to their base letter.
-        expect(contentSlug("Ølrún Åsa")).toBe("olrun-asa");
+        expect(slugify("Ølrún Åsa")).toBe("olrun-asa");
     });
 
     it("keeps a fraction's digits together", () => {
-        // `kurbul` and `plate` abbreviate; the point here is the fraction.
         // `¾` transliterates to `3/4`; the solidus must not split it into `3-4`.
-        expect(contentSlug("Kûrbúl ¾-Helm")).toBe("kbl-34-helm");
-        expect(contentSlug("Plate ½-Helm")).toBe("plt-12-helm");
+        expect(slugify("Kûrbúl ¾-Helm")).toBe("kurbul-34-helm");
+        expect(slugify("Plate ½-Helm")).toBe("plate-12-helm");
         // A slash that is not between digits is still a separator.
-        expect(contentSlug("Armor/Clothing")).toBe("armor-clothing");
+        expect(slugify("Armor/Clothing")).toBe("armor-clothing");
     });
 
     it("collapses punctuation and trims stray separators", () => {
-        expect(contentSlug("Flask, glass (1 pint)")).toBe("flask-glass-1-pint");
-        expect(contentSlug("  Spaced  Out  ")).toBe("spaced-out");
-        expect(contentSlug("-Trim-")).toBe("trim");
+        expect(slugify("Flask, glass (1 pint)")).toBe("flask-glass-1-pint");
+        expect(slugify("  Spaced  Out  ")).toBe("spaced-out");
+        expect(slugify("-Trim-")).toBe("trim");
     });
 
-    it("throws when there is no name to derive from", () => {
-        expect(() => contentSlug("")).toThrow(/no name/);
-        expect(() => contentSlug("   ")).toThrow(/no name/);
-        expect(() => contentSlug(undefined)).toThrow(/no name/);
+    it("returns the empty string rather than throwing", () => {
+        // It addresses nothing, so there is no document to refuse to place: an
+        // anchor that reduces to nothing is the caller's to judge.
+        expect(slugify("")).toBe("");
+        expect(slugify("   ")).toBe("");
+        expect(slugify(undefined as never)).toBe("");
+        expect(slugify("!!!")).toBe("");
     });
 
-    it("throws when a name reduces to nothing URL-safe", () => {
-        expect(() => contentSlug("!!!")).toThrow(/no URL-safe characters/);
+    it("never abbreviates", () => {
+        // The abbreviation table shortened a name-derived URL and nothing else;
+        // with the URL derived from the address there is nothing left to
+        // shorten, and an author's hand-written anchor key (`stair-foot`) is
+        // the thing abbreviating it would have broken.
+        expect(slugify("Kurbul Helm")).toBe("kurbul-helm");
+        expect(slugify("Stair Foot")).toBe("stair-foot");
+        expect(slugify("Tribunus Militum")).toBe("tribunus-militum");
     });
 });
 
-describe("findSlugCollisions", () => {
-    const page = (sec: string, slug: string, src: string) => ({
-        sec,
-        slug,
-        src,
-    });
-
-    it("reports nothing when every section/slug pair is unique", () => {
-        expect(
-            findSlugCollisions([
-                page("armorgear", "russet-robe", "Armor/Russet_Robe.md"),
-                page("armorgear", "mail-byrnie", "Armor/Mail_Byrnie.md"),
-                // The same name in another section is a different page.
-                page("rules", "gear", "Rules/Gear.md"),
-                page("user-guide", "gear", "User_Guide/Gear.md"),
-            ]),
-        ).toEqual([]);
-    });
-
-    it("reports two notes that derive the same URL in one section", () => {
-        const collisions = findSlugCollisions([
-            page("armorgear", "russet-robe", "Armor/Russet_Robe.md"),
-            page("armorgear", "russet-robe", "Armor/Russet_Robe_Alt.md"),
-        ]);
-        expect(collisions).toHaveLength(1);
-        expect(collisions[0].url).toBe("/armorgear/russet-robe/");
-        expect(collisions[0].sources).toEqual(["Armor/Russet_Robe.md", "Armor/Russet_Robe_Alt.md"]);
-    });
-
-    it("lists every claimant when more than two collide", () => {
-        const collisions = findSlugCollisions([
-            page("trauma", "casting", "Trauma/A.md"),
-            page("trauma", "casting", "Trauma/B.md"),
-            page("trauma", "casting", "Trauma/C.md"),
-        ]);
-        expect(collisions[0].sources).toHaveLength(3);
+describe("what a name no longer decides", () => {
+    it("exports no page slug and no collision check", () => {
+        // Both existed only to make a display name serve as an address (#181).
+        expect(Object.keys(contentSlugModule).sort()).toEqual(["slugify"]);
     });
 });

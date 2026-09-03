@@ -42,6 +42,9 @@ import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently (#184).
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
+// The declared tag vocabulary (#172), which is where `draft` is stated. Read
+// from there rather than respelt, so the tag and its one reader cannot drift.
+import { isDraftNote } from "./note-vocabulary.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
@@ -451,6 +454,11 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
             name: fm.name?.full ?? base,
+            // Whether the note is tagged `draft` (#183). Read from the tag
+            // vocabulary that declares it, and used for one thing: a link
+            // *into* this note renders marked. It takes no part in resolution,
+            // so the note is indexed, compiled and published as any other.
+            draft: isDraftNote(fm),
         });
     }
     // Packages this build links *into* but does not publish. Their manifests

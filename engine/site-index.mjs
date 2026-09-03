@@ -51,6 +51,8 @@ import path from "node:path";
 import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
+// The declared tag vocabulary (#172), which is where `draft` is stated.
+import { isDraftNote } from "./note-vocabulary.mjs";
 
 /**
  * One page the site will publish, as the index needs to see it.
@@ -73,7 +75,10 @@ import { contentPackage } from "./content-package.mjs";
  * The resolved index and everything a wikilink resolver reads beside it.
  *
  * @typedef {object} SiteIndex
- * @property {Map<string, {url: string, name?: string}>} index  Address → page.
+ * @property {Map<string, {url: string, name?: string, draft?: boolean}>} index
+ *                                       Address → page. `draft` says the page
+ *                                       carries the `draft` tag, which marks a
+ *                                       link *into* it (#183).
  * @property {Set<string>} ambiguous     Short addresses claimed by two
  *                                       packages, and so deliberately absent
  *                                       from `index`.
@@ -171,7 +176,15 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     // may not share a name (#179, #180).
     for (const e of entries) {
         sections.add(String(e.sec).toLowerCase());
-        index.set(`${e.sec}/${e.slug}`.toLowerCase(), { url: e.url, name: e.name });
+        // `draft` rides on every key a page is addressable by, because a link
+        // into a draft note renders marked whichever of them the author wrote
+        // (#183). It decides nothing about resolution: the page is indexed and
+        // published as any other.
+        index.set(`${e.sec}/${e.slug}`.toLowerCase(), {
+            url: e.url,
+            name: e.name,
+            draft: isDraftNote(e.fm),
+        });
     }
 
     // A foreign package may use a type this build has never seen. Seeding those
@@ -200,7 +213,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
         if (e.kind !== "content") continue;
         const type = String(e.fm.type).toLowerCase();
         contentTypes.add(type);
-        const value = { url: e.url, name: e.name };
+        const value = { url: e.url, name: e.name, draft: isDraftNote(e.fm) };
 
         const shortcode = e.fm.shortcode;
         if (typeof shortcode === "string" && shortcode) {

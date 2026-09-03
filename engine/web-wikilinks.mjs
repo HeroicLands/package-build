@@ -133,6 +133,39 @@ function unresolvedLink(text, target) {
 }
 
 /**
+ * How a link to a **draft** note renders (#183).
+ *
+ * A note tagged `draft` exists so a link into it is not dead, and nothing more.
+ * Unmarked, a reader follows a promising link into an empty page and an author
+ * cannot see which of their links still owe content.
+ *
+ * **The wrapper carries the cue and nothing else.** The link itself is
+ * untouched — Goldmark parses inline markdown inside an inline HTML span, so
+ * the markdown link still becomes an anchor, and the note is on the site, in
+ * the packs and in the manifest exactly as any other. Nothing here resembles
+ * the retired `draft:` field, which moved a note from published to unresolvable
+ * without saying so.
+ *
+ * The appearance lives in the Hugo theme for the website and in
+ * `scss/components/_draft-link.scss` for Foundry, not here.
+ *
+ * **Byte-identical with the pack build's copy** in `wikilinks.mjs`, down to the
+ * class name and the `title` wording — one authored link renders on two
+ * surfaces, and the two builds have drifted before over exactly this kind of
+ * detail (#1409). Duplicated rather than imported for the same reason
+ * {@link unresolvedLink} is; hoisting both is HeroicLands/content-build#13.
+ *
+ * The argument is already-built markup and is deliberately not escaped; the
+ * *authored* text inside it was escaped, or made into a link, by the caller.
+ *
+ * @param {string} inner - The resolved link, as this build emits it.
+ * @returns {string} An inline HTML span wrapping it.
+ */
+function draftLink(inner) {
+    return `<span class="sohl-draft-link" title="Draft — not yet written">${inner}</span>`;
+}
+
+/**
  * A wikilink, as it is written, anywhere in a value that is not markdown.
  *
  * Deliberately its own pattern rather than the body resolver's: nothing here is
@@ -230,11 +263,11 @@ function isPlainMap(value) {
  * give one authored link two verdicts. The advice moved into the message
  * instead.
  *
- * Whether or not it fails the build, a target that resolves nowhere renders
- * through {@link unresolvedLink} rather than as bare prose (#1665): the author's
- * text is kept, marked so a reader can see a link was intended. Not failing the
- * build is a statement that the link *may* be legitimate prose — it was never a
- * reason to make a dead link indistinguishable from the sentence around it.
+ * A target that resolves nowhere still renders through {@link unresolvedLink}
+ * rather than as bare prose (#1665): the author's text is kept, marked so a
+ * reader can see a link was intended. The marking and the failure are separate
+ * jobs and always were — the mark is for whoever reads the page a *previous*
+ * build emitted, the failure is for the author of this one.
  *
  * A target that **resolved** to an entry with no page is not this case and is
  * not marked: a pack-only package (#1516) publishes Foundry addresses and no
@@ -335,8 +368,13 @@ export function resolveWebWikilinks(body, ctx) {
             // reader gets the text and no href. Emitting the href anyway is
             // what the manifest exists to prevent: `[Name](undefined)` renders
             // as a link and goes nowhere.
-            if (!hit.url) return text;
-            return `[${text}](${anchor ? `${hit.url}#${slugify(anchor)}` : hit.url})`;
+            const link =
+                hit.url ? `[${text}](${anchor ? `${hit.url}#${slugify(anchor)}` : hit.url})` : text;
+            // A link into a note that exists but is not written renders marked
+            // (#183). Presentation only — the href above is unchanged, and a
+            // `[[#anchor]]` self-link is not marked because the reader is
+            // already on the page it would be telling them about.
+            return hit.draft ? draftLink(link) : link;
         }
 
         const slash = target.indexOf("/");

@@ -29,11 +29,20 @@
  * start, by {@link packageAddress}, and the emitting build's mount point is not
  * a fact it has to be told (#1465).
  *
+ * **An entry's `path` is derivable from the key it is filed under** (#181).
+ * `sohl-affliction-aconite` publishes at `affliction-aconite/`, because a page's
+ * URL *is* its address; nothing in it comes from a display name, so a rename
+ * moves no URL and no uniqueness check stands between the two. The field is
+ * still written rather than left for a consumer to compute, because a landing
+ * page is the one entry that is not derivable — it addresses its section under
+ * the configured mount — and because an absent `path` already means something
+ * else entirely (a package that publishes no pages).
+ *
  * **The address scheme is configuration, and it is shared with the site build.**
  * Where the content tree mounts inside the package and which note is a section's
  * landing page differ between repositories and are both load-bearing — `sohl`
- * records `kb/affliction/aconite/` and `thalorna` records
- * `affiliation/the-aerarium-imperii/`. Reading one setting here and in the page
+ * records `kb/rules/` for the landing of its rules section and `thalorna`
+ * records `affiliation/` for its own. Reading one setting here and in the page
  * emitter is what stops a manifest asserting an address the site does not
  * publish, which resolves at build time and 404s for the reader.
  *
@@ -54,6 +63,7 @@ import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
+import { isHomepage } from "./homepage.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
@@ -224,13 +234,21 @@ export function collectManifestEntries(contentBase, ctx) {
         assertNoDraftField(fm, { file: rel, absPath });
         assertNoAliasesField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
+        // A homepage is addressed like every other note since #182, and a
+        // shortcode alone would now put it here. It stays out for the reason it
+        // always did, which that change does not touch: a manifest entry is how
+        // another package resolves a **document**, and a homepage compiles into
+        // none — the same ground `id` is refused on. A cross-package link to a
+        // package's front page is its bare `/<package>/` address, which needs
+        // no index.
+        if (isHomepage(fm)) continue;
 
         const base = path.basename(absPath);
         const name = fm.name?.full ?? path.basename(absPath, ".md");
 
         let address;
         try {
-            address = packageAddress(fm, name, {
+            address = packageAddress(fm, {
                 isReadme: base.toLowerCase() === "readme.md",
                 scheme: ctx.scheme,
             });

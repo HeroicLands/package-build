@@ -6,16 +6,21 @@
  */
 
 /**
- * `aliases:` and `name.aliases:` are retired (#180).
+ * The top-level `aliases:` is retired (#180).
  *
- * They fed one reader — the alias index the bare `[[Alias]]` form looked up in
- * — and that form resolved to nothing anywhere in the corpus. What the index
- * did do was fold `name.full` in beside them, which made two notes of one type
+ * It fed one reader — the alias index the bare `[[Alias]]` form looked up in —
+ * and that form resolved to nothing anywhere in the corpus. What the index did
+ * do was fold `name.full` in beside it, which made two notes of one type
  * forbidden from sharing a display name (#179).
  *
- * So the reader is gone and the fields are **refused**, the same way `draft:`
+ * So the reader is gone and the field is **refused**, the same way `draft:`
  * (#69) and `package:` (#56) are: a retired field left merely ignored reads to
  * its author as though it still works.
+ *
+ * **`name.aliases` is not this field.** It fed the same index and lost the same
+ * reader, but it is *reserved* rather than retired, so it is neither refused
+ * nor read. The cases below pin that it survives every refusal this file is
+ * about; `name-aliases-reserved.test.ts` pins that nothing reads it.
  */
 
 import { describe, it, expect, beforeAll, afterAll, vi } from "vitest";
@@ -56,12 +61,24 @@ describe("refusing a note that declares `aliases:`", () => {
         expect(() => assertNoAliasesField(undefined)).not.toThrow();
     });
 
-    it.each([["aliases"], ["name.aliases"]])("refuses `%s`", (key) => {
-        const fm =
-            key === "aliases" ?
-                { type: "doc", aliases: ["Wolfsbane"] }
-            :   { type: "doc", name: { full: "Aconite", aliases: ["Wolfsbane"] } };
-        expect(() => assertNoAliasesField(fm)).toThrow(/retired frontmatter field/);
+    it("refuses the top-level `aliases`", () => {
+        expect(() => assertNoAliasesField({ type: "doc", aliases: ["Wolfsbane"] })).toThrow(
+            /retired frontmatter field/,
+        );
+    });
+
+    it("permits `name.aliases`, which is reserved rather than retired", () => {
+        // The one field this refusal must not reach. Populated, empty, and
+        // alongside the retired sibling — the nested list never provokes it.
+        expect(() =>
+            assertNoAliasesField({
+                type: "doc",
+                name: { full: "Aconite", aliases: ["Wolfsbane"] },
+            }),
+        ).not.toThrow();
+        expect(() =>
+            assertNoAliasesField({ type: "doc", name: { full: "Aconite", aliases: [] } }),
+        ).not.toThrow();
     });
 
     it("refuses an empty list too — presence is the whole test", () => {
@@ -92,18 +109,46 @@ describe("refusing a note that declares `aliases:`", () => {
     });
 
     it("says the field is retired, why, and what to write instead", () => {
-        const message = aliasesRetiredMessage("aliases");
+        const message = aliasesRetiredMessage();
         expect(message).toContain("retired");
         // The reason: the form it served no longer resolves anything.
         expect(message).toMatch(/\[\[/);
         // The alternative, so the author is not left guessing.
         expect(message).toContain("[[type-shortcode|Text]]");
         // The path is named only where the caller has no locator of its own.
-        expect(aliasesRetiredMessage("aliases", "Gear/Sword.md")).toContain("Gear/Sword.md");
+        expect(aliasesRetiredMessage("Gear/Sword.md")).toContain("Gear/Sword.md");
     });
 
-    it("names the spelling the note actually used", () => {
-        expect(aliasesRetiredMessage("name.aliases")).toContain("name.aliases");
+    it("never tells an author to delete `name.aliases`", () => {
+        // The message is the whole author-facing surface of the refusal, and
+        // naming a permitted field in it would read as a rule against it.
+        expect(aliasesRetiredMessage()).not.toContain("name.aliases");
+    });
+
+    it("locates the top-level field, never a `name.aliases` above it", () => {
+        // Both spellings write the key `aliases`; the locator is anchored at
+        // column 1 so a finding about the retired one cannot open on the
+        // permitted one, even when the permitted one comes first.
+        const file = write(
+            "both",
+            [
+                "name:",
+                "  full: Aconite",
+                "  aliases:",
+                "    - Wolfsbane",
+                "type: doc",
+                "shortcode: both",
+                "aliases:",
+                "  - Monkshood",
+            ].join("\n"),
+        );
+        try {
+            assertNoAliasesField({ type: "doc", aliases: ["Monkshood"] }, { absPath: file });
+            expect.unreachable("should have refused the note");
+        } catch (err) {
+            // Line 8 is the top-level `aliases:`; line 4 is the nested one.
+            expect((err as any).position).toEqual({ line: 8, column: 1 });
+        }
     });
 
     it("is reported by the frontmatter lint as well as at compile", () => {
@@ -217,22 +262,19 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
         }
     });
 
-    it("refuses the nested spelling too", async () => {
-        const spy = vi.spyOn(console, "error").mockImplementation(() => {});
-        try {
-            const { probe } = await compileOne("nested", [
-                "name:",
-                "  full: Nested",
-                "  aliases:",
-                "    - Another Name",
-                "type: doc",
-                "shortcode: nested",
-                "id: DDDDDDDDDDDDDDDD",
-            ]);
-            expect(probe.errorCount).toBe(1);
-        } finally {
-            spy.mockRestore();
-        }
+    it("compiles a note carrying the reserved `name.aliases`", async () => {
+        const { probe, dest } = await compileOne("nested", [
+            "name:",
+            "  full: Nested",
+            "  aliases:",
+            "    - Another Name",
+            "type: doc",
+            "shortcode: nested",
+            "id: DDDDDDDDDDDDDDDD",
+        ]);
+        expect(probe.errorCount).toBe(0);
+        expect(probe.compiledCount).toBe(1);
+        expect(fs.readdirSync(dest)).toHaveLength(1);
     });
 
     it("compiles the same note once the field is deleted", async () => {

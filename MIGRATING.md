@@ -1,3 +1,67 @@
+# Migrating to `@heroiclands/package-build` 11.0.0
+
+**Two edits, and the second is one line per repository.** Every published page
+moves to its address (#181), and the package homepage becomes an ordinary
+addressed note (#182).
+
+## 1. A page's URL is its address
+
+Every content page now serves at `/<package>/<type>-<shortcode>/` rather than at
+a slug derived from `name.full`. No content edit is required for it — the
+address is computed from fields every note already declares — but **every
+published URL moves**, so anything holding one (an external link, a bookmark, a
+citation in another repository) has to be re-derived.
+
+## 2. Give the homepage a `shortcode`
+
+The homepage used to **refuse** `shortcode` and `name`, because a URL derived
+from a display name while a homepage's destination was fixed. That premise is
+gone, so both fields are permitted and `shortcode` is **required**:
+
+```markdown
+---
+type: homepage
+shortcode: root
+title: HârnMaster Kethira Basic
+---
+```
+
+`root` is the convention, not a rule. Without one, `content-build lint` and
+`content-build site` both refuse the note:
+
+```text
+assets/content/homepage.md:3:7: error: a `type: homepage` note declares a `shortcode`, like every other note: it is addressed as `homepage-<shortcode>` and published at `/<package>/homepage-<shortcode>/`, which is where `[[homepage-<shortcode>|Text]]` lands. Write `shortcode: root` — the package landing is `homepage-root` in every package
+```
+
+`id` is still refused, on ground this does not touch: a homepage compiles into
+no compendium document.
+
+## 3. Author the `/<package>/` redirect
+
+The landing is published at `/<package>/homepage-root/`, and nothing is written
+at `/<package>/` any more. Add the redirect to the repository's own
+`_redirects`, and pin its lifetime in `_headers` — Cloudflare Pages sets no
+`Cache-Control` on a redirect it generates, and an unpinned 301 is cacheable
+indefinitely:
+
+```text
+# _redirects
+/sohl/   /sohl/homepage-root/   301
+/sohl    /sohl/homepage-root/   301
+```
+
+```text
+# _headers
+/sohl/
+  Cache-Control: max-age=3600
+/sohl
+  Cache-Control: max-age=3600
+```
+
+Both path forms, because Pages matches the raw path and `/sohl` and `/sohl/` are
+distinct keys. See `CONTENT.md` for why the pairing works and how to verify it
+after a deploy.
+
 # Migrating to `@heroiclands/package-build` 6.0.0
 
 **No configuration change to make, and one build check that may now fail.**
