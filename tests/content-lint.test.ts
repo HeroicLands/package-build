@@ -48,11 +48,20 @@ function note({
 }
 
 /**
- * The package homepage: a note with a `type` and no `shortcode`, because it is
- * addressed by the package rather than by a slug.
+ * The package homepage: an ordinary addressed note, conventionally
+ * `homepage-root` (#182).
  */
-function homepage(title = "Hârn Adventures"): string {
-    return ["---", "type: homepage", `title: ${title}`, "---", "", "Prose.", ""].join("\n");
+function homepage(title = "Hârn Adventures", shortcode = "root"): string {
+    return [
+        "---",
+        "type: homepage",
+        `shortcode: ${shortcode}`,
+        `title: ${title}`,
+        "---",
+        "",
+        "Prose.",
+        "",
+    ].join("\n");
 }
 
 /** Lint a tree, skipping nothing, and return its findings. */
@@ -91,10 +100,10 @@ describe("lintContentTree", () => {
             { skipDirectories: [] },
         );
         expect(r.findings).toEqual([]);
-        // Three notes, two keys: the homepage is a note and carries no
-        // shortcode, because it is addressed by the package (#52).
+        // Three notes, three keys: the homepage is addressed like any other
+        // note, at `homepage-root` (#182).
         expect(r.notes).toBe(3);
-        expect(r.keys).toBe(2);
+        expect(r.keys).toBe(3);
     });
 
     it("ignores files with no frontmatter type", () => {
@@ -187,14 +196,29 @@ describe("lintContentTree", () => {
     });
 
     // #77: a package in `publish.site: homepage` mode may hold exactly one
-    // note, and a homepage carries no `shortcode` by design — it is addressed
-    // by the package, not by a slug. That is a populated tree with nothing to
-    // key, not an absent one, so the vacuous guard must not fire.
+    // note — its homepage. That is a populated tree, not an absent one, so the
+    // vacuous guard must not fire. The homepage now carries an address of its
+    // own (#182), so the tree has one key rather than none; the guard is
+    // unaffected, because what it reads is an empty *walk*.
     it("passes a tree whose only note is the package homepage", () => {
         const r = lint({ "homepage.md": homepage() });
         expect(r.findings).toEqual([]);
         expect(r.notes).toBe(1);
-        expect(r.keys).toBe(0);
+        expect(r.keys).toBe(1);
+    });
+
+    // Two homepages are two front pages whichever shortcodes they carry, and
+    // the cardinality rule is what says so — the address rule catches only the
+    // pair that also collide.
+    it("reports two homepages sharing one address under both rules", () => {
+        const r = lint({
+            "homepage.md": homepage(),
+            "Landing.md": homepage("Second"),
+        });
+        expect(r.findings.filter((f) => f.message.includes("duplicate address"))).toHaveLength(2);
+        expect(
+            r.findings.filter((f) => f.message.includes("duplicate `type: homepage`")),
+        ).toHaveLength(2);
     });
 
     it("still lints a homepage alongside keyed notes", () => {
@@ -208,7 +232,7 @@ describe("lintContentTree", () => {
         });
         expect(r.findings).toEqual([]);
         expect(r.notes).toBe(3);
-        expect(r.keys).toBe(2);
+        expect(r.keys).toBe(3);
 
         // The keyed notes are still held to both rules with a homepage present.
         const dupes = lint({

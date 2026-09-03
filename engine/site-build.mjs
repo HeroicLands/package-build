@@ -61,8 +61,8 @@ import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import {
-    HOMEPAGE_DESTINATION,
     checkHomepageCount,
+    homepageDestination,
     homepageFrontmatter,
     homepageTitle,
     isHomepage,
@@ -155,9 +155,10 @@ export function collectContentPages(contentBase, ctx) {
         // (#56).
         const pkg = ctx.contentPackage;
         if (!ctx.packages.has(pkg) || !fm.type) continue;
-        // A homepage is addressed by the *package*, not by its own name, so it
-        // never takes a section and a slug (#51). {@link collectHomepages}
-        // gathers it instead.
+        // A homepage is addressed like any other note (#182), but it is
+        // gathered by {@link collectHomepages} rather than here: it is the
+        // whole of a homepage-only build, which never walks the tree for
+        // content pages at all (#55).
         if (isHomepage(fm)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
@@ -297,22 +298,39 @@ export function collectTreePages(tree, ctx) {
  * count is what {@link checkHomepageCount} judges (#52) — this walk reports
  * what it found, and {@link buildSite} decides whether that is one.
  *
+ * A homepage that declares no `shortcode` has no address (#182), and is
+ * reported rather than written: it is the same finding a content page's missing
+ * shortcode produces, and it has to be available in homepage-only mode, where
+ * no other gate runs.
+ *
+ * **It is still counted.** An unaddressable homepage is a homepage — dropping
+ * it from the list would make {@link checkHomepageCount} report a tree with one
+ * as having none, sending its author to write a second front page instead of a
+ * line of frontmatter.
+ *
  * @param {string} contentBase - Absolute path to the content tree.
  * @param {object} ctx - `{ skipDirectories }`.
- * @returns {{pages: object[]}} The homepage notes, in walk order.
+ * @returns {{pages: object[], addressFindings: object[]}} The homepage notes,
+ *   in walk order, and the ones among them that could not be addressed.
  */
 export function collectHomepages(contentBase, ctx) {
     const pages = [];
+    const addressFindings = [];
     for (const file of walkSiteTree(contentBase, ctx.skipDirectories)) {
         const note = readNote(file);
         if (!note || !isHomepage(note.fm)) continue;
+        try {
+            addressSlug(note.fm);
+        } catch (err) {
+            addressFindings.push({ file, reason: err.message });
+        }
         pages.push({ kind: "homepage", file, fm: note.fm, body: note.body });
     }
-    return { pages };
+    return { pages, addressFindings };
 }
 
 /**
- * Writes each homepage at the package's own root.
+ * Writes each homepage at its address, below the package's own root.
  *
  * Its own writer, deliberately small. A homepage is authored markdown published
  * verbatim — no table expansion, no section landing and no link resolution — so
@@ -326,20 +344,31 @@ export function collectHomepages(contentBase, ctx) {
  * {@link auditHomepageLinks} reads the `landing:` addresses and the body's
  * markdown links, and reports a wikilink on the page rather than resolving one.
  *
+ * **Its destination is no longer fixed** (#182). The file is written at the
+ * note's address, flat at the package's site root, and the page states that
+ * address as its `url` — the same separation of file from URL every other page
+ * has. Nothing is written at `/<package>/` itself: that becomes a redirect the
+ * package's own repository authors, which is a routing fact rather than a page.
+ *
  * @param {string} outRoot - The package's site root — the configured `site.out`,
  *   one level above the content mount.
  * @param {readonly object[]} pages - From {@link collectHomepages}.
  * @param {object} config - The resolved configuration, for the package name and
  *   the default title.
+ * @param {object} [options] - Options.
+ * @param {string} [options.base] - Where the package is served; defaults to the
+ *   configured `site.base`, and to `/<contentPackage>/` below that.
  * @returns {number} How many pages were written.
  */
-export function writeHomepages(outRoot, pages, config) {
+export function writeHomepages(outRoot, pages, config, { base } = {}) {
+    const at = base || config.site?.base || `/${config.contentPackage}/`;
     for (const page of pages) {
         const data = homepageFrontmatter(page.fm, {
             contentPackage: config.contentPackage,
             title: homepageTitle(page.fm, config),
+            base: at,
         });
-        const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
+        const dest = path.join(outRoot, homepageDestination(page.fm));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(page.body, data));
     }
@@ -893,9 +922,9 @@ export function buildSite({ config, outRoot } = {}) {
             // Homepage-only has no content mount, so the package's root *is*
             // the output root and `--out` redirects the whole of it.
         : outBase;
-    // The homepage publishes at `/<contentPackage>/`, which is the package's
-    // own root — one level above the content mount, and the same directory in
-    // homepage-only mode.
+    // The homepage publishes at `/<contentPackage>/<type>-<shortcode>/`, so its
+    // file goes at the package's own root — one level above the content mount,
+    // and the same directory in homepage-only mode.
     const homeRoot = publishesContent ? outBase : out;
 
     const packages = new Set(site.packages.length ? site.packages : [resolved.contentPackage]);
@@ -914,7 +943,8 @@ export function buildSite({ config, outRoot } = {}) {
         scheme,
     };
 
-    const homepages = collectHomepages(resolved.paths.content, ctx).pages;
+    const collected = collectHomepages(resolved.paths.content, ctx);
+    const homepages = collected.pages;
 
     // Exactly one homepage, and checked here — before the output tree is
     // cleared and before either mode branches (#52). Before the clear, because
@@ -922,10 +952,24 @@ export function buildSite({ config, outRoot } = {}) {
     // bad tree. Before the branch, because the requirement does not vary by
     // mode: `publish.site` chooses whether the *content* surfaces are
     // published, and the homepage is the floor beneath both.
-    const homepageFindings = checkHomepageCount(homepages, {
+    //
+    // The count is judged first, and alone when it fires: a tree with two
+    // homepages does not need to be told about each one's address as well, and
+    // a tree with none has no address to report.
+    const counted = checkHomepageCount(homepages, {
         contentBase: resolved.paths.content,
         contentPackage: resolved.contentPackage,
     });
+    // A homepage that cannot be addressed is reported in the same place, and
+    // reaches homepage-only mode — which runs no other gate at all (#182).
+    const homepageFindings =
+        counted.length ? counted : (
+            collected.addressFindings.map((f) => ({
+                file: f.file,
+                severity: "error",
+                message: `${f.reason}, so there is no page to publish at \`${base}\``,
+            }))
+        );
     if (homepageFindings.length) {
         return {
             gates: { ...emptyGates(), homepages: homepageFindings },
@@ -950,7 +994,7 @@ export function buildSite({ config, outRoot } = {}) {
             tableErrors: [],
             wikiErrors: [],
             stats: {
-                homepages: writeHomepages(homeRoot, homepages, resolved),
+                homepages: writeHomepages(homeRoot, homepages, resolved, { base }),
                 landings: 0,
                 out: homeRoot,
             },
@@ -960,6 +1004,25 @@ export function buildSite({ config, outRoot } = {}) {
     const content = collectContentPages(resolved.paths.content, ctx);
     const pages = [...content.pages];
     const fmLinkFindings = [...content.fmLinkFindings];
+
+    // The homepage is **indexed but not rendered** (#182). Now that it has an
+    // address, `[[homepage-root|Text]]` is an ordinary wikilink and has to
+    // resolve to the page the build publishes — which means the address index
+    // must hold it. It still takes no part in `renderPages`: a homepage is
+    // authored markdown published verbatim, with no table expansion and no link
+    // resolution of its own, and routing it through that pipeline would buy it
+    // a pass it has no input for.
+    const homepageEntries = homepages.map((page) => ({
+        kind: "content",
+        fm: page.fm,
+        pkg: resolved.contentPackage,
+        name: page.fm.name?.full ?? homepageTitle(page.fm, resolved),
+        slug: addressSlug(page.fm),
+        base: path.basename(page.file),
+        sec: sectionOf(page.fm),
+        url: `${base}${addressSlug(page.fm)}/`,
+        isReadme: false,
+    }));
 
     const trees = site.trees.map((t) => ({
         ...t,
@@ -973,7 +1036,7 @@ export function buildSite({ config, outRoot } = {}) {
     }
 
     const gates = siteGates(
-        pages,
+        [...pages, ...homepageEntries],
         { ...content, fmLinkFindings },
         { manifestDir: resolved.paths.manifests },
     );
@@ -1019,7 +1082,7 @@ export function buildSite({ config, outRoot } = {}) {
 
     // Last, and outside the mount: the package's front page is not part of the
     // content tree it introduces.
-    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved);
+    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved, { base });
 
     return {
         gates,

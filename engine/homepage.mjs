@@ -47,18 +47,27 @@
  * type living in the SoHL registry would be unavailable to HM3 and to every HM3
  * module, which is most of the packages that need a homepage and nothing else.
  *
- * **Its address is the package's, not the note's.** A homepage publishes at
- * `/<contentPackage>/` because that is where the package is, so `name.full`,
- * `shortcode` and `id` decide nothing on it — nothing here reads them, and
- * {@link HOMEPAGE_REFUSED_FIELDS} refuses them outright rather than leaving an
- * author to believe they worked (#53). It compiles into no document, so it carries
- * no compendium UUID and appears in no pack and in no link-manifest entry.
+ * **Addressed like every other note.** A homepage declares a `shortcode` —
+ * conventionally {@link HOMEPAGE_SHORTCODE} — and publishes at its address,
+ * `/<package>/<type>-<shortcode>/`, written by the same rule as everything else
+ * (#182). It used to publish at `/<package>/` from a fixed destination, and
+ * that is why it refused `name` and `shortcode`: a URL derived from `name.full`
+ * while the destination did not, so `[[homepage-<shortcode>]]` resolved *green*
+ * to a page nothing wrote. A page's URL is its address now (#181), so the
+ * computed address is the published one and there is nothing left to refuse.
+ * The package's own `/<package>/` becomes a redirect its repository authors —
+ * see `CONTENT.md` — rather than a page this build writes.
+ *
+ * `id` is still refused, on ground the change does not touch: a homepage
+ * compiles into no document, so it carries no compendium UUID and appears in no
+ * pack and in no link-manifest entry.
  *
  * @module
  */
 
 import fs from "node:fs";
 
+import { addressSlug } from "./content-address.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { formatLocator, positionInFrontmatter } from "./diagnostics.mjs";
 
@@ -74,23 +83,44 @@ export const HOMEPAGE_TYPE = "homepage";
  *
  * Empty on purpose, and declared rather than omitted: a type with no vocabulary
  * and a type that is unknown are different findings, and only the second is an
- * authoring error. The whole envelope is the two top-level keys `type` and an
- * optional `title`; there is no game-system data on a page that compiles to no
- * document.
+ * authoring error. The whole envelope is the top-level keys `type` and
+ * `shortcode`, plus an optional `title` or `name`; there is no game-system data
+ * on a page that compiles to no document.
  *
  * @type {readonly import("./field-spec.mjs").FieldSpec[]}
  */
 export const HOMEPAGE_FIELDS = Object.freeze([]);
 
 /**
- * Where a homepage is written, relative to the package's site root.
+ * The shortcode a package landing conventionally takes.
  *
- * Hugo's section landing, because the page *is* the package's landing: the
- * package root is a section and this is its index.
+ * A **convention, not a rule.** The address only has to be unique within the
+ * package, which `(type, shortcode)` already guarantees, and nothing here knows
+ * better than an author what their landing is called. What the constant buys is
+ * one spelling shared by the diagnostic, the documentation and the six trees —
+ * so `[[homepage-root|…]]` is the same link in every package.
  *
  * @type {string}
  */
-export const HOMEPAGE_DESTINATION = "_index.md";
+export const HOMEPAGE_SHORTCODE = "root";
+
+/**
+ * The file a homepage is written to, relative to the package's site root.
+ *
+ * Its **address**, flat at the package root, and stated in the page's own `url`
+ * — the same separation every other page has since #181, where the directory
+ * decides the Hugo section and the front matter decides the URL. Flat rather
+ * than inside a `homepage/` section directory, because a homepage is not one of
+ * a kind: a section holding exactly one page would publish a landing at
+ * `/<package>/kb/homepage/` that nothing links to and nobody wrote.
+ *
+ * @param {object} fm - Parsed frontmatter.
+ * @returns {string} The destination filename, e.g. `homepage-root.md`.
+ * @throws {Error} When the note declares no shortcode, and so has no address.
+ */
+export function homepageDestination(fm) {
+    return `${addressSlug(fm)}.md`;
+}
 
 /**
  * Whether a note's frontmatter declares the homepage type.
@@ -103,58 +133,33 @@ export function isHomepage(fm) {
 }
 
 /**
- * The top-level fields a homepage refuses, and what each one would decide (#53).
+ * The top-level field a homepage refuses, and what it would decide (#53).
  *
- * A note's URL derives from `name.full` and its identity from
- * `(type, shortcode)`. The homepage is the one page for which neither holds: it
- * publishes at `/<package>/`, fixed by the package id. An author fluent in the
- * conventions writes them here expecting exactly what they do everywhere else,
- * and gets none of it.
+ * **One field, where there used to be three.** `name` and `shortcode` were
+ * refused because a page's URL derived from `name.full` while a homepage's
+ * destination was fixed, so the address a `shortcode` computed named a page the
+ * site build never wrote. A page's URL is its address now (#181) and a homepage
+ * publishes at its own, so both fields decide exactly what they decide
+ * everywhere else and are permitted (#182).
  *
- * **They were never inert, which is why ignoring them was the wrong answer.** A
- * `shortcode` puts the note in the address index and in the `dataview` link
- * universe, so `[[homepage-<shortcode>]]` resolves *green* — to
- * `homepage/<slug>/`, an address derived from `name.full` and published by
- * nothing, because a homepage is written to {@link HOMEPAGE_DESTINATION} at the
- * package root. A build that reports a live link to a 404 is worse than one
- * that says nothing. It also inflates `content-build lint`'s address tally, so
- * the lint and the link manifest disagree about what the package publishes.
+ * `id` is untouched by that, and stays: it is the Foundry document id a
+ * compendium UUID is built from, and a homepage compiles into no document.
  *
- * **A named class, not an allow-list, and that boundary is the decision.** The
- * documented envelope is `type` plus an optional `title`, and `landing`,
- * `description` and `banner` are legitimate beside them — but a homepage's
- * frontmatter is *emitted into the published page*
+ * **A named class, not an allow-list, and that boundary is the decision.** A
+ * homepage's frontmatter is *emitted into the published page*
  * ({@link homepageFrontmatter}), so an unrecognised key is a Hugo or theme
  * parameter this build has never heard of and has no standing to refuse.
  * Rejecting unknown keys would make every new theme parameter wait on a
- * package-build release. What is refused is the specific class that makes a
- * false claim about *where this page is*.
+ * package-build release.
  *
  * `aliases` is deliberately not in the class: it is a **retired** field, refused
  * on every note whatever its type (#180), so it is answered there rather than
- * here — this class is about the fields that make a false claim about *where
- * this page is*.
+ * here.
  *
  * @type {ReadonlyMap<string, string>}
  */
 export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
     new Map([
-        [
-            "name",
-            "`name` decides nothing on a `type: homepage` note: a page's slug " +
-                "derives from `name.full`, and a homepage's destination is " +
-                `fixed — it is written to \`${HOMEPAGE_DESTINATION}\` at the ` +
-                "package's own address, `/<package>/`. Write `title:` for what " +
-                "the page is called, and delete `name`",
-        ],
-        [
-            "shortcode",
-            "`shortcode` decides nothing on a `type: homepage` note: this " +
-                "page's address is the package's own, `/<package>/`, fixed by " +
-                "the package id. It is not ignored either — it puts the note " +
-                "in the address index, so `[[homepage-<shortcode>]]` resolves " +
-                "to a page the site build never writes. Delete it",
-        ],
         [
             "id",
             "`id` decides nothing on a `type: homepage` note: it is the " +
@@ -166,30 +171,54 @@ export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
 );
 
 /**
- * The address-bearing fields one note authors, in the order it authored them.
+ * What the address rule says about one note's top-level fields.
  *
- * Authoring order rather than declaration order, so a caller emitting one
- * diagnostic per finding emits them top to bottom down the file — the order a
- * reader and a compiler-output parser both expect.
+ * Two statements about the same thing, so they are made together: the field a
+ * homepage **owes** and the field it may **not** write.
  *
- * Presence is the whole test: `shortcode:` authored empty still says "this page
- * has an address of its own", and a value cannot make the claim true.
+ * The missing `shortcode` comes first, and is located at `type:` rather than at
+ * a key that is not there — the `homepage` value is what makes the field
+ * required, it is a real position in the file, and inventing a `1:1` for an
+ * absent key would put the author on the opening fence. The refused fields
+ * follow in the order the note authored them, so a caller emitting one
+ * diagnostic per finding walks down the file.
  *
- * Returned without a locator, because the two things that would supply one —
- * the raw note text and the position helper — belong to the caller. This
- * mirrors {@link module:engine/retired-fields}, whose retired-field messages
- * are likewise positioned by whoever reports them.
+ * Presence is the whole test for a refused field, and absence-or-blank for the
+ * required one: `shortcode:` authored empty is no address, and a value cannot
+ * make `id` mean something on a page that compiles to no document.
+ *
+ * Each finding carries the `locator` key to position it at, because the two
+ * things that would resolve one — the raw note text and the position helper —
+ * belong to the caller. This mirrors {@link module:engine/retired-fields},
+ * whose retired-field messages are likewise positioned by whoever reports them.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
- * @returns {Array<{key: string, message: string}>} One entry per field the note
- *   authored, empty for any note that is not a homepage.
+ * @returns {Array<{field: string, locator: {key: string, literal?: string},
+ *   message: string}>} One entry per finding, empty for any note that is not a
+ *   homepage and declares nothing wrong.
  */
 export function checkHomepageAddressFields(fm) {
     if (!isHomepage(fm)) return [];
     const out = [];
+
+    const shortcode = typeof fm.shortcode === "string" ? fm.shortcode.trim() : "";
+    if (!shortcode) {
+        out.push({
+            field: "shortcode",
+            locator: { key: "type", literal: HOMEPAGE_TYPE },
+            message:
+                "a `type: homepage` note declares a `shortcode`, like every " +
+                "other note: it is addressed as `homepage-<shortcode>` and " +
+                "published at `/<package>/homepage-<shortcode>/`, which is " +
+                "where `[[homepage-<shortcode>|Text]]` lands. Write " +
+                `\`shortcode: ${HOMEPAGE_SHORTCODE}\` — the package landing is ` +
+                `\`homepage-${HOMEPAGE_SHORTCODE}\` in every package`,
+        });
+    }
+
     for (const key of Object.keys(fm)) {
         const message = HOMEPAGE_REFUSED_FIELDS.get(key);
-        if (message) out.push({ key, message });
+        if (message) out.push({ field: key, locator: { key }, message });
     }
     return out;
 }
@@ -203,12 +232,16 @@ export function checkHomepageAddressFields(fm) {
  * - _None_ and the package serves nothing at `/<package>/`. That is the failure
  *   #50 exists to prevent, and it is silent — the site build reports `wrote 0
  *   homepage(s)` and exits 0.
- * - _Two_ and it serves a page nobody chose. Every homepage is written to the
- *   same {@link HOMEPAGE_DESTINATION}, so the second overwrites the first and
- *   the package's front page is decided by the order the walk happened to reach
- *   the files in — by *filename*, on a type whose whole point is that it is
- *   routed by frontmatter. There is no "first wins" convention to fall back on,
- *   so nothing here can pick the right one.
+ * - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
+ *   since #182 it is only that.** It used to rest on the fixed destination
+ *   every homepage shared — the second overwrote the first — so the address
+ *   rule enforced it as a side effect. A homepage is written at its own address
+ *   now, so two of them publish two pages and collide over nothing; the
+ *   duplicate-address check catches only the pair that happen to share a
+ *   shortcode, and says nothing at all about a `homepage-root` beside a
+ *   `homepage-front`. Which of the two the redirect at `/<package>/` should
+ *   name is a question nothing here can answer, and both being reachable is
+ *   not an answer to it.
  *
  * Neither has a safe default, so neither is a warning. A warning is the right
  * severity for something a build can proceed past correctly, and a build that
@@ -270,9 +303,10 @@ export function checkHomepageCount(found, { contentBase, contentPackage }) {
             message:
                 `duplicate \`type: homepage\` note, also declared by ` +
                 `${others.join(", ")}; a package has one front page` +
-                `${contentPackage ? `, at${address},` : ""} and every ` +
-                `homepage is written to the same \`${HOMEPAGE_DESTINATION}\` — ` +
-                `so the one the walk reaches last silently overwrites the rest`,
+                `${contentPackage ? `, at${address}` : ""}, and each of these ` +
+                `publishes at an address of its own — so nothing here can say ` +
+                `which one that address should redirect to. Keep one, and make ` +
+                `the rest ordinary notes`,
         };
     });
 }
@@ -325,10 +359,17 @@ export function homepageTitle(fm, config) {
 /**
  * The frontmatter a homepage publishes with.
  *
- * The note's own, plus the two derived values every emitted page carries: the
- * resolved `title`, and the package the build derived — no note declares one
+ * The note's own, plus the derived values every emitted page carries: the
+ * resolved `title`, the package the build derived — no note declares one
  * (`package:` is retired, #56) and the theme's breadcrumb partial reads
- * `.Params.package`.
+ * `.Params.package` — and its **address**.
+ *
+ * The address is stated as `url` for the same reason every other page states
+ * one (#181): Hugo publishes a page where its file sits unless told otherwise,
+ * and a homepage's file sits at the package's site root. `slug` is written
+ * beside it because it is the last segment of that address and Hugo's own key
+ * for one; it decides nothing while `url` is present, but a page carrying only
+ * `url` would report a slug Hugo had inferred from the filename.
  *
  * An authored `aliases` is dropped for the same reason it is on every other
  * page: Hugo reads it as URL redirects, so passing it through would publish a
@@ -339,10 +380,14 @@ export function homepageTitle(fm, config) {
  * @param {object} options - Options.
  * @param {string} options.contentPackage - The package this build publishes.
  * @param {string} options.title - The resolved title.
+ * @param {string} options.base - Where the package is served, with both
+ *   slashes — `/<package>/`.
  * @returns {object} The frontmatter to write.
+ * @throws {Error} When the note declares no shortcode, and so has no address.
  */
-export function homepageFrontmatter(fm, { contentPackage, title }) {
-    const data = { ...fm, package: contentPackage, title };
+export function homepageFrontmatter(fm, { contentPackage, title, base }) {
+    const slug = addressSlug(fm);
+    const data = { ...fm, package: contentPackage, title, slug, url: `${base}${slug}/` };
     delete data.aliases;
     return data;
 }

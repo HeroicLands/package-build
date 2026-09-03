@@ -63,6 +63,7 @@ import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
+import { isHomepage } from "./homepage.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
@@ -233,6 +234,14 @@ export function collectManifestEntries(contentBase, ctx) {
         assertNoDraftField(fm, { file: rel, absPath });
         assertNoAliasesField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
+        // A homepage is addressed like every other note since #182, and a
+        // shortcode alone would now put it here. It stays out for the reason it
+        // always did, which that change does not touch: a manifest entry is how
+        // another package resolves a **document**, and a homepage compiles into
+        // none — the same ground `id` is refused on. A cross-package link to a
+        // package's front page is its bare `/<package>/` address, which needs
+        // no index.
+        if (isHomepage(fm)) continue;
 
         const base = path.basename(absPath);
         const name = fm.name?.full ?? path.basename(absPath, ".md");

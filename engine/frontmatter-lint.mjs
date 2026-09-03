@@ -480,20 +480,20 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         });
     }
 
-    // A homepage's address is its package's, so the top-level fields that
-    // decide an address decide nothing on it (#53). Reported beside the retired
-    // fields above because it is the same kind of statement — a top-level key
-    // this note may not write — and, like them, it must survive the two early
+    // What the address rule says about a homepage's top-level fields: the
+    // `shortcode` it owes, and the `id` it may not write (#53, #182). Reported
+    // beside the retired fields above because it is the same kind of statement
+    // about the same note, and, like them, it must survive the two early
     // returns below: the finding stands whatever else the type is.
     // Tags are checked here for the same reason: a classifying tag is not a
     // type's property — `draft` belongs to any note and `village` to a place —
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
 
-    for (const { key, message } of checkHomepageAddressFields(fm)) {
+    for (const { locator, message } of checkHomepageAddressFields(fm)) {
         findings.push({
             file: note.file,
-            ...at(key),
+            ...at(locator.key, locator.literal),
             severity: "error",
             message,
         });
