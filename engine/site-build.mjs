@@ -130,6 +130,16 @@ function readNote(file) {
  * @returns {{pages: object[], addressFindings: object[], fmLinkFindings: object[]}}
  */
 export function collectContentPages(contentBase, ctx) {
+    // Where an addressed page publishes. The section below is guarded so a note
+    // is never "written to `undefined/`"; the same reasoning applies here, and a
+    // missing `base` would put *every* page there rather than one. It is the
+    // caller's contract rather than a note's defect, so it throws instead of
+    // being collected as a finding (#195).
+    if (typeof ctx.base !== "string" || !ctx.base) {
+        throw new TypeError(
+            "collectContentPages: `ctx.base` must be a non-empty string — it is the package address every page's URL is built on",
+        );
+    }
     const pages = [];
     const addressFindings = [];
     const fmLinkFindings = [];
