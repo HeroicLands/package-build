@@ -22,20 +22,17 @@
  *    anchor slug; nothing checks that a heading declaring that slug exists. A
  *    link to an anchor nobody declares compiles cleanly, emits an enricher, and
  *    dead-ends for the reader.
- * 2. **A dead address.** A *piped* target — `[[x|…]]` — is an address, and one
- *    resolving to no note is a typo. So is one that does not parse as an
- *    address at all: the pipe says the author meant one.
- * 3. **A dead alias.** An *unpiped* target — `[[x]]` — names a note of the
- *    source's own type. One that finds nothing may be a worldbuilding
- *    placeholder, so it is reported as a warning rather than a failure; it is a
- *    different problem from a dead address and reads differently.
+ * 2. **A dead address.** Every link is an address, and one resolving to no note
+ *    is a typo. So is a target that does not parse as an address at all.
+ * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
+ *    used to name is retired (#180), and a shortcode is an address rather than
+ *    prose, so the link has neither a resolvable target nor text to show. The
+ *    correction is always `[[type-shortcode|Text]]`.
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
  *    and copy frontmatter through verbatim, so a link written in a
  *    `description` is never resolved and publishes as literal `[[…]]` text.
  *    Frontmatter is data: a `WikiLink` field is parsed by the address grammar
  *    and a bracketed link there is a finding naming the note and the field.
- * 5. **An alias two notes of one type both claim.** It used to be deleted
- *    silently, so the pair resolved to nothing and nobody was told (#131).
  *
  * **This resolves links the way the builds do**, calling the same
  * {@link readQualifier} and the same {@link parseWikilink} rather than a second
@@ -72,9 +69,8 @@ import {
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
-import { parseWikilink, resolvesAsAddress, WIKILINK } from "./wikilink-syntax.mjs";
+import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
-import { aliasesOf, aliasKey, indexAliases } from "./alias-index.mjs";
 
 /**
  * Every `{#anchor}` a note declares on a heading.
@@ -154,21 +150,6 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         }
     }
 
-    // The alias half of the two namespaces, built by the shared rule so the
-    // checker, the pack build and the site build cannot disagree about what a
-    // bare `[[…]]` can name (#131).
-    const {
-        byKey: byAlias,
-        claims: aliasClaims,
-        collisions: aliasCollisions,
-    } = indexAliases(
-        notes.map((note) => ({
-            type: note.type,
-            aliases: aliasesOf(note.fm),
-            value: note,
-        })),
-    );
-
     const types = new Set(notes.map((n) => n.type));
 
     // A foreign package may use a type this tree has never seen, so its types
@@ -201,8 +182,8 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
      * @param {object} note - A note from this index.
      * @returns {Array<{target: string, anchor: string, text: string,
      *   occurrence: number, labelled: boolean}>} `target` is `""` for a
-     *   same-page `[[#anchor]]`; `labelled` says which namespace the target
-     *   belongs to (#131).
+     *   same-page `[[#anchor]]`; `labelled` says whether the link carries the
+     *   `|` every link must have (#180).
      */
     function linksOf(note) {
         let body = note.body;
@@ -234,26 +215,10 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
                 anchor,
                 text: all,
                 occurrence,
-                labelled: resolvesAsAddress(parsed),
+                labelled: parsed.labelled,
             });
         }
         return out;
-    }
-
-    /**
-     * The note an **alias** names, or `undefined`.
-     *
-     * Scoped to the *source* note's own type, so one word may be an alias in
-     * several types without colliding. An alias two same-type notes claim is
-     * absent from the index entirely — see {@link indexAliases} — so this can
-     * never resolve to whichever was walked first.
-     *
-     * @param {object} note - The note the link is written in.
-     * @param {string} target - The link target, anchor already removed.
-     * @returns {object|undefined} The note it names.
-     */
-    function resolveAlias(note, target) {
-        return byAlias.get(aliasKey(note.type, target));
     }
 
     /**
@@ -278,24 +243,6 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
     }
 
     /**
-     * Resolve a link target the way both builds do, or `undefined`.
-     *
-     * **The pipe chooses the namespace, and there is no fallback either way**
-     * (#131) — see {@link resolvesAsAddress} for why. The caller therefore has
-     * to say which form was authored; it is a required argument rather than a
-     * defaulted one, because either default would silently resolve half the
-     * corpus through the wrong namespace.
-     *
-     * @param {object} note - The note the link is written in.
-     * @param {string} target - The link target.
-     * @param {boolean} labelled - Whether the link carried a `|`.
-     * @returns {object|undefined} The note it names.
-     */
-    function resolve(note, target, labelled) {
-        return labelled ? resolveAddress(target) : resolveAlias(note, target);
-    }
-
-    /**
      * The manifest entry a qualified address names in another package, or null.
      *
      * @param {string} target - The link target.
@@ -307,9 +254,9 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         if (q.package) {
             return foreign.index.get(canonicalKey(q.package, q.type, q.shortcode)) ?? null;
         }
-        // A bare address names no package, so it resolves against any foreign
-        // one that publishes it. Claimed by two, it is ambiguous and the author
-        // must write the qualified form.
+        // An unqualified address names no package, so it resolves against any
+        // foreign one that publishes it. Claimed by two, it is ambiguous and
+        // the author must write the qualified form.
         const type = String(q.type).toLowerCase();
         const shortcode = String(q.shortcode).toLowerCase();
         const hits = [...foreign.index].filter(([k]) => {
@@ -333,13 +280,13 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
         contentPackage: pkg,
         foreign,
         manifests: manifestsComplete(localPackages, foreign.packages),
-        /** Every note claiming each type-scoped alias, colliding ones included. */
-        aliasClaims,
-        /** One entry per alias two or more same-type notes claim (#131). */
-        aliasCollisions,
         linksOf,
-        resolve,
-        resolveAlias,
+        /**
+         * Resolve a link target the way both builds do, or `undefined`. Every
+         * link is an address, so this is {@link resolveAddress} under the name
+         * the walkers use (#180).
+         */
+        resolve: resolveAddress,
         resolveAddress,
         manifestHit,
         /** Whether a target reads as a qualified address at all. */
@@ -655,24 +602,20 @@ export function auditHomepageLinks(index) {
 /**
  * Every link in a tree that lands nowhere.
  *
- * **The two failure modes are separate findings, because they are separate
- * problems** (#131). A piped target the author declared to be an address, and
- * which resolves nowhere, is a typo: every package it could name is either
- * built here or vendored, so there is no third possibility. An unpiped target
- * naming no note of the source's type may be exactly that typo — or a
- * worldbuilding placeholder, which is a long-standing convention in the
- * setting trees. So the first is an error and the second a warning, and the
- * caller can tell them apart without parsing a message.
+ * **How the link is *written* is a separate finding from where it points**, and
+ * the two are kept apart because the corrections differ. An unlabelled link
+ * (#180) has to become `[[type-shortcode|Text]]`; a labelled one whose target
+ * resolves nowhere has a shortcode to fix. Reporting a bare `[[Name]]` as a
+ * dead address would send an author hunting for a note that was never named.
  *
  * @param {ReturnType<typeof buildLinkIndex>} index - The built index.
  * @returns {{deadAnchors: object[], deadAddresses: object[],
- *   deadAliases: object[], aliasCollisions: object[],
- *   frontmatterLinks: object[], homepageLinks: object[],
- *   usedManifest: Set<string>}} The findings, and which addresses a foreign
- *   manifest answered. Each `deadAddresses` entry carries a `reason`:
- *   `"not-an-address"` when the target does not parse as one at all,
- *   `"unknown-type"` when it is qualified but names no known type, and
- *   `"unresolved"` when it parses and nothing answers it.
+ *   unlabelledLinks: object[], frontmatterLinks: object[],
+ *   homepageLinks: object[], usedManifest: Set<string>}} The findings, and
+ *   which addresses a foreign manifest answered. Each `deadAddresses` entry
+ *   carries a `reason`: `"not-an-address"` when the target does not parse as
+ *   one at all, `"unknown-type"` when it is qualified but names no known type,
+ *   and `"unresolved"` when it parses and nothing answers it.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
@@ -680,10 +623,10 @@ export function auditLinks(index) {
     const deadAnchors = [];
     for (const note of notes) {
         for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
-            if (!anchor) continue;
-            const dest = target ? resolve(note, target, labelled) : note;
-            // An unresolvable target is reported by the address or alias pass
-            // below; its anchor has nothing to be checked against.
+            if (!anchor || !labelled) continue;
+            const dest = target ? resolve(target) : note;
+            // An unresolvable target is reported by the pass below; its anchor
+            // has nothing to be checked against.
             if (!dest) continue;
             if (!anchors.get(dest).has(slugify(anchor))) {
                 deadAnchors.push({
@@ -698,22 +641,23 @@ export function auditLinks(index) {
     }
 
     const deadAddresses = [];
-    const deadAliases = [];
+    const unlabelledLinks = [];
     const usedManifest = new Set();
     for (const note of notes) {
-        for (const { target, text, occurrence, labelled } of linksOf(note)) {
-            if (!target) continue; // a same-page `[[#anchor]]`
-            const at = { note, target, text, occurrence };
-
+        for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
+            // The label is required whatever the link part is, an anchor
+            // included — so this is tested before the same-page form (#180).
             if (!labelled) {
-                if (index.resolveAlias(note, target)) continue;
-                // Kept alongside, so a report can say *why* nothing answered:
-                // an alias claimed twice is absent from the index, and blaming
-                // this note for it would blame the wrong file.
-                const claimants = index.aliasClaims.get(aliasKey(note.type, target)) ?? [];
-                deadAliases.push({ ...at, ambiguous: claimants.length > 1, claimants });
+                unlabelledLinks.push({
+                    note,
+                    target: target || (anchor ? `#${anchor}` : ""),
+                    text,
+                    occurrence,
+                });
                 continue;
             }
+            if (!target) continue; // a same-page `[[#anchor|Text]]`
+            const at = { note, target, text, occurrence };
 
             if (!isAddress(target)) {
                 deadAddresses.push({ ...at, reason: "not-an-address" });
@@ -737,8 +681,7 @@ export function auditLinks(index) {
     return {
         deadAnchors,
         deadAddresses,
-        deadAliases,
-        aliasCollisions: index.aliasCollisions,
+        unlabelledLinks,
         frontmatterLinks: index.frontmatterLinks,
         homepageLinks: auditHomepageLinks(index),
         usedManifest,
@@ -793,8 +736,8 @@ export function walkReachability(index, { root, scope, stopAt = () => false }) {
         const note = queue.shift();
         if (stopAt(note)) continue;
         for (const { target, labelled } of index.linksOf(note)) {
-            if (!target) continue;
-            const dest = index.resolve(note, target, labelled);
+            if (!target || !labelled) continue;
+            const dest = index.resolve(target);
             if (!dest || !scope(dest) || reached.has(dest)) continue;
             reached.add(dest);
             queue.push(dest);

@@ -28,15 +28,14 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
 });
 
 /** An index that resolves exactly the addresses it is given. */
-// Faithful to the real resolver on the point that matters: its third argument
-// chooses the namespace and has no fallback (#144), so an address resolves only
-// when the caller says it authored one. A stub that ignored the argument is
-// what let every `ref:` field be resolved through the alias namespace — and so
-// reported dead — with the suite green (#176).
+// Faithful to the real resolver on the point that matters: it resolves an
+// **address** and takes the target alone (#180). The stub once mirrored a
+// namespace argument, and ignoring it is what let every `ref:` field be
+// resolved through the alias namespace — and so reported dead — with the suite
+// green (#176). There is no second namespace to get wrong now.
 const indexOf = (...addresses: string[]) => ({
     notes: [],
-    resolve: (_n: unknown, target: string, labelled?: boolean) =>
-        labelled && addresses.includes(target) ? {} : undefined,
+    resolve: (target: string) => (addresses.includes(target) ? {} : undefined),
     manifestHit: () => null,
 });
 
@@ -140,16 +139,16 @@ describe("the five failure classes (#19)", () => {
         expect(messages(dead)).toContain("no note or vendored manifest");
     });
 
-    it("resolves a reference as an address, never as an alias", () => {
-        // `type-shortcode` is an address by construction — there is no pipe to
-        // read intent from, and the field supplies the type — so the check has
-        // to say so. Asked as an alias, every reference in every tree lands
-        // nowhere, which is what #176 was.
-        const asked: boolean[] = [];
+    it("asks the resolver for the field's full `type-shortcode` address", () => {
+        // `type-shortcode` is an address by construction — the field supplies
+        // the type — and it is the whole of what the resolver is handed. Asked
+        // for anything less, every reference in every tree lands nowhere, which
+        // is what #176 was.
+        const asked: string[] = [];
         const index = {
             notes: [],
-            resolve: (_n: unknown, _t: string, labelled?: boolean) => {
-                asked.push(Boolean(labelled));
+            resolve: (target: string) => {
+                asked.push(target);
                 return {};
             },
             manifestHit: () => null,
@@ -158,7 +157,7 @@ describe("the five failure classes (#19)", () => {
             schemas,
             index: index as any,
         });
-        expect(asked).toEqual([true]);
+        expect(asked).toEqual(["skill-swrd"]);
     });
 
     it("skips the reference check when it has no index to check against", () => {

@@ -75,10 +75,12 @@ const require = createRequire(import.meta.url);
  * Every `.md` file under `dir`, depth-first in directory order.
  *
  * Deliberately *not* {@link walkMarkdownTree}, whose stack-based walk yields a
- * tree in reverse. Order is load-bearing here and nowhere else: the address
- * index resolves a bare `[[Name]]` on a first-writer-wins basis, so reversing
- * the walk silently changes which page an ambiguous name resolves to. A pack
- * compile has no such dependency, which is why the two walks can differ.
+ * tree in reverse. Order was load-bearing here when the address index carried
+ * first-writer-wins fallbacks for a page's name, filename and slug — reversing
+ * the walk silently changed which page an ambiguous name resolved to. Those
+ * fallbacks are gone with the bare `[[Name]]` form (#180), so this is now
+ * ordinary reading order rather than a dependency; it is kept because a site's
+ * emitted pages should not reorder for no reason.
  *
  * @param {string} dir - Directory to walk.
  * @param {readonly string[]} skip - Directory names to ignore at any depth.
@@ -490,7 +492,9 @@ export function sectionFrontmatter(meta) {
 /**
  * The frontmatter a page publishes with.
  *
- * An authored `aliases` is Obsidian's — a list of *names* a reader might call
+ * An authored `aliases` is retired (#180) and refused before a build reaches
+ * here, which makes this a guard rather than a working path. It was Obsidian's
+ * — a list of *names* a reader might call
  * the note, which is vault addressing and stays in the vault. Hugo reads
  * `aliases` as **URL redirects**, so passing them through would publish a
  * redirect stub at each name. They are dropped, and this build emits no

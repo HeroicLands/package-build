@@ -64,6 +64,8 @@ import { declaredTags } from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
+    aliasesRetiredMessage,
+    declaredAliasField,
     draftRetiredMessage,
     readAliasedField,
     retiredAliasMessage,
@@ -466,6 +468,17 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
             message: draftRetiredMessage(),
         });
     }
+    const aliasField = declaredAliasField(fm);
+    if (aliasField) {
+        findings.push({
+            file: note.file,
+            // Both spellings write the key `aliases`; the nested one simply
+            // indents it under `name:`, so one locator finds either.
+            ...at("aliases"),
+            severity: "error",
+            message: aliasesRetiredMessage(aliasField),
+        });
+    }
 
     // A homepage's address is its package's, so the top-level fields that
     // decide an address decide nothing on it (#53). Reported beside the retired
@@ -643,15 +656,15 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         // vendored manifest lands exactly as the same address in a wikilink
         // would — rather than through a second, subtly different rule.
         //
-        // **As an address, always.** The resolver's third argument chooses the
-        // namespace and has no fallback (#144): omitted, it reads the target as
-        // an *alias*, and `type-shortcode` is never an alias, so every value a
-        // `ref:` field carries was reported unresolvable (#176). A frontmatter
-        // reference is a bare address by construction — there is no pipe to
-        // read intent from, and the field supplies the type — so it says so.
+        // **As an address, always** — which is now the only namespace there
+        // is (#180). A frontmatter reference is a bare address by construction:
+        // there is no pipe to read intent from, and the field supplies the
+        // type. The resolver once took a namespace argument, and omitting it
+        // read every `ref:` value as an alias, which `type-shortcode` never was
+        // (#176).
         if (field.ref && index && typeof value === "string" && value) {
             const target = `${field.ref}-${value}`;
-            if (!index.resolve(note, target, true) && !index.manifestHit(target)) {
+            if (!index.resolve(target) && !index.manifestHit(target)) {
                 findings.push({
                     file: note.file,
                     ...at(head, value),

@@ -55,7 +55,7 @@ import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoDraftField } from "./retired-fields.mjs";
+import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -222,6 +222,7 @@ export function collectManifestEntries(contentBase, ctx) {
             configured: ctx.contentPackage,
         });
         assertNoDraftField(fm, { file: rel, absPath });
+        assertNoAliasesField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
 
         const base = path.basename(absPath);

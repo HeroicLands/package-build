@@ -28,23 +28,18 @@ function tree(files: Record<string, string>): string {
 function note({
     type = "affliction",
     shortcode = "aconite",
-    aliases = ["affliction-aconite"],
     name = "Aconite",
 }: Partial<{
     type: string;
     shortcode: string;
-    aliases: string[];
     name: string;
 }> = {}): string {
-    const aliasBlock = aliases.map((a) => `  - ${a}`).join("\n");
     return [
         "---",
         `name:`,
         `  full: ${name}`,
         `type: ${type}`,
         `shortcode: ${shortcode}`,
-        "aliases:",
-        aliasBlock,
         "---",
         "",
         "Body prose.",
@@ -91,7 +86,6 @@ describe("lintContentTree", () => {
                 "Afflictions/Belladonna.md": note({
                     shortcode: "bella",
                     name: "Belladonna",
-                    aliases: ["affliction-bella"],
                 }),
             }),
             { skipDirectories: [] },
@@ -116,10 +110,7 @@ describe("lintContentTree", () => {
 
     it("reports a malformed shortcode at its own line", () => {
         const r = lint({
-            "Afflictions/Aconite.md": note({
-                shortcode: "self-pro",
-                aliases: ["affliction-self-pro"],
-            }),
+            "Afflictions/Aconite.md": note({ shortcode: "self-pro" }),
         });
         const shape = r.findings.filter((f) => f.message.includes("alphanumeric"));
         expect(shape).toHaveLength(1);
@@ -155,20 +146,13 @@ describe("lintContentTree", () => {
     });
 
     // The rule requiring every note to repeat its own `type-shortcode` in
-    // `aliases:` is retired (#79). It served Obsidian and nothing else — no
-    // build ever read it — and the project no longer authors in Obsidian. A
-    // note carrying only ordinary aliases, or none at all, is now correct.
-    it("does not require a note to repeat its own address in aliases", () => {
+    // `aliases:` is retired (#79), and so is the field (#180). A note carrying
+    // neither is correct, and this lint says nothing about it either way.
+    it("does not require a note to repeat its own address", () => {
         expect(
             lint({
                 "homepage.md": homepage(),
-                "Afflictions/Aconite.md": note({ aliases: ["Wolfsbane"] }),
-            }).findings,
-        ).toEqual([]);
-        expect(
-            lint({
-                "homepage.md": homepage(),
-                "Afflictions/Aconite.md": note({ aliases: [] }),
+                "Afflictions/Aconite.md": note(),
             }).findings,
         ).toEqual([]);
     });

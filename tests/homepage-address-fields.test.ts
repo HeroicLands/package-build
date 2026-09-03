@@ -152,10 +152,10 @@ describe("what a homepage may still write", () => {
         // the published page, so an unrecognised key is a theme parameter, and
         // a closed list would make every new one a package-build release.
         expect(
-            lint([`type: ${HOMEPAGE_TYPE}`, "weight: 30", "aliases:", "    - x"], {
+            lint([`type: ${HOMEPAGE_TYPE}`, "weight: 30", "cascade:", "    noindex: true"], {
                 type: HOMEPAGE_TYPE,
                 weight: 30,
-                aliases: ["x"],
+                cascade: { noindex: true },
             }),
         ).toEqual([]);
     });

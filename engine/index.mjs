@@ -125,9 +125,6 @@ export * as wikilinks from "./wikilinks.mjs";
 /** What a `[[…]]` is, before either resolver decides where it points. */
 export * as wikilinkSyntax from "./wikilink-syntax.mjs";
 
-/** The alias namespace: what a note may be called, and who may claim a name. */
-export * as aliasIndex from "./alias-index.mjs";
-
 /** The address index a site build resolves its wikilinks against. */
 export * as siteIndex from "./site-index.mjs";
 

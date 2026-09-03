@@ -41,9 +41,9 @@
  * its own `type-shortcode` address in the top-level `aliases:` list. That
  * served exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolved in
  * the editor — and nothing else ever read it: both resolvers parse the hyphen
- * qualifier themselves, and the alias list feeds only the bare-alias fallback
- * index. The project no longer authors in Obsidian, so the rule required a line
- * of frontmatter per note for a reader that does not exist. Removing it was
+ * qualifier themselves. The project no longer authors in Obsidian, so the rule
+ * required a line of frontmatter per note for a reader that does not exist. The
+ * field itself is retired now (#180), refused from `retired-fields.mjs`. Removing it was
  * verified output-neutral beforehand: across 1,735 stripped notes,
  * `package compile` produced byte-identical `build/packs-json` and the site
  * build byte-identical `site/content`.

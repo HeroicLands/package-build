@@ -22,8 +22,9 @@
  * says what to write instead rather than which value to correct.
  *
  * `package:` is retired the same way and is refused from `note-package.mjs`,
- * where the concept it belonged to still lives. `draft:` has no such home —
- * there is no surviving concept it was part of — so it is refused here.
+ * where the concept it belonged to still lives. `draft:` and the two spellings
+ * of the alias list have no such home — there is no surviving concept either
+ * was part of — so they are refused here.
  *
  * **What `draft:` did (#69).** It excluded a note from the compiled packs, from
  * the link manifest and from a consuming site build. Nothing reported the
@@ -33,6 +34,13 @@
  * which. The field's entire effect was to move a note from *published* to
  * *unresolvable*, silently — and it also suppressed real build failures, since
  * a note the compilers never reached could not fail on the defects it carried.
+ *
+ * **What `aliases:` and `name.aliases:` did (#180).** They fed the alias index,
+ * which is what a bare `[[Alias]]` was looked up in. That form resolved to
+ * nothing anywhere in the corpus, while the collision rule guarding it folded
+ * in every note's `name.full` and so decided what a note could be named (#179).
+ * The form and the index are retired together, leaving the fields with no
+ * reader at all.
  *
  * **A field retired in favour of another is a third case (#142).** `draft:` and
  * `package:` were retired outright: nothing replaced them, so no value made
@@ -107,6 +115,96 @@ export function assertNoDraftField(fm, { file, absPath } = {}) {
     const position = locateFrontmatterKey(absPath, "draft");
     if (position) err.position = position;
     throw err;
+}
+
+/**
+ * The two spellings of the retired alias list, in the order they are looked
+ * for. Both named a note in the alias namespace; neither has a reader left.
+ *
+ * @type {readonly string[]}
+ */
+const ALIAS_FIELDS = Object.freeze(["aliases", "name.aliases"]);
+
+/**
+ * What a note declaring `aliases:` or `name.aliases:` is told, in one place.
+ *
+ * Shared by the compile-time refusal and the frontmatter lint, because an
+ * author meets whichever of the two runs first and they should read the same.
+ * It says what the field fed and what to write instead, rather than which value
+ * to correct: no value makes declaring it right.
+ *
+ * **What they did (#180).** They were the authored half of the alias index —
+ * the namespace a bare `[[Alias]]` was looked up in. Across the three content
+ * trees not one bare link resolved through it, while the collision rule that
+ * kept it unambiguous folded in every note's `name.full` and so dictated what a
+ * note could be named (#179). The form is retired, so the fields feed nothing.
+ *
+ * @param {string} field - The spelling the note used, named in the message.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function aliasesRetiredMessage(field, file) {
+    return (
+        `\`${field}:\` is a retired frontmatter field — delete it` +
+        (file ? ` — ${file}` : "") +
+        ". It listed names the bare `[[Alias]]` form could cite, and that " +
+        "form is retired: every wikilink is now an address, written " +
+        "`[[type-shortcode|Text]]`. Nothing else ever read the list"
+    );
+}
+
+/**
+ * Refuse a note that declares either spelling of the alias list.
+ *
+ * Presence is the whole test. `aliases: []` is as retired as a populated one —
+ * it reads as "this note claims no other names", a statement about a namespace
+ * that no longer exists.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
+ *   could not be parsed.
+ * @param {object} [options] - Options.
+ * @param {string} [options.file] - The note's path, named in the message. Omit
+ *   it where the caller emits through a diagnostic, which puts the locator at
+ *   the start of the line already — repeating it prints the path twice.
+ * @param {string} [options.absPath] - The note's file on disk, read only on the
+ *   failing path to locate the offending line and column. The position rides on
+ *   the thrown error as `position`, for a caller that emits a diagnostic.
+ * @returns {void}
+ * @throws {Error} When the note declares either field.
+ */
+export function assertNoAliasesField(fm, { file, absPath } = {}) {
+    const declared = declaredAliasField(fm);
+    if (!declared) return;
+
+    const err = new Error(`${aliasesRetiredMessage(declared, file)}.`);
+    // Both spellings write the key `aliases`; the nested one simply writes it
+    // indented under `name:`, so one locator finds either.
+    const position = locateFrontmatterKey(absPath, "aliases");
+    if (position) err.position = position;
+    throw err;
+}
+
+/**
+ * Which spelling of the alias list a note declares, or nothing.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @returns {string|undefined} `"aliases"`, `"name.aliases"`, or nothing.
+ */
+export function declaredAliasField(fm) {
+    if (!fm || typeof fm !== "object") return undefined;
+    if (Object.hasOwn(fm, "aliases")) return ALIAS_FIELDS[0];
+    const name = fm.name;
+    if (
+        name &&
+        typeof name === "object" &&
+        !Array.isArray(name) &&
+        Object.hasOwn(name, "aliases")
+    ) {
+        return ALIAS_FIELDS[1];
+    }
+    return undefined;
 }
 
 /**

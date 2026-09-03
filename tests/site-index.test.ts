@@ -80,114 +80,46 @@ describe("keys that are unique by construction", () => {
     });
 });
 
-describe("fallback keys are collision-aware", () => {
-    it("resolves a bare name when only one page claims it", () => {
-        const { index } = buildSiteIndex([entry()]);
+describe("a page's name is not an index key (#180)", () => {
+    // It was, as one of a set of collision-aware fallbacks the bare `[[Name]]`
+    // form looked up — which is what forbade two pages of one type from
+    // sharing a display name (#179). The form is retired, so the fallbacks are
+    // gone and the constraint with them.
+    it("does not index a page by its name", () => {
+        const { index } = buildSiteIndex([entry({ fm: { type: "skill", shortcode: "clmb" } })]);
 
-        expect(index.get("climbing")?.url).toBe("/kb/skill/climbing/");
+        expect(index.has("climbing")).toBe(false);
+        expect(index.get("skill/clmb")?.url).toBe("/kb/skill/climbing/");
     });
 
-    it("drops a key two different pages claim, rather than picking one", () => {
-        // Resolving to whichever note was walked first is a silently wrong
-        // link. A dropped key fails the build instead.
-        const { index, ambiguous } = buildSiteIndex([
-            entry({
-                name: "Shock",
-                slug: "shock",
-                sec: "rules",
-                url: "/kb/rules/shock/",
-            }),
-            entry({
-                name: "Shock",
-                slug: "shock",
-                sec: "trauma",
-                url: "/kb/trauma/shock/",
-                fm: { type: "trauma" },
-            }),
-        ]);
-
-        expect(index.has("shock")).toBe(false);
-        expect(ambiguous.has("shock")).toBe(true);
-        // The unique keys still resolve — only the bare form is ambiguous.
-        expect(index.get("rules/shock")?.url).toBe("/kb/rules/shock/");
-        expect(index.get("trauma/shock")?.url).toBe("/kb/trauma/shock/");
-    });
-
-    it("keeps a key two entries claim when both mean the same page", () => {
-        const same = { name: "Climbing", url: "/kb/skill/climbing/" };
-        const { index, ambiguous } = buildSiteIndex([
-            entry(same),
-            entry({ ...same, slug: "climbing", base: "Climbing_Alt.md" }),
-        ]);
-
-        expect(index.get("climbing")?.url).toBe("/kb/skill/climbing/");
-        expect(ambiguous.has("climbing")).toBe(false);
-    });
-
-    it("does not index a section landing by its filename", () => {
-        // Every section's landing is README.md; indexing that would make one
-        // key collide across every section at once.
+    it("does not index a page by its filename or bare slug", () => {
         const { index } = buildSiteIndex([
-            entry({
-                name: "Skills",
-                slug: "skills",
-                base: "README.md",
-                isReadme: true,
-            }),
+            entry({ name: "Climbing", base: "Rock_Climbing.md", slug: "climbing" }),
         ]);
 
-        expect(index.has("readme")).toBe(false);
-        expect(index.get("skill/skills")?.url).toBe("/kb/skill/skills/");
+        expect(index.has("rock_climbing")).toBe(false);
+        expect(index.has("climbing")).toBe(false);
     });
-});
 
-describe("aliases are scoped to their type", () => {
-    it("keeps two same-named notes of different types apart", () => {
-        const { typeAlias, typeCollide } = buildSiteIndex([
-            entry({ name: "Shock", slug: "shock", sec: "rules", url: "/r/" }),
+    it("lets two pages of one type share a display name", () => {
+        const { index, ambiguous } = buildSiteIndex([
             entry({
                 name: "Shock",
-                slug: "shock",
-                sec: "trauma",
-                url: "/t/",
-                fm: { type: "trauma" },
+                slug: "shock-a",
+                url: "/a/",
+                fm: { type: "doc", shortcode: "a" },
             }),
-        ]);
-
-        expect(typeAlias.get("skill|shock")?.url).toBe("/r/");
-        expect(typeAlias.get("trauma|shock")?.url).toBe("/t/");
-        expect(typeCollide.size).toBe(0);
-    });
-
-    it("poisons an alias two notes of the SAME type share", () => {
-        const { typeAlias, typeCollide } = buildSiteIndex([
-            entry({ name: "Shock", slug: "shock-a", url: "/a/" }),
-            entry({ name: "Shock", slug: "shock-b", url: "/b/" }),
-        ]);
-
-        expect(typeAlias.has("skill|shock")).toBe(false);
-        expect(typeCollide.has("skill|shock")).toBe(true);
-    });
-
-    it("indexes authored aliases from both spellings, and not the filename", () => {
-        const { typeAlias } = buildSiteIndex([
             entry({
-                name: "Climbing",
-                base: "Rock_Climbing.md",
-                fm: {
-                    type: "skill",
-                    aliases: ["Scrambling"],
-                    name: { aliases: ["Clambering"] },
-                },
+                name: "Shock",
+                slug: "shock-b",
+                url: "/b/",
+                fm: { type: "doc", shortcode: "b" },
             }),
         ]);
 
-        expect(typeAlias.get("skill|scrambling")?.url).toBe("/kb/skill/climbing/");
-        expect(typeAlias.get("skill|clambering")?.url).toBe("/kb/skill/climbing/");
-        expect(typeAlias.get("skill|climbing")?.url).toBe("/kb/skill/climbing/");
-        // The filename is a file-system fact, not a name an author claimed, so
-        // it is no longer a source (#131).
-        expect(typeAlias.has("skill|rock climbing")).toBe(false);
+        expect(ambiguous.size).toBe(0);
+        expect(index.get("doc/a")?.url).toBe("/a/");
+        expect(index.get("doc/b")?.url).toBe("/b/");
     });
 });
 
@@ -289,7 +221,7 @@ describe("foreign packages", () => {
 
 describe("pages that carry no type", () => {
     it("indexes a developer doc by address but not by type", () => {
-        const { index, typeAlias, contentTypes } = buildSiteIndex([
+        const { index, contentTypes } = buildSiteIndex([
             {
                 kind: "doc",
                 fm: {},
@@ -303,8 +235,8 @@ describe("pages that carry no type", () => {
         ]);
 
         expect(index.get("dev-docs/architecture")?.url).toBe("/kb/dev-docs/architecture/");
-        expect(index.get("architecture")?.url).toBe("/kb/dev-docs/architecture/");
-        expect(typeAlias.size).toBe(0);
+        // Its bare name is not a key either — `section/slug` is the address.
+        expect(index.has("architecture")).toBe(false);
         expect(contentTypes.size).toBe(0);
     });
 });
@@ -321,7 +253,6 @@ describe("the resolver context", () => {
 
         expect(ctx.index).toBe(built.index);
         expect(ctx.collide).toBe(built.ambiguous);
-        expect(ctx.typeAlias).toBe(built.typeAlias);
         expect(ctx.sections).toBe(built.sections);
         expect(ctx.src).toBe("Skills/Climbing.md");
         expect(ctx.type).toBe("skill");

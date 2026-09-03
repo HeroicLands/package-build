@@ -269,7 +269,7 @@ function nearest(key, candidates) {
  * @type {ReadonlySet<string>}
  */
 export const NOTE_LEVEL_KEYS = Object.freeze(
-    new Set(["id", "type", "subType", "shortcode", "description", "tags", "name", "aliases"]),
+    new Set(["id", "type", "subType", "shortcode", "description", "tags", "name"]),
 );
 
 /** Whether a value is a plain object a block could be written as. */

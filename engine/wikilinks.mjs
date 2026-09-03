@@ -18,15 +18,14 @@
  *
  *   `[[type-shortcode|Text]]`   a document of that type
  *   `[[type-shortcode|]]`       the same, showing the target's current name
- *   `[[Text]]`                  an alias unique within the source's own type
  *   `[[type-shortcode#slug|T]]` a section (see below)
  *   `[[#slug|Text]]`            a section of the source note itself
  *   `[[doctype-shortcode|T]]`   an item's *documentation* (see below)
  *
- * **The pipe decides which of the two namespaces a target belongs to** (#131),
- * and neither falls back to the other — see {@link resolvesAsAddress}, which
- * states the rule for both builds. A piped target is parsed by the address
- * grammar; an unpiped one is looked up in the alias index.
+ * **Every link is an address, and every address carries a label** (#180). A
+ * link written without one addresses nothing and is reported — see
+ * {@link unlabelledLinkMessage}, which states the rule for both builds. The
+ * bare `[[Alias]]` form and the index it was looked up in are retired.
  *
  * The qualifier is the note's **type**, which with its shortcode is the system's
  * logical identity: `(type, shortcode)` is unique by rule (see the Shortcode
@@ -34,13 +33,11 @@
  * unique per type, not per directory, so a directory qualifier would add nothing
  * to the address while breaking every inbound link the moment a note is refiled.
  *
- * The bare form is a **name**, not an abbreviated address: it resolves against
- * the aliases of the source's **own type**, so a `doc` reaches any other `doc`
- * by name wherever it is filed. Nothing narrower is consulted — a note's
- * directory and its `category` play no part in resolution. Where two notes of a
- * type legitimately share a name (a rules page and a user-guide page both called
- * "Gear"), the bare form is ambiguous and resolves to neither; the author writes
- * the `[[type-shortcode|Text]]` address instead.
+ * Nothing narrower than `(type, shortcode)` is consulted — a note's directory
+ * and its `category` play no part in resolution — and nothing wider: a note's
+ * *name* is not an address, so two notes of a type may share a display name
+ * ("Gear" as a rules page and as a user-guide page) with nothing to disambiguate
+ * (#179, #180).
  *
  * At compile time each becomes a Foundry UUID enricher, routed to the pack that
  * the target's type compiles into (see {@link packForType}):
@@ -93,10 +90,12 @@ import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
 // one cannot disagree about what counts as a link.
-import { authoredLabel, WIKILINK, parseWikilink, resolvesAsAddress } from "./wikilink-syntax.mjs";
-// The alias half of the two namespaces: what may be claimed, and how a claim
-// is keyed. Shared with the site build and the link checker (#131).
-import { aliasKey } from "./alias-index.mjs";
+import {
+    authoredLabel,
+    WIKILINK,
+    parseWikilink,
+    unlabelledLinkMessage,
+} from "./wikilink-syntax.mjs";
 
 export { ITEM_PACK, PACK_BY_TYPE, packForType };
 
@@ -145,7 +144,7 @@ export function resolveItemDocType(qualifier, types) {
 
 /**
  * Read a link target as a **qualified** `type-shortcode` reference, or report
- * that it is a bare alias instead.
+ * that it does not parse as one.
  *
  * Two separators are accepted, and they are **not** interchangeable in how
  * confidently they mark a target as qualified:
@@ -154,19 +153,20 @@ export function resolveItemDocType(qualifier, types) {
  *   a wikilink as a *path* and resolves it against the vault's folders, so a
  *   slash-qualified link is a broken link in the editor where the content is now
  *   authored. A hyphen qualifies **only when what precedes it is a known type**:
- *   note names contain hyphens too (`Grukar-ahk`), and those must keep resolving
- *   as aliases. The split is at the **first** hyphen, so a shortcode may itself
- *   contain one (`trauma-self-pro` → `trauma` + `self-pro`).
+ *   note names contain hyphens too (`Grukar-ahk`), and a target that is one is
+ *   reported as not an address rather than split at an arbitrary place. The
+ *   split is at the **first** hyphen, so a shortcode may itself contain one
+ *   (`trauma-self-pro` → `trauma` + `self-pro`).
  * - **`type/shortcode`** — the legacy form, still resolved so that a link
  *   written before the vault migrated does not silently die. A slash is
  *   *unconditionally* a qualifier: nothing else uses one, so an unknown type
- *   before it is an error rather than an invitation to try the alias index. The
- *   split is at the **last** slash, as it always was.
+ *   before it is reported rather than guessed at. The split is at the **last**
+ *   slash, as it always was.
  *
  * A leading **package** segment is optional and outermost: `sohl-skill-lang` is
  * `skill-lang` in the `sohl` package. It is read only when `packages` is given
  * and names the segment, and only when the remainder is itself a valid address,
- * so a note called "Grukar-ahk" stays an alias (#1499).
+ * so a note called "Grukar-ahk" is not mistaken for one (#1499).
  *
  * @param {string} target - The link target, anchor already removed.
  * @param {Set<string>} types - Every type the content tree contains.
@@ -175,7 +175,7 @@ export function resolveItemDocType(qualifier, types) {
  * @returns {{type: string, shortcode: string, itemDoc: boolean,
  *   package?: string, reason?: undefined} | {reason: "unknown-type"} | null}
  *   The resolved qualifier; a `reason` when the target is definitely qualified
- *   but names no known type; or `null` when it is a bare alias.
+ *   but names no known type; or `null` when it is not an address at all.
  */
 export function readQualifier(target, types, packages) {
     // A leading **package** segment is the optional outermost qualifier:
@@ -183,7 +183,7 @@ export function readQualifier(target, types, packages) {
     // here so everything below reads the same `type`/`shortcode` it always did,
     // and it is recognised only when what precedes the hyphen is a package this
     // build knows *and* the remainder is itself a valid address — so a note
-    // named "Sohl-something" is still an alias (#1499).
+    // named "Sohl-something" is not mistaken for one (#1499).
     if (packages?.size) {
         const hyphen = target.indexOf("-");
         if (hyphen > 0) {
@@ -204,7 +204,8 @@ export function readQualifier(target, types, packages) {
 
     const hyphen = target.indexOf("-");
     if (hyphen > 0) {
-        // A hyphen qualifies only on a known type; otherwise it is part of a name.
+        // A hyphen qualifies only on a known type; otherwise it is part of a
+        // name, and a name is not an address.
         return readTypeAndCode(target.slice(0, hyphen), target.slice(hyphen + 1), types);
     }
     return null;
@@ -257,7 +258,7 @@ export function anchorPageId(noteId, anchorSlug) {
  * Builds the link-resolution tables for a content tree.
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
- *   aliases?: string[], name?: string, pack?: string, docPack?: string}>} docs -
+ *   name?: string, pack?: string, docPack?: string}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in.
@@ -267,11 +268,9 @@ export function anchorPageId(noteId, anchorSlug) {
  *   vendored manifests of packages this build links into but does not publish.
  * @param {string} [contentPackage] - This build's *content* package, which an
  *   authored address may name explicitly. Defaults to `packageId`.
- * @returns {{byShortcode: Map<string, object>, byAlias: Map<string, object|null>,
- *   types: Set<string>}} `byAlias` holds `null` where a type-scoped alias is
- *   claimed by more than one document, which makes the bare `[[Text]]` form
- *   unusable for it. `types` is every type the tree actually contains, so a
- *   qualifier naming no real type can be told apart from a missing target.
+ * @returns {{byShortcode: Map<string, object>, types: Set<string>}} `types` is
+ *   every type the tree actually contains, so a qualifier naming no real type
+ *   can be told apart from a missing target.
  */
 export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
     if (!packageId) {
@@ -283,11 +282,6 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
     }
 
     const byShortcode = new Map();
-    const byAlias = new Map();
-    // key -> every note claiming it. `byAlias` records only the *verdict*
-    // (a note, or `null` for poisoned); this records the claimants, which is
-    // what an ambiguity report has to name.
-    const aliasClaims = new Map();
     const types = new Set();
 
     // Each note's address is computed once, here, and every reference to it is
@@ -312,19 +306,6 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
         });
 
         if (d.shortcode) byShortcode.set(`${norm(d.type)}/${norm(d.shortcode)}`, d);
-        for (const a of d.aliases ?? []) {
-            const key = aliasKey(d.type, a);
-            // Second claimant poisons the alias: it can no longer be resolved.
-            byAlias.set(key, byAlias.has(key) && byAlias.get(key) !== d ? null : d);
-            // Every claimant is kept alongside, because poisoning the alias
-            // discards exactly the information needed to report the problem.
-            // The note that *cites* an ambiguous alias is innocent — whoever
-            // added the second claimant broke it — so a message that can only
-            // name the citing note points at the wrong file (#13).
-            const claims = aliasClaims.get(key);
-            if (!claims) aliasClaims.set(key, [d]);
-            else if (!claims.includes(d)) claims.push(d);
-        }
     }
     // Entries published by *other* packages, keyed canonically. Merged as one
     // map rather than consulted separately: the keys are globally unique, so a
@@ -369,8 +350,6 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
 
     return {
         byShortcode,
-        byAlias,
-        aliasClaims,
         types,
         uuidByDoc,
         packageId,
@@ -382,14 +361,16 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
 /**
  * The foreign manifest entry an address names, or `null`.
  *
- * A package-qualified address is one lookup. A bare one names no package, so it
+ * A package-qualified address is one lookup. An unqualified one names no
+ * package, so it
  * resolves against whichever foreign package publishes it — and only when
  * exactly one does. Claimed by two, it is genuinely ambiguous and the author
  * writes the qualified form; guessing would make the build depend on which
  * manifest happened to load first.
  *
  * @param {object} index - From {@link buildWikilinkIndex}.
- * @param {object|null} read - The parsed qualifier, or `null` for a bare alias.
+ * @param {object|null} read - The parsed qualifier, or `null` when the target
+ *   did not parse as an address.
  * @returns {object|null} The manifest entry.
  */
 function findForeign(index, read) {
@@ -452,19 +433,21 @@ function unresolvedLink(text, target) {
  *
  * @param {string} markdown - The note body (frontmatter already stripped).
  * @param {object} ctx
- * @param {string} ctx.type - The source note's `type`, which scopes a bare `[[Text]]`.
+ * @param {string} ctx.type - The source note's `type`, which addresses a
+ *   `[[#slug]]` self-link.
  * @param {string} ctx.id - The source note's document id.
  * @param {string} [ctx.pack] - The pack the source note's own document landed
  *   in, which addresses a `[[#slug]]` self-link — the one target with no index
  *   entry.
  * @param {string} [ctx.docPack] - The pack the source note's documentation
  *   entry landed in.
- * @param {{byShortcode: Map, byAlias: Map, types: Set}} ctx.index - From
+ * @param {{byShortcode: Map, types: Set}} ctx.index - From
  *   {@link buildWikilinkIndex}.
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
- *   offset: number, reason: "unknown"|"ambiguous"|"unknown-type"}>}} `offset`
- *   is the link's 0-based position in `markdown`, which is what lets a caller
- *   report the line and column it sits on (#17).
+ *   offset: number, reason: "unlabelled"|"not-an-address"|"unknown-type"|
+ *   "unknown"|"unknown-anchor"}>}} `offset` is the link's 0-based position in
+ *   `markdown`, which is what lets a caller report the line and column it sits
+ *   on (#17).
  */
 export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     const unresolved = [];
@@ -474,37 +457,47 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     // one note tellable apart, and a position reportable at all (#17).
     const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
         const parsed = parseWikilink(rawInner);
-        const { labelled } = parsed;
-        let target = parsed.target;
-        // An unlabelled link shows its interior verbatim, anchor included;
-        // a labelled one shows its label. An *empty* label is not a label
-        // — `[[x|]]` means "show the target's name" — and that reading
-        // comes from {@link authoredLabel} so the web resolver cannot draw
-        // the line somewhere else (#113).
-        let text = labelled ? (authoredLabel(parsed) ?? "") : parsed.inner;
+        const target = parsed.target;
         const slug = parsed.anchor || null;
 
-        // Resolve the document: same-page (empty target), an address, or an
-        // alias. **The pipe chooses which**, with no fallback either way
-        // (#131) — see {@link resolvesAsAddress}.
+        // **Every link carries a label** (#180). Without one there is nothing
+        // to resolve against: the alias namespace a bare `[[Text]]` was looked
+        // up in is retired, and a shortcode is an address rather than prose, so
+        // the link has neither a target this build can find nor text to show.
+        // Reported before anything else, including the same-page form, because
+        // it is a statement about how the link is *written* — `[[#slug]]` needs
+        // the pipe exactly as `[[skill-clmb]]` does.
+        if (!parsed.labelled) {
+            unresolved.push({
+                link: all,
+                target: target || (slug ? `#${slug}` : ""),
+                offset,
+                reason: "unlabelled",
+                addressed: false,
+            });
+            return unresolvedLink(parsed.inner, parsed.inner);
+        }
+
+        // An *empty* label is not a label — `[[x|]]` means "show the target's
+        // name" — and that reading comes from {@link authoredLabel} so the web
+        // resolver cannot draw the line somewhere else (#113).
+        let text = authoredLabel(parsed) ?? "";
+
+        // Resolve the document: the source note itself for an empty target, or
+        // the address the target parses as.
         let doc;
         // Set when the qualifier was the virtual `doc<type>` form, so the UUID
         // is built against the item doc entry rather than the item itself.
         let itemDoc = false;
-        // Set when the target was read as an address, which is what decides
-        // whether a foreign manifest is consulted for it below.
-        let addressed = false;
         // Kept for the foreign fallback below, which needs the parsed address.
         let qualifiedRead = null;
         if (target === "" && slug) {
             doc = { type, id, pack, docPack };
-        } else if (resolvesAsAddress(parsed)) {
+        } else {
             const qualified = readQualifier(target, index.types, index.packages);
             qualifiedRead = qualified;
-            // The author wrote a pipe, so they meant an address. A target that
-            // does not parse as one is therefore a defect and not, as it was
-            // under the old resolve-by-shape rule, an invitation to try the
-            // alias index — which is what let a note *name* resolve here.
+            // A target that does not parse as an address is a defect: there is
+            // no second namespace left to fall through to (#180).
             if (!qualified || qualified.reason) {
                 unresolved.push({
                     link: all,
@@ -515,29 +508,8 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 });
                 return unresolvedLink(text || target, target);
             }
-            addressed = true;
             itemDoc = qualified.itemDoc;
             doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
-        } else {
-            const key = aliasKey(type, target);
-            const hit = index.byAlias.get(key);
-            if (hit === null) {
-                unresolved.push({
-                    link: all,
-                    target,
-                    offset,
-                    reason: "ambiguous",
-                    // Who claimed it, so the report can name the collision
-                    // rather than the note that merely cites it (#13).
-                    candidates: (index.aliasClaims?.get(key) ?? []).map((d) => ({
-                        type: d.type,
-                        shortcode: d.shortcode,
-                        name: d.name,
-                    })),
-                });
-                return unresolvedLink(text || target, target);
-            }
-            doc = hit;
         }
         if (!doc) {
             // Nothing local answers. A foreign package may publish this
@@ -564,23 +536,19 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 target,
                 offset,
                 reason: "unknown",
-                // An *address* that resolves nowhere is a typo: every package
-                // it could name is either built here or vendored, so there is
-                // no third possibility left. A bare alias is not — it may
-                // simply be prose, or a worldbuilding placeholder.
-                addressed,
+                // An address that resolves nowhere is a typo: every package it
+                // could name is either built here or vendored, so there is no
+                // third possibility left.
+                addressed: true,
             });
             return unresolvedLink(text || target, target);
         }
 
-        // An address with no label — `[[skill-clmb|]]` — has no prose to show,
-        // a shortcode being an address rather than display text, so the
-        // document's **current** name stands in and a rename shows at every
-        // citation with no link edited (#1409, #131). A bare `[[Text]]` is
-        // already the prose the author wrote, and substituting the canonical
-        // name there would rewrite the sentence ("worsens the [[Shock State]]"
-        // must not render as "Shock"). The knowledgebase build reads the same
-        // authored link the same way.
+        // An address with an *empty* label — `[[skill-clmb|]]` — has no prose
+        // to show, a shortcode being an address rather than display text, so
+        // the document's **current** name stands in and a rename shows at every
+        // citation with no link edited (#1409). The knowledgebase build reads
+        // the same authored link the same way.
         if (!text) text = doc.name ?? target;
 
         // Both addresses were computed when the target was indexed. An item

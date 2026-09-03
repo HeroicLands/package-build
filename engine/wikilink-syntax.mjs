@@ -34,7 +34,12 @@
  * not.
  *
  * So the parse lives here, once. A resolver receives the parts and decides only
- * what it is actually for: which address space the target belongs to.
+ * what it is actually for: which document the address names.
+ *
+ * The one rule about a link's *shape* that both resolvers share also lives here
+ * — **a link carries a label** ({@link unlabelledLinkMessage}) — because the
+ * two used to state it in their own words and the author met whichever ran
+ * first.
  *
  * @module
  */
@@ -55,14 +60,14 @@ export const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
  * @typedef {object} ParsedWikilink
  * @property {string} inner - The whole interior, unescaped and trimmed. What an
  *   unlabelled link displays, anchor and all.
- * @property {string} target - What is linked to: an address, an alias, or `""`
- *   for a link to a section of the same page.
+ * @property {string} target - What is linked to: an address, or `""` for a
+ *   link to a section of the same page.
  * @property {string} anchor - The `#section` slug, `""` when there is none.
  * @property {string|null} display - The text after `|`, or `null` when the link
  *   is unlabelled. `null` and `""` differ: an author may write `[[x|]]`.
- * @property {boolean} labelled - Whether a `|` was present at all. What an
- *   unlabelled link shows depends on whether its target read as an address
- *   (SoHL#1409), so the caller needs to know.
+ * @property {boolean} labelled - Whether a `|` was present at all. A link
+ *   without one addresses nothing and is a finding (#180) — see
+ *   {@link unlabelledLinkMessage} — so every reader has to be able to ask.
  */
 
 /**
@@ -98,8 +103,9 @@ export function parseWikilink(rawInner) {
  * means "address this target, and show the target's own name" — so `display:
  * ""` has to read as *absent* everywhere a fallback is chosen, exactly as
  * `display: null` does. The two are still distinguishable through
- * {@link ParsedWikilink.labelled}, which is the thing that genuinely differs
- * and which #1409 depends on.
+ * {@link ParsedWikilink.labelled}, which is the thing that genuinely differs:
+ * `[[x|]]` is labelled and `[[x]]` is not, and only the first addresses
+ * anything (#180).
  *
  * Stated here because the two resolvers had already drawn the line in two
  * places and drawn it differently: the packs tested falsiness and were right,
@@ -117,33 +123,34 @@ export function authoredLabel({ display }) {
 }
 
 /**
- * Which namespace a link resolves in: the **address** space, or the **alias**
- * space.
+ * What an author writing an unlabelled link is told, in one place.
  *
- * **The pipe decides, and nothing else does** (#131). `[[x|…]]` is an address,
- * parsed by the address grammar; `[[x]]` is an alias, looked up within the
- * source note's own type. Neither falls back to the other.
+ * Shared by the link checker, the pack compilers and the web resolver, because
+ * an author meets whichever runs first and they should read the same. It names
+ * the form to write rather than a value to correct: there is no value that
+ * makes an unlabelled link resolve.
  *
- * Both resolvers used to decide by *shape* instead — try the address, fall
- * back to the alias — which had three costs. An author could not say which
- * they meant, so a note whose **name** looked like an address (`Grukar-ahk`)
- * was read as one, and a genuine address that resolved nowhere silently became
- * a name lookup and reported nothing. And a positional address grammar could
- * not split a target confidently until it had first ruled out every note name
- * in the corpus.
+ * **Why there is nothing left for a bare link to mean** (#180). The pipe used
+ * to select between two namespaces — address and alias — and the alias one was
+ * empty in practice: across 8,305 wikilinks in three content trees, not one
+ * bare `[[Alias]]` resolved to a note. What the index it looked up in *did* do
+ * was fold every note's `name.full` into itself, which forbade two notes of a
+ * type from sharing a display name (#179). So the namespace is gone, every
+ * link is an address, and an address needs the pipe that says so.
  *
- * An **empty** label is still a pipe: `[[x|]]` is an address that renders the
- * target's *current* name, so a rename shows at every citation with no link
- * edited. That is why this reads {@link ParsedWikilink.labelled} and not
- * {@link authoredLabel} — the two answer different questions, and only one of
- * them is about namespaces.
+ * The **link part may still be an anchor**: `[[#slug|Text]]` addresses a
+ * section of the page it is written on. It is the label that is required, not
+ * a target.
  *
- * @param {{labelled: boolean}} parsed - A parsed wikilink, or anything
- *   carrying its `labelled`.
- * @returns {boolean} True when the target is an address.
+ * @param {string} target - The target as authored, named in the message.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
  */
-export function resolvesAsAddress({ labelled }) {
-    return Boolean(labelled);
+export function unlabelledLinkMessage(target) {
+    return (
+        `wikilink [[${target}]] carries no label, so it addresses nothing — ` +
+        `write [[type-shortcode|Text]]. Every link is an address; the bare ` +
+        `[[Name]] form named an alias, and the alias namespace is retired`
+    );
 }
 
 /**

@@ -805,6 +805,14 @@ does not exist. Removing it was verified output-neutral first: across 1,735
 stripped notes, `package compile` produced byte-identical `build/packs-json` and
 the site build byte-identical `site/content`.
 
+**And the field itself is now retired (#180).** `aliases:` and `name.aliases:`
+fed the alias index, which is what a bare `[[Alias]]` was looked up in. That
+form resolved to nothing anywhere in the corpus, while the collision rule
+guarding it folded in every note's `name.full` and so decided what a note could
+be named (#179). Both are gone: every wikilink is an address, written
+`[[type-shortcode|Text]]`, and declaring either field is refused naming the file
+and the line.
+
 ### The homepage carries no address of its own
 
 A note's URL derives from `name.full` and its identity from
@@ -842,8 +850,8 @@ published page, so an unrecognised key is a Hugo or theme parameter this build
 has never heard of and has no standing to reject; a closed list would make every
 new theme parameter wait on a package-build release. What is refused is the
 specific class that makes a false claim about _where this page is_. `aliases` is
-not in that class either: it is already dropped from every emitted page, so
-authoring one here is the same no-op it is anywhere else.
+not in that class either — it is a retired field now, refused on every note
+whatever its type (#180).
 
 **Where it fires: `content-build lint` only.** Unlike a rule about the shape of
 the _tree_, which the site build has its own reason to gate on, this is a

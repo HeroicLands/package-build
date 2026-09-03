@@ -328,41 +328,51 @@ class Probe extends BasePackCompiler {
 
 describe("an unresolved wikilink names the file, line and column", () => {
     let tmp: string;
-    let warned: string[];
 
     /**
      * The note that reproduces the reported symptom: identical links, which
      * are indistinguishable unless each is reported at its own position.
      *
-     * Both are **unpiped**, so both are alias lookups. Since #131 a piped
-     * target declares itself an address, and one that is not an address fails
-     * the note rather than warning — a different finding, covered in
-     * `pipe-selects-resolution.test.ts`.
+     * Both are addresses that resolve nowhere. A compile fails the note on the
+     * first one it meets, so each is compiled on its own here — what #17 is
+     * about is that the position reported is the *link's*, not the note's.
      */
-    const NOTE = [
-        "---",
-        'name: { "full": "The Capital Nome" }',
-        'id: "PROBEPROBE000001"',
-        'shortcode: "capital"',
-        'type: "probe"',
-        "---",
-        "",
-        "The nome is administered from [[Kenbet_Pat]].",
-        "",
-        "Its court, the [[Kenbet_Pat]], sits in the capital.",
-        "",
-    ].join("\n");
+    const line = (n: number) =>
+        [
+            "---",
+            'name: { "full": "The Capital Nome" }',
+            'id: "PROBEPROBE000001"',
+            'shortcode: "capital"',
+            'type: "probe"',
+            "---",
+            "",
+            n === 1 ? "The nome is administered from [[probe-nosuch|Kenbet Pat]]." : "",
+            "",
+            n === 2 ? "Its court, the [[probe-nosuch|Kenbet Pat]], sits there." : "",
+            "",
+        ].join("\n");
 
-    beforeEach(async () => {
-        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-diag-e2e-"));
-        const content = path.join(tmp, "content");
+    /** Compile a one-note tree and return whatever it reported. */
+    async function compile(body: string): Promise<string[]> {
+        const out: string[] = [];
+        const content = path.join(tmp, `c${out.length}-${Math.random()}`);
         fs.mkdirSync(content, { recursive: true });
-        fs.writeFileSync(path.join(content, "Capital.md"), NOTE);
-        warned = [];
-        vi.spyOn(console, "warn").mockImplementation((line: any) => void warned.push(String(line)));
-        const out = path.join(tmp, "probes");
-        fs.mkdirSync(out, { recursive: true });
-        await new Probe({ contentBase: content, dest: out }).compile();
+        fs.writeFileSync(path.join(content, "Capital.md"), body);
+        const spy = vi
+            .spyOn(console, "error")
+            .mockImplementation((l: any) => void out.push(String(l)));
+        const dest = path.join(content, "probes");
+        fs.mkdirSync(dest, { recursive: true });
+        try {
+            await new Probe({ contentBase: content, dest }).compile();
+        } finally {
+            spy.mockRestore();
+        }
+        return out;
+    }
+
+    beforeEach(() => {
+        tmp = fs.mkdtempSync(path.join(os.tmpdir(), "cb-diag-e2e-"));
     });
 
     afterEach(() => {
@@ -370,35 +380,26 @@ describe("an unresolved wikilink names the file, line and column", () => {
         fs.rmSync(tmp, { recursive: true, force: true });
     });
 
-    it("reports each link at its own line and column", () => {
-        const lines = NOTE.split("\n");
-        // 1-based file coordinates of each authored link.
-        const first = {
-            line: lines.findIndex((l) => l.includes("from [[Kenbet_Pat]]")) + 1,
-            column: lines.find((l) => l.includes("from [[Kenbet_Pat]]"))!.indexOf("[[") + 1,
-        };
-        const second = {
-            line: lines.findIndex((l) => l.includes("the [[Kenbet_Pat]]")) + 1,
-            column: lines.find((l) => l.includes("the [[Kenbet_Pat]]"))!.indexOf("[[") + 1,
-        };
-
-        expect(warned).toEqual([
-            expect.stringContaining(`Capital.md:${first.line}:${first.column}: warning: `),
-            expect.stringContaining(`Capital.md:${second.line}:${second.column}: warning: `),
-        ]);
+    it("reports each link at its own line and column", async () => {
+        const first = await compile(line(1));
+        const second = await compile(line(2));
+        // Line 8, column 31 and line 10, column 16 — the positions of the two
+        // links in their respective bodies, counted from the file's start.
+        expect(first).toEqual([expect.stringContaining("Capital.md:8:31: error: ")]);
+        expect(second).toEqual([expect.stringContaining("Capital.md:10:16: error: ")]);
     });
 
-    it("still says what is wrong, and about which link", () => {
-        expect(warned[0]).toContain("unresolved wikilink");
-        expect(warned[0]).toContain("[[Kenbet_Pat]]");
-        expect(warned[1]).toContain("[[Kenbet_Pat]]");
+    it("still says what is wrong, and about which link", async () => {
+        const [only] = await compile(line(1));
+        expect(only).toContain("unresolved address");
+        expect(only).toContain("[[probe-nosuch|Kenbet Pat]]");
     });
 
-    it("carries no log prefix ahead of the path", () => {
-        // A `[timestamp] [WARN]:` prefix sits exactly where a parser reads the
+    it("carries no log prefix ahead of the path", async () => {
+        // A `[timestamp] [ERROR]:` prefix sits exactly where a parser reads the
         // filename from, so the line must begin with the path itself.
-        for (const line of warned) {
-            expect(line).toMatch(/^[^\s]*Capital\.md:\d+:\d+: warning: /);
+        for (const l of await compile(line(1))) {
+            expect(l).toMatch(/^[^\s]*Capital\.md:\d+:\d+: error: /);
         }
     });
 });

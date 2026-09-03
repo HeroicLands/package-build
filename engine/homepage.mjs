@@ -130,10 +130,10 @@ export function isHomepage(fm) {
  * package-build release. What is refused is the specific class that makes a
  * false claim about *where this page is*.
  *
- * `aliases` is deliberately not in the class: {@link homepageFrontmatter}
- * already drops it from every emitted page, with a reason of its own, so
- * authoring one is the same no-op it is on any other page rather than a wrong
- * belief about this one's address.
+ * `aliases` is deliberately not in the class: it is a **retired** field, refused
+ * on every note whatever its type (#180), so it is answered there rather than
+ * here — this class is about the fields that make a false claim about *where
+ * this page is*.
  *
  * @type {ReadonlyMap<string, string>}
  */
@@ -331,9 +331,9 @@ export function homepageTitle(fm, config) {
  * `.Params.package`.
  *
  * An authored `aliases` is dropped for the same reason it is on every other
- * page: Obsidian reads it as names a reader might call the note, Hugo reads it
- * as URL redirects, and passing it through would publish a redirect stub at
- * each one.
+ * page: Hugo reads it as URL redirects, so passing it through would publish a
+ * redirect stub at each one. The field is retired (#180) and refused before a
+ * build reaches here, which makes this a guard rather than a working path.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {object} options - Options.

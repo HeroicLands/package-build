@@ -9,8 +9,8 @@ import { describe, it, expect } from "vitest";
 import { slugify, resolveWebWikilinks, frontmatterWikilinks } from "../engine/web-wikilinks.mjs";
 
 /**
- * A stand-in KB index. `index` holds the unambiguous keys (`section/slug` and
- * `type/shortcode`); `typeAlias` holds aliases scoped to a content type.
+ * A stand-in KB index. `index` holds the addresses — `section/slug`,
+ * `type/shortcode`, and the canonical `package-type-shortcode`.
  */
 function makeCtx(overrides: Record<string, unknown> = {}) {
     const shock = { url: "/rules/sohl-shock/", name: "Shock" };
@@ -26,16 +26,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
             // `doc<type>` as an alias of the same page (#1362).
             ["docskill/climb", climb],
         ]),
-        typeAlias: new Map<string, object>([
-            ["doc|shock", shock],
-            ["doc|shock state", shock],
-            // The vault exporter writes the canonical `type-shortcode` address
-            // as an alias of the note, which is how the hyphen form resolves
-            // here (#1398).
-            ["doc|doc-shock", shock],
-        ]),
-        collide: new Set<string>(["gear"]),
-        typeCollide: new Set<string>(["doc|coma"]),
+        collide: new Set<string>(["doc/coma"]),
         sections: new Set<string>(["rules", "skill"]),
         // The build seeds this with the real types *and* the virtual
         // `doc<type>` qualifier of every item type (see build-kb-content.mjs).
@@ -100,11 +91,14 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    it("resolves a bare alias scoped to the source's own type", () => {
+    it("reports an unlabelled link, keeping the author's prose (#180)", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("worsens the [[Shock State]]", ctx)).toBe(
-            "worsens the [Shock State](/rules/sohl-shock/)",
+            `worsens the ${unresolved("Shock State", "Shock State")}`,
         );
+        expect(ctx.errors).toEqual([
+            { file: "rules/Bleeding.md", target: "Shock State", reason: "unlabelled" },
+        ]);
     });
 
     it("appends a section anchor for a cross-page section link", () => {
@@ -148,17 +142,17 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("[[doc-shock|]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
-    it("keeps a hyphenated bare alias as the prose the author wrote (#1409)", () => {
-        // `Grukar-ahk` is a note *name*, not `type-shortcode`: nothing before
-        // the hyphen is a content type, so the author's words stand.
-        const grukar = { url: "/creatures/grukar-ahk/", name: "Grukar-ahk" };
-        const ctx = makeCtx({
-            typeAlias: new Map<string, object>([["doc|grukar-ahk", grukar]]),
-        });
+    it("keeps a hyphenated unlabelled target as the prose the author wrote", () => {
+        // `Grukar-ahk` is a note *name*, not `type-shortcode`. It resolves
+        // nowhere now — there is no name namespace left — but the author's
+        // words still stand in the rendered sentence (#1409, #180).
+        const ctx = makeCtx();
         expect(resolveWebWikilinks("the [[Grukar-ahk]] raid", ctx)).toBe(
-            "the [Grukar-ahk](/creatures/grukar-ahk/) raid",
+            `the ${unresolved("Grukar-ahk", "Grukar-ahk")} raid`,
         );
-        expect(ctx.errors).toEqual([]);
+        expect(ctx.errors).toEqual([
+            { file: "rules/Bleeding.md", target: "Grukar-ahk", reason: "unlabelled" },
+        ]);
     });
 
     it("reports a qualified target whose key does not exist", () => {
@@ -184,9 +178,9 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    // Under the pipe rule (#131) a hyphenated *name* is still not an address —
-    // but writing one with a pipe now says the author meant one, so it is a
-    // finding rather than prose. The same name unpiped stays an alias lookup.
+    // A hyphenated *name* is not an address, and there is no second namespace
+    // it could be instead — so it is a finding either way, differing only in
+    // which one (#180).
     it("reports a hyphenated *name* written as an address", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[Grukar-ahk|the Grukar]]", ctx)).toBe(
@@ -198,10 +192,8 @@ describe("resolveWebWikilinks", () => {
     });
 
     it("resolves the hyphen form across types, as the packs do", () => {
-        // The source note is a `doc`; the target is a `skill`, so the
-        // type-scoped alias index cannot reach it. Only reading the qualifier
-        // does — and until it did, every cross-type link written in the
-        // canonical separator rendered as plain text on the knowledgebase.
+        // The source note is a `doc` and the target a `skill`: an address
+        // crosses types, which is exactly what it is for.
         const ctx = makeCtx();
         expect(resolveWebWikilinks("a [[skill-climb|Climbing]] test", ctx)).toBe(
             "a [Climbing](/skill/climbing/) test",
@@ -225,26 +217,27 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    it("reports an alias that is ambiguous within the source's type", () => {
+    it("reports a short address two packages both publish", () => {
+        // Claimed by two, it names neither, and the author writes the
+        // package-qualified form.
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("a [[Coma]] state", ctx)).toBe(
-            `a ${unresolved("Coma", "Coma")} state`,
+        expect(resolveWebWikilinks("a [[doc-coma|Coma]] state", ctx)).toBe(
+            `a ${unresolved("Coma", "doc-coma")} state`,
         );
         expect(ctx.errors[0]).toMatchObject({ reason: "ambiguous" });
     });
 
-    it("treats an unknown bare target as an external reference, not an error", () => {
-        // Worldbuilding notes kept outside this repo must not fail the build.
-        // Unpiped, so it is an alias lookup, and an alias that finds nothing
-        // may simply be a note not yet written (#131).
+    it("reports an unlabelled target rather than treating it as external", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("the [[Empire of Tanvur]] rode", ctx)).toBe(
             `the ${unresolved("Empire of Tanvur", "Empire of Tanvur")} rode`,
         );
-        expect(ctx.errors).toEqual([]);
+        expect(ctx.errors).toEqual([
+            { file: "rules/Bleeding.md", target: "Empire of Tanvur", reason: "unlabelled" },
+        ]);
     });
 
-    it("reports the same target once a pipe declares it an address", () => {
+    it("reports the same target differently once a label declares it an address", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("the [[Empire of Tanvur|Tanvurans]] rode", ctx)).toBe(
             `the ${unresolved("Tanvurans", "Empire of Tanvur")} rode`,
@@ -254,12 +247,20 @@ describe("resolveWebWikilinks", () => {
         ]);
     });
 
-    it("treats an unknown prefix as external too", () => {
+    it("reports an unknown prefix as not an address", () => {
+        // A vault path is not an address in any package, and there is no other
+        // namespace it could name — so it is a finding rather than prose.
         const ctx = makeCtx();
-        expect(resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar]]", ctx)).toBe(
-            unresolved("Setting/Creatures/Folk/Grukar", "Setting/Creatures/Folk/Grukar"),
+        expect(resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar|Grukar]]", ctx)).toBe(
+            unresolved("Grukar", "Setting/Creatures/Folk/Grukar"),
         );
-        expect(ctx.errors).toEqual([]);
+        expect(ctx.errors).toEqual([
+            {
+                file: "rules/Bleeding.md",
+                target: "Setting/Creatures/Folk/Grukar",
+                reason: "not-an-address",
+            },
+        ]);
     });
 });
 
@@ -359,15 +360,21 @@ describe("cross-package addresses (link manifest)", () => {
         expect(ctx.errors).toHaveLength(0);
     });
 
-    it("marks a bare prose link but does not fail the build", () => {
-        // `[[Grukar-ahk]]` is prose, not an address; only a qualified target is
-        // checked, so a worldbuilding placeholder is still not an error — but
-        // it is *marked*, so the author can see the link went nowhere (#1665).
+    it("marks a target that is not an address but does not fail the build", () => {
+        // Only a *qualified* target is checked against the manifests, so a
+        // worldbuilding placeholder that names no type is still not an error —
+        // but it is *marked*, so the author can see it went nowhere (#1665).
         const ctx = makeCtx({ foreign, manifestsComplete: true });
-        expect(resolveWebWikilinks("[[Some Unwritten Place]]", ctx)).toBe(
-            unresolved("Some Unwritten Place", "Some Unwritten Place"),
+        expect(resolveWebWikilinks("[[Some Unwritten Place|there]]", ctx)).toBe(
+            unresolved("there", "Some Unwritten Place"),
         );
-        expect(ctx.errors).toHaveLength(0);
+        expect(ctx.errors).toEqual([
+            {
+                file: "rules/Bleeding.md",
+                target: "Some Unwritten Place",
+                reason: "not-an-address",
+            },
+        ]);
     });
 });
 
