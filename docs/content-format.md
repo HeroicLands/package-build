@@ -466,28 +466,28 @@ The following H1 headers are treated specially:
 
 Generates a living (or undead, or spirit) being.
 
-| `data` property             | Values                                         | Description                                                   |
-| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------- |
-| `portrait`                  | `string`                                       | File path to the portrait image                               |
-| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                    |
-| `archetypes`                | `Archetype[]`                                  | List of archtypical behaviors                                 |
-| `occupation`                | `string`                                       | Name of the character's occupation                            |
-| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                 |
-| `peoples`                   | `Wikilink[]`                                   | Name of the peoples the character belongs to                  |
-| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                    |
-| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc) |
-| `gender`                    | `male \| female \| other`                      | Gender of the character                                       |
-| `species`                   | `WikiLink`                                     | Being's species (lore)                                        |
-| `age`                       | `number`                                       | Age of the character                                          |
-| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                |
-| `height`                    | `number`                                       | Height in meters                                              |
-| `weight`                    | `number`                                       | Weight in kilograms                                           |
-| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                           |
-| `appearance.eye_color`      | `string`                                       | Eye color                                                     |
-| `appearance.hair_color`     | `string`                                       | Hair color                                                    |
-| `appearance.skin_color`     | `string`                                       | Skin color                                                    |
-| `appearance.complexion`     | `string`                                       | Complexion                                                    |
-| `appearance.extra_features` | `string[]`                                     | Extra features                                                |
+| `data` property             | Values                                         | Description                                                                                     |
+| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `portrait`                  | `string`                                       | File path to the portrait image                                                                 |
+| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                      |
+| `archetypes`                | `Archetype[]`                                  | List of archtypical behaviors                                                                   |
+| `occupation`                | `string`                                       | Name of the character's occupation                                                              |
+| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                   |
+| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under |
+| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                      |
+| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                   |
+| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                         |
+| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                          |
+| `age`                       | `number`                                       | Age of the character                                                                            |
+| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                  |
+| `height`                    | `number`                                       | Height in meters                                                                                |
+| `weight`                    | `number`                                       | Weight in kilograms                                                                             |
+| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                             |
+| `appearance.eye_color`      | `string`                                       | Eye color                                                                                       |
+| `appearance.hair_color`     | `string`                                       | Hair color                                                                                      |
+| `appearance.skin_color`     | `string`                                       | Skin color                                                                                      |
+| `appearance.complexion`     | `string`                                       | Complexion                                                                                      |
+| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                  |
 
 If a `sohl` property is present, a SoHL actor of type "being" will be created.
 
@@ -597,11 +597,24 @@ two is the commonest way to get a non-monarchy wrong.
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
-| Property      | Values | Description                                                                                                                          |
-| ------------- | ------ | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `level`       | number | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
-| `title`       | string | Title associated with the Rank                                                                                                       |
-| `description` | string | Description of the Rank                                                                                                              |
+| Property      | Values     | Description                                                                                                                          |
+| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number     | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string     | Title associated with the Rank                                                                                                       |
+| `description` | string     | Description of the Rank                                                                                                              |
+| `lore`        | `WikiLink` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+
+**A rank's `lore` is shared; its `title` is not.** A Normen kingdom calls it
+`Thrall` and a Vylarian province calls it `Slave`, and they mean one standing:
+owned outright, with no standing at law except through an owner. The title is
+what this body calls it and the description is how this body puts it, but the
+obligations and rights belong to the standing itself, so they are written once
+and cited by every ladder that confers it. In the authored corpus 237 distinct
+titles across 2,602 rank entries resolve onto 43 standings.
+
+That is also what makes a rank answerable across bodies. Without it, asking what
+a `Naukrátissa` may do means reading the Bethûan fleet's ladder; with it, the
+rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
@@ -609,6 +622,8 @@ Definition of a level within the organization (e.g., Priest, Layperson, Member, 
 | -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
 | `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
 | `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
+| `epithet`            | `string`                  | The by-name it is known by — a god's, an order's, a company's                                              |
+| `symbol`             | `string`                  | Its emblem in words: a feather atop a golden scale, a chisel carving a star                                |
 | `governance.model`   | `GovernanceModel`         | Type of government structure, if applicable                                                                |
 | `governance.summary` | `string`                  | summary of the governance situation                                                                        |
 | `governance.ranks`   | `Rank[]`                  | The ranks available to members of the affiliation                                                          |
@@ -618,9 +633,22 @@ Definition of a level within the organization (e.g., Priest, Layperson, Member, 
 | `domains`            | `WikiLink[]`              | Places over which this affiliation holds sway                                                              |
 | `population`         | `number`                  | Number of people in the affiliation (precision 2 significant digits).                                      |
 | `economy`            | `WikiLink[]`              | Any wikilink referring to the economic activity of the affiliation (produced goods, currency systems, etc) |
-| `peoples`            | `WikiLink[]`              | People (lore) who are associated with the affiliation                                                      |
+| `lore`               | `WikiLink[]`              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar             |
 | `parents`            | `WikiLink[]`              | Affiliations that this affiliation is subordinate to                                                       |
 | `relations`          | `Map<WikiLink, Standing>` | Relations with other affiliations                                                                          |
+
+**A faith tradition is not its god.** An `affiliation` of subType
+`faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
+calendar and a body of observance — and it can outlive belief in the god
+entirely, while one god may be venerated by several religions that agree on
+nothing else. So the god is `lore` of subType `deity`, cited from the faith
+through `lore`, and never a property of it.
+
+`epithet` and `symbol` stay with the religion for the same reason, and they are
+not a faith's alone: they are what the members call the thing and what they
+carve, so a guild has them as much as a cult does. What a god _is_ — its nature,
+its domains, its aspects — belongs on the deity note, where every religion that
+venerates it can point at one account.
 
 **Every one of those describes the organisation.** A membership — which office a
 being holds, what title it bears, where it stands on the ladder — is recorded on

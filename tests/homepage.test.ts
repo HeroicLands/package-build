@@ -78,7 +78,7 @@ name:
     note(
         "Rules/Combat.md",
         `type: doc
-category: rules
+subType: rules
 shortcode: combat
 name:
     full: Combat`,
@@ -264,7 +264,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         // A `site:` block naming sections and extra trees cannot re-open a
         // content surface: homepage-only is a mode, not the absence of
         // configuration.
-        write("extra/README.md", "---\ncategory: dev-docs\n---\n\n# Docs\n");
+        write("extra/README.md", "---\nsubType: dev-docs\n---\n\n# Docs\n");
         const out = path.join(root, "out-fenced");
         const config = configFor({
             site: {

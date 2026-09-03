@@ -166,7 +166,7 @@ describe("what a homepage may still write", () => {
         expect(
             checkHomepageAddressFields({
                 type: "doc",
-                category: "rules",
+                subType: "rules",
                 shortcode: "combat",
                 id: "aBcDeFgHiJkLmNoP",
                 name: { full: "Combat" },

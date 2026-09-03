@@ -38,14 +38,14 @@ export const KB_PREFIX = "kb/";
  * The URL section a note routes to.
  *
  * A `doc` is narrative content whose only identity is its subtype label, so it
- * routes by `category`; every other type names its own section.
+ * routes by `subType`; every other type names its own section.
  *
  * @param {object} fm - Parsed frontmatter.
  * @returns {string|undefined} The section, or `undefined` when the note has
- *   none — a `doc` with no category has no address and is not published.
+ *   none — a `doc` with no subtype has no address and is not published.
  */
 export function sectionOf(fm) {
-    return fm.type === "doc" ? fm.category : fm.type;
+    return fm.type === "doc" ? fm.subType : fm.type;
 }
 
 /**
@@ -85,7 +85,7 @@ function landingOf(fm, isReadme, landing) {
     // `collection`. The section is authored rather than derived: it is the
     // identity of the section being introduced, and the note's own title
     // ("Creatures") is presentation, which would slug to something else.
-    if (fm.type === "doc" && fm.category === "collection") {
+    if (fm.type === "doc" && fm.subType === "collection") {
         return { landing: true, segment: fm.section || fm.slug };
     }
     return { landing: false };
