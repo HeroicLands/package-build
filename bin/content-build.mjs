@@ -72,6 +72,10 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+// The sections this repository declares — the open set a `README` landing's
+// `subType` names (#197). Read from the resolved configuration the site build
+// renders those landings from, so neither can name a section the other does not.
+import { declaredSections } from "../content-config.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -736,6 +740,13 @@ function lintCommand() {
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
                     references: argv.references,
+                    // How this repository addresses a section landing, and
+                    // which sections it names — the two halves of the open
+                    // vocabulary a `README`'s `subType` is read against (#197).
+                    // Passed in for the same reason the schemas are: the
+                    // linter checks a note against what it is handed.
+                    landing: config.publish.address.landing,
+                    sections: declaredSections(config),
                 });
 
                 // What the builders emit, against what the receiving system

@@ -1252,6 +1252,16 @@ publish:
   The two are alternatives rather than a pair that could both apply: each live
   content tree holds notes the other rule would move.
 
+**Under `readme`, a landing's `subType` is an address rather than a genre.** The
+segment the `README` lands at is what `sectionOf` reads — for a `doc`, its
+`subType` — so `Weapons/README.md` writes `subType: weapongear` and publishes at
+`weapongear/`. `content-build lint` checks that value against the sections
+declared in [`site.sections` / `site.readmeSections`](#what-a-section-may-declare)
+as well as against the type's own subtypes, so a section a repository has named
+is expressible and a misspelt one is still refused, by name and against both
+lists. This applies to a `README` only: every other note's `subType` stays closed
+to the values its type declares.
+
 A note the scheme yields no address for — one carrying no `shortcode`, a `doc`
 with no subtype (so no section to be filed under), a collection note naming no
 section — is **reported and omitted**, never guessed. The command
