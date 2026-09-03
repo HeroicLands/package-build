@@ -60,6 +60,7 @@ import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
+import { declaredTags } from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
@@ -365,6 +366,57 @@ function checkSubType(note, { type, entry }) {
 }
 
 /**
+ * Check a note's `tags` for near misses against the tags that classify (#172).
+ *
+ * `tags:` is top-level and the top level is open, so an unrecognised tag is
+ * **not** a finding: a theme, a region or a working state is the author's own
+ * vocabulary and this build has no standing to refuse it.
+ *
+ * **Distance alone is not enough either**, which the corpus settles rather than
+ * argues: `azravan` on a faith, `barter` on an economy note and `secret` on
+ * three lore notes are all within a typo's distance of `caravan`, `border` and
+ * `sacred`, and not one is a mistake. Checked against every declared tag at
+ * once, the rule was wrong on every note it touched.
+ *
+ * **The scope is what makes it sound.** Each group names the types it applies
+ * to, so a place's kinds are only ever checked on a place, and the eight
+ * findings above become none while a settlement tagged `vilage` is still
+ * caught.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {readonly string[]} opts.tags - Every declared tag, flattened.
+ * @returns {object[]} Findings.
+ */
+function checkTags(note, { type }) {
+    const authored = (note.fm ?? {}).tags;
+    if (!Array.isArray(authored)) return [];
+
+    const tags = declaredTags(type);
+    if (!tags.length) return [];
+    const declared = new Set(tags);
+    const findings = [];
+    for (const raw of authored) {
+        if (typeof raw !== "string" || !raw.trim()) continue;
+        const value = raw.trim();
+        if (declared.has(value)) continue;
+        const guess = nearest(value, tags);
+        if (!guess) continue;
+        findings.push({
+            file: note.file,
+            ...positionInFrontmatter(note.raw ?? "", "tags"),
+            severity: "error",
+            message:
+                `tag "${value}" is not declared, and is a near miss for the declared ` +
+                `tag "${guess}". A classifying tag is queried, so a misspelt one drops ` +
+                `this note out of an index without failing anything. Write "${guess}", ` +
+                `or rename the tag so it is plainly the author's own`,
+        });
+    }
+    return findings;
+}
+
+/**
  * Check one note against its type's schema.
  *
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
@@ -420,6 +472,11 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // fields above because it is the same kind of statement — a top-level key
     // this note may not write — and, like them, it must survive the two early
     // returns below: the finding stands whatever else the type is.
+    // Tags are checked here for the same reason: a classifying tag is not a
+    // type's property — `draft` belongs to any note and `village` to a place —
+    // so the finding must survive the early returns below.
+    findings.push(...checkTags(note, { type }));
+
     for (const { key, message } of checkHomepageAddressFields(fm)) {
         findings.push({
             file: note.file,

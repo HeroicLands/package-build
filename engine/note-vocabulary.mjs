@@ -180,6 +180,128 @@ const CHARGES = Object.freeze([
  *
  * @type {Readonly<Record<string, TypeVocabulary>>}
  */
+/**
+ * The tags that **classify** a note, grouped by what they classify (#172).
+ *
+ * `tags:` lives at the open top level and most tags belong there: a theme, a
+ * region, a working state is the author's own and this build has no opinion
+ * about it. A classifying tag is different, because something queries it — a
+ * settlement tagged `village` appears in the list of villages and an untagged
+ * one does not, so `vilage` does not merely look wrong, it removes the note from
+ * an index while the index still renders a table that looks complete.
+ *
+ * **This list is not a closed set.** An unrecognised tag is legal, because the
+ * region is open; what is reported is a **near miss** — a tag close enough to a
+ * declared one to be a typo of it.
+ *
+ * **Each group names the types it applies to**, and that scope is what makes the
+ * check sound rather than noisy. A place's kinds are only a place's: `azravan`
+ * on a faith, `barter` on an economy note and `secret` on three lore notes all
+ * sit within a typo's distance of `caravan`, `border` and `sacred`, and not one
+ * is a mistake. Checked against every group at once the rule was wrong on every
+ * note it touched; scoped to the type it is wrong on none. `types: null` is a
+ * group any note may carry.
+ *
+ * Kind and character are separate groups because one slot could not hold both: a
+ * fishing village is a `village` that is `fishing`, and the single-valued field
+ * this replaced had to spell it `Fishing Village` as a value of its own.
+ */
+export const DECLARED_TAGS = Object.freeze({
+    /** What a place *is*. */
+    placeKind: Object.freeze({
+        types: ["place"],
+        tags: Object.freeze([
+            "city",
+            "city-state",
+            "town",
+            "village",
+            "settlement",
+            "port",
+            "fortress",
+            "citadel",
+            "castle",
+            "stronghold",
+            "garrison",
+            "camp",
+            "oasis",
+            "waypoint",
+            "post",
+            "precinct",
+            "district",
+            "necropolis",
+            "hall",
+            "capital",
+        ]),
+    }),
+    /** What a place is known for. */
+    placeCharacter: Object.freeze({
+        types: ["place"],
+        tags: Object.freeze([
+            "fortified",
+            "temple",
+            "market",
+            "trading",
+            "merchant",
+            "mining",
+            "fishing",
+            "naval",
+            "military",
+            "imperial",
+            "provincial",
+            "coastal",
+            "river",
+            "lakeside",
+            "hill",
+            "mountain",
+            "valley",
+            "forest",
+            "woodland",
+            "inland",
+            "island",
+            "frontier",
+            "border",
+            "craft",
+            "caravan",
+            "pilgrimage",
+            "holy",
+            "sacred",
+            "free",
+        ]),
+    }),
+    /** A place's scale, where the subtype does not distinguish it. */
+    placeScale: Object.freeze({ types: ["place"], tags: Object.freeze(["continent"]) }),
+    /** Which kind of body a being belongs to — a station rather than a rank. */
+    beingStation: Object.freeze({
+        types: ["being"],
+        tags: Object.freeze([
+            "tradesfolk",
+            "common-folk",
+            "soldiery",
+            "administration",
+            "clergy",
+            "mages",
+            "underworld",
+            "dependents",
+            "guilded",
+            "unguilded",
+        ]),
+    }),
+    /** A note's working state, which any note may carry. */
+    state: Object.freeze({ types: null, tags: Object.freeze(["draft"]) }),
+});
+
+/**
+ * The declared tags a note of this type may carry, flattened.
+ *
+ * @param {string} type - The note's type.
+ * @param {object} [groups] - The grouped declaration.
+ * @returns {readonly string[]} The tags, in declaration order.
+ */
+export function declaredTags(type, groups = DECLARED_TAGS) {
+    const applies = Object.values(groups).filter((g) => !g.types || g.types.includes(type));
+    return Object.freeze(applies.flatMap((g) => g.tags));
+}
+
 export const NOTE_VOCABULARY = Object.freeze({
     /* ----- actors --------------------------------------------------- */
 

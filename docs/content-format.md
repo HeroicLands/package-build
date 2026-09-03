@@ -73,6 +73,46 @@ finding that names the key you meant; the same misspelling at top level would
 silently become a theme parameter, which is exactly why these cannot live
 together.
 
+**Tags are open, except the ones that classify.** `tags:` shares the top level's
+openness: a tag naming a theme, a region or a working state — `underworld`,
+`byzaria`, `draft` — is the author's own and this build has no opinion about it.
+A tag that classifies the subject is different, because something queries it. A
+settlement tagged `village` appears in the list of villages and an untagged one
+does not, so `vilage` does not merely look wrong: it removes the note from an
+index, silently, and the index still renders. That is the same failure a
+misspelled `data:` key used to be, and it gets the same answer — the vocabulary
+is declared, so a near miss is a finding that names what you probably meant.
+
+| group               | applies to             | tags                                                                                                                                                                                                                                                                                                                 |
+| ------------------- | ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **place kind**      | `place` / `settlement` | `city`, `city-state`, `town`, `village`, `settlement`, `port`, `fortress`, `citadel`, `castle`, `stronghold`, `garrison`, `camp`, `oasis`, `waypoint`, `post`, `precinct`, `district`, `necropolis`, `hall`, `capital`                                                                                               |
+| **place character** | `place`                | `fortified`, `temple`, `market`, `trading`, `merchant`, `mining`, `fishing`, `naval`, `military`, `imperial`, `provincial`, `coastal`, `river`, `lakeside`, `hill`, `mountain`, `valley`, `forest`, `woodland`, `inland`, `island`, `frontier`, `border`, `craft`, `caravan`, `pilgrimage`, `holy`, `sacred`, `free` |
+| **place scale**     | `place` / `region`     | `continent`                                                                                                                                                                                                                                                                                                          |
+| **being station**   | `being`                | `tradesfolk`, `common-folk`, `soldiery`, `administration`, `clergy`, `mages`, `underworld`, `dependents`, `guilded`, `unguilded`                                                                                                                                                                                     |
+| **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                              |
+
+**The group's scope is what makes the check work.** A group names the types it
+applies to, and a place's kinds are only ever checked on a place. Without that
+the rule is wrong on every note it touches: `azravan` on a faith, `barter` on an
+economy note and `secret` on three lore notes each sit a typo's distance from
+`caravan`, `border` and `sacred`, and none of them is a mistake. Scoped, the same
+corpus reports nothing — while a settlement tagged `vilage` is still caught, even
+beside a correct `town`.
+
+**Kind and character are separate because one slot could not hold both.** A
+fishing village is a `village` that is `fishing`, and the field this list
+replaced had to spell that `Fishing Village` as a value of its own — which is why
+a query for villages found two of the eleven that existed.
+
+**A station is not a rank.** Which kind of body a person belongs to — the
+clergy, the soldiery, the tradesfolk — is a different axis from where they stand
+inside one, which is what `data.lore` carries by naming the rank. A tag holds the
+first because a person may be several at once and because nothing ranks
+`clergy` against `mages`.
+
+**A continent is a region carrying a tag, not a subtype**, because structurally it
+is a region: the same fields, the same parent chain, everything but scale.
+
 The mapping tables below describe the **document** destinations. A key that
 appears in no table still reaches the web page; it simply reaches no Foundry
 document.

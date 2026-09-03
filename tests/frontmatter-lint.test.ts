@@ -14,6 +14,7 @@ import {
     matchesKind,
 } from "../engine/frontmatter-lint.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { authoredFields } from "../engine/field-spec.mjs";
 import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "../engine/ids.mjs";
@@ -244,5 +245,96 @@ describe("lintFrontmatter over an index", () => {
             manifestHit: () => null,
         } as any;
         expect(lintFrontmatter(index, { schemas: NOTE_SCHEMAS }).findings).toEqual([]);
+    });
+});
+
+describe("checkTags — a classifying tag is queried, so a near miss is a finding (#172)", () => {
+    /** A note carrying tags, as the index hands one over. */
+    const tagged = (tags: string[]) => ({
+        file: "/tree/place.md",
+        type: "place",
+        raw: `---\ntags:\n${tags.map((x) => `  - ${x}`).join("\n")}\ntype: place\n---\n`,
+        fm: { type: "place", subType: "settlement", tags },
+    });
+    const tagFindings = (tags: string[]) =>
+        lintFrontmatter(
+            { notes: [tagged(tags)], resolve: () => ({}), manifestHit: () => null } as any,
+            {
+                schemas: NOTE_SCHEMAS,
+                vocabulary: NOTE_VOCABULARY,
+            },
+        ).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
+
+    it("passes a declared tag", () => {
+        expect(tagFindings(["village", "fishing", "draft"])).toEqual([]);
+    });
+
+    it("passes a tag that is plainly the author's own", () => {
+        // The top level is open, so an unrecognised tag is legal. Only a tag
+        // close enough to a declared one to be a typo of it is reported.
+        expect(tagFindings(["byzaria", "underworld", "heroes-and-knaves"])).toEqual([]);
+    });
+
+    it("reports a near miss, naming what was probably meant", () => {
+        const f = tagFindings(["vilage"]);
+        expect(f).toHaveLength(1);
+        expect(f[0].message).toContain('"vilage"');
+        expect(f[0].message).toContain('"village"');
+    });
+
+    it("reports a near miss in any group, not only a place's kind", () => {
+        expect(tagFindings(["contienent"])[0].message).toContain('"continent"');
+        expect(tagFindings(["drafft"])[0].message).toContain('"draft"');
+        expect(tagFindings(["fortifed"])[0].message).toContain('"fortified"');
+    });
+
+    it("reports a declared tag written in the wrong case", () => {
+        // A query for `village` does not find `Village`, which is the whole
+        // reason the tag is checked at all.
+        expect(tagFindings(["Village"])[0].message).toContain('"village"');
+    });
+
+    it("survives the early return for a type with no vocabulary entry", () => {
+        // `place` declares no `data:` vocabulary, so the type-scoped checks
+        // return early — the tag finding has to be raised before that.
+        expect(tagFindings(["vilage"])).toHaveLength(1);
+    });
+
+    it("checks a group only on the types it applies to", () => {
+        // Distance alone was wrong on every note it touched: `azravan` on a
+        // faith, `barter` on an economy note and `secret` on three lore notes
+        // are each a typo's distance from `caravan`, `border` and `sacred`, and
+        // none is a mistake. A place's kinds are only ever a place's.
+        const on = (type: string, tags: string[]) =>
+            lintFrontmatter(
+                {
+                    notes: [
+                        {
+                            file: "/tree/n.md",
+                            type,
+                            raw: `---\ntags:\n${tags.map((x) => `  - ${x}`).join("\n")}\ntype: ${type}\n---\n`,
+                            fm: { type, tags },
+                        },
+                    ],
+                    resolve: () => ({}),
+                    manifestHit: () => null,
+                } as any,
+                { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
+            ).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
+
+        expect(on("lore", ["secret"])).toEqual([]);
+        expect(on("affiliation", ["azravan"])).toEqual([]);
+        expect(on("lore", ["barter"])).toEqual([]);
+        // `draft` applies to any note, so a near miss of it is caught anywhere.
+        expect(on("lore", ["drafft"])[0].message).toContain('"draft"');
+    });
+
+    it("catches a misspelt kind even beside a correct one", () => {
+        expect(tagFindings(["town", "vilage"])).toHaveLength(1);
+    });
+
+    it("ignores a note with no tags, and a non-string tag", () => {
+        expect(tagFindings([])).toEqual([]);
+        expect(tagFindings([null as any, 3 as any])).toEqual([]);
     });
 });
