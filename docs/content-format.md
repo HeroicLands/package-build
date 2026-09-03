@@ -1024,6 +1024,8 @@ subType:
 - material: Substances and their properties — minerals, reagents, herbs, and preparations.
 - folk: Related sapient beings of a single or tightly related species: kindreds, ancestries.
 - culture: A social grouping of individuals with common beliefs, mores, and values.
+- bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
+  that were never born. What `folk` covers for the sapient, this covers for everything else.
 
 | `data` property | Values | Description |
 | --------------- | ------ | ----------- |
@@ -1188,7 +1190,11 @@ subType:
 
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - user-guide: How to operate the Foundry implementation to play by the rules.
-- reference: Out-of-world lookup material about the setting or system — correspondences, conversions, indexes, glossaries.
+- reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
+- collection: A note whose subject is a set of other notes — a roster, a table of settlements, an
+  index of languages. It differs from `reference` in what it is made of: a reference states
+  facts of its own, while a collection states only that these notes belong together, and rots
+  the moment one of them moves.
 
 ### type: macro
 
