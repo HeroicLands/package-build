@@ -740,12 +740,21 @@ function lintCommand() {
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
                     references: argv.references,
-                    // How this repository addresses a section landing, and
-                    // which sections it names — the two halves of the open
-                    // vocabulary a `README`'s `subType` is read against (#197).
+                    // How this repository addresses a section landing, and the
+                    // sections that can exist — the open vocabulary a
+                    // `README`'s `subType` is read against (#197, #200).
                     // Passed in for the same reason the schemas are: the
                     // linter checks a note against what it is handed.
+                    //
+                    // The types come from the **specification**, not from
+                    // `schemas`: a landing's `subType` is an address, and a
+                    // type the format declares is a section whether or not
+                    // this build carries a schema to check its notes' fields
+                    // with. Reading `schemas` here would refuse `Lore/README.md`
+                    // for a reason that is not about addresses, and report one
+                    // gap twice in two vocabularies.
                     landing: config.publish.address.landing,
+                    types: [...loadContentFormat().types.keys()],
                     sections: declaredSections(config),
                 });
 
