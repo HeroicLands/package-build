@@ -1191,10 +1191,13 @@ subType:
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - user-guide: How to operate the Foundry implementation to play by the rules.
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
-- collection: A note whose subject is a set of other notes — a roster, a table of settlements, an
-  index of languages. It differs from `reference` in what it is made of: a reference states
-  facts of its own, while a collection states only that these notes belong together, and rots
-  the moment one of them moves.
+- collection: A note whose content is **derived from the tree** — a roster, a table of
+  settlements, an index of languages, almost always a query. It differs from `reference` in
+  where its content comes from, not in who reads it: a reference **states** facts of its own,
+  and a collection **derives** them. The author's test is whether the page would still say
+  anything if every other note vanished. A collection can therefore collect nothing and still
+  render — an empty table looks exactly like a full one until you read it — which is the
+  failure this value exists to make nameable.
 
 ### type: macro
 

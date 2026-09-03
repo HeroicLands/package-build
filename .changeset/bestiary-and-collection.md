@@ -11,7 +11,15 @@ else — including the made things that were never born.
 
 **A note that indexes other notes had nowhere either.** A roster, a table of
 settlements, an index of languages is not `rules`, not `user-guide`, and not
-`reference` — and the distinction from `reference` is what it is made of. A
-reference states facts of its own; a collection states only that these notes
-belong together, and rots the moment one of them moves. `reference`'s own
-description drops "indexes" accordingly.
+`reference` — and the distinction is where the content comes from. A reference
+**states** facts of its own; a collection **derives** them from the tree, almost
+always through a query. The author's test is whether the page would still say
+anything if every other note vanished. `reference`'s own description drops
+"indexes" accordingly.
+
+**The value earns its keep by making a silent failure nameable.** A collection
+whose query matches nothing renders a header and no rows, which looks exactly
+like a full table until it is read — and `sohl-thalorna` has thirteen in that
+state right now, having filtered on a frontmatter key its content format no
+longer has. Nothing failed and nothing reported it. A checker can only say so
+about a note class it can name.
