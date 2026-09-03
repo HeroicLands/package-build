@@ -154,7 +154,7 @@ describe("`contentPackage` must be alphanumeric", () => {
 
 describe("`contentPackage` must not be a note type", () => {
     it("rejects a package named after a type every package has", () => {
-        for (const type of ["doc", "macro", "being", "battlemap", "localmap", "regionalmap"]) {
+        for (const type of ["doc", "macro", "being", "map"]) {
             const { message } = rejectionFor(type);
             expect(message).toContain("contentPackage");
             expect(message).toContain(type);

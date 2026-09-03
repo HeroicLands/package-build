@@ -98,9 +98,9 @@ describe("createPackRouter — which pack a note's document lands in", () => {
                 },
             ]),
         );
-        expect(() =>
-            withCompanion.resolve({ type: "battlemap", pack: "adventures" }, "Scene"),
-        ).toThrow(/adventures/);
+        expect(() => withCompanion.resolve({ type: "map", pack: "adventures" }, "Scene")).toThrow(
+            /adventures/,
+        );
     });
 
     it("lists every pack of a type, and names the default", () => {

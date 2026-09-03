@@ -29,10 +29,13 @@ import { Items } from "../sohl/items.mjs";
  * of reported.
  */
 describe("retired content types", () => {
-    it("names `being` as the replacement for both", () => {
+    it("names the replacement for every retired spelling", () => {
         expect(RETIRED_TYPES).toEqual({
             character: "being",
             creature: "being",
+            battlemap: "map",
+            localmap: "map",
+            regionalmap: "map",
         });
     });
 

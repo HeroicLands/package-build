@@ -592,55 +592,59 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     homepage: Object.freeze({ data: Object.freeze([]) }),
 
-    ...Object.fromEntries(
-        ["battlemap", "localmap", "regionalmap"].map((type) => [
-            type,
-            Object.freeze({
-                data: Object.freeze([
-                    // The specification spells this `img`, matching every other
-                    // note type, while the map compiler reads `image` from
-                    // `sohl:` today. It says outright that one of the two has
-                    // to move; the container takes the specification's name,
-                    // and moving the authored key is the migration's business.
-                    { name: "img", ...TEXT, describe: "Path to the map art." },
-                    {
-                        name: "dimensions",
-                        ...LIST,
-                        describe: "`[width, height]` in whole pixels — the art's own size.",
-                    },
-                    {
-                        name: "pxPerGrid",
-                        ...NUM,
-                        describe: "Whole pixels per grid square; must match the art.",
-                    },
-                    { name: "navName", ...TEXT, describe: "Short name for the navigation bar." },
-                    { name: "levelName", ...TEXT, describe: "Name of the embedded level." },
-                    {
-                        name: "backgroundColor",
-                        ...TEXT,
-                        describe: "Colour shown where the art does not reach.",
-                    },
-                    { name: "overlay", ...TEXT, describe: "Path to the foreground art." },
-                    // Geometry carries no `kind`. The specification lists each
-                    // as a sequence while the notes authoring them today write
-                    // a map keyed by name, and a lint has no business picking
-                    // the winner of a disagreement the format has not settled.
-                    { name: "walls", ...ANY, describe: "Wall segments." },
-                    { name: "doors", ...ANY, describe: "Doors." },
-                    { name: "lights", ...ANY, describe: "Light sources." },
-                    { name: "tiles", ...ANY, describe: "Tiles." },
-                    { name: "sounds", ...ANY, describe: "Ambient sounds." },
-                    { name: "regions", ...ANY, describe: "Regions and their behaviours." },
-                    {
-                        name: "notes",
-                        ...ANY,
-                        describe:
-                            "Map pins, each a grid location and an anchor in this note's own body.",
-                    },
-                ]),
-            }),
+    map: Object.freeze({
+        // One type, three subTypes: they differ only in the canvas defaults
+        // derived for them, which is precisely what a subType decides (#174).
+        subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),
+        data: Object.freeze([
+            // The specification spells this `img`, matching every other
+            // note type, while the map compiler reads `image` from
+            // `sohl:` today. It says outright that one of the two has
+            // to move; the container takes the specification's name,
+            // and moving the authored key is the migration's business.
+            { name: "img", ...TEXT, describe: "Path to the map art." },
+            {
+                name: "dimensions",
+                ...LIST,
+                describe: "`[width, height]` in whole pixels — the art's own size.",
+            },
+            {
+                name: "pxPerGrid",
+                ...NUM,
+                describe: "Whole pixels per grid square; must match the art.",
+            },
+            { name: "navName", ...TEXT, describe: "Short name for the navigation bar." },
+            { name: "levelName", ...TEXT, describe: "Name of the embedded level." },
+            {
+                name: "backgroundColor",
+                ...TEXT,
+                describe: "Colour shown where the art does not reach.",
+            },
+            { name: "overlay", ...TEXT, describe: "Path to the foreground art." },
+            // Geometry carries no `kind`. The specification lists each
+            // as a sequence while the notes authoring them today write
+            // a map keyed by name, and a lint has no business picking
+            // the winner of a disagreement the format has not settled.
+            { name: "walls", ...ANY, describe: "Wall segments." },
+            { name: "doors", ...ANY, describe: "Doors." },
+            { name: "lights", ...ANY, describe: "Light sources." },
+            { name: "tiles", ...ANY, describe: "Tiles." },
+            { name: "sounds", ...ANY, describe: "Ambient sounds." },
+            { name: "regions", ...ANY, describe: "Regions and their behaviours." },
+            {
+                name: "notes",
+                ...ANY,
+                describe: "Map pins, each a grid location and an anchor in this note's own body.",
+            },
+            {
+                name: "place",
+                ...TEXT,
+                describe:
+                    "The place this map depicts. Named here and not on the place, " +
+                    "because a place has several maps and a map depicts one place.",
+            },
         ]),
-    ),
+    }),
 });
 
 /**

@@ -158,7 +158,8 @@ name:
   full: Foreign Map
 id: EEEEEEEEEEEEEEEE
 shortcode: foreignmap
-type: battlemap
+type: map
+subType: battlemap
 sohl:
   archetype: null
   place: foreignplace

@@ -103,20 +103,13 @@ describe("packForType (content type → the pack it compiles into)", () => {
         });
         // A map note compiles into a Scene, so a link to one addresses the
         // scenes pack rather than falling through to items (#1525).
-        for (const type of ["battlemap", "localmap", "regionalmap"]) {
+        for (const type of ["map"]) {
             expect(packForType(type)).toEqual({
                 pack: "scenes",
                 docType: "Scene",
             });
         }
-        expect(Object.keys(PACK_BY_TYPE).sort()).toEqual([
-            "battlemap",
-            "being",
-            "doc",
-            "localmap",
-            "macro",
-            "regionalmap",
-        ]);
+        expect(Object.keys(PACK_BY_TYPE).sort()).toEqual(["being", "doc", "macro", "map"]);
     });
 
     it("routes every other type to the items pack, including one it has never seen", () => {

@@ -122,7 +122,8 @@ const BEING_FIELDS = Object.freeze([
 ]);
 
 /**
- * A map note — `battlemap`, `localmap` or `regionalmap`, each compiled into a
+ * A map note — one type whose `battlemap` / `localmap` / `regionalmap`
+ * subType decides the derived canvas (#174). Compiled into a
  * Foundry Scene.
  *
  * The three differ only in derived canvas defaults, which is the map compiler's
@@ -329,7 +330,5 @@ export const NOTE_SCHEMAS = Object.freeze({
     doc: DOC_FIELDS,
     macro: MACRO_FIELDS,
     being: Object.freeze([...BEING_FIELDS, ...PRESENTATION_FIELDS.being]),
-    battlemap: MAP_FIELDS,
-    localmap: MAP_FIELDS,
-    regionalmap: MAP_FIELDS,
+    map: MAP_FIELDS,
 });
