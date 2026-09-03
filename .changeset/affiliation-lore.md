@@ -31,3 +31,9 @@ ladder that confers them. In the authored corpus 237 distinct titles across 2,60
 rank entries resolve onto 43 standings, which is also what makes a rank
 answerable across bodies: asking what a `Naukrátissa` may do no longer means
 reading the Bethûan fleet's ladder.
+
+**A being cites lore too.** Its `peoples` becomes `lore` for the same reason
+`place` and `affiliation` did: the people a character is of, the standing they
+hold and the law they live under are all lore, and the target's own subType tells
+a `culture` from a `law`. A being that names its culture and its rank in one list
+is saying two things of one kind, which is what the field is for.
