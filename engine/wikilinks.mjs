@@ -257,10 +257,12 @@ export function anchorPageId(noteId, anchorSlug) {
  * Builds the link-resolution tables for a content tree.
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
- *   aliases?: string[], name?: string, pack?: string, docPack?: string}>} docs -
+ *   aliases?: string[], name?: string, pack?: string, docPack?: string,
+ *   draft?: boolean}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
- *   one-pack-per-type names stand in.
+ *   one-pack-per-type names stand in. `draft` says the note carries the `draft`
+ *   tag, which marks links *into* it and changes nothing else (#183).
  * @param {string} packageId - The Foundry package shipping the packs; the first
  *   segment of every emitted UUID.
  * @param {Map<string, object>} [foreign] - Canonically keyed entries from
@@ -431,6 +433,36 @@ function unresolvedLink(text, target) {
         `<span class="sohl-unresolved-link" title="Unresolved link: ` +
         `${esc(target)}">${esc(text)}</span>`
     );
+}
+
+/**
+ * How a link to a **draft** note renders (#183).
+ *
+ * A note tagged `draft` exists so a link into it is not dead, and nothing more.
+ * Unmarked, a reader follows a promising link into an empty page and an author
+ * cannot see which of their links still owe content.
+ *
+ * **The wrapper carries the cue and nothing else.** The link itself is
+ * untouched — Foundry enriches inside HTML, so the `@UUID` still becomes a live
+ * content link, and the note is in the packs, the manifest and the index
+ * exactly as any other. Nothing here resembles the retired `draft:` field,
+ * which moved a note from published to unresolvable without saying so.
+ *
+ * The appearance lives in `scss/components/_draft-link.scss`, beside the
+ * unresolved-link partial, not here.
+ *
+ * **Byte-identical with the site build's copy** in `web-wikilinks.mjs`, down to
+ * the class name and the `title` wording — one authored link renders on two
+ * surfaces, and the two builds have drifted before over exactly this kind of
+ * detail (#1409). The argument is already-built markup and is deliberately not
+ * escaped; the *authored* text inside it was escaped, or made into a link, by
+ * whichever resolver called this.
+ *
+ * @param {string} inner - The resolved link, as that build emits it.
+ * @returns {string} An inline HTML span wrapping it.
+ */
+function draftLink(inner) {
+    return `<span class="sohl-draft-link" title="Draft — not yet written">${inner}</span>`;
 }
 
 /** Matches a whole wikilink, capturing its inner text. */
@@ -605,7 +637,12 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // item's pages are addressed through its `doc<type>` counterpart.
         const uuid =
             slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
-        return `@UUID[${uuid}]{${text}}`;
+        const link = `@UUID[${uuid}]{${text}}`;
+        // A link into a note that exists but is not written renders marked
+        // (#183). Presentation only — the UUID above is unchanged, and a
+        // `[[#slug]]` self-link is not marked because the reader is already in
+        // the note it would be telling them about.
+        return doc.draft ? draftLink(link) : link;
     });
 
     return { markdown: out, unresolved };
