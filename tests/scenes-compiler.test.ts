@@ -23,7 +23,8 @@ name:
   full: Test Ground Floor
 id: AAAAAAAAAAAAAAAA
 shortcode: testground
-type: battlemap
+type: map
+subType: battlemap
 sohl:
   place: testplace
   placeName: Test Place
@@ -60,7 +61,8 @@ name:
   full: Test Loft
 id: BBBBBBBBBBBBBBBB
 shortcode: testloft
-type: battlemap
+type: map
+subType: battlemap
 sohl:
   place: testplace
   image: systems/sohl/assets/ui/parchment.jpg

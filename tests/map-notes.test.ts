@@ -23,13 +23,14 @@ import {
     wallRestrictions,
 } from "../engine/map-notes.mjs";
 import { docEntryTypes, hasDocEntry } from "../engine/item-docs.mjs";
+import { PACK_BY_TYPE, RETIRED_TYPES } from "../engine/ids.mjs";
 
 const SCENE_ID = "AAAAAAAAAAAAAAAA";
 
 // The pack helpers are plain ESM whose JSDoc types the returns as `object`, so
 // these thin wrappers keep the assertions below readable.
 const buildSceneDoc = (fm: unknown, ctx: unknown): any => buildScene(fm as any, ctx as any);
-const profileOf = (type: string): any => mapProfile(type);
+const profileOf = (subType: string): any => mapProfile(subType);
 
 /** A minimal, valid map note: 1900x2600 at 100px/grid. */
 function makeNote(sohl: Record<string, unknown> = {}) {
@@ -37,7 +38,8 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         name: { full: "Ambush at the Defile" },
         id: SCENE_ID,
         shortcode: "ambushdefile",
-        type: "battlemap",
+        type: "map",
+        subType: "battlemap",
         sohl: {
             image: "systems/sohl/assets/ui/parchment.jpg",
             dimensions: [1900, 2600],
@@ -65,14 +67,29 @@ function makeCtx(over: Record<string, unknown> = {}) {
 }
 
 describe("map note types", () => {
-    it("recognises the three map types and nothing else", () => {
-        expect([...MAP_TYPES].sort()).toEqual(["battlemap", "localmap", "regionalmap"]);
-        expect(isMapType("battlemap")).toBe(true);
+    it("recognises the one map type, the three old names being subtypes now", () => {
+        // The three differ only in derived canvas defaults, which is what a
+        // subType is for; as types they made the router, the claims set and
+        // every consumer's section config carry three entries for one idea
+        // (#174).
+        expect([...MAP_TYPES]).toEqual(["map"]);
+        expect(isMapType("map")).toBe(true);
+        expect(isMapType("battlemap")).toBe(false);
         expect(isMapType("skill")).toBe(false);
         expect(isMapType(undefined)).toBe(false);
     });
 
-    it("emits grid, vision, fog and padding explicitly per type", () => {
+    it("names each retired spelling, rather than routing it to the items pack", () => {
+        for (const old of ["battlemap", "localmap", "regionalmap"]) {
+            expect(RETIRED_TYPES[old], old).toBe("map");
+        }
+    });
+
+    it("routes the one type to the scenes pack", () => {
+        expect(PACK_BY_TYPE.map).toEqual({ pack: "scenes", docType: "Scene" });
+    });
+
+    it("emits grid, vision, fog and padding explicitly per subtype", () => {
         // `grid.type` / `distance` / `units` declare `initial: () => game.…`,
         // and there is no `game` at build time — they must be spelled out.
         const battle = profileOf("battlemap");
@@ -91,8 +108,10 @@ describe("map note types", () => {
         expect(profileOf("localmap").grid.units).toBe("m");
     });
 
-    it("fails loudly on an unknown map type", () => {
-        expect(() => profileOf("dungeonmap")).toThrow(/unknown map type/i);
+    it("fails loudly on an unknown map subtype", () => {
+        expect(() => profileOf("dungeonmap")).toThrow(/unknown map subtype/i);
+        // The type is not the profile's key any more, so it is no answer either.
+        expect(() => profileOf("map")).toThrow(/unknown map subtype/i);
     });
 
     it("is one of the doc-carrying types, so its prose gets a JournalEntry", () => {
@@ -251,7 +270,7 @@ describe("buildScene — the whole document", () => {
         expect(scene._stats).toEqual(stats);
     });
 
-    it("emits the per-type canvas defaults explicitly", () => {
+    it("emits the per-subtype canvas defaults explicitly", () => {
         const scene = buildSceneDoc(makeNote(), makeCtx());
         expect(scene.width).toBe(1900);
         expect(scene.height).toBe(2600);

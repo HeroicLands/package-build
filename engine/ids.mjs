@@ -51,7 +51,18 @@ export function makeId(namespace, value) {
  *
  * @type {ReadonlySet<string>}
  */
-export const MAP_TYPES = Object.freeze(new Set(["battlemap", "localmap", "regionalmap"]));
+export const MAP_TYPES = Object.freeze(new Set(["map"]));
+
+/**
+ * The map subTypes, which differ only in the canvas defaults derived for them.
+ *
+ * They were three *types* until #174, which cost three entries in the pack
+ * router, three in the claims set and three in every consumer's section config
+ * — for one idea that the specification had always described as one type.
+ *
+ * @type {readonly string[]}
+ */
+export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap"]);
 
 /**
  * Content type → the pack its documents compile into, and the document type
@@ -95,6 +106,13 @@ export const PACK_BY_TYPE = Object.freeze({
 export const RETIRED_TYPES = Object.freeze({
     character: "being",
     creature: "being",
+    // The three map spellings, retired in favour of the single `map` whose
+    // subType they became (#174). Recorded rather than deleted for the same
+    // reason as the two above: an unnamed type falls through to the open item
+    // set, so a note or link left on one would be routed to the items pack.
+    battlemap: "map",
+    localmap: "map",
+    regionalmap: "map",
 });
 
 /**

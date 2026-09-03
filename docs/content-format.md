@@ -1174,6 +1174,12 @@ subType:
 The three differ only in the canvas defaults derived for them, which is why they
 are subTypes of one type rather than three types.
 
+> The three were **types** until package-build#174, which is the shape the notes
+> in the wild still carry. Both are read: a note still writing `type: battlemap`
+> is reported and told what to write instead, exactly as a note writing
+> `type: character` is (SoHL#1580). A consumer's `sections` config keys off the
+> type, so it takes one `map` entry where it carried three.
+
 **NoteLocation** is `[GridLocation, anchor]` where the `anchor` is an anchor identified in the body of the note, and `GridLocation` represents a particular grid location on the document.
 
 The `data:` fields, of which three are required:

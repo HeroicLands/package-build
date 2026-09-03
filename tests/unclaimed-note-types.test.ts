@@ -154,7 +154,7 @@ describe("noteTypeVocabulary — what this build knows a note type to be", () =>
 
     it("holds the engine's own types and a consumer's registered ones", () => {
         const vocabulary = noteTypeVocabulary({ itemTypes: new Set(["relic"]) });
-        for (const type of ["doc", "macro", "battlemap", "localmap", "regionalmap", "homepage"]) {
+        for (const type of ["doc", "macro", "map", "homepage"]) {
             expect(vocabulary.has(type), type).toBe(true);
         }
         expect(vocabulary.has("relic")).toBe(true);

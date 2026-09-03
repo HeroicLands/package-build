@@ -45,7 +45,8 @@ function makeNote(fm: Record<string, unknown> = {}, sohl: Record<string, unknown
         name: { full: "Ambush at the Defile" },
         id: SCENE_ID,
         shortcode: "ambushdefile",
-        type: "battlemap",
+        type: "map",
+        subType: "battlemap",
         ...fm,
         sohl: {
             dimensions: [1900, 2600],
@@ -119,7 +120,8 @@ name:
   full: Retired Spelling
 id: BBBBBBBBBBBBBBBB
 shortcode: retiredspelling
-type: battlemap
+type: map
+subType: battlemap
 sohl:
   image: ${ART}
   dimensions: [512, 512]
@@ -166,8 +168,8 @@ Prose.
     it("opens on the offending line, path first", () => {
         const finding = warnings.find((w) => w.includes("`image:`")) ?? "";
         // `path:line:column: severity: message` — the note's own file, and the
-        // line the field is declared on (line 8: the fence opens on line 1).
-        expect(finding).toMatch(/^\S*Retired\.md:8:3: warning: /);
+        // line the field is declared on (line 9: the fence opens on line 1).
+        expect(finding).toMatch(/^\S*Retired\.md:9:3: warning: /);
     });
 });
 
@@ -182,9 +184,10 @@ describe("the frontmatter lint reports it too (#142)", () => {
             .join("\n");
         return {
             file: "/tree/Map.md",
-            type: "battlemap",
-            raw: `---\ntype: battlemap\n${top ? `${top}\n` : ""}sohl:\n${block}\n---\n`,
-            fm: { type: "battlemap", ...fm, sohl },
+            type: "map",
+            subType: "battlemap",
+            raw: `---\ntype: map\nsubType: battlemap\n${top ? `${top}\n` : ""}sohl:\n${block}\n---\n`,
+            fm: { type: "map", subType: "battlemap", ...fm, sohl },
         };
     };
 
@@ -200,7 +203,7 @@ describe("the frontmatter lint reports it too (#142)", () => {
         expect(findings[0].message).toContain("`image:`");
         expect(findings[0].message).toContain("`img:`");
         // Located on the field, not on `type:` — the line that has to change.
-        expect(findings[0].line).toBe(6);
+        expect(findings[0].line).toBe(7);
     });
 
     it("does not also report the required `img` as missing", () => {

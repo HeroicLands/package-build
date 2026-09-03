@@ -51,7 +51,7 @@
 
 import crypto from "crypto";
 
-import { compendiumUuid, makeId, MAP_TYPES } from "./ids.mjs";
+import { compendiumUuid, makeId, MAP_SUBTYPES, MAP_TYPES } from "./ids.mjs";
 // The curated region-event vocabulary is shared verbatim with the runtime
 // bridge (`SohlRegionTriggerBehavior`), so an event this build accepts is
 // exactly one the bridge forwards.
@@ -66,7 +66,7 @@ import { readAliasedField } from "./retired-fields.mjs";
 
 // The set itself lives in `ids.mjs`, a leaf both this module and the
 // doc-carrying type set in `item-docs.mjs` can depend on without a cycle.
-export { MAP_TYPES };
+export { MAP_SUBTYPES, MAP_TYPES };
 
 /**
  * Whether a content note's type compiles into a Scene.
@@ -79,7 +79,7 @@ export function isMapType(type) {
 }
 
 /**
- * Per-type canvas defaults, emitted **explicitly** on every scene.
+ * Per-subtype canvas defaults, emitted **explicitly** on every scene.
  *
  * This is not a convenience. `grid.type`, `grid.distance` and `grid.units` all
  * declare `initial: () => game.system.grid.*`, and there is no `game` at build
@@ -89,7 +89,7 @@ export function isMapType(type) {
  *
  * @type {Readonly<Record<string, object>>}
  */
-export const MAP_TYPE_PROFILES = Object.freeze({
+export const MAP_SUBTYPE_PROFILES = Object.freeze({
     battlemap: Object.freeze({
         grid: { type: 1 /* SQUARE */, distance: 5, units: "ft" },
         tokenVision: true,
@@ -111,18 +111,23 @@ export const MAP_TYPE_PROFILES = Object.freeze({
 });
 
 /**
- * The canvas profile for a map type.
+ * The canvas profile for a map subType.
  *
- * @param {string} type - The note's `type`.
- * @returns {object} The profile from {@link MAP_TYPE_PROFILES}.
- * @throws {Error} When the type is not a map type — the build's fail-fast
- *   contract, so a typo never ships a scene with Foundry's own defaults.
+ * Keyed on the subType rather than the type since #174: every map note is
+ * `type: map`, and which canvas it derives is the one thing the three
+ * spellings ever decided.
+ *
+ * @param {string} subType - The note's `subType`.
+ * @returns {object} The profile from {@link MAP_SUBTYPE_PROFILES}.
+ * @throws {Error} When the subType is not a map subType — the build's
+ *   fail-fast contract, so a typo never ships a scene with Foundry's own
+ *   defaults.
  */
-export function mapProfile(type) {
-    const profile = MAP_TYPE_PROFILES[String(type)];
+export function mapProfile(subType) {
+    const profile = MAP_SUBTYPE_PROFILES[String(subType)];
     if (!profile) {
         throw new Error(
-            `unknown map type "${type}" — expected one of ${[...MAP_TYPES].join(", ")}`,
+            `unknown map subtype "${subType}" — expected one of ${MAP_SUBTYPES.join(", ")}`,
         );
     }
     return profile;
@@ -882,7 +887,7 @@ export function buildScene(fm, ctx) {
     const sohl = fm.sohl ?? {};
     const sceneId = fm.id;
     if (!sceneId) throw new Error("a map note needs an `id`");
-    const profile = mapProfile(fm.type);
+    const profile = mapProfile(fm.subType);
 
     const dimensions = sohl.dimensions;
     if (
