@@ -97,6 +97,7 @@ import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
 import { emitLinkManifest } from "../engine/manifest-emit.mjs";
+import { emitContentIndex } from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -228,6 +229,7 @@ const argv = yargs(hideBin(process.argv))
     .command(formatCommand())
     .command(markdownCommand())
     .command(manifestCommand())
+    .command(contentIndexCommand())
     .command(siteCommand())
     .command(reachabilityCommand())
     .command(addressesCommand())
@@ -1187,6 +1189,58 @@ function manifestCommand() {
                         message: `no address, so it is absent from the manifest: ${s.reason}`,
                     });
                 }
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-build content-index` — emit this package's note index.
+ *
+ * Every build already walks the tree and parses every note's frontmatter, then
+ * throws the result away, so nothing outside a build can ask a question about
+ * the content (#224). This publishes that walk as JSON Lines: one record per
+ * note, carrying the whole frontmatter plus the note's place in the tree.
+ *
+ * It is a command of its own rather than only a build step because the point of
+ * the artifact is that anyone can regenerate it at will — it costs a
+ * frontmatter parse, not a build. That is also what lets it stay uncommitted:
+ * something reproducible in under a second does not need to be kept.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function contentIndexCommand() {
+    return {
+        command: "content-index [root]",
+        describe: "Emit this package's note index as JSON Lines",
+        builder: (yargs) => {
+            yargs.positional("root", {
+                describe: "Content tree to read. Defaults to the configured contentBase.",
+                type: "string",
+            });
+            yargs.option("out", {
+                describe:
+                    "Directory to write into. Defaults to the configured " +
+                    "`paths.contentIndex`.",
+                type: "string",
+            });
+        },
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                const { file, notes, bytes } = emitContentIndex({
+                    config,
+                    ...(argv.root ? { contentBase: argv.root } : {}),
+                    ...(argv.out ? { outDir: argv.out } : {}),
+                });
+                log.info(
+                    `${config.contentPackage} → ${path.relative(process.cwd(), file)} ` +
+                        `(${notes} notes, ${Math.round(bytes / 1024)} KiB)`,
+                );
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

@@ -92,6 +92,9 @@ export * as kbManifest from "./kb-manifest.mjs";
 /** Deriving this package's own link manifest from its content tree. */
 export * as manifestEmit from "./manifest-emit.mjs";
 
+/** Publishing the note tree as a queryable JSON Lines index. */
+export * as contentIndex from "./content-index.mjs";
+
 /** Publishing a content tree as a website: the pass, and its integrity gates. */
 export * as siteBuild from "./site-build.mjs";
 
