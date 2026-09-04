@@ -1361,13 +1361,25 @@ subType:
 
 A `doc` declares no properties of its own.
 
-**A section is landed by its `README.md`.** A note that introduces a whole
-section — with its prose and, usually, a generated table of what the section
-holds — is the `README.md` in that section's directory, and it addresses the
-section rather than a page within it. A `subType: collection` value and a
-top-level `section:` key were a second way to say that, and both are retired
-(#202): a `README` needs nothing authored to name where it lands, because it
-lands where it sits.
+**A page that introduces a type is an ordinary note, named by convention.**
+Write `type: doc`, `subType: reference`, `shortcode: <type>` — so the
+affiliations introduction is `doc-affiliation`, addressed and linked like
+anything else, and typically carrying a generated table of what it introduces.
+It has no build path of its own; the package's own front page already works this
+way (`homepage-root`).
+
+There is no landing page and no section. A `README.md` used to _be_ its
+section's landing, and a `subType: collection` note with a top-level `section:`
+key was a second way to say the same thing. All of it is retired — the second
+rule in #202, the first in #204 — because a section appears in **no address**: a
+page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
+section is what Hugo calls a content directory, and the note format does not
+carry one.
+
+So a `doc`'s `subType` is a **genre** and nothing else, closed to the three
+values above. It briefly had to accept a content type as well, because a
+landing's `subType` named the section it addressed; with no landings, one field
+has one reading again.
 
 ### type: macro
 

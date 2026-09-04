@@ -154,16 +154,16 @@ describe("the walk is ordered, because the index depends on it", () => {
 });
 
 describe("a page's address comes from the shared scheme", () => {
-    it("publishes a page at its address, and a landing at its section", () => {
+    it("publishes every page at its address, whatever the file is called", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const byName = Object.fromEntries(pages.map((p) => [p.name, p.url]));
         // `(type, shortcode)`, at the package root: an address is a
         // package-wide identity and takes no content mount (#181).
         expect(byName.Dagger).toBe("/demo/weapongear-dagger/");
         expect(byName.Combat).toBe("/demo/doc-combat/");
-        // A README addresses the section it *is*, which does sit under the
-        // mount — so the section landings and their layouts are untouched.
-        expect(byName["The Rules"]).toBe("/demo/kb/rules/");
+        // A `README.md` used to address the section it sat in. There is no
+        // section, so it is an ordinary page (#204).
+        expect(byName["The Rules"]).toBe("/demo/doc-rulesidx/");
     });
 
     it("takes nothing from a name, so a rename moves no URL", () => {
@@ -260,9 +260,10 @@ name:
         fs.rmSync(path.join(root, "assets/content/Gear/Blank.md"));
     });
 
-    it("catches a note with no section to be filed under", () => {
-        // The URL no longer names the section, but Hugo still reads a page's
-        // section from its directory — so a note with none has nowhere to go.
+    it("has no section gate, because a page is filed nowhere", () => {
+        // A `doc` with no subtype used to be refused: it had no section, and
+        // the section was the directory the file went into. Pages emit flat
+        // (#204), so there is nothing left for it to lack.
         note(
             "Rules/Homeless.md",
             `type: doc
@@ -271,8 +272,8 @@ name:
     full: Homeless`,
         );
         const got = collectContentPages(path.join(root, "assets/content"), ctx);
-        expect(got.addressFindings.length).toBe(1);
-        expect(got.addressFindings[0].reason).toMatch(/no section/);
+        expect(got.addressFindings).toEqual([]);
+        expect(got.pages.map((p) => p.url)).toContain("/demo/doc-homeless/");
         fs.rmSync(path.join(root, "assets/content/Rules/Homeless.md"));
     });
 
@@ -353,8 +354,11 @@ describe("what a page publishes with", () => {
         expect(pageFrontmatter(page as never, {}).title).toBe("Dagger");
     });
 
-    it("titles a section landing from its configured metadata", () => {
-        const data = pageFrontmatter({ ...page, isReadme: true, sec: "rules" } as never, {
+    it("titles a **tree** landing from its configured metadata", () => {
+        // The one landing left: a `trees` entry keeps its source layout below a
+        // named section, so its own README is that section's `_index.md`.
+        const tree = { kind: "tree", rel: "README.md", sec: "rules", name: "README", fm: {} };
+        const data = pageFrontmatter({ ...tree, isReadme: true } as never, {
             readmeSections: { rules: { title: "Rules", banner: "r.webp" } },
         });
         expect(data.title).toBe("Rules");
@@ -363,27 +367,17 @@ describe("what a page publishes with", () => {
 
     it("omits a banner rather than writing `undefined`", () => {
         // `banner: undefined` is not a value YAML can carry.
-        const data = pageFrontmatter({ ...page, isReadme: true, sec: "credits" } as never, {
+        const tree = { kind: "tree", rel: "README.md", sec: "credits", name: "README", fm: {} };
+        const data = pageFrontmatter({ ...tree, isReadme: true } as never, {
             readmeSections: { credits: { title: "Credits" } },
         });
         expect("banner" in data).toBe(false);
     });
 
-    it("routes a README to `_index.md` and a page to its address", () => {
-        expect(pageDestination(page as never)).toBe(
-            path.join("weapongear", "weapongear-dagger.md"),
-        );
-        expect(pageDestination({ ...page, isReadme: true } as never)).toBe(
-            path.join("weapongear", "_index.md"),
-        );
-    });
-
-    it("keeps writing into the section directory, whatever the URL says", () => {
-        // Hugo derives a page's section from its path, not from its URL — the
-        // section landings, `.CurrentSection` and per-section layout lookup all
-        // depend on it — so the file stays in `<sec>/` and the page states its
-        // address instead (#181).
-        expect(path.dirname(pageDestination(page as never))).toBe("weapongear");
+    it("names a content page by its whole address, flat under the mount", () => {
+        expect(pageDestination(page as never)).toBe("weapongear-dagger.md");
+        expect(path.dirname(pageDestination(page as never))).toBe(".");
+        // The URL is the address either way, and the file now agrees with it.
         expect(pageFrontmatter(page as never, {}).url).toBe("/demo/weapongear-dagger/");
     });
 });
@@ -494,17 +488,16 @@ describe("buildSite end to end", () => {
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
         const out = path.join(root, "out/kb");
-        expect(fs.existsSync(path.join(out, "weapongear/weapongear-dagger.md"))).toBe(true);
-        expect(fs.existsSync(path.join(out, "rules/_index.md"))).toBe(true);
+        expect(fs.existsSync(path.join(out, "weapongear-dagger.md"))).toBe(true);
+        // A section directory exists only where the configuration declares one
+        // — no page creates it (#204).
+        expect(fs.existsSync(path.join(out, "rules"))).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     });
 
     it("resolves a wikilink to the page's published address", () => {
         buildSite({ config: configFor() });
-        const page = fs.readFileSync(
-            path.join(root, "out/kb/weapongear/weapongear-dagger.md"),
-            "utf8",
-        );
+        const page = fs.readFileSync(path.join(root, "out/kb/weapongear-dagger.md"), "utf8");
         // Both the resolved wikilink and the page's own stated address.
         expect(page).toContain("/demo/weapongear-dagger/");
         expect(page).toMatch(/^url: \/demo\/weapongear-dagger\/$/m);
@@ -523,10 +516,7 @@ name:
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const page = fs.readFileSync(
-                path.join(root, "out/kb/weapongear/weapongear-sling.md"),
-                "utf8",
-            );
+            const page = fs.readFileSync(path.join(root, "out/kb/weapongear-sling.md"), "utf8");
             expect(page).toMatch(/^package: demo$/m);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));

@@ -10,7 +10,8 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
-import { sectionOf } from "../engine/content-address.mjs";
+import { packageAddress } from "../engine/content-address.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 
 import {
     CONTENT_FORMAT_PATH,
@@ -413,30 +414,23 @@ describe("the shipped specification against the shipped declarations (#136)", ()
     });
 });
 
-describe("a doc routes by its subtype (#168)", () => {
-    // The address engine read `category` until the content format retired it,
-    // at which point every `doc` note silently lost its address: `sectionOf`
-    // answered `undefined`, and a note with no section is not published. Only
-    // `doc` was affected, being the one type that routes by its subtype label
-    // rather than by its type.
-    it("gives each doc subtype its own section", () => {
-        expect(sectionOf({ type: "doc", subType: "rules" })).toBe("rules");
-        expect(sectionOf({ type: "doc", subType: "user-guide" })).toBe("user-guide");
-        expect(sectionOf({ type: "doc", subType: "reference" })).toBe("reference");
-        expect(sectionOf({ type: "doc", subType: "reference" })).toBe("reference");
+describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
+    // It used to pick the URL *section* a `doc` published under, and the
+    // directory its page was written into — the address engine read `category`
+    // for it until the content format retired that key, at which point every
+    // `doc` note silently lost its address. There is no section left to pick:
+    // a page is addressed `(type, shortcode)` and emitted flat, so `doc-combat`
+    // publishes at `/<package>/doc-combat/` whatever its subtype says.
+    it("declares the three genres, and they are not addresses", () => {
+        expect(NOTE_VOCABULARY.doc.subTypes).toEqual(["rules", "user-guide", "reference"]);
+        for (const subType of ["rules", "user-guide", "reference"]) {
+            expect(packageAddress({ type: "doc", subType, shortcode: "combat" }, {})).toBe(
+                "doc-combat/",
+            );
+        }
     });
 
-    it("routes every other type by its type, subtype or none", () => {
-        expect(sectionOf({ type: "place", subType: "region" })).toBe("place");
-        expect(sectionOf({ type: "affiliation", subType: "faithtradition" })).toBe("affiliation");
-        expect(sectionOf({ type: "lore", subType: "deity" })).toBe("lore");
-    });
-
-    it("gives a doc with no subtype no section, and so no address", () => {
-        expect(sectionOf({ type: "doc" })).toBeUndefined();
-    });
-
-    it("ignores the retired `category` key entirely", () => {
-        expect(sectionOf({ type: "doc", category: "rules" })).toBeUndefined();
+    it("addresses a doc that declares no subtype at all", () => {
+        expect(packageAddress({ type: "doc", shortcode: "combat" }, {})).toBe("doc-combat/");
     });
 });

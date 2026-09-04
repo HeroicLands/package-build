@@ -74,7 +74,8 @@ describe("`landing: collection` is refused, not merely unrecognized (#202)", () 
         }
         expect(thrown, "should have refused the value").toBeDefined();
         expect(thrown.message).toMatch(/retired/);
-        expect(thrown.message).toMatch(/README\.md/);
+        // Names what an introduction page is now, rather than a value to fix.
+        expect(thrown.message).toMatch(/doc-<type>/);
         // The locator the loader resolves to a line and column (#95).
         expect(thrown.field).toBe("publish.address.landing");
     });
@@ -139,10 +140,10 @@ describe("`section:` is a retired frontmatter field (#202)", () => {
         }
     });
 
-    it("says what the field did and what lands a section instead", () => {
+    it("says what the field did and what an introduction page is instead", () => {
         const message = sectionRetiredMessage();
         expect(message).toContain("retired");
-        expect(message).toContain("README.md");
+        expect(message).toContain("doc-<type>");
         // The path is named only where the caller has no locator of its own.
         expect(sectionRetiredMessage("Rules/Gear.md")).toContain("Rules/Gear.md");
     });
@@ -177,15 +178,11 @@ describe("`section:` is a retired frontmatter field (#202)", () => {
 });
 
 describe("what survives the retirement in `packageAddress` (#202)", () => {
-    it("still lands a README at its section, under the mount", () => {
+    it("lands no README at a section, because there are no landings (#204)", () => {
+        // The surviving rule went the same way one release later: a `README.md`
+        // is an ordinary note, addressed like every other.
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
-        expect(packageAddress(fm, { isReadme: true, scheme: { prefix: "kb/" } })).toBe("kb/rules/");
-    });
-
-    it("still reports a landing that names no section", () => {
-        // Reachable under `readme` too, and not only under the retired rule: a
-        // `doc` README with no `subType` has no section to land at.
-        expect(() => packageAddress({ type: "doc" }, { isReadme: true })).toThrow(/lands nowhere/);
+        expect(packageAddress(fm, { scheme: { prefix: "kb/" } })).toBe("doc-rulesintro/");
     });
 
     it("no longer reads `section:` for anyone", () => {

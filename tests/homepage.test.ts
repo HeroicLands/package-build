@@ -220,7 +220,7 @@ name:
         const config = configFor({ site: { out: "out-links" } });
         const result = buildSite({ config });
         expect(result.wikiErrors).toEqual([]);
-        const page = fs.readFileSync(path.join(root, "out-links/kb/rules/doc-welcome.md"), "utf8");
+        const page = fs.readFileSync(path.join(root, "out-links/kb/doc-welcome.md"), "utf8");
         expect(page).toContain("(/demo/homepage-root/)");
         expect(page).toContain("the module's front page");
     });
@@ -346,9 +346,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         const result = buildSite({ config });
         const files = emitted(path.join(root, "out-content"));
         expect(files).toContain("homepage-root.md");
-        // Written into its section directory under the mount; published at
-        // its address, `/demo/weapongear-dagger/` (#181).
-        expect(files).toContain("kb/weapongear/weapongear-dagger.md");
+        // Written flat under the mount and published at its address,
+        // `/demo/weapongear-dagger/` (#181, #204).
+        expect(files).toContain("kb/weapongear-dagger.md");
         expect(result.stats?.homepages).toBe(1);
     });
 
