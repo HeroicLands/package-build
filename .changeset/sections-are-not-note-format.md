@@ -36,6 +36,13 @@ worked this way (`homepage-root`, #182).
 | `declaredSections`                     | exported, fed the lint                        | removed — it had no other reader                  |
 | `lintNote` / `lintFrontmatter` options | `landing`, `types`, `sections`                | removed                                           |
 
+**The closed-set check becomes meaningful again.** #206, released alongside this,
+put a retired-spelling warning and an address-charset error ahead of it in
+`checkSubType`; removing the section branch from underneath leaves three checks
+in one order — retired spelling, then charset, then the genres the type declares
+— with nothing widening the last of them. A `doc` note whose `subType` names a
+content type is refused again, `README` or not.
+
 **`site.sections` is not retired — it is now the whole of what a section is.**
 With no page filed into `<section>/`, nothing else makes
 `/<package>/<prefix><section>/` exist at all, so `writeSectionLandings` stays and

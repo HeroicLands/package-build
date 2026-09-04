@@ -28,7 +28,7 @@
  * pack build together.
  *
  * The KB *section* is not always the type: prose pages (`type: doc`) route by
- * their `category`, so `doc/quickstart` lands on `/user-guide/sohl-quickstart/`.
+ * their `category`, so `doc/quickstart` lands on `/userguide/sohl-quickstart/`.
  * The caller supplies that mapping already resolved, in the index it builds.
  *
  * Lives here rather than in a consumer so every package resolves a link the

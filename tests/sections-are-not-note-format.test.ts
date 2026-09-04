@@ -224,7 +224,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
     });
 
     it("accepts the genres the type declares", () => {
-        for (const subType of ["rules", "user-guide", "reference"]) {
+        for (const subType of ["rules", "userguide", "reference"]) {
             const findings = lintNote(
                 asNote("/tree/Rules/Combat.md", { type: "doc", subType, shortcode: "combat" }),
                 opts,
@@ -244,7 +244,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
             );
             expect(findings, file).toHaveLength(1);
             expect(findings[0].message).toContain("is not one of the subtypes doc declares");
-            expect(findings[0].message).toContain("rules, user-guide, reference");
+            expect(findings[0].message).toContain("rules, userguide, reference");
             // No configuration is named, because none is consulted.
             expect(findings[0].message).not.toContain("site.sections");
         }
@@ -265,6 +265,38 @@ describe("a `doc`'s `subType` is a genre again", () => {
             column: 1,
             severity: "error",
         });
+    });
+
+    it("leaves the charset and retired-spelling checks ahead of it (#206)", () => {
+        // The two changes are complementary and land in one function: #206 put
+        // a retired-spelling warning and a charset error ahead of the closed-set
+        // check, and #204 removed the section branch from underneath it. Both
+        // survive, in that order.
+        const retired = lintNote(
+            asNote("/tree/Guide/Actions.md", {
+                type: "doc",
+                subType: "user-guide",
+                shortcode: "actions",
+            }),
+            opts,
+        );
+        expect(retired).toHaveLength(1);
+        // A warning, deliberately: erroring would red a tree the moment it took
+        // the release, ahead of any chance to sweep.
+        expect(retired[0].severity).toBe("warning");
+        expect(retired[0].message).toContain("userguide");
+
+        const hyphenated = lintNote(
+            asNote("/tree/Guide/Odd.md", {
+                type: "doc",
+                subType: "user-manual",
+                shortcode: "odd",
+            }),
+            opts,
+        );
+        expect(hyphenated).toHaveLength(1);
+        expect(hyphenated[0].severity).toBe("error");
+        expect(hyphenated[0].message).toContain("address segment");
     });
 
     it("takes no `landing`, `types` or `sections` to decide it", () => {

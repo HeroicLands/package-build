@@ -422,8 +422,8 @@ describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
     // a page is addressed `(type, shortcode)` and emitted flat, so `doc-combat`
     // publishes at `/<package>/doc-combat/` whatever its subtype says.
     it("declares the three genres, and they are not addresses", () => {
-        expect(NOTE_VOCABULARY.doc.subTypes).toEqual(["rules", "user-guide", "reference"]);
-        for (const subType of ["rules", "user-guide", "reference"]) {
+        expect(NOTE_VOCABULARY.doc.subTypes).toEqual(["rules", "userguide", "reference"]);
+        for (const subType of ["rules", "userguide", "reference"]) {
             expect(packageAddress({ type: "doc", subType, shortcode: "combat" }, {})).toBe(
                 "doc-combat/",
             );

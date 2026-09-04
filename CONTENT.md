@@ -796,6 +796,26 @@ values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strik
 mode rather than by kind — so `subType` on one is a finding; a `skill` declares
 ten, so `subType: crafte` is a finding naming `craft`.
 
+**A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** (#206) — the same
+constant a `shortcode` is held to, read rather than restated. A type is the
+first segment of every address, so a hyphen in one is read back as a segment
+boundary nobody wrote. A `subType` reaches no address since #204 retired
+sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
+on, and one charset that holds for every term is a rule an author can state. The
+rule is checked ahead of the closed-set check, which is what makes it reach a
+type whose values are declared but not yet enumerated:
+
+```text
+assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. …
+```
+
+One declared value broke that rule: a `doc`'s `user-guide`, now **`userguide`**.
+The old spelling is accepted for one transitional release and reported as a
+**warning** naming the replacement — an error would red every tree that took the
+release before it had a chance to sweep, and the note still compiles to the
+correct page. A later release removes the acceptance, and the old spelling then
+falls through to the ordinary undeclared-value error.
+
 The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
 taken from the content-format specification. It is note-format knowledge rather
 than any system's: `data:` holds what is true of the thing, and what a system

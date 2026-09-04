@@ -233,10 +233,33 @@ field to supply it, so a bare shortcode is resolved across types and must match
 exactly one; an ambiguity is an error naming the candidates.
 
 **Parsing is positional counting from the right, and nothing else.** Every
-segment is alphanumeric — shortcodes are `^[A-Za-z0-9]+$`, types are bare words,
-systems come from a closed registry, and `contentPackage` is alphanumeric — so
-the hyphen is purely a separator. There is no longest-match against a roster and
-no vocabulary check before splitting.
+segment is alphanumeric — shortcodes, **types** and **subTypes** are all
+`^[A-Za-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
+alphanumeric — so the hyphen is purely a separator. There is no longest-match
+against a roster and no vocabulary check before splitting.
+
+**`type` and `subType` are held to that charset, not merely expected to meet
+it** (#206). A type is the first segment of every address, so a hyphen in one is
+read back as a segment boundary that was never meant as one. A `subType` reaches
+no address since #204 retired sections, but it is held to the same rule all the
+same: it is a vocabulary term the whole toolchain keys on, one closed set away
+from being an address again, and a charset that holds for two of the three
+segments and half of a fourth is a rule nobody can state. Both are checked
+against the same constant a shortcode is checked against, and a note carrying a
+hyphenated value is reported where it wrote it:
+
+```text
+Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. The hyphen separates the segments of an address, so a value containing one is read back as two segments and resolves to nothing
+```
+
+One declared value broke the rule and has been renamed: a `doc`'s `user-guide`
+is now **`userguide`**. The old spelling is accepted for one transitional
+release and reported as a **warning** naming the replacement, so a tree that has
+not yet swept still builds:
+
+```text
+User_Guide/Actions.md:3:1: warning: `subType` "user-guide" is a retired spelling of "userguide" on a doc; write "userguide". …
+```
 
 That is a guarantee rather than an observation, and it holds: of **4,456 distinct
 shortcodes** across the four content trees, not one contains a character outside
@@ -267,7 +290,7 @@ was measured before it was retired, and the namespace was empty in practice:
 across 8,305 wikilinks in three content trees, **not one** bare link resolved to
 a note. What the index behind it did do was fold every note's `name.full` into
 itself, so two notes of one type could not share a display name — a rules page
-and a user-guide page both called "Gear" were a build failure whose every
+and a user guide page both called "Gear" were a build failure whose every
 available fix moved a published URL (#179).
 
 The top-level `aliases:` that fed it is **retired** and refused. The nested
@@ -1356,7 +1379,7 @@ subType:
 subType:
 
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
-- user-guide: How to operate the Foundry implementation to play by the rules.
+- userguide: How to operate the Foundry implementation to play by the rules.
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
 
 A `doc` declares no properties of its own.

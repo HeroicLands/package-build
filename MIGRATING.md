@@ -15,8 +15,10 @@ No tree in this project had one.
 
 A `doc` with no `subType` used to be refused ("no section, so there is nowhere to
 file the page") and now publishes. Its `subType` is a **genre** again — closed to
-`rules`, `user-guide`, `reference` — because it no longer doubles as a section
-address on a `README`.
+`rules`, `userguide`, `reference` — because it no longer doubles as a section
+address on a `README`. That closed check runs after the two #206 added ahead of
+it: a retired spelling is a warning naming its replacement, a hyphenated value
+is an error, and only then is the type's own list the reason.
 
 ## 2. Declare every section your site links to
 
