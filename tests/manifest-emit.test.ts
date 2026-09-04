@@ -155,7 +155,7 @@ const WEB = {
     manifests: { publish: true, consume: false },
 };
 
-describe("the address scheme is configuration, and both live rules work", () => {
+describe("the address scheme is configuration, and a prefix is all of it", () => {
     it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
         // The prefix says where the content *tree* sits inside the package, so
         // it addresses the section landings; an ordinary page is addressed by a
@@ -171,22 +171,11 @@ describe("the address scheme is configuration, and both live rules work", () => 
     });
 
     it("addresses a `README.md` as an ordinary page (#204)", () => {
-        const doc = emit({ ...WEB, address: { landing: "readme", prefix: "kb/" } });
+        const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         // It used to be its section's landing, recorded at `kb/rules/`. There
         // is no section, so there is no landing and no second rule.
         expect(doc.entries["demo-doc-rulesidx"].path).toBe("doc-rulesidx/");
         expect(doc.entries["demo-doc-creatures"].path).toBe("doc-creatures/");
-    });
-
-    it("still accepts `landing: readme`, which now selects nothing", () => {
-        // Left accepted rather than refused: both publishing consumers declare
-        // it, and it states something that is still true. The key goes when no
-        // configuration writes it.
-        const withRule = emit({ ...WEB, address: { landing: "readme" } });
-        const without = emit({ ...WEB });
-        expect(withRule.entries["demo-doc-rulesidx"].path).toBe(
-            without.entries["demo-doc-rulesidx"].path,
-        );
     });
 });
 
@@ -391,26 +380,20 @@ describe("the manifest names the package the configuration declares", () => {
 describe("the emitted address is the one the site publishes", () => {
     it("is derived by the same function, so the two cannot drift", () => {
         // Not a tautology: the point is that nothing in the emitter composes an
-        // address of its own. A page built from `packageAddress` under the same
-        // scheme is the string the manifest records, character for character.
+        // address of its own. The string `packageAddress` yields is the string
+        // the manifest records, character for character.
         const fm = { type: "weapongear", shortcode: "dagger" };
-        const scheme = { prefix: "kb/", landing: "readme" };
-        expect(packageAddress(fm, { scheme })).toBe(
-            emit({ ...WEB, address: scheme }).entries["demo-weapongear-dagger"].path,
+        expect(packageAddress(fm)).toBe(
+            emit({ ...WEB, address: { prefix: "kb/" } }).entries["demo-weapongear-dagger"].path,
         );
     });
 
     it("is derivable from the key it is filed under (#181)", () => {
-        // The manifest still writes `path` — a landing page is the one entry
-        // that is not derivable, and an absent `path` already means something
-        // else — but for every ordinary page a consumer can compute it from the
-        // key alone, with no knowledge of the emitting repository's scheme.
-        const doc = emit({ ...WEB, address: { prefix: "kb/", landing: "readme" } });
-        // A landing page addresses the section it *is*, under the content
-        // mount, so it is the one entry whose path is not its address.
-        const landings = new Set(["demo-doc-rulesidx"]);
+        // The manifest still writes `path` — an absent one already means
+        // something else — but a consumer can compute it from the key alone,
+        // with no knowledge of the emitting repository's scheme.
+        const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         for (const [key, entry] of Object.entries(doc.entries)) {
-            if (landings.has(key)) continue;
             const parts = readCanonicalKey(key)!;
             // On the web an item note renders as one page which *is* its
             // documentation, so `docweapongear-dagger` resolves to the item's

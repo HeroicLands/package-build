@@ -8,10 +8,10 @@
 /**
  * The `collection` landing rule is retired (#202).
  *
- * A section is landed by its `README.md`, and that is now the only rule. The
- * second one — a `doc` note whose `subType` was `collection`, addressing the
- * section named by an authored top-level `section:` — had no user left in any
- * content tree, and two things kept it from being harmless while it stayed:
+ * A `doc` note whose `subType` was `collection`, addressing the section named by
+ * an authored top-level `section:`, was one of two ways to land a section. It
+ * had no user left in any content tree, and two things kept it from being
+ * harmless while it stayed:
  *
  * - **The two builds that must agree about an address did not implement it.**
  *   `engine/content-address.mjs` branched on the configured rule while
@@ -24,6 +24,12 @@
  * Both halves are therefore *refused* rather than ignored, the way `draft:`
  * (#69), `package:` (#56) and `aliases:` (#180) are: a retired thing left
  * merely ignored reads to its author as though it still works.
+ *
+ * The rule's own refusal is no longer this file's: #204 retired the concept and
+ * #215 deleted the key that chose between the rules, so any `landing:` at all is
+ * now refused for being the retired key rather than the retired value — see
+ * `tests/retired-address-landing.test.ts`. What is pinned here is the half that
+ * outlived it, the `section:` frontmatter field.
  */
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
@@ -31,66 +37,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { defineConfig } from "../index.mjs";
-import type { ContentBuildConfigInput } from "../content-config.mjs";
-import { LANDING_RULES, packageAddress } from "../engine/content-address.mjs";
+import { packageAddress } from "../engine/content-address.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { assertNoSectionField, sectionRetiredMessage } from "../engine/retired-fields.mjs";
 import { NOTE_LEVEL_KEYS } from "../engine/content-format-check.mjs";
-
-/** The smallest configuration `defineConfig` accepts. */
-function minimal(): ContentBuildConfigInput {
-    return {
-        rootDir: "/repo",
-        contentPackage: "sohl",
-        foundryPackage: "sohl",
-        packageKind: "systems",
-        stats: { lastModifiedBy: "sohlbuilder00000" },
-        packs: [{ name: "items", type: "Item" }],
-        compatibility: { minimum: "14.359", verified: "14.359" },
-    };
-}
-
-const address = (value: unknown) =>
-    defineConfig({ ...minimal(), publish: { site: "content", address: value } }).publish.address;
-
-describe("`landing: collection` is refused, not merely unrecognized (#202)", () => {
-    it("leaves `readme` alone — it is the rule, and both live consumers declare it", () => {
-        // The whole point of keeping the key: `sohl` and `sohl-thalorna` both
-        // write `landing: readme` today, and neither should have to change to
-        // take this release.
-        expect(address({ landing: "readme" }).landing).toBe("readme");
-        expect(address({}).landing).toBe("readme");
-    });
-
-    it("says the rule is retired and how a section is landed now", () => {
-        // Not a bare "must be one of readme": that names the value to correct
-        // and leaves the author to work out that the mechanism is gone.
-        let thrown: any;
-        try {
-            address({ landing: "collection" });
-        } catch (err) {
-            thrown = err;
-        }
-        expect(thrown, "should have refused the value").toBeDefined();
-        expect(thrown.message).toMatch(/retired/);
-        // Names what an introduction page is now, rather than a value to fix.
-        expect(thrown.message).toMatch(/doc-<type>/);
-        // The locator the loader resolves to a line and column (#95).
-        expect(thrown.field).toBe("publish.address.landing");
-    });
-
-    it("still names the rules for a value that is simply misspelt", () => {
-        // A typo is a different finding from a retirement, and keeps the
-        // did-you-mean shape it always had — now with one rule to name.
-        expect(() => address({ landing: "readmes" })).toThrow(/readme/);
-        expect(() => address({ landing: "readmes" })).not.toThrow(/retired/);
-    });
-
-    it("leaves one landing rule in the vocabulary", () => {
-        expect([...LANDING_RULES]).toEqual(["readme"]);
-    });
-});
 
 describe("`section:` is a retired frontmatter field (#202)", () => {
     let tmp: string;
@@ -182,13 +132,13 @@ describe("what survives the retirement in `packageAddress` (#202)", () => {
         // The surviving rule went the same way one release later: a `README.md`
         // is an ordinary note, addressed like every other.
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
-        expect(packageAddress(fm, { scheme: { prefix: "kb/" } })).toBe("doc-rulesintro/");
+        expect(packageAddress(fm)).toBe("doc-rulesintro/");
     });
 
     it("no longer reads `section:` for anyone", () => {
         // The note is an ordinary page addressed by `(type, shortcode)`; the
         // retired key names nothing and moves nothing.
         const fm = { type: "doc", subType: "rules", shortcode: "gearrules", section: "being" };
-        expect(packageAddress(fm, { scheme: { prefix: "kb/" } })).toBe("doc-gearrules/");
+        expect(packageAddress(fm)).toBe("doc-gearrules/");
     });
 });

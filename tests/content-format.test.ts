@@ -424,13 +424,13 @@ describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
     it("declares the three genres, and they are not addresses", () => {
         expect(NOTE_VOCABULARY.doc.subTypes).toEqual(["rules", "userguide", "reference"]);
         for (const subType of ["rules", "userguide", "reference"]) {
-            expect(packageAddress({ type: "doc", subType, shortcode: "combat" }, {})).toBe(
+            expect(packageAddress({ type: "doc", subType, shortcode: "combat" })).toBe(
                 "doc-combat/",
             );
         }
     });
 
     it("addresses a doc that declares no subtype at all", () => {
-        expect(packageAddress({ type: "doc", shortcode: "combat" }, {})).toBe("doc-combat/");
+        expect(packageAddress({ type: "doc", shortcode: "combat" })).toBe("doc-combat/");
     });
 });

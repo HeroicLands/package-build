@@ -32,12 +32,12 @@
 // The scheme vocabulary is part of the configuration contract — a
 // repository names its scheme in `package-build.config.yaml` — so it is
 // declared beside the rest of that vocabulary rather than here, and this
-// module reads it. `config.mjs` is the leaf entry point and imports nothing
-// but `node:path` and `engine/ids.mjs`, so the direction cannot close a
-// cycle (see `engine/pack-config.mjs`).
-import { DEFAULT_ADDRESS_SCHEME, LANDING_RULES } from "../content-config.mjs";
+// module re-exports it beside the addresses it derives. `config.mjs` is the
+// leaf entry point and imports nothing but `node:path` and `engine/ids.mjs`,
+// so the direction cannot close a cycle (see `engine/pack-config.mjs`).
+import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 
-export { DEFAULT_ADDRESS_SCHEME, LANDING_RULES };
+export { DEFAULT_ADDRESS_SCHEME };
 
 /** The knowledgebase's mount within this package's site (#1470). */
 export const KB_PREFIX = "kb/";
@@ -116,26 +116,18 @@ export function contentAddress(fm) {
  * `/<package>/api/` for generated API docs, neither of which contains a hyphen
  * or names a type.
  *
+ * **It takes no address scheme.** It took one until #215, to validate the
+ * `landing` rule it then discarded; with that key retired, `prefix` was the
+ * only thing left in the scheme and the paragraph above is the reason it never
+ * applied. A parameter read by nothing is the defect this deletion is about.
+ *
  * @param {object} fm - Parsed frontmatter.
- * @param {object} [options] - Options.
- * @param {{prefix?: string, landing?: string}} [options.scheme] - The
- *   repository's address scheme; defaults to {@link DEFAULT_ADDRESS_SCHEME}.
- *   `landing` is validated against {@link LANDING_RULES} and selects nothing —
- *   it is accepted so a configuration declaring the still-true `landing: readme`
- *   keeps loading, and is removed once none does.
  * @returns {string} The package-relative address, with a trailing slash and no
  *   leading one.
  * @throws {Error} When the note has no type or no shortcode to be addressed by.
  *   Such a note is not published, and inventing an address for one would put a
  *   dead entry in the manifest.
  */
-export function packageAddress(fm, { scheme } = {}) {
-    const { landing } = { ...DEFAULT_ADDRESS_SCHEME, ...scheme };
-    if (!LANDING_RULES.includes(landing)) {
-        throw new Error(
-            `unknown landing rule ${JSON.stringify(landing)} — expected one ` +
-                `of ${LANDING_RULES.join(", ")}`,
-        );
-    }
+export function packageAddress(fm) {
     return `${addressSlug(fm)}/`;
 }

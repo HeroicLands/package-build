@@ -165,7 +165,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
             skipDirectories: [],
             base: "/demo/",
             mount: "/demo/kb/",
-            scheme: { prefix: "kb/", landing: "readme" },
+            scheme: { prefix: "kb/" },
         });
         expect(pages.map((p) => p.name)).not.toContain("homepage");
         expect(pages.every((p) => p.kind === "content")).toBe(true);

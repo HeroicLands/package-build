@@ -124,10 +124,10 @@ const ctx = {
     contentPackage: "demo",
     skipDirectories: [],
     // Where the package is served, and where its content tree mounts inside
-    // it. A page is addressed by the first; a section landing by the second.
+    // it. A page is addressed by neither: its address is package-wide.
     base: "/demo/",
     mount: "/demo/kb/",
-    scheme: { prefix: "kb/", landing: "readme" },
+    scheme: { prefix: "kb/" },
 };
 
 describe("the walk is ordered, because the index depends on it", () => {

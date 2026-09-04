@@ -74,7 +74,7 @@ describe("defineConfig", () => {
         expect(config.publish).toEqual({
             site: "content",
             manifests: { publish: true, consume: false },
-            address: { prefix: "", landing: "readme" },
+            address: { prefix: "" },
         });
     });
 
@@ -85,7 +85,7 @@ describe("defineConfig", () => {
         expect(config.publish).toEqual({
             site: "homepage",
             manifests: { publish: false, consume: false },
-            address: { prefix: "", landing: "readme" },
+            address: { prefix: "" },
         });
     });
 
@@ -496,18 +496,12 @@ describe("the address scheme a repository publishes at (#58)", () => {
             publish: { site: "content", address: value },
         }).publish.address;
 
-    it("defaults to the package root under the `readme` rule", () => {
-        expect(defineConfig(minimal()).publish.address).toEqual({
-            prefix: "",
-            landing: "readme",
-        });
+    it("defaults to the package root", () => {
+        expect(defineConfig(minimal()).publish.address).toEqual({ prefix: "" });
     });
 
     it("carries a mount prefix for a package whose site is more than content", () => {
-        expect(address({ prefix: "kb/" })).toEqual({
-            prefix: "kb/",
-            landing: "readme",
-        });
+        expect(address({ prefix: "kb/" })).toEqual({ prefix: "kb/" });
     });
 
     it("accepts an empty prefix, which is a real layout and not an omission", () => {
@@ -525,11 +519,6 @@ describe("the address scheme a repository publishes at (#58)", () => {
         // A leading slash is the site-absolute shape #1465 removed: it would
         // record where the package is mounted, which is the consumer's fact.
         expect(() => address({ prefix: "/kb/" })).toThrow(/must not begin with a slash/);
-    });
-
-    it("names the landing rule rather than accepting any string", () => {
-        expect(address({ landing: "readme" }).landing).toBe("readme");
-        expect(() => address({ landing: "readmes" })).toThrow(/must be one of readme/);
     });
 
     it("rejects an unknown key, as every other section does", () => {

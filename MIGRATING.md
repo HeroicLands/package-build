@@ -62,13 +62,6 @@ sections:
 and `listSubType` narrows a type whose genres share it. See
 [What a section may declare](CONTENT.md#what-a-section-may-declare).
 
-## 4. `publish.address.landing` is inert, and still accepted
-
-It named which note addressed a whole section. There are no landings, so it
-selects nothing; `landing: readme` keeps loading because it stated something true
-when it was written, and the key is removed once no configuration declares it.
-`landing: collection` is still refused by name (#202).
-
 ## What did not change
 
 - Every content page's `url:`, and so every published address.

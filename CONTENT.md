@@ -138,7 +138,6 @@ publish:
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/
-    landing: readme
 
 # How this repository frames the website `content-build site` publishes.
 # Framing only: addresses come from `publish.address` above.
@@ -1247,9 +1246,8 @@ per section, and that is now the _only_ thing that makes one exist — see
 
 ### The address scheme
 
-Where the content tree mounts _inside the package_, and which note addresses a
-whole section rather than a page within one, differ between repositories and are
-both load-bearing. They are one setting, read by this command **and** by the page
+Where the content tree mounts _inside the package_ differs between repositories
+and is load-bearing. It is one setting, read by this command **and** by the page
 emitter, so the address a manifest publishes is the address a page is emitted at
 — stating it twice is how a manifest comes to assert a URL that resolves at build
 time and 404s for the reader.
@@ -1260,7 +1258,6 @@ publish:
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/ # default: "" — the package root
-    landing: readme # inert since #204; still accepted
 ```
 
 - **`prefix`** — the content tree's mount within the package: the Hugo directory
@@ -1270,14 +1267,9 @@ publish:
   content, so it has no prefix. It must end in a slash and must not begin with
   one — where the _package_ is mounted is the consuming build's knowledge and is
   never recorded here.
-- **`landing`** — **inert, and accepted only so it keeps loading.** It named
-  which note addressed a whole section rather than a page within one. There are
-  no sections in the note format (#204) and so no landings, so it selects
-  nothing; it is still accepted because both publishing consumers declare
-  `landing: readme` and refusing a correct statement would break them. It is
-  removed once no configuration writes it. The retired second rule, `collection`,
-  is still refused by name (#202), along with the `collection` subtype and the
-  top-level `section:` key.
+
+`prefix` is the whole scheme. The `collection` subtype and the top-level
+`section:` key are refused by name (#202).
 
 A note's `subType` is checked against the values its type declares, and only
 those. It briefly had a second reading — a `README` landing's `subType` was the

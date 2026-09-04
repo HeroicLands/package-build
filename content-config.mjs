@@ -116,44 +116,37 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
 ]);
 
 /**
- * The landing-page rules a repository may route by. **Inert since #204.**
+ * Address-scheme keys a configuration may no longer declare.
  *
- * A *landing page* was a note that addressed a whole section rather than a page
- * within one, so it had no slug of its own. There are no sections in the note
- * format any more — a section is a Hugo content directory, and a page's address
- * names no directory — so there are no landings and this selects nothing.
+ * A retired key has exactly two possible fates, and only one of them is honest
+ * — the same reasoning `engine/retired-fields.mjs` applies to a retired
+ * frontmatter field. Left honoured, it keeps doing whatever it did, which is
+ * why it was retired. Left *ignored*, it reads to its author as though it still
+ * works: the configuration says one thing and the build does another, and
+ * nothing says so. This module has no third option, because it has no warning
+ * channel — every finding goes through `fail()`, which throws. So a retired
+ * key is **refused**, at the line it was written on, with a message that says
+ * the mechanism is gone rather than naming a value to correct.
  *
- * The key survives its own mechanism on purpose. Both publishing consumers
- * declare `landing: readme`, which stated something true when they wrote it;
- * refusing it now would break them over a correct statement, and silently
- * ignoring an unknown value would be worse. So `readme` stays accepted, the
- * retired `collection` stays refused by name (below), and the key is deleted
- * once no configuration writes it — `content-config.mjs` has no warning channel
- * with which to say "accepted, and does nothing" in between.
- *
- * @type {readonly string[]}
- */
-export const LANDING_RULES = Object.freeze(["readme"]);
-
-/**
- * What a configuration naming the retired `collection` landing rule is told.
- *
- * A retired *value* is refused the way a retired *field* is (see
- * `engine/retired-fields.mjs`): left merely unrecognized it would be reported
- * as a bad value, which names something to correct and leaves the author to
- * work out for themselves that the mechanism is gone. The message says the rule
- * is retired, what lands a section instead, and what to do with the key.
+ * **What `landing` did (#204).** It named which note addressed a whole section
+ * rather than a page within one — a *landing page*, which therefore had no slug
+ * of its own. #203 retired the second of its two rules and #204 retired the
+ * concept both rules chose between: a section is a Hugo content directory that
+ * the note format does not carry, a page's address names no directory, and so
+ * no note lands anything. The key outlived its mechanism by one release only
+ * because both publishing consumers still declared the then-true
+ * `landing: readme`, and neither breaking them over a correct statement nor
+ * accepting the key in silence was acceptable. Neither declares it now.
  *
  * @type {Readonly<Record<string, string>>}
  */
-export const RETIRED_LANDING_RULES = Object.freeze({
-    collection:
-        "the `collection` landing rule is retired, and so is the mechanism it " +
-        "chose between: a section is a Hugo directory the note format does not " +
-        "carry, so no note lands one. Delete this key. A page that introduces " +
-        "the notes of a type is an ordinary note — `type: doc`, " +
-        "`subType: reference`, `shortcode: <type>` — addressed `doc-<type>`; " +
-        "the `section:` frontmatter key the rule read is retired with it",
+export const RETIRED_ADDRESS_KEYS = Object.freeze({
+    landing:
+        "is a retired option — delete it. It named which note addressed a " +
+        "whole section rather than a page within one, and there are no " +
+        "sections to address: a section is a Hugo content directory the note " +
+        "format does not carry, so no note lands one and every page is " +
+        "addressed `<type>-<shortcode>`. Nothing replaces it",
 });
 
 /**
@@ -166,11 +159,12 @@ export const RETIRED_LANDING_RULES = Object.freeze({
  * knowledge, held in `PACKAGE_BASE` (`engine/kb-manifest.mjs`) and prefixed at
  * resolve time, so it is never recorded here (#1465).
  *
- * `landing` is inert — see {@link LANDING_RULES}.
+ * It is the whole scheme: `landing`, the key that named which note addressed a
+ * whole section, is retired with the sections themselves — see
+ * {@link RETIRED_ADDRESS_KEYS}.
  */
 export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
     prefix: "",
-    landing: "readme",
 });
 
 /**
@@ -471,10 +465,7 @@ export function publishesContentPages(config) {
 
 /**
  * @typedef {object} AddressSchemeInput
- * @property {string} [prefix]   Where the content tree mounts inside the package.
- * @property {string} [landing]  Which note addressed a whole section. Inert
- *   since #204 retired sections from the note format — see
- *   {@link LANDING_RULES}.
+ * @property {string} [prefix]  Where the content tree mounts inside the package.
  */
 
 /**
@@ -695,7 +686,7 @@ const STATS_KEYS = ["lastModifiedBy"];
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
 const PUBLISH_KEYS = ["site", "manifests", "address"];
 const MANIFEST_KEYS = ["publish", "consume"];
-const ADDRESS_KEYS = ["prefix", "landing"];
+const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
 function isPlainObject(value) {
@@ -1784,6 +1775,15 @@ function normalizePublish(value) {
         fail("publish.address", "must be an object");
     }
     const address = /** @type {Record<string, unknown>} */ (addressInput ?? {});
+    // A retired key is refused by name, ahead of the vocabulary check: reported
+    // as merely unrecognized it would read as a misspelling of the one key that
+    // survives, and the author would correct the spelling rather than learn
+    // that the mechanism is gone (#215).
+    for (const key of Object.keys(address)) {
+        if (Object.hasOwn(RETIRED_ADDRESS_KEYS, key)) {
+            fail(`publish.address.${key}`, RETIRED_ADDRESS_KEYS[key]);
+        }
+    }
     rejectUnknownKeys(address, ADDRESS_KEYS, "publish.address.");
 
     const prefix =
@@ -1802,24 +1802,9 @@ function normalizePublish(value) {
         fail("publish.address.prefix", "must not begin with a slash");
     }
 
-    const landing =
-        address.landing === undefined ?
-            DEFAULT_ADDRESS_SCHEME.landing
-        :   optionalString(address.landing, "publish.address.landing");
-    // A retired rule is refused by name, before the vocabulary check: reported
-    // as merely unrecognized it would read as a misspelling of the one that
-    // survives, and the author would correct the value rather than learn that
-    // the mechanism is gone (#202).
-    if (Object.hasOwn(RETIRED_LANDING_RULES, landing)) {
-        fail("publish.address.landing", RETIRED_LANDING_RULES[landing]);
-    }
-    if (!LANDING_RULES.includes(landing)) {
-        fail("publish.address.landing", `must be one of ${LANDING_RULES.join(", ")}`);
-    }
-
     return Object.freeze({
         site: normalizeSiteMode(publish.site),
-        address: Object.freeze({ prefix, landing }),
+        address: Object.freeze({ prefix }),
         manifests: Object.freeze({
             publish: optionalBoolean(manifests.publish, "publish.manifests.publish", false),
             consume: optionalBoolean(manifests.consume, "publish.manifests.consume", false),
