@@ -37,12 +37,16 @@ describe("resolveImg (content → Foundry img path translation, #890)", () => {
         expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
-    it("returns an empty string for an empty, null, or undefined path", () => {
-        // Translation only — each builder applies its own per-type default to
-        // an empty result (actors → being, items → per-type / miscgear).
+    it("tells an unset path from a deliberately blank one", () => {
+        // Translation only — each builder applies its own per-type default
+        // (actors → being, items → per-type / miscgear) to an *unset* path,
+        // with `??`. The two empties are not one case: `null` and an absent
+        // key mean "no art named, use the default", `""` means "ship no art"
+        // (#218). The full rule, and every caller that pairs a default with
+        // it, is pinned in `img-unset-vs-blank.test.ts`.
         expect(resolveImg("")).toBe("");
-        expect(resolveImg(undefined)).toBe("");
-        expect(resolveImg(null)).toBe("");
+        expect(resolveImg(undefined)).toBeNull();
+        expect(resolveImg(null)).toBeNull();
     });
 });
 

@@ -455,9 +455,9 @@ error: pack "characters" (Actor) reads the compiled output of the Item pack
 
 ### An item type's default art
 
-A note that carries no `img:` gets its type's **default art**, and a type
-declares that art in the same place it declares its builder. An `itemBuilders`
-entry may be written two ways:
+A note that names no art gets its type's **default art**, and a type declares
+that art in the same place it declares its builder. An `itemBuilders` entry may
+be written two ways:
 
 ```js
 itemBuilders: {
@@ -478,8 +478,60 @@ same `resolveImg` rule as a note's `img:`, so `icons/relic.svg` means _this_
 repository's asset root — `modules/sohl-relics/assets/icons/relic.svg` — and an
 already-served path (`systems/sohl/assets/icons/…`) passes through untouched.
 
-**A type with neither is a build error, deliberately.** When a note sets no
-`img:` and its type pairs none, the pack build aborts rather than shipping an
+#### "Names no art" and "wants no art" are different (#218)
+
+A note has two ways to leave `img:` empty, and they mean opposite things:
+
+| a note writes  | it means                             | it compiles with |
+| -------------- | ------------------------------------ | ---------------- |
+| nothing at all | _unset_ — name me no art             | the type default |
+| `img: null`    | the same thing, said out loud        | the type default |
+| `img: ""`      | _blank on purpose_ — I want no image | no image         |
+| `img: <path>`  | this art                             | that path        |
+
+`resolveImg` returns `null` for the first two and `""` for the third, and every
+caller pairs its default with **nullish** coalescing — `resolveImg(fm.img) ?? itemArt(type)`.
+Never `||`: that collapses a deliberate blank back into the default and takes the
+distinction away again, which is exactly what the function used to do.
+
+**`portrait` is the same field twice over.** A being carries `img` (its token
+art) and `portrait` (its sheet portrait) independently, and both resolve through
+`resolveImg`, so the rule above is the rule for both.
+
+This is the convention the project already holds for an optional "not specified"
+DataModel string — `nullable, initial: null`, so "unset" is one honest value
+rather than two.
+
+> **The rule is `img`'s, and does not extend to `title`.** `title` is not art
+> and never reaches `resolveImg`, so nothing here applies to it.
+>
+> The reason used to be sharper, and is no longer true: a note's top-level
+> `title` was _also_ the shared source for an `affiliation` item's `system.title`
+> (`sohl/item-fields.mjs`, "the style of address the office carries"), so one
+> authored key fed two unrelated destinations that disagreed about what empty
+> means — and `title: null` stringified into the compiled document as the literal
+> `"null"`. That collision is gone: the field declares `topLevelMeans`, and the
+> top-level key is no longer a source for it (#218).
+>
+> So `title: null` is now a note declining to state a heading, and the site
+> emitter's `fm.title ?? name` falls back to `name.full`. `title: ""` still
+> publishes a deliberately blank heading, and nothing warns about that yet.
+
+Because `""` used to mean "unset", a note still carrying that spelling has
+quietly changed meaning, and the frontmatter lint says so — for either art
+field:
+
+```
+Note.md:9:1: warning: `img: ""` means "ship no art at all" — it no longer falls
+back to this type's default. Write `img: null` for a note that simply names
+none; keep `""` only where the document is meant to have no image
+```
+
+A warning, not an error: the note still compiles, to a document that is merely
+iconless.
+
+**A type with neither is a build error, deliberately.** When a note names no
+art and its type pairs none, the pack build aborts rather than shipping an
 item with a mismatched icon:
 
 ```
@@ -1275,6 +1327,21 @@ order to satisfy a rendering engine's directory semantics. The file is now
 `<mount>/<type>-<shortcode>.md` and the front-matter `url:` still publishes it at
 the package root, one level above.
 
+**A page states its address without the package base; everything pointing _at_
+it composes one** (#217). They read as one quantity and are two:
+
+| Written                                     | Form                        | Because                                                                                 |
+| ------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
+| A page's own `url:` front matter            | `/<type>-<shortcode>/`      | Hugo resolves it against `baseURL`, whose path already _is_ where the package is served |
+| Every `href` this build renders into a body | `<base><type>-<shortcode>/` | A browser resolves it against nothing                                                   |
+| A link-manifest `path`                      | `<type>-<shortcode>/`       | Measured against `site.base` and stripped; a consumer prefixes its own                  |
+
+`site.base` is the second and third of those and reaches the first not at all.
+It used to be written into the `url:` as well, so every consumer's Hugo prefixed
+its own base to a value that already carried one and published every content
+page a segment too deep — `/sohl/sohl/doc-rulesintro/`, 404 at the address the
+manifest, the sitemap and every inbound link named.
+
 **There is no landing page.** A `README.md` was its section's landing and
 addressed the section itself; that is retired with the section. A page that
 introduces the notes of a type is an ordinary note addressed `doc-<type>`, with
@@ -1404,7 +1471,8 @@ The homepage's file is written at the root of `site.out` — the package's own
 site root, one level above the content mount, which is where
 `publish.address.prefix` puts everything else — under the name its address gives
 it, `homepage-root.md`. As with every other page, the front matter's `url`
-decides where it publishes.
+decides where it publishes, and states it relative to the site root — `site.base`
+does not reach it (#217).
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the link manifest reads, so a page and its manifest entry cannot
@@ -1415,7 +1483,7 @@ published beside the content:
 ```yaml
 site:
   out: kb/content # required; wiped on every run
-  base: /sohl/ # default: /<contentPackage>/
+  base: /sohl/ # default: /<contentPackage>/ — hrefs only, never a page's `url:`
   packages: [sohl, thalorna] # default: just contentPackage
   backfillSections: true
   landing: { title: Knowledgebase, type: knowledgebase }
@@ -1435,18 +1503,18 @@ site:
     dev-docs: { title: Developer Documentation, banner: banners/dev-docs.webp }
 ```
 
-| Key                | What it decides                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.           |
-| `base`             | Where the package is served. Defaults to `/<contentPackage>/`.                                   |
-| `packages`         | Which content packages this site renders. Defaults to its own.                                   |
-| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.               |
-| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                        |
-| `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.     |
-| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                       |
-| `trees`            | Extra source trees published beside the content, preserving their source layout below a section. |
-| `pass`             | A named bundle of this repository's own body rewrites.                                           |
-| `passOptions`      | That bundle's options.                                                                           |
+| Key                | What it decides                                                                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.                                                                                                                                                                |
+| `base`             | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
+| `packages`         | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
+| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.                                                                                                                                                                    |
+| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                                                                                                                                                                             |
+| `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.                                                                                                                                                          |
+| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                                                                                                                                                                            |
+| `trees`            | Extra source trees published beside the content, preserving their source layout below a section.                                                                                                                                                      |
+| `pass`             | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
+| `passOptions`      | That bundle's options.                                                                                                                                                                                                                                |
 
 ### What a section may declare
 

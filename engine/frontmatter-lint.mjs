@@ -462,6 +462,44 @@ function checkTags(note, { type }) {
 }
 
 /**
+ * The frontmatter fields that name artwork, and so resolve through
+ * {@link module:engine/helpers.resolveImg}.
+ *
+ * Both, always: a being carries `img` and `portrait` independently — the token
+ * art and the sheet portrait — and a rule about how the translator reads an
+ * empty value belongs to the translator, not to whichever key happens to be
+ * more common. Eleven `sohl-kethira-basic` beings write `portrait: ""` and no
+ * note in any tree writes `img: ""` on a being; a check keyed on `img` alone
+ * would have called that tree clean (#218).
+ *
+ * @type {readonly string[]}
+ */
+const ART_FIELDS = Object.freeze(["img", "portrait"]);
+
+/**
+ * Read a shared top-level field the way the compiler reads one: the `sohl:`
+ * block first, then the note's top level.
+ *
+ * The same order {@link module:engine/helpers.sohlField} uses, restated here
+ * rather than imported so this module stays a leaf the linter can load without
+ * a resolved build configuration. Unlike `sohlField` it distinguishes the two
+ * empties — an authored `""` comes back as `""` and an authored `null` as
+ * `null` — which is the whole point of the caller below (#218).
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {string} key - The field name.
+ * @returns {any} The authored value, or `undefined` where neither position
+ *   declares one.
+ */
+function authoredValue(fm, key) {
+    const block = fm?.sohl;
+    if (block && typeof block === "object" && !Array.isArray(block) && Object.hasOwn(block, key)) {
+        return block[key];
+    }
+    return fm && Object.hasOwn(fm, key) ? fm[key] : undefined;
+}
+
+/**
  * Check one note against its type's schema.
  *
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
@@ -501,6 +539,53 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                 "note's package is this repository's configured " +
                 "`contentPackage`, in package-build.config.yaml, and every " +
                 "note in the tree belongs to it",
+        });
+    }
+    // `img: ""` was how a note said "I name no art" while `resolveImg`
+    // conflated the two empties and every caller defaulted with `||`. It now
+    // says the opposite — "ship no art, and do not default me" (#218) — so a
+    // note carrying the old spelling has quietly changed meaning. Forty-five
+    // `sohl-thalorna` notes were written under the old reading and would have
+    // lost their default art with no error and no warning; this is the guard
+    // that would have caught them.
+    //
+    // **Both art fields, because both go through `resolveImg`.** `portrait` is
+    // not a variant spelling of `img` — a being carries the two independently —
+    // and checking only the more common one is how the sweep that prompted this
+    // guard missed eleven `sohl-kethira-basic` beings that write
+    // `portrait: ""`. Whatever the rule is, it belongs to the function, not to
+    // one of the keys that reaches it.
+    //
+    // A **warning**, on the pattern the `package:` and retired-alias sweeps
+    // set: the note still compiles, to a document that is merely iconless, so
+    // reddening a tree over it would refuse before the sweep rather than after
+    // it. It is transitional in the same sense — `""` is a legal thing to mean,
+    // and the message says so, but nothing in any tree means it yet.
+    //
+    // **These two only, never `title`.** The rule reads as a general one about
+    // optional strings, and it is not — it belongs to `resolveImg`, and `title`
+    // never goes through it.
+    //
+    // It once had a sharper reason, recorded here because it was load-bearing
+    // and is now false: a note's top-level `title` was simultaneously the shared
+    // source for an `affiliation` item's `system.title`, so asking an author for
+    // `title: null` would have compiled the literal string `"null"` into the
+    // document. That collision is gone — the field declares `topLevelMeans` and
+    // the top-level key is no longer a source for it — so `title: null` is now
+    // harmless. Whether `title: ""` deserves a warning of its own is a separate
+    // question about the *page's* heading, still open on #218, and not settled
+    // by extending an art-path check to it.
+    for (const key of ART_FIELDS) {
+        if (authoredValue(fm, key) !== "") continue;
+        findings.push({
+            file: note.file,
+            ...at(key),
+            severity: "warning",
+            message:
+                `\`${key}: ""\` means "ship no art at all" — it no longer falls ` +
+                `back to this type's default. Write \`${key}: null\` for a note ` +
+                'that simply names none; keep `""` only where the document is ' +
+                "meant to have no image",
         });
     }
     if (Object.hasOwn(fm, "draft")) {

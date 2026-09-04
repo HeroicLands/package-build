@@ -188,5 +188,8 @@ export function itemArt(type, system) {
                 `note an \`img:\` of its own.`,
         );
     }
-    return resolveImg(art);
+    // `art` is non-empty by the guard above, so the translation never returns
+    // the `null` a note's unset `img:` would (#218); the coalesce states that
+    // rather than leaving the declared `string` return a half-truth.
+    return resolveImg(art) ?? "";
 }

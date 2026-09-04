@@ -255,7 +255,10 @@ export class Items extends BasePackCompiler {
             // both registries are keyed by content type — while the document's
             // own subtype comes from the system's map (#79).
             type: subType,
-            img: resolveImg(blockProperty(fm, SYSTEM, "img")) || itemArt(type, SYSTEM),
+            // Nullish, not `||` (#218): `resolveImg` returns `null` for a note
+            // that names no art and `""` for one that wants none, and only the
+            // first may be replaced by the type's default.
+            img: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? itemArt(type, SYSTEM),
             _id: id,
             system,
             effects: Array.isArray(effects) ? [...effects] : [],

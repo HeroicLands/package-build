@@ -343,18 +343,13 @@ export function collectHomepages(contentBase, ctx) {
  * @param {readonly object[]} pages - From {@link collectHomepages}.
  * @param {object} config - The resolved configuration, for the package name and
  *   the default title.
- * @param {object} [options] - Options.
- * @param {string} [options.base] - Where the package is served; defaults to the
- *   configured `site.base`, and to `/<contentPackage>/` below that.
  * @returns {number} How many pages were written.
  */
-export function writeHomepages(outRoot, pages, config, { base } = {}) {
-    const at = base || config.site?.base || `/${config.contentPackage}/`;
+export function writeHomepages(outRoot, pages, config) {
     for (const page of pages) {
         const data = homepageFrontmatter(page.fm, {
             contentPackage: config.contentPackage,
             title: homepageTitle(page.fm, config),
-            base: at,
         });
         const dest = path.join(outRoot, homepageDestination(page.fm));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -544,6 +539,16 @@ export function sectionFrontmatter(meta) {
  * package-wide address the link manifest records — the same address, one
  * segment too deep. So the address is stated and the mount does not reach it.
  *
+ * **It is stated relative to the site root, and so carries no package base**
+ * (#217). Hugo resolves a `url` against `baseURL`, whose path is already where
+ * the package is served — a consumer's Hugo site *is* its package — so writing
+ * `page.url`, which carries the base for every href this build renders, wrote
+ * that base a second time and published every content page a segment too deep
+ * (`/sohl/sohl/doc-rulesintro/`). The two are separate quantities: the page
+ * states `/<slug>/`, and everything that points *at* the page — the address
+ * index a wikilink resolves through, and the link manifest — composes
+ * `<base><slug>/`.
+ *
  * A content page carries the package the build **derived** (#65). No note
  * declares one — `package:` is retired (#56) — so the note's frontmatter alone
  * would publish a page that does not say which package it belongs to. The
@@ -571,13 +576,14 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
             // Spread after the note's own frontmatter. Guarded because
             // `package: undefined` is not a value YAML can carry.
             ...(page.pkg ? { package: page.pkg } : {}),
-            // The address, stated. `slug` is written beside it because it is
-            // the last segment of that address and Hugo's own key for one; it
-            // decides nothing while `url` is present, but a page that carried
-            // only `url` would report a slug Hugo had inferred from the
-            // filename.
+            // The address, stated — site-root relative, because Hugo prefixes
+            // the site's own base to it (#217). `slug` is written beside it
+            // because it is the last segment of that address and Hugo's own key
+            // for one; it decides nothing while `url` is present, but a page
+            // that carried only `url` would report a slug Hugo had inferred
+            // from the filename.
             slug,
-            url: page.url,
+            url: `/${slug}/`,
             title: fm.title ?? name,
             kbfolder: page.folder,
         };
@@ -993,7 +999,7 @@ export function buildSite({ config, outRoot } = {}) {
             tableErrors: [],
             wikiErrors: [],
             stats: {
-                homepages: writeHomepages(homeRoot, homepages, resolved, { base }),
+                homepages: writeHomepages(homeRoot, homepages, resolved),
                 landings: 0,
                 out: homeRoot,
             },
@@ -1078,7 +1084,7 @@ export function buildSite({ config, outRoot } = {}) {
 
     // Last, and outside the mount: the package's front page is not part of the
     // content tree it introduces.
-    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved, { base });
+    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved);
 
     return {
         gates,

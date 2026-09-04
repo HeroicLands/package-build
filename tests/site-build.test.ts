@@ -378,7 +378,9 @@ describe("what a page publishes with", () => {
         expect(pageDestination(page as never)).toBe("weapongear-dagger.md");
         expect(path.dirname(pageDestination(page as never))).toBe(".");
         // The URL is the address either way, and the file now agrees with it.
-        expect(pageFrontmatter(page as never, {}).url).toBe("/demo/weapongear-dagger/");
+        // Stated relative to the site root, because Hugo prefixes the site's
+        // own base — see `tests/page-url-root-relative.test.ts` (#217).
+        expect(pageFrontmatter(page as never, {}).url).toBe("/weapongear-dagger/");
     });
 });
 
@@ -498,9 +500,10 @@ describe("buildSite end to end", () => {
     it("resolves a wikilink to the page's published address", () => {
         buildSite({ config: configFor() });
         const page = fs.readFileSync(path.join(root, "out/kb/weapongear-dagger.md"), "utf8");
-        // Both the resolved wikilink and the page's own stated address.
-        expect(page).toContain("/demo/weapongear-dagger/");
-        expect(page).toMatch(/^url: \/demo\/weapongear-dagger\/$/m);
+        // Both the resolved wikilink and the page's own stated address — two
+        // quantities, and only the link carries the package base (#217).
+        expect(page).toContain("](/demo/weapongear-dagger/)");
+        expect(page).toMatch(/^url: \/weapongear-dagger\/$/m);
     });
 
     it("writes the derived package into a swept note's page", () => {
