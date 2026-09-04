@@ -1,5 +1,189 @@
 # @heroiclands/package-build
 
+## 15.0.0
+
+### Major Changes
+
+- 5c16c02: Let a note's art path say "unset" and "blank on purpose" with two different values.
+  
+  `resolveImg` opened with `if (!raw) return ""`, and every caller then applied its
+  own default to the result with `||` — `resolveImg(fm.img) || itemArt(type)`. So
+  `""`, `null` and an absent key were one case: all three compiled to the type's
+  default art, and a note had no way to say _ship no image_ at all.
+  
+  They are now three values with two meanings, the convention the project already
+  holds for an optional "not specified" DataModel string (`nullable, initial: null`,
+  so "unset" is one honest value rather than two):
+  
+  | a note writes  | it means                             | it compiles with |
+  | -------------- | ------------------------------------ | ---------------- |
+  | nothing at all | _unset_ — name me no art             | the type default |
+  | `img: null`    | the same thing, said out loud        | the type default |
+  | `img: ""`      | _blank on purpose_ — I want no image | no image         |
+  
+  **`resolveImg` returns `string | null`.** `null` for an unset path, `""` for a
+  deliberate blank, the translation half unchanged. Every caller pairs its default
+  with **nullish** coalescing: `sohl/items.mjs`, three in `sohl/actors.mjs` (`img`,
+  `portrait`, and the prototype token's `texture.src`), and `engine/macros.mjs`.
+  Not `||` — that collapses a deliberate blank back into the default and takes the
+  distinction away again, and it does so silently, because `""` is falsy.
+  `itemArt()` is unaffected: a registry entry with no art throws before the
+  translation, so its result is never the unset case.
+  
+  **The default-art seam is a documented extension point, so this is the substance
+  of the change, not a detail.** A consuming repository that pairs art with its own
+  `itemBuilders` entry, or calls `resolveImg` from a builder of its own, gets the
+  new reading of `""` whether or not it asked for it — which is why the sweeps have
+  to come first. `sohl-thalorna` swept forty-five `img: ""` notes ahead of this
+  release (HeroicLands/sohl-thalorna#134) and `sohl-kethira-basic` eleven
+  `portrait: ""` beings (HeroicLands/sohl-kethira-basic#81); `sohl` authors neither,
+  and its 3,125 compiled documents are byte-identical across the change.
+  
+  **Both art fields, because both go through `resolveImg`.** A being carries `img`
+  (its token art) and `portrait` (its sheet portrait) independently; `portrait` is
+  not a variant spelling of `img`, and the rule belongs to the translator rather
+  than to one of the keys reaching it. This is not theoretical: `sohl-kethira-basic`
+  writes `portrait: ""` on eleven beings and `img: ""` on none, so a change — or a
+  guard — keyed on `img` alone would have called that tree clean and dropped every
+  one of those portraits.
+  
+  **A warning for the old spelling.** The frontmatter lint reports `img: ""` and
+  `portrait: ""` — in either authoring position — as the meaning-change they are, on
+  the pattern the `package:` and retired-alias sweeps set: a warning, because the
+  note still compiles, to a document that is merely iconless.
+  
+  **`title` is deliberately not on this rule.** It reads as a general rule about
+  optional strings and it is not: on a `type: affiliation` note `title` is
+  _simultaneously_ a declared item field whose default is `""`
+  (`sohl/item-fields.mjs`), resolved from the very same shared top-level key the
+  site emitter reads as the page title. `title: null` therefore does not fall back —
+  it stringifies, and the compiled document ships the literal `"null"`. A `title` a
+  note does not want is written by omitting the key; the emitter's `fm.title ?? name`
+  is already correct and is untouched. The lint guard is `img`'s alone for the same
+  reason.
+  
+  Delivers the `img` half of #218. The `title` half — the collision above — stays
+  open.
+- 63dfcae: **A note's own `title` no longer fills an affiliation's `system.title`** (#218).
+  
+  The two were never the same quantity. A note's top-level `title` is _the title
+  of the note_ — the heading its page is published under, which the site emitter
+  reads. An `affiliation` item's `system.title` is _the style of address the office
+  carries_ — Ajaw, Warden, a person's style within the body. They collided only in
+  spelling, and field resolution's third step, the shared top-level property, fed
+  the second from the first.
+  
+  That step also answers **without** applying the field's default — only the
+  in-block step does — so an authored `title: null` reached the `String()` coercion
+  unguarded and compiled to the literal string `"null"`. Fifteen `sohl-thalorna`
+  notes shipped `"system": { "title": "null" }` that way.
+  
+  **Nothing in any content tree relied on the fallback.** Across all three
+  consumers — 295 `affiliation` notes in `sohl-thalorna`, 28 in
+  `sohl-kethira-basic`, none in `sohl` — not one carries a non-empty top-level
+  `title`, and `content-build package compile` emits byte-identical
+  `build/packs-json` for all three. It is a major because the rule that decides a
+  consumer's compiled documents changed with no configuration to restore it, and
+  because the generated item-field reference moves (below).
+  
+  **The field is still authorable**, at the two positions that describe the
+  document rather than the note: `sohl.system.title`, and the legacy in-block
+  `sohl.title` that most trees already write. A membership's title belongs on the
+  entry in a being's `sohl.items`, as its `system.title`. `data.title` is neither —
+  `title` is not a `data:` property any note type declares, so `content-build lint`
+  refuses it.
+  
+  **Declaring the exemption:** a field in an `itemBuilders` `fields:` declaration
+  may now carry `topLevelMeans`, whose value is _what the note's top-level key of
+  that name means instead_. Declaring it removes the shared top-level position from
+  that field's resolution order, and the generated item-field reference prints the
+  reason beneath the type's table, so an author reading it learns that the
+  top-level key will not fill the field. A repository that commits that page should
+  regenerate it.
+  
+  The value is the reason rather than a bare flag deliberately: a boolean would
+  record the decision and lose the case for it, and the next person adding a field
+  needs to know the question exists.
+- a41b066: **A page states its address relative to the site root.** `site.base` is no
+  longer written into a page's Hugo `url:` front matter — only into the `href`s
+  this build renders and the base a link-manifest `path` is measured against:
+  
+  ```yaml
+  # emitted page
+  url: /doc-rulesintro/ # was: /sohl/doc-rulesintro/
+  ```
+  
+  `site.base` was two quantities wearing one name. It is correctly _where the
+  package is served_ — the prefix on every rendered `href`, and the base a
+  manifest `path` is stripped against — and `/<contentPackage>/` is the right
+  default for that. It was also written verbatim into each page's `url:`, and that
+  is a different quantity: Hugo resolves `url` against `baseURL`, whose path for
+  every consumer that exists **already is** the package base. So the prefix was
+  written twice, and every content page — plus the homepage — published one
+  package segment too deep:
+  
+  ```text
+  /sohl/doc-rulesintro/                404      /sohl/sohl/doc-rulesintro/               200
+  /thalorna/being-afzndhprnzr/         404      /thalorna/thalorna/being-afzndhprnzr/    200
+  ```
+  
+  Not one address a link manifest advertised resolved: **0 of `sohl`'s 2,988
+  entries**, and 0 of `thalorna`'s 2,585.
+  
+  **One value fed two readers that need opposite framings**, which is why no
+  setting could fix it from a consumer: `site.base: "/"` bought the addresses and
+  short-changed the hrefs, and the default did the reverse. They are now separate,
+  and each reader gets the form it needs:
+  
+  | Reader                                              | Gets                        | Because                                                             |
+  | --------------------------------------------------- | --------------------------- | ------------------------------------------------------------------- |
+  | A page's own `url:` front matter                    | `/<type>-<shortcode>/`      | Hugo prefixes the site's `baseURL` path to it                       |
+  | The address index a `[[wikilink]]` resolves through | `<base><type>-<shortcode>/` | A browser resolves the rendered `href` against nothing              |
+  | A link-manifest `path`                              | `<type>-<shortcode>/`       | Measured against `site.base` and stripped; unchanged, byte for byte |
+  
+  The homepage moves with them: `homepageFrontmatter` states `/homepage-root/`,
+  and no longer takes a `base` (nor does `writeHomepages`' fourth argument, which
+  existed only to supply it). `trees` pages and section landings never stated a
+  `url:` and are untouched — they take their address from their path.
+  
+  **Take this release and drop your `site.base`.** Both publishing consumers set
+  `site.base: "/"` as a stopgap
+  (HeroicLands/Song-of-Heroic-Lands-FoundryVTT#1813, HeroicLands/sohl-thalorna#131),
+  which bought the correct addresses at the cost of same-package body links
+  rendering `/doc-x/` rather than `/sohl/doc-x/` — dead either way, so nothing
+  regressed. With this release the stopgap is no longer needed and no longer
+  harmless: keeping it leaves those hrefs short. Delete the `base:` line and the
+  default is right for both halves.
+  
+  **Verified against pristine `git archive origin/main` extractions of all three
+  consumers**, in both configurations, through `content-build site` **and** Hugo
+  0.165:
+  
+  | Consumer   | `site.base` | Page `url:`           | Rendered path                  | Manifest entries resolving |
+  | ---------- | ----------- | --------------------- | ------------------------------ | -------------------------- |
+  | `sohl`     | unset       | `/doc-rulesintro/`    | `/sohl/doc-rulesintro/`        | 2,988 of 2,988 (was 0)     |
+  | `sohl`     | `"/"`       | `/doc-rulesintro/`    | `/sohl/doc-rulesintro/`        | 2,988 of 2,988             |
+  | `thalorna` | unset       | `/being-afzndhprnzr/` | `/thalorna/being-afzndhprnzr/` | 2,585 of 2,585 (was 0)     |
+  | `thalorna` | `"/"`       | `/being-afzndhprnzr/` | `/thalorna/being-afzndhprnzr/` | 2,585 of 2,585             |
+  
+  No `/sohl/sohl/` or `/thalorna/thalorna/` path exists in either built tree, the
+  section landings, the content mount and the `dev-docs` tree pages all still
+  resolve, and with the stopgap dropped a same-package body link renders
+  `<a href=/sohl/doc-skills/>` again. `lint` and `links` are identical line for
+  line in every combination — `sohl` green, `sohl-thalorna` exactly as red as its
+  own content gap leaves it (1,983 lint findings, 122 link findings).
+  
+  **Exactly one line per page changes, and nothing else does.** Of `sohl`'s 1,671
+  emitted files, 1,606 differ — the 1,605 content pages and the homepage — each by
+  its `url:` alone; the 46 tree pages and 19 landings are byte-identical, and
+  `build/manifests/sohl.json` is byte-identical. `sohl-kethira-basic` publishes a
+  homepage and nothing else (`publish.site: homepage`) and declares no
+  `site.base`: its console output is identical, its one emitted page moves from
+  `/kethira/kethira/homepage-root/` to `/kethira/homepage-root/`, and its landing
+  at `/kethira/` is unaffected.
+  
+  Closes #217
+
 ## 14.0.0
 
 ### Major Changes
