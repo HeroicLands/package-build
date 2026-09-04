@@ -234,25 +234,51 @@ export function makeFilename(name, id) {
  * asset roots — `icons/...` and `images/...` — are served from the package
  * directory, so they are rewritten to `<assetRoot>/<path>` — `systems/sohl/assets`
  * for this repository, `modules/<id>/assets` for a module (#1508). Any other
- * path (already package-rooted, an absolute URL) is returned unchanged, and an
- * empty path yields `""`.
+ * path (already package-rooted, an absolute URL) is returned unchanged.
  *
- * This is translation only: the per-type default for an empty result is
- * domain-specific (actors default differently from items, and gear differently
- * again), so each compiler owns its own default and applies it to the result —
- * `resolveImg(fm.img) || <default>`. For items that default is the art paired
- * with the type's builder, reached through `itemArt()`, which runs the path
- * back through this function so a registry entry and a note's `img:` are
- * spelled the same way (#7).
+ * **Two empties, and they mean opposite things (#218).** `null` — or an absent
+ * key, which reaches here as `undefined` — means _unset_: the note names no art
+ * and the caller's default applies. `""` means _blank on purpose_: the note
+ * names no art **and wants none**, so no default may replace it. Both come back
+ * distinguishable, `null` and `""` respectively, and neither is invented from
+ * the other.
+ *
+ * This used to open `if (!raw) return ""`, which made the two one case: every
+ * caller then applied its default with `||`, so a deliberate blank was
+ * unspellable and an unset key and an empty string compiled identically. That
+ * is the convention the project already rejects for an optional "not specified"
+ * DataModel string, where `nullable, initial: null` keeps "unset" a single
+ * honest value rather than two.
+ *
+ * **`title` does not follow this rule**, and must not be made to. On a
+ * `type: affiliation` note `title` is *also* a declared item field whose default
+ * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
+ * key the site emitter reads as the page title — so `title: null` stringifies
+ * into the compiled document as the literal `"null"`. One key, two destinations
+ * that disagree about what empty means; see #218.
+ *
+ * This is translation only: the default for an unset path is domain-specific
+ * (actors default differently from items, and gear differently again), so each
+ * compiler owns its own default and applies it to the result with **nullish**
+ * coalescing — `resolveImg(fm.img) ?? <default>`. Not `||`: that would collapse
+ * a deliberate blank back into the default and undo the distinction. For items
+ * that default is the art paired with the type's builder, reached through
+ * `itemArt()`, which runs the path back through this function so a registry
+ * entry and a note's `img:` are spelled the same way (#7).
  *
  * @param {string | null | undefined} raw - content-relative path from frontmatter.
  * @param {{assetRoot: string}} [config] - The resolved build configuration.
  *   Defaults to this repository's.
- * @returns {string} the Foundry-relative path, or `""` when `raw` is empty.
+ * @returns {string | null} the Foundry-relative path; `""` for a deliberate
+ *   blank, and `null` when the note names no art at all.
  */
 export function resolveImg(raw, config = loadPackConfig()) {
-    if (!raw) return "";
+    // Unset — the caller's default applies. An absent key arrives as
+    // `undefined`, an authored one as `null`; they say the same thing.
+    if (raw == null) return null;
     const s = String(raw);
+    // Blank on purpose — the caller's default must not apply.
+    if (s === "") return "";
     if (s.startsWith("icons/") || s.startsWith("images/")) {
         return `${config.assetRoot}/${s}`;
     }

@@ -455,9 +455,9 @@ error: pack "characters" (Actor) reads the compiled output of the Item pack
 
 ### An item type's default art
 
-A note that carries no `img:` gets its type's **default art**, and a type
-declares that art in the same place it declares its builder. An `itemBuilders`
-entry may be written two ways:
+A note that names no art gets its type's **default art**, and a type declares
+that art in the same place it declares its builder. An `itemBuilders` entry may
+be written two ways:
 
 ```js
 itemBuilders: {
@@ -478,8 +478,54 @@ same `resolveImg` rule as a note's `img:`, so `icons/relic.svg` means _this_
 repository's asset root — `modules/sohl-relics/assets/icons/relic.svg` — and an
 already-served path (`systems/sohl/assets/icons/…`) passes through untouched.
 
-**A type with neither is a build error, deliberately.** When a note sets no
-`img:` and its type pairs none, the pack build aborts rather than shipping an
+#### "Names no art" and "wants no art" are different (#218)
+
+A note has two ways to leave `img:` empty, and they mean opposite things:
+
+| a note writes  | it means                             | it compiles with |
+| -------------- | ------------------------------------ | ---------------- |
+| nothing at all | _unset_ — name me no art             | the type default |
+| `img: null`    | the same thing, said out loud        | the type default |
+| `img: ""`      | _blank on purpose_ — I want no image | no image         |
+| `img: <path>`  | this art                             | that path        |
+
+`resolveImg` returns `null` for the first two and `""` for the third, and every
+caller pairs its default with **nullish** coalescing — `resolveImg(fm.img) ?? itemArt(type)`.
+Never `||`: that collapses a deliberate blank back into the default and takes the
+distinction away again, which is exactly what the function used to do.
+
+**`portrait` is the same field twice over.** A being carries `img` (its token
+art) and `portrait` (its sheet portrait) independently, and both resolve through
+`resolveImg`, so the rule above is the rule for both.
+
+This is the convention the project already holds for an optional "not specified"
+DataModel string — `nullable, initial: null`, so "unset" is one honest value
+rather than two.
+
+> **The rule is `img`'s, and does not extend to `title`.** On a
+> `type: affiliation` note `title` is _also_ a declared item field whose default
+> is `""` (`sohl/item-fields.mjs`, "the style of address the office carries"),
+> resolved from the very same shared top-level key the site emitter reads as the
+> page title. One authored key, two unrelated destinations that disagree about
+> what empty means — so `title: null` does not fall back, it stringifies, and the
+> compiled document ships the literal `"null"`. A `title` a note does not want is
+> written by **omitting the key**. See #218.
+
+Because `""` used to mean "unset", a note still carrying that spelling has
+quietly changed meaning, and the frontmatter lint says so — for either art
+field:
+
+```
+Note.md:9:1: warning: `img: ""` means "ship no art at all" — it no longer falls
+back to this type's default. Write `img: null` for a note that simply names
+none; keep `""` only where the document is meant to have no image
+```
+
+A warning, not an error: the note still compiles, to a document that is merely
+iconless.
+
+**A type with neither is a build error, deliberately.** When a note names no
+art and its type pairs none, the pack build aborts rather than shipping an
 item with a mismatched icon:
 
 ```

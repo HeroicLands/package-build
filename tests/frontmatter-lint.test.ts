@@ -364,3 +364,70 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
         expect(tagFindings([null as any, 3 as any])).toEqual([]);
     });
 });
+
+/* -------------------------------------------------------------------- */
+/*  `img: ""` — the old spelling of "unset" (#218)                       */
+/* -------------------------------------------------------------------- */
+
+describe('an authored `img: ""` (#218)', () => {
+    const schemas = { skill: [] as any[] };
+
+    it("is warned about, because it used to mean the opposite", () => {
+        // `""` was how a note said "no art authored" while `resolveImg`
+        // conflated the two empties; it now says "ship no art". Forty-five
+        // `sohl-thalorna` notes were written under the old reading and would
+        // have lost their default art silently.
+        const findings = lintNote(note("skill", {}, { img: "" }), { schemas });
+        const img = findings.filter((f) => /`img: ""`/.test(f.message));
+
+        expect(img).toHaveLength(1);
+        expect(img[0].severity).toBe("warning");
+        expect(img[0].message).toMatch(/img: null/);
+    });
+
+    it("is warned about under a system block too, where a note may also write it", () => {
+        const findings = lintNote(note("skill", { img: "" }), { schemas });
+
+        expect(findings.filter((f) => /`img: ""`/.test(f.message))).toHaveLength(1);
+    });
+
+    it("says nothing about `img: null`, which is the spelling it asks for", () => {
+        const findings = lintNote(note("skill", {}, { img: null }), { schemas });
+
+        expect(findings.filter((f) => /`img: ""`/.test(f.message))).toHaveLength(0);
+    });
+
+    it("says nothing about a note that names art, or names none at all", () => {
+        expect(
+            lintNote(note("skill", {}, { img: "icons/other/sword.svg" }), { schemas }).filter((f) =>
+                /`img: ""`/.test(f.message),
+            ),
+        ).toHaveLength(0);
+        expect(
+            lintNote(note("skill"), { schemas }).filter((f) => /`img: ""`/.test(f.message)),
+        ).toHaveLength(0);
+    });
+
+    it("is warned about for `portrait` too, which resolves through the same translator", () => {
+        // Eleven `sohl-kethira-basic` beings write `portrait: ""` and no note
+        // in any tree writes `img: ""` on a being. A check keyed on `img`
+        // alone called that tree clean and let it lose every default portrait.
+        const findings = lintNote(note("skill", {}, { portrait: "" }), { schemas });
+        const art = findings.filter((f) => /`portrait: ""`/.test(f.message));
+
+        expect(art).toHaveLength(1);
+        expect(art[0].severity).toBe("warning");
+        expect(art[0].message).toMatch(/portrait: null/);
+    });
+
+    it("makes no such claim about `title`, which is not on the same rule", () => {
+        // `title` is simultaneously a declared item field whose default is
+        // `""`, resolved from the same shared key the site emitter reads as
+        // the page title — so `title: null` compiles the literal `"null"`.
+        // The rule is the two art fields' alone until that collision is
+        // resolved (#218).
+        const findings = lintNote(note("skill", {}, { title: "" }), { schemas });
+
+        expect(findings.filter((f) => /title/.test(f.message))).toHaveLength(0);
+    });
+});
