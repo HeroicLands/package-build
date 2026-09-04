@@ -61,13 +61,7 @@ import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
-import {
-    declaredTags,
-    retiredSubType,
-    retiredSubTypeMessage,
-    subTypeCharsetMessage,
-    typeCharsetMessage,
-} from "./note-vocabulary.mjs";
+import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
@@ -342,11 +336,18 @@ function checkDataContainer(note, { type, fields }) {
  * called, and `rules`, `userguide`, `reference` mean three genres and nothing
  * else.
  *
- * **Three checks, in this order** — retired spelling, then charset, then the
- * closed set (#206, #204). Each is ahead of the next because it is the more
- * specific statement about the same value: a retired spelling has a named
- * replacement, a hyphenated value is unaddressable whatever the type declares,
- * and only then is the type's own list the reason.
+ * **Two checks, in this order** — the charset, then the closed set (#206,
+ * #204). The charset is first because it is the more general statement about
+ * the same value: a value outside `^[A-Za-z0-9]+$` is refused whatever the type
+ * declares, and only once it is a well-formed term is the type's own list the
+ * reason to refuse it.
+ *
+ * There were three. #206 ran a retired-spelling check ahead of both, accepting
+ * `user-guide` as a warning naming `userguide`, so the 43 `sohl` notes
+ * authoring it were not invalidated by the release that renamed it. Every
+ * consumer tree has swept, so the acceptance guarded nothing and is gone: the
+ * old spelling now falls through to the charset check, which refuses it for the
+ * reason that always applied — it contains a hyphen (#210).
  *
  * @param {object} note - The note.
  * @param {object} opts
@@ -374,26 +375,7 @@ function checkSubType(note, { type, entry }) {
         ];
     }
 
-    // A retired spelling is **accepted**, and said out loud (#206). Checked
-    // before the charset, because the note is not wrong about the charset in
-    // some general way — it is wrong about one value, and naming the
-    // replacement is the whole of what the author needs. A warning rather than
-    // an error for the same reason the retired field aliases below are: the
-    // note compiles to the correct page, and erroring would red every tree the
-    // moment it took this release, ahead of any chance to sweep.
-    const replacement = retiredSubType(type, value);
-    if (replacement) {
-        return [
-            {
-                file: note.file,
-                ...at,
-                severity: "warning",
-                message: retiredSubTypeMessage(type, value, replacement),
-            },
-        ];
-    }
-
-    // The charset, before the closed set: a hyphenated value is unaddressable
+    // The charset, before the closed set: a value outside it is refused
     // whatever the type declares, and the type's list is not the reason it is
     // refused. Reported here rather than only for an enumerated type, so a
     // `subTypes: null` type — whose values nothing may yet check — is still

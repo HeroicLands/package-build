@@ -267,11 +267,14 @@ describe("a `doc`'s `subType` is a genre again", () => {
         });
     });
 
-    it("leaves the charset and retired-spelling checks ahead of it (#206)", () => {
+    it("leaves the charset check ahead of it (#206)", () => {
         // The two changes are complementary and land in one function: #206 put
-        // a retired-spelling warning and a charset error ahead of the closed-set
-        // check, and #204 removed the section branch from underneath it. Both
-        // survive, in that order.
+        // a charset error ahead of the closed-set check, and #204 removed the
+        // section branch from underneath it. Both survive, in that order. #206
+        // also put a retired-spelling warning ahead of the charset check, for
+        // `user-guide`; the consumer trees have swept and #210 removed it, so
+        // the old spelling is refused by the charset check like any other
+        // hyphenated value.
         const retired = lintNote(
             asNote("/tree/Guide/Actions.md", {
                 type: "doc",
@@ -281,10 +284,9 @@ describe("a `doc`'s `subType` is a genre again", () => {
             opts,
         );
         expect(retired).toHaveLength(1);
-        // A warning, deliberately: erroring would red a tree the moment it took
-        // the release, ahead of any chance to sweep.
-        expect(retired[0].severity).toBe("warning");
-        expect(retired[0].message).toContain("userguide");
+        expect(retired[0].severity).toBe("error");
+        expect(retired[0].message).toMatch(/letters and digits/i);
+        expect(retired[0].message).not.toContain("userguide");
 
         const hyphenated = lintNote(
             asNote("/tree/Guide/Odd.md", {
