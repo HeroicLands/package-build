@@ -35,4 +35,12 @@ type, a shortcode and a `contentPackage` but not for a subType would be a rule
 nobody could state in a sentence. `typeCharsetMessage` is untouched — a type
 genuinely is the first segment of every address.
 
+The same correction is applied to `assertVocabularyCharset`'s throw, which
+carried the identical claim in a second place — _"A type and a subType are both
+address segments"_ — where it would go unread until it fires, which is exactly
+when it would be taken at face value. It now states the reason **per key**: the
+address half for a type, the vocabulary-term half for a subType. The guard
+itself is unchanged and stays where it is, running over `NOTE_VOCABULARY` as the
+module loads.
+
 Closes #210

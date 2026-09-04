@@ -785,6 +785,11 @@ export function typeCharsetMessage(type) {
  * a note's bad value is one author's mistake and belongs in a report, while a
  * bad *declaration* would tell every author to write something unaddressable.
  *
+ * The message states the reason **per key**, as {@link typeCharsetMessage} and
+ * {@link subTypeCharsetMessage} do: a type is an address segment, and a subType
+ * has not been one since #204 retired sections, so a single claim covering both
+ * would be half wrong (#210).
+ *
  * @param {Readonly<Record<string, TypeVocabulary>>} vocabulary - The registry.
  * @param {string} [where] - What declares it, for the message.
  * @throws {Error} Naming every offending type and subType at once, rather than
@@ -803,9 +808,13 @@ export function assertVocabularyCharset(vocabulary, where = "the note vocabulary
     if (!bad.length) return;
     throw new Error(
         `${where} declares ${bad.join(", ")}, which ${bad.length === 1 ? "is" : "are"} ` +
-            `not ${ADDRESS_SEGMENT_PATTERN.source}. A type and a subType are both ` +
-            `address segments, and the hyphen separates segments rather than ` +
-            `occurring inside one.`,
+            `not ${ADDRESS_SEGMENT_PATTERN.source}. A type is an address segment, ` +
+            `and the hyphen separates segments rather than occurring inside one. ` +
+            `A subType reaches no address since #204 retired sections, and is ` +
+            `held to the same charset anyway: it is a vocabulary term the whole ` +
+            `toolchain keys on, one closed set away from being a segment again, ` +
+            `and a charset holding for every term but that one would be a rule ` +
+            `nobody could state in a sentence.`,
     );
 }
 

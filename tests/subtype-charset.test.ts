@@ -233,6 +233,26 @@ describe("the declared vocabulary is held to the same rule (#206)", () => {
             } as any),
         ).toThrow(/user-guide/);
     });
+
+    it("says why the rule holds for each key, not by one claim covering both (#210)", () => {
+        // The same correction `subTypeCharsetMessage` got, in the second place
+        // the claim survived. A type *is* an address segment, so that half
+        // stands; a subType stopped being one when #204 retired sections, so
+        // asserting it jointly states something no longer true — in a message
+        // read only when it fires, which is exactly when it is taken at face
+        // value.
+        let message = "";
+        try {
+            assertVocabularyCharset({ doc: { data: [], subTypes: ["user-guide"] } } as any);
+        } catch (error) {
+            message = String((error as Error).message);
+        }
+        expect(message).toMatch(/a type is an address segment/i);
+        expect(message).not.toMatch(/a type and a subType are both\s+address segments/i);
+        expect(message).toMatch(/vocabulary term/i);
+        expect(message).toMatch(/closed set away from being/i);
+        expect(message).toContain(ADDRESS_SEGMENT_PATTERN.source);
+    });
 });
 
 describe("the shortcode rule is untouched (#206)", () => {
