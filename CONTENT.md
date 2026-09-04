@@ -796,6 +796,25 @@ values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strik
 mode rather than by kind — so `subType` on one is a finding; a `skill` declares
 ten, so `subType: crafte` is a finding naming `craft`.
 
+**A `type` and a `subType` are both address segments, so both are
+`^[A-Za-z0-9]+$`** (#206) — the same constant a `shortcode` is held to, read
+rather than restated. A type is the first segment of every address, and a
+`doc`'s subType is the section it routes to, so a hyphen in either is read back
+as a segment boundary nobody wrote. The rule is checked ahead of the closed-set
+check, which is what makes it reach a type whose values are declared but not yet
+enumerated:
+
+```text
+assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. …
+```
+
+One declared value broke that rule: a `doc`'s `user-guide`, now **`userguide`**.
+The old spelling is accepted for one transitional release and reported as a
+**warning** naming the replacement — an error would red every tree that took the
+release before it had a chance to sweep, and the note still compiles to the
+correct page. A later release removes the acceptance, and the old spelling then
+falls through to the ordinary undeclared-value error.
+
 The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
 taken from the content-format specification. It is note-format knowledge rather
 than any system's: `data:` holds what is true of the thing, and what a system
@@ -1256,7 +1275,7 @@ segment the `README` lands at is what `sectionOf` reads — for a `doc`, its
 can exist, which is three sets: every **content type** the format declares
 (`sectionOf` returns a non-`doc` note's own type, so `being` and `weapongear` are
 sections by construction), the **subtypes the type declares** (`rules`,
-`user-guide`, `reference`), and any section named in
+`userguide`, `reference`), and any section named in
 [`site.sections` / `site.readmeSections`](#what-a-section-may-declare). A
 misspelt one is still refused, by name and against all three, with the near miss
 suggested. This applies to a `README` only: every other note's `subType` stays
