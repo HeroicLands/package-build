@@ -806,15 +806,15 @@ rule is checked ahead of the closed-set check, which is what makes it reach a
 type whose values are declared but not yet enumerated:
 
 ```text
-assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. …
+assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not a well-formed subType — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. …
 ```
 
 One declared value broke that rule: a `doc`'s `user-guide`, now **`userguide`**.
-The old spelling is accepted for one transitional release and reported as a
-**warning** naming the replacement — an error would red every tree that took the
-release before it had a chance to sweep, and the note still compiles to the
-correct page. A later release removes the acceptance, and the old spelling then
-falls through to the ordinary undeclared-value error.
+The old spelling was accepted for one transitional release, as a warning naming
+the replacement, because an error would have redded every tree that took the
+release before it had a chance to sweep. Every tree has swept, so the acceptance
+is gone (#210): `user-guide` is refused by the charset check like any other
+hyphenated value, and nothing retirement-specific was left to remove.
 
 The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
 taken from the content-format specification. It is note-format knowledge rather

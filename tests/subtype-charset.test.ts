@@ -10,11 +10,12 @@ import { describe, it, expect } from "vitest";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import {
     NOTE_VOCABULARY,
-    RETIRED_SUBTYPES,
     assertVocabularyCharset,
-    retiredSubType,
+    subTypeCharsetMessage,
     subTypes,
+    typeCharsetMessage,
 } from "../engine/note-vocabulary.mjs";
+import * as noteVocabulary from "../engine/note-vocabulary.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "../engine/address-charset.mjs";
 import { SHORTCODE_PATTERN, isValidShortcode } from "../engine/content-lint.mjs";
 import { formatDiagnostic } from "../engine/diagnostics.mjs";
@@ -98,44 +99,78 @@ describe("a `subType` is an address segment (#206)", () => {
     });
 });
 
-describe("`user-guide` is accepted transitionally, and says so (#206)", () => {
+describe("`user-guide` is refused, the acceptance having been removed (#210)", () => {
     const findings = () => lintNote(note("doc", { subType: "user-guide" }), opts);
 
-    it("accepts it — a consumer cannot sweep ahead of the release that renames it", () => {
-        // Accepted means: not refused. The build proceeds, so the 43 notes
-        // authored on the old spelling still compile.
-        expect(findings().filter((f: any) => f.severity === "error")).toEqual([]);
-    });
-
-    it("is not silent — one finding, naming the note, the old value and the new", () => {
+    it("is an error, not a warning — every consumer tree has swept", () => {
+        // #206 accepted it transitionally so the 43 `sohl` notes authoring it
+        // were not invalidated by a release they could not sweep ahead of.
+        // They have swept; no tree authors it, so the acceptance guards
+        // nothing and the refusal is now the honest answer.
         const [finding] = findings() as any[];
-        expect(finding.file).toBe("/tree/doc.md");
-        expect(finding.message).toContain("user-guide");
-        expect(finding.message).toContain("userguide");
+        expect(finding.severity).toBe("error");
+        expect(findings().filter((f: any) => f.severity === "warning")).toEqual([]);
     });
 
-    it("is a warning, not an error", () => {
-        // The note compiles to the correct page, and erroring would red every
-        // consumer the moment it took this release — the ordering this change
-        // exists to avoid. The refusal comes after the sweep.
-        expect((findings()[0] as any).severity).toBe("warning");
+    it("is refused by the charset check, with nothing retirement-specific left", () => {
+        // The point of removing it rather than promoting it to an error: the
+        // value falls through to the ordinary rule, which already refuses it
+        // for the reason that always applied — it contains a hyphen.
+        const [finding] = findings() as any[];
+        expect(finding.message).toBe(subTypeCharsetMessage("user-guide"));
+        expect(finding.message).not.toMatch(/retired/i);
+        expect(finding.message).not.toContain("userguide");
+    });
+
+    it("reports it once, not as a retirement and a charset violation both", () => {
+        expect(findings()).toHaveLength(1);
     });
 
     it("locates it on the `subType` line", () => {
         expect(findings()[0]).toMatchObject({ line: 3, column: 1 });
     });
 
-    it("does not also report it as a charset violation or an undeclared value", () => {
-        expect(findings()).toHaveLength(1);
+    it("leaves no retirement map or lookup behind", () => {
+        // The transitional path was three exports and two call sites; removing
+        // the acceptance means removing them, not leaving them unreachable.
+        expect(noteVocabulary).not.toHaveProperty("RETIRED_SUBTYPES");
+        expect(noteVocabulary).not.toHaveProperty("retiredSubType");
+        expect(noteVocabulary).not.toHaveProperty("retiredSubTypeMessage");
     });
 
-    it("records the retirement as data, keyed by type", () => {
-        expect(retiredSubType("doc", "user-guide")).toBe("userguide");
-        expect(retiredSubType("doc", "userguide")).toBeUndefined();
-        // Retired on a `doc` and nowhere else — a `being` subtype spelled the
-        // same way is a charset violation, not a rename.
-        expect(retiredSubType("being", "user-guide")).toBeUndefined();
-        expect(RETIRED_SUBTYPES).toHaveProperty("doc");
+    it("still accepts the spelling it was renamed to", () => {
+        expect(lintNote(note("doc", { subType: "userguide" }), opts)).toEqual([]);
+    });
+});
+
+describe("the subType charset message says why the rule holds for a subType (#210)", () => {
+    const message = subTypeCharsetMessage("user-guide");
+
+    it("does not justify it by an address a subType no longer reaches", () => {
+        // #204/#208 retired sections, so `sectionOf` no longer returns a
+        // `doc`'s subType and a subType is not a URL path segment. The #206
+        // wording — "the hyphen separates the segments of an address" — was
+        // true of a subType when it shipped and is not true of one now.
+        expect(message).not.toContain("the segments of an address");
+        expect(message).not.toMatch(/read back as two segments/);
+    });
+
+    it("justifies it by what a subType is today — a vocabulary term", () => {
+        expect(message).toMatch(/vocabulary term/i);
+        expect(message).toMatch(/closed set away from being an address/i);
+    });
+
+    it("still names the charset, and the terms held to the same one", () => {
+        expect(message).toContain('`subType` "user-guide"');
+        expect(message).toMatch(/letters and digits/i);
+        expect(message).toContain(ADDRESS_SEGMENT_PATTERN.source);
+        expect(message).toMatch(/shortcode/);
+    });
+
+    it("leaves the type message justified by the address it does reach", () => {
+        // Deliberately asymmetric: a type *is* the first segment of every
+        // address, so its message keeps the reasoning the subType one loses.
+        expect(typeCharsetMessage("user-guide")).toContain("type-shortcode");
     });
 });
 

@@ -249,17 +249,16 @@ against the same constant a shortcode is checked against, and a note carrying a
 hyphenated value is reported where it wrote it:
 
 ```text
-Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. The hyphen separates the segments of an address, so a value containing one is read back as two segments and resolves to nothing
+Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not a well-formed subType — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. It is a vocabulary term the whole toolchain keys on, and one closed set away from being an address segment again, so a charset that held for every term but this one would be a rule nobody could state in a sentence
 ```
 
 One declared value broke the rule and has been renamed: a `doc`'s `user-guide`
-is now **`userguide`**. The old spelling is accepted for one transitional
-release and reported as a **warning** naming the replacement, so a tree that has
-not yet swept still builds:
-
-```text
-User_Guide/Actions.md:3:1: warning: `subType` "user-guide" is a retired spelling of "userguide" on a doc; write "userguide". …
-```
+is now **`userguide`**. The old spelling was accepted for one transitional
+release, as a warning naming the replacement, so the 43 `sohl` notes authoring
+it were not invalidated by the release that renamed them. Every consumer tree
+has swept, so the acceptance is gone (#210) and `user-guide` is refused by the
+charset check — it contains a hyphen, which is the reason that always applied.
+No retirement-specific code outlived the sweep.
 
 That is a guarantee rather than an observation, and it holds: of **4,456 distinct
 shortcodes** across the four content trees, not one contains a character outside

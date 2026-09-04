@@ -663,11 +663,11 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- core documents ------------------------------------------- */
 
     doc: Object.freeze({
-        // `userguide`, not `user-guide`: a `doc` routes by its subType, so the
-        // value is a path segment, and a segment carries no hyphen (#206). The
-        // old spelling is accepted transitionally — see {@link RETIRED_SUBTYPES}
-        // — but it is not declared here, because this list is what the format
-        // says a note *should* write.
+        // `userguide`, not `user-guide`: a subType is held to the address
+        // charset, and a segment carries no hyphen (#206). The old spelling was
+        // accepted transitionally for one release so the consumer trees could
+        // sweep; they have, so it is refused by the charset check now, with no
+        // retirement-specific code left over (#210).
         subTypes: Object.freeze(["rules", "userguide", "reference"]),
         data: Object.freeze([]),
     }),
@@ -732,83 +732,32 @@ export const NOTE_VOCABULARY = Object.freeze({
 });
 
 /**
- * The retired spelling of a subType a type declares → what to write now (#206).
- *
- * Keyed by type, because a retirement is a statement about *that type's*
- * vocabulary: `user-guide` on a `doc` is the old spelling of `userguide`, while
- * the same string on any other type is nothing but a charset violation, and
- * saying "did you mean userguide" there would be a guess dressed as a fact.
- *
- * **Recorded here rather than left in `subTypes`** so the declared list stays
- * the list of values a note *should* write. A retired value is accepted, not
- * declared — the difference is exactly what makes the finding possible.
- *
- * **Deliberately not the shape of a type rename** ({@link
- * import("./ids.mjs").RETIRED_TYPES}), which is an error: a retired type routes
- * a note to the wrong pack, whereas a retired subType still compiles to the
- * correct page. The sweep is the consumer's, and the ordering is the reverse of
- * the usual — the acceptance ships *first*, because declaring only the new
- * spelling while 43 `sohl` notes still author the old one would invalidate all
- * 43 with a release they had no chance to sweep ahead of. A later change
- * removes this map, and the old spelling then falls through to the ordinary
- * undeclared-value error with no code left to remove.
- *
- * @type {Readonly<Record<string, Readonly<Record<string, string>>>>}
- */
-export const RETIRED_SUBTYPES = Object.freeze({
-    doc: Object.freeze({ "user-guide": "userguide" }),
-});
-
-/**
- * What to write in place of a retired subType value, if it is one.
- *
- * @param {string} type - The note's `type`.
- * @param {string} value - The authored `subType`.
- * @param {Readonly<Record<string, Readonly<Record<string, string>>>>} [retired]
- *   The map to read, defaulting to {@link RETIRED_SUBTYPES}.
- * @returns {string|undefined} The current spelling, or `undefined` when the
- *   value is not a retired one — which is not the same as it being valid.
- */
-export function retiredSubType(type, value, retired = RETIRED_SUBTYPES) {
-    const forType = retired?.[type];
-    if (!forType || !Object.hasOwn(forType, value)) return undefined;
-    return forType[value];
-}
-
-/**
- * What a note carrying a retired subType is told.
- *
- * One message, so the lint and any later refusal cannot describe the same
- * retirement differently.
- *
- * @param {string} type - The note's `type`.
- * @param {string} value - The retired spelling the note carries.
- * @param {string} replacement - What to write instead.
- * @returns {string} The message.
- */
-export function retiredSubTypeMessage(type, value, replacement) {
-    return (
-        `\`subType\` "${value}" is a retired spelling of "${replacement}" on a ` +
-        `${type}; write "${replacement}". A subType is an address segment, and ` +
-        `a segment is ${ADDRESS_SEGMENT_PATTERN.source} — the hyphen separates ` +
-        `segments, so it can never occur inside one. The old spelling is still ` +
-        `accepted, and will stop being accepted once the trees have swept`
-    );
-}
-
-/**
  * What a note carrying a subType outside the address charset is told.
+ *
+ * **Why the charset holds for a subType, which reaches no address.** #206 said
+ * "the hyphen separates the segments of an address", and that was true of a
+ * subType when it shipped: `sectionOf` returned a `doc`'s subType, so the value
+ * was a URL path segment. #204 retired sections and it is not one now. The rule
+ * stays, on its own footing: a subType is a vocabulary term the whole toolchain
+ * keys on, and it is one closed set away from being an address segment again —
+ * so the reason to spell it in the address charset is that a charset holding
+ * for a type, a shortcode and a `contentPackage` but not for a subType is a
+ * rule nobody can state in a sentence.
+ *
+ * Contrast {@link typeCharsetMessage}, which keeps the address reasoning
+ * because a type genuinely is the first segment of every address.
  *
  * @param {string} value - The authored `subType`.
  * @returns {string} The message.
  */
 export function subTypeCharsetMessage(value) {
     return (
-        `\`subType\` "${value}" is not an address segment — a subType is ` +
+        `\`subType\` "${value}" is not a well-formed subType — a subType is ` +
         `letters and digits only (${ADDRESS_SEGMENT_PATTERN.source}), the same ` +
-        `charset a shortcode is held to. The hyphen separates the segments of ` +
-        `an address, so a value containing one is read back as two segments ` +
-        `and resolves to nothing`
+        `charset a type, a shortcode and a contentPackage are held to. It is a ` +
+        `vocabulary term the whole toolchain keys on, and one closed set away ` +
+        `from being an address segment again, so a charset that held for every ` +
+        `term but this one would be a rule nobody could state in a sentence`
     );
 }
 
