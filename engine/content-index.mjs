@@ -90,7 +90,14 @@ import { loadPackConfig } from "./pack-config.mjs";
  *
  * @type {ReadonlyArray<string>}
  */
-export const DERIVED_KEYS = Object.freeze(["package", "file", "address", "anchors", "nameAscii"]);
+export const DERIVED_KEYS = Object.freeze([
+    "package",
+    "file",
+    "address",
+    "anchors",
+    "nameAscii",
+    "aliasesAscii",
+]);
 
 /**
  * A heading, and the `{#slug}` anchor it declares.
@@ -251,6 +258,30 @@ export function asciiName(name) {
 }
 
 /**
+ * A note's `name.aliases` reduced to printable 7-bit ASCII, in order.
+ *
+ * An alias is the name a reader is at least as likely to reach for as the
+ * canonical one — `Killer Whale` for an orca, `Ice Bear` for a polar bear,
+ * `Ix'balam` for a jaguar — so anything searching or completing over the index
+ * has to match them too, and needs the same keyboard-typeable form
+ * {@link asciiName} gives the primary name.
+ *
+ * Order is the authored order, so a caller can pair an entry with the alias it
+ * came from. An alias that is not a non-empty string, or that leaves nothing
+ * printable behind, is dropped rather than left as a hole — the array is a set
+ * of names to match, and a null in it is not one.
+ *
+ * @param {unknown} aliases - The note's `name.aliases`; may be absent or null.
+ * @returns {Array<string>} Possibly empty, never null: a note with no aliases
+ *   has an empty set of them, which is a fact rather than a missing value, and
+ *   a consumer iterating it should not have to check first.
+ */
+export function asciiAliases(aliases) {
+    if (!Array.isArray(aliases)) return [];
+    return aliases.map((alias) => asciiName(alias)).filter((alias) => alias !== null);
+}
+
+/**
  * Build one index record from a note's frontmatter and its place in the tree.
  *
  * @param {object} options - Options.
@@ -283,6 +314,7 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, b
             package: contentPackage,
             address,
             nameAscii: asciiName(frontmatter?.name?.full),
+            aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
             // Each anchor carries the link that reaches it, so a section is
             // addressable from the index without anyone re-deriving how an
             // anchor is spelled — and its file line, so an editor can jump

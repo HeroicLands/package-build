@@ -58,7 +58,11 @@ searches over the same data disagreeing. It transliterates rather than strips,
 through the same `unidecode` table `slugify` already runs — so an ASCII name and
 a slug cannot disagree about a character, and `Kûrbúl` does not become `Krbl`.
 Emitted even when it equals the name, so a consumer never branches on whether a
-name happened to be ASCII; `null` only when the note has no name.
+name happened to be ASCII; `null` only when the note has no name. `aliasesAscii`
+does the same for `name.aliases` in the authored order — an alias is the name a
+reader is at least as likely to reach for (`Killer Whale` for an orca), so a
+search has to match it too — and is an empty array rather than null when a note
+has none.
 
 `file.path` stays relative to the content root and is deliberately never absolute:
 an absolute path is a fact about the machine that built the index, so it would break

@@ -1467,6 +1467,15 @@ never has to branch on whether the name happened to be ASCII already; it is
 `null` only when the note has no name at all. On the `sohl` tree, 25 of 1,606
 notes differ from their `name.full`.
 
+`aliasesAscii` does the same for `name.aliases`, in the authored order. An alias
+is the name a reader is at least as likely to reach for as the canonical one —
+`Killer Whale` for an orca, `Ice Bear` for a polar bear, `Ix'balam` for a
+jaguar — so anything searching the index has to match them too. It is an **empty
+array**, never null, when a note has no aliases: an empty set of names is a fact
+rather than a missing value, and a consumer iterating it should not have to check
+first. An entry that is not a non-empty string is dropped rather than left as a
+hole, since the array is a set of names to match and a null is not one.
+
 `address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
 is the package-qualified key the link manifest files the note under. Both are
 `null` for a note with no type or no shortcode, which has no address at all — the

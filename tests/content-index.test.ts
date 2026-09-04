@@ -21,6 +21,7 @@ import {
     sortKeysDeep,
     noteAddress,
     asciiName,
+    asciiAliases,
     collectAnchors,
     buildIndexRecord,
     collectContentIndex,
@@ -178,6 +179,32 @@ describe("asciiName", () => {
     });
 });
 
+describe("asciiAliases", () => {
+    it("folds every alias, keeping the authored order", () => {
+        expect(asciiAliases(["Killer Whale", "Ærling", "Kèthîra"])).toEqual([
+            "Killer Whale",
+            "AErling",
+            "Kethira",
+        ]);
+    });
+
+    it("is an empty array when there are no aliases", () => {
+        // Never null: a note with no aliases has an empty set of them, and a
+        // consumer iterating should not have to check first.
+        expect(asciiAliases(undefined)).toEqual([]);
+        expect(asciiAliases(null)).toEqual([]);
+        expect(asciiAliases([])).toEqual([]);
+    });
+
+    it("drops an entry that is not a name, rather than leaving a hole", () => {
+        expect(asciiAliases(["Ice Bear", "", null, 42, "   "] as any)).toEqual(["Ice Bear"]);
+    });
+
+    it("is not confused by a non-array", () => {
+        expect(asciiAliases("Killer Whale" as any)).toEqual([]);
+    });
+});
+
 describe("collectAnchors", () => {
     const body = [
         "# Aurochs", // an H1 starts a page but declares no slug
@@ -289,6 +316,30 @@ describe("buildIndexRecord", () => {
         expect(record.nameAscii).toBe("Kurbul Helm");
         // The authored name is untouched beside it.
         expect(record.name.full).toBe("Kûrbúl Helm");
+    });
+
+    it("carries ASCII forms of the note's aliases", () => {
+        const record = buildIndexRecord({
+            frontmatter: {
+                type: "being",
+                shortcode: "orca",
+                name: { full: "Orca", aliases: ["Killer Whale", "Ærling"] },
+            },
+            relPath: "A.md",
+            contentPackage: "sohl",
+        });
+        expect(record.aliasesAscii).toEqual(["Killer Whale", "AErling"]);
+        // The authored aliases are untouched beside them.
+        expect(record.name.aliases).toEqual(["Killer Whale", "Ærling"]);
+    });
+
+    it("states an empty alias set rather than omitting it", () => {
+        const record = buildIndexRecord({
+            frontmatter: { type: "being", shortcode: "x", name: { full: "X" } },
+            relPath: "A.md",
+            contentPackage: "sohl",
+        });
+        expect(record.aliasesAscii).toEqual([]);
     });
 
     it("keeps the path relative, never absolute", () => {
