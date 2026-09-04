@@ -527,9 +527,9 @@ describe("the address scheme a repository publishes at (#58)", () => {
         expect(() => address({ prefix: "/kb/" })).toThrow(/must not begin with a slash/);
     });
 
-    it("names the landing rules rather than accepting any string", () => {
-        expect(address({ landing: "collection" }).landing).toBe("collection");
-        expect(() => address({ landing: "readmes" })).toThrow(/readme, collection/);
+    it("names the landing rule rather than accepting any string", () => {
+        expect(address({ landing: "readme" }).landing).toBe("readme");
+        expect(() => address({ landing: "readmes" })).toThrow(/must be one of readme/);
     });
 
     it("rejects an unknown key, as every other section does", () => {

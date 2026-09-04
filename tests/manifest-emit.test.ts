@@ -99,13 +99,12 @@ name:
     full: The Rules`,
     );
 
-    // A collection note — a page under `readme`, a landing page under
-    // `collection`.
+    // A second `doc`, to pin that an ordinary note is addressed by
+    // `(type, shortcode)` whether or not a `README` sits beside it.
     note(
         "Creatures.md",
         `type: doc
-subType: collection
-section: creature
+subType: reference
 shortcode: creatures
 id: dddddddddddddddd
 name:
@@ -169,37 +168,30 @@ describe("the address scheme is configuration, and both live rules work", () => 
         expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
     });
 
-    it("`readme`: a README addresses its section, a collection is a page", () => {
+    it("`readme`: a README addresses its section, every other note a page", () => {
         const doc = emit({ ...WEB, address: { landing: "readme", prefix: "kb/" } });
         expect(doc.entries["demo-doc-rulesidx"].path).toBe("kb/rules/");
-        // The rule `sohl` relies on: its eleven collection notes are ordinary
-        // pages rather than landing pages, so they take an address.
+        // The one rule (#202): a note that is not a `README` is addressed by
+        // `(type, shortcode)`, wherever it sits and whatever it introduces.
         expect(doc.entries["demo-doc-creatures"].path).toBe("doc-creatures/");
     });
 
-    it("`collection`: a collection note addresses its authored section", () => {
-        const doc = emit({ ...WEB, address: { landing: "collection" } });
-        expect(doc.entries["demo-doc-creatures"].path).toBe("creature/");
-        // And the README is then an ordinary page, so the two rules really are
-        // alternatives rather than a pair that could both be applied.
-        expect(doc.entries["demo-doc-rulesidx"].path).toBe("doc-rulesidx/");
-    });
-
-    it("a collection note naming no section is reported, never guessed", () => {
+    it("a README landing naming no section is reported, never guessed", () => {
         note(
-            "Nowhere.md",
+            "Nowhere/README.md",
             `type: doc
-subType: collection
 shortcode: nowhere
 id: 2222222222222222
 name:
     full: Nowhere`,
         );
-        const ctx = manifestContext(configFor({ ...WEB, address: { landing: "collection" } }));
+        const ctx = manifestContext(configFor({ ...WEB }));
         const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
-        expect(skipped.map((s) => s.file)).toContain("Nowhere.md");
-        expect(skipped.find((s) => s.file === "Nowhere.md")?.reason).toMatch(/lands nowhere/);
-        fs.rmSync(path.join(root, "assets/content/Nowhere.md"));
+        expect(skipped.map((s) => s.file)).toContain("Nowhere/README.md");
+        expect(skipped.find((s) => s.file === "Nowhere/README.md")?.reason).toMatch(
+            /lands nowhere/,
+        );
+        fs.rmSync(path.join(root, "assets/content/Nowhere"), { recursive: true });
     });
 });
 

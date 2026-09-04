@@ -72,6 +72,7 @@ import {
     draftRetiredMessage,
     readAliasedField,
     retiredAliasMessage,
+    sectionRetiredMessage,
 } from "./retired-fields.mjs";
 
 /**
@@ -576,6 +577,17 @@ export function lintNote(
             ...at("draft"),
             severity: "error",
             message: draftRetiredMessage(),
+        });
+    }
+    // Anchored at column 1 for the same reason `aliases` is: `section` names a
+    // configuration key too (`site.trees[].section`), and a nested one under
+    // some other block is not this field (#202).
+    if (Object.hasOwn(fm, "section")) {
+        findings.push({
+            file: note.file,
+            ...positionInFrontmatter(raw(), "section", undefined, { topLevel: true }),
+            severity: "error",
+            message: sectionRetiredMessage(),
         });
     }
     // Only the top-level `aliases` is retired. `name.aliases` writes the same

@@ -135,18 +135,6 @@ describe("a README landing's `subType` is an address, not a genre (#197)", () =>
         expect(messages(findings)).toContain("is not one of the subtypes skill declares");
     });
 
-    it("checks the genre list under a landing rule other than `readme`", () => {
-        const findings = lintNote(
-            note("/tree/Weapons/README.md", {
-                type: "doc",
-                subType: "weapongear",
-                shortcode: "weapons",
-            }),
-            { ...opts, landing: "collection" },
-        );
-        expect(messages(findings)).toContain("is not one of the subtypes doc declares");
-    });
-
     it("accepts an item-section README in a package that configures no sections", () => {
         // The case that escaped #198: `sohl-thalorna` has no `site:` block at
         // all, so nothing is configured — and every one of its landings names a

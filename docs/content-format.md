@@ -1358,27 +1358,16 @@ subType:
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - user-guide: How to operate the Foundry implementation to play by the rules.
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
-- collection: A note whose content is **derived from the tree** — a roster, a table of
-  settlements, an index of languages, almost always a query. It differs from `reference` in
-  where its content comes from, not in who reads it: a reference **states** facts of its own,
-  and a collection **derives** them. The author's test is whether the page would still say
-  anything if every other note vanished. A collection can therefore collect nothing and still
-  render — an empty table looks exactly like a full one until you read it — which is the
-  failure this value exists to make nameable.
 
-| `data` property | Values   | Description                                                                                               |
-| --------------- | -------- | --------------------------------------------------------------------------------------------------------- |
-| `section`       | `string` | For a `collection` only: the URL segment of the section it heads. Omit it and the note's own slug is used |
+A `doc` declares no properties of its own.
 
-**`section` is the segment, not a label.** A collection is a section's landing
-page, so what it names is where that section lives — and two collections may not
-claim the same one. A collection that lists a _subset_ of a section therefore
-names none: five of `sohl-thalorna`'s list places and three list affiliations, and
-each falls back to its own slug rather than fighting over `/place/`.
-
-It is authored rather than derived because the note's own title is presentation:
-a collection called "Creatures" heads the `being` section, and slugging the title
-would put it somewhere else.
+**A section is landed by its `README.md`.** A note that introduces a whole
+section — with its prose and, usually, a generated table of what the section
+holds — is the `README.md` in that section's directory, and it addresses the
+section rather than a page within it. A `subType: collection` value and a
+top-level `section:` key were a second way to say that, and both are retired
+(#202): a `README` needs nothing authored to name where it lands, because it
+lands where it sits.
 
 ### type: macro
 

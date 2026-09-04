@@ -108,30 +108,6 @@ export function contentAddress(fm, isReadme) {
 }
 
 /**
- * Whether a note is a landing page under a scheme, and what it lands at.
- *
- * @param {object} fm - Parsed frontmatter.
- * @param {boolean} isReadme - Whether the file is a `README.md`.
- * @param {string} landing - The landing rule, one of {@link LANDING_RULES}.
- * @returns {{landing: true, segment: string}|{landing: false}|{landing: true, segment: undefined}}
- *   `segment` is the single path segment the note addresses. A `collection`
- *   note that declares no `section` is a landing page with no segment — an
- *   error rather than a page, since it names nowhere to land.
- */
-function landingOf(fm, isReadme, landing) {
-    if (landing === "readme") {
-        return isReadme ? { landing: true, segment: sectionOf(fm) } : { landing: false };
-    }
-    // `collection`. The section is authored rather than derived: it is the
-    // identity of the section being introduced, and the note's own title
-    // ("Creatures") is presentation, which would slug to something else.
-    if (fm.type === "doc" && fm.subType === "collection") {
-        return { landing: true, segment: fm.section || fm.slug };
-    }
-    return { landing: false };
-}
-
-/**
  * A note's address relative to its **package**, e.g. `affliction-aconite/`.
  *
  * This is the form the link manifest records and the site build emits pages at,
@@ -160,6 +136,8 @@ function landingOf(fm, isReadme, landing) {
  * @param {boolean} [options.isReadme] - Whether the file is a `README.md`.
  * @param {{prefix?: string, landing?: string}} [options.scheme] - The
  *   repository's address scheme; defaults to {@link DEFAULT_ADDRESS_SCHEME}.
+ *   `landing` names the rule and is validated against {@link LANDING_RULES},
+ *   which has held one value since #202.
  * @returns {string} The package-relative address, with a trailing slash and no
  *   leading one.
  * @throws {Error} When the note has no address — no section, a landing page
@@ -175,12 +153,16 @@ export function packageAddress(fm, { isReadme = false, scheme } = {}) {
                 `of ${LANDING_RULES.join(", ")}`,
         );
     }
-    const land = landingOf(fm, isReadme, landing);
-    if (land.landing) {
-        if (typeof land.segment !== "string" || !land.segment) {
+    // One rule: a `README.md` **is** its section's landing page (#202). The
+    // site build says the same thing the same way — it derives `isReadme` from
+    // the basename and never consults the scheme — so the address a manifest
+    // records and the address a page is emitted at cannot disagree.
+    if (isReadme) {
+        const segment = sectionOf(fm);
+        if (typeof segment !== "string" || !segment) {
             throw new Error(`landing note declares no section, so it lands nowhere`);
         }
-        return `${prefix}${land.segment}/`;
+        return `${prefix}${segment}/`;
     }
     const sec = sectionOf(fm);
     if (typeof sec !== "string" || !sec) {
