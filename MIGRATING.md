@@ -1,14 +1,46 @@
-<!-- The version this ships in is not known while the branch is open: several
-     major changesets are in flight at once, and whichever lands second would
-     have predicted a number already taken. Set the heading at release. -->
+# Migrating to `@heroiclands/package-build` 15.0.0
 
-# Migrating to `@heroiclands/package-build` &lt;next major — set at release&gt;
+**Two unrelated changes ship in this major, and they ask different repositories
+for different things.** A page's `url:` front matter is now stated relative to
+the **site root** (#217), which a site-publishing repository answers by deleting
+one line; and an empty art path now means the opposite of an absent one (#218),
+which a content tree answers by sweeping `img: ""` and `portrait: ""` to `null`.
+A repository that publishes no site does only §3–§5; one that authors no empty
+art path does only §1–§2.
 
-**One note edit, in trees that author `img: ""` or `portrait: ""`.** An empty
-art path used to mean the same thing as an absent one; it now means the opposite
-(#218).
+## 1. Drop the `site.base: "/"` stopgap (#217)
 
-## 1. Sweep `img: ""` and `portrait: ""` to `null`
+If your repository set it to stop every page publishing at
+`/<package>/<package>/<address>/`, delete the line — the default,
+`/<contentPackage>/`, is now right for both halves:
+
+```yaml
+site:
+  out: kb/content
+  # base: "/"   ← delete this
+```
+
+Keeping it is no longer harmless: the addresses stay correct either way, but
+every same-package link this build renders into a page body stays short
+(`/doc-skills/` rather than `/sohl/doc-skills/`) and 404s.
+
+A repository that is genuinely served somewhere other than
+`/<contentPackage>/` still says so here, and that value still reaches every
+`href`.
+
+## 2. What the `url:` change does _not_ touch
+
+- No note edits, and no configuration key added or removed.
+- Every link-manifest entry, including each entry's `path`, is byte-identical.
+- Every compiled compendium document is unchanged.
+- `trees` pages and section landings state no `url:` and do not move.
+
+The published address of every content page **does** move — from
+`/<package>/<package>/<address>/`, where nothing linked, to
+`/<package>/<address>/`, which is what the link manifest, the sitemap and every
+inbound link already named.
+
+## 3. Sweep `img: ""` and `portrait: ""` to `null` (#218)
 
 `resolveImg` opened with `if (!raw) return ""`, and every caller applied its own
 default to the result with `||`. So `""`, `null` and an absent key were one
@@ -44,7 +76,7 @@ back to this type's default. Write `img: null` for a note that simply names
 none; keep `""` only where the document is meant to have no image
 ```
 
-## 2. Custom callers pair their default with `??`, not `||`
+## 4. Custom callers pair their default with `??`, not `||`
 
 `resolveImg` returns `string | null` now: `null` for an unset path, `""` for a
 deliberate blank. A consumer that calls it directly — a custom item builder, a
@@ -63,7 +95,7 @@ prototype token's `texture.src`), and `engine/macros.mjs`.
 `itemArt()` is unaffected — a registry entry with no art throws before the
 translation, so its result is never the unset case.
 
-## 3. `title` is **not** on this rule
+## 5. `title` is **not** on this rule
 
 The rule reads as a general one about optional strings, and it is not. On a
 `type: affiliation` note, `title` is _also_ a declared item field whose default
