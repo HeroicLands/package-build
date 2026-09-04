@@ -95,13 +95,6 @@ describe("a landing page is addressed by the section it is", () => {
         expect(contentAddress(fm, true)).toBe("rules/");
     });
 
-    it("`collection`: a collection note addresses the section it introduces", () => {
-        const fm = { type: "doc", subType: "collection", section: "creature", shortcode: "crt" };
-        expect(packageAddress(fm, { scheme: { prefix: "kb/", landing: "collection" } })).toBe(
-            "kb/creature/",
-        );
-    });
-
     it("needs no shortcode, because it is not addressed by one", () => {
         const fm = { type: "doc", subType: "rules" };
         expect(packageAddress(fm, { isReadme: true, scheme: { landing: "readme" } })).toBe(
@@ -118,11 +111,10 @@ describe("a note with no address is refused, never guessed", () => {
     });
 
     it("reports a landing note naming no section", () => {
+        // A `README` whose `doc` note declares no subtype: `sectionOf` yields
+        // nothing, so there is no segment to land at (#202).
         expect(() =>
-            packageAddress(
-                { type: "doc", subType: "collection", shortcode: "nowhere" },
-                { scheme: { landing: "collection" } },
-            ),
+            packageAddress({ type: "doc", shortcode: "nowhere" }, { isReadme: true }),
         ).toThrow(/lands nowhere/);
     });
 

@@ -77,7 +77,11 @@ import {
 } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
-import { assertNoAliasesField, assertNoDraftField } from "./retired-fields.mjs";
+import {
+    assertNoAliasesField,
+    assertNoDraftField,
+    assertNoSectionField,
+} from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
@@ -784,6 +788,7 @@ export class BasePackCompiler {
                 assertNoDeclaredPackage(fm, { absPath });
                 assertNoDraftField(fm, { absPath });
                 assertNoAliasesField(fm, { absPath });
+                assertNoSectionField(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;

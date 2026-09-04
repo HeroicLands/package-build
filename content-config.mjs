@@ -119,25 +119,43 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
  * The landing-page rules a repository may route by.
  *
  * A *landing page* is a note that addresses a whole section rather than a page
- * within one, so it has no slug of its own. Which note that is differs between
- * repositories, and both live rules are represented here because switching
- * either one on for the other repository moves addresses that are already
- * published:
+ * within one, so it has no slug of its own. There is one rule: `readme` — a
+ * `README.md` **is** its section's landing page, and every other note is
+ * addressed by `(type, shortcode)` like any other page.
  *
- * - `readme` — a `README.md` **is** its section's landing page. This is `sohl`'s
- *   rule, and a `doc` note routes by its `category` like any other, so `sohl`'s
- *   eleven `category: collection` notes publish under a literal `collection/`
- *   section (`kb/collection/skills/`).
- * - `collection` — a `doc` note whose `category` is `collection` addresses the
- *   section it introduces, named by its authored `section`. This is `thalorna`'s
- *   rule, under which the same note publishes at `creature/`.
- *
- * The two are not disjoint and cannot simply both apply: each tree holds notes
- * the other rule would move.
+ * **It reads as a list because a second rule existed and was retired**
+ * (#202), not because one is expected. `collection` routed a `doc` note whose
+ * `subType` was `collection` to the section named by an authored top-level
+ * `section:` key; no content tree used it, and `engine/site-build.mjs` never
+ * implemented it — it derives `isReadme` from the basename and treats a
+ * `README.md` as a landing whatever the configured rule says. So the link
+ * manifest and the site would have disagreed about where a page is, which is
+ * the one failure the shared address function exists to prevent. Its retirement
+ * is what makes them agree by construction rather than by coincidence.
  *
  * @type {readonly string[]}
  */
-export const LANDING_RULES = Object.freeze(["readme", "collection"]);
+export const LANDING_RULES = Object.freeze(["readme"]);
+
+/**
+ * What a configuration naming the retired `collection` landing rule is told.
+ *
+ * A retired *value* is refused the way a retired *field* is (see
+ * `engine/retired-fields.mjs`): left merely unrecognized it would be reported
+ * as a bad value, which names something to correct and leaves the author to
+ * work out for themselves that the mechanism is gone. The message says the rule
+ * is retired, what lands a section instead, and what to do with the key.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const RETIRED_LANDING_RULES = Object.freeze({
+    collection:
+        "the `collection` landing rule is retired — a section is landed by " +
+        "its `README.md`, which is now the only rule. Delete this key, or " +
+        "write `landing: readme`, and land each section from the `README.md` " +
+        "in its directory; the `section:` frontmatter key the rule read is " +
+        "retired with it",
+});
 
 /**
  * A repository's address scheme, with the defaults an unconfigured one gets.
@@ -481,7 +499,8 @@ export function declaredSections(config) {
 /**
  * @typedef {object} AddressSchemeInput
  * @property {string} [prefix]   Where the content tree mounts inside the package.
- * @property {string} [landing]  Which note addresses a whole section.
+ * @property {string} [landing]  Which note addresses a whole section. One value,
+ *   `readme`, since #202 retired the second — see {@link LANDING_RULES}.
  */
 
 /**
@@ -1759,6 +1778,13 @@ function normalizePublish(value) {
         address.landing === undefined ?
             DEFAULT_ADDRESS_SCHEME.landing
         :   optionalString(address.landing, "publish.address.landing");
+    // A retired rule is refused by name, before the vocabulary check: reported
+    // as merely unrecognized it would read as a misspelling of the one that
+    // survives, and the author would correct the value rather than learn that
+    // the mechanism is gone (#202).
+    if (Object.hasOwn(RETIRED_LANDING_RULES, landing)) {
+        fail("publish.address.landing", RETIRED_LANDING_RULES[landing]);
+    }
     if (!LANDING_RULES.includes(landing)) {
         fail("publish.address.landing", `must be one of ${LANDING_RULES.join(", ")}`);
     }

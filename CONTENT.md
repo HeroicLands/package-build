@@ -1231,7 +1231,7 @@ publish:
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/ # default: "" — the package root
-    landing: readme # default: readme
+    landing: readme # default: readme — the only rule
 ```
 
 - **`prefix`** — the content tree's mount within the package: where its section
@@ -1242,15 +1242,12 @@ publish:
   must not begin with one — where the _package_ is mounted is the consuming
   build's knowledge and is never recorded here.
 - **`landing`** — which note is a section's landing page, and so is addressed by
-  the section rather than by `(type, shortcode)`:
-  - `readme` — a `README.md` addresses its section. A `doc` note then routes by
-    its `category` like any other, so a `category: collection` note publishes
-    under a literal `collection/` section.
-  - `collection` — a `doc` note whose `category` is `collection` addresses the
-    section it introduces, named by its authored `section`.
-
-  The two are alternatives rather than a pair that could both apply: each live
-  content tree holds notes the other rule would move.
+  the section rather than by `(type, shortcode)`. One value, `readme`: a
+  `README.md` addresses the section it sits in, and every other note is
+  addressed by `(type, shortcode)`. A second rule, `collection`, routed a `doc`
+  note whose `subType` was `collection` to the section named by an authored
+  top-level `section:`; it is retired (#202), along with that subtype and that
+  key. Declaring it is refused, and says so.
 
 **Under `readme`, a landing's `subType` is an address rather than a genre.** The
 segment the `README` lands at is what `sectionOf` reads — for a `doc`, its
@@ -1269,8 +1266,8 @@ Configuring the section is **not** a prerequisite — `site.sections` is framing
 and a package that renders its own site need declare no `site:` block at all.
 
 A note the scheme yields no address for — one carrying no `shortcode`, a `doc`
-with no subtype (so no section to be filed under), a collection note naming no
-section — is **reported and omitted**, never guessed. The command
+with no subtype (so no section to be filed under, and, in a `README`, no section
+to land at) — is **reported and omitted**, never guessed. The command
 prints one located diagnostic per note and still writes the file, because a note
 with no address is ordinary while a manifest entry pointing at a page that does
 not exist is not.

@@ -22,9 +22,9 @@
  * says what to write instead rather than which value to correct.
  *
  * `package:` is retired the same way and is refused from `note-package.mjs`,
- * where the concept it belonged to still lives. `draft:` and the top-level
- * `aliases:` have no such home — there is no surviving concept either was part
- * of — so they are refused here.
+ * where the concept it belonged to still lives. `draft:`, the top-level
+ * `aliases:` and `section:` have no such home — there is no surviving concept
+ * any of them was part of — so they are refused here.
  *
  * **What `draft:` did (#69).** It excluded a note from the compiled packs, from
  * the link manifest and from a consuming site build. Nothing reported the
@@ -40,6 +40,13 @@
  * corpus, while the collision rule guarding it folded in every note's
  * `name.full` and so decided what a note could be named (#179). The form and
  * the index are retired together, leaving the field with no reader at all.
+ *
+ * **What `section:` did (#202).** It named the section a `collection` note
+ * headed, under the `collection` landing rule — its only reader anywhere. That
+ * rule is retired, a section being landed by the `README.md` in its directory,
+ * so the field has none. No schema or vocabulary ever declared it either, and
+ * nothing checks unrecognized top-level keys, so left in place it would be
+ * silently ignored rather than reported.
  *
  * **`name.aliases` fed the same index and is nonetheless kept.** It is
  * **reserved** — held for a use that does not exist yet — so it is the one
@@ -214,6 +221,69 @@ export function assertNoAliasesField(fm, { file, absPath } = {}) {
  */
 export function declaresRetiredAliasesField(fm) {
     return Boolean(fm) && typeof fm === "object" && Object.hasOwn(fm, "aliases");
+}
+
+/**
+ * What a note declaring `section:` is told, in one place.
+ *
+ * Shared by the compile-time refusal and the frontmatter lint, because an
+ * author meets whichever of the two runs first and they should read the same.
+ * It names what lands a section now rather than a value to correct: no value
+ * makes declaring the field right.
+ *
+ * **What it did (#202).** It named the section a `collection` note headed,
+ * under the `collection` landing rule — the only reader it ever had, in the
+ * second branch of `landingOf` (`engine/content-address.mjs`). That rule is
+ * retired: a section is landed by its `README.md`, which addresses the section
+ * it sits in and needs nothing authored to say which. Nothing else read the
+ * field, and no schema or vocabulary declared it, so left in place it would be
+ * ignored in silence — the note saying one thing and the build doing another.
+ *
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function sectionRetiredMessage(file) {
+    return (
+        "`section:` is a retired frontmatter field — delete it" +
+        (file ? ` — ${file}` : "") +
+        ". It named the section a `collection` note headed, and the " +
+        "`collection` landing rule is retired: a section is landed by the " +
+        "`README.md` in its directory, which addresses the section it sits " +
+        "in. Nothing else ever read the field"
+    );
+}
+
+/**
+ * Refuse a note that declares `section:` at all.
+ *
+ * Presence is the whole test, as it is for `draft:` and `aliases:`: an empty
+ * value reads as "this note heads a section and names none", a statement about
+ * a rule that no longer exists.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
+ *   could not be parsed.
+ * @param {object} [options] - Options.
+ * @param {string} [options.file] - The note's path, named in the message. Omit
+ *   it where the caller emits through a diagnostic, which puts the locator at
+ *   the start of the line already — repeating it prints the path twice.
+ * @param {string} [options.absPath] - The note's file on disk, read only on the
+ *   failing path to locate the offending line and column. The position rides on
+ *   the thrown error as `position`, for a caller that emits a diagnostic.
+ * @returns {void}
+ * @throws {Error} When the note declares the field.
+ */
+export function assertNoSectionField(fm, { file, absPath } = {}) {
+    if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "section")) return;
+
+    const err = new Error(`${sectionRetiredMessage(file)}.`);
+    // Anchored at column 1: `site.trees[].section` is a *configuration* key of
+    // the same name, and a nested `section:` inside some other block is not
+    // this field — a finding about the top-level one must not open on it.
+    const position = locateFrontmatterKey(absPath, "section", undefined, { topLevel: true });
+    if (position) err.position = position;
+    throw err;
 }
 
 /**
