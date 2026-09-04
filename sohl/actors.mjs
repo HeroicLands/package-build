@@ -763,7 +763,9 @@ export class Actors extends BasePackCompiler {
             // Required nullable number: a priority, or `null` for a being that
             // is not an archetype (#126 / archetype contract #604).
             archetype: systemArchetype(fm, ctx),
-            portrait: resolveImg(blockProperty(fm, SYSTEM, "portrait")) || defaultImg,
+            // Nullish, not `||` (#218): a note that names no portrait gets the
+            // subtype's default, one that writes `""` ships blank on purpose.
+            portrait: resolveImg(blockProperty(fm, SYSTEM, "portrait")) ?? defaultImg,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };
@@ -815,7 +817,8 @@ export class Actors extends BasePackCompiler {
         return {
             name,
             type: subType,
-            img: resolveImg(blockProperty(fm, SYSTEM, "img")) || defaultImg,
+            // Nullish, not `||` — see the portrait above (#218).
+            img: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? defaultImg,
             _id: id,
             system,
             items,
@@ -823,7 +826,7 @@ export class Actors extends BasePackCompiler {
                 name,
                 displayName: 0,
                 actorLink: false,
-                texture: { src: resolveImg(blockProperty(fm, SYSTEM, "img")) || defaultImg },
+                texture: { src: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? defaultImg },
                 width: 1,
                 height: 1,
                 sight: { enabled: false },

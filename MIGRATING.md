@@ -1,11 +1,14 @@
 # Migrating to `@heroiclands/package-build` 15.0.0
 
-**One line to delete, in a site-publishing repository only.** A page's `url:`
-front matter is now stated relative to the **site root**, so `site.base` reaches
-the `href`s this build renders and the base a link-manifest `path` is measured
-against, and reaches a page's own address not at all (#217).
+**Two unrelated changes ship in this major, and they ask different repositories
+for different things.** A page's `url:` front matter is now stated relative to
+the **site root** (#217), which a site-publishing repository answers by deleting
+one line; and an empty art path now means the opposite of an absent one (#218),
+which a content tree answers by sweeping `img: ""` and `portrait: ""` to `null`.
+A repository that publishes no site does only §3–§5; one that authors no empty
+art path does only §1–§2.
 
-## 1. Drop the `site.base: "/"` stopgap
+## 1. Drop the `site.base: "/"` stopgap (#217)
 
 If your repository set it to stop every page publishing at
 `/<package>/<package>/<address>/`, delete the line — the default,
@@ -25,7 +28,7 @@ A repository that is genuinely served somewhere other than
 `/<contentPackage>/` still says so here, and that value still reaches every
 `href`.
 
-## 2. Nothing else
+## 2. What the `url:` change does _not_ touch
 
 - No note edits, and no configuration key added or removed.
 - Every link-manifest entry, including each entry's `path`, is byte-identical.
@@ -36,6 +39,74 @@ The published address of every content page **does** move — from
 `/<package>/<package>/<address>/`, where nothing linked, to
 `/<package>/<address>/`, which is what the link manifest, the sitemap and every
 inbound link already named.
+
+## 3. Sweep `img: ""` and `portrait: ""` to `null` (#218)
+
+`resolveImg` opened with `if (!raw) return ""`, and every caller applied its own
+default to the result with `||`. So `""`, `null` and an absent key were one
+case: all three compiled to the type's default art, and a note had no way to say
+"ship no image" at all.
+
+They are now three values with two meanings:
+
+| a note writes  | it means                             | it compiles with |
+| -------------- | ------------------------------------ | ---------------- |
+| nothing at all | _unset_ — name me no art             | the type default |
+| `img: null`    | the same thing, said out loud        | the type default |
+| `img: ""`      | _blank on purpose_ — I want no image | no image         |
+
+So a note still carrying `img: ""` **loses its default art**. The same holds for
+`portrait:`, which a being carries independently of `img` and which resolves
+through the same function. Find them both:
+
+```bash
+grep -rnE '^[[:space:]]*(img|portrait):[[:space:]]*""[[:space:]]*$' assets/content --include='*.md'
+```
+
+and write `null` in each — unless the document really is meant to have no image,
+which is what `""` now says. Before this release `sohl-thalorna` swept forty-five
+`img: ""` notes and `sohl-kethira-basic` eleven `portrait: ""` beings; `sohl`
+authors neither.
+
+The frontmatter lint reports every one that is left, as a warning:
+
+```
+Note.md:9:1: warning: `img: ""` means "ship no art at all" — it no longer falls
+back to this type's default. Write `img: null` for a note that simply names
+none; keep `""` only where the document is meant to have no image
+```
+
+## 4. Custom callers pair their default with `??`, not `||`
+
+`resolveImg` returns `string | null` now: `null` for an unset path, `""` for a
+deliberate blank. A consumer that calls it directly — a custom item builder, a
+compiler of its own — must switch:
+
+```diff
+-img: resolveImg(fm.img) || MY_DEFAULT,
++img: resolveImg(fm.img) ?? MY_DEFAULT,
+```
+
+`||` still compiles and still looks right; it silently reinstates the old
+conflation, because `""` is falsy. Every caller in this package moved:
+`sohl/items.mjs`, three in `sohl/actors.mjs` (`img`, `portrait`, and the
+prototype token's `texture.src`), and `engine/macros.mjs`.
+
+`itemArt()` is unaffected — a registry entry with no art throws before the
+translation, so its result is never the unset case.
+
+## 5. `title` is **not** on this rule
+
+The rule reads as a general one about optional strings, and it is not. On a
+`type: affiliation` note, `title` is _also_ a declared item field whose default
+is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
+key the site emitter reads as the page title. `title: null` therefore does not
+fall back — it stringifies, and the compiled document ships the literal string
+`"null"`.
+
+**Do not sweep `title: ""` to `title: null`.** A `title` a note does not want is
+written by omitting the key, which is the position `field.default` applies at.
+The site emitter is already correct (`fm.title ?? name`) and needs no change.
 
 # Migrating to `@heroiclands/package-build` 12.0.0
 

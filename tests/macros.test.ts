@@ -233,7 +233,10 @@ describe("buildMacroEntry", () => {
     });
 
     it("falls back to a core icon when the note authors none", () => {
-        const doc = buildMacroEntry({ ...FM, img: "" }, { command: "x();" });
+        // `null`, not `""` — the two stopped meaning the same thing (#218).
+        // A note that writes `""` means "ship no art", and is covered in
+        // `img-unset-vs-blank.test.ts` alongside the rest of that rule.
+        const doc = buildMacroEntry({ ...FM, img: null }, { command: "x();" });
         expect(doc.img).toBe("icons/svg/dice-target.svg");
     });
 
