@@ -1,3 +1,69 @@
+# Migrating to `@heroiclands/package-build` <NEXT MAJOR>
+
+<!-- The version above is deliberately unset. Several majors were in flight at
+     once, and a predicted number is prose that no changeset can correct; set it
+     when the release is cut. -->
+
+**No note edit, no URL change, and no compiled document moves.** An
+`affiliation` item's `system.title` stops falling back to the note's own
+top-level `title` (#218). The two were never the same quantity — a note's
+`title` is the heading its page publishes under, while `system.title` is the
+style of address an office carries — and no note in any content tree relied on
+the fallback, so `content-build package compile` emits byte-identical
+`build/packs-json` for every consumer.
+
+## 1. Check nothing authored a style of address at the top level
+
+Only a `type: affiliation` note is affected, and only if it carries a top-level
+`title` it meant as the item's field rather than as the page's heading:
+
+```bash
+grep -rl '^type: affiliation' assets/content --include='*.md' \
+  | xargs grep -l '^title:'
+```
+
+Anything that turns up wanted one of the two positions that describe the
+_document_ rather than the note — `sohl.system.title`, or `sohl.title`, the
+legacy in-block key most trees already write. A membership's title belongs on
+the entry in the being's `sohl.items`, as `system.title`.
+
+`data: { title: ... }` is not a position and never was: `title` is not a `data:`
+property any note type declares, so `content-build lint` refuses it.
+
+## 2. Regenerate the item field reference
+
+The generated page now prints, under each affected type's table, what the
+top-level key of a non-shared field means instead — so an author reading the
+table learns that writing `title:` at the top of a note will not fill this
+field. Re-run the generator and commit the result, or a repository that checks
+the page for staleness reports it stale:
+
+```bash
+npx content-build docs item-fields --out <the path your repo uses>
+```
+
+## 3. Declaring your own non-shared field
+
+A field in an `itemBuilders` `fields:` declaration may now carry
+`topLevelMeans`, whose value is _what the note's top-level key of that name
+means instead_. Declaring it removes the shared top-level position from that
+field's resolution order:
+
+```js
+{
+    name: "title",
+    to: "title",
+    ...STRING,
+    default: "",
+    topLevelMeans: "the note's own title — the heading its page is published under",
+    describe: "The style of address the office carries.",
+}
+```
+
+The value is the reason rather than a bare flag on purpose: the next person
+adding a field needs to know the question exists, and a boolean with a comment
+beside it is two statements of one rule.
+
 # Migrating to `@heroiclands/package-build` 12.0.0
 
 **No note edit, no URL change, and one thing to check in the Hugo layer.** A

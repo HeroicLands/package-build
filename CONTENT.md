@@ -570,6 +570,47 @@ system `S` is:
 `sohl:`", which is the degenerate case where source and destination happen to
 share a name.
 
+**A spelling that means two different things skips step 3.** Because a field's
+`name` doubles as its identity and as the shared property it draws from, the two
+coincide only while the note vocabulary and the system vocabulary agree about
+what a spelling means. `title` is where they do not. A note's top-level `title`
+is _the title of the note_ — the heading its page publishes under, which the
+site emitter reads. An `affiliation` item's `system.title` is _the style of
+address the office carries_ — Ajaw, Warden, a person's style within the body.
+They are unrelated quantities, and step 3 used to feed the second from the first
+(#218).
+
+That was not merely untidy, because **step 3 answers without applying
+`field.default`** — only step 2 does — so an authored `title: null` reached the
+field's `String()` coercion unguarded and shipped as the literal string `"null"`.
+
+So a field may declare `topLevelMeans`: what the top-level key of that name means
+_instead_. Declaring it removes step 3 for that field, and the value is the
+reason rather than a bare flag, so the collision is legible where the field is
+declared and the generated field reference can print it. It is a per-field
+opt-out, not a change to the order — step 3 is right wherever the two levels
+state the same quantity, which is nearly everywhere: `subType` is the other
+declared item field spelled like a note-level key, and there the two agree by
+design.
+
+**An exempted field is still authorable**, at the two positions that describe the
+document rather than the note:
+
+```yaml
+title: The Order of the Silver Hand # the note's own heading — reaches the page
+type: affiliation
+subType: order
+sohl:
+  system:
+    title: Warden # → document.system.title, the style of address
+```
+
+`sohl.title`, the legacy in-block position, works the same way. A membership — a
+`title` a particular being holds — is authored on the entry in that being's
+`sohl.items`, whose `system` is overlaid on the catalogue document directly.
+`data.title` is neither position: `title` is not a `data:` property any note type
+declares, so the frontmatter lint refuses it.
+
 **`<system>.system` is written through verbatim**, at the DataModel's own paths,
 with no renaming layer. A key the system's published `schema.json` does not
 declare for the subtype the note compiles into is an **error naming the note**,
