@@ -431,3 +431,104 @@ describe('an authored `img: ""` (#218)', () => {
         expect(findings.filter((f) => /title/.test(f.message))).toHaveLength(0);
     });
 });
+
+describe("two embedded items denoting one entity (#228)", () => {
+    /** `lintNote` returns early on a type no schema declares, so give it one. */
+    const BEING_SCHEMA = { being: [] } as any;
+
+    /** YAML flow form of one entry, so the fence matches the parsed frontmatter. */
+    const flow = (entry: Record<string, any>): string =>
+        `{ ${Object.entries(entry)
+            .map(([k, v]) => `${k}: ${v && typeof v === "object" ? flow(v) : v}`)
+            .join(", ")} }`;
+
+    /** A being note whose `sohl.items` is spelled out in the fence, so findings can be located. */
+    const being = (entries: Array<Record<string, any>>) => ({
+        file: "/tree/being.md",
+        type: "being",
+        raw:
+            `---\ntype: being\nsohl:\n  items:\n` +
+            entries.map((e) => `    - ${flow(e)}\n`).join("") +
+            `---\n`,
+        fm: { type: "being", sohl: { items: entries } },
+    });
+
+    const dup = (findings: Array<{ message: string }>) =>
+        findings.filter((f) => f.message.includes("is already the shortcode of"));
+
+    const lint = (entries: Array<Record<string, any>>) =>
+        dup(lintNote(being(entries), { schemas: BEING_SCHEMA }));
+
+    it("reports two entries that inherit one template's shortcode", () => {
+        const findings = lint([
+            { shortcode: "swim", type: "skill" },
+            { shortcode: "swim", type: "skill" },
+        ]);
+        expect(messages(findings)).toContain('"skill:swim" is already the shortcode of');
+    });
+
+    it("points at the later entry and names the earlier one", () => {
+        const [finding] = lint([
+            { shortcode: "swim", type: "skill" },
+            { shortcode: "swim", type: "skill" },
+        ]) as any[];
+        // The fence's line 1 is `---`, so the second entry is the file's line 6.
+        expect(finding.line).toBe(6);
+        expect(finding.message).toContain("sohl.items[0]");
+        expect(finding.severity).toBe("error");
+    });
+
+    it("explains that a top-level shortcode only selects a template", () => {
+        const [finding] = lint([
+            { shortcode: "swim", type: "skill" },
+            { shortcode: "swim", type: "skill" },
+        ]) as any[];
+        expect(finding.message).toContain("never reaches the document");
+    });
+
+    it("accepts a second instance that overrides `system.shortcode`", () => {
+        expect(
+            lint([
+                { shortcode: "Dgr", type: "weapongear" },
+                { shortcode: "Dgr", type: "weapongear", system: { shortcode: "Dgr2" } },
+            ]),
+        ).toHaveLength(0);
+    });
+
+    it("keys on the pair, so two types may share a shortcode", () => {
+        expect(
+            lint([
+                { shortcode: "swim", type: "skill" },
+                { shortcode: "swim", type: "miscgear" },
+            ]),
+        ).toHaveLength(0);
+    });
+
+    it("leaves an entry naming no key to the compiler", () => {
+        expect(lint([{ type: "skill" }, { type: "skill" }])).toHaveLength(0);
+    });
+
+    it("catches a stand-alone entry colliding with a template instance", () => {
+        const findings = lint([
+            { shortcode: "sting", type: "skill" },
+            { type: "skill", system: { shortcode: "sting" } },
+        ]);
+        expect(messages(findings)).toContain('"skill:sting" is already the shortcode of');
+    });
+
+    it("says nothing about a note with no items", () => {
+        expect(
+            dup(
+                lintNote(
+                    {
+                        file: "/t/x.md",
+                        type: "being",
+                        raw: "---\n---\n",
+                        fm: { type: "being", sohl: {} },
+                    },
+                    { schemas: BEING_SCHEMA },
+                ),
+            ),
+        ).toHaveLength(0);
+    });
+});

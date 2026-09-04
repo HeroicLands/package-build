@@ -56,7 +56,12 @@
  */
 
 import { authoredFields } from "./field-spec.mjs";
-import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system-block.mjs";
+import {
+    resolveFieldValue,
+    systemBlock,
+    SYSTEM_BLOCK_KEYS,
+    unknownBlockKeys,
+} from "./system-block.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
@@ -500,6 +505,83 @@ function authoredValue(fm, key) {
 }
 
 /**
+ * Two embedded items on one actor may not share `(type, shortcode)` (#228).
+ *
+ * SoHL treats `(type, shortcode)` as a **logical identity**, not a lookup
+ * convenience: two documents of one type bearing one shortcode denote *the same
+ * entity*, whatever their `_id`s or field values. It is unique within four
+ * scopes, one of which is an actor's own embedded items — and the invariant
+ * exists to keep that identity well-defined. Two colliding entries make "the
+ * same thing" ambiguous, and every match resolving by it — compendium↔world
+ * reconciliation, archetype shadowing, `fvttFindItemByShortcode`, cohort
+ * membership, expression and effect references — becomes unsound.
+ *
+ * Nothing else catches it. The compiler resolves each entry independently and
+ * distinguishes the two only when seeding `_id`, so the collision compiles to
+ * two documents with distinct ids and ships unremarked.
+ *
+ * **Decidable from frontmatter alone**, which is why it belongs here rather
+ * than in the compiler. An entry's effective key is
+ * `system.shortcode ?? shortcode`: a top-level `shortcode` merely selects the
+ * template the entry is written from and is never written to the document,
+ * while a template's own `system.shortcode` is its address by construction. So
+ * neither the catalogue nor a compile is needed to know what an entry will
+ * carry.
+ *
+ * Only entries naming both a type and a key are compared. One naming neither —
+ * a stand-alone entry still missing its `system.shortcode` — is the compiler's
+ * finding to make, and reporting it twice helps nobody.
+ *
+ * @param {object} note - A note from the link index (`{fm, file, raw}`).
+ * @param {string} blockName - The system block whose `items` to check.
+ * @returns {object[]} One finding per collision, at the later entry.
+ */
+function checkEmbeddedShortcodes(note, blockName) {
+    const findings = [];
+    const block = systemBlock(note.fm ?? {}, blockName);
+    const entries = block?.items;
+    if (!Array.isArray(entries)) return findings;
+
+    /** `type\0key` → the index that claimed it first. */
+    const claimed = new Map();
+    entries.forEach((entry, index) => {
+        if (!entry || typeof entry !== "object" || Array.isArray(entry)) return;
+        const type = entry.type;
+        const system = entry.system;
+        const key =
+            system && typeof system === "object" && !Array.isArray(system) ?
+                (system.shortcode ?? entry.shortcode)
+            :   entry.shortcode;
+        if (!type || !key) return;
+
+        const address = `${type} ${key}`;
+        const first = claimed.get(address);
+        if (first === undefined) {
+            claimed.set(address, index);
+            return;
+        }
+        findings.push({
+            file: note.file,
+            ...positionOfFrontmatterPath(note.raw ?? "", [blockName, "items", index]),
+            severity: "error",
+            message:
+                `"${type}:${key}" is already the shortcode of ` +
+                `\`${blockName}.items[${first}]\` on this actor; ` +
+                `(type, shortcode) identifies *which entity* an item is, and ` +
+                `must be unique among an actor's embedded items, so the two ` +
+                `denote one thing and every lookup by it is ambiguous. Give ` +
+                `this entry its own \`system.shortcode\`` +
+                (entry.shortcode && !entry.system?.shortcode ?
+                    ` — a top-level \`shortcode\` only selects the template ` +
+                    `this entry is written from and never reaches the document`
+                :   "") +
+                `, or delete it if it is a duplicate.`,
+        });
+    });
+    return findings;
+}
+
+/**
  * Check one note against its type's schema.
  *
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
@@ -732,6 +814,9 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // for `sohl`, the note type's own field names, which are still the position
     // the corpus authors them at until #126 moves them.
     for (const [blockName, spec] of Object.entries(systems ?? {})) {
+        // Two embedded items denoting one entity (#228). Per block, because
+        // `items` is a block key and a second system's actor carries its own.
+        findings.push(...checkEmbeddedShortcodes(note, blockName));
         const accepted = new Set([
             ...UNIVERSAL_KEYS,
             ...(spec?.known ?? []),
