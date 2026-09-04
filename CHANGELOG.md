@@ -1,5 +1,111 @@
 # @heroiclands/package-build
 
+## 12.0.0
+
+### Major Changes
+
+- ab34b1c: Retire the `collection` landing rule, the `section:` frontmatter key it read,
+  and the `collection` doc subtype that selected it (#202). A section is landed by
+  the `README.md` in its directory, and that is now the only rule.
+  
+  **Why it goes.** Every publishing tree had already migrated: no note in `sohl`,
+  `sohl-thalorna` or `sohl-kethira-basic` declares `section:` or writes
+  `subType: collection`, and both publishing consumers configure `landing: readme`.
+  What was left was not merely unused but **unimplemented on one of the two sides
+  that must agree**. `engine/content-address.mjs` branched on the configured rule;
+  `engine/site-build.mjs` never read it — it derives `isReadme` from the basename
+  and treats a `README.md` as a landing whatever the configuration says. So under
+  `landing: collection` the link manifest and the emitted site would have disagreed
+  about where a page is, which is the single failure the shared address function
+  exists to prevent. With one rule they agree by construction.
+  
+  **`landing: collection` is refused, not merely unrecognized.** Reported as a bad
+  value it would read as a misspelling of the rule that survives, and an author
+  would correct the value rather than learn that the mechanism is gone. The
+  diagnostic names the key, says the rule is retired, says a section is landed by
+  its `README.md`, and says the `section:` key went with it — located to the line
+  and column in `package-build.config.yaml`, as every configuration finding is.
+  
+  **`section:` is refused the way `draft:`, `package:` and `aliases:` are.** It had
+  exactly one reader — the retired branch — and no schema or vocabulary declared
+  it, so nothing checked it: left in place it would be _ignored_, which reads to
+  its author as though it still works. It is now reported by `content-build lint`
+  and refused at compile, with the file, line and column.
+  
+  | Surface                          | Before                                | After                                  |
+  | -------------------------------- | ------------------------------------- | -------------------------------------- |
+  | `publish.address.landing`        | `readme` \| `collection`              | `readme` — the value is still accepted |
+  | `section:` in a note             | read under `collection`, else ignored | refused, at lint and at compile        |
+  | `subType: collection` on a `doc` | selected the rule                     | not a subtype the format declares      |
+  | `LANDING_RULES`                  | `["readme", "collection"]`            | `["readme"]`                           |
+  
+  **Migration.** Delete `landing: collection` from `publish.address` — or write
+  `landing: readme` — and make each section's landing the `README.md` in its
+  directory. Delete any `section:` a note still carries. A repository that already
+  configures `landing: readme` and writes no `section:` needs no change: `lint`,
+  `links` and `site` were verified byte-identical against `sohl`, `sohl-thalorna`
+  and `sohl-kethira-basic` at `origin/main`, including all 1,657 pages `sohl`
+  emits.
+  
+  **`publish.address.landing` itself survives, for now.** It is the key both
+  publishing consumers declare, and refusing a correct `landing: readme` would
+  break them over a statement that is still true. With one rule it selects nothing,
+  so it is a candidate for deletion once no configuration writes it — the third
+  step `package:` took (#56), and a separate change.
+
+### Minor Changes
+
+- ed06be0: Hold `type` and `subType` to the address charset, and rename a `doc`'s
+  `user-guide` subtype to `userguide` (#206).
+  
+  **The rule.** An address is `package-type-shortcode`, read back by counting
+  hyphen-separated segments, and that is sound for exactly one reason: no segment
+  may contain a hyphen. `ADDRESS_SEGMENT_PATTERN` (`^[A-Za-z0-9]+$`) stated it and
+  `SHORTCODE_PATTERN` aliased it, but only a **shortcode** was checked against it.
+  The other two values that reach an address were not: a `type` is the first
+  segment of every address, and a `doc`'s `subType` is the section it routes to —
+  a path segment of its own, and, under #204, a shortcode. Both are now held to
+  the same constant, read rather than restated; a third spelling of one rule is how
+  the disagreements found in #202 and #203 happened.
+  
+  **The diagnostic** is located where the value was written, in the standard form:
+  
+  ```text
+  assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. …
+  ```
+  
+  The charset is checked **ahead of** the closed-set check, which is what makes it
+  reach a type whose `subTypes` are declared but not yet enumerated (`being`) —
+  values nothing may otherwise claim to check.
+  
+  **`user-guide` became `userguide`**, the one declared value that broke the rule
+  and the only hyphenated `type` or `subType` in the vocabulary. A hyphenated
+  declaration can no longer be imported at all: the registry is checked against the
+  charset as `engine/note-vocabulary.mjs` loads.
+  
+  **The old spelling is accepted for one release, and says so.** A `doc` written
+  `subType: user-guide` is reported as a **warning** naming the note, the retired
+  value and its replacement, and the note still compiles:
+  
+  ```text
+  User_Guide/Actions.md:3:1: warning: `subType` "user-guide" is a retired spelling of "userguide" on a doc; write "userguide". …
+  ```
+  
+  _The ordering is the reverse of the usual, deliberately._ For a retired field the
+  sweep goes first; here it must go last. 43 `sohl` notes author `user-guide`
+  today, and declaring only the new spelling would invalidate all 43 with a release
+  they had no chance to sweep ahead of. So the acceptance ships first, consumers
+  rename, and a later change removes the acceptance — at which point the old
+  spelling falls through to the ordinary undeclared-value error with no code left
+  to remove. That later change is the breaking one; this one breaks nothing, which
+  is why it is a minor.
+  
+  **`type` gets no transitional path**, deliberately: no note in `sohl`,
+  `sohl-thalorna` or `sohl-kethira-basic` authors a hyphenated type, so an
+  acceptance would be dead code guarding a case that does not exist. Measured
+  against a pristine `origin/main` extraction of each tree, the only hyphenated
+  value of either key anywhere is the 43 `user-guide` notes.
+
 ## 11.1.0
 
 ### Minor Changes
