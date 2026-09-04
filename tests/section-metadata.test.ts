@@ -255,3 +255,114 @@ describe("the configuration is where the vocabulary is bounded", () => {
         );
     });
 });
+
+describe("a section can declare what it lists", () => {
+    // heroiclands-hugo-theme#50. Since #204 a content page is written flat under
+    // the mount, so a section's directory holds nothing but its own `_index.md`
+    // and a layout reading `.Pages` renders "Nothing here yet." on every landing
+    // the theme serves. The relationship survives in exactly one place — this
+    // map — and in nothing the theme can read: not on the page, not on the
+    // landing, not in any URL. So the landing has to state it.
+
+    it("carries the declaration into the generated landing", () => {
+        const out = mount();
+        writeSectionLandings(out, {
+            sections: {
+                rules: {
+                    title: "Rules",
+                    banner: "banners/rules.webp",
+                    listType: "doc",
+                    listSubType: "rules",
+                },
+            },
+        });
+        expect(fs.readFileSync(path.join(out, "rules/_index.md"), "utf8")).toBe(
+            "---\ntitle: Rules\nbanner: banners/rules.webp\n" +
+                "listType: doc\nlistSubType: rules\n---\n\n",
+        );
+        fs.rmSync(out, { recursive: true });
+    });
+
+    it("does not write `type`, which is Hugo's own layout selector", () => {
+        // Verified against Hugo 0.165: `type: doc` on a section `_index.md`
+        // renders it through `layouts/doc/list.html` instead of the default
+        // list template. Spelling the content type there would silently change
+        // which template serves the landing, so the declaration is two keys of
+        // its own.
+        const out = mount();
+        writeSectionLandings(out, {
+            sections: { rules: { title: "Rules", listType: "doc" } },
+        });
+        const emitted = fs.readFileSync(path.join(out, "rules/_index.md"), "utf8");
+        expect(emitted).toContain("listType: doc");
+        expect(emitted).not.toMatch(/^type:/m);
+        fs.rmSync(out, { recursive: true });
+    });
+
+    it("leaves a section that declares nothing exactly as it was", () => {
+        const out = mount();
+        writeSectionLandings(out, {
+            sections: { being: { title: "Beings", banner: "banners/creature.webp" } },
+        });
+        expect(fs.readFileSync(path.join(out, "being/_index.md"), "utf8")).toBe(
+            "---\ntitle: Beings\nbanner: banners/creature.webp\n---\n\n",
+        );
+        fs.rmSync(out, { recursive: true });
+    });
+
+    it("resolves the declaration through the configuration", () => {
+        const config = resolveWithSite({
+            sections: {
+                "user-guide": {
+                    title: "User Guide",
+                    listType: "doc",
+                    listSubType: "userguide",
+                },
+            },
+        });
+        expect(config.site.sections["user-guide"].listType).toBe("doc");
+        expect(config.site.sections["user-guide"].listSubType).toBe("userguide");
+    });
+
+    it("takes it on a README-backed section too", () => {
+        const config = resolveWithSite({
+            readmeSections: { "dev-docs": { title: "Developer Documentation", listType: "doc" } },
+        });
+        expect(config.site.readmeSections["dev-docs"].listType).toBe("doc");
+    });
+
+    it("refuses a subType filter with no type to apply it to", () => {
+        // A subType is only told apart *within* a type — `rules`, `userguide`
+        // and `reference` are all `doc`. Alone it selects either everything or
+        // nothing, depending on which the theme guesses, so it is refused here
+        // rather than rendering an empty landing a second time.
+        expect(() =>
+            resolveWithSite({ sections: { rules: { title: "Rules", listSubType: "rules" } } }),
+        ).toThrow(/`site\.sections\.rules\.listSubType` .*`listType`/);
+    });
+
+    it("refuses a value that is not an address segment", () => {
+        // The exact trap this issue was filed over: the section is spelled
+        // `user-guide` because that is a published URL, and the subType is
+        // spelled `userguide` because a subType is an address segment. Copying
+        // the section's name into the declaration matches no page at all, and
+        // silence is what broke the landings in the first place.
+        expect(() =>
+            resolveWithSite({
+                sections: { "user-guide": { title: "User Guide", listSubType: "user-guide" } },
+            }),
+        ).toThrow(/`site\.sections\.user-guide\.listSubType`.*alphanumeric/);
+    });
+
+    it("refuses an empty declaration", () => {
+        expect(() => resolveWithSite({ sections: { x: { title: "X", listType: "" } } })).toThrow(
+            /`site\.sections\.x\.listType` must be a non-empty string/,
+        );
+    });
+
+    it("still refuses a key outside the vocabulary, naming the new one", () => {
+        expect(() => resolveWithSite({ sections: { x: { title: "X", listTpye: "doc" } } })).toThrow(
+            /expected one of: title, banner, description, listType, listSubType/,
+        );
+    });
+});

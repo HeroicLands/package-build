@@ -49,6 +49,19 @@ That is the shape a content catalog wants regardless — it groups by what a pag
 _is_ rather than by where its file happened to be written — and it is what
 `sohl`'s catalog layouts already do.
 
+A site rendering through a **shared theme** has no layout of its own to edit. As
+of 13.1.0 the section declares its query instead, and the theme runs it:
+
+```yaml
+sections:
+  weapongear: { title: Weapons, listType: weapongear }
+  user-guide: { title: User Guide, listType: doc, listSubType: userguide }
+```
+
+`listType` is the content type, not the section's name — the two need not agree,
+and `listSubType` narrows a type whose genres share it. See
+[What a section may declare](CONTENT.md#what-a-section-may-declare).
+
 ## 4. `publish.address.landing` is inert, and still accepted
 
 It named which note addressed a whole section. There are no landings, so it

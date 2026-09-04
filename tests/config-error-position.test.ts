@@ -176,7 +176,7 @@ describe("a configuration error carries the position of its key", () => {
         expect(err.message).toBe(
             `${file}:12:30: error: package-build config: ` +
                 "`site.sections.gear.descrption` is not a recognized option " +
-                "(expected one of: title, banner, description).",
+                "(expected one of: title, banner, description, listType, listSubType).",
         );
         const { line, column } = locatorOf(err.message);
         expect(textAt(text, line, column)).toMatch(/^descrption/);
