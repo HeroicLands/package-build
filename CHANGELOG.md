@@ -1,5 +1,182 @@
 # @heroiclands/package-build
 
+## 14.0.0
+
+### Major Changes
+
+- a0a113b: **`publish.address.landing` is deleted.** `prefix` is the whole address scheme:
+  
+  ```yaml
+  publish:
+    address:
+      prefix: kb/ # default: "" — the package root
+  ```
+  
+  The key named which note addressed a whole section rather than a page within
+  one. #202 retired the second of its two rules and #204 retired the concept both
+  rules chose between — a section is a Hugo content directory the note format does
+  not carry, a page's address names no directory, and so no note lands one. What
+  survived was the key itself: resolved, refused-by-name for the retired value,
+  checked against a one-element vocabulary, frozen into the configuration, and
+  read by nobody. `LANDING_RULES` said so in its own doc comment — _"Inert since
+  #204."_
+  
+  **A configuration still declaring it is refused, at the line it is written on.**
+  Not reported as an unrecognized option, which names a spelling to correct and
+  leaves the author to work out that the mechanism is gone:
+  
+  ```text
+  package-build.config.yaml:14:9: error: package-build config:
+  `publish.address.landing` is a retired option — delete it. It named which note
+  addressed a whole section rather than a page within one, and there are no
+  sections to address: a section is a Hugo content directory the note format does
+  not carry, so no note lands one and every page is addressed
+  `<type>-<shortcode>`. Nothing replaces it.
+  ```
+  
+  Presence is the whole test, as it is for a retired frontmatter field: no value
+  makes declaring it right, so `readme` and the already-retired `collection` are
+  refused alike, by `RETIRED_ADDRESS_KEYS` — the configuration-side twin of
+  `engine/retired-fields.mjs`.
+  
+  **Why the key outlived its mechanism by one release.** `content-config.mjs` has
+  no warning channel — every finding goes through `fail()`, which throws — so
+  while both publishing consumers still declared the then-true `landing: readme`
+  the only options were to break them over a correct statement or to accept the
+  key in silence, and silent acceptance is what this codebase refuses everywhere
+  else. So it took the three steps `package:` took (#56): retire the value, have
+  consumers drop the key, delete the key. No consumer declares it now.
+  
+  **The plumbing goes with it.** `packageAddress` took an address scheme only to
+  validate the `landing` rule it then discarded — its own docstring already said
+  the `prefix` half never applied, because an address is `(type, shortcode)`, a
+  package-wide identity that takes no mount. It is now a function of the
+  frontmatter and nothing else, and `manifestContext` no longer carries a `scheme`
+  that nothing reads.
+  
+  | Removed                                                                                                                              | Where                        |
+  | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------- |
+  | `LANDING_RULES`, `RETIRED_LANDING_RULES`                                                                                             | `content-config.mjs`         |
+  | `DEFAULT_ADDRESS_SCHEME.landing`, `ADDRESS_KEYS`' second entry, `normalizePublish`'s resolve-and-check, `AddressSchemeInput.landing` | `content-config.mjs`         |
+  | The `LANDING_RULES` re-export, `packageAddress`'s `{ scheme }` parameter and its landing check                                       | `engine/content-address.mjs` |
+  | `manifestContext`'s `scheme`, and the argument `collectManifestEntries` passed on with it                                            | `engine/manifest-emit.mjs`   |
+  
+  **Nothing a consumer emits moves.** Verified against pristine
+  `git archive origin/main` extractions of all three consumers, before and after:
+  `lint`, `links`, `manifest`, `package compile` and `site` produce **identical
+  console output, line for line**, and every emitted file is byte-identical —
+  31,197 files across the three trees, with only LevelDB's own timestamped `LOG`
+  differing. `sohl` stays green (2,988 manifest entries, 3,125 pack documents,
+  1,671 emitted pages); `sohl-thalorna` stays exactly as red as it was for its own
+  content gap (1,983 lint findings, 122 link findings); `sohl-kethira-basic` stays
+  green.
+  
+  Closes #215
+- 98ac362: **`subType: user-guide` is refused.** #206 renamed the `doc` subType
+  `user-guide` to `userguide` and held every `type` and `subType` to the address
+  charset, but shipped a **transitional acceptance** for the old spelling — a
+  warning naming the replacement rather than a refusal — because 43 `sohl` notes
+  authored it and no consumer can sweep ahead of the release that renames a value.
+  Every consumer tree has now swept: `sohl` **0**, `sohl-thalorna` **0**,
+  `sohl-kethira-basic` **0**, counted on a pristine extraction of each
+  `origin/main`. So the acceptance guards nothing, and this is the follow-up #207
+  named.
+  
+  `RETIRED_SUBTYPES`, `retiredSubType()` and `retiredSubTypeMessage()` are gone
+  from `engine/note-vocabulary.mjs`, along with the retired-spelling branch that
+  ran ahead of the charset check in `checkSubType`. Nothing replaces them:
+  `user-guide` now falls through to the **charset** check and is refused as an
+  error, for the reason that always applied — it contains a hyphen. That is why
+  the acceptance could be deleted rather than promoted to an error: the permanent
+  rule already covers the case, so no retirement-specific code outlived the sweep.
+  
+  **Breaking**, though the diff only removes code. A spelling that built at exit 0
+  one release ago now fails the build, and three exported symbols no longer exist.
+  A tree that has swept sees no change at all — which all three consumers have,
+  and each was verified unaffected.
+  
+  **The subType charset diagnostic is reworded.** It justified the rule by "the
+  hyphen separates the segments of an address", true of a `subType` when #206
+  shipped — `sectionOf` returned a `doc`'s subType, so the value was a URL path
+  segment — and not true since #204 retired sections. The rule stands on its own
+  footing instead: a subType is a vocabulary term the whole toolchain keys on, one
+  closed set away from being an address segment again, and a charset holding for a
+  type, a shortcode and a `contentPackage` but not for a subType would be a rule
+  nobody could state in a sentence. `typeCharsetMessage` is untouched — a type
+  genuinely is the first segment of every address.
+  
+  The same correction is applied to `assertVocabularyCharset`'s throw, which
+  carried the identical claim in a second place — _"A type and a subType are both
+  address segments"_ — where it would go unread until it fires, which is exactly
+  when it would be taken at face value. It now states the reason **per key**: the
+  address half for a type, the vocabulary-term half for a subType. The guard
+  itself is unchanged and stays where it is, running over `NOTE_VOCABULARY` as the
+  module loads.
+  
+  Closes #210
+
+### Minor Changes
+
+- 45b5bd0: **A section can say what it lists.** `site.sections` / `site.readmeSections`
+  take two more keys, `listType` and `listSubType`, and both reach the generated
+  `_index.md`:
+  
+  ```yaml
+  sections:
+    weapongear: { title: Weapons, listType: weapongear }
+    user-guide: { title: User Guide, listType: doc, listSubType: userguide }
+  ```
+  
+  Since #204 a content page is written flat under the mount, so a declared
+  section's directory holds nothing but the landing this build writes for it and a
+  layout reading Hugo's `.Pages` finds no members. The membership survives in the
+  `site.sections` map and in nothing a theme can read — not on the page, not on
+  the landing, not in any URL — so every section landing served by a generic list
+  layout renders empty. `sohl` was unaffected only because its eleven catalog
+  layouts already query `site.RegularPages` by `Params.type`; a consumer rendering
+  through the shared theme has no layout of its own to edit. The landing now
+  states that query and the theme runs it
+  (HeroicLands/heroiclands-hugo-theme#50).
+  
+  **Two keys of their own, not `type` / `subType`.** On an `_index.md`, `type` is
+  Hugo's own layout selector: verified against Hugo 0.165, a section landing
+  carrying `type: doc` renders through `layouts/doc/list.html` rather than the
+  default list template — behaviour this build already relies on deliberately, for
+  the mount's own `landing`. Spelling the content type there would silently change
+  which template serves the landing.
+  
+  **Two keys added to the closed set, not an open passthrough.** `site.landing` is
+  passed through unvalidated because it is written once, for the mount, in one
+  landing template's own vocabulary; a section entry is written fourteen to twenty
+  times per build against a contract every package and every section shares.
+  Unbounded there, a mistyped `listTpye:` would publish into front matter, list
+  nothing, and report no error — which is the bug being fixed, moved one step
+  downstream where no build can see it. `normalizeSectionMeta` stays the one place
+  the vocabulary is bounded, and the writers still name no keys.
+  
+  **Both values are checked, because both ways of writing an inert declaration are
+  silent.** They name a content type and subType, so each must be an address
+  segment (`^[A-Za-z0-9]+$`), and a `listSubType` with no `listType` is refused —
+  a subType tells pages apart only within a type, so alone it names no query. The
+  charset check is the trap this came from: a section is named for a URL the site
+  chose and need not match the address (`/sohl/kb/user-guide/` is the section,
+  `userguide` the subType, #207), and copying the section's name in would match no
+  page at exit 0. All three refusals are located at the offending key:
+  
+  ```text
+  package-build.config.yaml:504:90: error: package-build config:
+  `site.sections.user-guide.listSubType` is `user-guide`, which is not
+  alphanumeric. …
+  ```
+  
+  **Additive.** A section that declares neither key emits exactly the bytes it
+  did before. Verified on a pristine `origin/main` extraction of `sohl`, the only
+  consumer running `content-build site` with declared sections: 1670 emitted files
+  byte-identical, and with the keys declared on two of its nineteen sections
+  exactly those two `_index.md` files change.
+  
+  Closes #212
+
 ## 13.0.0
 
 ### Major Changes
