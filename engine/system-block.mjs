@@ -52,6 +52,28 @@
  *    may be a dotted path (`data.portrait`) rather than a sibling key;
  * 4. the field's own default.
  *
+ * ## A name that collides across the two vocabularies skips step 3
+ *
+ * A field's `name` is both its identity and the shared property it draws from,
+ * and those coincide only while the two vocabularies agree about what the
+ * spelling means. They do not always. An `affiliation` item's `system.title` is
+ * the style of address an office carries — "Ajaw", "Warden"; a note's top-level
+ * `title` is the note's own heading, which the site emitter publishes. Two
+ * unrelated quantities, one spelling, and step 3 fed the first from the second.
+ *
+ * It was not a harmless coincidence either, because step 3 answers **without**
+ * applying `field.default` — only step 2 does — so an authored `title: null`
+ * reached the field's coercion unguarded and shipped as the literal string
+ * `"null"` in fifteen documents (#218).
+ *
+ * So a field may declare `topLevelMeans`: what the top-level key of that name
+ * means *instead*. Declaring it removes step 3 for that field, leaving the two
+ * positions that describe the document rather than the note. It is deliberately
+ * a per-field opt-out rather than a change to the order — step 3 is right
+ * wherever the two levels state the same quantity, which is nearly everywhere —
+ * and its value is the reason rather than a bare flag, so the collision is
+ * legible where the field is declared. See {@link module:engine/field-spec.FieldSpec}.
+ *
  * `sohlField()` — read `fm.sohl[key]`, fall back to `fm[key]` — is the
  * degenerate case where source and destination happen to share a name. It stops
  * being the general rule; {@link blockField} is what remains of it.
@@ -347,9 +369,13 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
         if (nested !== undefined) return { value: nested, from: "block" };
     }
 
-    // 3. The shared property this field declares as its source.
-    const shared = getFrontmatter(fm, field.name, undefined);
-    if (shared !== undefined) return { value: shared, from: "shared" };
+    // 3. The shared property this field declares as its source — unless the
+    //    field declares that the top-level key of that name means something
+    //    else, in which case there is no shared position to read (#218).
+    if (field.topLevelMeans === undefined) {
+        const shared = getFrontmatter(fm, field.name, undefined);
+        if (shared !== undefined) return { value: shared, from: "shared" };
+    }
 
     // 4. The field's own default.
     return { value: field.default, from: "default" };

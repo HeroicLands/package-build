@@ -79,47 +79,32 @@ export function addressSlug(fm) {
 }
 
 /**
- * A note's address below the knowledgebase mount, e.g. `affliction-aconite/`.
+ * A note's address: `<type>-<shortcode>/`, e.g. `affliction-aconite/`.
  *
- * Every note, without exception. A `README.md` used to be its section's landing
- * page and to address the section instead of itself; a section is a Hugo
- * directory concept the note format no longer carries (#204), so a file's name
- * decides nothing about where it publishes.
- *
- * @param {object} fm - Parsed frontmatter.
- * @returns {string} The mount-relative address, with a trailing slash.
- * @throws {Error} When the note has no address.
- */
-export function contentAddress(fm) {
-    return `${addressSlug(fm)}/`;
-}
-
-/**
- * A note's address relative to its **package**, e.g. `affliction-aconite/`.
- *
- * This is the form the link manifest records and the site build emits pages at,
- * and it is one function because those two must agree — a manifest asserting an
+ * This is the one form a note is addressed by. It is what the link manifest
+ * records as an entry's `path` and what the site build emits the page at, and
+ * it is one function because those two must agree — a manifest asserting an
  * address the site does not publish resolves at build time and 404s for the
  * reader, which is the failure this module exists to prevent.
  *
- * **It is a pure function of the frontmatter.** Nothing about the file the note
- * was read from reaches it: the `README.md` convention that made one note
- * address a whole section is retired with the section itself (#204), so there
- * is one rule and no branch.
+ * **The address is relative to the package**, and to nothing finer. A consumer
+ * composing a URL prepends where the package is served (`/<package>/`); a
+ * consumer composing a manifest entry measures against that same base. Nothing
+ * else is prepended: `prefix` says where the content tree *mounts inside the
+ * package* — the Hugo directory its pages are written under — and an address is
+ * `(type, shortcode)`, a package-wide identity that takes no mount, so `sohl`
+ * publishes `/sohl/affliction-aconite/` from a file written under `kb/`. The
+ * `type-` half is what keeps that flat namespace clear of the package's fixed
+ * mounts — `/<package>/` for the landing, `/<package>/api/` for generated API
+ * docs, neither of which contains a hyphen or names a type.
  *
- * **The prefix does not apply to a page's own address.** `prefix` says where the
- * content tree *mounts inside the package* — the Hugo directory its pages are
- * written under — and an address is `(type, shortcode)`, a package-wide identity
- * that takes no mount: `sohl` publishes `/sohl/affliction-aconite/` from a file
- * written under `kb/`. The `type-` half is what keeps that flat namespace clear
- * of the package's fixed mounts — `/<package>/` for the landing,
- * `/<package>/api/` for generated API docs, neither of which contains a hyphen
- * or names a type.
- *
- * **It takes no address scheme.** It took one until #215, to validate the
- * `landing` rule it then discarded; with that key retired, `prefix` was the
- * only thing left in the scheme and the paragraph above is the reason it never
- * applied. A parameter read by nothing is the defect this deletion is about.
+ * **It is a pure function of the frontmatter**, and takes no options. Nothing
+ * about the file the note was read from reaches it: the `README.md` convention
+ * that made one note address a whole section is retired with the section itself
+ * (#204), so every note is addressed alike and there is one rule and no branch.
+ * It took an address scheme until #215, to validate a `landing` rule it then
+ * discarded; with that key retired, `prefix` was the only thing left in the
+ * scheme and the paragraph above is the reason it never applied.
  *
  * @param {object} fm - Parsed frontmatter.
  * @returns {string} The package-relative address, with a trailing slash and no

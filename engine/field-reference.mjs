@@ -112,6 +112,34 @@ function fieldTable(fields) {
 }
 
 /**
+ * The fields of one type that are **not** filled from the note's top level.
+ *
+ * A field ordinarily falls back to the top-level property spelled like its
+ * name, so an author who writes `weight: 3` at the top of a note reasonably
+ * expects it to reach the document. Where that spelling means something else at
+ * the note level the fallback is off, and an author has no way to tell from the
+ * table — the field is there, the value is written, and the document ships the
+ * default. So the reason each such field declares is rendered beside its table
+ * rather than left in the source (#218).
+ *
+ * Below the table, not inside it: the reason is a sentence or two, and
+ * {@link padTable} pads every column to its widest cell, so a cell holding it
+ * would stretch the whole type's table past legibility.
+ *
+ * @param {readonly object[]} fields - The type's declaration.
+ * @returns {string[]} Markdown lines, empty when the type exempts nothing.
+ */
+function sharedExemptions(fields) {
+    const exempt = authoredFields(fields).filter((field) => field.topLevelMeans);
+    if (!exempt.length) return [];
+    return exempt.flatMap((field) => [
+        `**\`${field.name}\` is not read from the note's top level.** There it means ` +
+            `${field.topLevelMeans}`,
+        "",
+    ]);
+}
+
+/**
  * A minimal note for one type: the frontmatter envelope every note carries,
  * plus exactly the `sohl:` fields the type requires.
  *
@@ -204,6 +232,7 @@ export function renderItemFieldReference({
             "",
             ...fieldTable(declared[type]),
             "",
+            ...sharedExemptions(declared[type]),
             ...workedExample(type, declared[type]),
             "",
         );

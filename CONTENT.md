@@ -505,14 +505,20 @@ This is the convention the project already holds for an optional "not specified"
 DataModel string — `nullable, initial: null`, so "unset" is one honest value
 rather than two.
 
-> **The rule is `img`'s, and does not extend to `title`.** On a
-> `type: affiliation` note `title` is _also_ a declared item field whose default
-> is `""` (`sohl/item-fields.mjs`, "the style of address the office carries"),
-> resolved from the very same shared top-level key the site emitter reads as the
-> page title. One authored key, two unrelated destinations that disagree about
-> what empty means — so `title: null` does not fall back, it stringifies, and the
-> compiled document ships the literal `"null"`. A `title` a note does not want is
-> written by **omitting the key**. See #218.
+> **The rule is `img`'s, and does not extend to `title`.** `title` is not art
+> and never reaches `resolveImg`, so nothing here applies to it.
+>
+> The reason used to be sharper, and is no longer true: a note's top-level
+> `title` was _also_ the shared source for an `affiliation` item's `system.title`
+> (`sohl/item-fields.mjs`, "the style of address the office carries"), so one
+> authored key fed two unrelated destinations that disagreed about what empty
+> means — and `title: null` stringified into the compiled document as the literal
+> `"null"`. That collision is gone: the field declares `topLevelMeans`, and the
+> top-level key is no longer a source for it (#218).
+>
+> So `title: null` is now a note declining to state a heading, and the site
+> emitter's `fm.title ?? name` falls back to `name.full`. `title: ""` still
+> publishes a deliberately blank heading, and nothing warns about that yet.
 
 Because `""` used to mean "unset", a note still carrying that spelling has
 quietly changed meaning, and the frontmatter lint says so — for either art
@@ -618,6 +624,47 @@ system `S` is:
 `FieldSpec.name` is that declared source. It used to mean "frontmatter key under
 `sohl:`", which is the degenerate case where source and destination happen to
 share a name.
+
+**A spelling that means two different things skips step 3.** Because a field's
+`name` doubles as its identity and as the shared property it draws from, the two
+coincide only while the note vocabulary and the system vocabulary agree about
+what a spelling means. `title` is where they do not. A note's top-level `title`
+is _the title of the note_ — the heading its page publishes under, which the
+site emitter reads. An `affiliation` item's `system.title` is _the style of
+address the office carries_ — Ajaw, Warden, a person's style within the body.
+They are unrelated quantities, and step 3 used to feed the second from the first
+(#218).
+
+That was not merely untidy, because **step 3 answers without applying
+`field.default`** — only step 2 does — so an authored `title: null` reached the
+field's `String()` coercion unguarded and shipped as the literal string `"null"`.
+
+So a field may declare `topLevelMeans`: what the top-level key of that name means
+_instead_. Declaring it removes step 3 for that field, and the value is the
+reason rather than a bare flag, so the collision is legible where the field is
+declared and the generated field reference can print it. It is a per-field
+opt-out, not a change to the order — step 3 is right wherever the two levels
+state the same quantity, which is nearly everywhere: `subType` is the other
+declared item field spelled like a note-level key, and there the two agree by
+design.
+
+**An exempted field is still authorable**, at the two positions that describe the
+document rather than the note:
+
+```yaml
+title: The Order of the Silver Hand # the note's own heading — reaches the page
+type: affiliation
+subType: order
+sohl:
+  system:
+    title: Warden # → document.system.title, the style of address
+```
+
+`sohl.title`, the legacy in-block position, works the same way. A membership — a
+`title` a particular being holds — is authored on the entry in that being's
+`sohl.items`, whose `system` is overlaid on the catalogue document directly.
+`data.title` is neither position: `title` is not a `data:` property any note type
+declares, so the frontmatter lint refuses it.
 
 **`<system>.system` is written through verbatim**, at the DataModel's own paths,
 with no renaming layer. A key the system's published `schema.json` does not

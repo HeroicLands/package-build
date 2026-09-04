@@ -563,11 +563,18 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // and the message says so, but nothing in any tree means it yet.
     //
     // **These two only, never `title`.** The rule reads as a general one about
-    // optional strings, and it is not: on a `type: affiliation` note `title` is
-    // simultaneously a declared item field whose default is `""`, resolved from
-    // the very same shared top-level key, so `title: null` compiles the literal
-    // string `"null"` into the document. Extending this check to `title` would
-    // ask authors for exactly that (#218).
+    // optional strings, and it is not — it belongs to `resolveImg`, and `title`
+    // never goes through it.
+    //
+    // It once had a sharper reason, recorded here because it was load-bearing
+    // and is now false: a note's top-level `title` was simultaneously the shared
+    // source for an `affiliation` item's `system.title`, so asking an author for
+    // `title: null` would have compiled the literal string `"null"` into the
+    // document. That collision is gone — the field declares `topLevelMeans` and
+    // the top-level key is no longer a source for it — so `title: null` is now
+    // harmless. Whether `title: ""` deserves a warning of its own is a separate
+    // question about the *page's* heading, still open on #218, and not settled
+    // by extending an art-path check to it.
     for (const key of ART_FIELDS) {
         if (authoredValue(fm, key) !== "") continue;
         findings.push({

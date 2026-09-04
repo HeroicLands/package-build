@@ -138,6 +138,17 @@ it _there_, and a system that disagrees is not in error. A weapon weighs what
 This is the same rule as `hm3.type` overriding a derived document type, applied
 to fields: derive from the shared source, and let the system state the exception.
 
+**A field whose spelling means something else at the note level has no shared
+source.** The fallback assumes the two vocabularies agree about what a name
+means, and they do not always: a note's top-level `title` is the heading its page
+publishes under, while an `affiliation` item's `system.title` is the style of
+address an office carries. Where they diverge, the field declares what the
+top-level key means instead, and the top level stops being read for it — leaving
+`<system>.system.<field>` and the legacy in-block position, which describe the
+document rather than the note. `title` is the one field this applies to; `subType`
+is the other declared item field spelled like a note-level key, and there the two
+levels mean the same thing by design.
+
 **A `WikiLink` becomes a shortcode where the target field expects one.** SoHL
 stores cross-references as shortcode strings, which is what the `Code` suffix
 marks: `data.assocSkill` is a link to a skill note, and `system.assocSkillCode`
@@ -784,6 +795,16 @@ mapping for a field no schema declares is the drift these tables exist to catch.
 `system.society`, `system.office`, `system.title` and `system.level` are
 likewise absent here: they are filled on an embedded membership, never from a
 catalogue note's `data:`.
+
+**`system.title` is not the note's `title`.** The two are unrelated quantities
+that share a spelling. A note's top-level `title` is _the title of the note_ —
+the heading its page is published under; an affiliation's `system.title` is _the
+style of address the office carries_, Ajaw or Warden, which a being holds by
+virtue of its rank. So the top-level key is **not** a shared source for this
+field, and a note that writes one is stating its own heading and nothing else
+(#218). Author the style of address on the membership — the `system.title` of the
+entry in a being's `sohl.items` — or, on a catalogue note that genuinely carries
+one, at `sohl.system.title`.
 
 ### type: affliction
 
