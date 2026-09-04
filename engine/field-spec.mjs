@@ -65,6 +65,31 @@ export { setPath };
  *   still read, second, until #126 moves the corpus off it.
  *
  *   Absent means the value is not authored at all — see `value`.
+ * @property {string} [topLevelMeans] - **What the note's top-level key of this
+ *   name means instead** — declared only where it means something else, and
+ *   stating it removes the shared top-level position from this field's
+ *   resolution order (#218).
+ *
+ *   A field's `name` doubles as its identity and as the shared property it
+ *   draws from, which is right wherever the two levels state the same quantity
+ *   — `data.weight` is the weight, whoever reads it. It is wrong wherever a
+ *   spelling collides across the two vocabularies. An `affiliation` item's
+ *   `system.title` is the style of address an office carries; a note's
+ *   top-level `title` is the note's own heading. Nothing relates them, and
+ *   before this key one silently fed the other, stringifying an authored
+ *   `title: null` into fifteen documents.
+ *
+ *   **The value is the reason**, not a flag with a comment beside it. A boolean
+ *   would record the decision and lose the case for it, and the next person
+ *   adding a field needs to know the question exists — this package's own rule
+ *   that the declaration *is* the statement, never a description of one. The
+ *   author-facing reference renders it, so an author reading the field table
+ *   learns that the top-level key will not fill this field, and why.
+ *
+ *   The exempted field is still authorable, at both of the positions that
+ *   describe the *document* rather than the note: `<system>.system.<to>` and
+ *   the legacy in-block `<system>.<name>`. Absent means the ordinary case —
+ *   the top level is read, as the third step.
  * @property {string} [shape] - Human-readable shape, for documentation. Comes
  *   paired with `read` from one of the coercion constants below.
  * @property {(raw: any, ctx: {fm: object, field: FieldSpec}) => any} [read] -

@@ -1,12 +1,17 @@
 # Migrating to `@heroiclands/package-build` 15.0.0
 
-**Two unrelated changes ship in this major, and they ask different repositories
-for different things.** A page's `url:` front matter is now stated relative to
-the **site root** (#217), which a site-publishing repository answers by deleting
-one line; and an empty art path now means the opposite of an absent one (#218),
-which a content tree answers by sweeping `img: ""` and `portrait: ""` to `null`.
-A repository that publishes no site does only §3–§5; one that authors no empty
-art path does only §1–§2.
+**Three unrelated changes ship in this major, and they ask different
+repositories for different things.** A page's `url:` front matter is now stated
+relative to the **site root** (#217), which a site-publishing repository answers
+by deleting one line; an empty art path now means the opposite of an absent one
+(#218), which a content tree answers by sweeping `img: ""` and `portrait: ""` to
+`null`; and a note's own `title` no longer reaches an `affiliation` item's
+`system.title` (#218), which asks nothing of any repository that exists today.
+
+Route yourself by what you have. A repository that publishes no site skips
+§1–§2. One that authors no empty art path skips §3–§4. One with no
+`type: affiliation` notes skips §6 — and §5, which is only the seam between the
+two halves of #218.
 
 ## 1. Drop the `site.base: "/"` stopgap (#217)
 
@@ -95,18 +100,88 @@ prototype token's `texture.src`), and `engine/macros.mjs`.
 `itemArt()` is unaffected — a registry entry with no art throws before the
 translation, so its result is never the unset case.
 
-## 5. `title` is **not** on this rule
+## 5. `title` is **not** on the art rule
 
-The rule reads as a general one about optional strings, and it is not. On a
-`type: affiliation` note, `title` is _also_ a declared item field whose default
-is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
-key the site emitter reads as the page title. `title: null` therefore does not
-fall back — it stringifies, and the compiled document ships the literal string
-`"null"`.
+`resolveImg`'s rule reads as a general one about optional strings, and it is
+not — it belongs to the function, and `title` never goes through it. So do not
+extend §3's sweep to `title`, and do not read the table in §3 as saying anything
+about it.
 
-**Do not sweep `title: ""` to `title: null`.** A `title` a note does not want is
-written by omitting the key, which is the position `field.default` applies at.
-The site emitter is already correct (`fm.title ?? name`) and needs no change.
+**The reason has changed since this section was first written, and the earlier
+one is no longer true.** It used to be that a note's top-level `title` was
+_simultaneously_ the page's heading and the shared source for an `affiliation`
+item's `system.title`, so `title: null` did not fall back — it stringified, and
+the compiled document shipped the literal string `"null"`. That collision is what
+§6 removes: the top-level key is no longer a source for the item field at all.
+
+So `title: null` is now simply a note declining to state a heading, and the site
+emitter's `fm.title ?? name` falls back to `name.full` as it always did. It
+reaches no document field and stringifies nothing.
+
+`title: ""` still publishes a **deliberately blank heading** — which is what cost
+fifteen `sohl-thalorna` notes their names (HeroicLands/sohl-thalorna#129) — and
+nothing warns about it yet. Whether the frontmatter lint should is #218's, still
+open, and deliberately not settled by the art-field warning in §3.
+
+## 6. A note's own `title` no longer fills `system.title` (#218)
+
+**No note edit, no URL change, and no compiled document moves.** An
+`affiliation` item's `system.title` stops falling back to the note's own
+top-level `title`. The two were never the same quantity — a note's `title` is
+the heading its page publishes under, while `system.title` is the style of
+address an office carries, Ajaw or Warden — and no note in any content tree
+relied on the fallback, so `content-build package compile` emits byte-identical
+`build/packs-json` for every consumer.
+
+Only a `type: affiliation` note is affected, and only if it carries a top-level
+`title` it meant as the item's field rather than as the page's heading:
+
+```bash
+grep -rl '^type: affiliation' assets/content --include='*.md' \
+  | xargs grep -l '^title:'
+```
+
+Anything that turns up wanted one of the two positions that describe the
+_document_ rather than the note — `sohl.system.title`, or `sohl.title`, the
+legacy in-block key most trees already write. A membership's title belongs on
+the entry in the being's `sohl.items`, as `system.title`.
+
+`data: { title: ... }` is not a position and never was: `title` is not a `data:`
+property any note type declares, so `content-build lint` refuses it.
+
+### Regenerate the item field reference
+
+The generated page now prints, under each affected type's table, what the
+top-level key of a non-shared field means instead — so an author reading the
+table learns that writing `title:` at the top of a note will not fill this
+field. Re-run the generator and commit the result, or a repository that checks
+the page for staleness reports it stale:
+
+```bash
+npx content-build docs item-fields --out <the path your repo uses>
+```
+
+### Declaring your own non-shared field
+
+A field in an `itemBuilders` `fields:` declaration may now carry
+`topLevelMeans`, whose value is _what the note's top-level key of that name
+means instead_. Declaring it removes the shared top-level position from that
+field's resolution order:
+
+```js
+{
+    name: "title",
+    to: "title",
+    ...STRING,
+    default: "",
+    topLevelMeans: "the note's own title — the heading its page is published under",
+    describe: "The style of address the office carries.",
+}
+```
+
+The value is the reason rather than a bare flag on purpose: the next person
+adding a field needs to know the question exists, and a boolean with a comment
+beside it is two statements of one rule.
 
 # Migrating to `@heroiclands/package-build` 12.0.0
 

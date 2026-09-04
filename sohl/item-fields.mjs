@@ -265,6 +265,12 @@ export const ITEM_FIELDS = Object.freeze({
             to: "title",
             ...STRING,
             default: "",
+            topLevelMeans:
+                "the note's own title — the heading its page is published under, " +
+                "which has nothing to do with the style of address an office " +
+                "carries. Author this on the membership instead: `sohl.system.title` " +
+                "on the item, or the `system.title` of the entry in a being's " +
+                "`sohl.items`.",
             describe: "The style of address the office carries.",
         },
         {
