@@ -50,7 +50,7 @@ import { createRequire } from "node:module";
 import matter from "gray-matter";
 
 import { slugify } from "./content-slug.mjs";
-import { addressSlug, sectionOf } from "./content-address.mjs";
+import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
@@ -132,11 +132,10 @@ function readNote(file) {
  * @returns {{pages: object[], addressFindings: object[], fmLinkFindings: object[]}}
  */
 export function collectContentPages(contentBase, ctx) {
-    // Where an addressed page publishes. The section below is guarded so a note
-    // is never "written to `undefined/`"; the same reasoning applies here, and a
-    // missing `base` would put *every* page there rather than one. It is the
-    // caller's contract rather than a note's defect, so it throws instead of
-    // being collected as a finding (#195).
+    // Where an addressed page publishes. A missing `base` would put *every*
+    // page at `undefined/` rather than one, and it is the caller's contract
+    // rather than a note's defect, so it throws instead of being collected as a
+    // finding (#195).
     if (typeof ctx.base !== "string" || !ctx.base) {
         throw new TypeError(
             "collectContentPages: `ctx.base` must be a non-empty string — it is the package address every page's URL is built on",
@@ -178,20 +177,6 @@ export function collectContentPages(contentBase, ctx) {
         }
 
         const base = path.basename(file);
-        const isReadme = base.toLowerCase() === "readme.md";
-        const sec = sectionOf(fm);
-        // A page's URL no longer contains its section, but the section is still
-        // what decides the directory the file is written to — and Hugo derives
-        // a page's section from that directory, not from its URL. So a note
-        // with none is still a note with nowhere to be published, and is
-        // reported rather than written to `undefined/`.
-        if (typeof sec !== "string" || !sec) {
-            addressFindings.push({
-                file,
-                reason: `type "${fm.type}" has no section, so there is nowhere to file the page`,
-            });
-            continue;
-        }
         const rel = path.relative(contentBase, file);
         pages.push({
             kind: "content",
@@ -218,15 +203,12 @@ export function collectContentPages(contentBase, ctx) {
             // The immediate source subfolder, the only surviving record of the
             // authoring folder, for grouped landings.
             folder: path.basename(path.dirname(file)),
-            sec,
-            // A landing page **is** its section, so it is addressed by the
-            // mount the section lives at; every other page is addressed by
-            // `(type, shortcode)` at the package root, which takes no mount
-            // (#181). The file is still written into `<sec>/` either way — see
-            // {@link pageDestination} — and the front matter carries this `url`
-            // so Hugo publishes it at its address rather than at its path.
-            url: isReadme ? `${ctx.mount}${sec}/` : `${ctx.base}${slug}/`,
-            isReadme,
+            // Every page is addressed by `(type, shortcode)` at the package
+            // root, which takes no content mount (#181). The file is written
+            // flat under the mount — see {@link pageDestination} — and the
+            // front matter carries this `url` so Hugo publishes it at its
+            // address rather than at its path.
+            url: `${ctx.base}${slug}/`,
         });
     }
     return { pages, addressFindings, fmLinkFindings };
@@ -557,12 +539,10 @@ export function sectionFrontmatter(meta) {
  * redirects of its own.
  *
  * A content page states its own **`url`**, which is its address rather than its
- * path (#181). Hugo would otherwise publish it where the file sits — under the
- * mount, inside its section directory — and the file sits there for a reason:
- * Hugo derives a page's section from its directory, which is what gives the
- * section its landing page, `.CurrentSection` and its per-section layout
- * lookup. So the directory stays and the address is stated, and the two are
- * free to differ.
+ * path (#181). It is written flat under the content mount (#204), so Hugo would
+ * otherwise publish it at `<mount><type>-<shortcode>/` rather than at the
+ * package-wide address the link manifest records — the same address, one
+ * segment too deep. So the address is stated and the mount does not reach it.
  *
  * A content page carries the package the build **derived** (#65). No note
  * declares one — `package:` is retired (#56) — so the note's frontmatter alone
@@ -574,8 +554,12 @@ export function sectionFrontmatter(meta) {
  * self-describing and makes sweeping the field out of a content tree
  * output-preserving for a site as it already is for the packs.
  *
+ * A **tree** page is the one that still reads `readmeSections`: a `trees` entry
+ * keeps its source layout below a named section, so its own `README` is that
+ * section's landing and takes the title and hero the section declares.
+ *
  * @param {object} page - The page.
- * @param {object} options - `{ sections, readmeSections, decorate }`.
+ * @param {object} options - `{ readmeSections, decorate }`.
  * @returns {object} The frontmatter to write.
  */
 export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
@@ -598,14 +582,6 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
             kbfolder: page.folder,
         };
         if (decorate) decorate(data, page);
-        if (isReadme) {
-            const meta = readmeSections[sec];
-            // What the section says about itself wins over what its README
-            // happens to carry — the landing has to match the card linking to
-            // it. Assigned rather than transcribed key by key, so a section's
-            // vocabulary is decided in one place (#91).
-            if (meta) Object.assign(data, sectionFrontmatter(meta));
-        }
     } else {
         // A tree's own landing describes the *mount*, and nothing beneath it. A
         // nested README is a sub-section's landing, and reading the section's
@@ -623,23 +599,25 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
 /**
  * Where a page is written, relative to the output root.
  *
- * **Into its section directory, which is not where it publishes** (#181). A
- * content page's URL is its address — `/<package>/<type>-<shortcode>/` — and it
- * is stated in the front matter; the file still goes to `<section>/`, because
- * Hugo reads a page's section from its path and nothing else. Flattening the
- * tree to match the URL would take the section landings, `.CurrentSection` and
- * every per-section layout with it.
+ * **Flat, under the mount, named by its address** (#204). A content page's URL
+ * is its address — `/<package>/<type>-<shortcode>/` — and the file is now named
+ * the same way, so the two agree. It used to be filed into `<section>/` so that
+ * Hugo would read a section off its path; a section appears in no address, and
+ * a directory chosen only to satisfy a rendering engine's idea of what a
+ * section is has no business in the note format.
  *
- * The filename is the address rather than the section-relative half of it, so
- * two sections cannot fight over one file: a `doc` note routes by its `subType`,
- * which may be spelled the same as another note's `type`.
+ * The name is the *whole* address rather than a section-relative half of it, so
+ * two types cannot fight over one file: a `doc` note's `subType` may be spelled
+ * the same as another note's `type`, and `doc-gear.md` and `weapongear-gear.md`
+ * are distinct whatever the sections used to be.
+ *
+ * **A `trees` entry is the exception, and always was.** Those pages preserve
+ * their source layout below a named section — they are a book with chapters,
+ * addressed by their path — so a `README` there is still its directory's
+ * `_index.md`.
  */
 export function pageDestination(page) {
-    if (page.kind === "content") {
-        return page.isReadme ?
-                path.join(page.sec, "_index.md")
-            :   path.join(page.sec, `${page.slug}.md`);
-    }
+    if (page.kind === "content") return `${page.slug}.md`;
     const rel =
         page.isReadme ? path.posix.join(path.posix.dirname(page.rel), "_index.md") : page.rel;
     return path.join(page.sec, rel);
@@ -681,7 +659,11 @@ export function renderPages(pages, options) {
     const byKind = {};
 
     for (const page of pages) {
-        const src = page.rel ?? `${page.sec}/${page.base}`;
+        // The page's path in the tree an author edits: below the content root
+        // for a content note, below the tree's own root for a `trees` page. It
+        // used to be composed as `<section>/<basename>` for a content note,
+        // which named a directory that was never the note's (#204).
+        const src = page.relPath ?? page.rel ?? page.base;
         const ctx = wikiContext(index, {
             src,
             file: page.file,
@@ -724,26 +706,43 @@ export function renderPages(pages, options) {
 }
 
 /**
- * Writes the section landings a published tree needs but no note supplies.
+ * Writes the Hugo sections a published tree declares.
  *
- * Two separate jobs, and both exist because of how Hugo decides what a section
- * is:
+ * **This is where a section lives now, and the only place** (#204). A content
+ * note carries none: it is addressed by `(type, shortcode)` and emitted flat
+ * under the mount, so nothing a page does creates a directory. A site that wants
+ * `/<package>/<prefix><section>/` to answer — with a title, a hero, and whatever
+ * listing its layout builds — says so here, in configuration, and this writes
+ * the `_index.md` that makes Hugo agree it is a section.
  *
+ * Three jobs, all of them Hugo's directory semantics rather than the note
+ * format's:
+ *
+ * - **The mount's own landing**, so `/<package>/<prefix>` is a page rather than
+ *   a directory listing. It carries a `type` of its own: Hugo's template lookup
+ *   walks up a page's path, so an untyped landing template at the mount would
+ *   also serve every section below it that has none.
  * - **Declared sections** get a titled `_index.md` with their hero, so a landing
  *   matches the card that links to it instead of showing Hugo's auto-humanised
- *   directory name. The body is empty, which lets the theme list the section's
- *   children — or say it is empty, for a section whose content has not shipped.
- * - **Every other section directly under the mount** gets a bare `_index.md`,
+ *   directory name. The body is empty, which lets the theme decide what to list.
+ * - **Every other directory directly under the mount** gets a bare `_index.md`,
  *   or its own address publishes nothing. Hugo generates a section page
  *   automatically only for a *top-level* content directory; below that, a
- *   directory without an `_index.md` is not a section, so its URL 404s while
- *   its children publish normally. Mounting a tree one level down demotes every
- *   section it holds, and the ones with no landing of their own quietly stop
- *   existing while every page inside them keeps working.
+ *   directory without an `_index.md` is not a section, so its URL 404s while its
+ *   children publish normally. With content pages flat, what that reaches is a
+ *   `trees` entry's directory — the one thing left below the mount that a note
+ *   creates.
+ *
+ * **A section listing is not a page listing any more.** A layout that reads
+ * `.Pages` off a section it declares here will find nothing, because no file is
+ * filed into it; one that queries `site.RegularPages` by `Params.type` — which
+ * is how `sohl`'s eleven catalog layouts already work — is unaffected. That is a
+ * consumer's layout to choose, and it is stated here because the choice is no
+ * longer free.
  *
  * Scoped to one level on purpose. A directory further down was not a section
- * before the move either, and giving it one here would silently re-scope the
- * prev/next navigation of every page inside it.
+ * before either, and giving it one here would silently re-scope the prev/next
+ * navigation of every page inside it.
  *
  * @param {string} outRoot - The mount directory.
  * @param {object} options - `{ sections, landing, sectionTitle }`.
@@ -752,11 +751,6 @@ export function renderPages(pages, options) {
 export function writeSectionLandings(outRoot, { sections = {}, landing, sectionTitle }) {
     let written = 0;
 
-    // The mount's own landing carries a `type` of its own. Hugo's template
-    // lookup walks up a page's path, so a landing template at the mount would
-    // also serve every section below it that has no template of its own —
-    // each would render the mount's front page. Typing the landing moves its
-    // template out of the path where it could be inherited.
     if (landing) {
         fs.mkdirSync(outRoot, { recursive: true });
         fs.writeFileSync(path.join(outRoot, "_index.md"), matter.stringify("", landing));
@@ -1024,9 +1018,7 @@ export function buildSite({ config, outRoot } = {}) {
         name: page.fm.name?.full ?? homepageTitle(page.fm, resolved),
         slug: addressSlug(page.fm),
         base: path.basename(page.file),
-        sec: sectionOf(page.fm),
         url: `${base}${addressSlug(page.fm)}/`,
-        isReadme: false,
     }));
 
     const trees = site.trees.map((t) => ({

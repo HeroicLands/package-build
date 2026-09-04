@@ -65,10 +65,15 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {object} fm     The note's frontmatter.
  * @property {string} name   Display name.
  * @property {string} slug   URL segment.
- * @property {string} sec    Section the page is filed under.
+ * @property {string} [sec]  The Hugo section a **tree** page is filed under, and
+ *                           the first segment of the `<sec>/<slug>` address it
+ *                           is reachable by. A content page has none: it is
+ *                           addressed by `(type, shortcode)` and emitted flat
+ *                           (#204).
  * @property {string} base   Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
- * @property {boolean} isReadme  Whether the page is its section's landing.
+ * @property {boolean} [isReadme]  Whether a tree page is its directory's
+ *                           landing.
  */
 
 /**
@@ -169,13 +174,20 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     const ownPackage = contentPackage();
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
-    // `section/slug` is unique by construction. A page's name, filename and
-    // bare slug were indexed here too, as collision-aware fallbacks the bare
-    // `[[Name]]` form looked up; that form is retired and nothing consults
-    // them, so they are gone and with them the rule that two pages of a type
-    // may not share a name (#179, #180).
+    // `section/slug` is unique by construction, and is now a **tree** page's
+    // address: a `trees` entry keeps its source layout below a named section,
+    // so `dev-docs/testing` is how one is cited. A content page carries no
+    // section at all (#204) and is addressed by `(type, shortcode)` below —
+    // indexing it here as well would have written `weapongear/weapongear-dagger`,
+    // a key no author could reasonably write.
+    //
+    // A page's name, filename and bare slug were indexed here too, as
+    // collision-aware fallbacks the bare `[[Name]]` form looked up; that form is
+    // retired and nothing consults them, so they are gone and with them the rule
+    // that two pages of a type may not share a name (#179, #180).
     for (const e of entries) {
-        sections.add(String(e.sec).toLowerCase());
+        if (typeof e.sec !== "string" || !e.sec) continue;
+        sections.add(e.sec.toLowerCase());
         // `draft` rides on every key a page is addressable by, because a link
         // into a draft note renders marked whichever of them the author wrote
         // (#183). It decides nothing about resolution: the page is indexed and

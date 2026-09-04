@@ -233,11 +233,13 @@ export function declaresRetiredAliasesField(fm) {
  *
  * **What it did (#202).** It named the section a `collection` note headed,
  * under the `collection` landing rule — the only reader it ever had, in the
- * second branch of `landingOf` (`engine/content-address.mjs`). That rule is
- * retired: a section is landed by its `README.md`, which addresses the section
- * it sits in and needs nothing authored to say which. Nothing else read the
- * field, and no schema or vocabulary declared it, so left in place it would be
- * ignored in silence — the note saying one thing and the build doing another.
+ * second branch of `landingOf` (`engine/content-address.mjs`). That rule went
+ * first, and the whole mechanism went with it (#204): a section is a Hugo
+ * directory the note format does not carry, so no note lands one and a page
+ * that introduces a type is an ordinary note addressed `doc-<type>`. Nothing
+ * else read the field, and no schema or vocabulary declared it, so left in
+ * place it would be ignored in silence — the note saying one thing and the
+ * build doing another.
  *
  * @param {string} [file] - The note's path, named in the message. Omit it where
  *   the caller emits through a diagnostic, whose locator already starts the
@@ -248,10 +250,11 @@ export function sectionRetiredMessage(file) {
     return (
         "`section:` is a retired frontmatter field — delete it" +
         (file ? ` — ${file}` : "") +
-        ". It named the section a `collection` note headed, and the " +
-        "`collection` landing rule is retired: a section is landed by the " +
-        "`README.md` in its directory, which addresses the section it sits " +
-        "in. Nothing else ever read the field"
+        ". It named the section a `collection` note headed, and both the rule " +
+        "and the sections it routed to are retired: a page that introduces " +
+        "the notes of a type is an ordinary note — `type: doc`, " +
+        "`subType: reference`, `shortcode: <type>` — addressed `doc-<type>`. " +
+        "Nothing else ever read the field"
     );
 }
 

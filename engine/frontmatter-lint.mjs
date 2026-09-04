@@ -55,10 +55,7 @@
  * @module
  */
 
-import path from "node:path";
-
 import { authoredFields } from "./field-spec.mjs";
-import { DEFAULT_ADDRESS_SCHEME, sectionOf } from "./content-address.mjs";
 import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system-block.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
@@ -325,82 +322,39 @@ function checkDataContainer(note, { type, fields }) {
 }
 
 /**
- * Whether this note's `subType` names the **section it lands at** rather than a
- * sub-kind of its type (#197).
- *
- * Under `landing: readme` a `README.md` addresses its whole section, and the
- * segment is what `sectionOf` reads — for a `doc`, its `subType`. So that one
- * field is spelled once and read twice: as a genre on an ordinary note, and as
- * an address on a landing. The two vocabularies are not the same set, and the
- * closed one cannot answer for the open one.
- *
- * Asked of {@link sectionOf} rather than by naming a type, because which types
- * route by their `subType` is address knowledge and this module deliberately
- * knows no type names of its own.
- *
- * @param {object} note - The note.
- * @param {string} landing - The repository's landing rule.
- * @returns {boolean} Whether the value is an address.
- */
-function subTypeIsSection(note, landing) {
-    if (landing !== "readme") return false;
-    const file = typeof note.file === "string" ? note.file : "";
-    if (path.basename(file).toLowerCase() !== "readme.md") return false;
-    const fm = note.fm ?? {};
-    return typeof fm.subType === "string" && sectionOf(fm) === fm.subType;
-}
-
-/**
  * Check a note's top-level `subType` against the values its type declares
- * (#128), or — for a `README` landing — against the sections that can exist
- * (#197, #200).
+ * (#128).
  *
  * `subType` stays at the top level — it is what each system's map reads to
  * derive a document type, so it describes the note rather than the subject —
  * but it is not open like the rest of that region: a type either declares a
  * `subType` or does not, and a type that does declares its values.
  *
- * **A landing page's is an address, and an address is checked against the
- * addresses that exist.** A `README` under `landing: readme` addresses its
- * section through this field, and a section is `weapongear` or `being` as
- * readily as it is `rules`. What can legitimately appear there is the range of
- * {@link sectionOf} over every note the format permits, plus whatever the
- * repository names:
+ * **It is a genre, and only a genre.** #197 gave the field a second reading: a
+ * `README.md` was its section's landing page, and the segment it landed at was
+ * its `subType`, so the value had to be checked against the sections that could
+ * exist — every content type, plus whatever a repository configured — rather
+ * than against the genres its type declares. Two vocabularies in one field is
+ * what #198, #200 and #201 were each spent on, and #204 removed the cause rather
+ * than the symptom: a section is a Hugo directory the note format does not
+ * carry, and a page introducing a type is an ordinary note addressed
+ * `doc-<type>`. So the closed list answers for every note, whatever it is
+ * called, and `rules`, `userguide`, `reference` mean three genres and nothing
+ * else.
  *
- * 1. **Every declared content type.** `sectionOf` returns `fm.type` for a
- *    non-`doc` note, so `being`, `lore` and `weapongear` are sections *by
- *    construction*, configured or not.
- * 2. **The type's own subtypes** — `rules`, `userguide`, `reference` for a
- *    `doc`, since a `doc` routes by its subtype.
- * 3. **The configured sections**, which may name one that is neither: `sohl`
- *    configures `credits` and `dev-docs`.
- *
- * Checking only (3) was #197's fix and keyed on configuration a consumer may
- * legitimately not have: `sohl-thalorna` has no `site:` block at all, so five
- * of its landings were refused for naming their own content type (#200).
- *
- * **The guard survives.** A misspelling is none of the three, so it still
- * fails, with the near miss drawn from the whole union. What is deliberately no
- * longer caught is a landing for a section that exists but is empty — which is
- * legitimate, and is why the set is the types the format *declares* rather than
- * the types *present in the tree*: `sohl` ships two such landings above tables
- * that stay empty until the first note of each type does.
+ * **Three checks, in this order** — retired spelling, then charset, then the
+ * closed set (#206, #204). Each is ahead of the next because it is the more
+ * specific statement about the same value: a retired spelling has a named
+ * replacement, a hyphenated value is unaddressable whatever the type declares,
+ * and only then is the type's own list the reason.
  *
  * @param {object} note - The note.
  * @param {object} opts
  * @param {string} opts.type - The note's type, for the message.
  * @param {object} opts.entry - The type's vocabulary entry.
- * @param {boolean} [opts.asSection] - Whether the value is a section address —
- *   see {@link subTypeIsSection}.
- * @param {readonly string[]} [opts.types] - The content types the format
- *   declares. Empty leaves a landing checked against its genres and the
- *   configured sections alone.
- * @param {readonly string[]} [opts.sections] - The sections the repository
- *   configures. Empty when it configures none, which is ordinary rather than a
- *   defect.
  * @returns {object[]} Findings.
  */
-function checkSubType(note, { type, entry, asSection = false, types = [], sections = [] }) {
+function checkSubType(note, { type, entry }) {
     const fm = note.fm ?? {};
     if (!Object.hasOwn(fm, "subType") || fm.subType == null || fm.subType === "") return [];
 
@@ -459,28 +413,6 @@ function checkSubType(note, { type, entry, asSection = false, types = [], sectio
     // `null` is "declared, values not yet enumerated" — presence is legal and
     // the value is nobody's to check yet.
     if (values == null || values.includes(value)) return [];
-
-    if (asSection) {
-        if (types.includes(value) || sections.includes(value)) return [];
-        const guess = nearest(value, [...types, ...values, ...sections]);
-        return [
-            {
-                file: note.file,
-                ...at,
-                severity: "error",
-                message:
-                    `\`subType\` "${value}" is the section this README lands ` +
-                    `at, and nothing declares it. A section is a content type ` +
-                    `(${types.join(", ")}), a subtype ${type} declares ` +
-                    `(${values.join(", ")})` +
-                    (sections.length ?
-                        `, or a section configured under \`site.sections\` / ` +
-                        `\`site.readmeSections\` (${sections.join(", ")})`
-                    :   "") +
-                    (guess ? `. Did you mean "${guess}"?` : ""),
-            },
-        ];
-    }
 
     const guess = nearest(value, values);
     return [
@@ -564,33 +496,9 @@ function checkTags(note, { type }) {
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check, and what each accepts. See
  *   {@link DEFAULT_SYSTEM_BLOCKS}.
- * @param {string} [opts.landing] - The repository's landing rule, from
- *   `publish.address.landing`. It decides which note addresses a whole section,
- *   and so whether a `subType` is a genre or an address (#197).
- * @param {readonly string[]} [opts.types] - The content types the format
- *   declares — the sections that exist by construction (#200). Read from
- *   `docs/content-format.md` rather than from `schemas`, because the two answer
- *   different questions: whether an address is real, and whether this build can
- *   check a note's fields. A type the specification declares and no schema
- *   covers is a real section, and its notes are reported on their own account.
- * @param {readonly string[]} [opts.sections] - The sections the repository
- *   configures, from `declaredSections`. Supplied by the caller for the same
- *   reason `vocabulary` is: this module checks a note against what it is
- *   handed.
  * @returns {object[]} Findings, each with a locator where one is obtainable.
  */
-export function lintNote(
-    note,
-    {
-        schemas,
-        index,
-        vocabulary,
-        systems = DEFAULT_SYSTEM_BLOCKS,
-        landing = DEFAULT_ADDRESS_SCHEME.landing,
-        types = [],
-        sections = [],
-    },
-) {
+export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_SYSTEM_BLOCKS }) {
     const findings = [];
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
@@ -717,15 +625,7 @@ export function lintNote(
     const entry = vocabulary?.[type];
     if (entry) {
         findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [] }));
-        findings.push(
-            ...checkSubType(note, {
-                type,
-                entry,
-                asSection: subTypeIsSection(note, landing),
-                types,
-                sections,
-            }),
-        );
+        findings.push(...checkSubType(note, { type, entry }));
     }
 
     const fields = authoredFields(schema);
@@ -882,19 +782,10 @@ export function lintNote(
  * @param {boolean} [opts.references=true] - Whether to check references.
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
- * @param {string} [opts.landing] - The repository's landing rule; see
- *   {@link lintNote}.
- * @param {readonly string[]} [opts.types] - The content types the format
- *   declares; see {@link lintNote}.
- * @param {readonly string[]} [opts.sections] - The sections the repository
- *   configures; see {@link lintNote}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(
-    index,
-    { schemas, vocabulary, references = true, systems, landing, types, sections },
-) {
+export function lintFrontmatter(index, { schemas, vocabulary, references = true, systems }) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -908,9 +799,6 @@ export function lintFrontmatter(
                 vocabulary,
                 index: references ? index : undefined,
                 ...(systems ? { systems } : {}),
-                ...(landing ? { landing } : {}),
-                ...(types ? { types } : {}),
-                ...(sections ? { sections } : {}),
             }),
         );
     }

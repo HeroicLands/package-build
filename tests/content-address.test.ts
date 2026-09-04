@@ -18,12 +18,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import {
-    addressSlug,
-    contentAddress,
-    packageAddress,
-    sectionOf,
-} from "../engine/content-address.mjs";
+import { addressSlug, contentAddress, packageAddress } from "../engine/content-address.mjs";
 import { canonicalKey } from "../engine/kb-manifest.mjs";
 
 describe("addressSlug", () => {
@@ -70,12 +65,15 @@ describe("a page's address is not its name", () => {
         expect(packageAddress(fm, { scheme: { prefix: "" } })).toBe("affliction-aconite/");
     });
 
-    it("routes a `doc` by its subtype but does not spell it in the address", () => {
+    it("spells a `doc`'s subtype nowhere in the address", () => {
+        // The subtype is a genre, and a genre is not an address. It used to
+        // pick the directory the file was written into; that directory is gone
+        // (#204), and the address never had it.
         const fm = { type: "doc", subType: "rules", shortcode: "combat" };
-        // The section is still where the *file* goes — Hugo reads a section
-        // from a directory — so it is still required.
-        expect(sectionOf(fm)).toBe("rules");
         expect(packageAddress(fm, { scheme })).toBe("doc-combat/");
+        expect(packageAddress({ type: "doc", shortcode: "combat" }, { scheme })).toBe(
+            "doc-combat/",
+        );
     });
 
     it("is unique by construction, so two names may agree", () => {
@@ -88,34 +86,30 @@ describe("a page's address is not its name", () => {
     });
 });
 
-describe("a landing page is addressed by the section it is", () => {
-    it("`readme`: a README addresses its section, under the mount", () => {
+describe("there is no landing page, because there is no section (#204)", () => {
+    it("addresses a `README.md`'s note like every other note", () => {
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
-        expect(packageAddress(fm, { isReadme: true, scheme: { prefix: "kb/" } })).toBe("kb/rules/");
-        expect(contentAddress(fm, true)).toBe("rules/");
+        expect(packageAddress(fm, { scheme: { prefix: "kb/" } })).toBe("doc-rulesintro/");
+        expect(contentAddress(fm)).toBe("doc-rulesintro/");
     });
 
-    it("needs no shortcode, because it is not addressed by one", () => {
-        const fm = { type: "doc", subType: "rules" };
-        expect(packageAddress(fm, { isReadme: true, scheme: { landing: "readme" } })).toBe(
-            "rules/",
-        );
+    it("is a pure function of the frontmatter — the file's name reaches it nowhere", () => {
+        const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
+        // The option is not merely ignored; there is no parameter to pass.
+        expect(packageAddress(fm, { isReadme: true } as never)).toBe(packageAddress(fm, {}));
     });
 });
 
 describe("a note with no address is refused, never guessed", () => {
-    it("reports a `doc` with no subtype: it has no section to be filed under", () => {
-        expect(() => packageAddress({ type: "doc", shortcode: "homeless" }, {})).toThrow(
-            /has no section/,
-        );
+    it("publishes a `doc` with no subtype — nothing is left for it to lack", () => {
+        // It used to be refused for having "no section, so nowhere to file the
+        // page". The directory was the only thing it lacked, and there is no
+        // directory (#204).
+        expect(packageAddress({ type: "doc", shortcode: "homeless" }, {})).toBe("doc-homeless/");
     });
 
-    it("reports a landing note naming no section", () => {
-        // A `README` whose `doc` note declares no subtype: `sectionOf` yields
-        // nothing, so there is no segment to land at (#202).
-        expect(() =>
-            packageAddress({ type: "doc", shortcode: "nowhere" }, { isReadme: true }),
-        ).toThrow(/lands nowhere/);
+    it("reports a note with no shortcode, whatever else it declares", () => {
+        expect(() => packageAddress({ type: "doc", subType: "rules" }, {})).toThrow(/no shortcode/);
     });
 
     it("reports an unknown landing rule", () => {
