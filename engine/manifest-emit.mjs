@@ -210,8 +210,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * exist.
  *
  * @param {string} contentBase - Absolute path to the content tree.
- * @param {object} ctx - `{ contentPackage, foundryPackageId, packRouter,
- *   scheme }`.
+ * @param {object} ctx - `{ contentPackage, foundryPackageId, packRouter }`.
  * @returns {{entries: Array<object>, notes: number,
  *   skipped: Array<{file: string, reason: string}>}}
  */
@@ -249,7 +248,7 @@ export function collectManifestEntries(contentBase, ctx) {
 
         let address;
         try {
-            address = packageAddress(fm, { scheme: ctx.scheme });
+            address = packageAddress(fm);
         } catch (err) {
             skipped.push({ file: rel, reason: err.message });
             continue;
@@ -261,7 +260,7 @@ export function collectManifestEntries(contentBase, ctx) {
 }
 
 /**
- * The identities and scheme an emission runs against, from configuration.
+ * The identities an emission runs against, from configuration.
  *
  * Resolved in one place and passed down, rather than read at each use, so the
  * pass itself is a pure function of its context and a test can drive it without
@@ -269,15 +268,13 @@ export function collectManifestEntries(contentBase, ctx) {
  *
  * @param {object} [config] - A resolved configuration; loaded when omitted.
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
- *   scheme: {prefix: string, landing: string}, web: boolean,
- *   skipDirectories: readonly string[]}}
+ *   web: boolean, skipDirectories: readonly string[]}}
  */
 export function manifestContext(config = loadPackConfig()) {
     return {
         contentPackage: config.contentPackage,
         foundryPackageId: config.foundryPackage,
         packRouter: routerFor(config),
-        scheme: config.publish.address,
         web: publishesContentPages(config),
         // The walk's own configuration, threaded through rather than left to
         // its default, so a caller that passes a config drives every read.

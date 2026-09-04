@@ -126,7 +126,7 @@ const ctx = {
     skipDirectories: [],
     base: "/demo/",
     mount: "/demo/kb/",
-    scheme: { prefix: "kb/", landing: "readme" },
+    scheme: { prefix: "kb/" },
 };
 
 function configFor(site: Record<string, unknown> = {}) {
@@ -183,9 +183,7 @@ describe("a `README.md` is an ordinary note", () => {
         // The address is a pure function of the frontmatter now: nothing about
         // the file it was read from reaches it.
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
-        expect(packageAddress(fm, { scheme: { prefix: "kb/", landing: "readme" } })).toBe(
-            "doc-rulesintro/",
-        );
+        expect(packageAddress(fm)).toBe("doc-rulesintro/");
         expect(packageAddress(fm, { isReadme: true } as never)).toBe("doc-rulesintro/");
     });
 
@@ -196,7 +194,7 @@ describe("a `README.md` is an ordinary note", () => {
 
 describe("the 'no section, so nowhere to file the page' refusal is gone", () => {
     it("addresses a `doc` that declares no subtype", () => {
-        expect(packageAddress({ type: "doc", shortcode: "homeless" }, {})).toBe("doc-homeless/");
+        expect(packageAddress({ type: "doc", shortcode: "homeless" })).toBe("doc-homeless/");
     });
 
     it("collects it as an ordinary page rather than an address finding", () => {
@@ -206,7 +204,7 @@ describe("the 'no section, so nowhere to file the page' refusal is gone", () => 
     });
 
     it("still refuses a note with no shortcode — that has no address", () => {
-        expect(() => packageAddress({ type: "doc" }, {})).toThrow(/no shortcode/);
+        expect(() => packageAddress({ type: "doc" })).toThrow(/no shortcode/);
     });
 });
 

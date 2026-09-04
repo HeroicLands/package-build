@@ -289,7 +289,7 @@ name:
                 skipDirectories: [],
                 base: "/demo/",
                 mount: "/demo/kb/",
-                scheme: { prefix: "kb/", landing: "readme" },
+                scheme: { prefix: "kb/" },
             });
             const built = buildSiteIndex(pages);
             const citing = pages.find((p: any) => p.fm.shortcode === "shock");

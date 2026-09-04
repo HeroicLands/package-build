@@ -46,13 +46,11 @@ describe("addressSlug", () => {
 });
 
 describe("a page's address is not its name", () => {
-    const scheme = { prefix: "kb/", landing: "readme" };
-
     it("takes nothing from the display name, so a rename moves no URL", () => {
         const before = { type: "weapongear", shortcode: "dagger", name: { full: "Dagger" } };
         const after = { ...before, name: { full: "Dagger, Fine (Kûrbúl-hilted)" } };
-        expect(packageAddress(after, { scheme })).toBe(packageAddress(before, { scheme }));
-        expect(packageAddress(before, { scheme })).toBe("weapongear-dagger/");
+        expect(packageAddress(after)).toBe(packageAddress(before));
+        expect(packageAddress(before)).toBe("weapongear-dagger/");
     });
 
     it("takes no content mount either — an address is package-wide", () => {
@@ -60,20 +58,23 @@ describe("a page's address is not its name", () => {
         // page addressed by `(type, shortcode)` is not addressed by where it is
         // filed. The `type-` half is what keeps that flat namespace clear of
         // `/<package>/` and `/<package>/api/`, neither of which has a hyphen.
+        // There is no scheme parameter left to pass one through (#215), so a
+        // caller that still holds a scheme cannot reach the address with it.
         const fm = { type: "affliction", shortcode: "aconite" };
-        expect(packageAddress(fm, { scheme })).toBe("affliction-aconite/");
-        expect(packageAddress(fm, { scheme: { prefix: "" } })).toBe("affliction-aconite/");
+        expect(packageAddress(fm)).toBe("affliction-aconite/");
+        expect(packageAddress(fm, { scheme: { prefix: "kb/" } } as never)).toBe(
+            "affliction-aconite/",
+        );
     });
 
     it("spells a `doc`'s subtype nowhere in the address", () => {
         // The subtype is a genre, and a genre is not an address. It used to
         // pick the directory the file was written into; that directory is gone
         // (#204), and the address never had it.
-        const fm = { type: "doc", subType: "rules", shortcode: "combat" };
-        expect(packageAddress(fm, { scheme })).toBe("doc-combat/");
-        expect(packageAddress({ type: "doc", shortcode: "combat" }, { scheme })).toBe(
+        expect(packageAddress({ type: "doc", subType: "rules", shortcode: "combat" })).toBe(
             "doc-combat/",
         );
+        expect(packageAddress({ type: "doc", shortcode: "combat" })).toBe("doc-combat/");
     });
 
     it("is unique by construction, so two names may agree", () => {
@@ -82,21 +83,21 @@ describe("a page's address is not its name", () => {
         // once #180 lands, a rename. Two addresses cannot collide.
         const rules = { type: "doc", subType: "rules", shortcode: "gearrules" };
         const guide = { type: "doc", subType: "userguide", shortcode: "gearug" };
-        expect(packageAddress(rules, { scheme })).not.toBe(packageAddress(guide, { scheme }));
+        expect(packageAddress(rules)).not.toBe(packageAddress(guide));
     });
 });
 
 describe("there is no landing page, because there is no section (#204)", () => {
     it("addresses a `README.md`'s note like every other note", () => {
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
-        expect(packageAddress(fm, { scheme: { prefix: "kb/" } })).toBe("doc-rulesintro/");
+        expect(packageAddress(fm)).toBe("doc-rulesintro/");
         expect(contentAddress(fm)).toBe("doc-rulesintro/");
     });
 
     it("is a pure function of the frontmatter — the file's name reaches it nowhere", () => {
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
         // The option is not merely ignored; there is no parameter to pass.
-        expect(packageAddress(fm, { isReadme: true } as never)).toBe(packageAddress(fm, {}));
+        expect(packageAddress(fm, { isReadme: true } as never)).toBe(packageAddress(fm));
     });
 });
 
@@ -105,16 +106,10 @@ describe("a note with no address is refused, never guessed", () => {
         // It used to be refused for having "no section, so nowhere to file the
         // page". The directory was the only thing it lacked, and there is no
         // directory (#204).
-        expect(packageAddress({ type: "doc", shortcode: "homeless" }, {})).toBe("doc-homeless/");
+        expect(packageAddress({ type: "doc", shortcode: "homeless" })).toBe("doc-homeless/");
     });
 
     it("reports a note with no shortcode, whatever else it declares", () => {
-        expect(() => packageAddress({ type: "doc", subType: "rules" }, {})).toThrow(/no shortcode/);
-    });
-
-    it("reports an unknown landing rule", () => {
-        expect(() =>
-            packageAddress({ type: "skill", shortcode: "awar" }, { scheme: { landing: "nope" } }),
-        ).toThrow(/unknown landing rule/);
+        expect(() => packageAddress({ type: "doc", subType: "rules" })).toThrow(/no shortcode/);
     });
 });

@@ -152,7 +152,7 @@ function sitePages(content: string) {
         skipDirectories: [],
         base: "/demo/",
         mount: "/demo/kb/",
-        scheme: { prefix: "kb/", landing: "readme" },
+        scheme: { prefix: "kb/" },
     }).pages;
 }
 
@@ -246,7 +246,7 @@ describe("it reaches no derived address", () => {
                     publish: {
                         site: "content",
                         manifests: { publish: true, consume: false },
-                        address: { landing: "readme", prefix: "kb/" },
+                        address: { prefix: "kb/" },
                     },
                 }),
                 outDir: out,
