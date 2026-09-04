@@ -18,7 +18,8 @@
 
 import { describe, it, expect } from "vitest";
 
-import { addressSlug, contentAddress, packageAddress } from "../engine/content-address.mjs";
+import * as contentAddressModule from "../engine/content-address.mjs";
+import { addressSlug, packageAddress } from "../engine/content-address.mjs";
 import { canonicalKey } from "../engine/kb-manifest.mjs";
 
 describe("addressSlug", () => {
@@ -91,7 +92,6 @@ describe("there is no landing page, because there is no section (#204)", () => {
     it("addresses a `README.md`'s note like every other note", () => {
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
         expect(packageAddress(fm)).toBe("doc-rulesintro/");
-        expect(contentAddress(fm)).toBe("doc-rulesintro/");
     });
 
     it("is a pure function of the frontmatter — the file's name reaches it nowhere", () => {
@@ -111,5 +111,26 @@ describe("a note with no address is refused, never guessed", () => {
 
     it("reports a note with no shortcode, whatever else it declares", () => {
         expect(() => packageAddress({ type: "doc", subType: "rules" })).toThrow(/no shortcode/);
+    });
+});
+
+describe("there is one address, so the module exports one name for it (#226)", () => {
+    it("no longer publishes `contentAddress` beside `packageAddress`", () => {
+        // The two were a note's address *in the content tree* and *relative to
+        // the package* — quantities that could differ while a `README.md`
+        // addressed its section (#204) and a URL was derived from `name.full`
+        // (#181). Both distinctions are retired, so a second name could only
+        // invite a caller to think it was picking between two rules.
+        expect(typeof contentAddressModule.packageAddress).toBe("function");
+        expect("contentAddress" in contentAddressModule).toBe(false);
+    });
+
+    it("keeps the pair the module does need: a bare segment and an address", () => {
+        // `addressSlug` is the segment a key is built from; `packageAddress` is
+        // the same segment as a package-relative path. That difference is real
+        // and is the only one the module draws.
+        const fm = { type: "affliction", shortcode: "aconite" };
+        expect(addressSlug(fm)).toBe("affliction-aconite");
+        expect(packageAddress(fm)).toBe(`${addressSlug(fm)}/`);
     });
 });
