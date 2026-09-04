@@ -68,7 +68,7 @@ import path from "node:path";
 
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
-import { isAddressSegment } from "./engine/address-charset.mjs";
+import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
 
 /**
@@ -658,7 +658,7 @@ const SITE_KEYS = [
     "backfillSections",
 ];
 const SITE_TREE_KEYS = ["from", "section"];
-const SECTION_META_KEYS = ["title", "banner", "description"];
+const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = ["id", "type", "manifest", "compatibility", "itemCatalog"];
@@ -1134,9 +1134,36 @@ function normalizeDocs(value) {
  * add to its title. Each is left off entirely rather than written as
  * `undefined`, which is not a value YAML can carry.
  *
+ * **`listType` / `listSubType` say what the section lists**
+ * (heroiclands-hugo-theme#50). Since #204 a section's directory holds nothing
+ * but the `_index.md` written here, so a layout reading Hugo's `.Pages` finds
+ * no members and renders an empty landing. The membership survives in this map
+ * and nowhere a theme can reach it, so the landing states it and a layout
+ * substitutes the equivalent `site.RegularPages` query — the same one `sohl`'s
+ * catalog layouts already run, which is why `sohl`'s landings never broke.
+ *
+ * They are two keys of their own rather than `type` / `subType` because `type`
+ * on an `_index.md` is **Hugo's own layout selector**: verified against Hugo
+ * 0.165, a section landing carrying `type: doc` renders through
+ * `layouts/doc/list.html` rather than the default list template, so spelling
+ * the content type there would silently change which template serves the
+ * landing. (This build already uses that behaviour deliberately, for the
+ * mount's own landing.)
+ *
+ * Both are checked as **address segments**, which is the trap this came from:
+ * a section is named for the URL a consumer chose and a subType is an address
+ * segment, and the two need not agree — `/sohl/kb/user-guide/` is the section,
+ * `userguide` the subType (#207). Copying the section's name into the
+ * declaration would select no page at all, and an empty landing reported by
+ * nobody is the failure being fixed. A `listSubType` with no `listType` is
+ * refused for the same reason: a subType is only distinguishing *within* a
+ * type — `rules`, `userguide` and `reference` are all `doc` — so alone it names
+ * no query.
+ *
  * @param {unknown} value - The declared entry.
  * @param {string} where - Dotted path, for the error.
- * @returns {Readonly<{title: string, banner?: string, description?: string}>}
+ * @returns {Readonly<{title: string, banner?: string, description?: string,
+ *   listType?: string, listSubType?: string}>}
  */
 function normalizeSectionMeta(value, where) {
     if (!isPlainObject(value)) fail(where, "must be a mapping");
@@ -1148,6 +1175,32 @@ function normalizeSectionMeta(value, where) {
     }
     if (input.description !== undefined) {
         out.description = requireNonEmptyString(input.description, `${where}.description`);
+    }
+    for (const key of ["listType", "listSubType"]) {
+        if (input[key] === undefined) continue;
+        const segment = requireNonEmptyString(input[key], `${where}.${key}`);
+        if (!isAddressSegment(segment)) {
+            fail(
+                `${where}.${key}`,
+                `is \`${segment}\`, which is not alphanumeric. It names a ` +
+                    "content type or subType, and those are address segments " +
+                    `(${ADDRESS_SEGMENT_PATTERN.source}) — not the section's ` +
+                    "own name, which is a URL this site chose and need not " +
+                    "match (`user-guide` is the section, `userguide` the " +
+                    "subType). A value no page carries selects nothing and " +
+                    "leaves the landing empty",
+            );
+        }
+        out[key] = segment;
+    }
+    if (out.listSubType !== undefined && out.listType === undefined) {
+        fail(
+            `${where}.listSubType`,
+            "is declared without a `listType`. A subType tells pages apart " +
+                "only within a type — `rules`, `userguide` and `reference` " +
+                "are all `doc` — so on its own it names no query for a layout " +
+                "to run",
+        );
     }
     return Object.freeze(out);
 }

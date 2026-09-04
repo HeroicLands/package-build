@@ -1431,7 +1431,8 @@ Two consequences follow, and neither is optional:
   `_index.md`, so a layout reading `.Pages` finds nothing. A layout that queries
   `site.RegularPages` by `Params.type` is unaffected, and that is the shape a
   content catalog wants anyway — it groups by what a page _is_, not by where its
-  file happened to be written.
+  file happened to be written. A section that wants that query run for it says
+  so with `listType` — see below.
 
 Whatever the entry may carry is the whole of what the section can say.
 
@@ -1440,18 +1441,63 @@ Whatever the entry may carry is the whole of what the section can say.
 | `title`       | yes      | The landing's heading, so it matches the card that links to it.           |
 | `banner`      | no       | The hero image, resolved as a CDN asset like any other `banner:`.         |
 | `description` | no       | The hero standfirst under the heading, and the blurb a landing card uses. |
+| `listType`    | no       | The content **type** whose pages this section lists.                      |
+| `listSubType` | no       | Narrows that to one **subType**. Only with a `listType`.                  |
 
-`readmeSections` takes the same three, for a **`trees`** entry: those pages keep
+`readmeSections` takes the same keys, for a **`trees`** entry: those pages keep
 their source layout below a named section, so the tree's own `README.md` is that
 section's landing. What the section declares wins over what the `README` happens
 to carry — the landing has to match the card that links to it. No content note
 reaches this map any more.
 
+#### Saying what a section lists
+
+A generic list layout has nothing to render, because the membership a section
+landing used to get free from Hugo's page tree no longer exists anywhere the
+theme can read: not on the page, not on the landing, not in any URL — only here.
+So a section states its own query, and a layout substitutes it when `.Pages` is
+empty:
+
+```yaml
+sections:
+  being: { title: Beings, listType: being }
+  rules: { title: Rules, listType: doc, listSubType: rules }
+  user-guide: { title: User Guide, listType: doc, listSubType: userguide }
+```
+
+emits, for the last of those, `user-guide/_index.md`:
+
+```yaml
+---
+title: User Guide
+listType: doc
+listSubType: userguide
+---
+```
+
+Three things about the spelling, each of them load-bearing:
+
+- **Not `type`.** On an `_index.md` that is Hugo's own layout selector — a
+  landing carrying `type: doc` is rendered by `layouts/doc/list.html` rather
+  than the default list template — so writing the content type there would
+  silently change which template serves the landing. This build already relies
+  on that behaviour for the mount's own `landing`.
+- **Not inferred from the section's name.** A section is named for a URL the
+  site chose; a type and a subType are addresses. They need not agree, and on
+  `sohl` they do not: the section is `user-guide`, because that is a published
+  URL, while the subType is `userguide` because an address segment is
+  alphanumeric (#207). Both values are checked against that charset here, so
+  copying the section's name in is refused rather than quietly matching nothing.
+- **`listSubType` needs a `listType`.** A subType only tells pages apart within
+  a type — `rules`, `userguide` and `reference` are all `doc` — so alone it
+  names no query.
+
 **The vocabulary is closed, and a key outside it is refused by name:**
 
 ```text
 package-build config: `site.sections.affliction.descrption` is not a
-recognized option (expected one of: title, banner, description).
+recognized option (expected one of: title, banner, description, listType,
+listSubType).
 ```
 
 That refusal is the point. `landing` is passed through unvalidated because it is
@@ -1460,7 +1506,10 @@ entry is written fourteen to twenty times per build against a contract every
 package and every section shares, so an unbounded one would let a mistyped
 `descrption:` publish into front matter, be read by nobody, and say nothing to
 anyone. Refusing it costs one line here when the vocabulary genuinely grows, and
-buys a build that cannot quietly emit a key no theme reads.
+buys a build that cannot quietly emit a key no theme reads. `listType` and
+`listSubType` are that growth: two named keys, checked, rather than an open
+passthrough in which `listTpye:` would publish and no landing would list
+anything.
 
 The **writers** name no keys: a section's `_index.md` is whatever the entry
 resolved to, `title` first. So extending the vocabulary is a change to the
@@ -1624,7 +1673,7 @@ path now rides on the error, and the loader that read the file resolves it
 against the YAML, so all of them come out located:
 
 ```text
-package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner).
+package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner, description, listType, listSubType).
 ```
 
 The same two rules apply. A key the file never declares — a required one that is
