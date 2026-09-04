@@ -87,6 +87,22 @@ const MACRO_FIELDS = Object.freeze([
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
+/**
+ * A `vehicle` note — a conveyance that carries goods and people.
+ *
+ * Empty, and the emptiness is the declaration: the specification gives a
+ * vehicle two `data` properties and no `sohl:` field of its own, and the
+ * closed `data:` container is where `engine/note-vocabulary.mjs` holds them.
+ * Declaring the type with no fields distinguishes a type with no vocabulary
+ * from a type that is unknown, which are different findings (#231).
+ *
+ * It is here rather than in the engine because a vehicle is a SoHL actor —
+ * the specification maps it to `sohl` and marks it NA for hm3.
+ *
+ * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
+ */
+const VEHICLE_FIELDS = Object.freeze([]);
+
 const BEING_FIELDS = Object.freeze([
     {
         name: "body",
@@ -330,5 +346,6 @@ export const NOTE_SCHEMAS = Object.freeze({
     doc: DOC_FIELDS,
     macro: MACRO_FIELDS,
     being: Object.freeze([...BEING_FIELDS, ...PRESENTATION_FIELDS.being]),
+    vehicle: VEHICLE_FIELDS,
     map: MAP_FIELDS,
 });

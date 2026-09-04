@@ -395,7 +395,13 @@ export const NOTE_VOCABULARY = Object.freeze({
             { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
             { name: "stations", ...LINKS, describe: "Stations the being holds." },
-            { name: "peoples", ...LINKS, describe: "Peoples the being belongs to." },
+            {
+                name: "lore",
+                ...LINKS,
+                describe:
+                    "Lore concerning this being — the people it is of, the standing it " +
+                    "holds, the law it lives under.",
+            },
             { name: "homes", ...LINKS, describe: "Places the being calls home." },
             {
                 name: "affiliations",
@@ -425,6 +431,14 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
+    vehicle: Object.freeze({
+        subTypes: null,
+        data: Object.freeze([
+            { name: "portrait", ...TEXT, describe: "Path to the portrait image." },
+            TEMPLATE_PRIORITY,
+        ]),
+    }),
+
     /* ----- items ---------------------------------------------------- */
 
     affiliation: Object.freeze({
@@ -447,6 +461,18 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "demonym",
                 ...TEXT,
                 describe: "What one member is called — a Vylarian.",
+            },
+            {
+                name: "epithet",
+                ...TEXT,
+                describe: "The by-name it is known by — a god's, an order's, a company's.",
+            },
+            {
+                name: "symbol",
+                ...TEXT,
+                describe:
+                    "Its emblem in words: a feather atop a golden scale, a chisel carving " +
+                    "a star.",
             },
             {
                 name: "governance.model",
@@ -481,7 +507,13 @@ export const NOTE_VOCABULARY = Object.freeze({
                 ...LINKS,
                 describe: "What its economic life runs on — currencies, banking bodies, goods.",
             },
-            { name: "peoples", ...LINKS, describe: "Peoples associated with it." },
+            {
+                name: "lore",
+                ...LINKS,
+                describe:
+                    "Lore concerning it — the peoples it draws on, the god a faith " +
+                    "venerates, its law, its calendar.",
+            },
             { name: "parents", ...LINKS, describe: "Affiliations it is subordinate to." },
             {
                 name: "relations",
@@ -530,6 +562,11 @@ export const NOTE_VOCABULARY = Object.freeze({
         // Quantity is always one, so the specification refuses the key rather
         // than defaulting it.
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
+    }),
+
+    armorlocation: Object.freeze({
+        subTypes: null,
+        data: Object.freeze([TEMPLATE_PRIORITY]),
     }),
 
     attribute: Object.freeze({
@@ -673,6 +710,86 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     macro: Object.freeze({ data: Object.freeze([]) }),
+
+    lore: Object.freeze({
+        subTypes: Object.freeze([
+            "cosmology",
+            "deity",
+            "theology",
+            "arcana",
+            "spirit",
+            "economy",
+            "law",
+            "calendar",
+            "history",
+            "material",
+            "folk",
+            "culture",
+            "bestiary",
+        ]),
+        // Nothing of its own: a lore note is prose, and what it *is* about is
+        // its subType. The specification declares an empty table for it, and
+        // the authored corpus writes no `data:` key on any of the 180.
+        data: Object.freeze([]),
+    }),
+
+    place: Object.freeze({
+        subTypes: Object.freeze(["world", "region", "settlement", "site", "structure", "feature"]),
+        data: Object.freeze([
+            {
+                name: "demonym",
+                ...TEXT,
+                describe: "What a person from this place is called — a Vylarian.",
+            },
+            {
+                name: "lore",
+                ...LINKS,
+                describe:
+                    "Lore concerning this place — its peoples, its law, its calendar, " +
+                    "its history.",
+            },
+            {
+                name: "parents",
+                ...LINKS,
+                describe: "Enclosing places this one sits within.",
+            },
+            {
+                name: "population",
+                ...NUM,
+                describe: "Approximate population, to two significant digits.",
+            },
+        ]),
+    }),
+
+    scenario: Object.freeze({
+        subTypes: Object.freeze(["campaign", "adventure", "encounter"]),
+        data: Object.freeze([
+            { name: "parents", ...LINKS, describe: "Scenarios this one sits within." },
+            { name: "locations", ...LINKS, describe: "Places the scenario takes place in." },
+            { name: "cast", ...LINKS, describe: "Beings who appear in it." },
+            { name: "factions", ...LINKS, describe: "Affiliations with a stake in it." },
+            {
+                name: "follows",
+                ...LINKS,
+                describe: "Scenarios that should be played before this one.",
+            },
+            {
+                name: "status",
+                ...TEXT,
+                describe: "`draft`, `playtested` or `published`.",
+            },
+            {
+                name: "party.size",
+                ...TEXT,
+                describe: "`solo`, `small`, `standard`, `large` or `host`.",
+            },
+            {
+                name: "party.archetypes",
+                ...LIST,
+                describe: "Archetypes the scenario is written for.",
+            },
+        ]),
+    }),
 
     homepage: Object.freeze({ data: Object.freeze([]) }),
 
