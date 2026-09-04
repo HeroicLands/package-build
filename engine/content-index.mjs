@@ -67,6 +67,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import unidecode from "unidecode";
+
 import { addressSlug } from "./content-address.mjs";
 import { canonicalKey } from "./kb-manifest.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
@@ -88,7 +90,7 @@ import { loadPackConfig } from "./pack-config.mjs";
  *
  * @type {ReadonlyArray<string>}
  */
-export const DERIVED_KEYS = Object.freeze(["package", "file", "address", "anchors"]);
+export const DERIVED_KEYS = Object.freeze(["package", "file", "address", "anchors", "nameAscii"]);
 
 /**
  * A heading, and the `{#slug}` anchor it declares.
@@ -211,6 +213,44 @@ export function sortKeysDeep(value) {
 }
 
 /**
+ * A note's display name reduced to printable 7-bit ASCII.
+ *
+ * Content names carry the setting's orthography — `Kûrbúl Helm`, `Hârn`,
+ * `Kèthîra` — and nobody types them. A reader searching the index, or an editor
+ * completing a wikilink, needs a form that matches what a keyboard produces, so
+ * the record states one rather than leaving every consumer to invent it (and to
+ * invent a *different* one, which is how two searches over the same data come
+ * to disagree).
+ *
+ * **Transliterated, not stripped.** `unidecode` — the same table
+ * {@link slugify} already runs, so an ASCII name and a slug can never disagree
+ * about a character — carries a letter across rather than deleting it:
+ * diacritics fold (`â`→`a`, `è`→`e`), ligatures expand (`æ`→`ae`, `Œ`→`OE`,
+ * `ß`→`ss`), the runic letters spell out (`þ`→`th`, `Þ`→`Th`, `ð`→`d`), and
+ * even a vulgar fraction becomes readable (`¾`→`3/4`). Deleting them instead
+ * would collapse `Kûrbúl` to `Krbl`, which is worse than the original.
+ *
+ * Anything still outside printable ASCII after that becomes a space, and runs
+ * of whitespace collapse — a space rather than nothing, so a character that
+ * transliterates away cannot silently weld two words together.
+ *
+ * The value is emitted even when it equals the name, so a consumer matching on
+ * it never has to branch on whether the name happened to be ASCII already.
+ *
+ * @param {unknown} name - The note's `name.full`.
+ * @returns {string|null} The ASCII form, or `null` when there is no name, or
+ *   nothing printable survives.
+ */
+export function asciiName(name) {
+    if (typeof name !== "string") return null;
+    const folded = unidecode(name)
+        .replace(/[^\x20-\x7E]/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+    return folded === "" ? null : folded;
+}
+
+/**
  * Build one index record from a note's frontmatter and its place in the tree.
  *
  * @param {object} options - Options.
@@ -242,6 +282,7 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, b
             ...frontmatter,
             package: contentPackage,
             address,
+            nameAscii: asciiName(frontmatter?.name?.full),
             // Each anchor carries the link that reaches it, so a section is
             // addressable from the index without anyone re-deriving how an
             // anchor is spelled — and its file line, so an editor can jump

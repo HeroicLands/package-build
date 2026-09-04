@@ -20,6 +20,7 @@ import {
     DERIVED_KEYS,
     sortKeysDeep,
     noteAddress,
+    asciiName,
     collectAnchors,
     buildIndexRecord,
     collectContentIndex,
@@ -124,6 +125,59 @@ describe("noteAddress", () => {
     });
 });
 
+describe("asciiName", () => {
+    it("folds diacritics without losing the letter", () => {
+        expect(asciiName("Kûrbúl Helm")).toBe("Kurbul Helm");
+        expect(asciiName("Kèthîra")).toBe("Kethira");
+        expect(asciiName("Hârn")).toBe("Harn");
+    });
+
+    it("expands ligatures rather than dropping them", () => {
+        expect(asciiName("Ærling")).toBe("AErling");
+        expect(asciiName("Œuvre")).toBe("OEuvre");
+        expect(asciiName("Straße")).toBe("Strasse");
+    });
+
+    it("spells out thorn and eth", () => {
+        expect(asciiName("Þorn")).toBe("Thorn");
+        expect(asciiName("þorn")).toBe("thorn");
+        expect(asciiName("Ðunhold")).toBe("Dunhold");
+        expect(asciiName("ðunhold")).toBe("dunhold");
+    });
+
+    it("transliterates rather than strips, so a name stays readable", () => {
+        // Deleting the marks instead would leave "Krbl", which is worse than
+        // the original for anyone trying to recognise it.
+        expect(asciiName("Kûrbúl ¾-Helm")).toBe("Kurbul 3/4-Helm");
+        expect(asciiName("Ivinia—North")).toBe("Ivinia--North");
+        expect(asciiName("Jarin’s")).toBe("Jarin's");
+    });
+
+    it("emits every character inside printable 7-bit ASCII", () => {
+        const out = asciiName("Ærling’s Kûrbúl ¾-Helm — Ðunhold");
+        expect(out).toMatch(/^[\x20-\x7E]+$/);
+    });
+
+    it("returns an already-ASCII name unchanged", () => {
+        // Emitted even when it equals the name, so a consumer matching on this
+        // field never has to branch on whether the name happened to be ASCII.
+        expect(asciiName("Composite Bow 100")).toBe("Composite Bow 100");
+    });
+
+    it("replaces anything unprintable with a space, and collapses runs", () => {
+        // A space rather than nothing, so a character that transliterates away
+        // cannot weld two words together.
+        expect(asciiName("A\u0001B")).toBe("A B");
+        expect(asciiName("  Spaced   Out  ")).toBe("Spaced Out");
+    });
+
+    it("is null when there is no name, or nothing printable survives", () => {
+        expect(asciiName(undefined as any)).toBeNull();
+        expect(asciiName(42 as any)).toBeNull();
+        expect(asciiName("   ")).toBeNull();
+    });
+});
+
 describe("collectAnchors", () => {
     const body = [
         "# Aurochs", // an H1 starts a page but declares no slug
@@ -220,6 +274,21 @@ describe("buildIndexRecord", () => {
             slug: "being-aurochs",
             canonical: "sohl-being-aurochs",
         });
+    });
+
+    it("carries an ASCII form of the note's name", () => {
+        const record = buildIndexRecord({
+            frontmatter: {
+                type: "armorgear",
+                shortcode: "kbh",
+                name: { full: "Kûrbúl Helm" },
+            },
+            relPath: "A.md",
+            contentPackage: "sohl",
+        });
+        expect(record.nameAscii).toBe("Kurbul Helm");
+        // The authored name is untouched beside it.
+        expect(record.name.full).toBe("Kûrbúl Helm");
     });
 
     it("keeps the path relative, never absolute", () => {

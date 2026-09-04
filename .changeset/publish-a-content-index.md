@@ -48,6 +48,18 @@ the tree, and an editor can jump to a section instead of searching for it. What
 counts as an anchor is kept identical to what `splitPages` matches, and a test
 asserts the two agree.
 
+**A keyboard-typeable form of every name.** `nameAscii` states `name.full`
+reduced to printable 7-bit ASCII — `Kûrbúl ¾-Helm` → `Kurbul 3/4-Helm`, `Kèthîra`
+→ `Kethira`, `Ærling` → `AErling`, `Þorn` → `Thorn`, `Straße` → `Strasse`. Names
+carry the setting's orthography and nobody types them, so anything searching or
+completing over the index needs a form a keyboard produces; stating one means
+every consumer folds the same way instead of each inventing its own and two
+searches over the same data disagreeing. It transliterates rather than strips,
+through the same `unidecode` table `slugify` already runs — so an ASCII name and
+a slug cannot disagree about a character, and `Kûrbúl` does not become `Krbl`.
+Emitted even when it equals the name, so a consumer never branches on whether a
+name happened to be ASCII; `null` only when the note has no name.
+
 `file.path` stays relative to the content root and is deliberately never absolute:
 an absolute path is a fact about the machine that built the index, so it would break
 byte-stability between checkouts and publish someone's home directory.

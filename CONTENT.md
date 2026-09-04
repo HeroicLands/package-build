@@ -1436,6 +1436,37 @@ A record states the address a wikilink writes to reach the note, and every
 }
 ```
 
+A record also states `nameAscii`, the note's `name.full` reduced to printable
+7-bit ASCII:
+
+| `name.full`     | `nameAscii`       |
+| --------------- | ----------------- |
+| `Kûrbúl ¾-Helm` | `Kurbul 3/4-Helm` |
+| `Kèthîra`       | `Kethira`         |
+| `Ærling`        | `AErling`         |
+| `Þorn`          | `Thorn`           |
+| `Ðunhold`       | `Dunhold`         |
+| `Straße`        | `Strasse`         |
+
+Names carry the setting's orthography and nobody types them, so anything
+searching or completing over the index needs a form a keyboard produces. Stating
+one means every consumer matches the same way, rather than each inventing a
+slightly different fold and two searches over the same data disagreeing.
+
+It **transliterates rather than strips**, through the same `unidecode` table
+`slugify` already runs — so an ASCII name and a slug can never disagree about a
+character. Diacritics fold, ligatures expand, the runic letters spell out, and a
+vulgar fraction becomes readable. Deleting the marks instead would reduce
+`Kûrbúl` to `Krbl`, which is worse than the original for anyone trying to
+recognise it. Whatever is still outside printable ASCII afterwards becomes a
+space and runs of whitespace collapse — a space rather than nothing, so a
+character that transliterates away cannot weld two words together.
+
+The value is emitted even when it equals the name, so a consumer matching on it
+never has to branch on whether the name happened to be ASCII already; it is
+`null` only when the note has no name at all. On the `sohl` tree, 25 of 1,606
+notes differ from their `name.full`.
+
 `address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
 is the package-qualified key the link manifest files the note under. Both are
 `null` for a note with no type or no shortcode, which has no address at all — the
