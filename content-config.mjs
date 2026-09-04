@@ -90,6 +90,11 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     content: "assets/content",
     manifests: "assets/manifests",
     manifestOut: "build/manifests",
+    // Where `content-index` writes this package's note index. Under `build/`
+    // because it is derived and disposable — regenerating it costs a
+    // frontmatter parse — and emphatically not under `stage`, which is mirrored
+    // into a Foundry data root (#224).
+    contentIndex: "build/content-index",
     packJson: "build/packs-json",
     stage: "build/stage/packs",
     unpack: "build/tmp/packs",
@@ -305,6 +310,10 @@ export function publishesContentPages(config) {
  *                                       build artifact — the published copy is
  *                                       the one a consumer vendors into its
  *                                       `manifests` directory.
+ * @property {string} [contentIndex]     Where `content-index` writes this
+ *                                       package's note index. Outbound, and a
+ *                                       derived artifact — never a source, and
+ *                                       never inside `stage`.
  * @property {string} [packJson]         Build-only per-entry JSON intermediate.
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
@@ -317,6 +326,7 @@ export function publishesContentPages(config) {
  * @property {string} content
  * @property {string} manifests
  * @property {string} manifestOut
+ * @property {string} contentIndex
  * @property {string} packJson
  * @property {string} stage
  * @property {string} unpack
