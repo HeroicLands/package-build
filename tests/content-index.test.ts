@@ -19,11 +19,16 @@ import path from "node:path";
 import {
     DERIVED_KEYS,
     sortKeysDeep,
+    noteAddress,
+    collectAnchors,
     buildIndexRecord,
     collectContentIndex,
     serializeContentIndex,
     emitContentIndex,
 } from "../engine/content-index.mjs";
+import { addressSlug } from "../engine/content-address.mjs";
+import { canonicalKey } from "../engine/kb-manifest.mjs";
+import { splitPages } from "../engine/journals.mjs";
 
 let tmp: string;
 
@@ -77,6 +82,108 @@ describe("sortKeysDeep", () => {
     });
 });
 
+describe("noteAddress", () => {
+    it("states both the local wikilink target and the canonical key", () => {
+        expect(noteAddress({ type: "being", shortcode: "aurochs" }, "sohl")).toEqual({
+            slug: "being-aurochs",
+            canonical: "sohl-being-aurochs",
+        });
+    });
+
+    it("derives through the same functions the manifest and site build use", () => {
+        // Not a reimplementation: an index that disagreed with either about
+        // where a note lives would be worse than no index.
+        const fm = { type: "weapongear", shortcode: "Dgr" };
+        const address = noteAddress(fm, "sohl");
+        expect(address?.slug).toBe(addressSlug(fm));
+        expect(address?.canonical).toBe(canonicalKey("sohl", fm.type, fm.shortcode));
+    });
+
+    it("lowercases, so a lookup does not depend on how a shortcode was cased", () => {
+        expect(noteAddress({ type: "weapongear", shortcode: "BstdSwd" }, "sohl")).toEqual({
+            slug: "weapongear-bstdswd",
+            canonical: "sohl-weapongear-bstdswd",
+        });
+    });
+
+    it("carries the package, so two packages' addresses stay distinct", () => {
+        const sohl = noteAddress({ type: "being", shortcode: "aurochs" }, "sohl");
+        const thalorna = noteAddress({ type: "being", shortcode: "aurochs" }, "thalorna");
+        expect(sohl?.slug).toBe(thalorna?.slug);
+        expect(sohl?.canonical).not.toBe(thalorna?.canonical);
+    });
+
+    it.each([
+        ["no type", { shortcode: "aurochs" }],
+        ["no shortcode", { type: "being" }],
+        ["a blank shortcode", { type: "being", shortcode: "  " }],
+    ])("is null for a note with %s", (_label, fm) => {
+        // Unaddressable is ordinary; the record says so rather than leaving
+        // every reader to rediscover the rule.
+        expect(noteAddress(fm as any, "sohl")).toBeNull();
+    });
+});
+
+describe("collectAnchors", () => {
+    const body = [
+        "# Aurochs", // an H1 starts a page but declares no slug
+        "",
+        "Prose.",
+        "",
+        "## Habitat {#habitat}",
+        "",
+        "More prose.",
+        "",
+        "```markdown",
+        "### Fenced {#not-an-anchor}", // inside a fence
+        "```",
+        "",
+        "#### Diet {#diet}",
+    ].join("\n");
+
+    it("finds every heading that declares an anchor, in document order", () => {
+        expect(collectAnchors(body).map((a) => a.slug)).toEqual(["habitat", "diet"]);
+    });
+
+    it("records each anchor's name and heading level", () => {
+        expect(collectAnchors(body)[0]).toMatchObject({
+            slug: "habitat",
+            name: "Habitat",
+            level: 2,
+        });
+        expect(collectAnchors(body)[1]).toMatchObject({ name: "Diet", level: 4 });
+    });
+
+    it("ignores an anchor inside a fenced block", () => {
+        expect(collectAnchors(body).map((a) => a.slug)).not.toContain("not-an-anchor");
+    });
+
+    it("numbers a line within the body when told nothing else", () => {
+        // 1-based: "## Habitat {#habitat}" is the fifth line.
+        expect(collectAnchors(body)[0].line).toBe(5);
+    });
+
+    it("reports the line in the file, so an editor can jump to it", () => {
+        // A note with six lines of frontmatter puts the body at file line 8.
+        expect(collectAnchors(body, 8)[0].line).toBe(12);
+    });
+
+    it("agrees with splitPages about what an anchor is", () => {
+        // The journal compiler decides which sections become addressable pages.
+        // An index naming an anchor it does not produce would advertise a link
+        // that resolves nowhere, so drift fails here rather than shipping.
+        const fromPages = splitPages(body)
+            .map((p: any) => p.anchorSlug)
+            .filter(Boolean);
+        expect(collectAnchors(body).map((a) => a.slug)).toEqual(fromPages);
+    });
+
+    it("finds nothing in an empty or absent body", () => {
+        expect(collectAnchors("")).toEqual([]);
+        expect(collectAnchors(undefined as any)).toEqual([]);
+    });
+});
+
 describe("buildIndexRecord", () => {
     it("carries the whole frontmatter through unflattened", () => {
         const record = buildIndexRecord({
@@ -101,6 +208,31 @@ describe("buildIndexRecord", () => {
             folder: "Bestiary/Animal",
             name: "Aurochs",
         });
+    });
+
+    it("carries the note's address, so a lookup is a field read", () => {
+        const record = buildIndexRecord({
+            frontmatter: { type: "being", shortcode: "aurochs" },
+            relPath: path.join("Bestiary", "Animal", "Aurochs.md"),
+            contentPackage: "sohl",
+        });
+        expect(record.address).toEqual({
+            slug: "being-aurochs",
+            canonical: "sohl-being-aurochs",
+        });
+    });
+
+    it("keeps the path relative, never absolute", () => {
+        // An absolute path is a fact about the machine that built the index:
+        // it would break byte-stability between checkouts and publish someone's
+        // home directory.
+        const record = buildIndexRecord({
+            frontmatter: { type: "being", shortcode: "aurochs" },
+            relPath: path.join("Bestiary", "Aurochs.md"),
+            contentPackage: "sohl",
+        });
+        expect(path.isAbsolute(record.file.path)).toBe(false);
+        expect(JSON.stringify(record)).not.toContain(os.homedir());
     });
 
     it("states an empty folder for a note at the tree root", () => {

@@ -35,4 +35,21 @@ that yields no note is an error, not an empty index: a reader takes the file as
 authoritative, and "this package has no content" is indistinguishable from a
 mis-pointed tree.
 
+**Every note's address, and every anchor it defines.** A record states
+`address.slug` (what goes inside `[[…]]` locally) and `address.canonical` (the
+package-qualified key the manifest files it under), plus every `{#slug}` anchor the
+body declares — each with its heading name, level, **line in the file**, and the
+`slug#anchor` link that reaches it. Neither address is new information, since both
+derive from `type` and `shortcode`; what the fields add is the rule, derived through
+the same `addressSlug` and `canonicalKey` the manifest and site build use, so an
+index cannot disagree with either about where a note lives. The payoff is that a
+wikilink — anchor and all — becomes checkable by lookup rather than by re-parsing
+the tree, and an editor can jump to a section instead of searching for it. What
+counts as an anchor is kept identical to what `splitPages` matches, and a test
+asserts the two agree.
+
+`file.path` stays relative to the content root and is deliberately never absolute:
+an absolute path is a fact about the machine that built the index, so it would break
+byte-stability between checkouts and publish someone's home directory.
+
 Closes #224.

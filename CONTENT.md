@@ -1408,6 +1408,69 @@ error rather than a silent overwrite:
 The location is namespaced under `file` precisely because `folder` is real
 frontmatter on most notes; a record states both, and they mean different things.
 
+### Every note's address, and every anchor it defines
+
+A record states the address a wikilink writes to reach the note, and every
+`{#slug}` anchor its body declares:
+
+```json
+{
+  "address": { "slug": "being-aurochs", "canonical": "sohl-being-aurochs" },
+  "file": { "path": "Bestiary/Animal/Aurochs.md", "folder": "Bestiary/Animal", "name": "Aurochs" },
+  "anchors": [
+    {
+      "slug": "appearance",
+      "name": "Appearance",
+      "level": 1,
+      "line": 348,
+      "link": "being-aurochs#appearance"
+    },
+    {
+      "slug": "dossier",
+      "name": "Dossier",
+      "level": 1,
+      "line": 352,
+      "link": "being-aurochs#dossier"
+    }
+  ]
+}
+```
+
+`address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
+is the package-qualified key the link manifest files the note under. Both are
+`null` for a note with no type or no shortcode, which has no address at all — the
+record says so rather than leaving each reader to rediscover the rule.
+
+**Neither is new information** — both derive from `type` and `shortcode`, which
+every record already carries. What the fields add is the _rule_: the lowercasing
+and the hyphen join live in one place, derived by the same `addressSlug` and
+`canonicalKey` the manifest and the site build use, so an index cannot disagree
+with either about where a note lives. A consumer that reimplements the join
+slightly differently gets a lookup matching nothing and no explanation — which is
+exactly how a resolver keyed on a bare `type/shortcode` silently misses every
+canonical `pkg-type-shortcode` entry.
+
+**Anchors make a link checkable without a build.** Because the index states every
+anchor a note defines, `[[being-aurochs#dossier]]` can be confirmed — or shown
+dead — by a lookup, rather than by re-parsing the tree. Each anchor also carries
+its **line in the file**, so an editor jumps straight to the heading instead of
+searching for it, and a diagnostic about a section can name a real position.
+
+Only headings carrying an explicit `{#slug}` are listed. A bare `#` heading also
+starts a journal page, but declares no slug, so nothing can address it with `#…`
+and listing it would offer a link that cannot be written. What counts as an anchor
+is kept identical to what `splitPages` matches — that pass decides which sections
+become addressable journal pages — and a test asserts the two agree, so drift
+fails the suite rather than advertising a link that resolves nowhere.
+
+**The path stays relative.** `file.path` is below the content root and is
+deliberately never absolute: an absolute path is a fact about the machine that
+built the index rather than about the content, so it would differ between two
+checkouts of the same tree — costing the byte-stability the artifact depends on —
+and a published copy would carry someone's home directory and be wrong for every
+reader. Anyone holding the index knows the root it was built from, and
+`root + file.path` is the absolute form whenever it is wanted.
+
 ### Why JSON Lines, and not a database
 
 The artifact has to survive the build that made it and be usable by anything — a

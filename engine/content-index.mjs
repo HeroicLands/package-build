@@ -67,6 +67,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { addressSlug } from "./content-address.mjs";
+import { canonicalKey } from "./kb-manifest.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
@@ -86,7 +88,106 @@ import { loadPackConfig } from "./pack-config.mjs";
  *
  * @type {ReadonlyArray<string>}
  */
-export const DERIVED_KEYS = Object.freeze(["package", "file"]);
+export const DERIVED_KEYS = Object.freeze(["package", "file", "address", "anchors"]);
+
+/**
+ * A heading, and the `{#slug}` anchor it declares.
+ *
+ * Kept identical to the pair {@link splitPages} matches, because the two must
+ * agree about what an anchor is: that pass decides which sections become
+ * addressable journal pages, and an index naming an anchor it does not produce
+ * would advertise a link that resolves nowhere. `tests/content-index.test.ts`
+ * asserts the two find the same anchors, so drift fails the suite rather than
+ * shipping.
+ */
+const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
+const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
+
+/**
+ * The `{#slug}` anchors a note's body declares, with where each one sits.
+ *
+ * Only headings carrying an explicit anchor are collected. A bare `#` heading
+ * also starts a journal page, but it declares no slug, so nothing can address
+ * it with `#…` — listing it would offer a link that cannot be written.
+ *
+ * @param {string} body - The note's markdown body, frontmatter already removed.
+ * @param {number} [bodyLine] - The 1-based file line the body starts on, from
+ *   `parseMarkdownFile`. Anchors are reported at their position in the **file**,
+ *   so an editor can jump straight to one; passing nothing numbers from the body.
+ * @returns {Array<{slug: string, name: string, level: number, line: number}>}
+ *   In document order.
+ */
+export function collectAnchors(body, bodyLine = 1) {
+    const anchors = [];
+    let inCodeBlock = false;
+    const lines = String(body ?? "").split("\n");
+
+    for (let i = 0; i < lines.length; i++) {
+        // A fenced block's contents are not headings, and `#` is a comment in
+        // most of what gets fenced.
+        if (lines[i].trim().startsWith("```")) {
+            inCodeBlock = !inCodeBlock;
+            continue;
+        }
+        if (inCodeBlock) continue;
+
+        const heading = HEADING.exec(lines[i]);
+        if (!heading) continue;
+        const anchor = ANCHOR.exec(heading[2].trim());
+        if (!anchor) continue;
+
+        const slug = anchor[2].trim();
+        if (!slug) continue;
+        anchors.push({
+            slug,
+            name: anchor[1].trim(),
+            level: heading[1].length,
+            line: bodyLine + i,
+        });
+    }
+    return anchors;
+}
+
+/**
+ * The address a wikilink writes to reach a note, or `null` when it has none.
+ *
+ * A wikilink target is an address: `being-aurochs` locally, or
+ * `sohl-being-aurochs` from another package (`readQualifier` also accepts
+ * `being/aurochs`, the same two fields with a different separator). Both forms
+ * are already derivable from `type` and `shortcode`, which every record
+ * carries — so this field adds no information. What it adds is the *rule*:
+ * the lowercasing and the hyphen join live in one place, and a consumer that
+ * reimplements them slightly differently gets a lookup that matches nothing and
+ * says nothing about why. That is a real failure, not a hypothetical one — it
+ * is precisely how a resolver keyed on a bare `type/shortcode` silently misses
+ * every canonical `pkg-type-shortcode` entry.
+ *
+ * Derived by the same functions the link manifest and the site build use, so an
+ * index cannot disagree with either about where a note lives.
+ *
+ * @param {Record<string, any>} frontmatter - The note's parsed frontmatter.
+ * @param {string} contentPackage - The package the tree compiles as.
+ * @returns {{slug: string, canonical: string}|null} `slug` is what goes inside
+ *   `[[…]]` within this package; `canonical` is the package-qualified key the
+ *   manifest files the note under. `null` for a note with no type or no
+ *   shortcode, which has no address at all and is stated as such rather than
+ *   left for every reader to rediscover.
+ */
+export function noteAddress(frontmatter, contentPackage) {
+    let slug;
+    try {
+        slug = addressSlug(frontmatter);
+    } catch {
+        // Unaddressable is ordinary — a template, a stub, a note that carries
+        // no shortcode — and not this pass's business to report. The manifest
+        // emitter already reports it, where it means a missing published page.
+        return null;
+    }
+    return {
+        slug,
+        canonical: canonicalKey(contentPackage, frontmatter.type, frontmatter.shortcode),
+    };
+}
 
 /**
  * Recursively sort an object's keys, so serialization is order-independent.
@@ -116,11 +217,13 @@ export function sortKeysDeep(value) {
  * @param {Record<string, any>} options.frontmatter - The note's parsed frontmatter.
  * @param {string} options.relPath - Its path below the content root, POSIX-separated.
  * @param {string} options.contentPackage - The package the tree compiles as.
+ * @param {string} [options.body] - The note's markdown body, for its anchors.
+ * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
  * @returns {Record<string, any>} The record, keys sorted at every depth.
  * @throws {Error} When the note carries a key this module derives, which would
  *   otherwise be overwritten without a word.
  */
-export function buildIndexRecord({ frontmatter, relPath, contentPackage }) {
+export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, bodyLine }) {
     for (const key of DERIVED_KEYS) {
         if (Object.hasOwn(frontmatter ?? {}, key)) {
             throw new Error(
@@ -132,12 +235,30 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage }) {
 
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
+    const address = noteAddress(frontmatter, contentPackage);
 
     return /** @type {Record<string, any>} */ (
         sortKeysDeep({
             ...frontmatter,
             package: contentPackage,
+            address,
+            // Each anchor carries the link that reaches it, so a section is
+            // addressable from the index without anyone re-deriving how an
+            // anchor is spelled — and its file line, so an editor can jump
+            // there rather than search for the heading.
+            anchors: collectAnchors(body, bodyLine).map((a) => ({
+                ...a,
+                link: address ? `${address.slug}#${a.slug}` : null,
+            })),
             file: {
+                // Relative to the content root, and deliberately not absolute.
+                // An absolute path is a fact about the machine that built the
+                // index, not about the content: it would differ between two
+                // checkouts of the same tree, so the file would stop being
+                // byte-stable, and a published copy would carry someone's home
+                // directory and be wrong for every reader. Anyone holding the
+                // index knows the root it was built from, and `root + path` is
+                // the absolute form whenever it is wanted.
                 path: posix,
                 folder,
                 name: path.basename(posix, ".md"),
@@ -160,12 +281,17 @@ export function collectContentIndex(contentBase, { contentPackage, skipDirectori
     const records = [];
     const walkOpts = skipDirectories ? { skipDirectories } : {};
 
-    for (const { frontmatter, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
+    for (const { frontmatter, body, bodyLine, absPath } of walkMarkdownTree(
+        contentBase,
+        walkOpts,
+    )) {
         records.push(
             buildIndexRecord({
                 frontmatter: frontmatter ?? {},
                 relPath: path.relative(contentBase, absPath),
                 contentPackage,
+                body,
+                bodyLine,
             }),
         );
     }
