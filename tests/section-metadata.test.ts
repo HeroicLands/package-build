@@ -110,29 +110,28 @@ describe("a section can describe itself", () => {
         expect(data.description).toBe("Architecture, extension points, testing.");
     });
 
-    it("carries it onto a content section's own README", () => {
+    it("says nothing about a content page, whatever it is called", () => {
+        // A content note has no section to describe (#204): it is addressed
+        // `(type, shortcode)` and emitted flat, so a `README.md` in the content
+        // tree is an ordinary page and takes an ordinary page's front matter.
         const data = pageFrontmatter(
             {
                 kind: "content",
-                sec: "rules",
-                name: "README",
-                slug: "rules",
+                name: "The Rules",
+                slug: "doc-rulesintro",
+                url: "/sohl/doc-rulesintro/",
                 pkg: "sohl",
-                folder: "rules",
-                isReadme: true,
+                folder: "Rules",
                 fm: {},
             } as never,
             {
                 readmeSections: {
-                    rules: {
-                        title: "Rules",
-                        description: "How play resolves.",
-                    },
+                    rules: { title: "Rules", description: "How play resolves." },
                 },
             },
         );
-        expect(data.title).toBe("Rules");
-        expect(data.description).toBe("How play resolves.");
+        expect(data.title).toBe("The Rules");
+        expect(data.description).toBeUndefined();
     });
 });
 

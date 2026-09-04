@@ -88,7 +88,8 @@ name:
         "Opening.\n\n## Melee {#melee}\n\nSwinging.\n",
     );
 
-    // A section landing page under the `readme` rule.
+    // A note that happens to be called `README.md`. Since #204 the filename
+    // decides nothing: it is addressed by `(type, shortcode)` like any other.
     note(
         "Rules/README.md",
         `type: doc
@@ -111,7 +112,8 @@ name:
     full: Creatures`,
     );
 
-    // No section: a `doc` with no subtype has no address at all.
+    // A `doc` with no subtype. It used to have no section and so no address;
+    // there is no section left for it to lack (#204).
     note(
         "Rules/Homeless.md",
         `type: doc
@@ -168,37 +170,32 @@ describe("the address scheme is configuration, and both live rules work", () => 
         expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
     });
 
-    it("`readme`: a README addresses its section, every other note a page", () => {
+    it("addresses a `README.md` as an ordinary page (#204)", () => {
         const doc = emit({ ...WEB, address: { landing: "readme", prefix: "kb/" } });
-        expect(doc.entries["demo-doc-rulesidx"].path).toBe("kb/rules/");
-        // The one rule (#202): a note that is not a `README` is addressed by
-        // `(type, shortcode)`, wherever it sits and whatever it introduces.
+        // It used to be its section's landing, recorded at `kb/rules/`. There
+        // is no section, so there is no landing and no second rule.
+        expect(doc.entries["demo-doc-rulesidx"].path).toBe("doc-rulesidx/");
         expect(doc.entries["demo-doc-creatures"].path).toBe("doc-creatures/");
     });
 
-    it("a README landing naming no section is reported, never guessed", () => {
-        note(
-            "Nowhere/README.md",
-            `type: doc
-shortcode: nowhere
-id: 2222222222222222
-name:
-    full: Nowhere`,
+    it("still accepts `landing: readme`, which now selects nothing", () => {
+        // Left accepted rather than refused: both publishing consumers declare
+        // it, and it states something that is still true. The key goes when no
+        // configuration writes it.
+        const withRule = emit({ ...WEB, address: { landing: "readme" } });
+        const without = emit({ ...WEB });
+        expect(withRule.entries["demo-doc-rulesidx"].path).toBe(
+            without.entries["demo-doc-rulesidx"].path,
         );
-        const ctx = manifestContext(configFor({ ...WEB }));
-        const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
-        expect(skipped.map((s) => s.file)).toContain("Nowhere/README.md");
-        expect(skipped.find((s) => s.file === "Nowhere/README.md")?.reason).toMatch(
-            /lands nowhere/,
-        );
-        fs.rmSync(path.join(root, "assets/content/Nowhere"), { recursive: true });
     });
 });
 
 describe("what is published, and what is not", () => {
-    it("skips a note with no section", () => {
+    it("publishes a note that declares no subtype", () => {
+        // It was skipped for having no section to be filed under; a page is
+        // filed nowhere now, so nothing is missing (#204).
         const doc = emit({ ...WEB });
-        expect(Object.keys(doc.entries)).not.toContain("demo-doc-homeless");
+        expect(doc.entries["demo-doc-homeless"].path).toBe("doc-homeless/");
     });
 
     it("refuses a note declaring `package:`, rather than skipping it", () => {
@@ -243,9 +240,27 @@ name:
     });
 
     it("reports an unaddressable note rather than dropping it silently", () => {
-        const ctx = manifestContext(configFor(WEB));
-        const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
-        expect(skipped.map((s) => s.file)).toContain(path.join("Rules", "Homeless.md"));
+        // No usable shortcode, so no address — the one thing left that a note
+        // can fail to have. Written as whitespace rather than omitted, because
+        // an omitted one never reaches the address function: the walk drops a
+        // note with no `type`/`shortcode` pair before then.
+        note(
+            "Rules/Anonymous.md",
+            `type: doc
+subType: rules
+shortcode: "  "
+id: 3333333333333333
+name:
+    full: Anonymous`,
+        );
+        try {
+            const ctx = manifestContext(configFor(WEB));
+            const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
+            const hit = skipped.find((s) => s.file === path.join("Rules", "Anonymous.md"));
+            expect(hit?.reason).toMatch(/no shortcode/);
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Rules/Anonymous.md"));
+        }
     });
 
     it("gives an item note two entries, the item pointing at its docs", () => {

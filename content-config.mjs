@@ -116,22 +116,20 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
 ]);
 
 /**
- * The landing-page rules a repository may route by.
+ * The landing-page rules a repository may route by. **Inert since #204.**
  *
- * A *landing page* is a note that addresses a whole section rather than a page
- * within one, so it has no slug of its own. There is one rule: `readme` — a
- * `README.md` **is** its section's landing page, and every other note is
- * addressed by `(type, shortcode)` like any other page.
+ * A *landing page* was a note that addressed a whole section rather than a page
+ * within one, so it had no slug of its own. There are no sections in the note
+ * format any more — a section is a Hugo content directory, and a page's address
+ * names no directory — so there are no landings and this selects nothing.
  *
- * **It reads as a list because a second rule existed and was retired**
- * (#202), not because one is expected. `collection` routed a `doc` note whose
- * `subType` was `collection` to the section named by an authored top-level
- * `section:` key; no content tree used it, and `engine/site-build.mjs` never
- * implemented it — it derives `isReadme` from the basename and treats a
- * `README.md` as a landing whatever the configured rule says. So the link
- * manifest and the site would have disagreed about where a page is, which is
- * the one failure the shared address function exists to prevent. Its retirement
- * is what makes them agree by construction rather than by coincidence.
+ * The key survives its own mechanism on purpose. Both publishing consumers
+ * declare `landing: readme`, which stated something true when they wrote it;
+ * refusing it now would break them over a correct statement, and silently
+ * ignoring an unknown value would be worse. So `readme` stays accepted, the
+ * retired `collection` stays refused by name (below), and the key is deleted
+ * once no configuration writes it — `content-config.mjs` has no warning channel
+ * with which to say "accepted, and does nothing" in between.
  *
  * @type {readonly string[]}
  */
@@ -150,11 +148,12 @@ export const LANDING_RULES = Object.freeze(["readme"]);
  */
 export const RETIRED_LANDING_RULES = Object.freeze({
     collection:
-        "the `collection` landing rule is retired — a section is landed by " +
-        "its `README.md`, which is now the only rule. Delete this key, or " +
-        "write `landing: readme`, and land each section from the `README.md` " +
-        "in its directory; the `section:` frontmatter key the rule read is " +
-        "retired with it",
+        "the `collection` landing rule is retired, and so is the mechanism it " +
+        "chose between: a section is a Hugo directory the note format does not " +
+        "carry, so no note lands one. Delete this key. A page that introduces " +
+        "the notes of a type is an ordinary note — `type: doc`, " +
+        "`subType: reference`, `shortcode: <type>` — addressed `doc-<type>`; " +
+        "the `section:` frontmatter key the rule read is retired with it",
 });
 
 /**
@@ -166,6 +165,8 @@ export const RETIRED_LANDING_RULES = Object.freeze({
  * own mount point: where the package itself is served is the consuming build's
  * knowledge, held in `PACKAGE_BASE` (`engine/kb-manifest.mjs`) and prefixed at
  * resolve time, so it is never recorded here (#1465).
+ *
+ * `landing` is inert — see {@link LANDING_RULES}.
  */
 export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
     prefix: "",
@@ -226,34 +227,6 @@ export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
  */
 export function publishesContentPages(config) {
     return config.publish.site === "content";
-}
-
-/**
- * Every URL section this repository names, in declaration order (#197).
- *
- * A section is *declared* by describing it: `site.sections` for one whose
- * landing this build generates, `site.readmeSections` for one whose landing is
- * a `README`. Between them they are the open set of addresses a repository
- * says it publishes under — which is what a `README` landing's `subType` names,
- * since `sectionOf` reads that field as the section rather than as a genre.
- *
- * Read from the same two maps the site build renders each landing from, so the
- * set a note is checked against and the set a landing is written from cannot
- * come to disagree. A repository that describes no section declares none, and
- * the answer is empty rather than a guess assembled from the tree.
- *
- * @param {{site: {sections: object, readmeSections: object}}} config - A
- *   resolved configuration.
- * @returns {readonly string[]} The section names, deduplicated.
- */
-export function declaredSections(config) {
-    const site = config?.site ?? {};
-    return Object.freeze([
-        ...new Set([
-            ...Object.keys(site.sections ?? {}),
-            ...Object.keys(site.readmeSections ?? {}),
-        ]),
-    ]);
 }
 
 /**
@@ -499,8 +472,9 @@ export function declaredSections(config) {
 /**
  * @typedef {object} AddressSchemeInput
  * @property {string} [prefix]   Where the content tree mounts inside the package.
- * @property {string} [landing]  Which note addresses a whole section. One value,
- *   `readme`, since #202 retired the second — see {@link LANDING_RULES}.
+ * @property {string} [landing]  Which note addressed a whole section. Inert
+ *   since #204 retired sections from the note format — see
+ *   {@link LANDING_RULES}.
  */
 
 /**
@@ -1139,10 +1113,11 @@ function normalizeDocs(value) {
  * One section's landing metadata — what a section says about itself on the
  * `_index.md` this build generates for it.
  *
- * A generated landing is the *only* place a section can speak: a content
- * package has no authored `_index.md` for `weapongear` or `affliction`, so the
- * file the theme reads is the one the site build writes. This is therefore the
- * whole vocabulary, and it is deliberately a **closed** one.
+ * A generated landing is the *only* place a section can speak, and since #204 it
+ * is the only place a section **exists**: a content page is addressed
+ * `(type, shortcode)` and written flat under the mount, so no page creates a
+ * directory and nothing else makes `<prefix><section>/` answer. This is
+ * therefore the whole vocabulary, and it is deliberately a **closed** one.
  *
  * The alternative — passing whatever a section declared straight through, as
  * `site.landing` does — was weighed and refused. `landing` is written once, for

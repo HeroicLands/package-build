@@ -43,20 +43,6 @@ export { DEFAULT_ADDRESS_SCHEME, LANDING_RULES };
 export const KB_PREFIX = "kb/";
 
 /**
- * The URL section a note routes to.
- *
- * A `doc` is narrative content whose only identity is its subtype label, so it
- * routes by `subType`; every other type names its own section.
- *
- * @param {object} fm - Parsed frontmatter.
- * @returns {string|undefined} The section, or `undefined` when the note has
- *   none — a `doc` with no subtype has no address and is not published.
- */
-export function sectionOf(fm) {
-    return fm.type === "doc" ? fm.subType : fm.type;
-}
-
-/**
  * The single path segment a note is addressed by: `type-shortcode`.
  *
  * Lowercased, so it is exactly the tail of the note's canonical key
@@ -95,16 +81,17 @@ export function addressSlug(fm) {
 /**
  * A note's address below the knowledgebase mount, e.g. `affliction-aconite/`.
  *
- * A `README.md` **is** its section's landing page rather than a page within it,
- * so it addresses the section itself and has no address of its own.
+ * Every note, without exception. A `README.md` used to be its section's landing
+ * page and to address the section instead of itself; a section is a Hugo
+ * directory concept the note format no longer carries (#204), so a file's name
+ * decides nothing about where it publishes.
  *
  * @param {object} fm - Parsed frontmatter.
- * @param {boolean} isReadme - Whether the file is a `README.md`.
  * @returns {string} The mount-relative address, with a trailing slash.
  * @throws {Error} When the note has no address.
  */
-export function contentAddress(fm, isReadme) {
-    return isReadme ? `${sectionOf(fm)}/` : `${addressSlug(fm)}/`;
+export function contentAddress(fm) {
+    return `${addressSlug(fm)}/`;
 }
 
 /**
@@ -115,58 +102,40 @@ export function contentAddress(fm, isReadme) {
  * address the site does not publish resolves at build time and 404s for the
  * reader, which is the failure this module exists to prevent.
  *
+ * **It is a pure function of the frontmatter.** Nothing about the file the note
+ * was read from reaches it: the `README.md` convention that made one note
+ * address a whole section is retired with the section itself (#204), so there
+ * is one rule and no branch.
+ *
  * **The prefix does not apply to a page's own address.** `prefix` says where the
- * content tree *mounts inside the package* — where its section directories and
- * their landing pages live — and a landing page is addressed by that mount
- * (`kb/rules/`). An ordinary page is addressed by `(type, shortcode)`, which is
- * a package-wide identity and takes no mount: `sohl` publishes
- * `/sohl/affliction-aconite/` while its section landings stay at
- * `/sohl/kb/affliction/`. The `type-` half is what keeps that flat namespace
- * clear of the package's fixed mounts — `/<package>/` for the landing,
+ * content tree *mounts inside the package* — the Hugo directory its pages are
+ * written under — and an address is `(type, shortcode)`, a package-wide identity
+ * that takes no mount: `sohl` publishes `/sohl/affliction-aconite/` from a file
+ * written under `kb/`. The `type-` half is what keeps that flat namespace clear
+ * of the package's fixed mounts — `/<package>/` for the landing,
  * `/<package>/api/` for generated API docs, neither of which contains a hyphen
  * or names a type.
  *
- * **The section still decides where the *file* is written**, which is why a
- * note without one still has no address: Hugo derives a section from a page's
- * directory rather than from its URL, so a page with nowhere to be filed is a
- * page with no section landing, no `.CurrentSection` and no per-section layout.
- *
  * @param {object} fm - Parsed frontmatter.
  * @param {object} [options] - Options.
- * @param {boolean} [options.isReadme] - Whether the file is a `README.md`.
  * @param {{prefix?: string, landing?: string}} [options.scheme] - The
  *   repository's address scheme; defaults to {@link DEFAULT_ADDRESS_SCHEME}.
- *   `landing` names the rule and is validated against {@link LANDING_RULES},
- *   which has held one value since #202.
+ *   `landing` is validated against {@link LANDING_RULES} and selects nothing —
+ *   it is accepted so a configuration declaring the still-true `landing: readme`
+ *   keeps loading, and is removed once none does.
  * @returns {string} The package-relative address, with a trailing slash and no
  *   leading one.
- * @throws {Error} When the note has no address — no section, a landing page
- *   naming no section, or no shortcode to be addressed by. Each is a note that
- *   is not published, and inventing an address for one would put a dead entry
- *   in the manifest.
+ * @throws {Error} When the note has no type or no shortcode to be addressed by.
+ *   Such a note is not published, and inventing an address for one would put a
+ *   dead entry in the manifest.
  */
-export function packageAddress(fm, { isReadme = false, scheme } = {}) {
-    const { prefix, landing } = { ...DEFAULT_ADDRESS_SCHEME, ...scheme };
+export function packageAddress(fm, { scheme } = {}) {
+    const { landing } = { ...DEFAULT_ADDRESS_SCHEME, ...scheme };
     if (!LANDING_RULES.includes(landing)) {
         throw new Error(
             `unknown landing rule ${JSON.stringify(landing)} — expected one ` +
                 `of ${LANDING_RULES.join(", ")}`,
         );
-    }
-    // One rule: a `README.md` **is** its section's landing page (#202). The
-    // site build says the same thing the same way — it derives `isReadme` from
-    // the basename and never consults the scheme — so the address a manifest
-    // records and the address a page is emitted at cannot disagree.
-    if (isReadme) {
-        const segment = sectionOf(fm);
-        if (typeof segment !== "string" || !segment) {
-            throw new Error(`landing note declares no section, so it lands nowhere`);
-        }
-        return `${prefix}${segment}/`;
-    }
-    const sec = sectionOf(fm);
-    if (typeof sec !== "string" || !sec) {
-        throw new Error(`type "${fm.type}" has no section`);
     }
     return `${addressSlug(fm)}/`;
 }

@@ -72,10 +72,6 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
-// The sections this repository declares — the open set a `README` landing's
-// `subType` names (#197). Read from the resolved configuration the site build
-// renders those landings from, so neither can name a section the other does not.
-import { declaredSections } from "../content-config.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -740,22 +736,6 @@ function lintCommand() {
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
                     references: argv.references,
-                    // How this repository addresses a section landing, and the
-                    // sections that can exist — the open vocabulary a
-                    // `README`'s `subType` is read against (#197, #200).
-                    // Passed in for the same reason the schemas are: the
-                    // linter checks a note against what it is handed.
-                    //
-                    // The types come from the **specification**, not from
-                    // `schemas`: a landing's `subType` is an address, and a
-                    // type the format declares is a section whether or not
-                    // this build carries a schema to check its notes' fields
-                    // with. Reading `schemas` here would refuse `Lore/README.md`
-                    // for a reason that is not about addresses, and report one
-                    // gap twice in two vocabularies.
-                    landing: config.publish.address.landing,
-                    types: [...loadContentFormat().types.keys()],
-                    sections: declaredSections(config),
                 });
 
                 // What the builders emit, against what the receiving system

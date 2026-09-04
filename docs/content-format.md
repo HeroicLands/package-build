@@ -239,11 +239,14 @@ alphanumeric — so the hyphen is purely a separator. There is no longest-match
 against a roster and no vocabulary check before splitting.
 
 **`type` and `subType` are held to that charset, not merely expected to meet
-it** (#206). A type is the first segment of every address, and a `doc`'s subType
-is the section it routes to, so a hyphen in either is read back as a segment
-boundary that was never meant as one. Both are checked against the same constant
-a shortcode is checked against, and a note carrying a hyphenated value is
-reported where it wrote it:
+it** (#206). A type is the first segment of every address, so a hyphen in one is
+read back as a segment boundary that was never meant as one. A `subType` reaches
+no address since #204 retired sections, but it is held to the same rule all the
+same: it is a vocabulary term the whole toolchain keys on, one closed set away
+from being an address again, and a charset that holds for two of the three
+segments and half of a fourth is a rule nobody can state. Both are checked
+against the same constant a shortcode is checked against, and a note carrying a
+hyphenated value is reported where it wrote it:
 
 ```text
 Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. The hyphen separates the segments of an address, so a value containing one is read back as two segments and resolves to nothing
@@ -1381,13 +1384,25 @@ subType:
 
 A `doc` declares no properties of its own.
 
-**A section is landed by its `README.md`.** A note that introduces a whole
-section — with its prose and, usually, a generated table of what the section
-holds — is the `README.md` in that section's directory, and it addresses the
-section rather than a page within it. A `subType: collection` value and a
-top-level `section:` key were a second way to say that, and both are retired
-(#202): a `README` needs nothing authored to name where it lands, because it
-lands where it sits.
+**A page that introduces a type is an ordinary note, named by convention.**
+Write `type: doc`, `subType: reference`, `shortcode: <type>` — so the
+affiliations introduction is `doc-affiliation`, addressed and linked like
+anything else, and typically carrying a generated table of what it introduces.
+It has no build path of its own; the package's own front page already works this
+way (`homepage-root`).
+
+There is no landing page and no section. A `README.md` used to _be_ its
+section's landing, and a `subType: collection` note with a top-level `section:`
+key was a second way to say the same thing. All of it is retired — the second
+rule in #202, the first in #204 — because a section appears in **no address**: a
+page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
+section is what Hugo calls a content directory, and the note format does not
+carry one.
+
+So a `doc`'s `subType` is a **genre** and nothing else, closed to the three
+values above. It briefly had to accept a content type as well, because a
+landing's `subType` named the section it addressed; with no landings, one field
+has one reading again.
 
 ### type: macro
 

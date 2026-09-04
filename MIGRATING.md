@@ -1,3 +1,68 @@
+# Migrating to `@heroiclands/package-build` 12.0.0
+
+**No note edit, no URL change, and one thing to check in the Hugo layer.** A
+section is a Hugo directory concept that the note format no longer carries
+(#204): content pages are written **flat** under the content mount, named by
+their address, instead of into a `<section>/` directory.
+
+## 1. Nothing in the content tree changes
+
+A page's address never contained a section, so **no published URL moves**. A
+`README.md` in the content tree stops being its section's landing and becomes an
+ordinary page addressed `<type>-<shortcode>/` like every other note; if a tree
+still has one that was serving as a landing, it now publishes at its own address.
+No tree in this project had one.
+
+A `doc` with no `subType` used to be refused ("no section, so there is nowhere to
+file the page") and now publishes. Its `subType` is a **genre** again — closed to
+`rules`, `userguide`, `reference` — because it no longer doubles as a section
+address on a `README`. That closed check runs after the two #206 added ahead of
+it: a retired spelling is a warning naming its replacement, a hyphenated value
+is an error, and only then is the type's own list the reason.
+
+## 2. Declare every section your site links to
+
+`site.sections` is now the whole of what a section is. No page is filed into a
+section directory any more, so nothing else makes `/<package>/<prefix><section>/`
+exist:
+
+```yaml
+site:
+  sections:
+    being: { title: Beings, banner: banners/creature.webp }
+    weapongear: { title: Weapons, banner: banners/weapons.webp }
+```
+
+A card, menu entry or breadcrumb pointing at a section nobody declares is a 404.
+
+## 3. Check how a section landing lists its members
+
+A declared section's directory holds only its own `_index.md`, so a layout
+reading `.Pages` renders an empty listing. Query the site instead, on the page's
+own `type`:
+
+```go-html-template
+{{- $pages := where site.RegularPages "Type" "weapongear" -}}
+```
+
+That is the shape a content catalog wants regardless — it groups by what a page
+_is_ rather than by where its file happened to be written — and it is what
+`sohl`'s catalog layouts already do.
+
+## 4. `publish.address.landing` is inert, and still accepted
+
+It named which note addressed a whole section. There are no landings, so it
+selects nothing; `landing: readme` keeps loading because it stated something true
+when it was written, and the key is removed once no configuration declares it.
+`landing: collection` is still refused by name (#202).
+
+## What did not change
+
+- Every content page's `url:`, and so every published address.
+- Every link-manifest entry, including each entry's `path`.
+- Every compiled compendium document.
+- `site.sections` / `site.readmeSections` and what an entry may declare.
+
 # Migrating to `@heroiclands/package-build` 11.0.0
 
 **Two edits, and the second is one line per repository.** Every published page

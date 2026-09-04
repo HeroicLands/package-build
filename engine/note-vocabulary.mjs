@@ -53,15 +53,23 @@
  * one is already reported as a type no schema declares, which is the finding it
  * deserves until the type exists.
  *
- * **A type name and a subType value are address segments** (#206), so both are
- * `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states and the
- * shortcode is already held to. A type is the first segment of every address
- * (`type-shortcode`), and a `doc`'s subType is its section, which is a path
- * segment of its own. The hyphen is the separator between segments and can
- * therefore never occur inside one; a hyphenated name would be read back as two
- * segments and resolve to nothing, reporting nothing about why. The registry
- * below is checked against that rule as this module loads, so a declaration
- * that breaks it cannot be imported, let alone shipped.
+ * **A type name and a subType value are held to the address charset** (#206), so
+ * both are `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states
+ * and the shortcode is already held to. For a type that is literal: it is the
+ * first segment of every address (`type-shortcode`), the hyphen is the
+ * separator between segments and can therefore never occur inside one, and a
+ * hyphenated name would be read back as two segments and resolve to nothing,
+ * reporting nothing about why.
+ *
+ * A subType reaches no address of its own. It did when this rule was written —
+ * a `doc`'s was its section, a path segment — and #204 retired sections from
+ * the note format one release later. It keeps the rule regardless, and the
+ * reason is not inertia: a subType is a vocabulary term the whole toolchain
+ * keys on, it is one closed set away from being an address again, and a charset
+ * that held for a type, a shortcode and a package but not for a subType would
+ * be a rule nobody could state in one sentence. The registry below is checked
+ * against it as this module loads, so a declaration that breaks it cannot be
+ * imported, let alone shipped.
  *
  * @module
  */

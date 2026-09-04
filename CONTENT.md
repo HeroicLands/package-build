@@ -796,13 +796,14 @@ values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strik
 mode rather than by kind — so `subType` on one is a finding; a `skill` declares
 ten, so `subType: crafte` is a finding naming `craft`.
 
-**A `type` and a `subType` are both address segments, so both are
-`^[A-Za-z0-9]+$`** (#206) — the same constant a `shortcode` is held to, read
-rather than restated. A type is the first segment of every address, and a
-`doc`'s subType is the section it routes to, so a hyphen in either is read back
-as a segment boundary nobody wrote. The rule is checked ahead of the closed-set
-check, which is what makes it reach a type whose values are declared but not yet
-enumerated:
+**A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** (#206) — the same
+constant a `shortcode` is held to, read rather than restated. A type is the
+first segment of every address, so a hyphen in one is read back as a segment
+boundary nobody wrote. A `subType` reaches no address since #204 retired
+sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
+on, and one charset that holds for every term is a rule an author can state. The
+rule is checked ahead of the closed-set check, which is what makes it reach a
+type whose values are declared but not yet enumerated:
 
 ```text
 assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not an address segment — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a shortcode is held to. …
@@ -1225,15 +1226,24 @@ package's fixed mounts (`/<package>/` for the landing page, `/<package>/api/` fo
 generated API docs), neither of which contains a hyphen or names a type. So the
 namespace is provably disjoint rather than conventionally so.
 
-**Sections stay, as directories.** Hugo derives a page's section from where the
-file is written, not from its URL, and that section is what gives a landing page,
-`.CurrentSection` and the per-section layout lookup. So a page is still written
-into `<section>/`, and carries a front-matter `url:` publishing it at its
-address. The two are free to differ, and do.
+**A page is written flat, named by its address** (#204). It used to be filed
+into `<section>/`, because Hugo derives a page's section from where the file is
+written and a section gave it a landing page, `.CurrentSection` and a per-section
+layout lookup. But a section appears in no address, so the note format was
+carrying a key, a filename convention, a landing rule and a synthesis pass in
+order to satisfy a rendering engine's directory semantics. The file is now
+`<mount>/<type>-<shortcode>.md` and the front-matter `url:` still publishes it at
+the package root, one level above.
 
-**A landing page is the one exception**, because it is not addressed by
-`(type, shortcode)` at all: it _is_ its section, so it addresses the section —
-under the content mount, where the section directories live (`kb/rules/`).
+**There is no landing page.** A `README.md` was its section's landing and
+addressed the section itself; that is retired with the section. A page that
+introduces the notes of a type is an ordinary note addressed `doc-<type>`, with
+no build path of its own — exactly as the package's own front page is
+`homepage-root` (#182).
+
+**Sections stay, as configuration.** `site.sections` still writes an `_index.md`
+per section, and that is now the _only_ thing that makes one exist — see
+[What a section may declare](#what-a-section-may-declare).
 
 ### The address scheme
 
@@ -1250,46 +1260,35 @@ publish:
   manifests: { publish: true, consume: true }
   address:
     prefix: kb/ # default: "" — the package root
-    landing: readme # default: readme — the only rule
+    landing: readme # inert since #204; still accepted
 ```
 
-- **`prefix`** — the content tree's mount within the package: where its section
-  directories and their landing pages live. `sohl` publishes a knowledgebase
-  alongside generated API docs, so its sections sit under `kb/` (`kb/affliction/`)
-  while its pages address the package root (`affliction-aconite/`); `thalorna`'s
-  site is nothing but its content, so it has no prefix. It must end in a slash and
-  must not begin with one — where the _package_ is mounted is the consuming
-  build's knowledge and is never recorded here.
-- **`landing`** — which note is a section's landing page, and so is addressed by
-  the section rather than by `(type, shortcode)`. One value, `readme`: a
-  `README.md` addresses the section it sits in, and every other note is
-  addressed by `(type, shortcode)`. A second rule, `collection`, routed a `doc`
-  note whose `subType` was `collection` to the section named by an authored
-  top-level `section:`; it is retired (#202), along with that subtype and that
-  key. Declaring it is refused, and says so.
+- **`prefix`** — the content tree's mount within the package: the Hugo directory
+  its pages are written under. `sohl` publishes a knowledgebase alongside
+  generated API docs, so its tree sits under `kb/` while its pages address the
+  package root (`affliction-aconite/`); `thalorna`'s site is nothing but its
+  content, so it has no prefix. It must end in a slash and must not begin with
+  one — where the _package_ is mounted is the consuming build's knowledge and is
+  never recorded here.
+- **`landing`** — **inert, and accepted only so it keeps loading.** It named
+  which note addressed a whole section rather than a page within one. There are
+  no sections in the note format (#204) and so no landings, so it selects
+  nothing; it is still accepted because both publishing consumers declare
+  `landing: readme` and refusing a correct statement would break them. It is
+  removed once no configuration writes it. The retired second rule, `collection`,
+  is still refused by name (#202), along with the `collection` subtype and the
+  top-level `section:` key.
 
-**Under `readme`, a landing's `subType` is an address rather than a genre.** The
-segment the `README` lands at is what `sectionOf` reads — for a `doc`, its
-`subType` — so `Weapons/README.md` writes `subType: weapongear` and publishes at
-`weapongear/`. `content-build lint` checks that value against the sections that
-can exist, which is three sets: every **content type** the format declares
-(`sectionOf` returns a non-`doc` note's own type, so `being` and `weapongear` are
-sections by construction), the **subtypes the type declares** (`rules`,
-`userguide`, `reference`), and any section named in
-[`site.sections` / `site.readmeSections`](#what-a-section-may-declare). A
-misspelt one is still refused, by name and against all three, with the near miss
-suggested. This applies to a `README` only: every other note's `subType` stays
-closed to the values its type declares.
+A note's `subType` is checked against the values its type declares, and only
+those. It briefly had a second reading — a `README` landing's `subType` was the
+_address_ it landed at, so the closed genre list could not answer for it (#197,
+#198, #200, #201) — and #204 removed the cause rather than widening the
+vocabulary again.
 
-Configuring the section is **not** a prerequisite — `site.sections` is framing,
-and a package that renders its own site need declare no `site:` block at all.
-
-A note the scheme yields no address for — one carrying no `shortcode`, a `doc`
-with no subtype (so no section to be filed under, and, in a `README`, no section
-to land at) — is **reported and omitted**, never guessed. The command
-prints one located diagnostic per note and still writes the file, because a note
-with no address is ordinary while a manifest entry pointing at a page that does
-not exist is not.
+The only note the scheme yields no address for is one carrying no `shortcode`.
+It is **reported and omitted**, never guessed: the command prints one located
+diagnostic per note and still writes the file, because a note with no address is
+ordinary while a manifest entry pointing at a page that does not exist is not.
 
 ## Publishing a website
 
@@ -1302,7 +1301,7 @@ The sibling of `package compile`: the same content tree, rendered as pages
 instead of compiled into packs. It does the walk, the frontmatter read, the
 address derivation, the address index, table expansion, wikilink resolution,
 code-fence protection, the foreign-manifest merge, the page emission and the
-section-landing backfill.
+section-landing synthesis.
 
 ### The homepage, and how much else is published
 
@@ -1332,8 +1331,9 @@ still refuses `id`. Everything else about its address is ordinary: it declares a
 [The homepage is addressed like every other note](#the-homepage-is-addressed-like-every-other-note)).
 `/<contentPackage>/` itself is a redirect the package authors, not a page this
 build writes. It is dispatched on `type` like every other note, not on a
-filename: `README.md` is already a section landing under `landing: readme`, and
-in `sohl-thalorna` it is a developer explainer about the source tree.
+filename — nothing in this format is decided by a file's name, which is why
+`sohl-thalorna` can keep a `README.md` in its content tree as a developer
+explainer about the source tree.
 
 `type: homepage` is declared by the **engine**, not by the `sohl` item registry,
 so a package that configures no `itemBuilders` at all — `HarnMaster-3-FoundryVTT`
@@ -1370,8 +1370,8 @@ module being withdrawable, and a homepage is one row in a routing table.
 The homepage's file is written at the root of `site.out` — the package's own
 site root, one level above the content mount, which is where
 `publish.address.prefix` puts everything else — under the name its address gives
-it, `homepage-root.md`. As with every other page, the file's location decides
-the Hugo section and the front matter's `url` decides where it publishes.
+it, `homepage-root.md`. As with every other page, the front matter's `url`
+decides where it publishes.
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the link manifest reads, so a page and its manifest entry cannot
@@ -1407,20 +1407,33 @@ site:
 | `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.           |
 | `base`             | Where the package is served. Defaults to `/<contentPackage>/`.                                   |
 | `packages`         | Which content packages this site renders. Defaults to its own.                                   |
-| `sections`         | What each section says about itself on its landing — see below.                                  |
-| `readmeSections`   | The same, for a section whose landing comes from a `README`.                                     |
+| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.               |
+| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                        |
 | `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.     |
-| `backfillSections` | Write a bare `_index.md` for any other section directly under the mount.                         |
+| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                       |
 | `trees`            | Extra source trees published beside the content, preserving their source layout below a section. |
 | `pass`             | A named bundle of this repository's own body rewrites.                                           |
 | `passOptions`      | That bundle's options.                                                                           |
 
 ### What a section may declare
 
-A generated section landing is the **only** place a section can describe itself.
-A content package authors no `_index.md` for `weapongear` or `affliction`, so
-the file the theme reads is the one this build writes from `sections` — and
-whatever that entry may carry is the whole of what the section can say.
+**`sections` is what a section _is_ now** (#204). A content page is addressed
+`(type, shortcode)` and written flat under the mount, so no page creates a
+directory and nothing else makes `/<package>/<prefix><section>/` answer at all.
+A site that wants that address says so here, and this build writes the
+`_index.md` that makes Hugo agree it is a section.
+
+Two consequences follow, and neither is optional:
+
+- **Declare every section the site links to.** A card, a menu entry or a
+  breadcrumb pointing at a section nobody declared is a 404.
+- **A section landing lists no child pages.** Its directory holds only its own
+  `_index.md`, so a layout reading `.Pages` finds nothing. A layout that queries
+  `site.RegularPages` by `Params.type` is unaffected, and that is the shape a
+  content catalog wants anyway — it groups by what a page _is_, not by where its
+  file happened to be written.
+
+Whatever the entry may carry is the whole of what the section can say.
 
 | Key           | Required | What it does                                                              |
 | ------------- | -------- | ------------------------------------------------------------------------- |
@@ -1428,9 +1441,11 @@ whatever that entry may carry is the whole of what the section can say.
 | `banner`      | no       | The hero image, resolved as a CDN asset like any other `banner:`.         |
 | `description` | no       | The hero standfirst under the heading, and the blurb a landing card uses. |
 
-`readmeSections` takes the same three, for a section whose landing comes from a
-`README` rather than from nothing. What the section declares wins over what the
-`README` happens to carry — the landing has to match the card that links to it.
+`readmeSections` takes the same three, for a **`trees`** entry: those pages keep
+their source layout below a named section, so the tree's own `README.md` is that
+section's landing. What the section declares wins over what the `README` happens
+to carry — the landing has to match the card that links to it. No content note
+reaches this map any more.
 
 **The vocabulary is closed, and a key outside it is refused by name:**
 
