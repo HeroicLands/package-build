@@ -73,6 +73,9 @@ paths:
   manifests: assets/manifests
   # Where `manifest` writes this package's own. Outbound, and a build artifact.
   manifestOut: build/manifests
+  # Where `content-index` writes this package's note index. Derived and
+  # disposable — never a source, and never inside `stage`.
+  contentIndex: build/content-index
   packJson: build/packs-json
   stage: build/stage/packs
   unpack: build/tmp/packs
@@ -713,6 +716,7 @@ npx content-build links [root] [--manifests <dir>]
 npx content-build format [paths..] [--write]
 npx content-build markdown [paths..] [--fix]
 npx content-build manifest [root] [--out <dir>]
+npx content-build content-index [root] [--out <dir>]
 npx content-build site [--out <dir>]
 npx content-build reachability <dir> [file] [--index <shortcode>]
 npx content-build addresses diff --from <zip|dir> [--strict]
@@ -728,6 +732,7 @@ npx content-build addresses diff --from <zip|dir> [--strict]
 | `format`         | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
 | `markdown`       | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
 | `manifest`       | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
+| `content-index`  | Emit this package's note index as JSON Lines. See [Publishing a content index](#publishing-a-content-index).                                                            |
 | `site`           | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
 | `reachability`   | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
 | `addresses`      | Report every published item address this build has stopped publishing. See [Diffing published addresses](#diffing-published-addresses).                                 |
@@ -1389,6 +1394,204 @@ The only note the scheme yields no address for is one carrying no `shortcode`.
 It is **reported and omitted**, never guessed: the command prints one located
 diagnostic per note and still writes the file, because a note with no address is
 ordinary while a manifest entry pointing at a page that does not exist is not.
+
+## Publishing a content index
+
+Every content build walks the whole note tree and parses every note's
+frontmatter — the pack compilers, the site build, and the content-table expander
+each do it — and every one of them throws the result away. So nothing outside a
+build can ask a question about the content. "Which beings carry no `kbcat`?",
+"what does this table actually select?", "did that type rename leave anything
+behind?" have no answer short of writing a throwaway script that re-walks the
+tree, which is how eight dead Bestiary tables came to ship for weeks unnoticed.
+
+`content-index` publishes the walk:
+
+```bash
+npx content-build content-index
+# sohl → build/content-index/sohl.jsonl (1606 notes, 1578 KiB)
+```
+
+One line of [JSON Lines](https://jsonlines.org/) per note, holding the note's
+whole frontmatter plus where it sits in the tree:
+
+```json
+{
+  "type": "being",
+  "shortcode": "aurochs",
+  "package": "sohl",
+  "file": { "path": "Bestiary/Animal/Aurochs.md", "folder": "Bestiary/Animal", "name": "Aurochs" },
+  "sohl": { "kbcat": "animal", "body": { "weight": { "base": 1500 } } }
+}
+```
+
+so a question is one line of `jq`:
+
+```bash
+jq -r 'select(.type == "being" and .sohl.kbcat == "animal") | .shortcode' \
+  build/content-index/sohl.jsonl
+```
+
+### The record is the note, not a projection of it
+
+Nothing is selected, flattened, or renamed. A reader addresses
+`sohl.body.weight.base` because that is what the note says — which is also,
+not by accident, exactly what a `dataview` content-table query writes.
+
+That is a deliberate refusal to impose a schema, and the tree is why. In `sohl`,
+frontmatter spreads **242 distinct leaf paths** unevenly over **15 types**, from
+9 on a `macro` to 72 on a `being`, and adding a field to one type is ordinary
+authoring. A format with a fixed column set would turn that authoring into a
+schema migration; a document format has no such problem.
+
+Two keys are **derived** rather than authored, and a note carrying either is an
+error rather than a silent overwrite:
+
+| Key       | What it holds                                                                                      |
+| --------- | -------------------------------------------------------------------------------------------------- |
+| `package` | The configured `contentPackage`. A note may not declare its own, and the expander reads the same.  |
+| `file`    | `path`, `folder` and `name` below the content root — the same `file.*` a content-table query uses. |
+
+The location is namespaced under `file` precisely because `folder` is real
+frontmatter on most notes; a record states both, and they mean different things.
+
+### Every note's address, and every anchor it defines
+
+A record states the address a wikilink writes to reach the note, and every
+`{#slug}` anchor its body declares:
+
+```json
+{
+  "address": { "slug": "being-aurochs", "canonical": "sohl-being-aurochs" },
+  "file": { "path": "Bestiary/Animal/Aurochs.md", "folder": "Bestiary/Animal", "name": "Aurochs" },
+  "anchors": [
+    {
+      "slug": "appearance",
+      "name": "Appearance",
+      "level": 1,
+      "line": 348,
+      "link": "being-aurochs#appearance"
+    },
+    {
+      "slug": "dossier",
+      "name": "Dossier",
+      "level": 1,
+      "line": 352,
+      "link": "being-aurochs#dossier"
+    }
+  ]
+}
+```
+
+A record also states `nameAscii`, the note's `name.full` reduced to printable
+7-bit ASCII:
+
+| `name.full`     | `nameAscii`       |
+| --------------- | ----------------- |
+| `Kûrbúl ¾-Helm` | `Kurbul 3/4-Helm` |
+| `Kèthîra`       | `Kethira`         |
+| `Ærling`        | `AErling`         |
+| `Þorn`          | `Thorn`           |
+| `Ðunhold`       | `Dunhold`         |
+| `Straße`        | `Strasse`         |
+
+Names carry the setting's orthography and nobody types them, so anything
+searching or completing over the index needs a form a keyboard produces. Stating
+one means every consumer matches the same way, rather than each inventing a
+slightly different fold and two searches over the same data disagreeing.
+
+It **transliterates rather than strips**, through the same `unidecode` table
+`slugify` already runs — so an ASCII name and a slug can never disagree about a
+character. Diacritics fold, ligatures expand, the runic letters spell out, and a
+vulgar fraction becomes readable. Deleting the marks instead would reduce
+`Kûrbúl` to `Krbl`, which is worse than the original for anyone trying to
+recognise it. Whatever is still outside printable ASCII afterwards becomes a
+space and runs of whitespace collapse — a space rather than nothing, so a
+character that transliterates away cannot weld two words together.
+
+The value is emitted even when it equals the name, so a consumer matching on it
+never has to branch on whether the name happened to be ASCII already; it is
+`null` only when the note has no name at all. On the `sohl` tree, 25 of 1,606
+notes differ from their `name.full`.
+
+`aliasesAscii` does the same for `name.aliases`, in the authored order. An alias
+is the name a reader is at least as likely to reach for as the canonical one —
+`Killer Whale` for an orca, `Ice Bear` for a polar bear, `Ix'balam` for a
+jaguar — so anything searching the index has to match them too. It is an **empty
+array**, never null, when a note has no aliases: an empty set of names is a fact
+rather than a missing value, and a consumer iterating it should not have to check
+first. An entry that is not a non-empty string is dropped rather than left as a
+hole, since the array is a set of names to match and a null is not one.
+
+`address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
+is the package-qualified key the link manifest files the note under. Both are
+`null` for a note with no type or no shortcode, which has no address at all — the
+record says so rather than leaving each reader to rediscover the rule.
+
+**Neither is new information** — both derive from `type` and `shortcode`, which
+every record already carries. What the fields add is the _rule_: the lowercasing
+and the hyphen join live in one place, derived by the same `addressSlug` and
+`canonicalKey` the manifest and the site build use, so an index cannot disagree
+with either about where a note lives. A consumer that reimplements the join
+slightly differently gets a lookup matching nothing and no explanation — which is
+exactly how a resolver keyed on a bare `type/shortcode` silently misses every
+canonical `pkg-type-shortcode` entry.
+
+**Anchors make a link checkable without a build.** Because the index states every
+anchor a note defines, `[[being-aurochs#dossier]]` can be confirmed — or shown
+dead — by a lookup, rather than by re-parsing the tree. Each anchor also carries
+its **line in the file**, so an editor jumps straight to the heading instead of
+searching for it, and a diagnostic about a section can name a real position.
+
+Only headings carrying an explicit `{#slug}` are listed. A bare `#` heading also
+starts a journal page, but declares no slug, so nothing can address it with `#…`
+and listing it would offer a link that cannot be written. What counts as an anchor
+is kept identical to what `splitPages` matches — that pass decides which sections
+become addressable journal pages — and a test asserts the two agree, so drift
+fails the suite rather than advertising a link that resolves nowhere.
+
+**The path stays relative.** `file.path` is below the content root and is
+deliberately never absolute: an absolute path is a fact about the machine that
+built the index rather than about the content, so it would differ between two
+checkouts of the same tree — costing the byte-stability the artifact depends on —
+and a published copy would carry someone's home directory and be wrong for every
+reader. Anyone holding the index knows the root it was built from, and
+`root + file.path` is the absolute form whenever it is wanted.
+
+### Why JSON Lines, and not a database
+
+The artifact has to survive the build that made it and be usable by anything — a
+person with `jq`, an editor, a CI check, another package's build. A
+line-per-note text file needs no server, no driver, and no schema; it is
+readable by every language without an install; and it **diffs**, so a migration
+that quietly empties a category shows up as a reviewable change rather than as a
+silently different binary.
+
+Choosing it forfeits no SQL: DuckDB reads JSON Lines directly, with nested
+access, so `FROM read_json_auto('build/content-index/sohl.jsonl')` is a query
+away. A stored schema would forfeit the open shape, which is the asymmetry that
+decides it.
+
+### It is derived, disposable, and byte-stable
+
+The index is written under `build/`, gitignored with the rest of it, and
+**nothing may be authored against it**. It is deliberately not in `paths.stage`:
+that tree is mirrored destructively into a Foundry data root, so anything left
+there ships inside the installed system to every player.
+
+Regenerating costs a frontmatter parse rather than a build, so the intended way
+to use it is to rebuild it whenever it looks stale — which is why it is a
+command of its own and not only a build step, and why it need never be
+committed.
+
+That only holds if a rebuild is a no-op when nothing changed, so the output is
+**byte-stable**: records are ordered by content path with the note id breaking
+any tie, and every object's keys are sorted at every depth. A walk order is a
+directory-read order, and directory-read order is not a fact about the content.
+
+An empty tree is an **error**, not an empty index. A reader takes the file as
+authoritative, and an index stating that a package has no content is
+indistinguishable from one built against a mis-pointed tree.
 
 ## Publishing a website
 
