@@ -63,7 +63,14 @@ import { resolveFieldValue, SYSTEM_BLOCK_KEYS, unknownBlockKeys } from "./system
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
-import { declaredTags } from "./note-vocabulary.mjs";
+import { isAddressSegment } from "./address-charset.mjs";
+import {
+    declaredTags,
+    retiredSubType,
+    retiredSubTypeMessage,
+    subTypeCharsetMessage,
+    typeCharsetMessage,
+} from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
@@ -363,7 +370,7 @@ function subTypeIsSection(note, landing) {
  * 1. **Every declared content type.** `sectionOf` returns `fm.type` for a
  *    non-`doc` note, so `being`, `lore` and `weapongear` are sections *by
  *    construction*, configured or not.
- * 2. **The type's own subtypes** — `rules`, `user-guide`, `reference` for a
+ * 2. **The type's own subtypes** — `rules`, `userguide`, `reference` for a
  *    `doc`, since a `doc` routes by its subtype.
  * 3. **The configured sections**, which may name one that is neither: `sohl`
  *    configures `credits` and `dev-docs`.
@@ -409,6 +416,41 @@ function checkSubType(note, { type, entry, asSection = false, types = [], sectio
                 message:
                     `\`subType\` is not a property declared by ${type}; it ` +
                     `declares no subtypes, so nothing reads this value`,
+            },
+        ];
+    }
+
+    // A retired spelling is **accepted**, and said out loud (#206). Checked
+    // before the charset, because the note is not wrong about the charset in
+    // some general way — it is wrong about one value, and naming the
+    // replacement is the whole of what the author needs. A warning rather than
+    // an error for the same reason the retired field aliases below are: the
+    // note compiles to the correct page, and erroring would red every tree the
+    // moment it took this release, ahead of any chance to sweep.
+    const replacement = retiredSubType(type, value);
+    if (replacement) {
+        return [
+            {
+                file: note.file,
+                ...at,
+                severity: "warning",
+                message: retiredSubTypeMessage(type, value, replacement),
+            },
+        ];
+    }
+
+    // The charset, before the closed set: a hyphenated value is unaddressable
+    // whatever the type declares, and the type's list is not the reason it is
+    // refused. Reported here rather than only for an enumerated type, so a
+    // `subTypes: null` type — whose values nothing may yet check — is still
+    // held to the one rule that does not depend on knowing them.
+    if (!isAddressSegment(value)) {
+        return [
+            {
+                file: note.file,
+                ...at,
+                severity: "error",
+                message: subTypeCharsetMessage(value),
             },
         ];
     }
@@ -619,6 +661,25 @@ export function lintNote(
             severity: "error",
             message,
         });
+    }
+
+    // The type's charset, before anything that looks the type up (#206). A
+    // hyphenated type is unaddressable, and every lookup below would report it
+    // as a type nobody declared — true, but not the reason, and it would send
+    // the author to declare one rather than to rename it.
+    //
+    // Guarded on a non-empty type: an absent one is a missing key, not a
+    // charset violation, and is reported as the missing schema it causes.
+    // There is **no transitional path** here, deliberately: no tree authors a
+    // hyphenated type, so an acceptance would guard a case that does not exist.
+    if (type && !isAddressSegment(type)) {
+        findings.push({
+            file: note.file,
+            ...at("type", type),
+            severity: "error",
+            message: typeCharsetMessage(type),
+        });
+        return findings;
     }
 
     const replacement = RETIRED_TYPES[type];

@@ -83,7 +83,7 @@ describe("a page's address is not its name", () => {
         // "Gear"; under a name-derived URL that needed a collision check and,
         // once #180 lands, a rename. Two addresses cannot collide.
         const rules = { type: "doc", subType: "rules", shortcode: "gearrules" };
-        const guide = { type: "doc", subType: "user-guide", shortcode: "gearug" };
+        const guide = { type: "doc", subType: "userguide", shortcode: "gearug" };
         expect(packageAddress(rules, { scheme })).not.toBe(packageAddress(guide, { scheme }));
     });
 });

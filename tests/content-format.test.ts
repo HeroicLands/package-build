@@ -421,7 +421,7 @@ describe("a doc routes by its subtype (#168)", () => {
     // rather than by its type.
     it("gives each doc subtype its own section", () => {
         expect(sectionOf({ type: "doc", subType: "rules" })).toBe("rules");
-        expect(sectionOf({ type: "doc", subType: "user-guide" })).toBe("user-guide");
+        expect(sectionOf({ type: "doc", subType: "userguide" })).toBe("userguide");
         expect(sectionOf({ type: "doc", subType: "reference" })).toBe("reference");
         expect(sectionOf({ type: "doc", subType: "reference" })).toBe("reference");
     });

@@ -36,7 +36,7 @@
  * Nothing narrower than `(type, shortcode)` is consulted — a note's directory
  * and its `category` play no part in resolution — and nothing wider: a note's
  * *name* is not an address, so two notes of a type may share a display name
- * ("Gear" as a rules page and as a user-guide page) with nothing to disambiguate
+ * ("Gear" as a rules page and as a user guide page) with nothing to disambiguate
  * (#179, #180).
  *
  * At compile time each becomes a Foundry UUID enricher, routed to the pack that

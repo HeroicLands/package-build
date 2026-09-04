@@ -177,7 +177,7 @@ describe("a README landing's `subType` is an address, not a genre (#197)", () =>
         expect(findings).toHaveLength(1);
         const text = messages(findings);
         expect(text).toContain("content type");
-        expect(text).toContain("rules, user-guide, reference");
+        expect(text).toContain("rules, userguide, reference");
         // The near miss is drawn from the union, so a mistyped *type* is caught
         // by the same suggestion a mistyped genre would be.
         expect(text).toContain('Did you mean "mysticalability"?');
@@ -196,7 +196,7 @@ describe("a README landing's `subType` is an address, not a genre (#197)", () =>
         );
         const text = messages(findings);
         expect(text).toContain("content type");
-        expect(text).toContain("rules, user-guide, reference");
+        expect(text).toContain("rules, userguide, reference");
         expect(text).toContain("site.sections");
         expect(text).toContain('Did you mean "weapongear"?');
     });
