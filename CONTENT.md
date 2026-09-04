@@ -1234,6 +1234,21 @@ order to satisfy a rendering engine's directory semantics. The file is now
 `<mount>/<type>-<shortcode>.md` and the front-matter `url:` still publishes it at
 the package root, one level above.
 
+**A page states its address without the package base; everything pointing _at_
+it composes one** (#217). They read as one quantity and are two:
+
+| Written                                     | Form                        | Because                                                                                 |
+| ------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
+| A page's own `url:` front matter            | `/<type>-<shortcode>/`      | Hugo resolves it against `baseURL`, whose path already _is_ where the package is served |
+| Every `href` this build renders into a body | `<base><type>-<shortcode>/` | A browser resolves it against nothing                                                   |
+| A link-manifest `path`                      | `<type>-<shortcode>/`       | Measured against `site.base` and stripped; a consumer prefixes its own                  |
+
+`site.base` is the second and third of those and reaches the first not at all.
+It used to be written into the `url:` as well, so every consumer's Hugo prefixed
+its own base to a value that already carried one and published every content
+page a segment too deep — `/sohl/sohl/doc-rulesintro/`, 404 at the address the
+manifest, the sitemap and every inbound link named.
+
 **There is no landing page.** A `README.md` was its section's landing and
 addressed the section itself; that is retired with the section. A page that
 introduces the notes of a type is an ordinary note addressed `doc-<type>`, with
@@ -1363,7 +1378,8 @@ The homepage's file is written at the root of `site.out` — the package's own
 site root, one level above the content mount, which is where
 `publish.address.prefix` puts everything else — under the name its address gives
 it, `homepage-root.md`. As with every other page, the front matter's `url`
-decides where it publishes.
+decides where it publishes, and states it relative to the site root — `site.base`
+does not reach it (#217).
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the link manifest reads, so a page and its manifest entry cannot
@@ -1374,7 +1390,7 @@ published beside the content:
 ```yaml
 site:
   out: kb/content # required; wiped on every run
-  base: /sohl/ # default: /<contentPackage>/
+  base: /sohl/ # default: /<contentPackage>/ — hrefs only, never a page's `url:`
   packages: [sohl, thalorna] # default: just contentPackage
   backfillSections: true
   landing: { title: Knowledgebase, type: knowledgebase }
@@ -1394,18 +1410,18 @@ site:
     dev-docs: { title: Developer Documentation, banner: banners/dev-docs.webp }
 ```
 
-| Key                | What it decides                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------ |
-| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.           |
-| `base`             | Where the package is served. Defaults to `/<contentPackage>/`.                                   |
-| `packages`         | Which content packages this site renders. Defaults to its own.                                   |
-| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.               |
-| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                        |
-| `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.     |
-| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                       |
-| `trees`            | Extra source trees published beside the content, preserving their source layout below a section. |
-| `pass`             | A named bundle of this repository's own body rewrites.                                           |
-| `passOptions`      | That bundle's options.                                                                           |
+| Key                | What it decides                                                                                                                                                                                                                                       |
+| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.                                                                                                                                                                |
+| `base`             | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
+| `packages`         | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
+| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.                                                                                                                                                                    |
+| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                                                                                                                                                                             |
+| `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.                                                                                                                                                          |
+| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                                                                                                                                                                            |
+| `trees`            | Extra source trees published beside the content, preserving their source layout below a section.                                                                                                                                                      |
+| `pass`             | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
+| `passOptions`      | That bundle's options.                                                                                                                                                                                                                                |
 
 ### What a section may declare
 

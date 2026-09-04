@@ -1,3 +1,42 @@
+# Migrating to `@heroiclands/package-build` 15.0.0
+
+**One line to delete, in a site-publishing repository only.** A page's `url:`
+front matter is now stated relative to the **site root**, so `site.base` reaches
+the `href`s this build renders and the base a link-manifest `path` is measured
+against, and reaches a page's own address not at all (#217).
+
+## 1. Drop the `site.base: "/"` stopgap
+
+If your repository set it to stop every page publishing at
+`/<package>/<package>/<address>/`, delete the line — the default,
+`/<contentPackage>/`, is now right for both halves:
+
+```yaml
+site:
+  out: kb/content
+  # base: "/"   ← delete this
+```
+
+Keeping it is no longer harmless: the addresses stay correct either way, but
+every same-package link this build renders into a page body stays short
+(`/doc-skills/` rather than `/sohl/doc-skills/`) and 404s.
+
+A repository that is genuinely served somewhere other than
+`/<contentPackage>/` still says so here, and that value still reaches every
+`href`.
+
+## 2. Nothing else
+
+- No note edits, and no configuration key added or removed.
+- Every link-manifest entry, including each entry's `path`, is byte-identical.
+- Every compiled compendium document is unchanged.
+- `trees` pages and section landings state no `url:` and do not move.
+
+The published address of every content page **does** move — from
+`/<package>/<package>/<address>/`, where nothing linked, to
+`/<package>/<address>/`, which is what the link manifest, the sitemap and every
+inbound link already named.
+
 # Migrating to `@heroiclands/package-build` 12.0.0
 
 **No note edit, no URL change, and one thing to check in the Hugo layer.** A

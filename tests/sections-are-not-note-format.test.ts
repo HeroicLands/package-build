@@ -320,7 +320,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
 });
 
 describe("every page's `url:` survives the move, byte for byte", () => {
-    it("publishes each page at `<base><type>-<shortcode>/`, wherever the file lands", () => {
+    it("publishes each page at `/<type>-<shortcode>/`, wherever the file lands", () => {
         // The core claim of #204: the emitted *paths* move, and no emitted
         // address does. Read back off the tree the build actually wrote.
         const out = path.join(root, "out");
@@ -346,7 +346,9 @@ describe("every page's `url:` survives the move, byte for byte", () => {
 
         for (const name of files) {
             const { data } = matter(fs.readFileSync(path.join(mount, name), "utf8"));
-            expect(data.url, name).toBe(`/demo/${name.replace(/\.md$/, "")}/`);
+            // Site-root relative: the package base is Hugo's own `baseURL`,
+            // and stating it here published the page inside it twice (#217).
+            expect(data.url, name).toBe(`/${name.replace(/\.md$/, "")}/`);
         }
     });
 

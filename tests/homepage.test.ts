@@ -187,7 +187,9 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         const page = fs.readFileSync(dest, "utf8");
         expect(page).toMatch(/^title: The Demo Module$/m);
         expect(page).toMatch(/^package: demo$/m);
-        expect(page).toMatch(/^url: \/demo\/homepage-root\/$/m);
+        // Site-root relative, like every other page's (#217): Hugo resolves it
+        // against a `baseURL` whose path is already the package's base.
+        expect(page).toMatch(/^url: \/homepage-root\/$/m);
         expect(page).toMatch(/^slug: homepage-root$/m);
         expect(page).toContain("The module, in the author's own words.");
     });

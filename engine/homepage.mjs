@@ -371,6 +371,13 @@ export function homepageTitle(fm, config) {
  * for one; it decides nothing while `url` is present, but a page carrying only
  * `url` would report a slug Hugo had inferred from the filename.
  *
+ * **Site-root relative, and so carrying no package base** (#217), exactly as
+ * `pageFrontmatter` states a content page's: Hugo resolves a `url`
+ * against `baseURL`, whose path is already where the package is served, so a
+ * stated base was written twice and published the landing at
+ * `/<package>/<package>/homepage-root/`. Where the package is served is what
+ * every *href* is composed from and it reaches this page's address not at all.
+ *
  * An authored `aliases` is dropped for the same reason it is on every other
  * page: Hugo reads it as URL redirects, so passing it through would publish a
  * redirect stub at each one. The field is retired (#180) and refused before a
@@ -380,14 +387,12 @@ export function homepageTitle(fm, config) {
  * @param {object} options - Options.
  * @param {string} options.contentPackage - The package this build publishes.
  * @param {string} options.title - The resolved title.
- * @param {string} options.base - Where the package is served, with both
- *   slashes — `/<package>/`.
  * @returns {object} The frontmatter to write.
  * @throws {Error} When the note declares no shortcode, and so has no address.
  */
-export function homepageFrontmatter(fm, { contentPackage, title, base }) {
+export function homepageFrontmatter(fm, { contentPackage, title }) {
     const slug = addressSlug(fm);
-    const data = { ...fm, package: contentPackage, title, slug, url: `${base}${slug}/` };
+    const data = { ...fm, package: contentPackage, title, slug, url: `/${slug}/` };
     delete data.aliases;
     return data;
 }
