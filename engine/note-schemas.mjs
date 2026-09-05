@@ -39,6 +39,49 @@ import { HOMEPAGE_FIELDS, HOMEPAGE_TYPE } from "./homepage.mjs";
  *
  * @type {Readonly<Record<string, readonly import("./field-spec.mjs").FieldSpec[]>>}
  */
+/**
+ * A note that compiles to a JournalEntry and nothing else.
+ *
+ * Empty on purpose, and the emptiness is the declaration. `place`, `lore` and
+ * `scenario` produce prose — the JournalEntry every note produces — so none of
+ * them writes a `sohl:` field, and the authored corpus agrees: across
+ * `sohl-thalorna`'s 249 places, 180 lore notes and 21 scenarios, not one
+ * carries a `sohl:` block. Everything they *do* declare is `data:`, which is
+ * the closed container `engine/note-vocabulary.mjs` holds them to.
+ *
+ * Declaring the type with no fields is what distinguishes **a type with no
+ * vocabulary** from **a type that is unknown** — two different findings, and
+ * only the second is a mistake. Until this landed the specification declared
+ * all three and nothing implemented them, so a note using one was reported as
+ * having no schema and then *skipped entirely*: `lintNote` returns after that
+ * finding, so the note's `data:`, `subType`, references and system block all
+ * went unexamined (#231).
+ *
+ * @type {readonly import("./field-spec.mjs").FieldSpec[]}
+ */
+const JOURNAL_ONLY_FIELDS = Object.freeze([]);
+
+/**
+ * An `armorlocation` note — an HM3 item, and no part of the SoHL registry.
+ *
+ * It lives here rather than in `sohl/` for the reachability reason that
+ * governs this whole file: a package declaring no `itemBuilders` never loads
+ * the SoHL registry, and HM3 packages are exactly the ones that author this
+ * type.
+ *
+ * @type {readonly import("./field-spec.mjs").FieldSpec[]}
+ */
+const ARMORLOCATION_FIELDS = Object.freeze([]);
+
+/**
+ * Every engine-level content type, and what a note of that type may write.
+ *
+ * @type {Readonly<Record<string, readonly import("./field-spec.mjs").FieldSpec[]>>}
+ */
 export const ENGINE_NOTE_SCHEMAS = Object.freeze({
     [HOMEPAGE_TYPE]: HOMEPAGE_FIELDS,
+    place: JOURNAL_ONLY_FIELDS,
+    lore: JOURNAL_ONLY_FIELDS,
+    scenario: JOURNAL_ONLY_FIELDS,
+    armorlocation: ARMORLOCATION_FIELDS,
 });

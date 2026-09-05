@@ -1463,7 +1463,13 @@ shipped as content and run by Foundry's own macro runner under the permission
 model that governs every macro in a world. Nothing evaluates, compiles, or
 revives anything; the compiler copies text from a fence into a JSON field.
 
-| `data` property | Values                      | Description                                                          |
+**Both settings are `sohl` properties, not `data` ones.** The compiler reads
+them with the same accessor every `sohl` field uses — the `sohl:` block first,
+then the note's top level — so `data.macroType` is not read, and a macro is not
+a journal-only note the way `place`, `lore` and `scenario` are: it produces a
+Foundry **Macro**, and these two describe that document.
+
+| `sohl` property | Values                      | Description                                                          |
 | --------------- | --------------------------- | -------------------------------------------------------------------- |
 | `macroType`     | `script`                    | The Foundry macro type. Defaults to `script`, and `chat` is an error |
 | `macroScope`    | `global \| actors \| actor` | How far the macro reaches. Defaults to `global`                      |
