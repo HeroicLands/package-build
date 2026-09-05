@@ -571,6 +571,31 @@ export function serializeContentIndex(records) {
 }
 
 /**
+ * The index records for a content tree, without writing anything.
+ *
+ * The half of {@link emitContentIndex} that derives rather than emits, so a
+ * pass that needs the corpus in memory — a SQL content table, and in time every
+ * reader #243 converts — builds it the same way the artifact is built, rather
+ * than by walking and parsing again with its own idea of the scope.
+ *
+ * @param {object} [opts]
+ * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
+ * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @returns {object[]} One record per note, plus one per documentation entry.
+ */
+export function indexRecordsFor({ contentBase, config } = {}) {
+    const resolved = config ?? loadPackConfig();
+    const tree = contentBase ?? resolved.paths.content;
+    if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
+    return collectContentIndex(tree, {
+        contentPackage: resolved.contentPackage,
+        skipDirectories: resolved.skipDirectories,
+        // Only the identities a UUID is a function of — see emitContentIndex.
+        manifest: foundryIdentities(resolved),
+    });
+}
+
+/**
  * Emit this package's content index.
  *
  * @param {object} [options] - Options.
@@ -605,13 +630,7 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     // publishes pages is no part of an address, and depending on it would make
     // the index refuse to build for a configuration that is perfectly able to
     // state one.
-    const manifest = foundryIdentities(resolved);
-
-    const records = collectContentIndex(tree, {
-        contentPackage,
-        skipDirectories: resolved.skipDirectories,
-        manifest,
-    });
+    const records = indexRecordsFor({ contentBase: tree, config: resolved });
     if (records.length === 0) {
         throw new Error(
             `${tree} yielded no notes, so the index would state that this ` +

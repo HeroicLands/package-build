@@ -677,7 +677,7 @@ const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type
  *   compile rather than shipping a table-shaped hole. The error carries
  *   `position`, the directive's own line.
  */
-export function expandNoteTables(body, { docs, name, fm, bodyLine }) {
+export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) {
     const self =
         fm ?
             (docs.find((d) => d.fm?.id && d.fm.id === fm.id) ?? {
@@ -689,6 +689,7 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine }) {
         linkable: packLinkable,
         source: name,
         self,
+        sqlTables,
     });
     if (errors.length) {
         const err = new Error(errors.map((e) => `content table — ${e.reason}`).join("; "));

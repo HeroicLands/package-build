@@ -75,6 +75,7 @@ import {
     expandNoteTables,
     statsForPack,
 } from "./helpers.mjs";
+import { findSqlBlocks, openNotesDatabase, prepareSqlTables } from "./sql-tables.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import {
@@ -442,8 +443,52 @@ export class BasePackCompiler {
         if (this.constructor.convertsWikilinks) {
             this.linkIndex = buildContentLinkIndex(this.contentBase, this.router);
             this.contentDocs = collectContentDocs(this.contentBase);
+            this.sqlTables = await this.#runSqlTables();
         }
         this.unresolvedLinks = 0;
+    }
+
+    /**
+     * Run every `sql` content table in the tree, before the walk begins.
+     *
+     * DuckDB's API is asynchronous and table expansion is not, so the queries
+     * are answered here and spliced in later (see `prepareSqlTables`). The
+     * corpus they run against is the content index itself, built the same way
+     * the shipped artifact is — which is what makes a note's `sohl.weight`
+     * addressable in a query exactly as it is authored.
+     *
+     * **Nothing is opened for a tree that has no `sql` directive.** Every table
+     * in the corpus is still written in the retiring language, so until one is
+     * converted this costs one walk and no database at all.
+     *
+     * @returns {Promise<Map<string, Map<number, object>>|undefined>} Results by
+     *   note path, or nothing when the tree has no such directive.
+     */
+    async #runSqlTables() {
+        const sources = [];
+        for (const { body, absPath } of walkMarkdownTree(this.contentBase)) {
+            if (body && findSqlBlocks(body).length)
+                sources.push({ source: absPath, markdown: body });
+        }
+        if (!sources.length) return undefined;
+
+        // Imported here rather than at module scope: the index reaches this
+        // compiler's own base class through `manifest-emit` → `journals`, so a
+        // static import closes a cycle and leaves `BasePackCompiler`
+        // uninitialised for whichever module the runtime happens to load first.
+        const { indexRecordsFor } = await import("./content-index.mjs");
+        const records = indexRecordsFor({ contentBase: this.contentBase });
+        // A cell links only where the address it would emit actually resolves,
+        // so a table never ships a link the wikilink pass will then report dead.
+        const addresses = new Set(records.map((record) => record.address?.slug).filter(Boolean));
+        const db = await openNotesDatabase(records);
+        try {
+            return await prepareSqlTables(db, sources, {
+                linkable: (ref) => addresses.has(ref),
+            });
+        } finally {
+            await db.close();
+        }
     }
 
     /**
@@ -466,6 +511,7 @@ export class BasePackCompiler {
             name,
             fm,
             bodyLine,
+            sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
         });
         const { markdown, unresolved } = convertNoteWikilinks(tabulated, {
             type: fm.type,

@@ -127,6 +127,7 @@
         "types"
     ],
     "dependencies": {
+        "@duckdb/node-api": "^1.5.5-r.4",
         "@foundryvtt/foundryvtt-cli": "^3.0.4",
         "acorn": "^8.18.0",
         "archiver": "^8.0.0",

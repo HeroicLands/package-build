@@ -1106,9 +1106,19 @@ function whereText(query) {
 
 export function expandContentTables(
     markdown,
-    { docs = [], linkable = () => false, source = "", self = undefined } = {},
+    {
+        docs = [],
+        linkable = () => false,
+        source = "",
+        self = undefined,
+        sqlTables = undefined,
+    } = {},
 ) {
     const errors = [];
+    // One entry per `dataview` directive still authored, so a caller can say how
+    // much of the corpus is still on the retiring language without this pass
+    // failing a build over it (#246).
+    const warnings = [];
     const lines = String(markdown ?? "").split("\n");
     const out = [];
     // Which authored line each emitted line came from, so a later pass can
@@ -1142,13 +1152,55 @@ export function expandContentTables(
         const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
         while (close < lines.length && !closer.test(lines[close])) close++;
         const isQuery = /^dataview\b/i.test(info.trim());
+        const isSql = /^sql\b/i.test(info.trim());
         const block = lines.slice(i, Math.min(close + 1, lines.length));
+
+        // A `sql` directive was run before this pass began — DuckDB is async and
+        // this is not (see `prepareSqlTables`). What is left here is splicing
+        // the rendered table in at the directive's own position.
+        if (isSql && close < lines.length) {
+            const prepared = sqlTables?.get(i);
+            const failure =
+                !prepared ?
+                    "sql content table was not prepared — this pass was given no " +
+                    "`sqlTables`, so the query could not be run"
+                : prepared.reason ? prepared.reason
+                : prepared.rows === 0 && !prepared.allowEmpty ?
+                    "sql query selects no notes — write ```sql allow-empty if " + "that is intended"
+                :   undefined;
+            if (failure) {
+                errors.push({
+                    source,
+                    directive: block.join("\n"),
+                    reason: failure,
+                    line: i,
+                    column: indent.length + 1,
+                });
+                block.forEach((text, k) => emit(text, i + k));
+                i = close;
+                continue;
+            }
+            if (out.length > 0 && out[out.length - 1].trim() !== "") emit("", i, true);
+            for (const row of prepared.markdown.split("\n")) emit(`${indent}${row}`, i, true);
+            if (close + 1 < lines.length && lines[close + 1].trim() !== "") emit("", i, true);
+            i = close;
+            continue;
+        }
+
         if (!isQuery || close >= lines.length) {
             block.forEach((text, k) => emit(text, i + k));
             i = close;
             continue;
         }
         const query = lines.slice(i + 1, close).join("\n");
+        warnings.push({
+            source,
+            line: i,
+            column: indent.length + 1,
+            reason:
+                "`dataview` content tables are being replaced by `sql` over the " +
+                "content index (#246)",
+        });
         // `dataview allow-empty` says a table selecting nothing is the intended
         // state. Spelled on the fence rather than in the query, because it is a
         // statement about this *directive* and not part of the query language.
@@ -1198,5 +1250,5 @@ export function expandContentTables(
         }
         i = close;
     }
-    return { markdown: out.join("\n"), errors, lineMap };
+    return { markdown: out.join("\n"), errors, warnings, lineMap };
 }
