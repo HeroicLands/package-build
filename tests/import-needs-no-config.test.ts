@@ -74,7 +74,7 @@ function walkModules(dir: string): string[] {
  * `bin/` is left out on purpose: importing the command line *runs* it, and the
  * `--version` / `--help` cases below cover it properly.
  */
-const MODULES = ["engine", "sohl"]
+const MODULES = ["engine", "sohl", "hm3"]
     .flatMap((dir) => walkModules(path.join(PKG_ROOT, dir)))
     .map((full) => path.relative(PKG_ROOT, full))
     .concat("index.mjs", "config.mjs")

@@ -38,6 +38,7 @@
         "prettier-config.mjs",
         "markdownlint-config.mjs",
         "engine/**/*.mjs",
-        "sohl/**/*.mjs"
+        "sohl/**/*.mjs",
+        "hm3/**/*.mjs"
     ]
 }

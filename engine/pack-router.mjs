@@ -221,6 +221,29 @@ export function createPackRouter(packs) {
         },
 
         /**
+         * The systems declared by the packs of one document type.
+         *
+         * What a pass asks to tell a note that belongs to *another system's*
+         * pass from one that is simply missing this system's block (#139). A
+         * repository feeding two systems declares an Item pack per system, so
+         * a note carrying only `hm3:` is not an incomplete SoHL note — it is a
+         * note the HM3 pass will claim, and the SoHL pass has to pass over it
+         * rather than fail it.
+         *
+         * @param {string} docType - The Foundry document type.
+         * @returns {string[]} The declared systems, deduplicated, in
+         *   configured order. Empty where no pack of the type names one.
+         */
+        systemsOfType(docType) {
+            const out = [];
+            for (const name of byType.get(docType) ?? []) {
+                const system = byName.get(name)?.system;
+                if (system && !out.includes(system)) out.push(system);
+            }
+            return out;
+        },
+
+        /**
          * The pack of a type that receives notes declaring none.
          *
          * @param {string} docType - The Foundry document type.

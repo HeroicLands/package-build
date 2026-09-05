@@ -91,6 +91,7 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 // The shipped declarations, so this repository can check its own specification
 // against them without standing up a consumer's configuration (#136).
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
+import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -217,7 +218,7 @@ function readRawNote(file) {
  *
  * @type {Record<string, Record<string, readonly object[]>>}
  */
-const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS };
+const SHIPPED_ITEM_FIELDS = { sohl: ITEM_FIELDS, hm3: HM3_ITEM_FIELDS };
 
 const argv = yargs(hideBin(process.argv))
     .command(packageCommand())

@@ -70,6 +70,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
+import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 
 /**
  * Note types that compile into **no compendium document, by design**.
@@ -86,8 +87,15 @@ export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
 /**
  * The note-type → document-subtype maps this toolchain ships.
  *
- * One today. `hm3/` is #139, and when it lands its map joins this list rather
- * than the claim table below growing a second copy of the same fact.
+ * Two, since `hm3/` landed (#139) — and it joined this list rather than the
+ * claim table below growing a second copy of the same fact, which is what the
+ * list was for.
+ *
+ * The union is what makes the vocabulary wider than any one repository's
+ * configuration: `armorlocation` is a real content type because HM3 maps it,
+ * however a given repository is configured, so a tree full of them is a
+ * repository that has not finished configuring itself rather than an author who
+ * invented a word.
  *
  * `engine/` importing from `sohl/` is the arrangement `generate.mjs` already
  * has — its `COMPILERS` table names the SoHL compilers by class — and for the
@@ -96,7 +104,10 @@ export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
  *
  * @type {readonly import("./document-subtypes.mjs").DocumentSubtypeMap[]}
  */
-export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([SOHL_DOCUMENT_SUBTYPES]);
+export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
+    SOHL_DOCUMENT_SUBTYPES,
+    HM3_DOCUMENT_SUBTYPES,
+]);
 
 /**
  * What a claim question is asked against.
