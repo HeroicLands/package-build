@@ -727,9 +727,11 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "color",
                 ...TEXT,
                 describe:
-                    "The folder's colour, as `#RRGGBB`. The leading `#` is " +
-                    "required: without it YAML reads an all-digit value as a " +
-                    "number, so `000000` would arrive as `0`.",
+                    'The folder\'s colour, as a quoted `"#RRGGBB"`. Quoting is ' +
+                    "required either way: unquoted, the `#` opens a YAML " +
+                    "comment and the value is `null`; without the `#`, YAML " +
+                    "reads an all-digit value as a number and `000000` " +
+                    "becomes `0`.",
             },
         ]),
     }),
