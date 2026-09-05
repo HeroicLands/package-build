@@ -1327,8 +1327,20 @@ function siteCommand() {
                 // failures of individual notes, and stopping the whole build
                 // before anything is emitted would make a single bad table
                 // hide every other problem in the tree.
+                // `file:line:column: error: message`, path first — the same
+                // shape the pack build and the wikilink findings below use. It
+                // was prose with a timestamp where a parser reads the path,
+                // which made one authored table produce a machine-readable
+                // diagnostic from one build and something ungreppable from the
+                // other (#223).
                 for (const e of result.tableErrors) {
-                    log.error(`bad content table: ${e.reason}  (${e.source})`);
+                    emitDiagnostic({
+                        file: e.source,
+                        line: typeof e.line === "number" ? e.line + 1 : undefined,
+                        column: e.column,
+                        severity: "error",
+                        message: e.reason,
+                    });
                 }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and

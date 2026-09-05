@@ -495,6 +495,36 @@ Any header can include curly braces. Inside the curly braces:
 - `.class1` represents a CSS class named `class1` (any number of classes allowed)
 - `attr="value"` represents an HTML attribute named `attr` whose value is `value` (any number of attr/value pairs allowed)
 
+#### Content tables
+
+A fenced `dataview` block is replaced by the table its query selects:
+
+````markdown
+```dataview
+TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"
+WHERE type = "armorgear"
+```
+````
+
+**A query that selects nothing is a build error.** A zero-row table publishes as
+a bare header and a rule, and a stale query — a renamed type, a retired
+category, a typo'd path — is then indistinguishable from a category that is
+legitimately empty. Eight tables in one note published that way for months after
+a type rename, and no build said a word.
+
+Where a table is _meant_ to be empty, say so on the fence:
+
+````markdown
+```dataview allow-empty
+TABLE WITHOUT ID name.full AS "Name"
+WHERE type = "affliction" AND sohl.kbcat = "not-written-yet"
+```
+````
+
+The opt-in is on the fence rather than in the query because it is a statement
+about this directive, not part of the query language. Either way the table is
+still rendered — the finding is the point, not withholding the output.
+
 ```
 :::secret
 This is secret text
