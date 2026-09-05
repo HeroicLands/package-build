@@ -420,15 +420,20 @@ describe('an authored `img: ""` (#218)', () => {
         expect(art[0].message).toMatch(/portrait: null/);
     });
 
-    it("makes no such claim about `title`, which is not on the same rule", () => {
-        // `title` is simultaneously a declared item field whose default is
-        // `""`, resolved from the same shared key the site emitter reads as
-        // the page title — so `title: null` compiles the literal `"null"`.
-        // The rule is the two art fields' alone until that collision is
-        // resolved (#218).
+    it('warns on `title: ""` too, for the page\'s heading', () => {
+        // The collision that kept `title` off this rule is gone: the field
+        // declares `topLevelMeans`, so the top-level key no longer feeds an
+        // affiliation's `system.title` and `title: null` no longer compiles
+        // the literal `"null"`. What remains is the page heading, and the
+        // emitter is `fm.title ?? name` — so `""` survives, the page
+        // publishes unnamed, and it sorts ahead of every named page in its
+        // section. Fifteen notes in `sohl-thalorna` are in that state.
         const findings = lintNote(note("skill", {}, { title: "" }), { schemas });
+        const titleFindings = findings.filter((f) => /title: ""/.test(f.message));
 
-        expect(findings.filter((f) => /title/.test(f.message))).toHaveLength(0);
+        expect(titleFindings).toHaveLength(1);
+        expect(titleFindings[0].severity).toBe("warning");
+        expect(titleFindings[0].message).toMatch(/title: null/);
     });
 });
 

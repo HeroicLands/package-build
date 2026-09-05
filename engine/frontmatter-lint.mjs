@@ -670,6 +670,29 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                 "meant to have no image",
         });
     }
+    // `title: ""` publishes a blank heading (#218). The rule the art fields
+    // follow — `null` falls back, `""` is blank on purpose — reads the same way
+    // here, and for a *page heading* the deliberate blank is almost never what
+    // anyone wants: the emitter is `fm.title ?? name`, so `""` survives, the
+    // page publishes with no name, and it sorts to the front of its section
+    // landing ahead of every named page. Fifteen notes in `sohl-thalorna` are
+    // in exactly that state.
+    //
+    // A warning rather than an error: the value is legal under the rule, and a
+    // note that genuinely wants no heading may keep it — it just has to mean it.
+    if (authoredValue(fm, "title") === "") {
+        findings.push({
+            file: note.file,
+            ...at("title"),
+            severity: "warning",
+            message:
+                '`title: ""` publishes a page with no heading, which sorts to ' +
+                "the front of its section ahead of every named page. Write " +
+                "`title: null` to fall back to `name.full`, or give the page a " +
+                'heading; keep `""` only where the blank is meant',
+        });
+    }
+
     if (Object.hasOwn(fm, "draft")) {
         findings.push({
             file: note.file,
