@@ -58,6 +58,16 @@ describe("the label registry's two faces", () => {
         expect(r.doc[0].line).toBeGreaterThan(0);
     });
 
+    it("agrees when a spaced label is in both faces", () => {
+        const r = checkLabelRegistry({
+            registryText: "- name: good first issue\n  description: for newcomers\n",
+            docText: doc("good first issue"),
+        });
+        expect(r.registry).toEqual([]);
+        expect(r.doc).toEqual([]);
+        expect(r.count).toBe(1);
+    });
+
     it("names the file it was given, not a hardcoded path", () => {
         const r = checkLabelRegistry({
             registryText: registry("a"),
@@ -117,6 +127,19 @@ describe("reading the documented table", () => {
     it("reads only backticked first cells, so prose and examples are not labels", () => {
         const text = ["## 3. Labels", "| Column | Meaning |", "| `real` | yes |"].join("\n");
         expect([...documentedLabels(text).names]).toEqual(["real"]);
+    });
+
+    it("reads a label name containing spaces", () => {
+        // Two GitHub defaults have them, and a kebab-case charset skipped both
+        // rows silently — then reported the labels as undocumented, which is a
+        // false finding pointing at the wrong file. Found against
+        // HarnMaster-3-FoundryVTT, whose registry and §3 had never disagreed.
+        const text = [
+            "## 3. Labels",
+            "| `good first issue` | for newcomers |",
+            "| `help wanted` | extra attention |",
+        ].join("\n");
+        expect([...documentedLabels(text).names]).toEqual(["good first issue", "help wanted"]);
     });
 
     it("says when there is no section at all", () => {

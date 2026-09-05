@@ -29,8 +29,13 @@ A missing §3 is reported once, as its own failure, rather than as every label
 having drifted. An over-long description is caught here too — GitHub answers a
 bare 422 naming neither the label nor the limit.
 
-Verified against every repository that has a registry: `sohl-thalorna` (12),
-`sohl-kethira-basic` (11), `harn-adventures` (11), `harn-ensemble` (12) and
-`Song-of-Heroic-Lands-FoundryVTT` (16) all agree — and it found real drift in
-`HarnMaster-3-FoundryVTT`, where `good first issue` and `help wanted` are in
-the registry and absent from §3.
+**A label name may contain spaces**, and two GitHub defaults do — `good first
+issue` and `help wanted`. The script this replaces matched a kebab-case charset,
+so it skipped those rows silently and would have reported both labels as
+undocumented: a false finding, pointing at the wrong file. The name is read as
+written now, with the backticks and the first-cell anchor doing the narrowing.
+
+Verified against every repository that has a registry — `sohl-thalorna` (12),
+`sohl-kethira-basic` (11), `harn-adventures` (11), `harn-ensemble` (12),
+`Song-of-Heroic-Lands-FoundryVTT` (16) and `HarnMaster-3-FoundryVTT` (14) — all
+six agree. Three of them had never had the check run at all.

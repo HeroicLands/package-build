@@ -70,7 +70,7 @@ function positionOfLabel(text, name) {
 function positionOfDocRow(text, name) {
     const lines = text.split("\n");
     for (let i = 0; i < lines.length; i += 1) {
-        const m = lines[i].match(/^\|\s*`([a-z][a-z-]*)`\s*\|/);
+        const m = lines[i].match(/^\|\s*`([^`|]+)`\s*\|/);
         if (m && m[1] === name) return { line: i + 1, column: lines[i].indexOf(name) + 1 };
     }
     return {};
@@ -79,9 +79,12 @@ function positionOfDocRow(text, name) {
 /**
  * The label names the documented §3 table lists.
  *
- * A registry row is a table row whose first cell is a backticked label name,
- * which is narrow on purpose: §3 carries prose and other tables, and a looser
- * match would read a heading or an example as a label.
+ * A registry row is a table row whose first cell is a backticked label name.
+ * The backticks and the first-cell anchor are what make it narrow — the name
+ * itself is read as written, because a GitHub label may contain spaces and two
+ * of the defaults do: `good first issue` and `help wanted`. A charset that
+ * assumed kebab-case skipped those rows silently and then reported the labels
+ * as undocumented, which is a false finding pointing at the wrong file.
  *
  * @param {string} text - The documentation file's contents.
  * @returns {{names: Set<string>, found: boolean}} The names, and whether §3 was
@@ -95,7 +98,7 @@ export function documentedLabels(text) {
     const section = lines.slice(start, after < 0 ? lines.length : after);
     const names = new Set();
     for (const line of section) {
-        const m = line.match(/^\|\s*`([a-z][a-z-]*)`\s*\|/);
+        const m = line.match(/^\|\s*`([^`|]+)`\s*\|/);
         if (m) names.add(m[1]);
     }
     return { names, found: true };
