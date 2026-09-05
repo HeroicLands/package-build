@@ -667,10 +667,14 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         findings.push({
             file: note.file,
             ...at(RETIRED_FIELD_ALIASES.templatePriority),
-            // A warning, not an error: both spellings are read and the note
-            // compiles identically, so failing a build would red every tree at
-            // once — 5,727 notes author the retiring key.
-            severity: "warning",
+            // An error, unlike the other retired alias. `archetype` is not
+            // a field of its own — it is `templatePriority` under its prior
+            // name, and both sit one letter from `archetypes`, which means
+            // something else entirely. A tree still on it is one where a
+            // priority and a taxonomy are told apart by a plural `s`, which
+            // is worth stopping rather than mentioning. This reds every
+            // tree until each is swept; that is the point.
+            severity: "error",
             message: retiredAliasMessage(
                 RETIRED_FIELD_ALIASES.templatePriority,
                 "templatePriority",

@@ -10,9 +10,16 @@ offers was called `archetype` — one letter from `archetypes`, which is a list 
 what _sort_ a character is. A priority and a taxonomy cannot be told apart by a
 plural `s`.
 
-Both spellings are read, `templatePriority` winning, and the retiring one draws a
-warning rather than an error: the note compiles identically either way, and
-**5,727 notes across four trees** author it.
+Both spellings are read, `templatePriority` winning, and **the retiring one is a
+lint error**. Unlike the other retired alias, `archetype` is not a field of its
+own — it is `templatePriority` under its prior name, and both sit one letter from
+`archetypes`, which means something else entirely. A tree still on it is one
+where a priority and a taxonomy are told apart by a plural `s`, which is worth
+stopping rather than mentioning.
+
+The compile is unaffected — both spellings are read, so every tree keeps
+compiling — but `content-build lint` refuses a tree until it is swept, and
+**5,727 notes across four trees** author the old key.
 
 It is read from `data.templatePriority` first, which is where the specification
 puts it and where `sohl-thalorna` already writes it on 941 notes — so a tree that

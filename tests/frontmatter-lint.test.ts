@@ -200,12 +200,12 @@ describe("keys every type accepts", () => {
         const sohl = Object.fromEntries([...UNIVERSAL_KEYS].map((k) => [k, "x"]));
         const findings = lintNote(note("doc", sohl), { schemas });
 
-        // None of them is rejected. One draws a *warning*: `archetype` is the
-        // retiring spelling of `templatePriority` and both are universal keys
-        // during the window, so a note naming every one of them necessarily
-        // names the old spelling too (#266).
-        expect(findings.filter((f: any) => f.severity === "error")).toEqual([]);
-        expect(findings.map((f: any) => f.severity)).toEqual(["warning"]);
+        // One is rejected, and only one: `archetype` is the retiring spelling
+        // of `templatePriority`, and both are universal keys during the window,
+        // so a note naming every universal key necessarily names the old
+        // spelling too (#266). Every other universal key passes.
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("error");
         expect(findings[0].message).toMatch(/write `templatePriority:` instead/);
     });
 

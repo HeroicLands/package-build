@@ -58,9 +58,9 @@ describe("reading the priority", () => {
 
 describe("a note carrying both spellings", () => {
     it("passes when they agree", () => {
-        expect(resolveArchetype({ data: { templatePriority: 0 }, sohl: { archetype: 0 } }, "x")).toBe(
-            0,
-        );
+        expect(
+            resolveArchetype({ data: { templatePriority: 0 }, sohl: { archetype: 0 } }, "x"),
+        ).toBe(0);
         expect(
             resolveArchetype({ data: { templatePriority: null }, sohl: { archetype: null } }, "x"),
         ).toBeUndefined();
@@ -72,7 +72,10 @@ describe("a note carrying both spellings", () => {
         // a template" against "a template at priority 0". Preferring either
         // silently would decide that on the author's behalf.
         expect(() =>
-            resolveArchetype({ data: { templatePriority: null }, sohl: { archetype: 0 } }, "Spirit"),
+            resolveArchetype(
+                { data: { templatePriority: null }, sohl: { archetype: 0 } },
+                "Spirit",
+            ),
         ).toThrow(/Conflicting templatePriority for Spirit/);
     });
 
@@ -105,7 +108,7 @@ describe("the retirement", () => {
         expect(UNIVERSAL_KEYS.has("archetype")).toBe(true);
     });
 
-    it("warns rather than fails, since the note compiles identically either way", () => {
+    it("is refused, not merely warned about", () => {
         const note = {
             file: "/t/x.md",
             type: "skill",
@@ -116,7 +119,10 @@ describe("the retirement", () => {
             /archetype/.test(f.message),
         );
 
-        expect(finding.severity).toBe("warning");
+        // Unlike the other retired alias: `archetype` is one letter from
+        // `archetypes`, so a tree still on it tells a priority and a
+        // taxonomy apart by a plural `s`. That is worth stopping.
+        expect(finding.severity).toBe("error");
         expect(finding.message).toMatch(/write `templatePriority:` instead/);
     });
 
