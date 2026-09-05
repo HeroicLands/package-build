@@ -1260,6 +1260,64 @@ import shared from "@heroiclands/package-build/markdownlint";
 export default { ...shared, config: { ...shared.config, MD013: true } };
 ```
 
+## YAML: frontmatter, and every YAML file
+
+```bash
+npx package-build yaml                     # every YAML file git would consider
+npx package-build yaml assets/content      # or just these paths
+```
+
+Frontmatter carries a note's type, its shortcode, its address and the system
+blocks a document is compiled from — and until this command existed nothing
+checked it _as YAML_.
+
+**Worse than unchecked: a parse failure unmade the note.** `parseMarkdownFile`
+caught the error, logged it at `warn`, and returned `{frontmatter: null}` — which
+is not a note with bad frontmatter but, to every pass downstream, _a file with no
+frontmatter_. It was skipped by the compiler, the linter, the link checker and
+the index, and the build reported success. A duplicate key did not fail anything;
+it removed a note from the corpus. The parser had detected it all along.
+
+**Frontmatter is linted through an ESLint processor** — the mechanism
+`eslint-plugin-markdown` uses for fenced code blocks. Frontmatter is its easy
+case: the block is always at the top of the file, so a finding maps back to the
+line it came from with a constant `+1` for the opening `---`, and nothing after
+the closing `---` is read as YAML.
+
+The rule set is **deliberately narrow**, for the same reason `markdown`'s is.
+Prettier already owns YAML's whitespace, quoting and line breaks — including
+inside a frontmatter fence — so a rule about any of those would duplicate the
+formatter or fight it. What is left is the class a formatter cannot see: text
+that parses to something other than what it looks like.
+
+| Reported                              | Why it is not a matter of taste                                |
+| ------------------------------------- | -------------------------------------------------------------- |
+| a parse error                         | A duplicate key, a tab indent, mis-aligned mapping items.      |
+| `yml/no-empty-mapping-value`          | `folder:` and `folder: null` are one value and two statements. |
+| `yml/no-irregular-whitespace`         | A non-breaking space is invisible and part of the value.       |
+| `yml/no-empty-key`, `-empty-document` | A fence or a file that parses to nothing at all.               |
+
+`folder:` and `folder: null` read as opposites — a decision, or a key somebody
+began and did not finish — so the distinction is drawn where the text still
+exists. **A key with a block under it is not empty**: `name:` followed by an
+indented mapping, or by a sequence at its own indent, is an ordinary container.
+
+**GitHub workflows are exempt from the empty-value rule.** `on:`, `push:` and
+`workflow_dispatch:` carry their meaning by being present, and writing
+`push: null` to satisfy a linter would be worse YAML, not better. A real error in
+a workflow is still reported.
+
+**The files are the ones git would consider** — `--cached --others
+--exclude-standard`, tracked plus untracked-and-not-ignored, the same set
+`gitignore: true` gives the markdown linter. Untracked is included so a note is
+linted while it is being written rather than only once it has been staged.
+
+**A consumer needs no ESLint.** This ships as a command, not as a configuration
+to adopt: there is no `eslint` dependency to add, no `eslint.config.js` and no
+rules to declare. A repository that _has_ an ESLint of its own keeps it untouched
+and unconsulted — the run sets `overrideConfigFile: true`, so no config file is
+looked for at all.
+
 ## Publishing a link manifest
 
 ```bash

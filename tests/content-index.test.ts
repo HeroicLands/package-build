@@ -570,9 +570,14 @@ describe("an item note is two records: the item, and its documentation (#239)", 
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
         const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
-        expect(item.foundry.uuid).toContain(".Item.");
-        expect(doc.foundry.uuid).toContain(".JournalEntry.");
-        expect(item.foundry.uuid).not.toBe(doc.foundry.uuid);
+        // The item is a *system's* document, so its address is keyed by the
+        // system that compiles it — a note may declare more than one. The
+        // documentation journal belongs to the note format, not to a system,
+        // so it carries no system key.
+        expect(item.foundry.sohl.uuid).toContain(".Item.");
+        expect(doc.foundry.none.uuid).toContain(".JournalEntry.");
+        expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.none.uuid);
+        expect(doc.foundry.sohl).toBeUndefined();
     });
 
     it("does not copy the item's frontmatter onto the journal", () => {
@@ -608,5 +613,38 @@ describe("an item note is two records: the item, and its documentation (#239)", 
     it("refuses a note that authors over a derived key", () => {
         note("Odd.md", "type: affliction\nid: o1\nshortcode: odd\ndocumentation: mine");
         expect(() => emitContentIndex({ config: foundryConfig(tmp) })).toThrow(/derived/);
+    });
+});
+
+describe("a note may declare more than one system", () => {
+    const cfg = (root: string) =>
+        ({
+            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            contentPackage: "sohl",
+            foundryPackage: "sohl",
+            skipDirectories: [],
+            docEntryTypes: new Set(["affliction"]),
+        }) as any;
+
+    it("keys a system's document by the system that compiles it", () => {
+        // `harn-ensemble` carries 2,497 notes with both a `sohl:` and an `hm3:`
+        // block, and each compiles into its own document of that system's type.
+        // One `uuid` on the record cannot name two, so the address is keyed.
+        note("Plague.md", "type: affliction\nid: p1\nshortcode: plague");
+        const [item] = readIndex(emitContentIndex({ config: cfg(tmp) }).file);
+        expect(Object.keys(item.foundry)).toEqual(["sohl"]);
+        expect(item.foundry.sohl.uuid).toContain(".Item.");
+    });
+
+    it("keys a format document `none`, the word the specification uses", () => {
+        // A macro, a journal or a scene is the note format's own document, and
+        // the format calls that `none` — the address says so too.
+        note("Roll.md", "type: macro\nid: m1\nshortcode: roll");
+        const [macro] = readIndex(emitContentIndex({ config: cfg(tmp) }).file);
+        // `none` is the specification's word for it — the same value the
+        // canonical address carries in its `<system>` segment — so "belongs to
+        // no system" and "nobody filled this in" are not the same shape.
+        expect(macro.foundry.none.uuid).toContain(".Macro.");
+        expect(macro.foundry.sohl).toBeUndefined();
     });
 });

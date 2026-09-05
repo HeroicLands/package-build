@@ -71,6 +71,25 @@ import unidecode from "unidecode";
 
 import { addressSlug } from "./content-address.mjs";
 import { canonicalKey } from "./kb-manifest.mjs";
+// One reader for a note's anchors, shared with the link checker and with the
+// builds that emit a link (#243). Re-exported because this is where callers
+// have always addressed it.
+import { collectAnchors } from "./anchors.mjs";
+import { subtypeRow } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
+
+/**
+ * The `<system>` a note belongs to when it belongs to none.
+ *
+ * The specification's word, not this module's: the canonical address carries it
+ * in the same position — `harnadventures-none-being-grod` — so the index and
+ * the address say "no system" the same way (#59).
+ *
+ * @type {string}
+ */
+const NO_SYSTEM = "none";
+
+export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -102,64 +121,6 @@ export const DERIVED_KEYS = Object.freeze([
     "documentation",
     "documents",
 ]);
-
-/**
- * A heading, and the `{#slug}` anchor it declares.
- *
- * Kept identical to the pair {@link splitPages} matches, because the two must
- * agree about what an anchor is: that pass decides which sections become
- * addressable journal pages, and an index naming an anchor it does not produce
- * would advertise a link that resolves nowhere. `tests/content-index.test.ts`
- * asserts the two find the same anchors, so drift fails the suite rather than
- * shipping.
- */
-const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
-const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
-
-/**
- * The `{#slug}` anchors a note's body declares, with where each one sits.
- *
- * Only headings carrying an explicit anchor are collected. A bare `#` heading
- * also starts a journal page, but it declares no slug, so nothing can address
- * it with `#…` — listing it would offer a link that cannot be written.
- *
- * @param {string} body - The note's markdown body, frontmatter already removed.
- * @param {number} [bodyLine] - The 1-based file line the body starts on, from
- *   `parseMarkdownFile`. Anchors are reported at their position in the **file**,
- *   so an editor can jump straight to one; passing nothing numbers from the body.
- * @returns {Array<{slug: string, name: string, level: number, line: number}>}
- *   In document order.
- */
-export function collectAnchors(body, bodyLine = 1) {
-    const anchors = [];
-    let inCodeBlock = false;
-    const lines = String(body ?? "").split("\n");
-
-    for (let i = 0; i < lines.length; i++) {
-        // A fenced block's contents are not headings, and `#` is a comment in
-        // most of what gets fenced.
-        if (lines[i].trim().startsWith("```")) {
-            inCodeBlock = !inCodeBlock;
-            continue;
-        }
-        if (inCodeBlock) continue;
-
-        const heading = HEADING.exec(lines[i]);
-        if (!heading) continue;
-        const anchor = ANCHOR.exec(heading[2].trim());
-        if (!anchor) continue;
-
-        const slug = anchor[2].trim();
-        if (!slug) continue;
-        anchors.push({
-            slug,
-            name: anchor[1].trim(),
-            level: heading[1].length,
-            line: bodyLine + i,
-        });
-    }
-    return anchors;
-}
 
 /**
  * The address a wikilink writes to reach a note, or `null` when it has none.
@@ -355,17 +316,64 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
 }
 
 /**
- * The `foundry` block for one manifest entry.
+ * The `foundry` block for one manifest entry, **keyed by the system that
+ * compiles it**.
+ *
+ * A note may declare more than one system — 2,497 of `harn-ensemble`'s carry
+ * both a `sohl:` and an `hm3:` block — and each compiles into its *own* Foundry
+ * document, of that system's document type, in that system's pack. One `uuid`
+ * on the record cannot name two documents, so it named whichever the single
+ * shipped map produced and said nothing about the other.
+ *
+ * Only `sohl` can appear today, because `KNOWN_DOCUMENT_SUBTYPE_MAPS` holds one
+ * map and #139 tracks the missing `hm3/` half. The shape is system-keyed now so
+ * that adding it is one more key rather than a second breaking change to an
+ * artifact consumers have already started reading.
+ *
+ * **Derived, and a sibling of the authored block rather than inside it.** The
+ * uuid could have been synthesized onto `sohl:`/`hm3:` themselves, but those are
+ * regions a note *authors*, and {@link DERIVED_KEYS} — which refuses a note that
+ * writes over derived data — reaches only the top level. A note authoring
+ * `sohl.uuid` would collide silently, which is the failure this index exists to
+ * stop rather than to add.
  *
  * @param {object|null} entry - A manifest entry.
- * @returns {object|null} `{ uuid?, anchors? }`, or null when it addresses nothing.
+ * @param {string} system - The system whose document this is.
+ * @returns {object|null} `{ [system]: { uuid?, anchors? } }`, or null when it
+ *   addresses nothing.
  */
-function foundryBlock(entry) {
+/**
+ * The system whose document this note's own type compiles into.
+ *
+ * The vocabulary is the specification's: `sohl`, `hm3`, and **`none`** for a
+ * note that belongs to no system — the same value the canonical address carries
+ * in its `<system>` segment (`harnadventures-none-being-grod`). A `place`, a
+ * `doc`, a `macro` or a map compiles into a JournalEntry, a Macro or a Scene
+ * that belongs to the *note format* rather than to a game system, and `none` is
+ * what the format calls that, so it is what this returns rather than an absence.
+ *
+ * Naming it means every record answers the question the same way. An unkeyed
+ * block would make "belongs to no system" and "nobody filled this in" the same
+ * shape, which is the distinction the whole artifact exists to keep.
+ *
+ * @param {string} type - The note's `type`.
+ * @param {readonly object[]} maps - The document-subtype maps this build ships.
+ * @returns {string} The system id, or `"none"`.
+ */
+function systemOf(type, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS) {
+    for (const map of maps ?? []) {
+        if (subtypeRow(map, type)) return map.system;
+    }
+    return NO_SYSTEM;
+}
+
+function foundryBlock(entry, system) {
     if (!entry) return null;
     const block = {};
     if (entry.uuid) block.uuid = entry.uuid;
     if (entry.anchors) block.anchors = entry.anchors;
-    return Object.keys(block).length ? block : null;
+    if (!Object.keys(block).length) return null;
+    return { [system || NO_SYSTEM]: block };
 }
 
 export function buildIndexRecord({
@@ -405,7 +413,7 @@ export function buildIndexRecord({
                 ...a,
                 link: address ? `${address.slug}#${a.slug}` : null,
             })),
-            foundry: foundryBlock(entries?.own),
+            foundry: foundryBlock(entries?.own, systemOf(frontmatter?.type)),
             // Forward link to the note's documentation journal, which is its
             // own record. Named rather than nested, because the journal is a
             // separate document with its own address — see `buildDocRecord`.
@@ -481,7 +489,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // the forward link on that record, so either end reaches the other.
             documents: address.canonical,
             anchors,
-            foundry: foundryBlock(entry),
+            foundry: foundryBlock(entry), // a journal: no system key
             file,
         })
     );

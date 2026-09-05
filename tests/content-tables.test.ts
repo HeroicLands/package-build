@@ -94,7 +94,11 @@ function expand(markdown: string, opts: Record<string, unknown> = {}) {
 /** Expand a bare query (no surrounding prose) and return its markdown. */
 function table(query: string, opts: Record<string, unknown> = {}) {
     const { markdown, errors } = expand(block(query), opts);
-    expect(errors).toEqual([]);
+    // A selection test may legitimately match nothing — that is often the
+    // assertion. The empty-table finding (#223) is a statement about a
+    // *directive*, checked in its own describe below, so it is not a failure
+    // here; anything else still is.
+    expect(errors.filter((e: any) => !/selects no notes/.test(e.reason))).toEqual([]);
     return markdown.trim();
 }
 
@@ -485,17 +489,44 @@ describe("expandContentTables — rendering", () => {
 });
 
 describe("expandContentTables — errors", () => {
-    it("renders an empty table, not an error, when nothing matches", () => {
-        // A section with no content yet is a normal state of the corpus, and
-        // it is what the author already sees in Obsidian.
+    it("reports a query that selects nothing, and still renders the table", () => {
+        // A zero-row table is almost always a stale query — a renamed type, a
+        // retired category, a typo'd path. Eight tables in `sohl`'s
+        // `Rules/Bestiary.md` published as a bare header for months after the
+        // `creature` → `being` rename and no build said a word (#223). The
+        // table is still emitted: the finding is the point, not withholding
+        // the output.
         const { markdown, errors } = expand(
             block(
                 'TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"\n' +
                     'WHERE sohl.material = "Adamant"',
             ),
         );
-        expect(errors).toEqual([]);
+        expect(errors).toHaveLength(1);
+        expect(errors[0].reason).toContain("selects no notes");
+        // It names the clause that matched nothing, as authored.
+        expect(errors[0].reason).toContain('sohl.material = "Adamant"');
+        expect(errors[0].reason).toContain("allow-empty");
         expect(markdown.trim()).toBe("| Name | Code |\n| --- | --- |");
+    });
+
+    it("carries a position, so the finding is as locatable as any other", () => {
+        const [finding] = expand(
+            block('TABLE WITHOUT ID name.full AS "Name"\nWHERE type = "nonesuch"'),
+        ).errors;
+        expect(typeof finding.line).toBe("number");
+        expect(finding.column).toBeGreaterThan(0);
+    });
+
+    it("says nothing when the directive opts in to being empty", () => {
+        // A genuinely empty category can still publish — by saying so, rather
+        // than by the build staying quiet.
+        const body = block(
+            'TABLE WITHOUT ID name.full AS "Name"\nWHERE sohl.material = "Adamant"',
+        ).replace("```dataview", "```dataview allow-empty");
+        const { markdown, errors } = expand(body);
+        expect(errors).toEqual([]);
+        expect(markdown.trim()).toBe("| Name |\n| --- |");
     });
 
     it("reports a malformed query and leaves the block in place", () => {
