@@ -17,6 +17,7 @@ import {
     buildLinkIndex,
     walkReachability,
 } from "../engine/content-links.mjs";
+import { collectAnchors } from "../engine/content-index.mjs";
 
 /** A throwaway content tree, described as `{ relPath: contents }`. */
 function tree(files: Record<string, string>): string {
@@ -306,5 +307,36 @@ describe("walkReachability", () => {
         expect(() => walkReachability(index, { root: "Guide/README.md", scope })).toThrow(
             /no note at Guide\/README\.md/,
         );
+    });
+});
+
+describe("one anchor reader, not two (#243)", () => {
+    it("reads an anchor the narrower pattern could not see", () => {
+        // `{#CalendarFormat}` is a heading anchor in `sohl`'s own content. This
+        // module matched `{#([a-z0-9-]+)}` and so did not see it, while the
+        // content index and the compilers did — an anchor that existed for the
+        // build and not for the check of the build.
+        expect([...anchorsOf("# Calendar JSON Format {#CalendarFormat}\n")]).toEqual([
+            "CalendarFormat",
+        ]);
+    });
+
+    it("agrees with the index's reader, which is now the only one", () => {
+        const body = [
+            "# Lower {#lower-case}",
+            "## Mixed {#MixedCase}",
+            "### Digits {#a1b2}",
+            "```",
+            "# Fenced {#not-an-anchor}",
+            "```",
+            "Plain paragraph {#not-a-heading}",
+        ].join("\n");
+        expect([...anchorsOf(body)].sort()).toEqual(
+            collectAnchors(body)
+                .map((a) => a.slug)
+                .sort(),
+        );
+        // And the fenced and non-heading cases stay excluded by both.
+        expect([...anchorsOf(body)].sort()).toEqual(["MixedCase", "a1b2", "lower-case"]);
     });
 });

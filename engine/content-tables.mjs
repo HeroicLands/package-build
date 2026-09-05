@@ -1087,6 +1087,23 @@ export function renderContentTable(spec, rows, linkable, self) {
  *   body can name an authored position (#17). An `errors` entry carries the
  *   0-based line of the directive that failed, for the same reason.
  */
+/**
+ * The `WHERE` clause of a query, as authored, for a message that has to name
+ * what matched nothing.
+ *
+ * The parsed spec holds an expression tree, and rendering that back to text
+ * would be a second dialect of the query language to keep in step. The authored
+ * line is what the author wrote and what they will edit, so it is what the
+ * finding quotes.
+ *
+ * @param {string} query - The fence's contents.
+ * @returns {string} The clause, or "" when the query has none.
+ */
+function whereText(query) {
+    const match = /^\s*WHERE\s+(.+?)\s*$/im.exec(String(query ?? ""));
+    return match ? `\`${match[1]}\`` : "";
+}
+
 export function expandContentTables(
     markdown,
     { docs = [], linkable = () => false, source = "", self = undefined } = {},
@@ -1132,10 +1149,32 @@ export function expandContentTables(
             continue;
         }
         const query = lines.slice(i + 1, close).join("\n");
+        // `dataview allow-empty` says a table selecting nothing is the intended
+        // state. Spelled on the fence rather than in the query, because it is a
+        // statement about this *directive* and not part of the query language.
+        const allowEmpty = /\ballow-empty\b/i.test(info);
         let table;
         try {
             const spec = parseDataviewQuery(query);
             const rows = selectRows(spec, docs, self);
+            // A table that selects nothing is almost always a stale query — a
+            // renamed type, a retired category, a typo'd path — and publishing
+            // a header with nothing under it makes that indistinguishable from
+            // a category that is legitimately empty. Eight tables in `sohl`'s
+            // `Rules/Bestiary.md` published that way for months after the
+            // `creature` → `being` rename, and no build said a word (#223).
+            if (rows.length === 0 && !allowEmpty) {
+                errors.push({
+                    source,
+                    directive: block.join("\n"),
+                    reason:
+                        `dataview query selects no notes` +
+                        `${whereText(query) ? `: nothing matches ${whereText(query)}` : ""}` +
+                        ` — write \`\`\`dataview allow-empty if that is intended`,
+                    line: i,
+                    column: indent.length + 1,
+                });
+            }
             table = renderContentTable(spec, rows, linkable, self);
         } catch (err) {
             errors.push({

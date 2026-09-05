@@ -62,7 +62,7 @@
  */
 
 import { walkMarkdownTree } from "./helpers.mjs";
-import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "./ids.mjs";
+import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -199,11 +199,11 @@ export function noteTypesClaimedBy(docType, sources) {
         // The actors pass: every note type a system sends to an `Actor`.
         case "Actor":
             return Object.freeze(new Set(maps.flatMap((map) => noteTypesFor(map, "Actor"))));
-        // The journals pass: free prose, plus every doc-carrying type — an
-        // item's, a macro's and a map note's description each compile into a
-        // JournalEntry of their own.
+        // The journals pass: every type whose whole document is a journal,
+        // plus every doc-carrying type — an item's, a macro's and a map note's
+        // description each compile into a JournalEntry of their own.
         case "JournalEntry":
-            return Object.freeze(new Set(["doc", ...docs]));
+            return Object.freeze(new Set([...JOURNAL_TYPES, ...docs]));
         case "Macro":
             return Object.freeze(new Set(["macro"]));
         case "Scene":

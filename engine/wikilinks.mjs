@@ -640,6 +640,24 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // and is dropped. Forging a JournalEntryPage id onto a document that
         // can never hold one is what made such links dead-end (#1362); an
         // item's pages are addressed through its `doc<type>` counterpart.
+        // A `#section` the target declares no heading for. Checked here, and
+        // not only by `content-build links`, because this is the build that
+        // *emits* the link: `anchorPageId` will hash any slug into a page id,
+        // so an undeclared one compiles to a `@UUID` that dead-ends for the
+        // reader (#193). A foreign anchor has always been checked this way —
+        // the manifest carries the map — and a local one now is too, from the
+        // anchor set the index carries.
+        if (slug && isJournal && doc.anchors && !doc.anchors.has(slug)) {
+            unresolved.push({
+                link: all,
+                target,
+                offset,
+                reason: "unknown-anchor",
+                anchor: slug,
+                addressed: true,
+            });
+            return unresolvedLink(text || doc.name || target, target);
+        }
         const uuid =
             slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;

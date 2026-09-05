@@ -434,6 +434,7 @@ export { makeId } from "./ids.mjs";
 // The content-type → document-type map, which decides *which* pack list a
 // note's own document is routed against.
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
+import { collectAnchors } from "./anchors.mjs";
 
 /* ------------------------------------------------------------------------ */
 /*  Wikilink resolution: the content-wide link index                        */
@@ -463,7 +464,7 @@ import { assertTypeNotRetired, packForType } from "./ids.mjs";
  */
 export function buildContentLinkIndex(contentBase, router = packRouter()) {
     const docs = [];
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase)) {
+    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase)) {
         if (!fm?.id) continue;
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note
@@ -485,6 +486,12 @@ export function buildContentLinkIndex(contentBase, router = packRouter()) {
             // *into* this note renders marked. It takes no part in resolution,
             // so the note is indexed, compiled and published as any other.
             draft: isDraftNote(fm),
+            // The anchors this note declares, carried so the *builds* can check
+            // a `#section` link and not only the checker (#193). A foreign
+            // anchor has always been checked, because a vendored manifest
+            // publishes the map; a local one was not, because the set was
+            // discarded here — the walk yields the body and nothing read it.
+            anchors: new Set(collectAnchors(body ?? "").map((anchor) => anchor.slug)),
         });
     }
     // Packages this build links *into* but does not publish. Their manifests
