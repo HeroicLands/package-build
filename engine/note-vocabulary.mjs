@@ -711,27 +711,28 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     macro: Object.freeze({ data: Object.freeze([]) }),
 
-    // A `Folder` is a core Foundry document, like a `JournalEntry` or a
-    // `Scene` — not a game system's — so a folder note carries no system block
-    // and its address takes the `none` segment. `parent` is another folder
-    // note's address rather than an id, so reparenting one folder does not
-    // rewrite every note that names it (#256).
-    folder: Object.freeze({
+    // Foundry's `Adventure`, named for what it is rather than what Foundry
+    // calls it: a set of documents taken as a unit. The document is an
+    // installer — it carries copies, and importing one creates or updates each
+    // document in the world — which is what separates a bundle from a folder,
+    // a live grouping that persists in the pack (#259).
+    bundle: Object.freeze({
         data: Object.freeze([
             {
-                name: "parent",
-                ...LINK,
-                describe: "The folder this one sits in, as a `folder` note's address.",
-            },
-            {
-                name: "color",
+                name: "system",
                 ...TEXT,
                 describe:
-                    'The folder\'s colour, as a quoted `"#RRGGBB"`. Quoting is ' +
-                    "required either way: unquoted, the `#` opens a YAML " +
-                    "comment and the value is `null`; without the `#`, YAML " +
-                    "reads an all-digit value as a number and `000000` " +
-                    "becomes `0`.",
+                    "Which system's documents the bundle may hold: `hm3`, " +
+                    "`sohl`, or `none` (the default). It constrains " +
+                    "`contents` rather than saying what the note belongs to.",
+            },
+            {
+                name: "contents",
+                ...LINKS,
+                describe:
+                    "The documents the bundle holds, as addresses. Empty when " +
+                    "unstated. A document of neither `none` nor the named " +
+                    "system is left out rather than failing.",
             },
         ]),
     }),

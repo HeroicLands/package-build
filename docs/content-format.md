@@ -1606,9 +1606,25 @@ need an authoring convention of their own.
 The note's `img` is a content-relative path resolved the way every other note's
 is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
-### type: folder
+### type: bundle
 
-| `data` property | Values      | Description                                                                                                                                                |
-| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parent`        | `wikilink`  | The parent folder of this folder, type `folder`                                                                                                            |
-| `color`         | `"#RRGGBB"` | The folder's colour. **Quote it.** Unquoted, the `#` opens a YAML comment and the value is `null`; drop the `#` and YAML reads `000000` as the number `0`. |
+A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
+
+| `data` property | Values                | Description                                                           |
+| --------------- | --------------------- | --------------------------------------------------------------------- |
+| `system`        | `hm3 \| sohl \| none` | The system whose documents the Adventure may hold; `none` by default. |
+| `contents`      | `WikiLink[]`          | The documents the Adventure holds; `[]` when unstated.                |
+
+`data.system` constrains `data.contents`, deciding what sort of document may be
+placed in the Adventure. With `none`, only documents of system `none` may go in
+and the Adventure's own system is left unset. With any other value, documents of
+system `none` **or** that value may go in, and the Adventure's `system` is set to
+it.
+
+A document in `data.contents` belonging to neither `none` nor the value
+`data.system` names is ignored, and is not added to the Adventure.
+
+An `Adventure` carries **copies** of the documents it holds, not references to
+them: importing one creates or updates each document in the world. So a bundle
+is not a folder — a folder is a live grouping that persists in the pack, while a
+bundle exists to be imported once.

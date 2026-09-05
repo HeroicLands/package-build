@@ -237,29 +237,32 @@ describe("unclaimedNoteFindings", () => {
         expect(findings[0].line).toBe(6);
     });
 
-    it("says a specified-but-unimplemented type is this toolchain's gap, not the note's", () => {
-        // `folder` is documented in `docs/content-format.md` and declared in the
-        // vocabulary, and nothing compiles it yet (#256). Neither other message
-        // fits: naming a missing pack sends an author to a configuration file
-        // where nothing they write will help, and calling the type unknown
-        // contradicts the specification they read it in.
-        const root = repo({
-            "Possessions.md":
-                "---\ntype: folder\nid: folderprobe00001\nshortcode: possessions\n" +
-                "name:\n  full: Possessions\n---\n\nA folder.\n",
-        });
-        roots.push(root);
-        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+    it.each(["bundle"])(
+        "says a specified-but-unimplemented %s is this toolchain's gap, not the note's",
+        (type) => {
+            // `bundle` is documented in `docs/content-format.md` and declared
+            // in the vocabulary, and nothing compiles it yet (#259). The
+            // message is chosen from the vocabulary rather than from a list of
+            // types, so a second specified type is covered without an edit
+            // here — which is the property this parameterisation asserts.
+            const root = repo({
+                "Note.md":
+                    `---\ntype: ${type}\nid: probeid000000001\nshortcode: probe\n` +
+                    "name:\n  full: Probe\n---\n\nBody.\n",
+            });
+            roots.push(root);
+            const [finding] = unclaimedNoteFindings(
+                baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+                { itemTypes: new Set(), docEntryTypes: new Set() },
+            );
 
-        expect(finding.message).toMatch(/content format specifies "folder"/);
-        expect(finding.message).toMatch(/not implemented the type yet/);
-        // Neither of the other two wordings may appear.
-        expect(finding.message).not.toMatch(/not a content type/);
-        expect(finding.message).not.toMatch(/declare (one|both) in/);
-    });
+            expect(finding.message).toMatch(new RegExp(`content format specifies "${type}"`));
+            expect(finding.message).toMatch(/not implemented the type yet/);
+            // Neither of the other two wordings may appear.
+            expect(finding.message).not.toMatch(/not a content type/);
+            expect(finding.message).not.toMatch(/declare (one|both) in/);
+        },
+    );
 
     it("never reports a type that compiles to a page rather than a document", () => {
         const root = repo({ "homepage.md": "---\ntype: homepage\n---\n\nHello.\n" });
