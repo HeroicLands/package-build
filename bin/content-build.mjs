@@ -105,6 +105,7 @@ import {
     formatUnaddressableFinding as formatUnaddressable,
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
+import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
 // The one place a link finding is worded, shared with both builds (#184).
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
@@ -713,7 +714,7 @@ function lintCommand() {
                 type: "string",
             });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const root = argv.root ?? config.paths.content;
@@ -730,6 +731,7 @@ function lintCommand() {
                 const index = buildLinkIndex(root, {
                     manifestDir,
                     skipDirectories: config.skipDirectories,
+                    sqlTables: await prepareTreeSqlTables(root, { config }),
                 });
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
@@ -1008,13 +1010,16 @@ function linksCommand() {
                 type: "string",
             });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
                 const manifestDir = argv.manifests ?? config.paths.manifests;
 
-                const index = buildLinkIndex(contentBase, { manifestDir });
+                const index = buildLinkIndex(contentBase, {
+                    manifestDir,
+                    sqlTables: await prepareTreeSqlTables(contentBase),
+                });
 
                 // An unusable manifest would otherwise surface as a pile of
                 // dead addresses pointing at the notes that cite it, rather
@@ -1277,9 +1282,10 @@ function siteCommand() {
                 type: "string",
             });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const result = buildSite({
+                    sqlTables: await prepareTreeSqlTables(loadPackConfig().paths.content),
                     ...(argv.out ? { outRoot: argv.out } : {}),
                 });
                 const { gates } = result;
@@ -1434,11 +1440,13 @@ function reachabilityCommand() {
                 type: "string",
             });
         },
-        handler: (argv) => {
+        handler: async (argv) => {
             try {
                 const contentBase = argv.root ?? loadPackConfig().paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
-                const index = buildLinkIndex(contentBase);
+                const index = buildLinkIndex(contentBase, {
+                    sqlTables: await prepareTreeSqlTables(contentBase),
+                });
                 const indexes = new Set(argv.index.map(String));
 
                 const { orphans } = walkReachability(index, {

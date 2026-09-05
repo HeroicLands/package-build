@@ -75,6 +75,7 @@ import {
     expandNoteTables,
     statsForPack,
 } from "./helpers.mjs";
+import { prepareTreeSqlTables } from "./sql-tables.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import {
@@ -442,6 +443,7 @@ export class BasePackCompiler {
         if (this.constructor.convertsWikilinks) {
             this.linkIndex = buildContentLinkIndex(this.contentBase, this.router);
             this.contentDocs = collectContentDocs(this.contentBase);
+            this.sqlTables = await prepareTreeSqlTables(this.contentBase);
         }
         this.unresolvedLinks = 0;
     }
@@ -466,6 +468,7 @@ export class BasePackCompiler {
             name,
             fm,
             bodyLine,
+            sqlTables: absPath ? this.sqlTables?.get(absPath) : undefined,
         });
         const { markdown, unresolved } = convertNoteWikilinks(tabulated, {
             type: fm.type,

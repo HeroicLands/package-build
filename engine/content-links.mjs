@@ -112,7 +112,7 @@ export function anchorsOf(body) {
  * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {}) {
+export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlTables } = {}) {
     const notes = [];
     const frontmatterLinks = [];
     const walkOpts = skipDirectories ? { skipDirectories } : undefined;
@@ -195,13 +195,17 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories } = {
      */
     function linksOf(note) {
         let body = note.body;
-        if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*dataview\b/im.test(body)) {
+        if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) {
             body = expandContentTables(body, {
                 // Unfiltered: every note in the tree is this package's, so
                 // there is no other package's note to exclude (#56).
                 docs: tableDocs,
                 linkable: (d) => Boolean(d.fm.shortcode),
                 source: note.file,
+                // A `sql` table's links are checked like an authored one's, so
+                // its rows are prepared ahead of this walk — see
+                // {@link module:engine/sql-tables.prepareTreeSqlTables}.
+                sqlTables: sqlTables?.get(note.file),
             }).markdown;
         }
         const out = [];
