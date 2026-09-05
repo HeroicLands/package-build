@@ -8,9 +8,15 @@ system_ defines — an Item or an Actor — while a document the _note format_
 defines keeps the unkeyed form.
 
 ```json
-"foundry": { "sohl": { "uuid": "Compendium.sohl.items.Item.…" } }   // an item
-"foundry": { "uuid": "Compendium.sohl.journals.JournalEntry.…" }    // a journal
+"foundry": { "sohl": { "uuid": "Compendium.sohl.items.Item.…" } }         // an item
+"foundry": { "none": { "uuid": "Compendium.sohl.journals.JournalEntry.…" } } // a journal
 ```
+
+The vocabulary is the specification's — `sohl`, `hm3`, and **`none`** for a note
+that belongs to no system, the same value the canonical address carries in its
+`<system>` segment (`harnadventures-none-being-grod`, #59). Every record is
+keyed, so "belongs to no system" and "nobody filled this in" are not the same
+shape.
 
 **A note may declare more than one system**, and each compiles into its own
 document, of that system's type, in that system's pack: 2,497 of
@@ -24,12 +30,11 @@ map and #139 tracks the missing `hm3/` half. **The shape changes now so that
 adding it is one more key rather than a second breaking change** to an artifact
 consumers have already started reading.
 
-**Keyed only where the key means something.** A journal, a macro or a scene is
-the note format's own document; no system map names those types and their
-address carries no system, so keying them would assert a system that has
-nothing to do with them. The documentation journal an item compiles beside
-itself is likewise unkeyed — it is one journal however many systems the item
-has.
+**A journal, a macro or a scene is `none`.** Those are the note format's own
+documents rather than a system's, and the documentation journal an item
+compiles beside itself is `none` too — it is one journal however many systems
+the item declares. On `sohl` that is 1,474 records keyed `sohl` and 1,514
+keyed `none`.
 
 The uuid _values_ are unchanged: still equal to the link manifest's, verified
 across `sohl`'s 2,988 addresses with no mismatch.

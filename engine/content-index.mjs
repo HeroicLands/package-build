@@ -78,6 +78,17 @@ import { collectAnchors } from "./anchors.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 
+/**
+ * The `<system>` a note belongs to when it belongs to none.
+ *
+ * The specification's word, not this module's: the canonical address carries it
+ * in the same position — `harnadventures-none-being-grod` — so the index and
+ * the address say "no system" the same way (#59).
+ *
+ * @type {string}
+ */
+const NO_SYSTEM = "none";
+
 export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
@@ -332,25 +343,28 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
  *   addresses nothing.
  */
 /**
- * The system whose document this note's own type compiles into, if any.
+ * The system whose document this note's own type compiles into.
  *
- * A `place`, a `doc`, a `macro` or a map compiles into a JournalEntry, a Macro
- * or a Scene that belongs to the **note format** rather than to a game system —
- * no system map names those types, and their address carries no system. An
- * `affiliation` or a `being` is a system's document, of that system's subtype,
- * and a note may declare more than one system.
+ * The vocabulary is the specification's: `sohl`, `hm3`, and **`none`** for a
+ * note that belongs to no system — the same value the canonical address carries
+ * in its `<system>` segment (`harnadventures-none-being-grod`). A `place`, a
+ * `doc`, a `macro` or a map compiles into a JournalEntry, a Macro or a Scene
+ * that belongs to the *note format* rather than to a game system, and `none` is
+ * what the format calls that, so it is what this returns rather than an absence.
  *
- * So the block is keyed only where the key means something.
+ * Naming it means every record answers the question the same way. An unkeyed
+ * block would make "belongs to no system" and "nobody filled this in" the same
+ * shape, which is the distinction the whole artifact exists to keep.
  *
  * @param {string} type - The note's `type`.
  * @param {readonly object[]} maps - The document-subtype maps this build ships.
- * @returns {string|undefined} The system id, or undefined for a format document.
+ * @returns {string} The system id, or `"none"`.
  */
 function systemOf(type, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS) {
     for (const map of maps ?? []) {
         if (subtypeRow(map, type)) return map.system;
     }
-    return undefined;
+    return NO_SYSTEM;
 }
 
 function foundryBlock(entry, system) {
@@ -359,9 +373,7 @@ function foundryBlock(entry, system) {
     if (entry.uuid) block.uuid = entry.uuid;
     if (entry.anchors) block.anchors = entry.anchors;
     if (!Object.keys(block).length) return null;
-    // Unkeyed where the document is the note format's own — a journal, a macro,
-    // a scene — because there is no system whose key it would be.
-    return system ? { [system]: block } : block;
+    return { [system || NO_SYSTEM]: block };
 }
 
 export function buildIndexRecord({

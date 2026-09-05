@@ -575,8 +575,8 @@ describe("an item note is two records: the item, and its documentation (#239)", 
         // documentation journal belongs to the note format, not to a system,
         // so it carries no system key.
         expect(item.foundry.sohl.uuid).toContain(".Item.");
-        expect(doc.foundry.uuid).toContain(".JournalEntry.");
-        expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.uuid);
+        expect(doc.foundry.none.uuid).toContain(".JournalEntry.");
+        expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.none.uuid);
         expect(doc.foundry.sohl).toBeUndefined();
     });
 
@@ -636,13 +636,15 @@ describe("a note may declare more than one system", () => {
         expect(item.foundry.sohl.uuid).toContain(".Item.");
     });
 
-    it("leaves a format document unkeyed, because no system owns it", () => {
-        // A macro, a journal or a scene is the note format's own document. There
-        // is no system whose key it would be, and inventing one would assert a
-        // system that has nothing to do with it.
+    it("keys a format document `none`, the word the specification uses", () => {
+        // A macro, a journal or a scene is the note format's own document, and
+        // the format calls that `none` — the address says so too.
         note("Roll.md", "type: macro\nid: m1\nshortcode: roll");
         const [macro] = readIndex(emitContentIndex({ config: cfg(tmp) }).file);
-        expect(macro.foundry.uuid).toContain(".Macro.");
+        // `none` is the specification's word for it — the same value the
+        // canonical address carries in its `<system>` segment — so "belongs to
+        // no system" and "nobody filled this in" are not the same shape.
+        expect(macro.foundry.none.uuid).toContain(".Macro.");
         expect(macro.foundry.sohl).toBeUndefined();
     });
 });
