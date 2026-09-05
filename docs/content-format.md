@@ -266,15 +266,17 @@ value is a **priority**, and the priority is the whole mechanism — it decides
 which of several competing templates a player is actually offered.
 
 The shared mapping table above names it `data.templatePriority`, targeting
-`system.template` in SoHL and `flags.hm3.templatePriority` in HM3.
+`system.templatePriority` in SoHL and `flags.hm3.templatePriority` in HM3.
 
 > **What a note writes today is `archetype`.** The build still reads
-> `sohl.archetype` and SoHL's data model still declares `system.archetype`.
-> `Song-of-Heroic-Lands-FoundryVTT#1780` completes the rename — and it is more
-> than a rename, because it frees the word: **`archetype` is being repurposed for
-> a different idea**, the _sort_ a character is (healer, warrior, mage), which is
-> a kind and not a priority. Until that lands, the two words name each other's
-> concepts, so this section describes the mechanism rather than trusting either.
+> `sohl.archetype` and SoHL's data model still declares `system.archetype`. The
+> name is now settled as `templatePriority` on all three sides — the authored
+> key, `system.templatePriority`, and `flags.hm3.templatePriority` —
+> and the move is tracked by `HeroicLands/package-build#266` here and
+> `Song-of-Heroic-Lands-FoundryVTT#1836` in the system. It is more than a
+> rename: it frees the word, because **`archetype` is being repurposed** for the
+> _sort_ a character is (healer, warrior, mage), which is a kind and not a
+> priority. Both spellings are read through the transition.
 
 ```yaml
 sohl:
@@ -814,13 +816,13 @@ If an `hm3` property is present, an HM3 actor is created. Its document type is *
 
 A SoHL "being" document will be created, as will an "HM3" document.
 
-| shared source           | → sohl            | → hm3                        |
-| ----------------------- | ----------------- | ---------------------------- |
-| `data.portrait`         | `system.portrait` | `system.bioImage`            |
-| `data.templatePriority` | `system.template` | `flags.hm3.templatePriority` |
-| `data.species`          | NA                | `system.species`             |
-| `data.gender`           | NA                | `system.gender`              |
-| `data.occupation`       | NA                | `system.occupation`          |
+| shared source           | → sohl                    | → hm3                        |
+| ----------------------- | ------------------------- | ---------------------------- |
+| `data.portrait`         | `system.portrait`         | `system.bioImage`            |
+| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
+| `data.species`          | NA                        | `system.species`             |
+| `data.gender`           | NA                        | `system.gender`              |
+| `data.occupation`       | NA                        | `system.occupation`          |
 
 ### type: homepage
 
@@ -841,10 +843,10 @@ Represents a conveyance able to hold goods and people moving from one place to a
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
-| shared source           | → sohl            | → hm3 |
-| ----------------------- | ----------------- | ----- |
-| `data.portrait`         | `system.portrait` | NA    |
-| `data.templatePriority` | `system.template` | NA    |
+| shared source           | → sohl                    | → hm3 |
+| ----------------------- | ------------------------- | ----- |
+| `data.portrait`         | `system.portrait`         | NA    |
+| `data.templatePriority` | `system.templatePriority` | NA    |
 
 ### type: affiliation
 
