@@ -1610,21 +1610,28 @@ is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
 A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
 
-| `data` property | Values                | Description                                                           |
-| --------------- | --------------------- | --------------------------------------------------------------------- |
-| `system`        | `hm3 \| sohl \| none` | The system whose documents the Adventure may hold; `none` by default. |
-| `contents`      | `WikiLink[]`          | The documents the Adventure holds; `[]` when unstated.                |
+| `data` property | Values       | Description                                                       |
+| --------------- | ------------ | ----------------------------------------------------------------- |
+| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated.            |
+| `pack`          | `string`     | The pack the Adventure is written to; `adventures` when unstated. |
 
-`data.system` constrains `data.contents`, deciding what sort of document may be
-placed in the Adventure. With `none`, only documents of system `none` may go in
-and the Adventure's own system is left unset. With any other value, documents of
-system `none` **or** that value may go in, and the Adventure's `system` is set to
-it.
+**The note's system blocks decide how many Adventures it makes**, exactly as they
+do for every other type:
 
-A document in `data.contents` belonging to neither `none` nor the value
-`data.system` names is ignored, and is not added to the Adventure.
+- With **no** system block, one Adventure is written, holding only the `contents`
+  that are themselves of system `none`.
+- With **one or more**, one Adventure is written **per system**, each holding
+  every `none` document plus that system's own. A document of neither is
+  silently left out.
 
-An `Adventure` carries **copies** of the documents it holds, not references to
-them: importing one creates or updates each document in the world. So a bundle
-is not a folder — a folder is a live grouping that persists in the pack, while a
-bundle exists to be imported once.
+`<system>.pack` names the pack that system's Adventure is written to, and falls
+back to `data.pack`.
+
+An `Adventure` carries **copies** of what it holds, not references: importing one
+creates or updates each document in the world, after which they live
+independently. So a bundle is not a folder — a folder is a live grouping that
+persists in the pack.
+
+Note that an `Adventure` has no `system` field of its own. A bundle spanning two
+systems therefore cannot be one document that knows it spans them; it is one
+Adventure per system, and the pack each is written to is what carries the system.

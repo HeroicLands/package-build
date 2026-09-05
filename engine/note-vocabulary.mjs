@@ -716,23 +716,27 @@ export const NOTE_VOCABULARY = Object.freeze({
     // installer — it carries copies, and importing one creates or updates each
     // document in the world — which is what separates a bundle from a folder,
     // a live grouping that persists in the pack (#259).
+    //
+    // How many Adventures a bundle makes is decided by its system blocks, as
+    // for every other type, and not by a property: an `Adventure` has no
+    // `system` field, so a bundle spanning two systems is two documents, and
+    // the pack each is written to is what carries the system.
     bundle: Object.freeze({
         data: Object.freeze([
-            {
-                name: "system",
-                ...TEXT,
-                describe:
-                    "Which system's documents the bundle may hold: `hm3`, " +
-                    "`sohl`, or `none` (the default). It constrains " +
-                    "`contents` rather than saying what the note belongs to.",
-            },
             {
                 name: "contents",
                 ...LINKS,
                 describe:
-                    "The documents the bundle holds, as addresses. Empty when " +
-                    "unstated. A document of neither `none` nor the named " +
-                    "system is left out rather than failing.",
+                    "The documents the Adventure holds, as addresses. Empty " +
+                    "when unstated. A document of neither `none` nor the " +
+                    "system being compiled is left out rather than failing.",
+            },
+            {
+                name: "pack",
+                ...TEXT,
+                describe:
+                    "The pack the Adventure is written to, `adventures` when " +
+                    "unstated. `<system>.pack` overrides it per system.",
             },
         ]),
     }),
