@@ -271,12 +271,15 @@ The shared mapping table above names it `data.templatePriority`, targeting
 > **What a note writes today is `archetype`.** The build still reads
 > `sohl.archetype` and SoHL's data model still declares `system.archetype`. The
 > name is now settled as `templatePriority` on all three sides — the authored
-> key, `system.templatePriority`, and `flags.hm3.templatePriority` —
-> and the move is tracked by `HeroicLands/package-build#266` here and
-> `Song-of-Heroic-Lands-FoundryVTT#1836` in the system. It is more than a
-> rename: it frees the word, because **`archetype` is being repurposed** for the
-> _sort_ a character is (healer, warrior, mage), which is a kind and not a
-> priority. Both spellings are read through the transition.
+> key, `system.templatePriority`, and `flags.hm3.templatePriority` — and the move
+> is tracked by `HeroicLands/package-build#266` here and
+> `Song-of-Heroic-Lands-FoundryVTT#1836` in the system.
+>
+> It is more than a rename, and the collision is **already live** rather than
+> pending: `archetypes` is specified above as the _sort_ a character is, and a
+> being's row declares it. So a number deciding which template wins and a list of
+> what sort of character this is are today distinguished **only by a plural
+> `s`**. Both spellings of the priority are read through the transition.
 
 ```yaml
 sohl:
@@ -787,28 +790,28 @@ The following H1 headers are treated specially:
 
 Generates a living (or undead, or spirit) being.
 
-| `data` property             | Values                                         | Description                                                                                     |
-| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `portrait`                  | `string`                                       | File path to the portrait image                                                                 |
-| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                      |
-| `archetypes`                | `Archetype[]`                                  | List of archtypical behaviors                                                                   |
-| `occupation`                | `string`                                       | Name of the character's occupation                                                              |
-| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                   |
-| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under |
-| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                      |
-| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                   |
-| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                         |
-| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                          |
-| `age`                       | `number`                                       | Age of the character                                                                            |
-| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                  |
-| `height`                    | `number`                                       | Height in meters                                                                                |
-| `weight`                    | `number`                                       | Weight in kilograms                                                                             |
-| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                             |
-| `appearance.eye_color`      | `string`                                       | Eye color                                                                                       |
-| `appearance.hair_color`     | `string`                                       | Hair color                                                                                      |
-| `appearance.skin_color`     | `string`                                       | Skin color                                                                                      |
-| `appearance.complexion`     | `string`                                       | Complexion                                                                                      |
-| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                  |
+| `data` property             | Values                                         | Description                                                                                      |
+| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `portrait`                  | `string`                                       | File path to the portrait image                                                                  |
+| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
+| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
+| `occupation`                | `string`                                       | Name of the character's occupation                                                               |
+| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                    |
+| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
+| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                       |
+| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
+| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
+| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                           |
+| `age`                       | `number`                                       | Age of the character                                                                             |
+| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                   |
+| `height`                    | `number`                                       | Height in meters                                                                                 |
+| `weight`                    | `number`                                       | Weight in kilograms                                                                              |
+| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
+| `appearance.eye_color`      | `string`                                       | Eye color                                                                                        |
+| `appearance.hair_color`     | `string`                                       | Hair color                                                                                       |
+| `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
+| `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
+| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
 
 If a `sohl` property is present, a SoHL actor of type "being" will be created.
 
