@@ -107,6 +107,7 @@
         "engine",
         "index.mjs",
         "lang.mjs",
+        "labels.mjs",
         "manifest.mjs",
         "markdownlint-config.mjs",
         "prettier-config.mjs",
