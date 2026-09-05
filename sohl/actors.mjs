@@ -46,7 +46,13 @@
  * @module
  */
 
-import { sohlField, resolveName, resolveImg, systemArchetype } from "../engine/helpers.mjs";
+import {
+    sohlField,
+    resolveName,
+    resolveImg,
+    systemArchetype,
+    folderField,
+} from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into. Looked up in the
@@ -289,8 +295,8 @@ export class Actors extends SystemActorCompiler {
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
-        const folderId = sohlField(fm, "folder", null);
-        const folder = this.folderResolver(folderId);
+        const { value: authoredFolder, isPath } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isPath });
 
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`

@@ -251,3 +251,26 @@ export function parseValueDesc(raw) {
         return { label: String(entry), maxValue: 0 };
     });
 }
+
+/**
+ * The compendium folder a note names, and how it named it.
+ *
+ * Two spellings, deliberately not merged into one value: `packFolder:` is a
+ * **path** (`Possessions/Consumables/Poisons and Toxins`) and `folder:` is a
+ * Foundry **id** (`ONXsqZAIZr2qzxTb`). Which one a value is cannot be told from
+ * the string — a top-level path is a bare name, and a name is as alphanumeric
+ * as an id — so the field it was written in is what says, and that answer is
+ * carried rather than re-derived (#251).
+ *
+ * `packFolder` wins where both are present. Nothing about `folder` changes: a
+ * note that names one is read, resolved and emitted exactly as before.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @returns {{value: string|null, isPath: boolean}} The authored value, and
+ *   whether it is a path.
+ */
+export function folderField(fm) {
+    const asPath = sohlField(fm, "packFolder", null);
+    if (asPath != null && asPath !== "") return { value: asPath, isPath: true };
+    return { value: sohlField(fm, "folder", null), isPath: false };
+}

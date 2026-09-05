@@ -45,7 +45,7 @@
 
 import log from "loglevel";
 
-import { sohlField, makeId, resolveName, defaultStats, md } from "./helpers.mjs";
+import { sohlField, makeId, resolveName, defaultStats, md, folderField } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { anchorPageId } from "./wikilinks.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
@@ -340,8 +340,18 @@ export class Journals extends BasePackCompiler {
         // against this pack's own folders.yaml — an item folder is declared in
         // the items one, a macro folder in the macros one, and a map's in the
         // scenes one.
-        const folderId = sohlField(fm, "folder", null);
-        const folder = ownsDoc ? folderId : this.folderResolver(folderId);
+        const { value: authoredFolder, isPath } = folderField(fm);
+        // A path is resolved wherever it is written, including here. An id can
+        // cross packs verbatim — both declare it, or so the arrangement assumes
+        // — but a path must become an id before it is emitted, and the pack
+        // emitting it is the one that has to know it. Where the journals pack
+        // does not declare the folder, that is a defect in the folder files and
+        // the build says so, rather than filing documentation somewhere nobody
+        // asked for. `folder:` is unchanged.
+        const folder =
+            isPath ? this.folderResolver(authoredFolder, { isPath: true })
+            : ownsDoc ? authoredFolder
+            : this.folderResolver(authoredFolder);
 
         return buildJournalEntry({
             id,

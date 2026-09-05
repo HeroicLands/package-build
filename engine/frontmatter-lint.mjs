@@ -106,7 +106,9 @@ import {
  *
  * @type {ReadonlySet<string>}
  */
-export const UNIVERSAL_KEYS = Object.freeze(new Set(["folder", "pack", "archetype", "kbcat"]));
+export const UNIVERSAL_KEYS = Object.freeze(
+    new Set(["folder", "packFolder", "pack", "archetype", "kbcat"]),
+);
 
 /**
  * The system blocks a build checks, and what each accepts beyond the shared
