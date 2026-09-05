@@ -258,6 +258,51 @@ Three declarations are refused, each with the reason:
 | a pack **nothing answers to**       | The message lists the configured packs of that document type.                     |
 | a pack of **another document type** | A note's `pack:` names a pack of its own document type.                           |
 
+#### Archetypes, and which template wins
+
+`archetype` marks a document as a **starting template** the Create dialog offers
+to clone from, and says at what priority. It is read from the `sohl:` block.
+
+```yaml
+sohl:
+  archetype: 0 # a template, at the priority SoHL's own ship at
+```
+
+```yaml
+sohl:
+  archetype: null # not a template
+```
+
+**Every note SoHL compiles into an Item or an Actor must state it.** Absent, the
+build refuses: "not a template" has to be _said_, not left out, or an omission
+and a decision look identical. The value is a number or `null`, and **`0` is a
+real priority** — the one SoHL's own archetypes ship at — not an absence.
+
+**How a winner is chosen.** Opening a Create dialog gathers every candidate
+across the world and every matching compendium, _including other modules'_. Those
+are filtered to the `(type, subType)` being created, deduped by **`shortcode`** —
+an archetype's stable identity, where the name is only presentation — and one
+winner is taken per shortcode:
+
+1. the highest `archetype` priority;
+2. then the nearest source — **world**, then **system**, then **module** — so a
+   GM's own copy shadows a shipped one at equal priority;
+3. then a stable UUID, so the answer never depends on load order.
+
+**The reserved ranges make a collision predictable.** Two packages can easily
+ship a template with one shortcode, so the number says who yields:
+
+| priority   | reserved for               |
+| ---------- | -------------------------- |
+| `0`–`98`   | SoHL and HM3 themselves    |
+| `99`–`999` | other HeroicLands packages |
+| `1000`+    | everyone else              |
+
+HeroicLands reserves everything below `1000`. Since the highest priority wins,
+**anyone else's template always beats content shipped from here** — which is the
+point: a module author can override a standard template without coordinating with
+anybody, and be certain it takes effect.
+
 #### The compendium folder
 
 A note says which folder of its pack it lands in. Two spellings are read, and
