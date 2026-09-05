@@ -1712,9 +1712,33 @@ need an authoring convention of their own.
 The note's `img` is a content-relative path resolved the way every other note's
 is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
-### type: folder
+### type: bundle
 
-| `data` property | Values      | Description                                                                                                                                                |
-| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parent`        | `wikilink`  | The parent folder of this folder, type `folder`                                                                                                            |
-| `color`         | `"#RRGGBB"` | The folder's colour. **Quote it.** Unquoted, the `#` opens a YAML comment and the value is `null`; drop the `#` and YAML reads `000000` as the number `0`. |
+A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
+
+| `data` property | Values       | Description                                            |
+| --------------- | ------------ | ------------------------------------------------------ |
+| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
+
+**The note's system blocks decide how many Adventures it makes**, exactly as they
+do for every other type:
+
+- With **no** system block, one Adventure is written, holding only the `contents`
+  that are themselves of system `none`.
+- With **one or more**, one Adventure is written **per system**, each holding
+  every `none` document plus that system's own. A document of neither is
+  silently left out.
+
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — except that it
+defaults to `adventures` rather than to the configured default pack.
+`<system>.pack` overrides it for that system, as it does everywhere else.
+
+An `Adventure` carries **copies** of what it holds, not references: importing one
+creates or updates each document in the world, after which they live
+independently. So a bundle is not a folder — a folder is a live grouping that
+persists in the pack.
+
+Note that an `Adventure` has no `system` field of its own. A bundle spanning two
+systems therefore cannot be one document that knows it spans them; it is one
+Adventure per system, and the pack each is written to is what carries the system.
