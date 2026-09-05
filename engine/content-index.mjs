@@ -71,6 +71,7 @@ import unidecode from "unidecode";
 
 import { addressSlug } from "./content-address.mjs";
 import { canonicalKey } from "./kb-manifest.mjs";
+import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
@@ -97,6 +98,9 @@ export const DERIVED_KEYS = Object.freeze([
     "anchors",
     "nameAscii",
     "aliasesAscii",
+    "foundry",
+    "documentation",
+    "documents",
 ]);
 
 /**
@@ -294,7 +298,84 @@ export function asciiAliases(aliases) {
  * @throws {Error} When the note carries a key this module derives, which would
  *   otherwise be overwritten without a word.
  */
-export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, bodyLine }) {
+/**
+ * This note's Foundry addresses, or `null` where it has none.
+ *
+ * **Derived by the manifest's own code, not a second implementation of it.**
+ * {@link module:engine/manifest-emit.entriesForNote} is what the link manifest
+ * emits from, and a UUID is a function of the note's `type` and authored `id`
+ * plus the pack router — frontmatter and configuration, nothing from a compiled
+ * pack — so the index's frontmatter walk already has every input. Deriving it
+ * twice is how two artifacts describing one note start disagreeing, which is
+ * the failure the merge is meant to end (#239).
+ *
+ * The shape flattens the manifest's *two* entries for an item note onto the one
+ * record the index keeps per note. An item compiles into a document **and** a
+ * documentation journal, and both are addressable — so the item's own UUID sits
+ * at the top and the journal's beside it under `doc`, with the anchor map that
+ * addresses its pages. A note that is itself a journal carries that map
+ * directly.
+ *
+ * Every address is independently optional, exactly as the manifest has it: a
+ * note that compiles to no document has no UUID, and inventing one would assert
+ * a target that does not exist.
+ *
+ * @param {object} args - Arguments.
+ * @param {object} args.frontmatter - The note's frontmatter.
+ * @param {object|null} args.address - Its resolved address, or null.
+ * @param {string} args.body - The note body, for anchor discovery.
+ * @param {object|null} args.manifest - The manifest context, when available.
+ * @returns {object|null} `{ uuid?, anchors?, doc? }`, or null when the note has
+ *   no Foundry address at all.
+ */
+function foundryEntries({ frontmatter, address, body, manifest }) {
+    // No address is not an error here — the index records every note, including
+    // ones that publish nothing, and the manifest reports that case separately.
+    if (!manifest || !address) return null;
+
+    let entries;
+    try {
+        // The slug, not the address object: the manifest emitter takes the
+        // published path as a string and builds its `url` from it.
+        entries = entriesForNote(
+            frontmatter,
+            frontmatter?.name?.full ?? "",
+            address.slug,
+            body ?? "",
+            manifest,
+        );
+    } catch {
+        // A note the manifest cannot address is still a note. The index says so
+        // by carrying no `foundry` block rather than by failing the walk.
+        return null;
+    }
+    if (!entries?.length) return null;
+    const [own, docEntry] = entries;
+    return { own: own ?? null, doc: docEntry ?? null };
+}
+
+/**
+ * The `foundry` block for one manifest entry.
+ *
+ * @param {object|null} entry - A manifest entry.
+ * @returns {object|null} `{ uuid?, anchors? }`, or null when it addresses nothing.
+ */
+function foundryBlock(entry) {
+    if (!entry) return null;
+    const block = {};
+    if (entry.uuid) block.uuid = entry.uuid;
+    if (entry.anchors) block.anchors = entry.anchors;
+    return Object.keys(block).length ? block : null;
+}
+
+export function buildIndexRecord({
+    frontmatter,
+    relPath,
+    contentPackage,
+    body,
+    bodyLine,
+    manifest,
+}) {
     for (const key of DERIVED_KEYS) {
         if (Object.hasOwn(frontmatter ?? {}, key)) {
             throw new Error(
@@ -307,6 +388,7 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, b
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
     const address = noteAddress(frontmatter, contentPackage);
+    const entries = foundryEntries({ frontmatter, address, body, manifest });
 
     return /** @type {Record<string, any>} */ (
         sortKeysDeep({
@@ -323,6 +405,11 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, b
                 ...a,
                 link: address ? `${address.slug}#${a.slug}` : null,
             })),
+            foundry: foundryBlock(entries?.own),
+            // Forward link to the note's documentation journal, which is its
+            // own record. Named rather than nested, because the journal is a
+            // separate document with its own address — see `buildDocRecord`.
+            documentation: entries?.doc?.key ?? null,
             file: {
                 // Relative to the content root, and deliberately not absolute.
                 // An absolute path is a fact about the machine that built the
@@ -350,7 +437,57 @@ export function buildIndexRecord({ frontmatter, relPath, contentPackage, body, b
  * @returns {Array<Record<string, any>>} The records, in a total order that does
  *   not depend on directory-read order.
  */
-export function collectContentIndex(contentBase, { contentPackage, skipDirectories }) {
+/**
+ * The record for an item note's **documentation journal**.
+ *
+ * An item note compiles into two documents — the item, and a JournalEntry
+ * holding its prose — and the second is a document in its own right: its own
+ * canonical address (`doc<type>/<shortcode>`), its own UUID, its own pages.
+ * So it gets its own record, and resolving `docaffliction/blkdth` is the same
+ * lookup as resolving anything else. Nested inside the item's record it would
+ * be the one address in the index reachable only by knowing to look somewhere
+ * else, which every consumer would have to special-case.
+ *
+ * **Lean, and deliberately not the note's frontmatter.** The item's `sohl:`
+ * block describes the *item*; copying it onto the journal would assert things
+ * about the journal that are not true, and double the file to do it. What the
+ * journal has of its own is its addresses, its name, and the file it came from
+ * — plus `documents`, naming the record it is the documentation for, so the
+ * link is navigable in both directions.
+ *
+ * On the web both addresses resolve to one page — the item note renders as the
+ * page that *is* its documentation — so the slug is shared and only the
+ * canonical key differs.
+ *
+ * @param {object} args - Arguments.
+ * @param {object} args.frontmatter - The item note's frontmatter.
+ * @param {object} args.address - The item's own address.
+ * @param {object} args.entry - The manifest's doc entry.
+ * @param {object} args.file - The `file` block of the item's record.
+ * @param {string} args.contentPackage - The package the note belongs to.
+ * @param {Array<object>} args.anchors - The web anchors of the note body.
+ * @returns {Record<string, any>} The documentation journal's index record.
+ */
+function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anchors }) {
+    return /** @type {Record<string, any>} */ (
+        sortKeysDeep({
+            package: contentPackage,
+            type: `doc${frontmatter.type}`,
+            shortcode: frontmatter.shortcode,
+            name: frontmatter.name,
+            nameAscii: asciiName(frontmatter?.name?.full),
+            address: { slug: address.slug, canonical: entry.key },
+            // The record this is the documentation *for*. `documentation` is
+            // the forward link on that record, so either end reaches the other.
+            documents: address.canonical,
+            anchors,
+            foundry: foundryBlock(entry),
+            file,
+        })
+    );
+}
+
+export function collectContentIndex(contentBase, { contentPackage, skipDirectories, manifest }) {
     const records = [];
     const walkOpts = skipDirectories ? { skipDirectories } : {};
 
@@ -358,23 +495,55 @@ export function collectContentIndex(contentBase, { contentPackage, skipDirectori
         contentBase,
         walkOpts,
     )) {
-        records.push(
-            buildIndexRecord({
-                frontmatter: frontmatter ?? {},
-                relPath: path.relative(contentBase, absPath),
-                contentPackage,
-                body,
-                bodyLine,
-            }),
-        );
+        const fm = frontmatter ?? {};
+        const relPath = path.relative(contentBase, absPath);
+        const record = buildIndexRecord({
+            frontmatter: fm,
+            relPath,
+            contentPackage,
+            body,
+            bodyLine,
+            manifest,
+        });
+        records.push(record);
+
+        // An item note is two documents, so it is two records (#239).
+        const doc = foundryEntries({
+            frontmatter: fm,
+            address: record.address,
+            body,
+            manifest,
+        })?.doc;
+        if (doc?.key && record.address) {
+            records.push(
+                buildDocRecord({
+                    frontmatter: fm,
+                    address: record.address,
+                    entry: doc,
+                    file: record.file,
+                    contentPackage,
+                    anchors: record.anchors,
+                }),
+            );
+        }
     }
 
     // Content path, then the note id. The walk yields in directory-read order,
     // which is not a fact about the content, and a rebuild that reorders lines
     // would make every regeneration look like a change.
+    // Content path, then the canonical address, then the note id. The walk
+    // yields in directory-read order, which is not a fact about the content,
+    // and a rebuild that reordered lines would make every regeneration look
+    // like a change. The address comes before the id because an item note's two
+    // records share a file and only one of them carries an id — ordering on the
+    // id first would put the documentation ahead of the item it documents.
     records.sort(
         (a, b) =>
             String(a.file.path).localeCompare(String(b.file.path), "en") ||
+            String(a.address?.canonical ?? "").localeCompare(
+                String(b.address?.canonical ?? ""),
+                "en",
+            ) ||
             String(a.id ?? "").localeCompare(String(b.id ?? ""), "en"),
     );
     return records;
@@ -419,9 +588,21 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
         throw new Error(`no content tree at ${tree}`);
     }
 
+    // The identities a Foundry address is derived against. Resolved once and
+    // passed down, the way the manifest emission does it, so the walk stays a
+    // pure function of its context. A configuration that names no Foundry
+    // package yields a context whose notes simply carry no UUID.
+    // Only the identities a UUID is a function of — the package id and the pack
+    // router. Deliberately not the manifest's full context: whether a package
+    // publishes pages is no part of an address, and depending on it would make
+    // the index refuse to build for a configuration that is perfectly able to
+    // state one.
+    const manifest = foundryIdentities(resolved);
+
     const records = collectContentIndex(tree, {
         contentPackage,
         skipDirectories: resolved.skipDirectories,
+        manifest,
     });
     if (records.length === 0) {
         throw new Error(
@@ -435,5 +616,9 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, text);
 
-    return { file, notes: records.length, bytes: Buffer.byteLength(text) };
+    // Counted separately because they are genuinely different numbers: an item
+    // note yields a second record for its documentation journal, so reporting
+    // records as notes would overstate how large the tree is.
+    const notes = records.filter((r) => !r.documents).length;
+    return { file, notes, records: records.length, bytes: Buffer.byteLength(text) };
 }

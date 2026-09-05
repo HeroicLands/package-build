@@ -520,3 +520,93 @@ describe("emitContentIndex", () => {
         ).toThrow(/yielded no notes/);
     });
 });
+
+describe("an item note is two records: the item, and its documentation (#239)", () => {
+    /** A config whose Foundry identities let a UUID be derived. */
+    const foundryConfig = (root: string) =>
+        ({
+            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            contentPackage: "sohl",
+            foundryPackage: "sohl",
+            skipDirectories: [],
+            // The types whose prose compiles into a JournalEntry of its own;
+            // `defineConfig` composes this once and every reader takes it from
+            // there.
+            docEntryTypes: new Set(["affliction"]),
+        }) as any;
+
+    it("emits a second record for the documentation journal", () => {
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+
+        const result = emitContentIndex({ config: foundryConfig(tmp) });
+        const records = readIndex(result.file);
+
+        expect(records.map((r) => r.type)).toEqual(["affliction", "docaffliction"]);
+        // The counts are different numbers and are reported as such: an item
+        // note is one note and two records.
+        expect(result.notes).toBe(1);
+        expect(result.records).toBe(2);
+    });
+
+    it("addresses the journal in its own right, sharing the page", () => {
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(item.address.canonical).toBe("sohl-affliction-blkdth");
+        expect(doc.address.canonical).toBe("sohl-docaffliction-blkdth");
+        // On the web the note renders as one page which *is* its documentation.
+        expect(doc.address.slug).toBe(item.address.slug);
+    });
+
+    it("links the two records in both directions", () => {
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(item.documentation).toBe(doc.address.canonical);
+        expect(doc.documents).toBe(item.address.canonical);
+    });
+
+    it("gives each record its own Foundry address", () => {
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(item.foundry.uuid).toContain(".Item.");
+        expect(doc.foundry.uuid).toContain(".JournalEntry.");
+        expect(item.foundry.uuid).not.toBe(doc.foundry.uuid);
+    });
+
+    it("does not copy the item's frontmatter onto the journal", () => {
+        // The `sohl:` block describes the item; asserting it of the journal
+        // would be false, and doubles the file to do it.
+        note(
+            "Black_Death.md",
+            "type: affliction\nid: bd1\nshortcode: blkdth\nsohl:\n  contagion: 5",
+        );
+        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(item.sohl).toEqual({ contagion: 5 });
+        expect(doc.sohl).toBeUndefined();
+    });
+
+    it("leaves a note that compiles to one document as one record", () => {
+        note("Guide.md", "type: doc\nsubType: rules\nid: g1\nshortcode: guide");
+        const records = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(records).toHaveLength(1);
+        expect(records[0].documentation).toBeNull();
+    });
+
+    it("orders an item's two records deterministically", () => {
+        // They share a file and an id, so the canonical address is the only
+        // key left to sort on — without it the order is a fact about the walk.
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        const a = fs.readFileSync(emitContentIndex({ config: foundryConfig(tmp) }).file, "utf8");
+        const b = fs.readFileSync(emitContentIndex({ config: foundryConfig(tmp) }).file, "utf8");
+        expect(a).toBe(b);
+    });
+
+    it("refuses a note that authors over a derived key", () => {
+        note("Odd.md", "type: affliction\nid: o1\nshortcode: odd\ndocumentation: mine");
+        expect(() => emitContentIndex({ config: foundryConfig(tmp) })).toThrow(/derived/);
+    });
+});

@@ -152,7 +152,9 @@ export function entriesForNote(fm, name, address, body, ctx) {
             )
         :   undefined;
 
-    if (hasDocEntry(fm.type)) {
+    const carriesDoc =
+        ctx.docEntryTypes ? ctx.docEntryTypes.has(String(fm.type)) : hasDocEntry(fm.type);
+    if (carriesDoc) {
         const docKey = canonicalKey(contentPackage, `doc${fm.type}`, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
         const docUuid = uuidFor("doc", docEntryId);
@@ -270,11 +272,34 @@ export function collectManifestEntries(contentBase, ctx) {
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
  *   web: boolean, skipDirectories: readonly string[]}}
  */
-export function manifestContext(config = loadPackConfig()) {
+export function foundryIdentities(config = loadPackConfig()) {
     return {
         contentPackage: config.contentPackage,
         foundryPackageId: config.foundryPackage,
         packRouter: routerFor(config),
+        // Carried in the context rather than read from the global config at the
+        // call site, so the pass really is a pure function of what it is handed
+        // — which is what lets the content index drive the same derivation with
+        // a configuration it resolved itself (#239).
+        docEntryTypes: config.docEntryTypes,
+    };
+}
+
+/**
+ * The identities an emission runs against, from configuration.
+ *
+ * {@link foundryIdentities} plus what only a *manifest* emission needs. The
+ * split is what lets the content index derive the same Foundry addresses from
+ * the same code without also depending on whether the package publishes pages,
+ * which is no part of a UUID (#239).
+ *
+ * @param {object} [config] - A resolved configuration; loaded when omitted.
+ * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
+ *   web: boolean, skipDirectories: readonly string[]}}
+ */
+export function manifestContext(config = loadPackConfig()) {
+    return {
+        ...foundryIdentities(config),
         web: publishesContentPages(config),
         // The walk's own configuration, threaded through rather than left to
         // its default, so a caller that passes a config drives every read.
