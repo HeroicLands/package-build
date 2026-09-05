@@ -1,5 +1,67 @@
 # @heroiclands/package-build
 
+## 17.2.0
+
+### Minor Changes
+
+- ce40274: **The content index now carries every address the link manifest does**, which
+  is the substance of folding the two artifacts into one (#239).
+  
+  Each record gains a `foundry` block — `{ uuid, anchors }` — and **an item note
+  now emits two records**: the item, and its documentation journal. The journal is
+  a document in its own right, with its own canonical address
+  (`doc<type>/<shortcode>`), its own UUID and its own pages, so it gets its own
+  record rather than being nested inside the item's. Resolving
+  `docaffliction/blkdth` is then the same lookup as resolving anything else,
+  instead of the one address in the index reachable only by knowing to look
+  somewhere else.
+  
+  The two are linked in both directions: the item carries `documentation`, the
+  journal carries `documents`.
+  
+  **The journal's record is lean, and deliberately not the note's frontmatter.**
+  The item's `sohl:` block describes the item; copying it onto the journal would
+  assert things about the journal that are not true, and double the file to do it.
+  The journal carries its addresses, its name, its anchors and the file it came
+  from.
+  
+  **Derived by the manifest's own code, not a second implementation.** A UUID is a
+  function of the note's `type`, its authored `id` and the pack router —
+  frontmatter and configuration, nothing from a compiled pack — so the index's
+  existing walk already had every input. Verified against `sohl`: **2,988 UUIDs
+  and 1,510 anchor maps, matching the manifest exactly, with none missing on
+  either side.**
+  
+  Two smaller changes fall out of it:
+  
+  - `emitContentIndex` reports `notes` and `records` separately, because an item
+    note is one note and two records and reporting one as the other overstates the
+    tree. Records sort by path, then canonical address, then id — the address
+    before the id, because an item's two records share a file and only one carries
+    an id.
+  - `entriesForNote` takes `docEntryTypes` from its context instead of reading the
+    ambient configuration. It is what `manifestContext` already promised — "the
+    pass itself is a pure function of its context" — and it was not true: the
+    emitter consulted whichever configuration `loadPackConfig()` found, not the one
+    it was handed. A fixture that never declared the type it asserted was passing
+    on that leak.
+
+### Patch Changes
+
+- 6a3d083: **`package-build labels check` crashed for every consumer in 17.1.0.**
+  `labels.mjs` was added and not listed in `package.json` `files`, which is an
+  explicit whitelist, so the module never reached the tarball and the command
+  threw `ERR_MODULE_NOT_FOUND` on the import the release notes had just
+  announced.
+  
+  Adds the module to `files`, and a guard so the class cannot recur: a new test
+  reads the root-relative imports out of `bin/` and requires each one to be
+  published, by name or by a containing directory entry. Verified by removing
+  `labels.mjs` from `files` again and watching it fail.
+  
+  The failure could only appear in a consumer, after publish — locally the file
+  is simply there, so every check passed.
+
 ## 17.1.0
 
 ### Minor Changes
