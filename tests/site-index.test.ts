@@ -62,7 +62,7 @@ describe("keys that are unique by construction", () => {
             }),
         ]);
 
-        expect(index.get("sohl-skill-clmb")?.url).toBe("/kb/skill/climbing/");
+        expect(index.get("sohl-sohl-skill-clmb")?.url).toBe("/kb/skill/climbing/");
         expect(index.get("skill/clmb")?.url).toBe("/kb/skill/climbing/");
     });
 
@@ -127,7 +127,7 @@ describe("foreign packages", () => {
     const foreignIndex = () =>
         new Map([
             [
-                "thalorna-polity-tanvur",
+                "thalorna-none-polity-tanvur",
                 {
                     url: "/thalorna/polity/tanvur/",
                     package: "thalorna",
@@ -143,7 +143,7 @@ describe("foreign packages", () => {
             foreignIndex: foreignIndex(),
         });
 
-        expect(index.get("thalorna-polity-tanvur")?.url).toBe("/thalorna/polity/tanvur/");
+        expect(index.get("thalorna-none-polity-tanvur")?.url).toBe("/thalorna/polity/tanvur/");
         expect(contentTypes.has("polity")).toBe(true);
     });
 
@@ -156,16 +156,20 @@ describe("foreign packages", () => {
     });
 
     it("drops the short form when two packages claim it", () => {
+        // The short form is `<type>/<shortcode>` and takes no system segment,
+        // so #59 does not disambiguate this case: two packages publishing a
+        // `polity/x` still collide on the bare key however each one's document
+        // is keyed. Only the qualified addresses tell them apart.
         const both = new Map([
-            ["a-polity-x", { url: "/a/", package: "a", type: "polity" }],
-            ["b-polity-x", { url: "/b/", package: "b", type: "polity" }],
+            ["a-none-polity-x", { url: "/a/", package: "a", type: "polity" }],
+            ["b-none-polity-x", { url: "/b/", package: "b", type: "polity" }],
         ]);
         const { index } = buildSiteIndex([entry()], { foreignIndex: both });
 
         expect(index.has("polity/x")).toBe(false);
         // The qualified addresses still resolve.
-        expect(index.get("a-polity-x")?.url).toBe("/a/");
-        expect(index.get("b-polity-x")?.url).toBe("/b/");
+        expect(index.get("a-none-polity-x")?.url).toBe("/a/");
+        expect(index.get("b-none-polity-x")?.url).toBe("/b/");
     });
 
     it("lets the local tree win a short key it already claims", () => {
@@ -204,7 +208,7 @@ describe("foreign packages", () => {
         // first — but it is the line that does not depend on that filtering
         // being right.
         const impostor = new Map([
-            ["sohl-skill-clmb", { url: "/elsewhere/", package: "thalorna" }],
+            ["sohl-sohl-skill-clmb", { url: "/elsewhere/", package: "thalorna" }],
         ]);
         const { index } = buildSiteIndex(
             [
@@ -215,7 +219,7 @@ describe("foreign packages", () => {
             { foreignIndex: impostor },
         );
 
-        expect(index.get("sohl-skill-clmb")?.url).toBe("/kb/skill/climbing/");
+        expect(index.get("sohl-sohl-skill-clmb")?.url).toBe("/kb/skill/climbing/");
     });
 });
 

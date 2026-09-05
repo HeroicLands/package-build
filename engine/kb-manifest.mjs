@@ -11,12 +11,21 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { NO_SYSTEM, assertSystemSegment } from "./systems.mjs";
+
+/**
+ * Re-exported so the address grammar and the system vocabulary are one
+ * fact: `canonicalKey` writes this segment, and `engine/systems.mjs`
+ * decides what may appear in it.
+ */
+export { NO_SYSTEM };
+
 /**
  * The cross-package link manifest (#1446).
  *
  * Each publishing package emits one file naming every note it publishes, keyed
- * by the canonical `type/shortcode` address and valued with every address that
- * note has: a `path` on the web, a `uuid` in Foundry.
+ * by the canonical `package-system-type-shortcode` address and valued with
+ * every address that note has: a `path` on the web, a `uuid` in Foundry.
  * {@link loadForeignManifests} resolves each `path` into the `{ url, name }`
  * the knowledgebase already uses as its own index value, so a foreign entry and
  * a local one are interchangeable at the point of use.
@@ -67,10 +76,17 @@ export const LINK_PACKAGES = Object.freeze(["sohl", "thalorna"]);
  * The **canonical** address of a note: fully qualified, one spelling per
  * document, and globally unique.
  *
- * The written form of a link may omit the package (`[[skill-lang]]`), which
- * defaults it to the citing note's own. Everything internal — index keys,
- * manifest keys, every lookup — uses this instead, so no consumer has to know
- * what a short form defaulted to.
+ * The written form of a link is a **partial** address: it may omit leading
+ * segments, and each one it omits is filled in by rule rather than left
+ * unconstrained. An omitted package (`[[skill-lang]]`) defaults to the citing
+ * note's own, so an unqualified link resolves locally and only locally, and a
+ * link into another package must name it. An omitted **system** is a
+ * *wildcard*, not a default — most links target items, which belong to a
+ * system — and the resolver requires exactly one match: none is a dead link,
+ * more than one is an ambiguity reported with every candidate named.
+ * Everything internal — index keys, manifest keys, every lookup — uses this
+ * fully qualified form instead, so no consumer has to know what a short form
+ * defaulted to or matched.
  *
  * Global uniqueness is what lets a foreign manifest merge straight into a local
  * index: the keys cannot collide by accident, so a key already present on merge
@@ -79,14 +95,38 @@ export const LINK_PACKAGES = Object.freeze(["sohl", "thalorna"]);
  * two independently authored packages reaching for the same short string is a
  * matter of time (#1499).
  *
+ * **The system segment (#59).** A package may ship content for more than one
+ * system, and one note then compiles into a document per system — an actor in
+ * `actors-sohl` *and* an actor in `actors-hm3`. Without a system segment both
+ * land on one key, so the address cannot name either of them. `harn-ensemble`
+ * carries 2,497 such notes.
+ *
+ * The value is a system id, or the literal **`none`** for a document no game
+ * system defines: a journal, a macro, a scene, and an item's documentation
+ * journal — which is `none` however many systems the item itself declares,
+ * because it is one journal.
+ *
+ * `none` rather than `any`: every segment of an address is an exact literal,
+ * and `any` reads as a wildcard — "matches under any system" — which is not
+ * what it does. A resolver written to that misreading would fail silently,
+ * since a manifest miss already returns nothing rather than erroring. And not
+ * `null` or `~`, both of which are YAML nulls that parse to an absent value and
+ * drop the segment entirely.
+ *
  * @param {string} pkg - The owning **content** package (`sohl`, `thalorna`) —
  *   not the Foundry package, which varies per compilation target.
+ * @param {string} system - The system whose document this addresses, or `none`.
  * @param {string} type - The note's `type`.
  * @param {string} shortcode - The note's `shortcode`.
- * @returns {string} `package/type/shortcode`, lowercased.
+ * @returns {string} `package-system-type-shortcode`, lowercased.
  */
-export function canonicalKey(pkg, type, shortcode) {
-    return `${pkg}-${type}-${shortcode}`.toLowerCase();
+export function canonicalKey(pkg, system, type, shortcode) {
+    // Checked where an address is *written*, not where one is read: a foreign
+    // manifest naming a system this build has never heard of is data to report,
+    // while emitting one is a defect in this build. The registry is closed, so
+    // an unknown value here can only be a typo or a system nobody declared.
+    assertSystemSegment(system, `the address of ${type}-${shortcode}`);
+    return `${pkg}-${system}-${type}-${shortcode}`.toLowerCase();
 }
 
 /**
@@ -99,7 +139,7 @@ export function canonicalKey(pkg, type, shortcode) {
  *
  * @type {number}
  */
-export const CANONICAL_KEY_SEGMENTS = 3;
+export const CANONICAL_KEY_SEGMENTS = 4;
 
 /**
  * Reads a canonical key back into its parts.
@@ -116,14 +156,16 @@ export const CANONICAL_KEY_SEGMENTS = 3;
  * would need a vocabulary to match against instead.
  *
  * **Nothing to read and nothing readable are different answers.** A key that
- * cannot be canonical — `harn-adventures-skill-melee`, four segments — yields
- * `null`, while an absent or blank input yields `undefined`. Both are falsy, so
+ * cannot be canonical — `harn-adventures-sohl-skill-melee`, five segments,
+ * because the package name carries the separator — yields `null`, while an
+ * absent or blank input yields `undefined`. Both are falsy, so
  * every call site (all of which test the result for truthiness) is unaffected;
  * the distinction is there so a caller reporting "this key is unreadable" can
  * tell that it has a key to report about.
  *
  * @param {unknown} key - A canonical key, or nothing.
- * @returns {{package: string, type: string, shortcode: string}|null|undefined}
+ * @returns {{package: string, system: string, type: string, shortcode: string}
+ *   |null|undefined}
  *   The parts; `null` when there is a string that is not in canonical form;
  *   `undefined` when there is no key at all.
  */
@@ -131,9 +173,9 @@ export function readCanonicalKey(key) {
     if (key == null || key === "") return undefined;
     const parts = String(key).split("-");
     if (parts.length !== CANONICAL_KEY_SEGMENTS) return null;
-    const [pkg, type, shortcode] = parts;
-    if (!pkg || !type || !shortcode) return null;
-    return { package: pkg, type, shortcode };
+    const [pkg, system, type, shortcode] = parts;
+    if (!pkg || !system || !type || !shortcode) return null;
+    return { package: pkg, system, type, shortcode };
 }
 
 /**
@@ -160,8 +202,15 @@ export function readCanonicalKey(key) {
  * Bumped to 5 by #1516: `path` became optional, so a package that ships
  * compendiums and publishes no site can still publish the Foundry addresses of
  * its documents — the mirror of an entry that has a `path` and no `uuid`.
+ *
+ * Bumped to 6 by #59: a key gained a `<system>` segment between the package and
+ * the type — `sohl-none-doc-gear`, `sohl-sohl-skill-clmb` — so a note that
+ * compiles into more than one system's document addresses each of them instead
+ * of collapsing onto one key. Every earlier key is a segment short, which is
+ * why this bump drops its predecessors where #1516's did not; see
+ * {@link READABLE_VERSIONS}.
  */
-export const MANIFEST_VERSION = 5;
+export const MANIFEST_VERSION = 6;
 
 /**
  * Every version this build can read, newest last.
@@ -171,16 +220,28 @@ export const MANIFEST_VERSION = 5;
  * so far did change a reading — a v2 key read as a v4 one addresses a package
  * named after a type — so each dropped its predecessors. **v5 did not**: it
  * only permits an absent `path`, so every v4 value still means exactly what it
- * meant, and refusing v4 would make a purely relaxing change a flag day in
+ * meant, and refusing v4 would have made a purely relaxing change a flag day in
  * which every package must re-emit on the same afternoon or every build breaks
- * (#1516).
+ * (#1516). That is why the list held two versions until #59, and why it holds
+ * one now — a v5 key is a segment short of the current grammar and does not
+ * parse at all, for the reason recorded below.
  *
  * The unsafe direction is unchanged and still hard-fails: an older consumer
  * meeting a newer file rejects it, because it cannot know what the new shape
  * permits. Widening is therefore always safe to do here first and adopt
  * elsewhere later.
  */
-export const READABLE_VERSIONS = Object.freeze([4, MANIFEST_VERSION]);
+/*
+ * Narrowed to the current version alone by #59, which is the direction this
+ * list is normally *not* widened in — and the reason is the point. Every
+ * earlier format keys its entries on a three-segment address. Under the new
+ * grammar those keys do not parse: `readCanonicalKey` counts segments, finds
+ * three where it requires four, and returns `null`. A tolerated v5 file would
+ * therefore not produce older links, it would produce *no* links, silently, for
+ * every entry it holds — the failure mode the version exists to convert into an
+ * error. Re-widening is possible only for a format whose keys parse.
+ */
+export const READABLE_VERSIONS = Object.freeze([MANIFEST_VERSION]);
 
 /**
  * Where this build serves each package, keyed by package name.
@@ -316,7 +377,10 @@ export function buildManifest(pkg, entries, base, foundryPackage) {
         // required to live inside its own entry. Publishing the complete link
         // also keeps the page-id hash out of the published contract entirely.
         if (e.anchors && Object.keys(e.anchors).length) entry.anchors = e.anchors;
-        out[e.key ?? canonicalKey(pkg, type, shortcode)] = entry;
+        // `e.system` where the caller knows it — `entriesForNote` always
+        // does — and `none` otherwise, which is what an entry built without a
+        // system is: a document no system defines.
+        out[e.key ?? canonicalKey(pkg, e.system ?? NO_SYSTEM, type, shortcode)] = entry;
     }
     return {
         version: MANIFEST_VERSION,
@@ -379,7 +443,7 @@ export function writeManifests(entriesByPackage, dir, bases, foundryPackages) {
  * @param {Record<string, string>} [bases] - Package → base to resolve against;
  *   defaults to {@link PACKAGE_BASE}.
  * @returns {{ index: Map<string, object>, packages: Set<string>, stale: Array<object> }}
- *   `index` maps the canonical `package-type-shortcode` → `{ url, name, uuid,
+ *   `index` maps the canonical `package-system-type-shortcode` → `{ url, name, uuid,
  *   doc, anchors, type, package }`. Keys are globally unique, so this merges
  *   directly into a local index with no prefixing and no separate lookup path.
  *   `url` is `undefined` for an entry with no page (#1516) and `uuid` for one

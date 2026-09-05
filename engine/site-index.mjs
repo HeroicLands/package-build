@@ -30,8 +30,11 @@
  * **Two key spaces, one map**, and both are addresses. `section/slug` and
  * `type/shortcode` are unique by construction, so they always resolve.
  * `type/shortcode` is the authored form; the canonical
- * `package-type-shortcode` is set alongside it, which is what a cross-package
- * link and every merged foreign entry use (#1499).
+ * `package-system-type-shortcode` is set alongside it, which is what a
+ * cross-package link and every merged foreign entry use (#1499, #59). A
+ * cross-package target states its package and usually not its system, so it is
+ * matched by the segments it supplies rather than fetched by an exact key —
+ * one hit resolves, and anything else is a finding.
  *
  * **A page's *name* is not a key** (#180). It was, as one of a set of
  * collision-aware fallbacks a bare `[[Name]]` was looked up in — which is what
@@ -49,6 +52,8 @@
 import path from "node:path";
 
 import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
+import { systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
 // The declared tag vocabulary (#172), which is where `draft` is stated.
@@ -208,7 +213,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     }
 
     // Merged *before* the local type-scoped pass below, so a local page always
-    // ends up owning its own canonical `package-type-shortcode` address: the
+    // ends up owning its own canonical `package-system-type-shortcode` address: the
     // local write lands last and wins. `loadForeignManifests` already excludes
     // the local packages, so a manifest should never carry one — this is what
     // makes that a belt-and-braces rather than the only thing standing between
@@ -241,7 +246,15 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             // The page's package is the configured one — the site collection
             // resolves it and records it as `pkg`. Never read out of
             // frontmatter: `package:` is retired (#56).
-            index.set(canonicalKey(e.pkg ?? ownPackage, type, shortcode), value);
+            index.set(
+                canonicalKey(
+                    e.pkg ?? ownPackage,
+                    systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+                    type,
+                    shortcode,
+                ),
+                value,
+            );
             if (e.pkg) packages.add(e.pkg);
             // In Foundry an item and its documentation are two documents, so
             // `skill/wpnc` and `docskill/wpnc` are two UUIDs (#1362). Here the

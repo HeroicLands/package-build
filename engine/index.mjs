@@ -75,6 +75,9 @@ export * as noteSchemas from "./note-schemas.mjs";
 /** The closed frontmatter regions: the `data:` container and each type's `subType`. */
 export * as noteVocabulary from "./note-vocabulary.mjs";
 
+/** The closed registry of system ids, and the `none` that stands for no system. */
+export * as systems from "./systems.mjs";
+
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
 /** The one normalisation this build makes: prose to a URL-safe token. */

@@ -23,7 +23,11 @@
  *    link to an anchor nobody declares compiles cleanly, emits an enricher, and
  *    dead-ends for the reader.
  * 2. **A dead address.** Every link is an address, and one resolving to no note
- *    is a typo. So is a target that does not parse as an address at all.
+ *    is a typo. So is a target that does not parse as an address at all. A
+ *    written target is a *partial* address — the segments it omits are
+ *    wildcards, and the package it omits is this one — so a target resolving to
+ *    *several* notes is an ambiguity rather than a first match, and is reported
+ *    naming every candidate (#59).
  * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
  *    used to name is retired (#180), and a shortcode is an address rather than
  *    prose, so the link has neither a resolvable target nor text to show. The
@@ -58,6 +62,8 @@ import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
+import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import {
@@ -152,10 +158,16 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
             byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
             // The canonical, fully qualified address alongside the short one,
             // so a package-qualified link checks the same way a bare one does.
-            byKey.set(canonicalKey(pkg, type, fm.shortcode), note);
+            byKey.set(
+                canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode),
+                note,
+            );
             if (hasDocEntry(type)) {
                 byKey.set(`doc${type}/${fm.shortcode}`.toLowerCase(), note);
-                byKey.set(canonicalKey(pkg, `doc${type}`, fm.shortcode), note);
+                // A documentation journal is `none`: no game system defines a
+                // JournalEntry, and one note has one of them however many
+                // system blocks it carries.
+                byKey.set(canonicalKey(pkg, NO_SYSTEM, `doc${type}`, fm.shortcode), note);
             }
         }
     }
@@ -246,25 +258,72 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
      * @param {string} target - The link target, anchor already removed.
      * @returns {object|undefined} The note it addresses.
      */
+    /**
+     * Every indexed entry an address names, matching only the segments it
+     * supplies.
+     *
+     * This is the whole of #59's resolution rule in one place: a written
+     * address is a *partial* one, unsupplied segments are wildcards, and the
+     * caller requires exactly one hit. Nothing here decides an ambiguity — zero
+     * and many are different findings with different fixes, so the count is
+     * returned rather than collapsed.
+     *
+     * The **system** is wildcarded unless stated. Defaulting it to `none` would
+     * exclude every link to an item, which is most of them.
+     *
+     * @param {Array<[string, any]>} pairs - Indexed `[canonicalKey, value]`.
+     * @param {object} q - The parsed qualifier.
+     * @returns {Array<[string, any]>} The matching pairs.
+     */
+    function matchAddress(pairs, q) {
+        const type = String(q.type).toLowerCase();
+        const shortcode = String(q.shortcode).toLowerCase();
+        return pairs.filter(([k]) => {
+            const parts = readCanonicalKey(k);
+            if (!parts) return false;
+            if (q.package && parts.package !== String(q.package).toLowerCase()) return false;
+            if (q.system && parts.system !== String(q.system).toLowerCase()) return false;
+            return parts.type === type && parts.shortcode === shortcode;
+        });
+    }
+
+    /**
+     * The local notes an address names, by the same rule.
+     *
+     * @param {object} q - The parsed qualifier.
+     * @returns {object[]} The notes.
+     */
+    function matchLocal(q) {
+        return matchAddress([...byKey], q).map(([, v]) => v);
+    }
+
     function resolveAddress(target) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
-        return byKey.get(
-            qualified.package ?
-                canonicalKey(qualified.package, qualified.type, qualified.shortcode)
-            :   `${qualified.type}/${qualified.shortcode}`.toLowerCase(),
-        );
+        // Unqualified stays the system-blind short key, which is already the
+        // wildcard an author writing `[[skill-melee]]` means. A package-
+        // qualified target names no system either, so it is matched by the
+        // segments it *did* supply rather than by an exact key (#59) — and one
+        // hit is required, since two systems' documents legitimately share a
+        // `(package, type, shortcode)`.
+        if (!qualified.package) {
+            return byKey.get(`${qualified.type}/${qualified.shortcode}`.toLowerCase());
+        }
+        const hits = matchLocal(qualified);
+        return hits.length === 1 ? hits[0] : undefined;
     }
 
     /**
      * Every foreign manifest entry an address names, in package order.
      *
-     * A **package-qualified** address names at most one, by construction. An
-     * unqualified one names no package, so it resolves against any foreign one
-     * that publishes it — and only when exactly one does. Two claimants make it
-     * ambiguous, which is a different finding from resolving nowhere and has a
-     * different fix, so the count is returned rather than collapsed here
-     * (#184).
+     * A written target is a **partial** address, so this matches on the
+     * segments it supplies and wildcards the rest (#59). A package-qualified
+     * target still names no system, so it may match one entry per system; an
+     * unqualified one names no package either, so it resolves against any
+     * foreign package that publishes it. Either way only exactly one hit
+     * resolves. Two claimants make it ambiguous, which is a different finding
+     * from resolving nowhere and has a different fix, so the count is returned
+     * rather than collapsed here (#184).
      *
      * @param {string} target - The link target.
      * @returns {object[]} The foreign entries, each carrying its `package`.
@@ -272,18 +331,7 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
     function foreignHits(target) {
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return [];
-        if (q.package) {
-            const one = foreign.index.get(canonicalKey(q.package, q.type, q.shortcode));
-            return one ? [one] : [];
-        }
-        const type = String(q.type).toLowerCase();
-        const shortcode = String(q.shortcode).toLowerCase();
-        return [...foreign.index]
-            .filter(([k]) => {
-                const parts = readCanonicalKey(k);
-                return parts?.type === type && parts.shortcode === shortcode;
-            })
-            .map(([, v]) => v);
+        return matchAddress([...foreign.index], q).map(([, v]) => v);
     }
 
     /**

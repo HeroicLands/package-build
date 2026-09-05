@@ -31,7 +31,7 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { homepageFrontmatter } from "../engine/homepage.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
-import { buildManifest } from "../engine/kb-manifest.mjs";
+import { buildManifest, readCanonicalKey } from "../engine/kb-manifest.mjs";
 
 let root: string;
 
@@ -160,13 +160,27 @@ describe("everything that points at a page keeps the package base", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const index = buildSiteIndex(pages);
         expect(index.index.get("weapongear/dagger")?.url).toBe("/demo/weapongear-dagger/");
-        expect(index.index.get("demo-weapongear-dagger")?.url).toBe("/demo/weapongear-dagger/");
+        // The canonical key carries the system a `weapongear` compiles into
+        // (#59); the site index derives it from the type, so the caller states
+        // nothing extra.
+        expect(index.index.get("demo-sohl-weapongear-dagger")?.url).toBe(
+            "/demo/weapongear-dagger/",
+        );
     });
 
     it("measures a link-manifest `path` against that base, and it still strips", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const manifest = buildManifest("demo", pages, "/demo/");
-        expect(manifest.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
+        // Found by its shortcode rather than by a spelled-out key: the subject
+        // here is `path`, and the key's `<system>` segment is whatever the
+        // caller stated. `collectContentPages` yields *site pages*, which state
+        // no system, so `buildManifest` keys these under its `none` fallback —
+        // a different answer from the one the site index derives above, and not
+        // what this case is measuring.
+        const [, entry] = Object.entries(manifest.entries).find(
+            ([key]) => readCanonicalKey(key)?.shortcode === "dagger",
+        )!;
+        expect(entry.path).toBe("weapongear-dagger/");
     });
 });
 

@@ -86,6 +86,7 @@
 import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
+import { readCanonicalKey } from "./kb-manifest.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
@@ -167,6 +168,16 @@ export function resolveItemDocType(qualifier, types) {
  * `skill-lang` in the `sohl` package. It is read only when `packages` is given
  * and names the segment, and only when the remainder is itself a valid address,
  * so a note called "Grukar-ahk" is not mistaken for one (#1499).
+ *
+ * **What this reads is a partial address.** The canonical form gained a
+ * `<system>` segment between the package and the type (#59) —
+ * `sohl-sohl-skill-lang` — and this reads three segments at most, so no
+ * authored target states a system today. That is not a gap the callers work
+ * around: an unstated segment is a **wildcard**, so a target naming no system
+ * matches a note under any of them, and the caller requires exactly one hit.
+ * The package segment is the exception, because it is not wildcarded but
+ * *defaulted* — omitted, it means the citing note's own package, so an
+ * unqualified link resolves locally and only locally.
  *
  * @param {string} target - The link target, anchor already removed.
  * @param {Set<string>} types - Every type the content tree contains.
@@ -363,12 +374,14 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
 /**
  * The foreign manifest entry an address names, or `null`.
  *
- * A package-qualified address is one lookup. An unqualified one names no
- * package, so it
- * resolves against whichever foreign package publishes it — and only when
- * exactly one does. Claimed by two, it is genuinely ambiguous and the author
- * writes the qualified form; guessing would make the build depend on which
- * manifest happened to load first.
+ * A target is a **partial** address, matched on the segments it supplies with
+ * the rest wildcarded (#59) — so a package-qualified one is a scan rather than
+ * a single lookup, and may still match one entry per system. An unqualified one
+ * names no package either, so it resolves against whichever foreign package
+ * publishes it — and, in both readings, only when exactly one entry matches.
+ * Claimed by two, it is genuinely ambiguous and the author writes the qualified
+ * form; guessing would make the build depend on which manifest happened to load
+ * first.
  *
  * @param {object} index - From {@link buildWikilinkIndex}.
  * @param {object|null} read - The parsed qualifier, or `null` when the target
@@ -397,15 +410,28 @@ function foreignHits(index, read) {
     if (!read || read.reason || !index.foreign?.size) return [];
     const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
     const shortcode = norm(read.shortcode);
-    if (read.package) {
-        const one = index.foreign.get(`${read.package}-${wanted}-${shortcode}`.toLowerCase());
-        return one ? [one] : [];
-    }
+
+    // One filter for every reading, because an address is matched **by the
+    // segments it supplies** and wildcarded on the ones it does not (#59). A
+    // package-qualified target used to take a separate exact-`get` path, which
+    // is what let this function carry its own copy of the key grammar — a
+    // hand-built `${package}-${type}-${shortcode}` and a literal segment count
+    // — and drift from `readCanonicalKey` the moment the grammar gained a
+    // system segment. There is one reader now.
+    //
+    // The system is a wildcard unless the target states one: most authored
+    // links name none, and defaulting it to `none` would exclude every link to
+    // an item, which is the majority — 1,632 of `sohl`'s own resolve into the
+    // items pack. Ambiguity is caught by the caller's single-hit rule rather
+    // than pre-empted by a guess here.
     const hits = [];
-    for (const [key, v] of index.foreign) {
-        const parts = key.split("-");
-        if (parts.length !== 3) continue;
-        if (parts[1] === wanted && parts[2] === shortcode) hits.push(v);
+    for (const [key, entry] of index.foreign) {
+        const parts = readCanonicalKey(key);
+        if (!parts) continue;
+        if (read.package && parts.package !== norm(read.package)) continue;
+        if (read.system && parts.system !== norm(read.system)) continue;
+        if (parts.type !== wanted || parts.shortcode !== shortcode) continue;
+        hits.push(entry);
     }
     return hits;
 }

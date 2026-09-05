@@ -19,7 +19,12 @@
  * address other packages link to. Stating it twice is how a manifest comes to
  * assert a URL that resolves at build time and 404s for the reader.
  *
- * **A page's URL is its address** — `<package>/<type>-<shortcode>/` (#181). It
+ * **A page's URL is its address** — `<package>/<type>-<shortcode>/` (#181), and
+ * it carries **no `<system>` segment** even though the canonical address does
+ * (#59). That is not an omission: a note publishes one page however many
+ * systems' documents it compiles into, so there is nothing for the segment to
+ * distinguish, and adding it would split one page's URL in two. The canonical
+ * address names a *document*; this names a *page*. It
  * used to be derived from `name.full`, which made a display string load-bearing
  * in three separate ways: a rename moved the URL and nothing redirected, two
  * notes in one section could derive the same URL so a uniqueness check had to
@@ -45,10 +50,18 @@ export const KB_PREFIX = "kb/";
 /**
  * The single path segment a note is addressed by: `type-shortcode`.
  *
- * Lowercased, so it is exactly the tail of the note's canonical key
- * (`canonicalKey` in `engine/kb-manifest.mjs` lowercases too) — which is what
- * makes a manifest entry's `path` derivable from the key it is filed under
- * rather than transported beside it.
+ * Lowercased and hyphen-joined by the same rule as the note's canonical key
+ * (`canonicalKey` in `engine/kb-manifest.mjs` lowercases too), so it is that
+ * key's **last two segments** — which is what makes a manifest entry's `path`
+ * derivable from the key it is filed under rather than transported beside it.
+ *
+ * It was once the key's whole tail, and #59 ended that: the key gained a
+ * `<system>` segment, so its tail is now `system-type-shortcode` and a slug is
+ * the tail with that segment dropped. The behaviour here is unchanged, and
+ * deliberately — a page has no system to name (see the module note above), so
+ * the two forms diverge rather than one having fallen behind the other. A
+ * consumer deriving a `path` from a key drops the *package and the system*, not
+ * the package alone.
  *
  * The hyphen is a separator and never occurs inside a segment: a shortcode is
  * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced by `content-lint.mjs`)

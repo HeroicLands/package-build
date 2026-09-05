@@ -225,6 +225,13 @@ export function unresolvedAddressMessage(target) {
  * message names the claimants so the author can choose between them without
  * going looking.
  *
+ * **The correction stops at the package**, and deliberately does not offer the
+ * canonical `package-system-type-shortcode` (#59). A written target is a
+ * partial address and {@link readQualifier} reads three segments at most, so a
+ * four-segment target does not parse — naming one here would hand an author a
+ * correction that fails. This message is for the ambiguity a package segment
+ * *does* settle: two packages publishing the same short address.
+ *
  * @param {string} target - The address as authored.
  * @param {Iterable<string>} [packages] - The packages that publish it.
  * @returns {string} The message.

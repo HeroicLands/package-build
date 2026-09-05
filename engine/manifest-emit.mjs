@@ -30,9 +30,12 @@
  * a fact it has to be told (#1465).
  *
  * **An entry's `path` is derivable from the key it is filed under** (#181).
- * `sohl-affliction-aconite` publishes at `affliction-aconite/`, because a page's
- * URL *is* its address; nothing in it comes from a display name, so a rename
- * moves no URL and no uniqueness check stands between the two. Every entry is
+ * `sohl-sohl-affliction-aconite` publishes at `affliction-aconite/` — the key
+ * with its package and system segments dropped — because a page's URL *is* its
+ * address; nothing in it comes from a display name, so a rename moves no URL and
+ * no uniqueness check stands between the two. The system segment goes with the
+ * package because a note publishes one page however many systems' documents it
+ * compiles into (#59). Every entry is
  * derivable that way since #204 retired the section landing, which was the one
  * that was not. The field is still written rather than left for a consumer to
  * compute, because an absent `path` already means something else entirely (a
@@ -57,6 +60,8 @@ import path from "node:path";
 
 import { packageAddress } from "./content-address.mjs";
 import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
+import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
@@ -128,7 +133,12 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
-    const key = canonicalKey(contentPackage, fm.type, fm.shortcode);
+    const key = canonicalKey(
+        contentPackage,
+        systemOf(fm.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+        fm.type,
+        fm.shortcode,
+    );
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the
     // honest pair is the address under a base of `"/"` — which strips straight
@@ -155,7 +165,10 @@ export function entriesForNote(fm, name, address, body, ctx) {
     const carriesDoc =
         ctx.docEntryTypes ? ctx.docEntryTypes.has(String(fm.type)) : hasDocEntry(fm.type);
     if (carriesDoc) {
-        const docKey = canonicalKey(contentPackage, `doc${fm.type}`, fm.shortcode);
+        // `NO_SYSTEM`, whatever the item is: a documentation journal is a
+        // JournalEntry, which no game system defines, and there is one of them
+        // however many system blocks the note carries.
+        const docKey = canonicalKey(contentPackage, NO_SYSTEM, `doc${fm.type}`, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
         const docUuid = uuidFor("doc", docEntryId);
         return [

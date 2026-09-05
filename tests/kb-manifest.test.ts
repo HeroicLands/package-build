@@ -25,8 +25,18 @@ import {
     PACKAGE_BASE,
 } from "../engine/kb-manifest.mjs";
 
-const entry = (type: string, shortcode: string, name: string, url: string) => ({
+/**
+ * A note as `buildManifest` receives it.
+ *
+ * `system` is stated rather than defaulted (#59): the canonical key carries it
+ * in a fixed position, and a skill or a creature is a document the `sohl`
+ * system defines, so that is what these entries say. `buildManifest` falls
+ * back to `none` when a caller states nothing — asserted on its own below,
+ * rather than smuggled in as the shape every other case happens to use.
+ */
+const entry = (type: string, shortcode: string, name: string, url: string, system = "sohl") => ({
     fm: { type, shortcode },
+    system,
     name,
     url,
 });
@@ -113,11 +123,30 @@ describe("buildManifest", () => {
         expect(doc.version).toBe(MANIFEST_VERSION);
         expect(doc.package).toBe("sohl");
         // Canonical: fully qualified, so the key is globally unique and a
-        // foreign manifest merges straight into a local index (#1499).
-        expect(doc.entries["sohl-skill-climb"]).toEqual({
+        // foreign manifest merges straight into a local index (#1499). Four
+        // segments since #59 — `<package>-<system>-<type>-<shortcode>` — so a
+        // package shipping one note for two systems addresses each of the two
+        // documents it compiles rather than collapsing them onto one key.
+        expect(doc.entries["sohl-sohl-skill-climb"]).toEqual({
             path: "skill/climbing/",
             name: "Climbing",
         });
+    });
+
+    it("keys an entry that states no system as `none`", () => {
+        // The fallback is a statement, not a blank: an entry built without a
+        // system is a document no game system defines — a journal, a macro, a
+        // scene — and `none` is what the grammar calls that. Leaving the
+        // segment out instead would emit a three-segment string that no longer
+        // parses as a key at all.
+        const doc = manifestOf(
+            buildManifest(
+                "sohl",
+                [{ fm: { type: "doc", shortcode: "combat" }, name: "Combat", url: "/doc/combat/" }],
+                "/",
+            ),
+        );
+        expect(Object.keys(doc.entries)).toEqual(["sohl-none-doc-combat"]);
     });
 
     it("records an address relative to the package's own base", () => {
@@ -128,7 +157,7 @@ describe("buildManifest", () => {
                 "/thalorna/",
             ),
         );
-        expect(doc.entries["thalorna-creature-grkrahk"].path).toBe("creature/grukar-ahk/");
+        expect(doc.entries["thalorna-sohl-creature-grkrahk"].path).toBe("creature/grukar-ahk/");
     });
 
     it("omits a note with no shortcode — it cannot be addressed", () => {
@@ -146,7 +175,7 @@ describe("buildManifest", () => {
                 "/",
             ),
         );
-        expect(Object.keys(doc.entries)).toEqual(["sohl-skill-climb"]);
+        expect(Object.keys(doc.entries)).toEqual(["sohl-sohl-skill-climb"]);
     });
 
     it("omits `path` for a package that publishes no web pages", () => {
@@ -160,6 +189,7 @@ describe("buildManifest", () => {
                 [
                     {
                         fm: { type: "creature", shortcode: "wolf" },
+                        system: "sohl",
                         name: "Wolf",
                         uuid: "Compendium.sohl-adventure.items.Item.abc",
                     },
@@ -168,7 +198,7 @@ describe("buildManifest", () => {
                 "sohl-adventure",
             ),
         );
-        const e = doc.entries["adventure-creature-wolf"];
+        const e = doc.entries["adventure-sohl-creature-wolf"];
         expect(e).toEqual({
             name: "Wolf",
             uuid: "Compendium.sohl-adventure.items.Item.abc",
@@ -206,7 +236,7 @@ describe("buildManifest", () => {
                 "/",
             ),
         );
-        expect(Object.keys(doc.entries)).toEqual(["sohl-skill-alpha", "sohl-skill-zeta"]);
+        expect(Object.keys(doc.entries)).toEqual(["sohl-sohl-skill-alpha", "sohl-sohl-skill-zeta"]);
     });
 });
 
@@ -352,7 +382,7 @@ describe("loadForeignManifests", () => {
             package: "adventure",
             foundryPackage: "sohl-adventure",
             entries: {
-                "adventure-creature-wolf": {
+                "adventure-sohl-creature-wolf": {
                     name: "Wolf",
                     uuid: "Compendium.sohl-adventure.items.Item.abc",
                 },
@@ -361,14 +391,14 @@ describe("loadForeignManifests", () => {
         const r = loadForeignManifests(dir, ["sohl"]);
         expect(r.stale).toHaveLength(0);
         expect(r.packages.has("adventure")).toBe(true);
-        expect(r.index.get("adventure-creature-wolf")).toMatchObject({
+        expect(r.index.get("adventure-sohl-creature-wolf")).toMatchObject({
             name: "Wolf",
             uuid: "Compendium.sohl-adventure.items.Item.abc",
             package: "adventure",
         });
         // No page exists, so no URL is asserted — a consumer must tolerate it
         // rather than emit an href it invented.
-        const hit = r.index.get("adventure-creature-wolf") as {
+        const hit = r.index.get("adventure-sohl-creature-wolf") as {
             url?: string;
         };
         expect(hit.url).toBeUndefined();
@@ -382,8 +412,8 @@ describe("loadForeignManifests", () => {
             version: MANIFEST_VERSION,
             package: "elsewhere",
             entries: {
-                "elsewhere-creature-x": { name: "X" },
-                "elsewhere-creature-y": { path: "creature/y/", name: "Y" },
+                "elsewhere-sohl-creature-x": { name: "X" },
+                "elsewhere-sohl-creature-y": { path: "creature/y/", name: "Y" },
             },
         });
         const r = loadForeignManifests(dir, ["sohl"]);
@@ -394,13 +424,22 @@ describe("loadForeignManifests", () => {
         });
     });
 
-    it("reads an older version whose shape it can still honour", () => {
-        // v5 only *permits* an absent `path`; every v4 value still reads the
-        // same way. Refusing v4 would force every package to re-emit on the
-        // same day for no gain (#1516).
-        expect(READABLE_VERSIONS).toContain(4);
+    it("reads only the current version, because an older one's keys no longer parse", () => {
+        // The inversion of the #1516 case, and for the reason a version gate
+        // exists at all. v5 was readable because it only *permitted* an absent
+        // `path`, so every v4 value still meant what it had meant. #59 changed
+        // what a value *means*: a key gained a system segment, so every v5 key
+        // is three segments where `readCanonicalKey` now requires four.
+        //
+        // Tolerating such a file would not yield older links — it would yield
+        // *no* links at all, silently, for every entry it holds, because each
+        // key fails to parse one at a time and nothing reports it. Rejecting
+        // the file converts that into the one stale-manifest error the
+        // consumer already knows how to surface.
+        expect(READABLE_VERSIONS).toEqual([MANIFEST_VERSION]);
+        expect(READABLE_VERSIONS).not.toContain(MANIFEST_VERSION - 1);
         write("thalorna", {
-            version: 4,
+            version: MANIFEST_VERSION - 1,
             package: "thalorna",
             entries: {
                 "thalorna-creature-grkrahk": {
@@ -410,8 +449,27 @@ describe("loadForeignManifests", () => {
             },
         });
         const r = loadForeignManifests(dir, ["sohl"]);
+        expect(r.stale).toHaveLength(1);
+        expect(r.stale[0]).toMatchObject({ package: "thalorna" });
+        expect(r.index.size).toBe(0);
+    });
+
+    it("resolves a current-version manifest keyed with the system segment", () => {
+        // The positive half of the case above: the same entry, re-emitted at
+        // the current version with its `<system>` segment, resolves exactly as
+        // the v4 file used to.
+        write(
+            "thalorna",
+            thalorna({
+                "thalorna-sohl-creature-grkrahk": {
+                    path: "creature/grukar-ahk/",
+                    name: "Grukar-ahk",
+                },
+            }),
+        );
+        const r = loadForeignManifests(dir, ["sohl"]);
         expect(r.stale).toHaveLength(0);
-        expect(r.index.get("thalorna-creature-grkrahk")).toMatchObject({
+        expect(r.index.get("thalorna-sohl-creature-grkrahk")).toMatchObject({
             url: "/thalorna/creature/grukar-ahk/",
         });
     });
@@ -437,7 +495,7 @@ describe("writeManifests", () => {
             { thalorna: "/" },
         );
         const r = loadForeignManifests(dir, ["sohl"], PACKAGE_BASE);
-        expect(r.index.get("thalorna-creature-grkrahk")).toMatchObject({
+        expect(r.index.get("thalorna-sohl-creature-grkrahk")).toMatchObject({
             url: "/thalorna/creature/grukar-ahk/",
             name: "Grukar-ahk",
             // Read back off the canonical key, so a consumer can recognise a
@@ -453,6 +511,7 @@ describe("writeManifests", () => {
                 [
                     {
                         fm: { type: "creature", shortcode: "grkrahk" },
+                        system: "sohl",
                         name: "Grukar-ahk",
                         url: "/creature/grukar-ahk/",
                         uuid: "Compendium.sohl-thalorna.actors.Actor.abcdefabcdef0123",
@@ -463,7 +522,7 @@ describe("writeManifests", () => {
             ),
         );
         expect(doc.foundryPackage).toBe("sohl-thalorna");
-        expect(doc.entries["thalorna-creature-grkrahk"].uuid).toBe(
+        expect(doc.entries["thalorna-sohl-creature-grkrahk"].uuid).toBe(
             "Compendium.sohl-thalorna.actors.Actor.abcdefabcdef0123",
         );
     });
@@ -479,7 +538,7 @@ describe("writeManifests", () => {
                 "sohl",
             ),
         );
-        expect(doc.entries["sohl-skill-climb"].uuid).toBeUndefined();
+        expect(doc.entries["sohl-sohl-skill-climb"].uuid).toBeUndefined();
     });
 
     it("points an item at its documentation by address, not by a second UUID", () => {
@@ -489,13 +548,14 @@ describe("writeManifests", () => {
                 [
                     {
                         fm: { type: "skill", shortcode: "wpnc" },
+                        system: "sohl",
                         name: "Weaponcraft",
                         url: "/skill/weaponcraft/",
                         uuid: "Compendium.sohl.items.Item.aaaaaaaaaaaaaaaa",
-                        doc: "sohl-docskill-wpnc",
+                        doc: "sohl-none-docskill-wpnc",
                     },
                     {
-                        key: "sohl-docskill-wpnc",
+                        key: "sohl-none-docskill-wpnc",
                         fm: { type: "skill", shortcode: "wpnc" },
                         name: "Weaponcraft",
                         url: "/skill/weaponcraft/",
@@ -510,9 +570,9 @@ describe("writeManifests", () => {
             ),
         );
         // The doc entry owns its UUID; the item names it by address.
-        expect(doc.entries["sohl-skill-wpnc"].doc).toBe("sohl-docskill-wpnc");
-        expect(doc.entries["sohl-skill-wpnc"]).not.toHaveProperty("docUuid");
-        expect(doc.entries["sohl-docskill-wpnc"].uuid).toBe(
+        expect(doc.entries["sohl-sohl-skill-wpnc"].doc).toBe("sohl-none-docskill-wpnc");
+        expect(doc.entries["sohl-sohl-skill-wpnc"]).not.toHaveProperty("docUuid");
+        expect(doc.entries["sohl-none-docskill-wpnc"].uuid).toBe(
             "Compendium.sohl.journals.JournalEntry.bbbbbbbbbbbbbbbb",
         );
     });
@@ -523,7 +583,7 @@ describe("writeManifests", () => {
                 "sohl",
                 [
                     {
-                        key: "sohl-doc-being",
+                        key: "sohl-none-doc-being",
                         fm: { type: "doc", shortcode: "being" },
                         name: "Being",
                         url: "/rules/being/",
@@ -541,10 +601,10 @@ describe("writeManifests", () => {
         );
         // Whole, not a fragment: a consumer never concatenates, and an anchor is
         // not required to live inside its own entry.
-        expect(doc.entries["sohl-doc-being"].anchors?.["shock-test"]).toBe(
+        expect(doc.entries["sohl-none-doc-being"].anchors?.["shock-test"]).toBe(
             "Compendium.sohl.journals.JournalEntry.dddddddddddddddd.JournalEntryPage.eeeeeeeeeeeeeeee",
         );
-        expect(doc.entries["sohl-skill-climb"]).not.toHaveProperty("anchors");
+        expect(doc.entries["sohl-sohl-skill-climb"]).not.toHaveProperty("anchors");
     });
 });
 

@@ -118,7 +118,7 @@ export function formatUnaddressableFinding(finding, manifestDir) {
         severity: "error",
         message:
             "no key in this manifest is a canonical " +
-            `\`package-type-shortcode\` address (${finding.entries} ` +
+            `\`package-system-type-shortcode\` address (${finding.entries} ` +
             `${finding.entries === 1 ? "entry" : "entries"}, none addressable; ` +
             `first is \`${finding.sampleKey}\`) — every cross-package link to ` +
             `${finding.package} would resolve to nothing, silently`,

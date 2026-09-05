@@ -70,6 +70,7 @@ import path from "node:path";
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
+import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
 
 /**
  * The two kinds of Foundry package a content module can be built into. The
@@ -754,28 +755,37 @@ function requireNonEmptyString(value, field) {
  * The `contentPackage`, checked against the two rules an address puts on it.
  *
  * It is the first segment of every canonical address this repository publishes
- * (`sohl-skill-clmb`), and an address is read by counting hyphen-separated
- * segments. So the value carries two obligations that the rest of the
- * configuration does not, and #59 asks for both to be **enforced rather than
- * assumed** — the alternative is a package whose addresses are simply
- * unreadable, reported nowhere and discovered as links that resolve to nothing.
+ * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), and an address is
+ * read by counting hyphen-separated segments. So the value carries two
+ * obligations that the rest of the configuration does not, and #59 asks for
+ * both to be **enforced rather than assumed** — the alternative is a package
+ * whose addresses are simply unreadable, reported nowhere and discovered as
+ * links that resolve to nothing.
  *
  * 1. _Alphanumeric_, so the hyphen stays purely a separator. `harn-adventures`
- *    was the one violator, and its keys read as four segments and failed as a
- *    `null` return from `readCanonicalKey` — a silence, not an error.
- * 2. _Not a note type_, because the package and the type are adjacent segments
- *    drawn from two vocabularies. Keeping them disjoint is what lets a reader
- *    take a name at face value instead of deciding which slot it is filling.
+ *    was the one violator, and its keys read as one segment too many and failed
+ *    as a `null` return from `readCanonicalKey` — a silence, not an error.
+ * 2. _Not a note type_, because a written address is a **partial** one: the
+ *    shorter forms drop segments from the left, so `skill-clmb` and
+ *    `sohl-skill-clmb` are both addresses and position alone no longer says
+ *    which vocabulary a leading segment is drawn from. The reader decides that
+ *    by asking whether the name is a known package, and a name in both
+ *    vocabularies makes one target readable two ways with no defensible pick.
+ *    Keeping the two disjoint is what lets a name be taken at face value; that
+ *    the package and the type are no longer *adjacent* segments (#59 put the
+ *    system between them) changes nothing, because the hazard was never
+ *    adjacency — it is that a short form omits the slots in between.
  *    One such collision is structural and cannot be fixed — `sohl` is both a
  *    content package and a system id, because Foundry requires a system
- *    package's id to *be* its system id — which is the reason to prevent the
- *    ones that are avoidable.
+ *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
+ *    honest address that results — which is the reason to prevent the ones that
+ *    are avoidable.
  *
  * @param {unknown} value - The configured `contentPackage`.
  * @param {ReadonlySet<string>} docEntryTypes - Every type whose prose compiles
  *   to a documentation entry: the item types plus `macro` and the map types.
- *   With {@link PACK_BY_TYPE} and the `doc`-prefixed forms, this is the whole
- *   type vocabulary an address may write.
+ *   With {@link PACK_BY_TYPE}, {@link NOTE_VOCABULARY} and the `doc`-prefixed
+ *   forms, this is the whole type vocabulary an address may write.
  * @returns {string} The value, unchanged.
  */
 function requireContentPackage(value, docEntryTypes) {
@@ -785,14 +795,25 @@ function requireContentPackage(value, docEntryTypes) {
             "contentPackage",
             `is \`${pkg}\`, which is not alphanumeric. It is the first ` +
                 `segment of every address this package publishes ` +
-                `(\`${pkg}-<type>-<shortcode>\`), and an address is read by ` +
+                `(\`${pkg}-<system>-<type>-<shortcode>\`), and an address is read by ` +
                 `counting hyphen-separated segments — so anything outside ` +
                 "`[A-Za-z0-9]` here makes those addresses unreadable rather " +
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
+    // The closed vocabulary is read alongside the configured registries, not
+    // instead of them, because neither is a superset of the other. The format's
+    // vocabulary holds every type a note may declare *however this repository
+    // is configured* — the reasoning `KNOWN_DOCUMENT_SUBTYPE_MAPS` already
+    // states — so `skill` and `bundle` are type names in a repository that
+    // declares no `itemBuilders`, where `docEntryTypes` alone would have let
+    // either through. The registries hold whatever a consumer declares beyond
+    // it. The `doc`-prefixed forms follow the registry, since a type that
+    // compiles no documentation entry has no `doc`-prefixed address to collide
+    // with.
     const typeNames = new Set([
         ...Object.keys(PACK_BY_TYPE),
+        ...Object.keys(NOTE_VOCABULARY),
         ...docEntryTypes,
         ...[...docEntryTypes].map((type) => `doc${type}`),
     ]);
@@ -800,10 +821,10 @@ function requireContentPackage(value, docEntryTypes) {
         fail(
             "contentPackage",
             `is \`${pkg}\`, which is also a note type — \`${pkg}-<shortcode>\` ` +
-                "already addresses one. The package and the type are adjacent " +
-                "segments of an address, and the two vocabularies are kept " +
-                "disjoint so a reader never has to decide which slot a name " +
-                "is filling. Rename the package",
+                "already addresses one. A written address may omit its leading " +
+                `segments, so \`${pkg}-<shortcode>\` reads as a type and a ` +
+                "shortcode and nothing but the two vocabularies being disjoint " +
+                "says which slot the name is filling. Rename the package",
         );
     }
     return pkg;

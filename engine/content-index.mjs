@@ -75,7 +75,7 @@ import { canonicalKey } from "./kb-manifest.mjs";
 // builds that emit a link (#243). Re-exported because this is where callers
 // have always addressed it.
 import { collectAnchors } from "./anchors.mjs";
-import { subtypeRow } from "./document-subtypes.mjs";
+import { subtypeRow, NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 
 /**
@@ -87,7 +87,6 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
  *
  * @type {string}
  */
-const NO_SYSTEM = "none";
 
 export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
@@ -127,14 +126,18 @@ export const DERIVED_KEYS = Object.freeze([
  *
  * A wikilink target is an address: `being-aurochs` locally, or
  * `sohl-being-aurochs` from another package (`readQualifier` also accepts
- * `being/aurochs`, the same two fields with a different separator). Both forms
- * are already derivable from `type` and `shortcode`, which every record
- * carries — so this field adds no information. What it adds is the *rule*:
- * the lowercasing and the hyphen join live in one place, and a consumer that
- * reimplements them slightly differently gets a lookup that matches nothing and
- * says nothing about why. That is a real failure, not a hypothetical one — it
- * is precisely how a resolver keyed on a bare `type/shortcode` silently misses
- * every canonical `pkg-type-shortcode` entry.
+ * `being/aurochs`, the same two fields with a different separator). Both are
+ * *partial* addresses — the canonical one this field records is
+ * `sohl-sohl-being-aurochs`, and a target that omits the system is matched
+ * with that segment wildcarded. Every form is already derivable from `type` and
+ * `shortcode`, which every record carries, plus the system the type compiles
+ * into — so this field adds no information. What it adds is the *rule*: the
+ * lowercasing, the hyphen join and the system lookup live in one place, and a
+ * consumer that reimplements them slightly differently gets a lookup that
+ * matches nothing and says nothing about why. That is a real failure, not a
+ * hypothetical one — it is precisely how a resolver keyed on a bare
+ * `type/shortcode` silently misses every canonical
+ * `pkg-system-type-shortcode` entry.
  *
  * Derived by the same functions the link manifest and the site build use, so an
  * index cannot disagree with either about where a note lives.
@@ -142,8 +145,8 @@ export const DERIVED_KEYS = Object.freeze([
  * @param {Record<string, any>} frontmatter - The note's parsed frontmatter.
  * @param {string} contentPackage - The package the tree compiles as.
  * @returns {{slug: string, canonical: string}|null} `slug` is what goes inside
- *   `[[…]]` within this package; `canonical` is the package-qualified key the
- *   manifest files the note under. `null` for a note with no type or no
+ *   `[[…]]` within this package; `canonical` is the fully qualified key the
+ *   manifest files the note under, carrying the package and the system as well. `null` for a note with no type or no
  *   shortcode, which has no address at all and is stated as such rather than
  *   left for every reader to rediscover.
  */
@@ -159,7 +162,12 @@ export function noteAddress(frontmatter, contentPackage) {
     }
     return {
         slug,
-        canonical: canonicalKey(contentPackage, frontmatter.type, frontmatter.shortcode),
+        canonical: canonicalKey(
+            contentPackage,
+            systemOf(frontmatter.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+            frontmatter.type,
+            frontmatter.shortcode,
+        ),
     };
 }
 
@@ -342,30 +350,6 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
  * @returns {object|null} `{ [system]: { uuid?, anchors? } }`, or null when it
  *   addresses nothing.
  */
-/**
- * The system whose document this note's own type compiles into.
- *
- * The vocabulary is the specification's: `sohl`, `hm3`, and **`none`** for a
- * note that belongs to no system — the same value the canonical address carries
- * in its `<system>` segment (`harnadventures-none-being-grod`). A `place`, a
- * `doc`, a `macro` or a map compiles into a JournalEntry, a Macro or a Scene
- * that belongs to the *note format* rather than to a game system, and `none` is
- * what the format calls that, so it is what this returns rather than an absence.
- *
- * Naming it means every record answers the question the same way. An unkeyed
- * block would make "belongs to no system" and "nobody filled this in" the same
- * shape, which is the distinction the whole artifact exists to keep.
- *
- * @param {string} type - The note's `type`.
- * @param {readonly object[]} maps - The document-subtype maps this build ships.
- * @returns {string} The system id, or `"none"`.
- */
-function systemOf(type, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS) {
-    for (const map of maps ?? []) {
-        if (subtypeRow(map, type)) return map.system;
-    }
-    return NO_SYSTEM;
-}
 
 function foundryBlock(entry, system) {
     if (!entry) return null;
@@ -413,7 +397,10 @@ export function buildIndexRecord({
                 ...a,
                 link: address ? `${address.slug}#${a.slug}` : null,
             })),
-            foundry: foundryBlock(entries?.own, systemOf(frontmatter?.type)),
+            foundry: foundryBlock(
+                entries?.own,
+                systemOf(frontmatter?.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+            ),
             // Forward link to the note's documentation journal, which is its
             // own record. Named rather than nested, because the journal is a
             // separate document with its own address — see `buildDocRecord`.

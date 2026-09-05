@@ -43,9 +43,10 @@
 // name (#1409).
 import { readQualifier } from "./wikilinks.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
-// The canonical `package-type-shortcode` key, so a package-qualified address
-// is looked up the way a vendored manifest publishes it.
-import { canonicalKey } from "./kb-manifest.mjs";
+// The canonical `package-system-type-shortcode` key, so a package-qualified
+// address is matched the way a vendored manifest publishes it — by the
+// segments the target supplies, with the system wildcarded unless stated (#59).
+import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
 // The one rule about a link's shape both builds share: it carries a label, and
 // {@link unlabelledLinkMessage} is the one place that says so (#180).
 import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
@@ -84,14 +85,32 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  * @param {object|null} read - From {@link readQualifier}.
  * @returns {string | null} The index key, or `null` when not an address.
  */
-function keyOfRead(read) {
-    if (!read || read.reason) return null;
-    // A package-qualified address keeps its package: the canonical key is what
-    // a vendored manifest publishes, and dropping the segment would resolve
-    // another package's address against this one's short key.
-    return read.package ?
-            canonicalKey(read.package, read.type, read.shortcode)
-        :   `${read.type}/${read.shortcode}`.toLowerCase();
+function lookupRead(index, read) {
+    if (!read || read.reason) return undefined;
+    // An unqualified address stays the system-blind short key, which is the
+    // wildcard an author writing `[[skill-melee]]` means, and resolves within
+    // this package only.
+    if (!read.package) return index.get(`${read.type}/${read.shortcode}`.toLowerCase());
+
+    // A package-qualified one is matched by the segments it supplies, with the
+    // system wildcarded unless stated (#59) — an exact `get` cannot express
+    // that, and would silently miss every address whose system it did not
+    // guess. Exactly one hit resolves; two are an ambiguity for the caller to
+    // report rather than a pick to make here.
+    const type = String(read.type).toLowerCase();
+    const shortcode = String(read.shortcode).toLowerCase();
+    const pkg = String(read.package).toLowerCase();
+    let found;
+    for (const [key, value] of index) {
+        const parts = readCanonicalKey(key);
+        if (!parts) continue;
+        if (parts.package !== pkg) continue;
+        if (read.system && parts.system !== String(read.system).toLowerCase()) continue;
+        if (parts.type !== type || parts.shortcode !== shortcode) continue;
+        if (found) return undefined;
+        found = value;
+    }
+    return found;
 }
 
 /**
@@ -242,8 +261,10 @@ function isPlainMap(value) {
  *
  * **Every target is an address**, parsed by {@link readQualifier} and looked up
  * case-insensitively in the KB-wide `ctx.index` (the canonical
- * `package-type-shortcode`, `type/shortcode`, and the site's own
- * `section/slug`), then in the vendored `ctx.foreign` manifests. A link written
+ * `package-system-type-shortcode`, `type/shortcode`, and the site's own
+ * `section/slug`), then in the vendored `ctx.foreign` manifests. A target is a
+ * *partial* address: an omitted package means this package, an omitted system
+ * is a wildcard, and exactly one match resolves — two are `ambiguous`. A link written
  * without a label addresses nothing at all and is reported as such (#180) —
  * there is no second namespace left for it to name.
  *
@@ -343,10 +364,9 @@ export function resolveWebWikilinks(body, ctx) {
         // recognised. `null` here means the target is not an address at all,
         // which is a defect: there is no other namespace to try.
         const read = readQualifier(target, ctx.contentTypes ?? new Set(), ctx.packages);
-        const hyphenKey = keyOfRead(read);
         const rawKey = target.toLowerCase();
         const hit =
-            (hyphenKey ? ctx.index.get(hyphenKey) : undefined) ??
+            lookupRead(ctx.index, read) ??
             // `section/slug` is the site's own address for a page, and it is in
             // the same map. Admitted only when the target carries a slash, so
             // a page's bare slug cannot answer for an address.
@@ -355,7 +375,7 @@ export function resolveWebWikilinks(body, ctx) {
             // local one (#1446), so a cross-package hit needs no special case
             // below. Local wins: a live build is authoritative and a vendored
             // manifest can only be staler.
-            (hyphenKey ? ctx.foreign?.get(hyphenKey) : undefined);
+            (ctx.foreign ? lookupRead(ctx.foreign, read) : undefined);
         if (hit) {
             // An address with an *empty* label has no prose to show (a
             // shortcode is not display text), so the document's **current**
@@ -384,7 +404,7 @@ export function resolveWebWikilinks(body, ctx) {
         // above already consulted. It parses as no `type/shortcode`, but it did
         // address something and nothing answered — so it is unresolved, not
         // unaddressable. (A prefix that is a content *type* never reaches here:
-        // it yields a `hyphenKey`.)
+        // it parses as an address.)
         const siteAddress = prefix !== null && ctx.sections.has(prefix);
 
         // **An address resolving nowhere is a failure, unconditionally** (#184).
@@ -401,9 +421,19 @@ export function resolveWebWikilinks(body, ctx) {
         // manifest calls for is in the message instead — {@link
         // unresolvedAddressMessage} names both corrections — which informs the
         // author without excusing the link.
+        // The bucket an ambiguity is recorded under is the *short* address —
+        // the only form two packages can collide on, since a qualified one
+        // names its package. A qualified target that matched more than one
+        // document is reported by the matcher instead, not by this set.
+        const collideKey =
+            read && !read.reason && !read.package ?
+                `${read.type}/${read.shortcode}`.toLowerCase()
+            :   rawKey;
         const reason =
-            ctx.collide?.has(hyphenKey ?? rawKey) ? "ambiguous"
-            : hyphenKey !== null || siteAddress ? "unresolved"
+            ctx.collide?.has(collideKey) ? "ambiguous"
+                // "It parsed as an address" is a property of the parse, not of
+                // a key: a partial address has no single key to be non-null.
+            : (read && !read.reason) || siteAddress ? "unresolved"
             : read?.reason === "unknown-type" ? "unknown-type"
                 // Every link is an address, and this is not one. Distinct from
                 // a dead address, because the fix is different: a name has to

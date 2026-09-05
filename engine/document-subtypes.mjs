@@ -65,6 +65,9 @@
  */
 
 import { assertTypeNotRetired } from "./ids.mjs";
+import { NO_SYSTEM } from "./systems.mjs";
+
+export { NO_SYSTEM };
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
@@ -437,4 +440,27 @@ function list(values) {
     const quoted = values.map((value) => `"${value}"`);
     if (quoted.length <= 1) return quoted.join("");
     return `${quoted.slice(0, -1).join(", ")} or ${quoted[quoted.length - 1]}`;
+}
+
+/**
+ * Which system defines the document a note of this type compiles into.
+ *
+ * A journal, a macro, a scene and an item's documentation journal belong to no
+ * system and answer {@link NO_SYSTEM}; an item or an actor belongs to whichever
+ * system's map claims its note type.
+ *
+ * `maps` is required rather than defaulted, so this stays reachable from any
+ * pass: the registry of maps lives in `note-claims.mjs`, which imports half the
+ * engine, and defaulting to it here would drag that in wherever an address is
+ * built.
+ *
+ * @param {string} type - The note's `type`.
+ * @param {readonly object[]} maps - The document-subtype maps this build ships.
+ * @returns {string} The system id, or {@link NO_SYSTEM}.
+ */
+export function systemOf(type, maps) {
+    for (const map of maps ?? []) {
+        if (subtypeRow(map, type)) return map.system;
+    }
+    return NO_SYSTEM;
 }

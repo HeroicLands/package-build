@@ -462,7 +462,10 @@ describe("addresses are keyed from the configuration alone", () => {
             path.join(root, "assets/content"),
             manifestContext(configFor(root)),
         );
-        expect(entries.map((e: any) => e.key)).toContain(`${OWN}-skill-clmb`);
+        // The manifest key is the *full* canonical address, so it carries the
+        // system segment (#59) — unlike the wikilink form above, which is a
+        // partial address and names no system.
+        expect(entries.map((e: any) => e.key)).toContain(`${OWN}-sohl-skill-clmb`);
     });
 
     it("refuses a manifest note that declares the field", () => {

@@ -55,11 +55,13 @@
  *
  * **A type name and a subType value are held to the address charset** (#206), so
  * both are `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states
- * and the shortcode is already held to. For a type that is literal: it is the
- * first segment of every address (`type-shortcode`), the hyphen is the
- * separator between segments and can therefore never occur inside one, and a
- * hyphenated name would be read back as two segments and resolve to nothing,
- * reporting nothing about why.
+ * and the shortcode is already held to. For a type that is literal: it is a
+ * segment of every address — the first of the short form an author writes
+ * (`type-shortcode`), the third of the canonical
+ * `package-system-type-shortcode` — the hyphen is the separator between
+ * segments and can therefore never occur inside one, and a hyphenated name
+ * would be read back as two segments and resolve to nothing, reporting nothing
+ * about why.
  *
  * A subType reaches no address of its own. It did when this rule was written —
  * a `doc`'s was its section, a path segment — and #204 retired sections from
@@ -911,9 +913,9 @@ export function typeCharsetMessage(type) {
     return (
         `content type "${type}" is not an address segment — a type is letters ` +
         `and digits only (${ADDRESS_SEGMENT_PATTERN.source}), the same charset ` +
-        `a shortcode is held to. A type is the first segment of every address ` +
-        `("type-shortcode"), so a hyphenated one is read back as two segments ` +
-        `and resolves to nothing`
+        `a shortcode is held to. A type is a segment of every address, and the ` +
+        `first of the short form an author writes ("type-shortcode"), so a ` +
+        `hyphenated one is read back as two segments and resolves to nothing`
     );
 }
 

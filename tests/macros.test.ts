@@ -343,10 +343,17 @@ describe("wikilinks to a macro and to its documentation", () => {
 });
 
 describe("`docmacro` is synthesized, never a real type", () => {
-    /** A foreign manifest publishing a macro and its documentation. */
+    /**
+     * A foreign manifest publishing a macro and its documentation.
+     *
+     * Both keyed `none` (#59): a Macro and a JournalEntry are Foundry's own
+     * documents, which no game system defines. The link below states no system
+     * at all, because a wikilink is a *partial* address — it names the segments
+     * an author knows and is matched on those.
+     */
     const foreign = new Map([
         [
-            "thalorna-macro-summon",
+            "thalorna-none-macro-summon",
             {
                 name: "Summon",
                 type: "macro",
@@ -355,7 +362,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
             },
         ],
         [
-            "thalorna-docmacro-summon",
+            "thalorna-none-docmacro-summon",
             {
                 name: "Summon",
                 type: "docmacro",

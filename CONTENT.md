@@ -186,11 +186,27 @@ something migrates on it.
 ### A note's package is the repository's, not the note's
 
 `contentPackage` is the **address namespace** every note in the tree is
-published under: the first segment of every canonical key (`sohl-skill-clmb`),
-the name of the link manifest this build emits (`sohl.json`), and the package a
-cross-package wikilink writes to reach one of these notes. It is the
-repository's identity in the address space — not a filter — and a note does not
-restate it.
+published under: the first segment of every canonical key, the name of the link
+manifest this build emits (`sohl.json`), and the package a cross-package
+wikilink writes to reach one of these notes. It is the repository's identity in
+the address space — not a filter — and a note does not restate it.
+
+A canonical key has four segments, read by position:
+
+```text
+<package>-<system>-<type>-<shortcode>
+```
+
+`<system>` is a game system this toolchain compiles for — `sohl` or `hm3` — or
+the literal `none` for a document no game system defines: a JournalEntry, a
+Macro, a Scene, and an item's documentation journal, which is `none` however
+many system blocks the item itself carries. The registry of permitted values is
+`engine/systems.mjs`, and `none` is a **word** on purpose: `any` would read as a
+wildcard, which is the opposite of what it says, and a YAML null (`null`, `~`,
+an empty value) parses to an absent value and drops the segment altogether. So
+`sohl-none-doc-gear`, `sohl-sohl-skill-clmb` — the package and the system are
+independent slots that may hold the same word, because Foundry requires a system
+package's id to _be_ its system id.
 
 Because it is a segment of an address, the value is **validated** rather than
 taken as written, and a violation fails the build naming the line it is on:
@@ -199,14 +215,20 @@ taken as written, and a violation fails the build naming the line it is on:
   hyphen-separated segments, so the hyphen has to be purely a separator — which
   is why `harn-adventures` is configured as `harnadventures`. This is the same
   rule `shortcode` is already held to, and the two are one constant.
-- **Not a note type.** The package and the type are adjacent segments, and the
-  two vocabularies are kept disjoint so a reader never has to decide which slot
-  a name is filling. `doc`, `being`, every map type, and every item type this
+- **Not a note type.** A written address is a _partial_ one — the shorter forms
+  drop segments from the left, so `skill-clmb` and `sohl-skill-clmb` are both
+  addresses — and position alone therefore no longer says which vocabulary a
+  leading segment is drawn from. The reader settles that by asking whether the
+  name is a known package, so a name belonging to both vocabularies makes one
+  target readable two ways with no defensible pick. The package and the type are
+  no longer _adjacent_ segments now that the system sits between them, and that
+  changes nothing: the hazard was never adjacency, it is that a short form omits
+  the slots in between. `doc`, `being`, every map type, and every item type this
   repository declares — with its `doc`-prefixed documentation form — are
   refused.
 
 ```text
-package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
 ```
 
 **`package:` in a note's frontmatter is retired, and declaring it fails the
@@ -929,10 +951,11 @@ mode rather than by kind — so `subType` on one is a finding; a `skill` declare
 ten, so `subType: crafte` is a finding naming `craft`.
 
 **A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** (#206) — the same
-constant a `shortcode` is held to, read rather than restated. A type is the
-first segment of every address, so a hyphen in one is read back as a segment
-boundary nobody wrote. A `subType` reaches no address since #204 retired
-sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
+constant a `shortcode` is held to, read rather than restated. A type is a
+segment of every address — the first of the short form an author writes, the
+third of the canonical `package-system-type-shortcode` — so a hyphen in one is
+read back as a segment boundary nobody wrote. A `subType` reaches no address
+since #204 retired sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
 on, and one charset that holds for every term is a rule an author can state. The
 rule is checked ahead of the closed-set check, which is what makes it reach a
 type whose values are declared but not yet enumerated:
@@ -1361,7 +1384,7 @@ npx content-build manifest --out tmp/   # or somewhere else
 ```
 
 Writes `<contentPackage>.json` naming every note this package publishes, keyed by
-the canonical `package-type-shortcode` address and valued with every address that
+the canonical `package-system-type-shortcode` address and valued with every address that
 note has: a `path` on the web, a `uuid` in Foundry, the `anchors` its named
 sections compiled to, and a `doc` pointer where an item's prose compiles into a
 JournalEntry of its own. A consuming build vendors the file into its own
@@ -1402,6 +1425,14 @@ writing.
 `content-build lint` enforces — so the URL is **unique by construction**. There
 is no collision check behind it, there never can be one to fail, and renaming a
 note changes nothing: no part of the address comes from a display string.
+
+**A URL carries no `<system>` segment**, though the canonical address does. That
+is deliberate rather than an omission: a note publishes one page however many
+systems' documents it compiles into, so the segment would have nothing to
+distinguish and would only split one page's URL in two. The canonical address
+names a _document_; a URL names a _page_. So a consumer deriving a page address
+from a manifest key drops the package **and** the system, not the package
+alone.
 
 It used to come from `name.full`. That made a display name load-bearing three
 ways at once — a rename silently 404'd every inbound link, two notes in one
@@ -1555,7 +1586,7 @@ A record states the address a wikilink writes to reach the note, and every
 
 ```json
 {
-  "address": { "slug": "being-aurochs", "canonical": "sohl-being-aurochs" },
+  "address": { "slug": "being-aurochs", "canonical": "sohl-sohl-being-aurochs" },
   "file": { "path": "Bestiary/Animal/Aurochs.md", "folder": "Bestiary/Animal", "name": "Aurochs" },
   "anchors": [
     {
@@ -1617,18 +1648,22 @@ first. An entry that is not a non-empty string is dropped rather than left as a
 hole, since the array is a set of names to match and a null is not one.
 
 `address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
-is the package-qualified key the link manifest files the note under. Both are
-`null` for a note with no type or no shortcode, which has no address at all — the
-record says so rather than leaving each reader to rediscover the rule.
+is the fully qualified key the link manifest files the note under, carrying the
+package and the system as well. The slug is the canonical key's **last two
+segments**, not its whole tail: a page has no system to name, so the two forms
+diverge by that segment rather than one trailing the other. Both are `null` for a
+note with no type or no shortcode, which has no address at all — the record says
+so rather than leaving each reader to rediscover the rule.
 
-**Neither is new information** — both derive from `type` and `shortcode`, which
-every record already carries. What the fields add is the _rule_: the lowercasing
+**Neither is new information** — the slug derives from `type` and `shortcode`,
+which every record already carries, and the canonical key adds only the system
+those two already imply. What the fields add is the _rule_: the lowercasing
 and the hyphen join live in one place, derived by the same `addressSlug` and
 `canonicalKey` the manifest and the site build use, so an index cannot disagree
 with either about where a note lives. A consumer that reimplements the join
 slightly differently gets a lookup matching nothing and no explanation — which is
 exactly how a resolver keyed on a bare `type/shortcode` silently misses every
-canonical `pkg-type-shortcode` entry.
+canonical `pkg-system-type-shortcode` entry.
 
 **Anchors make a link checkable without a build.** Because the index states every
 anchor a note defines, `[[being-aurochs#dossier]]` can be confirmed — or shown

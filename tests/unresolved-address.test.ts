@@ -51,6 +51,7 @@ import {
 import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
 import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
 import { convertNoteWikilinks } from "../engine/helpers.mjs";
+import { MANIFEST_VERSION } from "../engine/kb-manifest.mjs";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const BIN = path.join(HERE, "..", "bin", "content-build.mjs");
@@ -104,13 +105,27 @@ function mapValues(docs: Record<string, unknown>): Record<string, string> {
     );
 }
 
-/** A pack-only manifest: Foundry addresses and no pages, so it needs no base. */
-function packOnlyManifest(pkg: string, type: string, shortcode: string, name: string) {
+/**
+ * A pack-only manifest: Foundry addresses and no pages, so it needs no base.
+ *
+ * Emitted at the *current* format version, because only the current one is
+ * readable: #59 put a `<system>` segment into every key, so an older file's
+ * three-segment keys no longer parse and the whole manifest is rejected rather
+ * than silently resolving nothing. The entry is an Item the `sohl` system
+ * defines, so `sohl` is what its key says.
+ */
+function packOnlyManifest(
+    pkg: string,
+    type: string,
+    shortcode: string,
+    name: string,
+    system = "sohl",
+) {
     return {
-        version: 5,
+        version: MANIFEST_VERSION,
         package: pkg,
         entries: {
-            [`${pkg}-${type}-${shortcode}`]: {
+            [`${pkg}-${system}-${type}-${shortcode}`]: {
                 name,
                 uuid: `Compendium.sohl-${pkg}.items.Item.aaaaaaaaaaaaaaa1`,
             },
@@ -257,11 +272,11 @@ describe("the pack build fails an address that resolves to no note", () => {
     it("reports an address two foreign packages both publish as ambiguous", () => {
         const foreign = new Map<string, object>([
             [
-                "thalorna-creature-wolf",
+                "thalorna-sohl-creature-wolf",
                 { name: "Dire Wolf", type: "creature", package: "thalorna", uuid: "C.a.b.Item.c" },
             ],
             [
-                "kethira-creature-wolf",
+                "kethira-sohl-creature-wolf",
                 { name: "Grey Wolf", type: "creature", package: "kethira", uuid: "C.a.b.Item.d" },
             ],
         ]);

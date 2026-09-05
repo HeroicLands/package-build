@@ -20,8 +20,17 @@
  * - `readCanonicalKey` counts segments against a named constant, and reports a
  *   string that *cannot* be a key distinctly from no string at all.
  *
- * Deliberately not covered, because the grammar itself is unchanged here: the
- * system segment, `none`, partial addresses, and the manifest format version.
+ * The grammar now counts **four** segments, the system among them
+ * (`sohl-none-skill-clmb`), so the charset rule carries more weight than it
+ * did: a package name with a hyphen in it no longer merely fails to read, it
+ * reads as a *different* address whose system segment is the tail of the
+ * package name. The cases below therefore assert the count against the named
+ * constant rather than restating it.
+ *
+ * Deliberately not covered here, because they are their own subjects:
+ * `engine/systems.mjs`'s registry of which system ids are legal (the parser
+ * counts segments and does not judge them), partial addresses, and the
+ * manifest format version.
  */
 
 import { describe, it, expect } from "vitest";
@@ -177,25 +186,67 @@ describe("`contentPackage` must not be a note type", () => {
     it("still accepts a real package name with the item registry loaded", () => {
         expect(acceptedFor("thalorna", ["itemBuilders: sohl"])).toBe("thalorna");
     });
+
+    it("reads the closed vocabulary, so the answer does not depend on configuration", () => {
+        // The rule is about the *address* grammar, which is the same everywhere
+        // — but the registries it used to be checked against are the
+        // repository's own, so a package declaring no `itemBuilders` was told
+        // `skill` was a fine name for it. It is a note type in every tree, and
+        // `skill-clmb` addresses one, whatever this repository compiles: the
+        // reasoning `KNOWN_DOCUMENT_SUBTYPE_MAPS` already states about the
+        // vocabulary being wider than any one configuration.
+        expect(rejectionFor("skill").message).toMatch(/note type/);
+        expect(rejectionFor("weapongear").message).toMatch(/note type/);
+    });
+
+    it("rejects a type that reaches neither the pack table nor a doc entry", () => {
+        // `bundle` and `homepage` are declared note types that no pack routes
+        // by type and whose prose compiles to no documentation entry, so both
+        // slipped through every set the check consulted before.
+        for (const type of ["bundle", "homepage"]) {
+            expect(rejectionFor(type).message, `for \`${type}\``).toMatch(/note type/);
+        }
+    });
 });
 
 describe("readCanonicalKey", () => {
-    it("reads the three segments a canonical key is counted into", () => {
-        expect(CANONICAL_KEY_SEGMENTS).toBe(3);
-        expect(readCanonicalKey(canonicalKey("sohl", "skill", "clmb"))).toEqual({
+    it("reads the four segments a canonical key is counted into", () => {
+        expect(CANONICAL_KEY_SEGMENTS).toBe(4);
+        expect(readCanonicalKey(canonicalKey("sohl", "sohl", "skill", "clmb"))).toEqual({
             package: "sohl",
+            system: "sohl",
             type: "skill",
             shortcode: "clmb",
         });
     });
 
+    it("reads `none` in the system segment like any other value", () => {
+        // The parser counts segments; it does not consult the system registry.
+        // `none` is a literal in that position, not an absence, which is the
+        // whole reason it is a word rather than a YAML null — a null would
+        // drop the segment and leave a three-segment string that cannot read.
+        expect(readCanonicalKey(canonicalKey("sohl", "none", "docskill", "clmb"))).toEqual({
+            package: "sohl",
+            system: "none",
+            type: "docskill",
+            shortcode: "clmb",
+        });
+    });
+
     it("returns null for a string that cannot be a key", () => {
-        // Too many segments — the shape `harn-adventures-skill-melee` had, and
-        // the reason the charset rule above is enforced rather than assumed.
-        expect(readCanonicalKey("harn-adventures-skill-melee")).toBeNull();
+        // Too many segments, and too few. `harnadventures-none-skill-melee`
+        // is the well-formed spelling of the first of these; the hyphenated
+        // `harn-adventures` package name that motivated the charset rule is
+        // now *worse* than unreadable — with a system segment to absorb it,
+        // `harn-adventures-skill-melee` counts as four and quietly reads as
+        // the package `harn` under a system called `adventures`. That silent
+        // misreading is why the rule above is enforced at configuration time
+        // rather than caught here.
+        expect(readCanonicalKey("harn-adventures-none-skill-melee")).toBeNull();
+        expect(readCanonicalKey("sohl-skill-melee")).toBeNull();
         expect(readCanonicalKey("skill-melee")).toBeNull();
         expect(readCanonicalKey("melee")).toBeNull();
-        expect(readCanonicalKey("sohl--melee")).toBeNull();
+        expect(readCanonicalKey("sohl--skill-melee")).toBeNull();
         expect(readCanonicalKey(42)).toBeNull();
     });
 
@@ -211,7 +262,7 @@ describe("readCanonicalKey", () => {
         // The four call sites test the result for truthiness only
         // (`readCanonicalKey(k)?.type`, `if (!parts) continue`), which is what
         // lets the two cases differ without any of them changing.
-        for (const input of ["harn-adventures-skill-melee", undefined, null, ""]) {
+        for (const input of ["harn-adventures-none-skill-melee", undefined, null, ""]) {
             expect(readCanonicalKey(input)).toBeFalsy();
         }
     });
