@@ -237,6 +237,30 @@ describe("unclaimedNoteFindings", () => {
         expect(findings[0].line).toBe(6);
     });
 
+    it("says a specified-but-unimplemented type is this toolchain's gap, not the note's", () => {
+        // `folder` is documented in `docs/content-format.md` and declared in the
+        // vocabulary, and nothing compiles it yet (#256). Neither other message
+        // fits: naming a missing pack sends an author to a configuration file
+        // where nothing they write will help, and calling the type unknown
+        // contradicts the specification they read it in.
+        const root = repo({
+            "Possessions.md":
+                "---\ntype: folder\nid: folderprobe00001\nshortcode: possessions\n" +
+                "name:\n  full: Possessions\n---\n\nA folder.\n",
+        });
+        roots.push(root);
+        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
+            itemTypes: new Set(),
+            docEntryTypes: new Set(),
+        });
+
+        expect(finding.message).toMatch(/content format specifies "folder"/);
+        expect(finding.message).toMatch(/not implemented the type yet/);
+        // Neither of the other two wordings may appear.
+        expect(finding.message).not.toMatch(/not a content type/);
+        expect(finding.message).not.toMatch(/declare (one|both) in/);
+    });
+
     it("never reports a type that compiles to a page rather than a document", () => {
         const root = repo({ "homepage.md": "---\ntype: homepage\n---\n\nHello.\n" });
         roots.push(root);

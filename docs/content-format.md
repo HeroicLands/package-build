@@ -1608,7 +1608,7 @@ is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
 ### type: folder
 
-| `data` property | Values           | Description                                     |
-| --------------- | ---------------- | ----------------------------------------------- |
-| `parent`        | `wikilink`       | The parent folder of this folder, type `folder` |
-| `color`         | `color hex code` | hex code of the color                           |
+| `data` property | Values      | Description                                                                                                                                                |
+| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parent`        | `wikilink`  | The parent folder of this folder, type `folder`                                                                                                            |
+| `color`         | `"#RRGGBB"` | The folder's colour. **Quote it.** Unquoted, the `#` opens a YAML comment and the value is `null`; drop the `#` and YAML reads `000000` as the number `0`. |
