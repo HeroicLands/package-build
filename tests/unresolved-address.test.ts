@@ -91,6 +91,7 @@ function audit(files: Record<string, string>, manifests?: Record<string, unknown
     const manifestDir = manifests ? tree(mapValues(manifests), "unresolved-manifests-") : undefined;
     const index = buildLinkIndex(tree(files), {
         skipDirectories: [],
+        skipDirectories: [],
         ...(manifestDir ? { manifestDir } : {}),
     });
     return { index, ...auditLinks(index) };

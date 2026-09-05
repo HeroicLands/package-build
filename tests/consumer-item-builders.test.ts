@@ -128,7 +128,7 @@ const PREAMBLE = `
     const { loadPackConfig } = await import(${JSON.stringify(
         pathToFileURL(path.join(PACKAGE_ROOT, "engine/pack-config.mjs")).href,
     )});
-    const items = new Items({
+    const items = new Items({ skipDirectories: [],
         contentBase: loadPackConfig().paths.content,
         dest: loadPackConfig().paths.packJson,
     });

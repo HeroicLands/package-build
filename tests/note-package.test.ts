@@ -227,7 +227,7 @@ describe("the compile loop refuses a note that declares `package:`", () => {
         fs.mkdirSync(content, { recursive: true });
         fs.mkdirSync(dest, { recursive: true });
         fs.writeFileSync(path.join(content, `${name}.md`), note(fm), "utf8");
-        const probe = new Probe({ contentBase: content, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
         await probe.compile();
         return { probe, dest };
     }
@@ -314,7 +314,7 @@ describe("the compile loop refuses a note that declares `package:`", () => {
                     super.report(stats);
                 }
             }
-            const probe = new Counting({ contentBase: content, dest });
+            const probe = new Counting({ skipDirectories: [], contentBase: content, dest });
             await probe.compile();
 
             // A note the compiler *declines* is a different outcome from a note
@@ -390,7 +390,7 @@ describe("a generated table still scopes on `package` after the sweep", () => {
             "utf8",
         );
 
-        const probe = new Probe({ contentBase: content, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
         await probe.compile();
         expect(probe.errorCount).toBe(0);
 
@@ -450,7 +450,7 @@ describe("addresses are keyed from the configuration alone", () => {
 
     it("indexes the canonical link address for a note declaring nothing", () => {
         const root = tree("links");
-        const index = buildLinkIndex(path.join(root, "assets/content"));
+        const index = buildLinkIndex(path.join(root, "assets/content"), { skipDirectories: [] });
         // The package-qualified form is what a cross-package link writes.
         expect(index.resolve(`${OWN}-skill-clmb`)).toBeTruthy();
         expect(index.packages.has(OWN)).toBe(true);

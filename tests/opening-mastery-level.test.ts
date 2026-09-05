@@ -224,6 +224,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
 
     const compiler = () =>
         new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
             itemsSourceDirs: [path.join(dir, "items")],

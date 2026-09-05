@@ -42,6 +42,7 @@ describe("itemsSourceDirs is optional (#49)", () => {
 
     it("constructs with no Item pack at all", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
         });
@@ -50,6 +51,7 @@ describe("itemsSourceDirs is optional (#49)", () => {
 
     it("constructs with an explicitly empty list", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
             itemsSourceDirs: [],
@@ -62,6 +64,7 @@ describe("itemsSourceDirs is optional (#49)", () => {
     // and declaring one would name a system the package does not have.
     it("keeps a foreign catalogue with no local Item pack", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
             foreignSourceDirs: [path.join(dir, "foreign")],
@@ -75,6 +78,7 @@ describe("itemsSourceDirs is optional (#49)", () => {
     // refusal to start.
     it("still reports an item that resolves nowhere, naming it", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
         });

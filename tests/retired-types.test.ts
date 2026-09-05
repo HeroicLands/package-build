@@ -104,14 +104,16 @@ describe("a note left on a retired type fails the compile", () => {
         // leaving a build that is green and missing an actor.
         const content = treeWith(`${NOTE}\ntype: creature`);
         const dest = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-retired-out-"));
-        await expect(new Items({ contentBase: content, dest }).compile()).rejects.toThrow(
-            /Condor\.md/,
-        );
+        await expect(
+            new Items({ skipDirectories: [], contentBase: content, dest }).compile(),
+        ).rejects.toThrow(/Condor\.md/);
     });
 
     it("compiles the same note once it declares `being`", async () => {
         const content = treeWith(`${NOTE}\ntype: being`);
         const dest = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-retired-out-"));
-        await expect(new Items({ contentBase: content, dest }).compile()).resolves.not.toThrow();
+        await expect(
+            new Items({ skipDirectories: [], contentBase: content, dest }).compile(),
+        ).resolves.not.toThrow();
     });
 });

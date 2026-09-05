@@ -148,6 +148,7 @@ Prose.
             warnings.push(String(line));
         });
         const pack = new Scenes({
+            skipDirectories: [],
             contentBase: content,
             dest,
             companionDests: { adventures },

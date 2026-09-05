@@ -373,6 +373,7 @@ describe("the claim table and the compilers agree", () => {
         for (const [docType, Cls] of Object.entries(COMPILERS)) {
             const contentBase = emptyTree();
             const pass = new Cls({
+                skipDirectories: [],
                 contentBase,
                 dest: path.join(contentBase, "out"),
                 // The scenes pass also writes the adventures that bundle its

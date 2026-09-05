@@ -109,6 +109,7 @@ beforeAll(async () => {
     fs.mkdirSync(adventureDir);
 
     const pack = new Scenes({
+        skipDirectories: [],
         contentBase: content,
         dest: sceneDir,
         companionDests: { adventures: adventureDir },

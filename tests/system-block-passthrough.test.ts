@@ -129,9 +129,10 @@ beforeAll(async () => {
     fs.writeFileSync(path.join(content, "PlainBeing.md"), PLAIN_BEING);
     fs.writeFileSync(path.join(content, "Neutral.md"), NEUTRAL_DOC);
 
-    compilers.items = new Items({ contentBase: content, dest: dest("items") });
+    compilers.items = new Items({ skipDirectories: [], contentBase: content, dest: dest("items") });
     await compilers.items.compile();
     compilers.actors = new Actors({
+        skipDirectories: [],
         contentBase: content,
         dest: dest("actors"),
         itemsSourceDirs: [dirs.items],

@@ -1016,9 +1016,11 @@ function linksCommand() {
                 const contentBase = argv.root ?? config.paths.content;
                 const manifestDir = argv.manifests ?? config.paths.manifests;
 
+                const scope = { skipDirectories: config.skipDirectories };
                 const index = buildLinkIndex(contentBase, {
                     manifestDir,
-                    sqlTables: await prepareTreeSqlTables(contentBase),
+                    ...scope,
+                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
                 });
 
                 // An unusable manifest would otherwise surface as a pile of
@@ -1444,8 +1446,10 @@ function reachabilityCommand() {
             try {
                 const contentBase = argv.root ?? loadPackConfig().paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
+                const scope = { skipDirectories: loadPackConfig().skipDirectories };
                 const index = buildLinkIndex(contentBase, {
-                    sqlTables: await prepareTreeSqlTables(contentBase),
+                    ...scope,
+                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
                 });
                 const indexes = new Set(argv.index.map(String));
 

@@ -155,11 +155,12 @@ export class Scenes extends BasePackCompiler {
     constructor({
         contentBase,
         dest,
+        skipDirectories,
         companionDests = {},
         folderResolver = () => null,
         repoRoot = process.cwd(),
     }) {
-        super({ contentBase, dest, folderResolver });
+        super({ contentBase, dest, folderResolver, skipDirectories });
         if (!companionDests.adventures) {
             throw new Error("Scenes compiler requires an `adventures` companion destination");
         }
@@ -189,7 +190,9 @@ export class Scenes extends BasePackCompiler {
     #collect() {
         const maps = [];
         const effectsByAddress = new Map();
-        for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(this.contentBase)) {
+        for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(this.contentBase, {
+            skipDirectories: this.skipDirectories,
+        })) {
             // No retired-field test: this pass's own walk — the shared compile
             // loop — is where a note still declaring `package:` (#56) or
             // `draft:` (#69) is reported, once. Repeating either check here

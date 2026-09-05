@@ -115,7 +115,9 @@ export function anchorsOf(body) {
 export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlTables } = {}) {
     const notes = [];
     const frontmatterLinks = [];
-    const walkOpts = skipDirectories ? { skipDirectories } : undefined;
+    // Passed through rather than defaulted away: an absent scope is the
+    // caller's omission, and `walkMarkdownTree` says so (#243).
+    const walkOpts = { skipDirectories };
 
     for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
         if (!fm || typeof fm.type !== "string") continue;

@@ -156,7 +156,7 @@ describe("BasePackCompiler's shared compile loop", () => {
 
     beforeAll(async () => {
         out = dest("probes");
-        pack = new Probe({ contentBase: content, dest: out });
+        pack = new Probe({ skipDirectories: [], contentBase: content, dest: out });
         await pack.compile();
     });
 
@@ -199,7 +199,7 @@ describe("BasePackCompiler's shared compile loop", () => {
 describe("BasePackCompiler's per-pass switches", () => {
     it("hands the raw body over when a pass does not convert wikilinks", async () => {
         const out = dest("raw");
-        const pack = new RawProbe({ contentBase: content, dest: out });
+        const pack = new RawProbe({ skipDirectories: [], contentBase: content, dest: out });
         await pack.compile();
         expect(read(out)["Probe One"].body).toContain("[[doc-probetarget|Target]]");
     });
@@ -215,14 +215,14 @@ describe("BasePackCompiler's per-pass switches", () => {
                 type: "probe",
             }),
         );
-        const pack = new Probe({ contentBase: noId, dest: dest("noid-out") });
+        const pack = new Probe({ skipDirectories: [], contentBase: noId, dest: dest("noid-out") });
         await expect(pack.compile()).rejects.toThrow(/Probe missing id/);
     });
 
     it("skips a note with no id when the pass tolerates one", async () => {
         const noId = path.join(tmp, "noid");
         const out = dest("lenient");
-        const pack = new LenientProbe({ contentBase: noId, dest: out });
+        const pack = new LenientProbe({ skipDirectories: [], contentBase: noId, dest: out });
         await pack.compile();
         expect(pack.errorCount).toBe(0);
         expect(pack.compiledCount).toBe(0);
@@ -231,14 +231,15 @@ describe("BasePackCompiler's per-pass switches", () => {
 
 describe("BasePackCompiler's constructor contract", () => {
     it("requires a content root", () => {
-        expect(() => new Probe({ dest: tmp } as any)).toThrow(
+        expect(() => new Probe({ skipDirectories: [], dest: tmp } as any)).toThrow(
             /Probe compiler requires `contentBase`/,
         );
     });
 
     it("rejects a content root that does not exist", () => {
-        expect(() => new Probe({ contentBase: path.join(tmp, "nope"), dest: tmp })).toThrow(
-            /Content tree not found/,
-        );
+        expect(
+            () =>
+                new Probe({ skipDirectories: [], contentBase: path.join(tmp, "nope"), dest: tmp }),
+        ).toThrow(/Content tree not found/);
     });
 });

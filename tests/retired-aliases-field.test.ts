@@ -227,7 +227,7 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
             ["---", ...frontmatter, "---", "", "Prose.", ""].join("\n"),
             "utf8",
         );
-        const probe = new Probe({ contentBase: content, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
         await probe.compile();
         return { probe, dest };
     }
@@ -313,7 +313,7 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
                 "utf8",
             );
         }
-        const probe = new Probe({ contentBase: content, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
         await probe.compile();
         expect(probe.errorCount).toBe(0);
         expect(probe.compiledCount).toBe(2);

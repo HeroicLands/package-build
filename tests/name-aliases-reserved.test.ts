@@ -135,7 +135,7 @@ class Probe extends BasePackCompiler {
 async function compile(content: string, tag: string): Promise<unknown[]> {
     const dest = path.join(root, `out-${tag}`);
     fs.mkdirSync(dest, { recursive: true });
-    const probe = new Probe({ contentBase: content, dest });
+    const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
     await probe.compile();
     expect(probe.errorCount).toBe(0);
     return fs
@@ -171,7 +171,7 @@ describe("a note carrying `name.aliases` compiles exactly as one without it", ()
         // reserved field never reaches it.
         const dest = path.join(root, "out-refusal");
         fs.mkdirSync(dest, { recursive: true });
-        const probe = new Probe({ contentBase: withField, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: withField, dest });
         await probe.compile();
         expect(probe.errorCount).toBe(0);
         expect(probe.compiledCount).toBe(2);
@@ -181,7 +181,7 @@ describe("a note carrying `name.aliases` compiles exactly as one without it", ()
 describe("a link into it resolves exactly as if the field were absent", () => {
     it("emits the identical `@UUID` markup in the pack build", () => {
         const render = (content: string) => {
-            const index = buildContentLinkIndex(content);
+            const index = buildContentLinkIndex(content, undefined, { skipDirectories: [] });
             const citing = "Worse than [[doc-aconite|Aconite]], and [[doc-aconite#onset|onset]].";
             return convertWikilinks(citing, {
                 type: "doc",
@@ -226,7 +226,7 @@ describe("a link into it resolves exactly as if the field were absent", () => {
         for (const key of ["doc/wolfsbane", "wolfsbane", "rules/wolfsbane", "doc/monkshood"]) {
             expect(built.index.has(key)).toBe(false);
         }
-        const index = buildContentLinkIndex(withField);
+        const index = buildContentLinkIndex(withField, undefined, { skipDirectories: [] });
         expect(index.byShortcode.has("wolfsbane")).toBe(false);
     });
 });

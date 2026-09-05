@@ -497,7 +497,9 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
 
 export function collectContentIndex(contentBase, { contentPackage, skipDirectories, manifest }) {
     const records = [];
-    const walkOpts = skipDirectories ? { skipDirectories } : {};
+    // Passed through rather than defaulted away: an absent scope is the
+    // caller's omission, and `walkMarkdownTree` says so (#243).
+    const walkOpts = { skipDirectories };
 
     for (const { frontmatter, body, bodyLine, absPath } of walkMarkdownTree(
         contentBase,

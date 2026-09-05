@@ -364,7 +364,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
         const dest = path.join(content, "probes");
         fs.mkdirSync(dest, { recursive: true });
         try {
-            await new Probe({ contentBase: content, dest }).compile();
+            await new Probe({ skipDirectories: [], contentBase: content, dest }).compile();
         } finally {
             spy.mockRestore();
         }

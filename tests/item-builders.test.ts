@@ -127,6 +127,7 @@ describe("the art a compiled sohl item actually gets (#7)", () => {
     function compiler() {
         const config = loadPackConfig();
         return new Items({
+            skipDirectories: [],
             contentBase: path.join(PKG_ROOT, "tests/fixtures"),
             dest: config.paths.packJson,
         });
