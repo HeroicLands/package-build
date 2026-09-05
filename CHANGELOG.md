@@ -1,5 +1,463 @@
 # @heroiclands/package-build
 
+## 18.0.0
+
+### Major Changes
+
+- d17dc98: **A `dataview` query that selects no notes is now a build error** (#223).
+  
+  A zero-row table publishes as a bare header and a rule, so a stale query — a
+  renamed type, a retired category, a typo'd path — looked exactly like a category
+  that is legitimately empty. Both builds emitted it and neither said a word.
+  
+  Where a table is meant to be empty, say so on the fence — `dataview allow-empty`
+  in place of `dataview`. The opt-in sits on the fence rather than in the query
+  because it is a statement about the directive, not part of the query language.
+  The table is still rendered either way: the finding is the point, not
+  withholding the output.
+  
+  The finding names the note, the line of the block and **the clause that matched
+  nothing**, quoted as authored, because that is the string the author will edit.
+  
+  **The site build's table findings are compiler-parseable too.** They were prose
+  with a timestamp where a parser reads the path, so one authored table produced a
+  machine-readable diagnostic from the pack build and something ungreppable from
+  the site. Both now emit `file:line:column: error: message`.
+  
+  **Major, because a tree carrying a dead table goes red on adoption.**
+  `Song-of-Heroic-Lands-FoundryVTT` carries **40**, across eight notes — including
+  the eight `type = "creature"` tables in `Rules/Bestiary.md` that the issue was
+  filed about, a `sohl.kbcat = "birthsign"` query for a retired concept, and a
+  `contains(file.tags, "religous")` that is simply a misspelling. None of them has
+  published a row in months.
+- d17dc98: **A content-index record's Foundry address is keyed by the system that compiles
+  it.** `foundry.uuid` becomes `foundry.<system>.uuid` for a document a _game
+  system_ defines — an Item or an Actor — while a document the _note format_
+  defines keeps the unkeyed form.
+  
+  ```json
+  "foundry": { "sohl": { "uuid": "Compendium.sohl.items.Item.…" } }         // an item
+  "foundry": { "none": { "uuid": "Compendium.sohl.journals.JournalEntry.…" } } // a journal
+  ```
+  
+  The vocabulary is the specification's — `sohl`, `hm3`, and **`none`** for a note
+  that belongs to no system, the same value the canonical address carries in its
+  `<system>` segment (`harnadventures-none-being-grod`, #59). Every record is
+  keyed, so "belongs to no system" and "nobody filled this in" are not the same
+  shape.
+  
+  **A note may declare more than one system**, and each compiles into its own
+  document, of that system's type, in that system's pack: 2,497 of
+  `harn-ensemble`'s notes carry both a `sohl:` and an `hm3:` block, and its
+  `packs:` declares an `actors-sohl` _and_ an `actors-hm3`. One `uuid` on the
+  record cannot name two documents — it named whichever the single shipped map
+  produced and said nothing about the other.
+  
+  Only `sohl` can appear today, because `KNOWN_DOCUMENT_SUBTYPE_MAPS` holds one
+  map and #139 tracks the missing `hm3/` half. **The shape changes now so that
+  adding it is one more key rather than a second breaking change** to an artifact
+  consumers have already started reading.
+  
+  **A journal, a macro or a scene is `none`.** Those are the note format's own
+  documents rather than a system's, and the documentation journal an item
+  compiles beside itself is `none` too — it is one journal however many systems
+  the item declares. On `sohl` that is 1,474 records keyed `sohl` and 1,514
+  keyed `none`.
+  
+  The uuid _values_ are unchanged: still equal to the link manifest's, verified
+  across `sohl`'s 2,988 addresses with no mismatch.
+  
+  **Not synthesized onto the `sohl:`/`hm3:` blocks themselves.** Those are regions
+  a note authors, and `DERIVED_KEYS` — which refuses a note that writes over
+  derived data — reaches only the top level. A note authoring `sohl.uuid` would
+  collide silently, which is the failure this index exists to prevent.
+
+### Minor Changes
+
+- d17dc98: **A `#section` link is checked by the build that emits it, not only by the
+  checker** (#193). `content-build links` reported a dead anchor as an error while
+  the pack compilers hashed _any_ slug into a `JournalEntryPage` id and emitted a
+  `@UUID` for it — so a link the checker refused still compiled, and dead-ended
+  for the reader.
+  
+  A **foreign** anchor was already checked, because a vendored manifest publishes
+  an `anchors` map. A local one was not, for the reason #193 gives: neither index
+  held the set. The walk that builds the link index yields each note's body and
+  nothing read it.
+  
+  It reads it now, through the one anchor reader, and reports `unknown-anchor`
+  with the message the foreign path already used — nothing new is named.
+  
+  An index built without anchors still says nothing, which is deliberate: it
+  cannot answer the question, and answering it wrongly is what this fixes.
+  
+  `collectAnchors` moves to `engine/anchors.mjs`, a module that imports nothing.
+  It has to: the link checker, the content index and the compilers all ask this
+  question, and `helpers.mjs` is imported by the compilers while the index imports
+  the manifest emitter, which imports them back. A leaf is what lets all three
+  share one reader instead of two disagreeing ones.
+- 4926fb8: **The `bundle` note type is specified and declared** (#259).
+  
+  A bundle is a set of documents taken as a unit — Foundry's `Adventure`, named for
+  what it is rather than what Foundry calls it. It declares one property of its
+  own, `contents`: the documents it holds.
+  
+  **How many Adventures a bundle makes is decided by its system blocks**, as for
+  every other type, rather than by a property of its own. With no system block it
+  is one Adventure holding only the `none` documents; with one or more it is one
+  Adventure per system, each holding every `none` document plus that system's own,
+  and a document of neither is silently left out.
+  
+  Each Adventure is written to the pack the note's `pack` names — **the shared
+  routing field, not a property of the bundle**, so there is one spelling and not
+  two. It differs only in its default, `adventures`; `<system>.pack` overrides it
+  per system exactly as it does everywhere else.
+  
+  That follows from Foundry rather than from taste: **an `Adventure` has no
+  `system` field**. A bundle spanning two systems cannot be one document that knows
+  it spans them, so it is one document per system and the pack each is written to
+  is what carries the system.
+  
+  **It is not a folder**, and the difference is the whole point: an Adventure
+  carries **copies**, and importing one creates or updates each document in the
+  world, after which they live independently. A folder is a live grouping, by
+  reference, that persists in the pack.
+  
+  **Nothing compiles a bundle yet**, and authoring one says so. Two decisions come
+  first: the scenes pass already writes an Adventure per place into a _companion_
+  pack and the router refuses a note naming a companion in `pack:`, so the
+  `adventures` default cannot be that pack as things stand; and since an Adventure
+  holds compiled documents rather than references, `contents` has to resolve after
+  the passes that produce them.
+- 209e633: **The `hm3/` half of the toolchain** — a note can now compile an HM3 document (#139).
+  
+  `sohl/` was the only system half this package had, so `itemBuilders: [sohl, hm3]` — an
+  arrangement `CONTENT.md` already documented — named a registry that did not exist, and no
+  note could produce an HM3 Actor or Item however its frontmatter was written. `hm3/` is now
+  a sibling of `sohl/`: its own item vocabulary and builders, its own default art, its own
+  note-type → document-subtype map declared through the same `defineDocumentSubtypes`, and
+  its own Item and Actor compilers. The two halves import nothing from each other; the only
+  thing they share is the engine between them.
+  
+  **A pack's `system:` now selects the compiler.** It already selected the `_stats` stamp, the
+  item catalogue a being resolves against and the `itemBuilders` lookup; the Item and Actor
+  passes were still SoHL's whatever a pack declared. So a note carrying both a `sohl:` and an
+  `hm3:` block compiles **one document in each system**, each shaped by its own builders and
+  stamped with its own system version — and a note carrying only one block is passed over by
+  the other system's pass rather than failed for a block it was never going to have.
+  
+  **Four HM3 rows are one-to-many, and the note says which.** `mysticalability` becomes a
+  `psionic`, a `spell` or an `invocation`; `trauma` an `injury` or a `trait`; `weapongear` a
+  `weapongear` or a `missilegear`; `being` a `character` or a `creature`. The note writes
+  `hm3.type`; nothing is inferred from its `subType`, and a note that says nothing is an error
+  naming the note and listing the permitted values. `docs/content-format.md` is corrected to
+  match — it described the `mysticalability` split as derived from a `subType` vocabulary that
+  no longer contains the values the derivation named.
+  
+  **The five shared names cannot cross over.** `skill`, `weapongear`, `armorgear`,
+  `containergear` and `miscgear` exist in both systems with different data models, so each
+  resolves through its own system's map, is built by its own system's registry, and is
+  field-checked against **its own** system's published `schema.json`. That last one is new:
+  `resolveSchemaArtifact` took the package-wide `stats.systemId`, which is deliberately unset
+  in a two-system build — so every schema check in such a build was skipped in silence.
+  
+  **Shared machinery moved to `engine/`, unchanged.** `engine/item-compiler.mjs` and
+  `engine/actor-compiler.mjs` now hold what is note-format knowledge rather than game-system
+  knowledge, and `engine/anchored-sections.mjs` holds the `{#appearance}` / `{#dossier}`
+  convention. `sohl/items.mjs` and `sohl/actors.mjs` are what is left: SoHL's map, and the
+  `system` block SoHL's data model wants. Compiled output is byte-identical — verified by
+  recompiling `Song-of-Heroic-Lands-FoundryVTT`, `sohl-thalorna` and `sohl-kethira-basic`
+  before and after and diffing every emitted document.
+  
+  `npm run lint` now also checks HM3's column of the content format: the specification's
+  `→ hm3` mapping claims against HM3's published `schema.json`, and its per-type tables
+  against the new field declarations.
+- d17dc98: **`package-build yaml` lints note frontmatter and every YAML file** (#248).
+  
+  Frontmatter carries a note's type, shortcode, address and system blocks, and
+  nothing checked it _as YAML_. Worse than unchecked: `parseMarkdownFile` caught a
+  parse failure, logged it at `warn`, and returned `{frontmatter: null}` — which is
+  not a note with bad frontmatter but, to every pass downstream, a file with no
+  frontmatter. A duplicate key did not fail a build; it removed a note from the
+  corpus while the build reported success. The parser had detected it all along.
+  
+  **Frontmatter reaches ESLint through a processor**, the mechanism
+  `eslint-plugin-markdown` uses for fenced code blocks. Frontmatter is its easy
+  case — the block is always at the top of the file, so a finding maps back with a
+  constant `+1` for the opening `---` and no offset table.
+  
+  **The rule set is deliberately narrow**, as the markdown and stylesheet ones are.
+  Prettier already owns YAML's whitespace, quoting and line breaks, including
+  inside a fence, so what is left is the class a formatter cannot see: text that
+  parses to something other than what it looks like. Parse errors, plus
+  `no-empty-mapping-value`, `no-irregular-whitespace`, `no-empty-key` and
+  `no-empty-document`. `folder:` and `folder: null` are one value and two opposite
+  statements — a decision, or a key somebody began and did not finish — and a key
+  with a block under it is not empty.
+  
+  **GitHub workflows are exempt from the empty-value rule.** `on:` `push:` carries
+  its meaning by being present; `push: null` would be worse YAML, not better.
+  
+  **A consumer changes one line** — `"lint:yaml": "package-build yaml"` — and needs
+  no `eslint` dependency, no `eslint.config.js` and no rule configuration.
+  package-build owns the tool and the config exactly as it owns markdownlint's, and
+  `overrideConfigFile: true` leaves a repository's own ESLint unconsulted.
+  
+  Adoption costs 92 findings in total: 65 in `sohl-thalorna`, 20 in
+  `sohl-kethira-basic`, 5 in `harn-ensemble`, 2 in
+  `Song-of-Heroic-Lands-FoundryVTT`, none in `harn-adventures`. No live content
+  tree carries a parse error — every one found was in a `nogit/` archive — so this
+  is a missing guard rather than an overdue one.
+- 6368283: **The template priority is read as `templatePriority`, and `archetype` is
+  retiring** (#266).
+  
+  The number deciding which of several competing templates the Create dialog
+  offers was called `archetype` — one letter from `archetypes`, which is a list of
+  what _sort_ a character is. A priority and a taxonomy cannot be told apart by a
+  plural `s`.
+  
+  Both spellings are read, `templatePriority` winning, and **the retiring one is a
+  lint error**. Unlike the other retired alias, `archetype` is not a field of its
+  own — it is `templatePriority` under its prior name, and both sit one letter from
+  `archetypes`, which means something else entirely. A tree still on it is one
+  where a priority and a taxonomy are told apart by a plural `s`, which is worth
+  stopping rather than mentioning.
+  
+  The compile is unaffected — both spellings are read, so every tree keeps
+  compiling — but `content-build lint` refuses a tree until it is swept, and
+  **5,727 notes across four trees** author the old key.
+  
+  It is read from `data.templatePriority` first, which is where the specification
+  puts it and where `sohl-thalorna` already writes it on 941 notes — so a tree that
+  has authored forward is read from the key it authored.
+  
+  **A note declaring both spellings with different values is refused.** That is not
+  hypothetical: **145 of those 941 say `templatePriority: null` where `archetype:
+  0` says the opposite** — "not a template" against "a template at priority 0".
+  Preferring either silently would decide that for the author, so the build names
+  both values and asks. `0` and `null` are distinct and both valid, which is
+  exactly why a note cannot claim both.
+  
+  The emitted field is unchanged: SoHL's data model still declares
+  `system.archetype`, and `Song-of-Heroic-Lands-FoundryVTT#1836` renames it there.
+- 18bb812: **The walk's scope is stated by its caller, never resolved from the working
+  directory** (#243).
+  
+  `walkMarkdownTree` defaulted `skipDirectories` to `loadPackConfig()`'s — so an
+  unscoped caller read whichever configuration resolved from the working directory
+  rather than the one it was working under. **Six of its twelve callers were on
+  that default**, which means two passes over one tree could disagree about which
+  files they were reading. In an ordinary build those are the same object and
+  nothing shows; they are not the same when a test injects a configuration, when
+  `PACKAGE_BUILD_CONFIG` names one, or when a command runs from a worktree.
+  
+  This is the defect class #240 fixed for `entriesForNote` reading `docEntryTypes`
+  from the ambient config — found only because a fixture had been passing on the
+  leak for as long as it existed.
+  
+  The parameter is now **required**, so the omission is an error rather than a
+  quiet second answer, and `BasePackCompiler` requires it too: a pass that omitted
+  it would walk whatever the working directory said, including — in a tree
+  configured to skip `Templates`, as `Song-of-Heroic-Lands-FoundryVTT` is — the
+  template notes that configuration exists to keep out of the packs.
+  
+  `Scenes` was dropping it between its own constructor and `super`, which is
+  exactly the kind of silent gap a default hides and a requirement does not.
+  
+  _No consumer calls `walkMarkdownTree`, so this is internal despite the signature
+  change._
+- 7f97135: **A note can name its compendium folder by path, as `packFolder:`** (#251).
+  
+  ```yaml
+  packFolder: Possessions/Consumables/Poisons and Toxins
+  ```
+  
+  A folder is addressed by where it is rather than by a 16-character id nothing
+  about which says _Poisons and Toxins_. The path runs through the pack's folder
+  file, `/`-separated, using each folder's `name`; sibling names are already unique
+  and no name may now contain `/`, so a full path identifies exactly one folder.
+  
+  **Which spelling a value is comes from the field it was written in, never from
+  the string.** A top-level path is a bare name, and a name is as alphanumeric as
+  an id, so there is nothing in `Possessions` to tell the two apart. `packFolder`
+  is a path, `folder` is an id, and `packFolder` wins where a note carries both.
+  
+  **`folder:` is unchanged.** A note that names an id is read, resolved and emitted
+  exactly as before, and nothing warns about it.
+  
+  **A path this pack does not declare fails the build**, naming every path it does.
+  That includes the documentation journal filed beside an item, so the journals
+  pack must declare the folder too — where the folder files disagree, the build
+  says so. The id spelling never noticed: it was passed across packs verbatim and
+  validated nowhere, so the journal carried a folder reference its pack could not
+  honour. `sohl-thalorna` has 57 item folders its journals pack has never heard of,
+  and `sohl-kethira-basic` has no journal folder file at all; both are in that state
+  today, silently.
+  
+  Two new invariants on a folder file, both of which every tree already satisfies:
+  a folder name may not contain `/`, and a parent cycle is refused rather than spun
+  on.
+- d17dc98: **`place`, `lore` and `scenario` compile into JournalEntries.** They are in the
+  published content format and #233 declared them for validation, but nothing
+  routed them: `PACK_BY_TYPE` did not name them, so the open-set default sent
+  them to the items pack, and the journals pass did not select them. A note of
+  one lint-ed clean and then compiled into nothing (#241).
+  
+  `sohl-thalorna` could not compile a single pack for exactly this reason — 450
+  errors, and _the same 450_ the linter had reported before it learned the types.
+  The count being identical is the tell: nothing about the content changed, only
+  which gate noticed. It now compiles 642 actors, and what remains are unrelated
+  content faults.
+  
+  The three are declared once, as `JOURNAL_TYPES` in `engine/ids.mjs`, and read
+  from there by the pack router, the journals pass and the claim table — so the
+  three cannot disagree about what a journal type is. The drift guard that
+  asserts the claim table and each pass's `selects` agree is what caught them
+  disagreeing while this was written.
+  
+  **They carry no synthesized `doc<type>` entry**, which is the distinction the
+  new name makes explicit: a journal type's whole document _is_ the journal, so
+  there is no second document to address and nothing spells `docplace`. That is
+  different from an item, a macro or a map, whose prose becomes a journal
+  _beside_ another document and is addressed as `doc<type>`.
+- 4926fb8: **A note whose type the format specifies but nothing compiles gets a finding of
+  its own.**
+  
+  The unclaimed-type check had two messages, and a third thing can be wrong — the
+  only one that is not the author's fault. `docs/content-format.md` documents the
+  type and the vocabulary declares its properties, so a note written against the
+  published specification is correct; this toolchain simply has not implemented it
+  yet.
+  
+  It earns its own wording because the other two both mislead there. Naming a
+  missing pack or registry sends an author to `package-build.config.yaml`, where
+  nothing they can write will help; saying the type is unknown flatly contradicts
+  the specification they read it in.
+  
+  The message is chosen from the vocabulary rather than from a list of types, so
+  each specified-but-unimplemented type is covered as it is declared.
+- 28ae4b3: **A content table can be written in SQL, queried over the content index** (#246).
+  
+  Tables were written in Dataview's query language, chosen when the corpus lived in
+  an Obsidian vault so a table rendered live while authoring. The vault is gone, and
+  what remained was a hand-written parser and evaluator for someone else's language,
+  kept faithful to semantics nothing checked it against.
+  
+  The query is **real SQL, run by DuckDB** — not a dialect maintained here. That is
+  the point: a partial reimplementation would accept some valid SQL and silently
+  misread the rest, which is worse than an unfamiliar language because the boundary
+  is invisible.
+  
+  ```sql
+  SELECT address.slug AS _ref,
+         sohl.kbcat   AS _section,
+         name.full    AS "Name",
+         sohl.weight  AS "Weight"
+  FROM notes
+  WHERE type = 'miscgear'
+  ORDER BY sohl.kbcat, name.full
+  ```
+  
+  **`sohl.weight` and `name.full` read in a query exactly as a note authors them.**
+  DuckDB reads the index as JSON and infers a `STRUCT` per nested object; a
+  column-per-path table would force `"sohl.weight"` in quotes and a JSON column
+  `sohl->>'weight'`. `union_by_name` is what makes it work across a corpus where
+  every note type's system block differs.
+  
+  **What SQL cannot say, the projection says.** Which column links, and where a
+  section breaks, are decisions about output rather than relational operations, so
+  they ride as underscore-prefixed aliases — `_ref` and `_section` — which are
+  ordinary SQL, need no fence options, and sit where the author is already looking.
+  `_section` is why one query replaces the forty near-identical blocks
+  `Rules/Gear.md` needs today: it emits a headed table per distinct value, in the
+  order the authored `ORDER BY` produced.
+  
+  `sql allow-empty` and `sql section-level=3` ride on the fence, as `dataview
+  allow-empty` already does, because both are statements about the directive rather
+  than part of the query.
+  
+  **Both spellings work.** Every one of the 177 tables in the corpus is still
+  `dataview`; those now also report a warning naming this issue, and nothing else
+  changes for them. Nothing is opened for a tree with no `sql` directive, so this
+  costs a tree that has not converted one walk and no database.
+  
+  _DuckDB is a **build** dependency, not merely a development one — every
+  consumer's CI runs a compile. It adds about 114MB to an install._
+- d17dc98: **`title: ""` is now a warning** (#218).
+  
+  The two art fields follow a rule — `null` falls back, `""` is blank on purpose —
+  and `title` was kept off it because the top-level key simultaneously fed an
+  affiliation's `system.title`, so `title: null` compiled the literal `"null"`.
+  That collision is gone: the field declares `topLevelMeans`, and the two spellings
+  no longer meet.
+  
+  What is left is the page heading. The emitter is `fm.title ?? name`, so `""`
+  survives, the page publishes with no heading, and it sorts to the front of its
+  section landing ahead of every named page. Fifteen notes in `sohl-thalorna` are
+  in exactly that state.
+  
+  A _warning_ rather than an error: the value is legal under the rule, and a page
+  that genuinely wants no heading may keep it — it just has to mean it.
+
+### Patch Changes
+
+- 09a2112: **`pack` and the template priority are documented** (#264).
+  
+  `docs/content-format.md` is the published statement of what a note may write, and
+  `pack` — one of the five universal keys, which every note type may write and the
+  router has always read — appeared in it only as one incidental sentence inside
+  another type's section.
+  
+  It is now described where it belongs, beside the compendium folder: what it
+  names, that `<system>.pack` overrides it for one system, that an unstated one
+  falls back to the pack of its type marked `default: true`, and the three
+  declarations that are refused — a companion pack, a pack nothing answers to, and
+  a pack of another document type.
+  
+  The **template priority** is documented too, and it needed more than a field
+  description: it is a priority, and priorities only mean something against the
+  ranges that divide them. Opening a Create dialog gathers candidates from the
+  world and every matching compendium — other modules' included — filters them to
+  the `(type, subType)` being created, dedups by `shortcode`, and takes the highest
+  priority, breaking ties by nearest source and then a stable UUID. So the
+  specification now states the reserved ranges: `0`–`98` for SoHL and HM3, `99`–`999`
+  for other HeroicLands packages, `1000`+ for everyone else. Since the highest wins,
+  anyone else's template always beats content shipped from here — which is the point.
+  
+  It also records what the tri-state costs: the field is **required** on every note
+  SoHL compiles into an Item or an Actor, because "not a template" has to be said
+  rather than left out, and `0` is a real priority — the one SoHL's own templates
+  ship at — rather than an absence. And that HM3 keeps it in `flags.hm3`, its data
+  model having no field for it, where SoHL keeps it in `system`.
+  
+  **The name is now `templatePriority` on all three sides** — the authored key,
+  `system.templatePriority` and `flags.hm3.templatePriority`. It had been three
+  different things: a note writes `archetype`, the mapping table said
+  `data.templatePriority`, and the SoHL target said `system.template`. The
+  specification and the schema fixture are normalized here; the build reads both
+  spellings through the transition (#266), and the system's own rename is
+  `Song-of-Heroic-Lands-FoundryVTT#1836`. That is more than a rename — it frees the
+  word, because `archetype` is being repurposed for a different idea entirely: the
+  _sort_ a character is, which is a kind and not a priority.
+  
+  `kbcat` remains, and #264 tracks it: read 51 times across SoHL's knowledgebase
+  layouts, and the specification has never mentioned it.
+- d17dc98: **One reader for a note's anchors.** `engine/content-links.mjs` kept its own,
+  and it disagreed with the content index's: it matched `{#([a-z0-9-]+)}` where
+  `collectAnchors` matches `{#([^}]+)}`. So an anchor with a capital in it —
+  `{#CalendarFormat}`, three of them in `sohl`'s own content — existed for the
+  index and for the compilers, and did not exist for the check of them.
+  
+  Nothing links to one today, so the disagreement was latent. The first link to
+  one would have been reported dead against a heading plainly present in the
+  file, which is the worst shape a finding can take.
+  
+  The specification puts no charset on the id — "`#id` represents an id anchor
+  named `id`" — so the narrower pattern was this module's invention rather than a
+  rule it was enforcing. That is the argument for one reader rather than a
+  well-chosen one, and the first thing #243 asks for: the corpus and everything
+  derived from it answered in one place.
+
 ## 17.2.0
 
 ### Minor Changes
