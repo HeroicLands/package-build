@@ -83,6 +83,7 @@ import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
+import { checkLabelRegistry } from "../labels.mjs";
 import {
     analyzeCoverage,
     collectScriptReferences,
@@ -712,6 +713,77 @@ function langHardcoded(config) {
  *
  * @returns {object} The yargs command module.
  */
+/**
+ * `labels check` — do the machine registry and the documented table agree?
+ *
+ * `.github/labels.yml` is synced to GitHub and the §3 table in
+ * `.github/ISSUE_REPORTING.md` is what a person reads. Neither derives from the
+ * other, so either can drift, and nothing notices until an issue is filed
+ * against a label that does not exist.
+ *
+ * Every repository wants this and only the paths ever differed, which is why it
+ * is here rather than copied into each as a `utils/` script.
+ *
+ * @returns {object} The yargs command module.
+ */
+function labelsCommand() {
+    return {
+        command: "labels <action>",
+        describe: "Issue-label registry checks",
+        builder: (y) =>
+            y
+                .positional("action", {
+                    choices: ["check"],
+                    describe: "check: the registry and the documented table name the same labels",
+                })
+                .option("registry", {
+                    type: "string",
+                    default: ".github/labels.yml",
+                    describe: "The machine registry synced to GitHub",
+                })
+                .option("doc", {
+                    type: "string",
+                    default: ".github/ISSUE_REPORTING.md",
+                    describe: "The documented reference whose §3 table lists the same labels",
+                }),
+        handler: handler(async (args) => labelsCheck(args)),
+    };
+}
+
+/**
+ * Read both faces of the registry and report where they disagree.
+ *
+ * Findings are reported against the file each belongs to, so a missing row is
+ * located in the documentation and a missing entry in the registry, rather than
+ * both being attributed to whichever file was read first.
+ *
+ * @param {object} args - Parsed CLI arguments.
+ */
+function labelsCheck(args) {
+    for (const target of [args.registry, args.doc]) {
+        if (!fs.existsSync(target)) die(`labels check: ${target} does not exist.`);
+    }
+    const registryText = fs.readFileSync(args.registry, "utf8");
+    const docText = fs.readFileSync(args.doc, "utf8");
+
+    const { registry, doc, count } = checkLabelRegistry({
+        registryText,
+        docText,
+        docPath: args.doc,
+    });
+
+    const errors =
+        reportFindings(registry, { file: args.registry }) + reportFindings(doc, { file: args.doc });
+    if (errors) {
+        console.error(
+            `\nThe registry and ${args.doc} §3 are edited together — ` +
+                `change one and change the other.`,
+        );
+        process.exit(1);
+    }
+    console.log(`package-build: registry and §3 agree (${count} labels).`);
+}
+
 function langCommand() {
     return {
         command: "lang <action>",
@@ -992,6 +1064,7 @@ yargs(hideBin(process.argv))
     .command(manifestCommand())
     .command(schemaCommand())
     .command(langCommand())
+    .command(labelsCommand())
     .command(bundleCommand())
     .command(releaseCommand())
     .command(deployCommand())
