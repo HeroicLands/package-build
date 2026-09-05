@@ -51,7 +51,14 @@ import fs from "fs";
 import path from "path";
 import log from "loglevel";
 
-import { walkMarkdownTree, sohlField, resolveName, slugify, defaultStats } from "./helpers.mjs";
+import {
+    walkMarkdownTree,
+    sohlField,
+    resolveName,
+    slugify,
+    defaultStats,
+    folderField,
+} from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
@@ -384,7 +391,8 @@ export class Scenes extends BasePackCompiler {
         // shared `docEntryTypes` arrangement (#1514) — so neither
         // pass has to read the other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
-        const folder = this.folderResolver(sohlField(fm, "folder", null));
+        const { value: authoredFolder, isPath: folderIsPath } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isPath: folderIsPath });
         // The retired spelling of the background art, reported where an author
         // meets it soonest — every consumer runs the compile, and not every
         // one runs the lint (#142). Located by reading the note back, which is
@@ -431,7 +439,12 @@ export class Scenes extends BasePackCompiler {
                     name,
                     markdown,
                     leadName: name,
-                    folder: sohlField(fm, "folder", null),
+                    // As in the journals pass: an id crosses packs verbatim,
+                    // a path must resolve in the pack that emits it.
+                    folder:
+                        folderIsPath ?
+                            this.folderResolver(authoredFolder, { isPath: true })
+                        :   authoredFolder,
                     flags: fm.flags,
                 })
             :   null;

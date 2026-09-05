@@ -54,6 +54,7 @@ import { getFrontmatter } from "./frontmatter.mjs";
 export {
     getFrontmatter,
     sohlField,
+    folderField,
     resolveCharges,
     resolveSkillAptitudes,
     resolveRelation,
@@ -749,6 +750,16 @@ export function buildFolderResolver(folders) {
         if (!f.name) {
             throw new Error(`Folder ${f.id} missing name`);
         }
+        // `packFolder` addresses a folder by its path, so a name carrying the
+        // separator would make one path mean two things. No folder in any tree
+        // has ever had one; this keeps it that way rather than discovering it
+        // through a note that files itself somewhere unintended.
+        if (String(f.name).includes("/")) {
+            throw new Error(
+                `Folder ${f.id} name "${f.name}" contains "/", which is the ` +
+                    `separator a \`packFolder:\` path is written with`,
+            );
+        }
         if (byId.has(f.id)) {
             throw new Error(`Duplicate folder id ${f.id}`);
         }
@@ -775,17 +786,65 @@ export function buildFolderResolver(folders) {
         siblings.add(f.name);
     }
 
-    function resolver(folderId) {
-        if (folderId == null || folderId === "") return null;
-        const id = String(folderId).trim();
-        if (!id) return null;
-        if (!byId.has(id)) {
-            throw new Error(`Unknown folder id "${id}"`);
+    // Every folder's full path, so a note can name one by where it is rather
+    // than by an id it cannot read. Sibling names are unique and no name holds
+    // a `/`, so a full path identifies exactly one folder.
+    const byPath = new Map();
+    /**
+     * One folder's path from the root, `/`-separated.
+     *
+     * @param {object} folder - The folder.
+     * @returns {string} Its path.
+     */
+    const pathOf = (folder) => {
+        const segments = [];
+        let current = folder;
+        // Bounded by the number of folders: `parentFolderId` is validated to
+        // exist above, and a cycle would otherwise spin here forever.
+        for (let hops = 0; current && hops <= folders.length; hops += 1) {
+            segments.unshift(current.name);
+            const parentId = current.parentFolderId || "";
+            if (!parentId) return segments.join("/");
+            current = byId.get(parentId);
         }
-        return id;
+        throw new Error(`Folder ${folder.id} (${folder.name}) sits in a parent cycle`);
+    };
+    for (const f of folders) byPath.set(pathOf(f), f.id);
+
+    /**
+     * The folder id a note names, by id or by path.
+     *
+     * Which one is not guessed from the string — a top-level path is a bare
+     * name, and a name is as alphanumeric as an id. The caller says, because
+     * the note said: `folder:` carries an id and `packFolder:` a path.
+     *
+     * @param {string|null|undefined} value - As authored.
+     * @param {object} [opts]
+     * @param {boolean} [opts.isPath] - Whether `value` is a path.
+     * @returns {string|null} The id, or `null` for an absent value.
+     * @throws {Error} When the path is not one this pack declares.
+     */
+    function resolver(value, { isPath = false } = {}) {
+        if (value == null || value === "") return null;
+        const authored = String(value).trim();
+        if (!authored) return null;
+        if (isPath) {
+            const id = byPath.get(authored);
+            if (!id) {
+                throw new Error(
+                    `Unknown folder path "${authored}" — this pack declares ` +
+                        `${byPath.size} folder(s): ${[...byPath.keys()].sort().join(", ")}`,
+                );
+            }
+            return id;
+        }
+        if (!byId.has(authored)) {
+            throw new Error(`Unknown folder id "${authored}"`);
+        }
+        return authored;
     }
 
-    return { resolver, folders };
+    return { resolver, folders, byPath };
 }
 
 /**

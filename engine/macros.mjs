@@ -51,7 +51,7 @@
 
 import log from "loglevel";
 
-import { sohlField, resolveName, resolveImg, defaultStats } from "./helpers.mjs";
+import { sohlField, resolveName, resolveImg, defaultStats, folderField } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { splitPages } from "./journals.mjs";
 
@@ -315,7 +315,9 @@ export class Macros extends BasePackCompiler {
         const name = resolveName(fm);
         return buildMacroEntry(fm, {
             command: macroCommand(body, name),
-            folder: this.folderResolver(sohlField(fm, "folder", null)),
+            folder: this.folderResolver(folderField(fm).value, {
+                isPath: folderField(fm).isPath,
+            }),
             // This pack's system, not the package-wide one (#48).
             stats: this.stats,
         });

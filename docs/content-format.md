@@ -220,6 +220,38 @@ Actor types (`being`, `vehicle`) add one more:
 subtype that extends the Foundry base directly with no templates — so `notes` is
 NA on both sides for that type, and its table says so.
 
+#### The compendium folder
+
+A note says which folder of its pack it lands in. Two spellings are read, and
+`packFolder` wins where both are present:
+
+```yaml
+packFolder: Possessions/Consumables/Poisons and Toxins # a path
+folder: ONXsqZAIZr2qzxTb # a Foundry id
+```
+
+**`packFolder` is a path** through the pack's folder file, `/`-separated, using
+each folder's `name`. Sibling names are unique and no name may contain `/`, so a
+full path identifies exactly one folder. A path the pack does not declare is a
+build error naming every path it does.
+
+**`folder` is a Foundry id**, and is unchanged: a note that names one is read,
+resolved and emitted exactly as before.
+
+**Which one a value is comes from the field it was written in, never from the
+string.** A top-level path is a bare name, and a name is as alphanumeric as an
+id, so there is nothing in `Possessions` to tell the two apart.
+
+Note this is the _pack_ folder, not the note's directory. The directory is
+`file.path` / `file.folder`, which a content table reads separately.
+
+**A documentation journal is filed beside the document it describes**, so the
+journals pack must declare that folder too. Where it does not, the build fails
+naming the path — the folder files disagree, and that is worth catching at once.
+The id spelling never noticed: it was passed across packs verbatim and validated
+nowhere, so the journal simply carried a folder reference its pack could not
+honour.
+
 ### WikiLinks
 
 Twenty-seven fields in the tables below take a `WikiLink`, and a link is written

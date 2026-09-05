@@ -267,8 +267,15 @@ export class SystemItemCompiler extends BasePackCompiler {
         });
 
         const effects = blockProperty(fm, system, "effects");
-        const folderId = blockField(fm, system, "folder", null);
-        const folder = this.folderResolver(folderId);
+        // Read through the system block like every other item field, so both
+        // spellings work wherever a note already writes one. `packFolder` is a
+        // path and `folder` an id; which it is comes from the field, never from
+        // the string (#251).
+        const packFolderPath = blockField(fm, system, "packFolder", null);
+        const folder =
+            packFolderPath ?
+                this.folderResolver(packFolderPath, { isPath: true })
+            :   this.folderResolver(blockField(fm, system, "folder", null));
 
         return {
             name,
