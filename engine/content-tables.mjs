@@ -1115,6 +1115,10 @@ export function expandContentTables(
     } = {},
 ) {
     const errors = [];
+    // How many `sql` directives have been seen, which is how a prepared
+    // result is found: the passes disagree about a body's leading whitespace,
+    // so a line number would not survive the trip, and an ordinal does.
+    let sqlOrdinal = 0;
     // One entry per `dataview` directive still authored, so a caller can say how
     // much of the corpus is still on the retiring language without this pass
     // failing a build over it (#246).
@@ -1159,7 +1163,8 @@ export function expandContentTables(
         // this is not (see `prepareSqlTables`). What is left here is splicing
         // the rendered table in at the directive's own position.
         if (isSql && close < lines.length) {
-            const prepared = sqlTables?.get(i);
+            const prepared = sqlTables?.[sqlOrdinal];
+            sqlOrdinal += 1;
             const failure =
                 !prepared ?
                     "sql content table was not prepared — this pass was given no " +

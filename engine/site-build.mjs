@@ -658,6 +658,7 @@ export function renderPages(pages, options) {
         readmeSections,
         decorate,
         linkable = (d) => Boolean(d.fm.shortcode),
+        sqlTables,
     } = options;
 
     const tableErrors = [];
@@ -692,6 +693,10 @@ export function renderPages(pages, options) {
                 docs: universe.get(page.pkg) ?? [],
                 linkable,
                 source: src,
+                // Prepared before this render began — DuckDB is async and this
+                // is not. Keyed by the note's own file, absolute here as in
+                // every other pass, so the three cannot disagree about a note.
+                sqlTables: sqlTables?.get(page.file),
                 self: {
                     fm: searchableFrontmatter(page.fm, page.pkg),
                     path: page.relPath,
@@ -898,7 +903,7 @@ export function resolveOutputRoot(rootDir, out) {
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
  *   wikiErrors: object[], manifests: object|null}}
  */
-export function buildSite({ config, outRoot } = {}) {
+export function buildSite({ config, outRoot, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -1060,6 +1065,7 @@ export function buildSite({ config, outRoot } = {}) {
 
     const rendered = renderPages(pages, {
         outRoot: out,
+        sqlTables,
         index: gates.index,
         foreign: gates.foreign,
         universe: tableUniverse(pages),

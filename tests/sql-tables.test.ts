@@ -236,10 +236,10 @@ describe("rendering a result", () => {
 describe("preparing directives ahead of expansion", () => {
     const body = "```sql\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'skill'\n```\n";
 
-    it("keys each result by its note, then by line", async () => {
+    it("keys each result by its note, then by the directive's ordinal", async () => {
         const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: body }]);
 
-        expect(prepared.get("N.md")?.get(0)?.rows).toBe(1);
+        expect(prepared.get("N.md")?.[0]?.rows).toBe(1);
     });
 
     it("records a failing query rather than throwing it", async () => {
@@ -247,7 +247,7 @@ describe("preparing directives ahead of expansion", () => {
             { source: "N.md", markdown: "```sql\nSELECT nope FROM notes\n```\n" },
         ]);
 
-        expect(prepared.get("N.md")?.get(0)?.reason).toMatch(/nope/i);
+        expect(prepared.get("N.md")?.[0]?.reason).toMatch(/nope/i);
     });
 
     it("splices the rendered table in at the directive's position", async () => {
@@ -276,6 +276,31 @@ describe("preparing directives ahead of expansion", () => {
         expect(await errs(dead)).toHaveLength(1);
         expect((await errs(dead))[0].reason).toMatch(/selects no notes/);
         expect(await errs(dead.replace("```sql", "```sql allow-empty"))).toEqual([]);
+    });
+
+    it("finds each of a note's directives by its ordinal, not its line", async () => {
+        // The passes disagree about a body: `walkMarkdownTree` trims it, while
+        // the link checker strips the frontmatter fence and keeps the newlines
+        // after it. Keyed by line, the same directive would be looked up at two
+        // different positions and silently miss.
+        const two =
+            "```sql\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'skill'\n```\n\n" +
+            "```sql\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'miscgear'\n```\n";
+        const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: two }]);
+
+        expect(prepared.get("N.md")).toHaveLength(2);
+        expect(prepared.get("N.md")?.[0]?.rows).toBe(1);
+        expect(prepared.get("N.md")?.[1]?.rows).toBe(2);
+
+        // The same note, shifted down: prepared from the trimmed body, expanded
+        // from an untrimmed one, and still correct.
+        const { markdown, errors } = expandContentTables(`\n\n${two}`, {
+            source: "N.md",
+            sqlTables: prepared.get("N.md"),
+        });
+        expect(errors).toEqual([]);
+        expect(markdown).toContain("Climbing");
+        expect(markdown).toContain("Bowl, ceramic");
     });
 
     it("reports a directive this pass was given no results for", () => {

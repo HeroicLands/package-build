@@ -541,6 +541,50 @@ The opt-in is on the fence rather than in the query because it is a statement
 about this directive, not part of the query language. Either way the table is
 still rendered — the finding is the point, not withholding the output.
 
+##### In SQL, over the content index
+
+`dataview` is being replaced by **SQL**, queried over the content index, and both
+fences work while the corpus is converted (#246). The query is real SQL, run by
+DuckDB — not a dialect maintained by this package.
+
+````markdown
+```sql
+SELECT address.slug AS _ref,
+       sohl.kbcat   AS _section,
+       name.full    AS "Name",
+       sohl.weight  AS "Weight"
+FROM notes
+WHERE type = 'miscgear'
+ORDER BY sohl.kbcat, name.full
+```
+````
+
+**`FROM notes`** is the content index: one row per note, plus one per
+documentation entry, so `type = 'miscgear'` selects the items and never their
+journals. A nested field is addressed exactly as a note authors it —
+`sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
+every nested object is inferred as a struct. A field a note type does not carry
+reads `NULL` rather than failing.
+
+**Two aliases are read by the renderer rather than printed**, because which
+column links and where a section breaks are decisions about output, not
+relational operations:
+
+| Alias      | What it does                                                           |
+| ---------- | ---------------------------------------------------------------------- |
+| `_ref`     | Makes the row's **first** rendered column a wikilink to that address.  |
+| `_section` | Emits a headed table per distinct value, in the order the rows arrive. |
+
+`_section` is why one query replaces the forty near-identical blocks a grouped
+table used to need: the authored `ORDER BY` decides the section order too. The
+heading level is `##`, or whatever `sql section-level=3` says.
+
+`sql allow-empty` works exactly as its `dataview` counterpart does, and for the
+same reason.
+
+**Beware `folder`.** It is a note's _pack_ folder, not its directory — the
+directory is `file.folder`.
+
 ```
 :::secret
 This is secret text

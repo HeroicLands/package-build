@@ -38,6 +38,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { FENCE_LINE } from "./code-fences.mjs";
+import { walkMarkdownTree } from "./helpers.mjs";
 
 /** The fence info string that marks a SQL content table. */
 const SQL_INFO = /^sql\b/i;
@@ -326,11 +327,13 @@ export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2
  * @param {object} [opts]
  * @param {(ref: string) => boolean} [opts.linkable] - Passed to
  *   {@link renderSqlTable}.
- * Keyed by note and then by line, rather than by a composite of the two: the
- * `source` a caller knows a note by is its *name*, which is not unique across a
- * tree, and the expander only ever needs the one note it is expanding.
+ * **Keyed by note, then by the directive's ordinal within it** — not by its
+ * line. The passes do not agree on what a body is: `walkMarkdownTree` trims it,
+ * while the link checker strips the frontmatter fence and leaves the newlines
+ * that followed, so the same directive sits on different lines in each. Its
+ * position in the sequence of fences is the same in both.
  *
- * @returns {Promise<Map<string, Map<number, object>>>} Note to line to result,
+ * @returns {Promise<Map<string, object[]>>} Note to results, in document order,
  *   each carrying either a rendered `markdown` and its `rows`, or a `reason`.
  */
 export async function prepareSqlTables(db, sources, { linkable } = {}) {
@@ -338,12 +341,12 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
     for (const { source, markdown } of sources) {
         const blocks = findSqlBlocks(markdown);
         if (!blocks.length) continue;
-        const forNote = new Map();
+        const forNote = [];
         prepared.set(source, forNote);
         for (const block of blocks) {
             try {
                 const result = await runSqlQuery(db, block.query);
-                forNote.set(block.line, {
+                forNote.push({
                     markdown: renderSqlTable(result, {
                         linkable,
                         sectionLevel: block.sectionLevel,
@@ -352,7 +355,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
                     allowEmpty: block.allowEmpty,
                 });
             } catch (err) {
-                forNote.set(block.line, {
+                forNote.push({
                     reason: String(err?.message ?? err).split("\n")[0],
                     allowEmpty: block.allowEmpty,
                 });
@@ -360,4 +363,46 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
         }
     }
     return prepared;
+}
+
+/**
+ * Answer every `sql` directive in a content tree.
+ *
+ * The one entry point each pass uses, so the compiler, the link checker and the
+ * site build cannot disagree about what a table selects — the failure mode #243
+ * describes, where N passes each derive the corpus their own way.
+ *
+ * **Nothing is opened for a tree with no `sql` directive.** The corpus is still
+ * written entirely in the retiring language, so until a table is converted this
+ * costs one walk and no database at all — which is what lets every pass call it
+ * unconditionally.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} [opts]
+ * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
+ *   nothing when the tree has no such directive.
+ */
+export async function prepareTreeSqlTables(contentBase, { config } = {}) {
+    const sources = [];
+    for (const { body, absPath } of walkMarkdownTree(contentBase)) {
+        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
+    }
+    if (!sources.length) return undefined;
+
+    // Imported here rather than at module scope: the index reaches the pack
+    // compilers through `manifest-emit` → `journals`, so a static import from a
+    // module they load would close a cycle and leave `BasePackCompiler`
+    // uninitialised for whichever module the runtime happened to load first.
+    const { indexRecordsFor } = await import("./content-index.mjs");
+    const records = indexRecordsFor({ contentBase, config });
+    // A cell links only where the address it would emit resolves, so a table
+    // never ships a link the wikilink pass will then report dead.
+    const addresses = new Set(records.map((record) => record.address?.slug).filter(Boolean));
+    const db = await openNotesDatabase(records);
+    try {
+        return await prepareSqlTables(db, sources, { linkable: (ref) => addresses.has(ref) });
+    } finally {
+        await db.close();
+    }
 }
