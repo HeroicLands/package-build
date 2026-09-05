@@ -65,6 +65,28 @@ export const MAP_TYPES = Object.freeze(new Set(["map"]));
 export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap"]);
 
 /**
+ * Content types whose whole document **is** a JournalEntry.
+ *
+ * Prose, and nothing else: each compiles into one journal entry of its own,
+ * with no second document to point at. That is what separates them from the
+ * doc-carrying types in `item-docs.mjs`, whose prose becomes a journal *beside*
+ * an item, a macro or a scene — those are two documents, and the pair is
+ * addressed as `<type>` and `doc<type>`. These are one, so there is no
+ * `docplace` and nothing synthesizes one.
+ *
+ * `doc` was the only member until #241. `place`, `lore` and `scenario` are in
+ * the published content format and were declared for validation in #233, but
+ * nothing routed them: a note of one lint-ed clean and then compiled into
+ * nothing, because {@link PACK_BY_TYPE} did not name it and the open-set
+ * default sent it to the items pack. `sohl-thalorna` could not compile a single
+ * pack for exactly this reason — 450 notes, and the same 450 the linter had
+ * reported before it learned the types.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const JOURNAL_TYPES = Object.freeze(new Set(["doc", "place", "lore", "scenario"]));
+
+/**
  * Content type → the pack its documents compile into, and the document type
  * that pack holds.
  *
@@ -78,7 +100,9 @@ export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap
  * @type {Readonly<Record<string, {pack: string, docType: string}>>}
  */
 export const PACK_BY_TYPE = Object.freeze({
-    doc: { pack: "journals", docType: "JournalEntry" },
+    ...Object.fromEntries(
+        [...JOURNAL_TYPES].map((type) => [type, { pack: "journals", docType: "JournalEntry" }]),
+    ),
     macro: { pack: "macros", docType: "Macro" },
     being: { pack: "actors", docType: "Actor" },
     ...Object.fromEntries(

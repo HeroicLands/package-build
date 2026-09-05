@@ -100,7 +100,15 @@ describe("packForType (content type → the pack it compiles into)", () => {
                 docType: "Scene",
             });
         }
-        expect(Object.keys(PACK_BY_TYPE).sort()).toEqual(["being", "doc", "macro", "map"]);
+        expect(Object.keys(PACK_BY_TYPE).sort()).toEqual([
+            "being",
+            "doc",
+            "lore",
+            "macro",
+            "map",
+            "place",
+            "scenario",
+        ]);
     });
 
     it("routes every other type to the items pack, including one it has never seen", () => {
