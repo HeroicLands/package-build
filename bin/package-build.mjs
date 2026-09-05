@@ -84,6 +84,7 @@ import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
+import { lintYaml } from "../engine/yaml-lint.mjs";
 import {
     analyzeCoverage,
     collectScriptReferences,
@@ -714,6 +715,47 @@ function langHardcoded(config) {
  * @returns {object} The yargs command module.
  */
 /**
+ * `package-build yaml` — lint note frontmatter and every YAML file.
+ *
+ * Frontmatter carries a note's type, shortcode, address and system blocks, and
+ * until this command existed nothing checked it *as YAML*: a duplicate key was
+ * caught during the parse, logged at `warn`, and turned into a note with no
+ * frontmatter, which every later pass then skipped while the build reported
+ * success.
+ *
+ * It ships as a command rather than as a configuration to adopt, so a consumer
+ * needs no ESLint and no `eslint.config.js` of its own — and a repository that
+ * has one, as `Song-of-Heroic-Lands-FoundryVTT` does for `src/`, keeps it
+ * untouched and unconsulted.
+ *
+ * @returns {object} The yargs command module.
+ */
+function yamlCommand() {
+    return {
+        command: "yaml [paths..]",
+        describe: "Lint YAML — note frontmatter, and every YAML file in the repository",
+        builder: (y) =>
+            y.positional("paths", {
+                describe:
+                    "Files or globs to lint. Defaults to every YAML file and " +
+                    "markdown frontmatter git would consider — tracked, plus " +
+                    "untracked and not ignored.",
+                type: "string",
+            }),
+        handler: handler(async (args) => {
+            const { findings, checked } = await lintYaml(process.cwd(), { paths: args.paths });
+            const errors = reportFindings(findings, {});
+            const warnings = findings.length - errors;
+            console.log(
+                `package-build: ${checked} file(s) checked · ` +
+                    `${errors} error(s) · ${warnings} warning(s)`,
+            );
+            if (errors) process.exitCode = 1;
+        }),
+    };
+}
+
+/**
  * `labels check` — do the machine registry and the documented table agree?
  *
  * `.github/labels.yml` is synced to GitHub and the §3 table in
@@ -1065,6 +1107,7 @@ yargs(hideBin(process.argv))
     .command(schemaCommand())
     .command(langCommand())
     .command(labelsCommand())
+    .command(yamlCommand())
     .command(bundleCommand())
     .command(releaseCommand())
     .command(deployCommand())
