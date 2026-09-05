@@ -220,6 +220,44 @@ Actor types (`being`, `vehicle`) add one more:
 subtype that extends the Foundry base directly with no templates — so `notes` is
 NA on both sides for that type, and its table says so.
 
+#### The pack a note compiles into
+
+`pack` names which configured compendium receives the note's document.
+
+```yaml
+pack: items-hm3
+```
+
+It is deliberately close to the retired `package:` and deliberately not the same
+word: `package:` said which _distribution_ owned a note — now the repository's
+`contentPackage`, and no longer authorable — while `pack:` says which
+_compendium_ receives its document.
+
+**It names the pack for the note's _own_ document.** A document derived from it
+— an item's prose compiling into a `JournalEntry` of its own — is not what the
+author was addressing, and is routed by the pass that produces it.
+
+**`<system>.pack` overrides it for one system.** A note that compiles into two
+systems can send each document to its own pack:
+
+```yaml
+pack: items-sohl
+hm3:
+  pack: items-hm3
+```
+
+**Unstated, the document goes to the pack of its type marked `default: true`.**
+Where no pack of that type is the default, the build refuses rather than
+guessing, and names the candidates.
+
+Three declarations are refused, each with the reason:
+
+| written                             | why it is refused                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| a **companion** pack                | A companion is written by another pack's pass, so no note may be routed into one. |
+| a pack **nothing answers to**       | The message lists the configured packs of that document type.                     |
+| a pack of **another document type** | A note's `pack:` names a pack of its own document type.                           |
+
 #### The compendium folder
 
 A note says which folder of its pack it lands in. Two spellings are read, and
