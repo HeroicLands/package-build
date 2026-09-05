@@ -49,6 +49,7 @@ import { sohlField, makeId, resolveName, defaultStats, md } from "./helpers.mjs"
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { anchorPageId } from "./wikilinks.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
+import { JOURNAL_TYPES } from "./ids.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -278,15 +279,21 @@ export class Journals extends BasePackCompiler {
      * (#1348); a macro's is the same arrangement (#1514), and so is a map's,
      * whose prose is the place description its pins point at (#1525).
      *
-     * The membership is {@link sohl.utils.packs.docEntryTypes}, read through
-     * {@link sohl.utils.packs.hasDocEntry} — the one set the link manifest also
-     * reads, so what compiles and what is published cannot drift apart.
+     * Two memberships, and they mean different things.
+     * {@link module:engine/ids.JOURNAL_TYPES} is the types whose whole document
+     * *is* a journal — `doc`, and since #241 `place`, `lore` and `scenario`,
+     * which the content format has always described and nothing compiled.
+     * {@link sohl.utils.packs.docEntryTypes}, read through
+     * {@link sohl.utils.packs.hasDocEntry}, is the types whose prose becomes a
+     * journal *beside* another document. The second is the one the link
+     * manifest also reads, so what compiles and what is published cannot drift
+     * apart; the first has no second document to point at.
      *
      * @param {object} fm - The note's frontmatter.
-     * @returns {boolean} True for a `doc` note or a doc-carrying note.
+     * @returns {boolean} True for a journal-only note or a doc-carrying one.
      */
     selects(fm) {
-        return fm.type === "doc" || hasDocEntry(fm.type);
+        return JOURNAL_TYPES.has(String(fm.type)) || hasDocEntry(fm.type);
     }
 
     /**

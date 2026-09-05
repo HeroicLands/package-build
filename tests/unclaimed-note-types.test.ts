@@ -35,6 +35,8 @@ import log from "loglevel";
 import { defineConfig } from "../content-config.mjs";
 import { defineDocumentSubtypes } from "../engine/document-subtypes.mjs";
 import { generatePacksJson } from "../engine/generate.mjs";
+import { packForType } from "../engine/ids.mjs";
+import { hasDocEntry } from "../engine/item-docs.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import {
     NEVER_PACKED_TYPES,
@@ -365,5 +367,41 @@ describe("the claim table and the compilers agree", () => {
         // this table growing a second copy of the same fact.
         expect(noteTypesClaimedBy("Actor").has("being")).toBe(true);
         expect(Object.keys(SOHL_DOCUMENT_SUBTYPES.types)).toContain("affiliation");
+    });
+});
+
+describe("a type whose whole document is a journal (#241)", () => {
+    it("routes place, lore and scenario to the journals pack", () => {
+        for (const type of ["place", "lore", "scenario"]) {
+            expect(packForType(type), type).toEqual({
+                pack: "journals",
+                docType: "JournalEntry",
+            });
+        }
+    });
+
+    it("claims them for the JournalEntry pass", () => {
+        const claims = noteTypesClaimedBy("JournalEntry");
+        for (const type of ["doc", "place", "lore", "scenario"]) {
+            expect(claims.has(type), type).toBe(true);
+        }
+    });
+
+    it("gives them no synthesized documentation entry", () => {
+        // Their whole document *is* the journal, so there is no second
+        // document to address and nothing spells `docplace`. That is what
+        // separates them from an item, whose prose becomes a journal beside it.
+        for (const type of ["place", "lore", "scenario"]) {
+            expect(hasDocEntry(type), type).toBe(false);
+        }
+    });
+
+    it("does not route them to the items pack by the open-set default", () => {
+        // The regression this fixes: an unnamed type fell through to items, so
+        // 450 notes across `sohl-thalorna` compiled into nothing while every
+        // gate reported success.
+        for (const type of ["place", "lore", "scenario"]) {
+            expect(packForType(type).docType, type).not.toBe("Item");
+        }
     });
 });
