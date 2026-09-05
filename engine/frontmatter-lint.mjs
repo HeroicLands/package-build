@@ -107,7 +107,7 @@ import {
  * @type {ReadonlySet<string>}
  */
 export const UNIVERSAL_KEYS = Object.freeze(
-    new Set(["folder", "packFolder", "pack", "archetype", "kbcat"]),
+    new Set(["folder", "packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
 );
 
 /**
@@ -556,7 +556,7 @@ function checkEmbeddedShortcodes(note, blockName) {
             :   entry.shortcode;
         if (!type || !key) return;
 
-        const address = `${type} ${key}`;
+        const address = `${type}/${key}`;
         const first = claimed.get(address);
         if (first === undefined) {
             claimed.set(address, index);
@@ -659,6 +659,29 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // harmless. Whether `title: ""` deserves a warning of its own is a separate
     // question about the *page's* heading, still open on #218, and not settled
     // by extending an art-path check to it.
+    // The template priority is a *shared source* — the specification states it
+    // once for every type, as it does `pack` — so its retirement is reported
+    // here rather than by the per-type loop below, which only reaches a field
+    // some type's vocabulary declares (#266).
+    if (declaresRetiredAlias(fm, "templatePriority")) {
+        findings.push({
+            file: note.file,
+            ...at(RETIRED_FIELD_ALIASES.templatePriority),
+            // An error, unlike the other retired alias. `archetype` is not
+            // a field of its own — it is `templatePriority` under its prior
+            // name, and both sit one letter from `archetypes`, which means
+            // something else entirely. A tree still on it is one where a
+            // priority and a taxonomy are told apart by a plural `s`, which
+            // is worth stopping rather than mentioning. This reds every
+            // tree until each is swept; that is the point.
+            severity: "error",
+            message: retiredAliasMessage(
+                RETIRED_FIELD_ALIASES.templatePriority,
+                "templatePriority",
+            ),
+        });
+    }
+
     for (const key of ART_FIELDS) {
         if (authoredValue(fm, key) !== "") continue;
         findings.push({

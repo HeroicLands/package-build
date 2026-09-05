@@ -335,6 +335,13 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * `image` is retired on a map — which declares `img` — and remains an unknown
  * key anywhere else.
  *
+ * **`templatePriority` (#266).** The number that decides which of several
+ * competing templates the Create dialog offers was called `archetype`, and
+ * `archetypes` — one letter apart — is a list of what *sort* a character is.
+ * A priority and a taxonomy cannot be told apart by a plural `s`, so the
+ * priority takes the name that says what it is. The specification already
+ * called it `templatePriority` on two of its three sides.
+ *
  * **`img` (#142).** Every note type names its artwork `img`, at the note's top
  * level, and resolves it the same way. A map alone named its background art
  * `image` and read it out of the `sohl:` block — two spellings for one idea,
@@ -345,7 +352,10 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  *
  * @type {Readonly<Record<string, string>>}
  */
-export const RETIRED_FIELD_ALIASES = Object.freeze({ img: "image" });
+export const RETIRED_FIELD_ALIASES = Object.freeze({
+    img: "image",
+    templatePriority: "archetype",
+});
 
 /**
  * What a note writing a renamed field is told, in one place.
