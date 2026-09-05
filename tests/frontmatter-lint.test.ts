@@ -198,7 +198,15 @@ describe("keys every type accepts", () => {
     it("allows the universal keys on any type", () => {
         const schemas = { doc: [] } as any;
         const sohl = Object.fromEntries([...UNIVERSAL_KEYS].map((k) => [k, "x"]));
-        expect(lintNote(note("doc", sohl), { schemas })).toEqual([]);
+        const findings = lintNote(note("doc", sohl), { schemas });
+
+        // None of them is rejected. One draws a *warning*: `archetype` is the
+        // retiring spelling of `templatePriority` and both are universal keys
+        // during the window, so a note naming every one of them necessarily
+        // names the old spelling too (#266).
+        expect(findings.filter((f: any) => f.severity === "error")).toEqual([]);
+        expect(findings.map((f: any) => f.severity)).toEqual(["warning"]);
+        expect(findings[0].message).toMatch(/write `templatePriority:` instead/);
     });
 
     it("includes kbcat, which no compiler reads but the knowledgebase does", () => {

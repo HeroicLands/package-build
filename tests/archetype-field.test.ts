@@ -88,9 +88,11 @@ describe("resolveArchetype (build:compiledb archetype contract, #640)", () => {
         expect(resolveArchetype({ sohl: { archetype: null } }, "x")).toBe(undefined);
     });
 
-    it("throws when sohl.archetype is absent", () => {
-        expect(() => resolveArchetype({ sohl: {} }, "widget")).toThrow(/archetype/i);
-        expect(() => resolveArchetype({}, "widget")).toThrow(/archetype/i);
+    it("throws when neither spelling is present", () => {
+        // The message names `templatePriority`, the spelling to write — not
+        // `archetype`, which is retiring (#266).
+        expect(() => resolveArchetype({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
+        expect(() => resolveArchetype({}, "widget")).toThrow(/templatePriority/i);
     });
 
     it("throws when sohl.archetype is a non-number, non-null value", () => {
@@ -143,8 +145,8 @@ describe("systemArchetype (the `system.archetype` value, #126)", () => {
     });
 
     it("throws when archetype is absent, so 'not an archetype' is never assumed", () => {
-        expect(() => systemArchetype({ sohl: {} }, "widget")).toThrow(/archetype/i);
-        expect(() => systemArchetype({}, "widget")).toThrow(/archetype/i);
+        expect(() => systemArchetype({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
+        expect(() => systemArchetype({}, "widget")).toThrow(/templatePriority/i);
     });
 
     it("throws when archetype is a non-number, non-null value", () => {
@@ -262,7 +264,7 @@ describe("the compiled Item carries `system.archetype`, not the flag", () => {
     });
 
     it("refuses a note with no archetype at all", () => {
-        expect(() => items().buildEntry(skillNote({}), "")).toThrow(/archetype/i);
+        expect(() => items().buildEntry(skillNote({}), "")).toThrow(/templatePriority/i);
     });
 });
 
@@ -300,6 +302,8 @@ describe("the compiled Actor carries `system.archetype`, not the flag", () => {
     });
 
     it("refuses a note with no archetype at all", () => {
-        expect(() => actors().buildBeing(new Map(), beingNote({}), "")).toThrow(/archetype/i);
+        expect(() => actors().buildBeing(new Map(), beingNote({}), "")).toThrow(
+            /templatePriority/i,
+        );
     });
 });

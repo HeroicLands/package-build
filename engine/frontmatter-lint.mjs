@@ -107,7 +107,7 @@ import {
  * @type {ReadonlySet<string>}
  */
 export const UNIVERSAL_KEYS = Object.freeze(
-    new Set(["folder", "packFolder", "pack", "archetype", "kbcat"]),
+    new Set(["folder", "packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
 );
 
 /**
@@ -659,6 +659,25 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // harmless. Whether `title: ""` deserves a warning of its own is a separate
     // question about the *page's* heading, still open on #218, and not settled
     // by extending an art-path check to it.
+    // The template priority is a *shared source* — the specification states it
+    // once for every type, as it does `pack` — so its retirement is reported
+    // here rather than by the per-type loop below, which only reaches a field
+    // some type's vocabulary declares (#266).
+    if (declaresRetiredAlias(fm, "templatePriority")) {
+        findings.push({
+            file: note.file,
+            ...at(RETIRED_FIELD_ALIASES.templatePriority),
+            // A warning, not an error: both spellings are read and the note
+            // compiles identically, so failing a build would red every tree at
+            // once — 5,727 notes author the retiring key.
+            severity: "warning",
+            message: retiredAliasMessage(
+                RETIRED_FIELD_ALIASES.templatePriority,
+                "templatePriority",
+            ),
+        });
+    }
+
     for (const key of ART_FIELDS) {
         if (authoredValue(fm, key) !== "") continue;
         findings.push({
