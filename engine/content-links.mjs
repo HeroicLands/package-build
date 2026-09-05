@@ -56,7 +56,7 @@ import path from "node:path";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
-import { collectAnchors } from "./content-index.mjs";
+import { collectAnchors } from "./anchors.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";

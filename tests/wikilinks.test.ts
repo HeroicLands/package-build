@@ -692,3 +692,53 @@ describe("a code fence is verbatim (#1505)", () => {
         expect(markdown).toContain("@UUID[");
     });
 });
+
+describe("a `#section` the target does not declare (#193)", () => {
+    const DOCS_WITH_ANCHORS = [
+        {
+            type: "doc",
+            id: "fffffffffffffff1",
+            shortcode: "guide",
+            name: "Guide",
+            anchors: new Set(["overview", "CamelCase"]),
+        },
+    ];
+    const anchored = buildWikilinkIndex(DOCS_WITH_ANCHORS, "sohl");
+    const here = { type: "doc", id: "aaaaaaaaaaaaaaa2" };
+    const run = (src: string) => convertWikilinks(src, { ...here, index: anchored });
+
+    it("resolves an anchor the target declares", () => {
+        const out = run("[[doc-guide#overview|Overview]]");
+        expect(out.markdown).toContain("@UUID[");
+    });
+
+    it("refuses one it does not, rather than hashing a page id for it", () => {
+        // `anchorPageId` will hash any slug into a page id, so before this the
+        // link compiled and dead-ended for the reader: the build emitted a
+        // `@UUID` naming a JournalEntryPage that no heading declares.
+        const out = run("[[doc-guide#missing|Missing]]");
+        expect(out.markdown).not.toContain("@UUID[");
+        const reasons = (out.unresolved ?? []).map((u: any) => u.reason);
+        expect(reasons).toContain("unknown-anchor");
+    });
+
+    it("reports it with the shared reason the foreign path already used", () => {
+        const out = run("[[doc-guide#missing|Missing]]");
+        const finding = (out.unresolved ?? []).find((u: any) => u.reason === "unknown-anchor");
+        expect(finding?.anchor).toBe("missing");
+        expect(finding?.addressed).toBe(true);
+    });
+
+    it("matches the anchor exactly, capitals included", () => {
+        expect(run("[[doc-guide#CamelCase|Cased]]").markdown).toContain("@UUID[");
+    });
+
+    it("says nothing when the index carries no anchor set", () => {
+        // An index built without anchors cannot answer the question, and must
+        // not answer it wrongly — the foreign path behaves the same way when a
+        // manifest publishes no `anchors` map.
+        const out = convertWikilinks("[[doc-extshock#whatever|X]]", { ...here, index });
+        const reasons = (out.unresolved ?? []).map((u: any) => u.reason);
+        expect(reasons).not.toContain("unknown-anchor");
+    });
+});

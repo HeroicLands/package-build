@@ -71,6 +71,12 @@ import unidecode from "unidecode";
 
 import { addressSlug } from "./content-address.mjs";
 import { canonicalKey } from "./kb-manifest.mjs";
+// One reader for a note's anchors, shared with the link checker and with the
+// builds that emit a link (#243). Re-exported because this is where callers
+// have always addressed it.
+import { collectAnchors } from "./anchors.mjs";
+
+export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -102,64 +108,6 @@ export const DERIVED_KEYS = Object.freeze([
     "documentation",
     "documents",
 ]);
-
-/**
- * A heading, and the `{#slug}` anchor it declares.
- *
- * Kept identical to the pair {@link splitPages} matches, because the two must
- * agree about what an anchor is: that pass decides which sections become
- * addressable journal pages, and an index naming an anchor it does not produce
- * would advertise a link that resolves nowhere. `tests/content-index.test.ts`
- * asserts the two find the same anchors, so drift fails the suite rather than
- * shipping.
- */
-const HEADING = /^\s*(#{1,6})\s+(.+?)\s*#*\s*$/;
-const ANCHOR = /^(.*?)\s*\{#([^}]+)\}\s*$/;
-
-/**
- * The `{#slug}` anchors a note's body declares, with where each one sits.
- *
- * Only headings carrying an explicit anchor are collected. A bare `#` heading
- * also starts a journal page, but it declares no slug, so nothing can address
- * it with `#…` — listing it would offer a link that cannot be written.
- *
- * @param {string} body - The note's markdown body, frontmatter already removed.
- * @param {number} [bodyLine] - The 1-based file line the body starts on, from
- *   `parseMarkdownFile`. Anchors are reported at their position in the **file**,
- *   so an editor can jump straight to one; passing nothing numbers from the body.
- * @returns {Array<{slug: string, name: string, level: number, line: number}>}
- *   In document order.
- */
-export function collectAnchors(body, bodyLine = 1) {
-    const anchors = [];
-    let inCodeBlock = false;
-    const lines = String(body ?? "").split("\n");
-
-    for (let i = 0; i < lines.length; i++) {
-        // A fenced block's contents are not headings, and `#` is a comment in
-        // most of what gets fenced.
-        if (lines[i].trim().startsWith("```")) {
-            inCodeBlock = !inCodeBlock;
-            continue;
-        }
-        if (inCodeBlock) continue;
-
-        const heading = HEADING.exec(lines[i]);
-        if (!heading) continue;
-        const anchor = ANCHOR.exec(heading[2].trim());
-        if (!anchor) continue;
-
-        const slug = anchor[2].trim();
-        if (!slug) continue;
-        anchors.push({
-            slug,
-            name: anchor[1].trim(),
-            level: heading[1].length,
-            line: bodyLine + i,
-        });
-    }
-    return anchors;
-}
 
 /**
  * The address a wikilink writes to reach a note, or `null` when it has none.
