@@ -556,7 +556,7 @@ function checkEmbeddedShortcodes(note, blockName) {
             :   entry.shortcode;
         if (!type || !key) return;
 
-        const address = `${type} ${key}`;
+        const address = `${type}/${key}`;
         const first = claimed.get(address);
         if (first === undefined) {
             claimed.set(address, index);
