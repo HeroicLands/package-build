@@ -75,6 +75,8 @@ import { canonicalKey } from "./kb-manifest.mjs";
 // builds that emit a link (#243). Re-exported because this is where callers
 // have always addressed it.
 import { collectAnchors } from "./anchors.mjs";
+import { subtypeRow } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 
 export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
@@ -303,17 +305,63 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
 }
 
 /**
- * The `foundry` block for one manifest entry.
+ * The `foundry` block for one manifest entry, **keyed by the system that
+ * compiles it**.
+ *
+ * A note may declare more than one system — 2,497 of `harn-ensemble`'s carry
+ * both a `sohl:` and an `hm3:` block — and each compiles into its *own* Foundry
+ * document, of that system's document type, in that system's pack. One `uuid`
+ * on the record cannot name two documents, so it named whichever the single
+ * shipped map produced and said nothing about the other.
+ *
+ * Only `sohl` can appear today, because `KNOWN_DOCUMENT_SUBTYPE_MAPS` holds one
+ * map and #139 tracks the missing `hm3/` half. The shape is system-keyed now so
+ * that adding it is one more key rather than a second breaking change to an
+ * artifact consumers have already started reading.
+ *
+ * **Derived, and a sibling of the authored block rather than inside it.** The
+ * uuid could have been synthesized onto `sohl:`/`hm3:` themselves, but those are
+ * regions a note *authors*, and {@link DERIVED_KEYS} — which refuses a note that
+ * writes over derived data — reaches only the top level. A note authoring
+ * `sohl.uuid` would collide silently, which is the failure this index exists to
+ * stop rather than to add.
  *
  * @param {object|null} entry - A manifest entry.
- * @returns {object|null} `{ uuid?, anchors? }`, or null when it addresses nothing.
+ * @param {string} system - The system whose document this is.
+ * @returns {object|null} `{ [system]: { uuid?, anchors? } }`, or null when it
+ *   addresses nothing.
  */
-function foundryBlock(entry) {
+/**
+ * The system whose document this note's own type compiles into, if any.
+ *
+ * A `place`, a `doc`, a `macro` or a map compiles into a JournalEntry, a Macro
+ * or a Scene that belongs to the **note format** rather than to a game system —
+ * no system map names those types, and their address carries no system. An
+ * `affiliation` or a `being` is a system's document, of that system's subtype,
+ * and a note may declare more than one system.
+ *
+ * So the block is keyed only where the key means something.
+ *
+ * @param {string} type - The note's `type`.
+ * @param {readonly object[]} maps - The document-subtype maps this build ships.
+ * @returns {string|undefined} The system id, or undefined for a format document.
+ */
+function systemOf(type, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS) {
+    for (const map of maps ?? []) {
+        if (subtypeRow(map, type)) return map.system;
+    }
+    return undefined;
+}
+
+function foundryBlock(entry, system) {
     if (!entry) return null;
     const block = {};
     if (entry.uuid) block.uuid = entry.uuid;
     if (entry.anchors) block.anchors = entry.anchors;
-    return Object.keys(block).length ? block : null;
+    if (!Object.keys(block).length) return null;
+    // Unkeyed where the document is the note format's own — a journal, a macro,
+    // a scene — because there is no system whose key it would be.
+    return system ? { [system]: block } : block;
 }
 
 export function buildIndexRecord({
@@ -353,7 +401,7 @@ export function buildIndexRecord({
                 ...a,
                 link: address ? `${address.slug}#${a.slug}` : null,
             })),
-            foundry: foundryBlock(entries?.own),
+            foundry: foundryBlock(entries?.own, systemOf(frontmatter?.type)),
             // Forward link to the note's documentation journal, which is its
             // own record. Named rather than nested, because the journal is a
             // separate document with its own address — see `buildDocRecord`.
@@ -429,7 +477,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // the forward link on that record, so either end reaches the other.
             documents: address.canonical,
             anchors,
-            foundry: foundryBlock(entry),
+            foundry: foundryBlock(entry), // a journal: no system key
             file,
         })
     );
