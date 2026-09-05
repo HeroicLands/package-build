@@ -1605,3 +1605,10 @@ need an authoring convention of their own.
 
 The note's `img` is a content-relative path resolved the way every other note's
 is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
+
+### type: folder
+
+| `data` property | Values      | Description                                                                                                                                                |
+| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `parent`        | `wikilink`  | The parent folder of this folder, type `folder`                                                                                                            |
+| `color`         | `"#RRGGBB"` | The folder's colour. **Quote it.** Unquoted, the `#` opens a YAML comment and the value is `null`; drop the `#` and YAML reads `000000` as the number `0`. |

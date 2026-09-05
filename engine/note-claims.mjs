@@ -70,6 +70,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
+import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 
 /**
@@ -334,6 +335,32 @@ function configurationMessage(type, config, sources) {
 }
 
 /**
+ * The **specification** finding: the format states the type, nothing compiles it.
+ *
+ * A third thing that can be wrong, and the only one that is not the author's
+ * fault. `docs/content-format.md` documents the type and the vocabulary declares
+ * its properties, so a note written against the published specification is
+ * correct — this toolchain simply has not implemented it yet.
+ *
+ * It earns its own message because the other two would both mislead here.
+ * Naming a missing pack or registry sends an author to
+ * `package-build.config.yaml`, where nothing they can write will help; saying
+ * the type is unknown flatly contradicts the specification they read it in.
+ *
+ * @param {string} type - The note's declared `type`.
+ * @returns {string} The message.
+ */
+function specifiedMessage(type) {
+    return (
+        `no configured pack claims a note of type "${type}", so it compiles ` +
+        `into nothing. The content format specifies "${type}", so the note is ` +
+        `not wrong — this toolchain has not implemented the type yet. Nothing ` +
+        `in this repository's configuration will change that; do not author ` +
+        `the type until a release compiles it.`
+    );
+}
+
+/**
  * The **authoring** finding: nothing anywhere knows the type.
  *
  * @param {string} type - The note's declared `type`.
@@ -387,9 +414,9 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
-                vocabulary.has(type) ?
-                    configurationMessage(type, config, resolved)
-                :   authoringMessage(type),
+                vocabulary.has(type) ? configurationMessage(type, config, resolved)
+                : Object.hasOwn(NOTE_VOCABULARY, type) ? specifiedMessage(type)
+                : authoringMessage(type),
         });
     }
     return findings;
