@@ -167,7 +167,7 @@ describe("the compile loop refuses a note declaring `draft:`", () => {
             ["---", ...frontmatter, "---", "", "Prose.", ""].join("\n"),
             "utf8",
         );
-        const probe = new Probe({ contentBase: content, dest });
+        const probe = new Probe({ skipDirectories: [], contentBase: content, dest });
         await probe.compile();
         return { probe, dest };
     }

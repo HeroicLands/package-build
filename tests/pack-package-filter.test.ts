@@ -205,10 +205,11 @@ beforeAll(async () => {
     fs.writeFileSync(path.join(content, "OwnMap.md"), OWN_MAP);
 
     // Items first: the actors pass reads the compiled items as its sibling.
-    compilers.items = new Items({ contentBase: content, dest: dest("items") });
+    compilers.items = new Items({ skipDirectories: [], contentBase: content, dest: dest("items") });
     await compilers.items.compile();
 
     compilers.actors = new Actors({
+        skipDirectories: [],
         contentBase: content,
         dest: dest("actors"),
         // Stated, not inferred from the destination's siblings: where the items
@@ -219,18 +220,21 @@ beforeAll(async () => {
     await compilers.actors.compile();
 
     compilers.journals = new Journals({
+        skipDirectories: [],
         contentBase: content,
         dest: dest("journals"),
     });
     await compilers.journals.compile();
 
     compilers.macros = new Macros({
+        skipDirectories: [],
         contentBase: content,
         dest: dest("macros"),
     });
     await compilers.macros.compile();
 
     compilers.scenes = new Scenes({
+        skipDirectories: [],
         contentBase: content,
         dest: dest("scenes"),
         companionDests: { adventures: dest("adventures") },
@@ -291,7 +295,7 @@ describe("a note still declaring `package:` is refused, not skipped", () => {
             fs.mkdirSync(out, { recursive: true });
             fs.writeFileSync(path.join(tree, "OtherSkill.md"), OTHER_SKILL);
 
-            const items = new Items({ contentBase: tree, dest: out });
+            const items = new Items({ skipDirectories: [], contentBase: tree, dest: out });
             await items.compile();
 
             // Loud: the build fails, rather than shipping an empty pack from a

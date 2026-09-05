@@ -365,6 +365,9 @@ async function generatePack(
         // downloading inside a compile.
         foreignSourceDirs: foreignItemCatalogDirs(config),
         folderResolver: resolver,
+        // One answer to "which files are the corpus?", from the configuration
+        // this build resolved rather than from the working directory (#243).
+        skipDirectories: config.skipDirectories,
         packName: name,
         // Which system this pack's documents are stamped for (#48).
         packSystem: system ?? null,

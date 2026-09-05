@@ -87,6 +87,7 @@ class NeutralPass extends BasePackCompiler {
 function pass(Cls: typeof SystemPass | typeof NeutralPass, packSystem: string | null) {
     const contentBase = emptyTree();
     return new Cls({
+        skipDirectories: [],
         contentBase,
         dest: path.join(contentBase, "out"),
         packName: "actors-hm3",

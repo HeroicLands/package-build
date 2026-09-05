@@ -267,6 +267,7 @@ describe("the compilers look the subtype up", () => {
     function items() {
         const config = loadPackConfig();
         return new Items({
+            skipDirectories: [],
             contentBase: path.join(PKG_ROOT, "tests/fixtures"),
             dest: config.paths.packJson,
         });
@@ -276,6 +277,7 @@ describe("the compilers look the subtype up", () => {
     function actors() {
         const config = loadPackConfig();
         return new Actors({
+            skipDirectories: [],
             contentBase: path.join(PKG_ROOT, "tests/fixtures"),
             dest: config.paths.packJson,
         });

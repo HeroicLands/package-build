@@ -308,6 +308,7 @@ describe("the catalogue actually reaches the actors pass", () => {
 
     it("keeps the foreign directories it was constructed with", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
             itemsSourceDirs: [path.join(dir, "items")],
@@ -318,6 +319,7 @@ describe("the catalogue actually reaches the actors pass", () => {
 
     it("defaults to none, so a repository needing no catalogue is unaffected", () => {
         const compiler = new Actors({
+            skipDirectories: [],
             contentBase: path.join(dir, "content"),
             dest: path.join(dir, "out"),
             itemsSourceDirs: [path.join(dir, "items")],

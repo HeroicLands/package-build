@@ -371,7 +371,9 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
     const vocabulary = noteTypeVocabulary(resolved);
     const findings = [];
 
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(config.paths.content)) {
+    for (const { frontmatter: fm, absPath } of walkMarkdownTree(config.paths.content, {
+        skipDirectories: config.skipDirectories,
+    })) {
         if (!fm) continue;
         const type = typeof fm.type === "string" ? fm.type.trim() : "";
         if (!type) continue;

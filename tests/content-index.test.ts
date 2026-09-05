@@ -417,7 +417,11 @@ describe("collectContentIndex", () => {
         note(path.join("Alpha", "Ant.md"), "type: being\nid: a\nshortcode: ant");
         note("Mule.md", "type: being\nid: m\nshortcode: mule");
 
-        const records = collectContentIndex(tmp, { contentPackage: "sohl" });
+        const records = collectContentIndex(tmp, {
+            skipDirectories: [],
+            contentPackage: "sohl",
+            skipDirectories: [],
+        });
         expect(records.map((r) => r.file.path)).toEqual(["Alpha/Ant.md", "Mule.md", "Zebra.md"]);
     });
 
@@ -426,6 +430,7 @@ describe("collectContentIndex", () => {
         note(path.join("Templates", "Skip.md"), "type: being\nid: s\nshortcode: skip");
 
         const records = collectContentIndex(tmp, {
+            skipDirectories: [],
             contentPackage: "sohl",
             skipDirectories: ["Templates"],
         });
@@ -434,6 +439,7 @@ describe("collectContentIndex", () => {
 
     it("returns nothing for a tree that does not exist", () => {
         const records = collectContentIndex(path.join(tmp, "absent"), {
+            skipDirectories: [],
             contentPackage: "sohl",
             skipDirectories: [],
         });

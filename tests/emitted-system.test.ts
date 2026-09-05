@@ -59,6 +59,7 @@ const artifact = (documents: object, systemVersion = "0.8.2") => ({
 function items() {
     const config = loadPackConfig();
     return new Items({
+        skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });
@@ -68,6 +69,7 @@ function items() {
 function actors() {
     const config = loadPackConfig();
     return new Actors({
+        skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });

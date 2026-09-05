@@ -121,10 +121,25 @@ export function parseMarkdownFile(filePath) {
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
  *   Defaults to the configured list.
  */
-export function* walkMarkdownTree(
-    rootDir,
-    { skipDirectories = loadPackConfig().skipDirectories } = {},
-) {
+export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
+    // Stated by the caller, never resolved here. The default this used to carry
+    // — `loadPackConfig().skipDirectories` — read whichever configuration
+    // resolved from the working directory rather than the one the caller was
+    // working under. In an ordinary build those are the same object and nothing
+    // shows; they are not the same when a test injects a configuration, when
+    // `PACKAGE_BUILD_CONFIG` names one, or when the command runs from a
+    // worktree. Six of this function's twelve callers were on that default, so
+    // "which files are the corpus?" had two answers depending on who asked
+    // (#243) — the same defect class as `entriesForNote` reading
+    // `docEntryTypes` from the ambient config, fixed in #240 after a fixture
+    // had been passing on the leak for as long as it existed.
+    if (skipDirectories === undefined) {
+        throw new Error(
+            "walkMarkdownTree requires `skipDirectories`: the scope is the " +
+                "caller's to state, so two passes cannot disagree about which " +
+                "files are the corpus",
+        );
+    }
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
     while (stack.length > 0) {
@@ -463,9 +478,15 @@ import { collectAnchors } from "./anchors.mjs";
  *   this repository's own.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
-export function buildContentLinkIndex(contentBase, router = packRouter()) {
+export function buildContentLinkIndex(
+    contentBase,
+    router = packRouter(),
+    { skipDirectories } = {},
+) {
     const docs = [];
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase)) {
+    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
+        skipDirectories,
+    })) {
         if (!fm?.id) continue;
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note
@@ -617,9 +638,11 @@ export function convertNoteWikilinks(
  * @returns {Array<{fm: object, path: string, tld: string, folder: string,
  *   absPath: string}>}
  */
-export function collectContentDocs(contentBase) {
+export function collectContentDocs(contentBase, { skipDirectories } = {}) {
     const docs = [];
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase)) {
+    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, {
+        skipDirectories,
+    })) {
         if (!fm) continue;
         const segments = path.relative(contentBase, absPath).split(path.sep);
         docs.push({

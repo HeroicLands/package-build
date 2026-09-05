@@ -266,6 +266,8 @@ export class BasePackCompiler {
      * @param {object} options
      * @param {string} options.contentBase - Root of the content tree.
      * @param {string} options.dest - Where this pass writes its JSON.
+     * @param {readonly string[]} options.skipDirectories - Directories the walk
+     *   never descends into. Required: see {@link walkMarkdownTree}.
      * @param {(path: string|null) => string|null} [options.folderResolver] -
      *   Resolves a `sohl.folder` id against this pack's folder hierarchy.
      * @param {string} [options.packName] - The pack this pass writes.
@@ -278,6 +280,7 @@ export class BasePackCompiler {
     constructor({
         contentBase,
         dest,
+        skipDirectories,
         folderResolver = () => null,
         packName,
         packSystem = null,
@@ -291,6 +294,13 @@ export class BasePackCompiler {
         if (!fs.existsSync(contentBase)) {
             throw new Error(`Content tree not found at ${contentBase}`);
         }
+        if (skipDirectories === undefined) {
+            throw new Error(
+                `${this.constructor.name} compiler requires \`skipDirectories\`: ` +
+                    `the walk's scope is stated by whoever builds the pass, not ` +
+                    `resolved from the working directory`,
+            );
+        }
         Object.defineProperty(this, "contentBase", {
             value: contentBase,
             writable: false,
@@ -301,6 +311,14 @@ export class BasePackCompiler {
         });
         Object.defineProperty(this, "folderResolver", {
             value: folderResolver,
+            writable: false,
+        });
+        // The walk's scope, stated by whoever built this pass rather than
+        // resolved from the working directory (#243). Every walk this compiler
+        // makes — its own, the table corpus, the link index, the SQL tables —
+        // uses this one answer.
+        Object.defineProperty(this, "skipDirectories", {
+            value: skipDirectories,
             writable: false,
         });
         this.packName = packName;
@@ -441,9 +459,10 @@ export class BasePackCompiler {
      */
     async prepare() {
         if (this.constructor.convertsWikilinks) {
-            this.linkIndex = buildContentLinkIndex(this.contentBase, this.router);
-            this.contentDocs = collectContentDocs(this.contentBase);
-            this.sqlTables = await prepareTreeSqlTables(this.contentBase);
+            const scope = { skipDirectories: this.skipDirectories };
+            this.linkIndex = buildContentLinkIndex(this.contentBase, this.router, scope);
+            this.contentDocs = collectContentDocs(this.contentBase, scope);
+            this.sqlTables = await prepareTreeSqlTables(this.contentBase, scope);
         }
         this.unresolvedLinks = 0;
     }
@@ -783,6 +802,7 @@ export class BasePackCompiler {
 
         for (const { frontmatter: fm, body, absPath, bodyLine, bodyColumn } of walkMarkdownTree(
             this.contentBase,
+            { skipDirectories: this.skipDirectories },
         )) {
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one (#17).

@@ -175,6 +175,7 @@ async function withDemoPass(
         .mockImplementation((line: unknown) => void said.push(String(line)));
     try {
         const pass = new DemoActors({
+            skipDirectories: [],
             contentBase: path.join(PKG_ROOT, "tests/fixtures"),
             dest: loadPackConfig().paths.packJson,
             itemsSourceDirs: [itemsDir],

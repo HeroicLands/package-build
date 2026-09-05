@@ -383,9 +383,11 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
-export async function prepareTreeSqlTables(contentBase, { config } = {}) {
+export async function prepareTreeSqlTables(contentBase, { config, skipDirectories } = {}) {
     const sources = [];
-    for (const { body, absPath } of walkMarkdownTree(contentBase)) {
+    for (const { body, absPath } of walkMarkdownTree(contentBase, {
+        skipDirectories: skipDirectories ?? config?.skipDirectories,
+    })) {
         if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
     }
     if (!sources.length) return undefined;

@@ -86,6 +86,7 @@ describe("an item note's `img` (#218)", () => {
     function compiler() {
         const config = loadPackConfig();
         return new Items({
+            skipDirectories: [],
             contentBase: path.join(PKG_ROOT, "tests/fixtures"),
             dest: config.paths.packJson,
         });
