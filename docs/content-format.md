@@ -258,10 +258,23 @@ Three declarations are refused, each with the reason:
 | a pack **nothing answers to**       | The message lists the configured packs of that document type.                     |
 | a pack of **another document type** | A note's `pack:` names a pack of its own document type.                           |
 
-#### Archetypes, and which template wins
+#### Template priority: which template wins
 
-`archetype` marks a document as a **starting template** the Create dialog offers
-to clone from, and says at what priority. It is read from the `sohl:` block.
+A note can mark its document as a **starting template** the Create dialog offers
+to clone from, so a new being or item is born populated rather than blank. The
+value is a **priority**, and the priority is the whole mechanism — it decides
+which of several competing templates a player is actually offered.
+
+The shared mapping table above names it `data.templatePriority`, targeting
+`system.template` in SoHL and `flags.hm3.templatePriority` in HM3.
+
+> **What a note writes today is `archetype`.** The build still reads
+> `sohl.archetype` and SoHL's data model still declares `system.archetype`.
+> `Song-of-Heroic-Lands-FoundryVTT#1780` completes the rename — and it is more
+> than a rename, because it frees the word: **`archetype` is being repurposed for
+> a different idea**, the _sort_ a character is (healer, warrior, mage), which is
+> a kind and not a priority. Until that lands, the two words name each other's
+> concepts, so this section describes the mechanism rather than trusting either.
 
 ```yaml
 sohl:
@@ -276,21 +289,26 @@ sohl:
 **Every note SoHL compiles into an Item or an Actor must state it.** Absent, the
 build refuses: "not a template" has to be _said_, not left out, or an omission
 and a decision look identical. The value is a number or `null`, and **`0` is a
-real priority** — the one SoHL's own archetypes ship at — not an absence.
+real priority** — the one SoHL's own templates ship at — not an absence.
+
+**Where it lands differs by system, because HM3's data model has no field for
+it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
+`flags.hm3`, and a note that is not a template writes nothing there rather than a
+`null` nothing reads. HM3's _item_ pass does not emit it yet.
 
 **How a winner is chosen.** Opening a Create dialog gathers every candidate
 across the world and every matching compendium, _including other modules'_. Those
 are filtered to the `(type, subType)` being created, deduped by **`shortcode`** —
-an archetype's stable identity, where the name is only presentation — and one
+a template's stable identity, where the name is only presentation — and one
 winner is taken per shortcode:
 
-1. the highest `archetype` priority;
+1. the highest priority;
 2. then the nearest source — **world**, then **system**, then **module** — so a
    GM's own copy shadows a shipped one at equal priority;
 3. then a stable UUID, so the answer never depends on load order.
 
 **The reserved ranges make a collision predictable.** Two packages can easily
-ship a template with one shortcode, so the number says who yields:
+ship a template under one shortcode, and the number says which yields:
 
 | priority   | reserved for               |
 | ---------- | -------------------------- |
