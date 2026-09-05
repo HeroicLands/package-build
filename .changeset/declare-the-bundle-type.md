@@ -5,16 +5,19 @@
 **The `bundle` note type is specified and declared** (#259).
 
 A bundle is a set of documents taken as a unit — Foundry's `Adventure`, named for
-what it is rather than what Foundry calls it. It declares `contents`, the
-documents it holds, and `pack`, where the Adventure is written (`adventures` when
-unstated).
+what it is rather than what Foundry calls it. It declares one property of its
+own, `contents`: the documents it holds.
 
 **How many Adventures a bundle makes is decided by its system blocks**, as for
 every other type, rather than by a property of its own. With no system block it
 is one Adventure holding only the `none` documents; with one or more it is one
 Adventure per system, each holding every `none` document plus that system's own,
-and a document of neither is silently left out. `<system>.pack` overrides `pack`
-for that system.
+and a document of neither is silently left out.
+
+Each Adventure is written to the pack the note's `pack` names — **the shared
+routing field, not a property of the bundle**, so there is one spelling and not
+two. It differs only in its default, `adventures`; `<system>.pack` overrides it
+per system exactly as it does everywhere else.
 
 That follows from Foundry rather than from taste: **an `Adventure` has no
 `system` field**. A bundle spanning two systems cannot be one document that knows

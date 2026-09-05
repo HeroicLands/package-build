@@ -731,13 +731,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "when unstated. A document of neither `none` nor the " +
                     "system being compiled is left out rather than failing.",
             },
-            {
-                name: "pack",
-                ...TEXT,
-                describe:
-                    "The pack the Adventure is written to, `adventures` when " +
-                    "unstated. `<system>.pack` overrides it per system.",
-            },
         ]),
     }),
 

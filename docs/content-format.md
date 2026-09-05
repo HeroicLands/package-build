@@ -1610,10 +1610,9 @@ is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
 A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
 
-| `data` property | Values       | Description                                                       |
-| --------------- | ------------ | ----------------------------------------------------------------- |
-| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated.            |
-| `pack`          | `string`     | The pack the Adventure is written to; `adventures` when unstated. |
+| `data` property | Values       | Description                                            |
+| --------------- | ------------ | ------------------------------------------------------ |
+| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
 
 **The note's system blocks decide how many Adventures it makes**, exactly as they
 do for every other type:
@@ -1624,8 +1623,10 @@ do for every other type:
   every `none` document plus that system's own. A document of neither is
   silently left out.
 
-`<system>.pack` names the pack that system's Adventure is written to, and falls
-back to `data.pack`.
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — except that it
+defaults to `adventures` rather than to the configured default pack.
+`<system>.pack` overrides it for that system, as it does everywhere else.
 
 An `Adventure` carries **copies** of what it holds, not references: importing one
 creates or updates each document in the world, after which they live
