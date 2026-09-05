@@ -711,6 +711,29 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     macro: Object.freeze({ data: Object.freeze([]) }),
 
+    // A `Folder` is a core Foundry document, like a `JournalEntry` or a
+    // `Scene` — not a game system's — so a folder note carries no system block
+    // and its address takes the `none` segment. `parent` is another folder
+    // note's address rather than an id, so reparenting one folder does not
+    // rewrite every note that names it (#256).
+    folder: Object.freeze({
+        data: Object.freeze([
+            {
+                name: "parent",
+                ...LINK,
+                describe: "The folder this one sits in, as a `folder` note's address.",
+            },
+            {
+                name: "color",
+                ...TEXT,
+                describe:
+                    "The folder's colour, as `#RRGGBB`. The leading `#` is " +
+                    "required: without it YAML reads an all-digit value as a " +
+                    "number, so `000000` would arrive as `0`.",
+            },
+        ]),
+    }),
+
     lore: Object.freeze({
         subTypes: Object.freeze([
             "cosmology",
