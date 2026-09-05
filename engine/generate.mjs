@@ -46,6 +46,8 @@ import { foreignItemCatalogDirs } from "./foreign-catalog.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Journals } from "./journals.mjs";
 import { Actors } from "../sohl/actors.mjs";
+import { Hm3Items } from "../hm3/items.mjs";
+import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
 import { statsForPack, loadFolders, buildFolderResolver, writeFolderDocs } from "./helpers.mjs";
@@ -63,6 +65,13 @@ import { unclaimedNoteFindings } from "./note-claims.mjs";
  * compiler here. Unknown types fail the build rather than defaulting, so a pack
  * declaring a type nothing can compile is loud at the first pass instead of
  * shipping empty.
+ *
+ * **Two of the five are a system's, and the SoHL pair is not a default.** An
+ * Item or an Actor *is* a system's data — both passes declare
+ * `requiresSystemBlock` — so which compiler a pack gets is decided together
+ * with which system it declares; see {@link SYSTEM_COMPILERS}. The three
+ * system-neutral passes have one implementation because a JournalEntry, a Macro
+ * and a Scene are Foundry's documents rather than any system's.
  */
 const COMPILERS = {
     Item: Items,
@@ -71,6 +80,41 @@ const COMPILERS = {
     Macro: Macros,
     Scene: Scenes,
 };
+
+/**
+ * The system-specific compilers, by the system a pack declares (#139).
+ *
+ * A repository feeding two systems declares one Item pack and one Actor pack
+ * per system — `harn-ensemble` has `actors-hm3` and `actors-sohl` — and each
+ * pack's `system:` is what says whose data model its documents are shaped for.
+ * That is the same field the `_stats` stamp, the item-catalogue scope and the
+ * `itemBuilders` lookup already read, so nothing new is declared to make the
+ * compiler follow it.
+ *
+ * A system with no entry — or a pack that declares none — falls back to
+ * {@link COMPILERS}. That keeps every single-system configuration meaning
+ * exactly what it did: SoHL's passes were the only ones, so they stay the
+ * answer where nothing says otherwise.
+ *
+ * @type {Readonly<Record<string, Readonly<Record<string, Function>>>>}
+ */
+const SYSTEM_COMPILERS = Object.freeze({
+    sohl: Object.freeze({ Item: Items, Actor: Actors }),
+    hm3: Object.freeze({ Item: Hm3Items, Actor: Hm3Actors }),
+});
+
+/**
+ * The compiler class a pack of one document type and one system gets.
+ *
+ * @param {string} docType - The Foundry document type the pack holds.
+ * @param {string|null} [system] - The system the pack declares, if any.
+ * @returns {Function|undefined} The compiler class, or `undefined` for a
+ *   document type nothing here compiles — which {@link generatePack} reports
+ *   rather than defaulting past.
+ */
+export function compilerFor(docType, system = null) {
+    return (system && SYSTEM_COMPILERS[system]?.[docType]) || COMPILERS[docType];
+}
 
 /**
  * Root of the build-only JSON tree for one pack.
@@ -262,7 +306,7 @@ async function generatePack(
     const contentBase = config.paths.content;
     const dest = packJsonDir(name, config);
 
-    const packClass = COMPILERS[type];
+    const packClass = compilerFor(type, system ?? null);
     if (!packClass) {
         log.error(
             `Pack ${name}: no compiler for document type "${type}" — the ` +

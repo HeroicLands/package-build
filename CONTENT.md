@@ -400,6 +400,41 @@ system)` take the system that is asking; asking without one, for a type more
 than one registry declares, **throws** rather than answering with whichever was
 declared first.
 
+**`hm3` is a real registry, and the rest of the pipeline follows the same
+field.** Since #139 this package ships two system halves, `sohl/` and `hm3/`,
+each with its own builders, its own default art and its own note-type →
+document-subtype map; they share the engine between them and import nothing from
+each other. A pack's `system:` is what selects among them — the Item and Actor
+compilers, the item catalogue a being resolves against, the published
+`schema.json` its emissions are checked against, and the `_stats` stamp all read
+that one field — so declaring one Item pack and one Actor pack per system is the
+whole of the configuration a dual-system tree needs:
+
+```yaml
+itemBuilders: [sohl, hm3]
+systems:
+  sohl: { compatibility: { verified: "0.9.0" } }
+  hm3: { compatibility: { verified: "1.6.3" } }
+packs:
+  - { name: items-sohl, type: Item, system: sohl, default: true }
+  - { name: items-hm3, type: Item, system: hm3 }
+  - { name: actors-sohl, type: Actor, system: sohl, default: true }
+  - { name: actors-hm3, type: Actor, system: hm3 }
+```
+
+A note carrying both a `sohl:` and an `hm3:` block then compiles **one document
+in each system**, each shaped by its own builders and stamped with its own
+system version. A note carrying only one block compiles only that system's
+document: the other system's pass passes over it, rather than failing it for a
+block it was never going to have.
+
+Four of HM3's rows are **one-to-many** — `mysticalability` becomes a `psionic`,
+a `spell` or an `invocation`; `trauma` an `injury` or a `trait`; `weapongear` a
+`weapongear` or a `missilegear`; `being` a `character` or a `creature` — and the
+note says which by writing `hm3.type`. Nothing is inferred from the note's own
+`subType`, and a note that says nothing is an error naming the note and listing
+the permitted values.
+
 **Configuration is the source, and the manifest is generated from it.** That
 arrow used to point the other way: `paths.packageManifest` said where a
 hand-authored `system.template.json` lived, and the package-id guard and the

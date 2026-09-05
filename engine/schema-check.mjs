@@ -455,12 +455,25 @@ export function compareEmittedSystem({
  * stamps no system at all, and a system that has not adopted the artifact yet
  * is simply unchecked. Neither is an error, and the caller says which it was.
  *
+ * **A build may have more than one system, and then the caller names it (#139).**
+ * `stats.systemId` is the package-wide answer, and a repository shipping content
+ * for two systems has no package-wide answer — it is deliberately `null` there,
+ * because a module feeding both `sohl` and `hm3` targets neither. Left at that,
+ * every schema check in such a build would be skipped in silence, which is the
+ * state #60 exists to remove: the five type names the two systems *share* are
+ * exactly the ones a wrong-system emission hides in. So a pass supplies the
+ * system its pack declares, and the version comes from that system's own
+ * `systems:` entry rather than from a package-wide stamp.
+ *
  * @param {object} config - The resolved build configuration.
+ * @param {string|null} [system] - The system whose schema is wanted. Defaults
+ *   to the package-wide `stats.systemId`, which is every single-system build
+ *   and the behaviour this always had.
  * @returns {{artifact: SchemaArtifact, source: string}|null} The schema and
  *   where it was read from.
  */
-export function resolveSchemaArtifact(config) {
-    const systemId = config?.stats?.systemId;
+export function resolveSchemaArtifact(config, system = undefined) {
+    const systemId = system === undefined ? config?.stats?.systemId : system;
     if (!systemId) return null;
 
     const read = (file) => ({
@@ -474,7 +487,13 @@ export function resolveSchemaArtifact(config) {
         return fs.existsSync(own) ? read(own) : null;
     }
 
-    const version = config?.stats?.systemVersion;
+    // The version this build compiles *against*, for this system. A `systems:`
+    // entry is the per-system statement and wins; `stats.systemVersion` is the
+    // package-wide one and answers only for the package-wide system, which is
+    // what keeps a module still deriving from `relationships.systems` working.
+    const version =
+        config?.systems?.[systemId]?.compatibility?.verified ??
+        (systemId === config?.stats?.systemId ? config?.stats?.systemVersion : null);
     if (!version) return null;
     const cached = cachedSchemaPath(config, systemId, version);
     return fs.existsSync(cached) ? read(cached) : null;
@@ -556,22 +575,29 @@ export function emittedUndeclaredMessage(finding) {
     );
 }
 
-/** One resolved schema artifact per resolved configuration. */
+/** One resolved schema artifact per configuration **and system**. */
 const artifacts = new WeakMap();
 
 /**
- * {@link resolveSchemaArtifact}, read once per configuration.
+ * {@link resolveSchemaArtifact}, read once per configuration and system.
  *
- * The per-note check below runs thousands of times in a build and the artifact
+ * The per-note check below runs thousands of times in a build and an artifact
  * never changes inside one, so reading and parsing it per note would be a
  * megabyte of JSON per hundred documents for an answer that is already known.
+ * Keyed by system as well as by configuration since #139: a build with two
+ * systems has two artifacts, and caching one of them under the configuration
+ * alone would hand every pass whichever system asked first.
  *
  * @param {object} config - The resolved build configuration.
+ * @param {string|null} [system] - The system whose schema is wanted.
  * @returns {{artifact: SchemaArtifact, source: string}|null} The schema.
  */
-function schemaFor(config) {
-    if (!artifacts.has(config)) artifacts.set(config, resolveSchemaArtifact(config));
-    return artifacts.get(config);
+function schemaFor(config, system = undefined) {
+    let bySystem = artifacts.get(config);
+    if (!bySystem) artifacts.set(config, (bySystem = new Map()));
+    const key = system === undefined ? null : system;
+    if (!bySystem.has(key)) bySystem.set(key, resolveSchemaArtifact(config, system));
+    return bySystem.get(key);
 }
 
 /**
@@ -600,18 +626,21 @@ function schemaFor(config) {
  * @param {string} opts.block - The system block to read, e.g. `"sohl"`.
  * @param {string} opts.documentType - `Item`, `Actor`, …
  * @param {string} opts.subType - The document subtype the note compiles into.
+ * @param {string} [opts.system] - The system whose published schema to read,
+ *   where a build has more than one (#139). Defaults to the package-wide
+ *   `stats.systemId`.
  * @param {object} [opts.config] - The resolved build configuration.
  * @returns {{path: string, message: string}[]} One finding per undeclared path,
  *   shallowest-first.
  */
 export function checkAuthoredSystemData(
     fm,
-    { block, documentType, subType, config = loadPackConfig() },
+    { block, documentType, subType, system = undefined, config = loadPackConfig() },
 ) {
     const data = systemData(fm, block);
     if (!Object.keys(data).length) return [];
 
-    const schema = schemaFor(config);
+    const schema = schemaFor(config, system);
     if (!schema) return [];
     const declared = declaredFields(schema.artifact, documentType, subType);
     if (!declared) return [];
@@ -651,18 +680,30 @@ export function checkAuthoredSystemData(
  * @param {string} opts.type - The note's content type, for the message.
  * @param {readonly {to?: string}[]} [opts.fields] - The type's field
  *   declaration, which decides each finding's origin.
+ * @param {string} [opts.system] - The system whose published schema to read,
+ *   where a build has more than one (#139). Defaults to the package-wide
+ *   `stats.systemId`.
  * @param {object} [opts.config] - The resolved build configuration.
  * @returns {(EmissionFinding & {message: string})[]} One per undeclared path.
  */
 export function checkEmittedSystemData(
-    system,
-    { fm, block, documentType, subType, type, fields, config = loadPackConfig() },
+    emitted,
+    {
+        fm,
+        block,
+        documentType,
+        subType,
+        type,
+        fields,
+        system = undefined,
+        config = loadPackConfig(),
+    },
 ) {
-    const schema = schemaFor(config);
+    const schema = schemaFor(config, system);
     if (!schema) return [];
 
     return compareEmittedSystem({
-        system,
+        system: emitted,
         artifact: schema.artifact,
         documentType,
         subtype: subType,

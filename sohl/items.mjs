@@ -12,282 +12,64 @@
  */
 
 /**
- * Items pack compiler — produces JSON pack files for the single "items"
- * Foundry compendium from markdown notes in the `assets/content/` tree.
+ * **SoHL's Item pass** — the two things about compiling a note into a SoHL Item
+ * that are facts about SoHL rather than about the note format.
  *
- * The content root (`contentBase`) is walked recursively; any `.md` file whose
- * frontmatter declares a recognized `type:` is compiled into one JSON entry.
- * Files outside the whitelist (blog posts, rules text, templates) are
- * silently skipped.
+ * Everything else lives in {@link module:engine/item-compiler}: claiming a
+ * note, looking its subtype up in the system's map, dispatching to the
+ * consumer's registry, merging the authored `sohl.system` block, checking what
+ * was emitted against the receiving schema, and writing the envelope. That was
+ * all here until a second system needed it (#139), and it reached its
+ * system-specific facts through one constant read off SoHL's own map — which is
+ * why lifting it cost a subclass rather than a rewrite.
  *
- * Type-specific `system.*` fields come from the nested `sohl:` block in
- * vault frontmatter, read via `sohlField()`. The body is **not** rendered
- * here: it compiles into the item's doc in the journals pack, and
- * `system.docHtml` becomes a pointer to it (see `item-docs.mjs`). Folder
- * assignment is deferred — every item currently emits `folder: null`.
+ * What stays:
+ *
+ * - **The map**, declared in `document-subtypes.mjs` and named here, which
+ *   decides which notes this pass claims and what each one becomes (#79).
+ * - **`commonSystem`** — `shortcode`, `archetype`, `actionDefs`, `notes` and
+ *   `docHtml`, which SoHL's compiler writes on every item of every type and no
+ *   field declaration states.
  *
  * Not a standalone script — exports the `Items` compiler class, imported and
- * driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).
+ * driven by `engine/generate.mjs`.
  *
- * The walk itself — filtering by type, expanding tables, converting
- * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
- * states only what makes this pass its own (#1509).
+ * @module
  */
 
-import log from "loglevel";
-
-import {
-    sohlField,
-    resolveName,
-    resolveImg,
-    defaultStats,
-    systemArchetype,
-} from "../engine/helpers.mjs";
-import { BasePackCompiler } from "../engine/base-compiler.mjs";
-// Per-type default art lives in one framework-free module shared with the
-// runtime (`SohlItem.getDefaultArtwork`), so the two can't drift — see #932.
-// It lives in the build package, not `src/`: a relative path out of the package
-// resolves to garbage once this pipeline runs from `node_modules` (#1510).
-import { journalPageId, splitPages } from "../engine/journals.mjs";
-import { foundryPackageId } from "../engine/content-package.mjs";
-import { itemDocEntryId, itemDocPointer } from "../engine/item-docs.mjs";
-// The whitelist and the per-type `system` builders both come from the resolved
-// configuration, so the types this pass claims and the builders it compiles
-// them with are one table — the consuming repository's, not this package's
-// (#1504/#1563).
-import { itemTypes, itemBuilder, itemArt } from "../engine/item-registry.mjs";
-// Which Foundry Item subtype a note's `type` compiles into. Looked up in the
-// system's declared map, never inferred from the type itself (#79).
-import { documentSubtype, subtypeRow } from "../engine/document-subtypes.mjs";
+import { systemArchetype } from "../engine/helpers.mjs";
+import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
-// The note-level `sohl:` block: `sohl.system` onto the document's `system`
-// verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
-// shared top-level forms for this system alone (#58).
-import { blockProperty, claimedPaths, mergeSystemData } from "../engine/system-block.mjs";
-import { itemFields } from "../engine/item-registry.mjs";
 
-/**
- * The description an item carries: a pointer to its **item doc**, the
- * JournalEntry the journals pass compiles this same body into (#1348).
- *
- * The prose is not rendered here at all. Carrying it would duplicate it onto
- * every actor holding the item — 7.59 MB of copies across the actors pack, of
- * which 133 KB was distinct — where a link is 60 bytes and always current. The
- * two passes derive the target from the note's own id, so neither has to see
- * the other's output; both split the *converted* markdown, so an H1 carrying a
- * wikilink names the same page on both sides.
- *
- * An item with no prose points at nothing, exactly as the journals pass writes
- * no entry for it.
- *
- * @param {string} markdown - The note body, tables expanded and wikilinks
- *   resolved.
- * @param {object} fm - The note's frontmatter.
- * @param {string} name - The item's name.
- * @returns {string} The pointer, or "" for a note with no body.
- */
-function itemDescription(markdown, fm, name) {
-    if (!String(markdown).trim()) return "";
-    const [leadPage] = splitPages(markdown, name);
-    const pageId = journalPageId(itemDocEntryId(fm.id), leadPage, 0);
-    return itemDocPointer(foundryPackageId(), fm.id, name, pageId);
-}
-
-/**
- * Build the `system.*` fields shared by every item type:
- *   shortcode, archetype, actionDefs, notes, docHtml.
- *
- * @param {object} fm - The note's frontmatter.
- * @param {string} description - The item's documentation pointer.
- * @param {string} label - Human-readable context for error messages.
- * @returns {object} The shared `system` fields.
- */
-function commonSystem(fm, description, label) {
-    return {
-        shortcode: fm.shortcode,
-        // Required nullable number: a priority, or `null` for a document that
-        // is not an archetype (#126 / archetype contract #604).
-        archetype: systemArchetype(fm, label),
-        actionDefs: Array.isArray(fm.actionDefs) ? fm.actionDefs : [],
-        notes: "",
-        docHtml: description || "",
-    };
-}
-
-/* -------------------------------------------------------------------- */
-/*  Synthesized Active Effects                                          */
-/* -------------------------------------------------------------------- */
-
-/* -------------------------------------------------------------------- */
-/*  Compiler                                                            */
-/* -------------------------------------------------------------------- */
-
-/**
- * The system this pass compiles for — the block its notes write, and the
- * registry its builders come from.
- *
- * Read from the map rather than spelled here, so the block name, the subtype
- * map and the registry key are one statement (#58/#79).
- *
- * @type {string}
- */
-const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
-
-export class Items extends BasePackCompiler {
-    static id = "items";
-    static label = "item";
-
+export class Items extends SystemItemCompiler {
     /**
-     * An Item **is** a system's data, so this pack takes only notes carrying
-     * this system's block (#58).
-     */
-    static requiresSystemBlock = true;
-
-    /**
-     * How many of each item type this pass wrote, for the summary. Every type
-     * is present from the start so the tally reads as a census of the
-     * whitelist rather than of what happened to compile.
+     * SoHL's note-type → document-subtype map — the one declaration that says
+     * which block this pass reads, which notes it claims, and what each becomes
+     * (#58/#79).
      *
-     * @type {Record<string, number>}
+     * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
      */
-    counts = Object.fromEntries([...itemTypes()].map((t) => [t, 0]));
+    static documentSubtypes = SOHL_DOCUMENT_SUBTYPES;
 
     /**
-     * Every content type that compiles into an item.
-     *
-     * The whitelist is the consuming repository's `itemBuilders` keys (#1504),
-     * and the system's own map is a second filter on top of it: a type SoHL
-     * maps onto some *other* document class is not an item however a registry
-     * spells it, which is the "no wrongly-typed document" half of #79. A type
-     * the map does not name at all is left to the registry — see
-     * {@link Items#itemSubtype}.
+     * The `system.*` fields SoHL writes on every item, whatever its type:
+     * shortcode, archetype, actionDefs, notes, docHtml.
      *
      * @param {object} fm - The note's frontmatter.
-     * @returns {boolean} True for a whitelisted item type.
+     * @param {object} at - What the pass already knows about this note.
+     * @param {string} at.description - The pointer to the note's item doc.
+     * @param {string} at.label - Human-readable context for error messages.
+     * @returns {object} The shared `system` fields.
      */
-    selects(fm) {
-        if (!fm.type || !itemTypes().has(fm.type)) return false;
-        const row = subtypeRow(SOHL_DOCUMENT_SUBTYPES, fm.type);
-        return !row || row.document === "Item";
-    }
-
-    /**
-     * The Foundry Item subtype a note compiles into.
-     *
-     * **Looked up, not inferred.** For every type this system declares, the
-     * emitted subtype is the map's, so the note vocabulary and the document
-     * vocabulary are two separately-stated things rather than one string
-     * written twice (#79).
-     *
-     * **A type the map does not name belongs to the consumer**, and its
-     * registry entry is the declaration: a repository shipping an item type of
-     * its own writes it once, in the `itemBuilders` table of its
-     * `package-build.config.yaml`, and that key is what the document is a
-     * subtype of. That is an authored statement in the consumer's own
-     * configuration, not a coincidence inside this package's source — and
-     * refusing it here would silently drop every document of a type SoHL has
-     * no opinion about (#7/#1563).
-     *
-     * @param {object} fm - The note's frontmatter.
-     * @returns {string} The document's `type`.
-     */
-    itemSubtype(fm) {
-        const declared = documentSubtype(SOHL_DOCUMENT_SUBTYPES, fm.type, fm, {
-            absPath: this.currentNote?.absPath,
-        });
-        return declared ?? fm.type;
-    }
-
-    /** An item is named by its own type in the log, not by "item". */
-    noteLabel(fm) {
-        return fm.type;
-    }
-
-    /**
-     * Construct the full compendium envelope for one item, including
-     * synthesized Active Effects where applicable.
-     *
-     * @param {object} fm - The note's frontmatter.
-     * @param {string} markdown - The body, tables expanded and wikilinks
-     *   resolved.
-     * @returns {object} The item document, keyed for the pack.
-     */
-    buildEntry(fm, markdown) {
-        const type = fm.type;
-        const name = resolveName(fm);
-        const description = itemDescription(markdown, fm, name);
-        const id = fm.id;
-        const subType = this.itemSubtype(fm);
-        const system = {
-            ...commonSystem(fm, description, `item "${name}"`),
-            ...itemBuilder(type, SYSTEM)(fm),
-        };
-        // Whatever the note authors under `sohl.system`, at the DataModel's own
-        // paths. A path a declared field already writes is left to that field:
-        // its value came from the same authored place and went through the
-        // field's own coercion (#58).
-        mergeSystemData(system, fm, {
-            block: SYSTEM,
-            claimed: claimedPaths(itemFields(type, SYSTEM)),
-        });
-        this.reportUndeclaredSystemData(fm, SYSTEM, "Item", subType);
-        // And what *this* pass wrote on its own initiative — `shortcode`,
-        // `archetype`, `actionDefs`, `notes`, `docHtml` — which no field
-        // declaration states and so no other check can see (#155). Read off the
-        // assembled block, so a key added to `commonSystem` is checked without
-        // anyone remembering to list it.
-        this.reportEmittedSystemData(system, {
-            fm,
-            block: SYSTEM,
-            documentType: "Item",
-            subType,
-            type,
-            fields: itemFields(type, SYSTEM),
-        });
-
-        const effects = blockProperty(fm, SYSTEM, "effects");
-        const folderId = sohlField(fm, "folder", null);
-        const folder = this.folderResolver(folderId);
-
+    commonSystem(fm, { description, label }) {
         return {
-            name,
-            // The note's `type` addresses the builder and the default art —
-            // both registries are keyed by content type — while the document's
-            // own subtype comes from the system's map (#79).
-            type: subType,
-            // Nullish, not `||` (#218): `resolveImg` returns `null` for a note
-            // that names no art and `""` for one that wants none, and only the
-            // first may be replaced by the type's default.
-            img: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? itemArt(type, SYSTEM),
-            _id: id,
-            system,
-            effects: Array.isArray(effects) ? [...effects] : [],
-            // Whatever the note authors, and nothing else. `archetype` used to
-            // be spliced in here as `flags.sohl.docArchetype`; it is a schema
-            // field now and sits in `system` (#126).
-            flags: blockProperty(fm, SYSTEM, "flags", {}),
-            _stats: this.stats,
-            ownership: { default: 0 },
-            folder,
-            _key: `!items!${id}`,
+            shortcode: fm.shortcode,
+            // Required nullable number: a priority, or `null` for a document
+            // that is not an archetype (#126 / archetype contract #604).
+            archetype: systemArchetype(fm, label),
+            actionDefs: Array.isArray(fm.actionDefs) ? fm.actionDefs : [],
+            notes: "",
+            docHtml: description || "",
         };
-    }
-
-    /** @inheritdoc */
-    onCompiled(fm) {
-        this.counts[fm.type]++;
-    }
-
-    /** @inheritdoc */
-    reportCompiled(stats) {
-        log.info(`Compiled ${stats.compiled} items:`);
-        for (const [t, n] of Object.entries(this.counts)) {
-            if (n > 0) log.info(`  ${t}: ${n}`);
-        }
-    }
-
-    /** @inheritdoc */
-    reportDetail(stats) {
-        log.debug(`Skipped ${stats.skippedOther} non-item file(s) (no recognized type)`);
     }
 }

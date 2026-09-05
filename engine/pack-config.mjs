@@ -168,6 +168,10 @@ const ITEM_BUILDER_REGISTRIES = Object.freeze({
         /** @type {{ ITEM_BUILDERS: Record<string, unknown> }} */ (
             require("../sohl/item-builders.mjs")
         ).ITEM_BUILDERS,
+    hm3: () =>
+        /** @type {{ HM3_ITEM_BUILDERS: Record<string, unknown> }} */ (
+            require("../hm3/item-builders.mjs")
+        ).HM3_ITEM_BUILDERS,
 });
 
 /**

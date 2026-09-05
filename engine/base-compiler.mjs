@@ -357,13 +357,27 @@ export class BasePackCompiler {
      * instances of.
      *
      * @param {object} fm - The note's frontmatter.
-     * @returns {boolean} True when the note may be compiled here.
-     * @throws {Error} When this pack's system is absent from the note. The
-     *   error carries a `position` where the note's own file can be read.
+     * @returns {boolean} True when the note may be compiled here; `false` when
+     *   it belongs to another system's pass of the same document type, which is
+     *   skipped as quietly as any other note this pack does not own.
+     * @throws {Error} When this pack's system is absent from the note and no
+     *   other configured system claims it. The error carries a `position` where
+     *   the note's own file can be read.
      */
     eligibleFor(fm) {
         if (!this.constructor.requiresSystemBlock || !this.packSystem) return true;
         if (carriesSystemBlock(fm, this.packSystem)) return true;
+        // Another system's pack of this document type will claim it (#139). A
+        // note carrying only `hm3:` routes here because this pack is the
+        // *default* of its document type, and defaults are declared per type
+        // rather than per system — but it is not an incomplete note, it is
+        // another pass's. The single-system case is untouched: with no second
+        // system declared there is nothing for this to find, and the error
+        // below still fires.
+        const claimant = (this.router?.systemsOfType?.(this.docType) ?? []).find(
+            (system) => system !== this.packSystem && carriesSystemBlock(fm, system),
+        );
+        if (claimant) return false;
         const label = fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "this note";
         throw new Error(
             `${label} carries no \`${this.packSystem}:\` block, so it has no ` +
@@ -534,7 +548,15 @@ export class BasePackCompiler {
      */
     reportUndeclaredSystemData(fm, block, documentType, subType) {
         const absPath = this.currentNote?.absPath;
-        const findings = checkAuthoredSystemData(fm, { block, documentType, subType });
+        // Whose schema, where a build has more than one system: this pack's
+        // (#139). `undefined` — a pack that declares no system — keeps the
+        // package-wide answer this always used.
+        const findings = checkAuthoredSystemData(fm, {
+            block,
+            documentType,
+            subType,
+            system: this.packSystem ?? undefined,
+        });
         for (const finding of findings) {
             this.errorCount++;
             const leaf = finding.path.split(".").pop();
@@ -575,14 +597,16 @@ export class BasePackCompiler {
      * @param {object} [opts.config] - The resolved build configuration.
      * @returns {number} How many findings were new to this pass.
      */
-    reportEmittedSystemData(system, { fm, block, documentType, subType, type, fields, config }) {
-        const findings = checkEmittedSystemData(system, {
+    reportEmittedSystemData(emitted, { fm, block, documentType, subType, type, fields, config }) {
+        const findings = checkEmittedSystemData(emitted, {
             fm,
             block,
             documentType,
             subType,
             type,
             fields,
+            // See the sibling above: this pack's system, where there is one.
+            system: this.packSystem ?? undefined,
             ...(config ? { config } : {}),
         });
         let added = 0;
@@ -834,7 +858,10 @@ export class BasePackCompiler {
             // pass's business — and before `skipNote`, so a pass's own
             // rejection rules never run on a note it may not compile.
             try {
-                this.eligibleFor(fm);
+                if (!this.eligibleFor(fm)) {
+                    stats.skippedOther++;
+                    continue;
+                }
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;

@@ -27,6 +27,14 @@
             "types": "./types/sohl/*.d.mts",
             "import": "./sohl/*.mjs"
         },
+        "./hm3": {
+            "types": "./types/hm3/index.d.mts",
+            "import": "./hm3/index.mjs"
+        },
+        "./hm3/*": {
+            "types": "./types/hm3/*.d.mts",
+            "import": "./hm3/*.mjs"
+        },
         "./content-config": {
             "types": "./types/content-config.d.mts",
             "import": "./content-config.mjs"
@@ -105,6 +113,7 @@
         "deploy.mjs",
         "e2e.mjs",
         "engine",
+        "hm3",
         "index.mjs",
         "lang.mjs",
         "labels.mjs",
@@ -157,8 +166,8 @@
         "lint:yaml": "node bin/package-build.mjs yaml",
         "lint:markdown:fix": "node bin/content-build.mjs markdown --fix",
         "lint:content-format": "npm run lint:content-format:schema && npm run lint:content-format:fields",
-        "lint:content-format:schema": "node bin/content-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json",
-        "lint:content-format:fields": "node bin/content-build.mjs content-format fields --fields sohl",
+        "lint:content-format:schema": "node bin/content-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json --schema hm3=tests/fixtures/content-format/schema-hm3.json",
+        "lint:content-format:fields": "node bin/content-build.mjs content-format fields --fields sohl && node bin/content-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
         "changeset:check": "changeset status --since=origin/main",
         "changeset:version": "changeset version && npm install --package-lock-only",

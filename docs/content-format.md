@@ -174,6 +174,22 @@ Because the map derives the document type, `hm3.type` and `sohl.system.subType`
 are **overrides**, not required declarations. A note states them only when the
 map cannot decide, or decides wrongly.
 
+**Four rows cannot decide, and there `hm3.type` is required.** HM3 splits four
+of the note vocabulary's types across several documents — `mysticalability` into
+a `psionic`, a `spell` or an `invocation`; `trauma` into an `injury` or a
+`trait`; `weapongear` into a `weapongear` or a `missilegear`; `being` into a
+`character` or a `creature`. Nothing in the note's own vocabulary partitions
+cleanly onto any of those splits, so the note says which, in its own block, and
+a note that says nothing is **an error naming the note and listing the permitted
+values**. It is never defaulted: a default would pick one and be right about
+half the time.
+
+A consequence worth knowing before you author a being's embedded items: a
+`(type, shortcode)` reference has no block of its own to read a discriminator
+from, so it **cannot address a one-to-many type**. `[[weapongear-spear]]` names
+no single HM3 document, and the reference is refused rather than resolved to
+whichever came first.
+
 A note whose `(type, subType)` has no mapping for a system it carries a block
 for is an **error naming the note**, never a silent skip and never a guess at the
 first matching value. Where a mapping is missing for a whole class of note, that
@@ -477,11 +493,11 @@ objects with a SoHL counterpart — `Arrow (Longbow)`, `Bolt (Crossbow)`,
 both blocks. Only four are companions: `Javelin (thrown)`, `Shorkana (thrown)`,
 `Spear (thrown)`, `Taburi (thrown)`.
 
-**A companion note requires its system's type.** With one block and no
-counterpart, nothing can derive whether `Spear (thrown)` is a `weapongear` or a
-`missilegear` — there is no other system to infer from and no subType to read. So
-`hm3.type` is _required_ on a single-block note, and is an override only on notes
-that carry both.
+**Every note carrying an `hm3:` block states its type.** Nothing can derive
+whether `Spear (thrown)` is a `weapongear` or a `missilegear` — there is no other
+system to infer from and no subType to read — and the same is true of the note
+carrying both blocks, whose SoHL strike modes describe every usage at once. So
+`hm3.type` is _required_ on both, not only on the companion.
 
 The following special markdown sequences are recognized:
 
@@ -617,7 +633,7 @@ Generates a living (or undead, or spirit) being.
 
 If a `sohl` property is present, a SoHL actor of type "being" will be created.
 
-If an `hm3` property is present, an HM3 actor is created. Its document type is derived from the note's `subType`; `hm3.type` overrides that, and must be `character` or `creature`.
+If an `hm3` property is present, an HM3 actor is created. Its document type is **not** derived: `hm3.type` states it, and must be `character` or `creature`. A note that omits it is an error naming the note — see _The note vocabulary, and how it maps_.
 
 A SoHL "being" document will be created, as will an "HM3" document.
 
@@ -1073,13 +1089,7 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" will be created.
 
-If an `hm3` property is present, an HM3 item is created. The following mappings are performed:
-
-- if `subType` === `arcaneinvocation`, `hm3.type` = `spell`
-- if `subType` === `divineinvocation`, `hm3.type` = `invocation`
-- if `subType` === `arcanetalent`, `hm3.type` = `psionic`
-
-If `hm3.type` is specified, it must be `psionic`, `spell` or `invocation`.
+If an `hm3` property is present, an HM3 item is created, and `hm3.type` states which — `psionic`, `spell` or `invocation`. It is **authored, not derived from `subType`**: the ten mystical-ability subtypes do not partition onto HM3's three documents (a `spiritrite`, an `alchemy` and a `divination` each answer to none of them), so a derivation would be a guess with a plausible shape. A note that omits it is an error naming the note.
 
 | shared source           | → sohl                        | → hm3         |
 | ----------------------- | ----------------------------- | ------------- |
@@ -1205,7 +1215,7 @@ if a `sohl` property is present, a SoHL item of type "weapongear" will be create
 carrying every strike mode the weapon has — melee and missile alike — on
 `system.strikeModes`.
 
-If an `hm3` property is present, an HM3 item is created. **`weapon` has no `subType`**: SoHL distinguishes a weapon's uses with strike modes rather than by kind, and HM3's document type follows from which of those the note describes. A note carrying both blocks is a `weapongear` in each; a companion note carrying only `hm3:` states `hm3.type` itself, and is usually a `missilegear` — see _One note is at most one document per system_.
+If an `hm3` property is present, an HM3 item is created, and `hm3.type` states whether it is a `weapongear` or a `missilegear`. **`weapon` has no `subType`**: SoHL distinguishes a weapon's uses with strike modes rather than by kind, and HM3 has one document per usage, so nothing but the note can say which usage it describes. Every note carrying an `hm3:` block states it — the one carrying both blocks as well as the companion carrying only `hm3:`, which is usually a `missilegear` — see _One note is at most one document per system_.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |
