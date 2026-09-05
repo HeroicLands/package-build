@@ -139,6 +139,13 @@ function configFor(publish: Record<string, unknown>) {
             { name: "items", type: "Item" },
             { name: "journals", type: "JournalEntry" },
         ],
+        // `docEntryTypes` is derived from these keys, and it is what decides
+        // whether a note carries a documentation entry. Declared here because
+        // these tests assert that `weapongear` does: until `entriesForNote`
+        // took the set from its context, it read the *ambient* configuration
+        // instead of the one under test, and passed on a fixture that never
+        // declared the type at all.
+        itemBuilders: { weapongear: () => ({}) },
         publish,
     });
 }
