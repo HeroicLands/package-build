@@ -56,6 +56,7 @@ import path from "node:path";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+import { collectAnchors } from "./content-index.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
@@ -75,16 +76,23 @@ import { readQualifier } from "./wikilinks.mjs";
 /**
  * Every `{#anchor}` a note declares on a heading.
  *
+ * **Read from the content index's reader, not a second one.** This module kept
+ * its own until #243, and the two disagreed: it matched `{#([a-z0-9-]+)}` while
+ * {@link module:engine/content-index.collectAnchors} matches `{#([^}]+)}`, so
+ * an anchor with a capital in it — `{#CalendarFormat}` — existed for the index
+ * and for the compiler and did not exist for the link checker. Nothing links to
+ * one today, so the disagreement was latent; the first link to one would have
+ * been reported dead against a heading plainly present in the file.
+ *
+ * The specification puts no charset on the id: "`#id` represents an id anchor
+ * named `id`". The narrower pattern was this module's invention, which is the
+ * argument for there being one reader rather than a well-chosen one.
+ *
  * @param {string} body - The note's markdown body.
  * @returns {Set<string>} The declared anchor slugs.
  */
 export function anchorsOf(body) {
-    const found = new Set();
-    for (const line of String(body ?? "").split("\n")) {
-        const m = /^#{1,6}\s+.*\{#([a-z0-9-]+)\}\s*$/.exec(line.trim());
-        if (m) found.add(m[1]);
-    }
-    return found;
+    return new Set(collectAnchors(body).map((anchor) => anchor.slug));
 }
 
 /**
