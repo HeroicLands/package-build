@@ -31,11 +31,15 @@ rather than left out, and `0` is a real priority — the one SoHL's own template
 ship at — rather than an absence. And that HM3 keeps it in `flags.hm3`, its data
 model having no field for it, where SoHL keeps it in `system`.
 
-**The name is unsettled and the section says so.** A note writes `archetype`
-today, the shared mapping table calls it `data.templatePriority`, and
-`Song-of-Heroic-Lands-FoundryVTT#1780` completes the rename — which frees the word
-`archetype` for a different idea entirely, the _sort_ a character is. The section
-describes the mechanism rather than trusting either name.
+**The name is now `templatePriority` on all three sides** — the authored key,
+`system.templatePriority` and `flags.hm3.templatePriority`. It had been three
+different things: a note writes `archetype`, the mapping table said
+`data.templatePriority`, and the SoHL target said `system.template`. The
+specification and the schema fixture are normalized here; the build reads both
+spellings through the transition (#266), and the system's own rename is
+`Song-of-Heroic-Lands-FoundryVTT#1836`. That is more than a rename — it frees the
+word, because `archetype` is being repurposed for a different idea entirely: the
+_sort_ a character is, which is a kind and not a priority.
 
 `kbcat` remains, and #264 tracks it: read 51 times across SoHL's knowledgebase
 layouts, and the specification has never mentioned it.
