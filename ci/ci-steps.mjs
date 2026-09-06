@@ -58,7 +58,13 @@ import { fileURLToPath } from "node:url";
  * never the one under test.
  */
 const ROOT = process.cwd();
-const WORKFLOW = path.join(ROOT, ".github/workflows/build.yml");
+
+/**
+ * Exit status meaning *there was nothing to check*, as distinct from *the check
+ * failed*. Mirrors the same constant in `ci-docker.mjs`.
+ */
+export const UNAVAILABLE = 2;
+const WORKFLOW_DIR = path.join(ROOT, ".github/workflows");
 
 /**
  * The workflow's steps, split into what can be run here and what cannot.
@@ -68,7 +74,73 @@ const WORKFLOW = path.join(ROOT, ".github/workflows/build.yml");
  * @throws {Error} When the workflow cannot be read or declares no `run:` step.
  */
 export function ciSteps() {
-    const lines = fs.readFileSync(WORKFLOW, "utf8").split("\n");
+    const files = prTriggeredWorkflows();
+    if (!files.length) {
+        throw new NoWorkflow(
+            `no workflow under .github/workflows is triggered by \`pull_request\`, ` +
+                `so there is nothing here that a pull request would run.`,
+        );
+    }
+    const run = [];
+    const skipped = [];
+    for (const file of files) {
+        const found = stepsIn(file);
+        run.push(...found.run);
+        skipped.push(...found.skipped);
+    }
+    if (!run.length) {
+        throw new Error(
+            `${files.map((f) => path.relative(ROOT, f)).join(", ")} declare no ` +
+                `\`run:\` steps — either their shape changed or they are entirely ` +
+                `composed of actions. Refusing to report success having run nothing.`,
+        );
+    }
+    return { run, skipped, files };
+}
+
+/**
+ * Raised when the repository has no workflow a pull request would run.
+ *
+ * Distinguished from a parse failure because the two deserve opposite answers:
+ * a repository that simply has no such workflow is not broken and its pushes
+ * must not be refused, while one whose workflow stopped parsing is a defect in
+ * this parser that should be loud.
+ */
+export class NoWorkflow extends Error {}
+
+/**
+ * Every workflow a pull request would run.
+ *
+ * `pull_request` appearing before the first `jobs:` key is the test — it is the
+ * trigger block, and these files put it there. Deliberately not a YAML parse:
+ * see the module note on why this cannot import a library.
+ *
+ * @returns {string[]} Absolute paths, in directory order.
+ */
+function prTriggeredWorkflows() {
+    let names;
+    try {
+        names = fs.readdirSync(WORKFLOW_DIR).filter((n) => /\.ya?ml$/i.test(n));
+    } catch {
+        return [];
+    }
+    return names
+        .map((name) => path.join(WORKFLOW_DIR, name))
+        .filter((file) => {
+            const text = fs.readFileSync(file, "utf8");
+            const head = text.split(/^jobs:/m)[0];
+            return /^\s*pull_request:?\s*$/m.test(head) || /^on:.*pull_request/m.test(head);
+        });
+}
+
+/**
+ * The `run:` and `uses:` steps of one workflow.
+ *
+ * @param {string} file - The workflow.
+ * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} Its steps.
+ */
+function stepsIn(file) {
+    const lines = fs.readFileSync(file, "utf8").split("\n");
     const run = [];
     const skipped = [];
     /** The most recent `- name:` seen, which labels whatever step follows. */
@@ -113,21 +185,6 @@ export function ciSteps() {
             name = null;
         }
     }
-    if (!fs.existsSync(WORKFLOW)) {
-        throw new Error(
-            `${path.relative(ROOT, WORKFLOW)} does not exist — this repository ` +
-                `declares no Build & Test workflow at the path this reads, so there ` +
-                `is nothing to check. Point it at the right file rather than ` +
-                `reporting success having run nothing.`,
-        );
-    }
-    if (!run.length) {
-        throw new Error(
-            `${path.relative(ROOT, WORKFLOW)} declares no \`run:\` steps — either the ` +
-                `workflow moved or its shape changed. Refusing to report success ` +
-                `having run nothing; fix this script rather than skipping the check.`,
-        );
-    }
     return { run, skipped };
 }
 
@@ -144,6 +201,14 @@ function main() {
     try {
         steps = ciSteps();
     } catch (err) {
+        // A repository with no pull-request workflow is not broken, and its
+        // pushes must not be refused — it simply has nothing for this to check.
+        // Distinguished from a parse failure, which is a defect here and stays
+        // loud.
+        if (err instanceof NoWorkflow) {
+            console.error(`ci-steps: ${err.message}`);
+            return UNAVAILABLE;
+        }
         console.error(`ci-steps: ${err.message}`);
         return 1;
     }

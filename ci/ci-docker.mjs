@@ -186,6 +186,12 @@ function main() {
     ]);
 
     fs.rmSync(dir, { recursive: true, force: true });
+    // The runner says 2 when the repository has nothing for it to check; that
+    // travels back out unchanged so the hook can let the push through.
+    if (status === UNAVAILABLE) {
+        console.error("\nci-docker: nothing to check in this repository.");
+        return UNAVAILABLE;
+    }
     if (status !== 0) {
         console.error("\nci-docker: FAILED — GitHub would report the same.");
         return status;
