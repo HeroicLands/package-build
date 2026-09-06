@@ -10,6 +10,8 @@ import { describe, it, expect } from "vitest";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { ITEM_BUILDERS } from "../sohl/item-builders.mjs";
 import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
+import { documentSubtype } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { authoredFields } from "../engine/field-spec.mjs";
 
 /** Build one type's `system` block from a bare `sohl:` block. */
@@ -20,7 +22,15 @@ describe("ITEM_FIELDS is the one list (#22, #1504)", () => {
     it("declares exactly the types the registry and the art map cover", () => {
         const declared = Object.keys(ITEM_FIELDS).sort();
         expect(Object.keys(ITEM_BUILDERS).sort()).toEqual(declared);
-        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual(declared);
+        // The art map is keyed by the *document* subtype, which since #78 is
+        // no longer the note type for three of these — so the comparison runs
+        // through SoHL's own map rather than assuming the two vocabularies
+        // still spell everything the same.
+        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual(
+            declared
+                .map((type) => documentSubtype(SOHL_DOCUMENT_SUBTYPES as never, type, {}) ?? type)
+                .sort(),
+        );
     });
 
     it("hands each registry entry the declaration that built it", () => {
@@ -87,7 +97,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
     });
 
     it("nests armour protection and locations under their blocks", () => {
-        const out = build("armorgear", {
+        const out = build("armor", {
             flexloc: ["torso"],
             protection: { blunt: 3, edged: 5 },
             facing: [{ location: "skull", side: "front" }],
@@ -106,7 +116,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
     });
 
     it("derives a projectile's dice from its declared die", () => {
-        const withDie = build("projectilegear", {
+        const withDie = build("projectile", {
             subType: "arrow",
             impact: { die: 6 },
         });
@@ -116,12 +126,12 @@ describe("the declarations preserve the vocabulary they replaced", () => {
             modifier: 0,
             aspect: "piercing",
         });
-        const withoutDie = build("projectilegear", { subType: "arrow" });
+        const withoutDie = build("projectile", { subType: "arrow" });
         expect(withoutDie.impactBase.numDice).toBe(0);
     });
 
     it("layers the gear constants onto every gear type", () => {
-        for (const type of ["miscgear", "weapongear", "armorgear", "containergear"]) {
+        for (const type of ["miscgear", "weapongear", "armor", "containergear"]) {
             const out = build(type, { subType: "x" });
             expect(out.quantity).toBe(1);
             expect(out.isCarried).toBe(true);
@@ -237,11 +247,11 @@ describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => 
 // emitting.
 describe("a compiled gear item carries no isEquipped (#68)", () => {
     const GEAR_TYPES = [
-        "armorgear",
-        "concoctiongear",
+        "armor",
+        "concoction",
         "containergear",
         "miscgear",
-        "projectilegear",
+        "projectile",
         "weapongear",
     ];
 
@@ -270,7 +280,7 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 
     // The armour-only replacement is `isWorn`, which `GEAR_COMMON` must not
     // acquire in its place: it belongs to `ArmorGearDataModel` alone, and
-    // whether an `armorgear` note should be able to author one is a separate
+    // whether an `armor` note should be able to author one is a separate
     // content question (see #68).
     it("does not substitute isWorn for it", () => {
         for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
@@ -290,11 +300,11 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 describe("the surviving gear possession constants (#68)", () => {
     it("layers all three onto every gear type", () => {
         for (const type of [
-            "armorgear",
-            "concoctiongear",
+            "armor",
+            "concoction",
             "containergear",
             "miscgear",
-            "projectilegear",
+            "projectile",
             "weapongear",
         ]) {
             const out = build(type, { subType: "x" });
@@ -302,5 +312,60 @@ describe("the surviving gear possession constants (#68)", () => {
             expect(out.containerId, type).toBeNull();
             expect(out.sharedWithCohortIds, type).toEqual([]);
         }
+    });
+});
+
+describe("affiliation references (SoHL#1781)", () => {
+    it("emits `system.relations`, not the retired singular", () => {
+        const system = build("affiliation", {
+            subType: "guild",
+            relations: { peoni: "nemesis" },
+        });
+        expect(system.relations).toEqual({ peoni: "nemesis" });
+        expect(system).not.toHaveProperty("relation");
+    });
+
+    it("ships the empty defaults that mean 'refers to nothing', not 'unset'", () => {
+        const system = build("affiliation", { subType: "guild" });
+        expect(system.parents).toEqual([]);
+        expect(system.domain).toEqual([]);
+        expect(system.seat).toBeNull();
+    });
+
+    it("records several parents, because a body may sit under more than one", () => {
+        const system = build("affiliation", {
+            subType: "arcanetradition",
+            parents: ["ordoarcanis", "vylarianempire"],
+        });
+        expect(system.parents).toEqual(["ordoarcanis", "vylarianempire"]);
+    });
+
+    it("authors `domains` and emits `domain`, as the format's mapping row states", () => {
+        const system = build("affiliation", {
+            subType: "polity",
+            domains: ["kaldorregion", "tashal"],
+        });
+        expect(system.domain).toEqual(["kaldorregion", "tashal"]);
+        expect(system).not.toHaveProperty("domains");
+    });
+
+    it("drops the blank rows a cleared property editor leaves behind", () => {
+        const system = build("affiliation", {
+            subType: "guild",
+            parents: ["ordoarcanis", "", "  "],
+            domains: [],
+        });
+        expect(system.parents).toEqual(["ordoarcanis"]);
+        expect(system.domain).toEqual([]);
+    });
+
+    it("keeps a seat that lies outside its domain — a body in exile is a real case", () => {
+        const system = build("affiliation", {
+            subType: "polity",
+            seat: "golotha",
+            domains: ["kaldorregion"],
+        });
+        expect(system.seat).toBe("golotha");
+        expect(system.domain).not.toContain(system.seat);
     });
 });

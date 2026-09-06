@@ -24,16 +24,17 @@
  *
  * **Where this map differs from SoHL's, and why that matters.**
  *
- * SoHL's map is the identity in every row, which is a fact about SoHL rather
- * than a rule (#79) — and while it stayed true nothing proved the map was doing
- * any work. HM3's is not. Four of its rows are one-to-many, one renames outright
- * (`projectilegear` → `missilegear`), and five of its type names are SoHL's own
- * with a *different data model* behind them. A build that inferred a subtype
- * from a note's `type` would be wrong on nine rows out of ten here, and — worse
- * — silently right-looking on the five shared names.
+ * SoHL's map was the identity in every row until #78 renamed three of them,
+ * which was a fact about SoHL rather than a rule (#79) — and while it stayed
+ * true nothing proved the map was doing any work. HM3's was never close. Four
+ * of its rows are one-to-many, one renames outright (`projectile` →
+ * `missilegear`), and five of its type names are SoHL's own with a *different
+ * data model* behind them. A build that inferred a subtype from a note's `type`
+ * would be wrong on nine rows out of ten here, and — worse — silently
+ * right-looking on the five shared names.
  *
- * **The five shared names.** `skill`, `weapongear`, `armorgear`,
- * `containergear` and `miscgear` are declared by both systems. A SoHL skill
+ * **The five shared names.** `skill`, `weapongear`, `armor`, `containergear`
+ * and `miscgear` are declared by both systems. A SoHL skill
  * stores `masteryLevelBase`; an HM3 skill stores `masteryLevel` and a `type` of
  * `"Craft"`/`"Physical"`/…. Name-matching between the two would not fail — it
  * would succeed wrongly, emitting a document Foundry accepts and then strips to
@@ -79,7 +80,7 @@ export const HM3_TYPE_KEY = "type";
  * The Item rows are the nine types `item-builders.mjs` declares; the one Actor
  * row is `being`, which HM3 splits into `character` and `creature`. Types this
  * map does not name — `affiliation`, `affliction`, `attribute`,
- * `concoctiongear`, `mystery`, and every core type — compile into no HM3
+ * `concoction`, `mystery`, and every core type — compile into no HM3
  * document at all, silently and correctly: HM3 has no form of them, and a
  * finding on every such note would be the noise #79's rule exists to prevent.
  *
@@ -88,7 +89,7 @@ export const HM3_TYPE_KEY = "type";
 export const HM3_DOCUMENT_SUBTYPES = defineDocumentSubtypes({
     system: "hm3",
     types: {
-        armorgear: { document: "Item", subType: "armorgear" },
+        armor: { document: "Item", subType: "armorgear" },
         // HM3-only: SoHL resolves a hit location from a being's own body
         // structure, so it has no item of this kind and no note type for one.
         armorlocation: { document: "Item", subType: "armorlocation" },
@@ -96,7 +97,7 @@ export const HM3_DOCUMENT_SUBTYPES = defineDocumentSubtypes({
         miscgear: { document: "Item", subType: "miscgear" },
         // The one outright rename. A note calls it a projectile; HM3 calls the
         // document a missile.
-        projectilegear: { document: "Item", subType: "missilegear" },
+        projectile: { document: "Item", subType: "missilegear" },
         skill: { document: "Item", subType: "skill" },
 
         // ── the four one-to-many rows ───────────────────────────────────────

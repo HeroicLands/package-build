@@ -342,6 +342,12 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * priority takes the name that says what it is. The specification already
  * called it `templatePriority` on two of its three sides.
  *
+ * **`relations` (SoHL#1781).** The field holds a *map* of standings, one per
+ * affiliation — its own description says so, and `resolveRelation` has always
+ * read it that way. `relation` named the many as one, which every author had to
+ * read past. Only `affiliation` declares the field, so the alias is reported
+ * there and the old spelling stays an ordinary unknown key everywhere else.
+ *
  * **`img` (#142).** Every note type names its artwork `img`, at the note's top
  * level, and resolves it the same way. A map alone named its background art
  * `image` and read it out of the `sohl:` block — two spellings for one idea,
@@ -355,6 +361,7 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
 export const RETIRED_FIELD_ALIASES = Object.freeze({
     img: "image",
     templatePriority: "archetype",
+    relations: "relation",
 });
 
 /**

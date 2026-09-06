@@ -161,11 +161,11 @@ describe("gear", () => {
         // A new gear type added to the model without a heading here would
         // simply vanish from the sidebar, silently.
         expect(Object.keys(GEAR_TYPE_TO_KEY).sort()).toEqual([
-            "armorgear",
-            "concoctiongear",
+            "armor",
+            "concoction",
             "containergear",
             "miscgear",
-            "projectilegear",
+            "projectile",
             "weapongear",
         ]);
     });

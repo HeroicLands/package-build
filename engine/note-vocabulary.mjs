@@ -42,16 +42,15 @@
  * transmission — and is true of it whichever system is reading. What each
  * system makes of that value is declared elsewhere, in that system's own half.
  *
- * **The type names here are today's**, which for four of them is not the name
- * the specification uses: `armor`, `weapon`, `projectile` and `concoction` are
- * still spelled `armorgear`, `weapongear`, `projectilegear` and
- * `concoctiongear`, and a `map` is still one of `battlemap` / `localmap` /
- * `regionalmap`. Those renames are a later slice (#78, #79), and declaring the
- * vocabulary under a name no note may yet carry would make it unreachable. The
- * specification's types with no name here at all — `place`, `scenario`,
- * `lore`, `vehicle`, `armorlocation` — are likewise deferred: a note carrying
- * one is already reported as a type no schema declares, which is the finding it
- * deserves until the type exists.
+ * **The type names here are the specification's**, since #78 renamed `armor`,
+ * `projectile` and `concoction` off the `…gear` spellings that named a SoHL
+ * document subtype rather than the thing the note is about. `weapon` is the one
+ * the specification and this registry still spell differently: both systems
+ * call that document a `weapongear`, so the name says nothing system-specific
+ * and #78's table has no row for it. A note left on a renamed spelling still
+ * reaches its entry — every type-keyed lookup normalises through
+ * `RENAMED_TYPES` — and is reported rather than refused until the content trees
+ * have swept.
  *
  * **A type name and a subType value are held to the address charset** (#206), so
  * both are `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states
@@ -79,6 +78,10 @@
 // The one charset, read rather than restated. A second spelling of the pattern
 // is how the three disagreements found in #202/#203 happened.
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
+// The retirement window for a renamed type, read rather than restated: a
+// vocabulary that answered only to the current spelling would report every key
+// of an unswept note as unknown (#78).
+import { currentType } from "./ids.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -587,7 +590,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
-    armorgear: Object.freeze({
+    armor: Object.freeze({
         // Quantity is always one, so the specification refuses the key rather
         // than defaulting it.
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
@@ -602,7 +605,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         data: Object.freeze([TEMPLATE_PRIORITY]),
     }),
 
-    concoctiongear: Object.freeze({
+    concoction: Object.freeze({
         subTypes: Object.freeze(["mundane", "exotic", "elixir"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
@@ -677,7 +680,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
-    projectilegear: Object.freeze({
+    projectile: Object.freeze({
         subTypes: Object.freeze(["none", "arrow", "bolt", "bullet", "dart", "other"]),
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
     }),
@@ -1028,7 +1031,7 @@ assertVocabularyCharset(NOTE_VOCABULARY);
  *   one, and is why the lint makes no claim rather than refusing every key.
  */
 export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
-    return vocabulary?.[type]?.data;
+    return vocabulary?.[currentType(type)]?.data;
 }
 
 /**
@@ -1042,7 +1045,7 @@ export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
  *   it has no `subType` at all — see {@link TypeVocabulary}.
  */
 export function subTypes(type, vocabulary = NOTE_VOCABULARY) {
-    const entry = vocabulary?.[type];
+    const entry = vocabulary?.[currentType(type)];
     if (!entry || !Object.hasOwn(entry, "subTypes")) return undefined;
     return entry.subTypes;
 }

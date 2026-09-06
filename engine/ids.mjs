@@ -164,6 +164,106 @@ export function assertTypeNotRetired(type, where) {
     );
 }
 
+/* -------------------------------------------------------------------- */
+/*  Renamed in favour of another type — the retirement window            */
+/* -------------------------------------------------------------------- */
+
+/**
+ * Content types that were **renamed**, and what each is called now.
+ *
+ * A retired type and a renamed one are different cases, and only the first can
+ * be refused. `character` above was retired *outright* — nothing a note wrote
+ * made it right, so {@link assertTypeNotRetired} throws. A renamed type has a
+ * replacement, the two spellings mean the same thing, and a note carrying the
+ * old one compiles into exactly the document it always did: refusing it would
+ * fail a build over a note that is not wrong.
+ *
+ * So these retire in the three steps `package:` took (#56), and this table is
+ * the **first**: both spellings resolve, the current one is canonical, and the
+ * retired one is *reported* — never refused. The sweep of the content trees and
+ * the refusal come after, once no tree writes the old name. That is the same
+ * rule `RETIRED_FIELD_ALIASES` states for a renamed *field*, and for the same
+ * reason: a consumer must be able to adopt the new toolchain before its content
+ * moves, and there are some 31,000 references to move.
+ *
+ * **Why these three (#78).** `armorgear`, `concoctiongear` and `projectilegear`
+ * named the *SoHL document subtype* a note happened to compile into rather than
+ * the thing the note is about. A note's `type` sits outside the `sohl:` and
+ * `hm3:` blocks precisely because it belongs to no system, and HM3 already
+ * compiles a `projectile` into a `missilegear` — so the suffix was never a fact
+ * about the note. `weapongear` keeps its name: SoHL and HM3 both call the
+ * document that, and #78's table has no row for it.
+ *
+ * **Keyed by the retired spelling**, which is the opposite of
+ * `RETIRED_FIELD_ALIASES`. The direction follows the operation: a field alias
+ * is scoped by the schema that declares the *current* name, so that is what a
+ * reader asks with; a type alias is applied to a value read off a note, so what
+ * a reader has in hand is the retired spelling and what it needs is the
+ * replacement.
+ *
+ * **The address is not normalised.** A note's canonical address — and therefore
+ * its document id — carries its `type` as authored, so both spellings keep the
+ * addresses they already publish and a tree that has not swept compiles
+ * byte-identically. Renaming the type in a note *is* an address move, which is
+ * the sweep's business and not this table's.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const RENAMED_TYPES = Object.freeze({
+    armorgear: "armor",
+    concoctiongear: "concoction",
+    projectilegear: "projectile",
+});
+
+/**
+ * The current spelling of a content type: itself, or what it was renamed to.
+ *
+ * Every table keyed by note type is keyed by the **current** name, and every
+ * lookup goes through this — which is the whole of the window's behaviour, in
+ * one function, so no two readers can disagree about which vocabulary a note
+ * is held to.
+ *
+ * A non-string passes through untouched: callers hand this whatever the
+ * frontmatter carried, and inventing a type for a number would hide the
+ * missing-`type:` finding that belongs to the linter.
+ *
+ * @param {any} type - The type as authored, or as a link spells it.
+ * @returns {any} The current spelling.
+ */
+export function currentType(type) {
+    if (typeof type !== "string") return type;
+    return RENAMED_TYPES[type] ?? type;
+}
+
+/**
+ * What a note declaring a renamed type is told, in one place.
+ *
+ * Shared by every reporter, because an author meets whichever runs first and
+ * they should read the same. It names the type to write rather than a value to
+ * correct — no value makes the retired spelling right — and it says the note
+ * compiles either way, so a reader knows this is a rename to schedule rather
+ * than a build to unbreak.
+ *
+ * @param {string} retired - The spelling the note used.
+ * @param {string} current - What to write instead.
+ * @param {string} [where] - What carries it — a file path, a link target —
+ *   appended to the message. Omit it where the caller emits through a
+ *   diagnostic, whose locator already starts the line.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function renamedTypeMessage(retired, current, where) {
+    return (
+        `content type "${retired}" was renamed to "${current}" — the suffix ` +
+        `named a SoHL document subtype rather than the thing the note is ` +
+        `about` +
+        (where ? ` — ${where}` : "") +
+        `. Both spellings compile to the same document, so the note is not ` +
+        `wrong; write "${current}", and move every \`(type, shortcode)\` ` +
+        `reference and wikilink to it in the same change. "${retired}" is ` +
+        `refused in a later release`
+    );
+}
+
 /** Where every other content type compiles: the items pack. */
 export const ITEM_PACK = Object.freeze({ pack: "items", docType: "Item" });
 
@@ -192,7 +292,12 @@ export const ITEM_PACK = Object.freeze({ pack: "items", docType: "Item" });
  */
 export function packForType(type) {
     assertTypeNotRetired(type);
-    return PACK_BY_TYPE[type] ?? ITEM_PACK;
+    // Through {@link currentType} like every other type-keyed lookup, so the
+    // rule holds without exception. None of today's renamed types is named in
+    // `PACK_BY_TYPE` — all three are items and take the default — but a router
+    // that read the authored spelling would be the one table left to remember
+    // when the next rename lands.
+    return PACK_BY_TYPE[currentType(type)] ?? ITEM_PACK;
 }
 
 /**

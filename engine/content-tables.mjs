@@ -23,7 +23,7 @@
  * TABLE WITHOUT ID
  *   link(file.path, name.full) AS "Name",
  *   sohl.weight AS "Weight"
- * WHERE type = "armorgear" and sohl.material = "Cloth"
+ * WHERE type = "armor" and sohl.material = "Cloth"
  * SORT name.full ASC
  * ```
  *

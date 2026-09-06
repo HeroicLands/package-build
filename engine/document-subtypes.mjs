@@ -64,7 +64,7 @@
  * @module
  */
 
-import { assertTypeNotRetired } from "./ids.mjs";
+import { assertTypeNotRetired, currentType } from "./ids.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 
 export { NO_SYSTEM };
@@ -202,6 +202,13 @@ function frozenRow(system, noteType, row) {
 /**
  * The row a system declares for a note type, or nothing.
  *
+ * The **one** place a map is indexed, so the retirement window for a renamed
+ * type is honoured everywhere a row is asked for — {@link documentSubtype},
+ * {@link mapsNoteType}, {@link noteTypesFor}'s consumers and
+ * {@link systemOf} all arrive here. A note still spelling `armorgear` finds the
+ * `armor` row, compiles into the `armorgear` document it always did, and keeps
+ * the address it publishes at; only the *report* tells it to move (#78).
+ *
  * @param {DocumentSubtypeMap} map - The system's map.
  * @param {string|undefined} noteType - The note's declared `type`.
  * @returns {Readonly<DocumentSubtypeRow>|undefined} The row, or `undefined`
@@ -209,7 +216,7 @@ function frozenRow(system, noteType, row) {
  */
 export function subtypeRow(map, noteType) {
     if (!noteType || typeof noteType !== "string") return undefined;
-    return map?.types?.[noteType];
+    return map?.types?.[currentType(noteType)];
 }
 
 /**
@@ -342,9 +349,17 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  *   whole point of the issue.
  *
  * A **retired** spelling is refused by name before any of that. Without it a
- * reference left behind by a rename would take the unmapped fallback and
- * address a document of the old name — resolving silently, which is precisely
- * what a retirement exists to stop (#78).
+ * reference left behind by a merge would take the unmapped fallback and address
+ * a document of the old name — resolving silently, which is precisely what a
+ * retirement exists to stop.
+ *
+ * A **renamed** spelling is the opposite case and resolves normally, through
+ * the same {@link currentType} every other lookup goes through (#78). It has to
+ * be this side as much as the note's own `type:`: the overwhelming majority of
+ * the 31,000 occurrences of the old names are `(type, shortcode)` references
+ * inside a being's `items:` list, so a window that resolved notes but not
+ * references would silently drop 30,000 embedded items rather than compile them
+ * unchanged.
  *
  * @param {DocumentSubtypeMap} map - The system's map.
  * @param {string|undefined} noteType - The type the reference names.
@@ -364,7 +379,9 @@ export function referencedSubtype(map, noteType, document) {
 
     const row = subtypeRow(map, noteType);
     // No row: the type is the consumer's own, and its document is stamped with
-    // the note type. See the note on the unmapped fallback above.
+    // the note type. See the note on the unmapped fallback above. Returned as
+    // *authored*, not normalised — the Item pass stamps an unmapped document
+    // with `fm.type` verbatim, and the two answers have to agree.
     if (!row) return { subType: noteType };
 
     if (row.document !== document) {

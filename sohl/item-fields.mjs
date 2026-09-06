@@ -116,6 +116,27 @@ const RELATION = Object.freeze({
 });
 
 /**
+ * A list of references, each a bare shortcode.
+ *
+ * Blank entries are dropped rather than emitted: a list that has been edited
+ * down in a property editor keeps its empty rows, and an empty string is not a
+ * reference to anything. Absent reads as `[]`, because "refers to nothing" is a
+ * value here — a sovereign polity is subordinate to nobody — rather than an
+ * unset one.
+ */
+const SHORTCODE_LIST = Object.freeze({
+    shape: "list of shortcodes",
+    kind: "list",
+    read: (raw) =>
+        (Array.isArray(raw) ? raw
+        : raw == null || raw === "" ? []
+        : [raw]
+        )
+            .map((entry) => String(entry ?? "").trim())
+            .filter((entry) => entry !== ""),
+});
+
+/**
  * Every element must carry a non-blank `shortcode`, unique on the weapon — the
  * shortcode is the mode's identity. The list is otherwise emitted verbatim.
  */
@@ -281,11 +302,48 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "Standing within the society.",
         },
         {
-            name: "relation",
-            to: "relation",
+            // Plural because the field holds a map of many standings, one per
+            // affiliation — the singular was a misnomer every author read past
+            // (SoHL#1781).
+            name: "relations",
+            to: "relations",
             ...RELATION,
             default: {},
             describe: "How this society regards others: aligned, unaligned, rival or nemesis.",
+        },
+        {
+            // The organisational relation: which bodies this one answers to.
+            // A list, because an affiliation may sit under more than one at
+            // once — an arcane tradition within an order, say.
+            name: "parents",
+            to: "parents",
+            ...SHORTCODE_LIST,
+            default: [],
+            describe: "Affiliations this one is subordinate to, by shortcode.",
+        },
+        {
+            // Not `capital` or `headquarters`: each fits about half the eleven
+            // subTypes, while a seat covers a polity, a guild, an order and a
+            // faith alike.
+            name: "seat",
+            to: "seat",
+            ...BLANK_IS_NULL,
+            default: null,
+            describe: "Where the affiliation's authority sits, by place shortcode.",
+        },
+        {
+            // The geographic relation, kept apart from the organisational one
+            // above: `parents` is *subordinate to*, this is *holds sway over*.
+            //
+            // Authored plural and emitted singular, as the content format's
+            // mapping row states (`data.domains` → `system.domain`). The two
+            // spellings are deliberate rather than a slip, so the declaration
+            // carries both rather than either side guessing.
+            name: "domains",
+            to: "domain",
+            ...SHORTCODE_LIST,
+            default: [],
+            describe: "Places this affiliation holds sway over, by shortcode.",
         },
     ]),
 
@@ -355,7 +413,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    armorgear: Object.freeze([
+    armor: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "material",
@@ -470,7 +528,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    concoctiongear: Object.freeze([
+    concoction: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "subType",
@@ -613,7 +671,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    projectilegear: Object.freeze([
+    projectile: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "subType",
