@@ -56,14 +56,21 @@ import {
     loadFolders,
     buildFolderResolver,
     writeFolderDocs,
-    walkMarkdownTree,
+    parseMarkdownFile,
     folderFilename,
 } from "./helpers.mjs";
-import { buildFolderNoteIndex, collectFolderNotes, folderDocument } from "./folder-notes.mjs";
+import {
+    buildFolderNoteIndex,
+    collectFolderNotes,
+    FOLDER_TYPE,
+    folderDocument,
+} from "./folder-notes.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 // The corpus every pass runs over, derived once (#243).
 import { buildCompileCorpus } from "./compile-corpus.mjs";
+// The record accessors only — see `engine/index-records.mjs` (#243).
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { unclaimedNoteFindings } from "./note-claims.mjs";
@@ -600,6 +607,33 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     }
     log.info(`Content tree: ${noteCount} note(s) at ${contentBase}`);
 
+    // One router per configuration, so every pass agrees about where a note
+    // goes, and the first pack of each document type owns the error message for
+    // a note of that type that goes nowhere. Resolved here because the corpus
+    // below is derived against it, and the corpus is what every reader from
+    // this point on reads (#243).
+    const router = routerFor(config);
+
+    // The corpus every pass runs over, and the three whole-tree indexes built
+    // over it, derived **once** for the whole compile (#243). Each is a pure
+    // function of (tree, scope, router), none of which varies between passes —
+    // `router` is one object, handed to all of them — so the passes were
+    // deriving the same answers over and over. Compiling `sohl` read every note
+    // twenty times before this: four per pass, five passes.
+    //
+    // Derived here, before the first reader: the unclaimed-type check below is
+    // one, and a check that walked the tree itself would be answering about a
+    // different corpus from the one the passes then compile.
+    const corpusProblems = [];
+    const corpus = await buildCompileCorpus({
+        contentBase,
+        skipDirectories: config.skipDirectories,
+        router,
+        config,
+        problems: corpusProblems,
+    });
+    for (const problem of corpusProblems) emitDiagnostic(problem);
+
     // A note whose `type:` no configured pack claims compiles into nothing, and
     // used to say nothing (#146) — no pass got far enough to reject it, so the
     // silence had no owner. Asked once, of the whole configuration, because
@@ -607,7 +641,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // every type a system deliberately does not map, which is exactly the
     // silence #79 requires. Independent of `only`, since it is a fact about the
     // configured pack list rather than about which passes this run executes.
-    const unclaimed = unclaimedNoteFindings(config);
+    const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
     for (const finding of unclaimed) emitDiagnostic(finding);
 
     fs.mkdirSync(config.paths.packJson, { recursive: true });
@@ -629,11 +663,6 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                 pack.name === only ||
                 pack.companions.some((companion) => companion.name === only)),
     );
-    // One router per configuration, so every pass agrees about where a note
-    // goes, and the first pack of each document type owns the error message for
-    // a note of that type that goes nowhere.
-    const router = routerFor(config);
-
     // Built once for the whole build, not once per pack: a folder note is one
     // definition with one address, and every pass resolves against the same
     // index. A dangling `parent` or a parent cycle is therefore reported once,
@@ -643,8 +672,35 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     try {
         folderNotes = buildFolderNoteIndex(
             collectFolderNotes(
-                walkMarkdownTree(contentBase, { skipDirectories: config.skipDirectories }),
-                contentPackage(),
+                // The corpus this compile derived picks the notes (#243); the
+                // file supplies their frontmatter, and this is one of the few
+                // places where that distinction is load-bearing rather than
+                // incidental.
+                //
+                // `collectFolderNotes` treats `fm.id` as an **authored pin**,
+                // which wins over the id it derives under the folder namespace.
+                // A record's `id` is not that: the index fills it in for every
+                // addressable note (#270), so handing records straight over
+                // would make every folder look pinned and file each one under a
+                // different id than the packs address it by. The index cannot
+                // tell a pin from a derivation, so the note is read — and only
+                // folder notes are, 79 of `sohl`'s 1,685 rather than all of
+                // them.
+                corpus.records
+                    .filter(
+                        (record) =>
+                            isNoteRecord(record) &&
+                            String(record.type ?? "").toLowerCase() === FOLDER_TYPE,
+                    )
+                    .map((record) => {
+                        const absPath = noteFile(contentBase, record);
+                        return { frontmatter: parseMarkdownFile(absPath).frontmatter, absPath };
+                    }),
+                // The package this build resolved, not the ambient accessor:
+                // they are the same value in a real repository and different
+                // ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or in a
+                // test (#243).
+                config.contentPackage,
             ),
         );
     } catch (err) {
@@ -682,22 +738,6 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         }
         return unsatisfied.length + unclaimed.length;
     }
-
-    // The corpus every pass runs over, and the three whole-tree indexes built
-    // over it, derived **once** for the whole compile (#243). Each is a pure
-    // function of (tree, scope, router), none of which varies between passes —
-    // `router` is the one resolved above and handed to all of them — so the
-    // passes were deriving the same answers over and over. Compiling `sohl`
-    // read every note twenty times before this: four per pass, five passes.
-    const corpusProblems = [];
-    const corpus = await buildCompileCorpus({
-        contentBase: config.paths.content,
-        skipDirectories: config.skipDirectories,
-        router,
-        config,
-        problems: corpusProblems,
-    });
-    for (const problem of corpusProblems) emitDiagnostic(problem);
 
     let totalErrors = unclaimed.length + corpusProblems.length;
     const passes = [];

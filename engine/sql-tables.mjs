@@ -38,7 +38,9 @@ import os from "node:os";
 import path from "node:path";
 
 import { FENCE_LINE } from "./code-fences.mjs";
-import { walkMarkdownTree } from "./helpers.mjs";
+import { parseMarkdownFile } from "./helpers.mjs";
+// The record accessors only — see `engine/index-records.mjs` (#243).
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 
 /** The fence info string that marks a SQL content table. */
 const SQL_INFO = /^sql\b/i;
@@ -388,20 +390,30 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  *   nothing when the tree has no such directive.
  */
 export async function prepareTreeSqlTables(contentBase, { config, skipDirectories, records } = {}) {
-    const sources = [];
-    for (const { body, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories: skipDirectories ?? config?.skipDirectories,
-    })) {
-        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
-    }
-    if (!sources.length) return undefined;
-
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
     const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
+
+    // Which notes carry a directive, discovered over the same corpus every
+    // other pass reads rather than over a walk of this one's own (#243). The
+    // body has to be read to find a fence — the index carries no note text —
+    // but *which files* to read is no longer a second answer.
+    //
+    // `parseMarkdownFile` yields the body `walkMarkdownTree` yielded, trimmed
+    // the same way, which matters: results are keyed by note and looked up by
+    // the ordinal of the directive within it, so the two readings have to agree
+    // about what a body is.
+    const sources = [];
+    for (const record of indexRecords) {
+        if (!isNoteRecord(record)) continue;
+        const absPath = noteFile(contentBase, record);
+        const { body } = parseMarkdownFile(absPath);
+        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
+    }
+    if (!sources.length) return undefined;
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
     const addresses = new Set(indexRecords.map((record) => record.address?.slug).filter(Boolean));

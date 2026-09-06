@@ -61,7 +61,10 @@
  * @module
  */
 
-import { walkMarkdownTree } from "./helpers.mjs";
+import { assertSuppliedCorpus } from "./helpers.mjs";
+// The record accessors only: this module is imported by the content index, so
+// importing the index back would close a cycle (#243).
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
@@ -180,7 +183,10 @@ function mappingSystems(maps, type) {
  * pack from appearing to answer for any note.
  *
  * @param {string} docType - The Foundry document type a pack holds.
- * @param {ClaimSources} [sources] - What to answer from. Defaults to the
+ * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243). Defaults to the
  *   configured registries and the systems this toolchain ships.
  * @returns {ReadonlySet<string>} The note types such a pass would claim.
  */
@@ -241,6 +247,9 @@ export function noteTypesClaimedBy(docType, sources) {
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {ReadonlySet<string>} The claimed note types.
  */
 export function claimedNoteTypes(config = loadPackConfig(), sources) {
@@ -262,6 +271,9 @@ export function claimedNoteTypes(config = loadPackConfig(), sources) {
  * declare on top.
  *
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {ReadonlySet<string>} The vocabulary.
  */
 export function noteTypeVocabulary(sources) {
@@ -411,18 +423,28 @@ function authoringMessage(type) {
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per note.
  */
-export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
+export function unclaimedNoteFindings(config = loadPackConfig(), sources, { records } = {}) {
     const resolved = resolveSources(sources);
     const claimed = claimedNoteTypes(config, resolved);
     const vocabulary = noteTypeVocabulary(resolved);
     const findings = [];
 
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(config.paths.content, {
-        skipDirectories: config.skipDirectories,
-    })) {
+    // The corpus this compile derived once (#243), required rather than
+    // derived here: this module is imported *by* the content index, so it
+    // could not derive one without closing a cycle — and the caller that wants
+    // this answer is running a compile and already holds it.
+    assertSuppliedCorpus(records, "unclaimedNoteFindings");
+
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(config.paths.content, record);
         if (!fm) continue;
         const type = typeof fm.type === "string" ? fm.type.trim() : "";
         if (!type) continue;
