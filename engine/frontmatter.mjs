@@ -256,21 +256,30 @@ export function parseValueDesc(raw) {
  * The compendium folder a note names, and how it named it.
  *
  * Two spellings, deliberately not merged into one value: `packFolder:` is a
- * **path** (`Possessions/Consumables/Poisons and Toxins`) and `folder:` is a
+ * folder note's **address** (`folder-poisonsandtoxins`) and `folder:` is a
  * Foundry **id** (`ONXsqZAIZr2qzxTb`). Which one a value is cannot be told from
- * the string — a top-level path is a bare name, and a name is as alphanumeric
- * as an id — so the field it was written in is what says, and that answer is
- * carried rather than re-derived (#251).
+ * the string — both are alphanumeric — so the field it was written in is what
+ * says, and that answer is carried rather than re-derived (#251).
+ *
+ * **`packFolder` was a path for one release** (`Possessions/Misc_Gear/Cooking`)
+ * and is an address now (#255). A path encoded the hierarchy *in the value*, so
+ * reparenting a folder made every note naming it wrong — a structural edit
+ * became a corpus-wide rewrite. An address is stable under reparenting, which
+ * is exactly why a note is addressed by `(type, shortcode)` and never by
+ * `file.path`. The path form is **removed rather than deprecated**: it had no
+ * authors to migrate, which is the whole reason the change was cheap enough to
+ * make.
  *
  * `packFolder` wins where both are present. Nothing about `folder` changes: a
- * note that names one is read, resolved and emitted exactly as before.
+ * note that names one is read, resolved and emitted exactly as before, until
+ * #260 retires it.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
- * @returns {{value: string|null, isPath: boolean}} The authored value, and
- *   whether it is a path.
+ * @returns {{value: string|null, isAddress: boolean}} The authored value, and
+ *   whether it is a folder note's address.
  */
 export function folderField(fm) {
-    const asPath = sohlField(fm, "packFolder", null);
-    if (asPath != null && asPath !== "") return { value: asPath, isPath: true };
-    return { value: sohlField(fm, "folder", null), isPath: false };
+    const asAddress = sohlField(fm, "packFolder", null);
+    if (asAddress != null && asAddress !== "") return { value: asAddress, isAddress: true };
+    return { value: sohlField(fm, "folder", null), isAddress: false };
 }
