@@ -175,6 +175,24 @@ export function markComplete(dir) {
  * @throws {Error} When a declared dependency has not been fetched.
  */
 export function cachedMetadataFiles(config) {
+    return cachedMetadataIndexes(config).map((entry) => entry.file);
+}
+
+/**
+ * The same fetched indexes, each paired with the package that published it.
+ *
+ * The id is what a SQL content table addresses a dependency's notes by
+ * (`FROM sohl.notes`, #246), so the pairing has to survive the lookup —
+ * {@link cachedMetadataFiles} drops it, and a caller reconstructing the id from
+ * the file name would be parsing a path to recover something the declaration
+ * already stated.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{id: string, file: string}>} One entry per declared
+ *   dependency.
+ * @throws {Error} When a declared dependency has not been fetched.
+ */
+export function cachedMetadataIndexes(config) {
     const files = [];
     const root = config.paths.metadataCache;
     for (const rel of metadataRelationships(config)) {
@@ -192,7 +210,7 @@ export function cachedMetadataFiles(config) {
                     `not been fetched. Run \`content-build deps fetch\` first.`,
             );
         }
-        files.push(newestIndex(cached));
+        files.push({ id: rel.id, file: newestIndex(cached) });
     }
     return files;
 }

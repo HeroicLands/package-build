@@ -960,14 +960,67 @@ relational operations:
 | `_section` | Emits a headed table per distinct value, in the order the rows arrive. |
 
 `_section` is why one query replaces the forty near-identical blocks a grouped
-table used to need: the authored `ORDER BY` decides the section order too. The
-heading level is `##`, or whatever `sql section-level=3` says.
-
-`sql allow-empty` works exactly as its `dataview` counterpart does, and for the
-same reason.
+table used to need: the authored `ORDER BY` decides the section order too.
 
 **Beware `folder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`.
+
+###### Reading another package's notes
+
+Each package this one **depends on** is attached as a schema named after it, so
+a satellite can tabulate what it builds on:
+
+````markdown
+```sql
+SELECT name.full AS "Name", sohl.skillBase AS "Base"
+FROM sohl.notes
+WHERE type = 'skill'
+ORDER BY name.full
+```
+````
+
+This package's own notes stay at the unqualified `notes`, and a query may read
+both at once — joining your beings against the skills they cite is one `FROM`
+clause. It needs no fetch and no configuration: a dependency's published index
+is already cached when a compile starts, because resolving addresses across
+packages needs it.
+
+Which dataset a query reads is `FROM`'s job rather than a fence property. A
+fence naming a file would write a build artifact's path into the corpus, so
+renaming the artifact would mean sweeping every note that cited it.
+
+###### Header arguments
+
+Statements _about the directive_ — as opposed to the query — are written after
+the language as **org-babel header arguments**:
+
+````markdown
+```sql :section-level 3 :allow-empty
+SELECT name.full AS "Name", sohl.kbcat AS _section
+FROM notes WHERE type = 'affliction'
+```
+````
+
+The language word stays first and stays plain, so GitHub, Prettier and every
+other markdown reader still highlight the block as SQL and simply ignore what
+follows.
+
+| Argument               | What it does                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `:allow-empty`         | A table selecting nothing is intended, not a stale query. Without it, empty is an error. |
+| `:section-level <1-6>` | The heading level `_section` emits. Default `2`.                                         |
+
+The grammar is org's, so it extends without inventing a spelling per property:
+
+- a key is `:name` **starting a word**, so a colon inside or ending one is text
+  — `:caption Gear: the tables` is a single argument;
+- a value runs to the next key or the end of the line, spaces included;
+- a key with no value means `true`, which is what `:allow-empty` is;
+- a value may be `"quoted"` to hold a word that would otherwise read as a key;
+- a repeated key takes its last value.
+
+`dataview` keeps its own bare `allow-empty`; it is the retiring language and its
+grammar is frozen.
 
 ```
 :::secret

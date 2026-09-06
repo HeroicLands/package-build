@@ -49,6 +49,109 @@
 /** A fence line, capturing its indent, its marker, and its info string. */
 export const FENCE_LINE = /^([ \t]*)(`{3,}|~{3,})[ \t]*([^\r\n]*)$/;
 
+/**
+ * A fence's info string, read as **org-babel header arguments**.
+ *
+ * A directive fence carries statements *about the directive* that are no part of
+ * the query it holds — whether an empty result is intended, what heading level a
+ * section takes, later a caption. Those started as an ad-hoc bare word
+ * (`allow-empty`) and a `key=value` (`section-level=3`), each matched by its own
+ * regex: a grammar only in the sense that two regexes are one, and with no room
+ * to add a third property without adding a third spelling.
+ *
+ * Org-mode settled this long ago. A babel source block writes them after the
+ * language as `:key value`, which is a real grammar with a specification, a
+ * parser, and an editor that already completes it.
+ *
+ * ```text
+ * ```sql :section-level 3 :allow-empty
+ * ```
+ *
+ * **The language word stays first and stays plain.** `sql` is what GitHub,
+ * Prettier and every other markdown reader match on to syntax-highlight the
+ * block, so it leads and the header args follow; a reader that does not know
+ * them sees an ordinary SQL block.
+ *
+ * The grammar, matching org's:
+ *
+ * - a key is `:name` **starting a word** — a colon inside or ending a word is
+ *   text, so `:caption Gear: the tables` is one argument;
+ * - a value runs to the next key or the end of the string, spaces included, and
+ *   is trimmed;
+ * - a key with no value is `true`, which is what a statement like
+ *   `:allow-empty` is;
+ * - a value may be `"quoted"` to hold a word that would otherwise read as a
+ *   key — the one ambiguity org has too;
+ * - a repeated key takes its last value.
+ *
+ * @param {string} info - The text after the fence marker.
+ * @returns {{language: string, args: Record<string, string|true>}} The language,
+ *   lowercased, and the header arguments in written order.
+ */
+export function parseHeaderArgs(info) {
+    const text = String(info ?? "").trim();
+    if (!text) return { language: "", args: {} };
+
+    // The language is the first word; everything after it is header arguments.
+    const firstKey = text.search(/(?:^|\s):[A-Za-z][\w-]*/);
+    const head = (firstKey === -1 ? text : text.slice(0, firstKey)).trim();
+    const language = head.split(/\s+/)[0]?.toLowerCase() ?? "";
+    if (firstKey === -1) return { language, args: {} };
+
+    const args = {};
+    const rest = text.slice(firstKey);
+    // Split before each key: a colon that starts a word. A colon inside or at
+    // the end of a word is ordinary text, which is what keeps `Gear:` a value.
+    const quoted = quotedSpans(rest);
+    const re = /(?:^|\s):([A-Za-z][\w-]*)/g;
+    const keys = [];
+    let m;
+    while ((m = re.exec(rest)) !== null) {
+        // A key-like word inside a quoted value is part of the value — that is
+        // the whole reason quoting exists here.
+        if (quoted.some(([from, to]) => m.index >= from && m.index < to)) continue;
+        keys.push({ name: m[1], at: m.index, end: re.lastIndex });
+    }
+    for (let i = 0; i < keys.length; i += 1) {
+        const from = keys[i].end;
+        const to = i + 1 < keys.length ? keys[i + 1].at : rest.length;
+        const raw = rest.slice(from, to).trim();
+        args[keys[i].name] = raw === "" ? true : unquote(raw);
+    }
+    return { language, args };
+}
+
+/**
+ * The `"…"` and `'…'` spans in a header-argument string, as [start, end) offsets.
+ *
+ * Scanned once before the keys are, so a key-like word inside a value is never
+ * read as the next key.
+ *
+ * @param {string} text - The header-argument text.
+ * @returns {Array<[number, number]>} The quoted spans.
+ */
+function quotedSpans(text) {
+    const spans = [];
+    const re = /"[^"]*"|'[^']*'/g;
+    let m;
+    while ((m = re.exec(text)) !== null) spans.push([m.index, m.index + m[0].length]);
+    return spans;
+}
+
+/**
+ * A header-argument value with its surrounding quotes removed.
+ *
+ * Quoting is how a value holds a word that would otherwise read as the next key
+ * — the same escape hatch org offers, and the only one needed.
+ *
+ * @param {string} value - The raw value.
+ * @returns {string} The value, unquoted.
+ */
+function unquote(value) {
+    const m = /^"([^"]*)"$|^'([^']*)'$/.exec(value);
+    return m ? (m[1] ?? m[2]) : value;
+}
+
 /** A list item's opening line, capturing the indent and the marker itself. */
 const LIST_MARKER = /^([ \t]*)(?:[-*+]|\d{1,9}[.)])(?:[ \t]+|$)/;
 

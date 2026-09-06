@@ -83,7 +83,7 @@ describe("finding `sql` directives", () => {
     });
 
     it("reads `allow-empty` and `section-level` off the fence, not the query", () => {
-        const [block] = findSqlBlocks("```sql allow-empty section-level=3\nSELECT 1\n```\n");
+        const [block] = findSqlBlocks("```sql :allow-empty :section-level 3\nSELECT 1\n```\n");
 
         expect(block.allowEmpty).toBe(true);
         expect(block.sectionLevel).toBe(3);
@@ -275,7 +275,7 @@ describe("preparing directives ahead of expansion", () => {
 
         expect(await errs(dead)).toHaveLength(1);
         expect((await errs(dead))[0].reason).toMatch(/selects no notes/);
-        expect(await errs(dead.replace("```sql", "```sql allow-empty"))).toEqual([]);
+        expect(await errs(dead.replace("```sql", "```sql :allow-empty"))).toEqual([]);
     });
 
     it("finds each of a note's directives by its ordinal, not its line", async () => {
