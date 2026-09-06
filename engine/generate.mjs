@@ -50,12 +50,21 @@ import { Hm3Items } from "../hm3/items.mjs";
 import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
-import { statsForPack, loadFolders, buildFolderResolver, writeFolderDocs } from "./helpers.mjs";
+import {
+    statsForPack,
+    loadFolders,
+    buildFolderResolver,
+    writeFolderDocs,
+    walkMarkdownTree,
+    folderFilename,
+} from "./helpers.mjs";
+import { buildFolderNoteIndex, collectFolderNotes, folderDocument } from "./folder-notes.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { unclaimedNoteFindings } from "./note-claims.mjs";
+import { contentPackage } from "./content-package.mjs";
 
 /**
  * The compiler class for each Foundry document type a pack may hold.
@@ -302,6 +311,7 @@ async function generatePack(
     config,
     router,
     routingReporter,
+    folderNotes,
 ) {
     const contentBase = config.paths.content;
     const dest = packJsonDir(name, config);
@@ -318,14 +328,49 @@ async function generatePack(
     log.info(`Pack ${name}: ${contentBase} → ${dest}`);
 
     let folderList;
-    let resolver;
+    let yamlResolver;
     try {
         folderList = folders ? loadFolders(path.join(contentBase, folders)) : [];
-        ({ resolver } = buildFolderResolver(folderList));
+        ({ resolver: yamlResolver } = buildFolderResolver(folderList));
     } catch (err) {
         log.error(`${name} ${folders} validation failed: ${err.message}`);
         return { errors: 1, compiled: 0 };
     }
+
+    // Which folder notes this pack turned out to hold something for. A folder
+    // materialises in every pack holding a document that references it, so the
+    // set is not knowable until the pass has compiled — which is why these
+    // documents are written after `compile()` and the YAML ones before it
+    // (#257).
+    /** @type {Set<import("./folder-notes.mjs").FolderNote>} */
+    const referencedFolders = new Set();
+
+    /**
+     * The Foundry folder id a note names, by address or by id.
+     *
+     * The two spellings resolve against two different sources and always did:
+     * `packFolder` names a folder **note**, resolved through the address index
+     * shared by the whole build, and `folder` names a Foundry **id** declared
+     * in this pack's own YAML. Which one applies is the field the value was
+     * written in, never the string (#251).
+     *
+     * @param {string|null|undefined} value - As authored.
+     * @param {object} [opts]
+     * @param {boolean} [opts.isAddress] - Whether `value` is a folder address.
+     * @returns {string|null} The folder id, or `null` for an absent value.
+     */
+    const resolver = (value, { isAddress = false } = {}) => {
+        if (value == null || value === "") return null;
+        if (!isAddress) return yamlResolver(value);
+        const folder = folderNotes.resolve(value);
+        // Its ancestors with it: a `Folder` whose parent is absent from the
+        // pack is an orphan Foundry renders at the root, so materialising a
+        // folder without its chain breaks the tree at the top rather than
+        // merely leaving it incomplete.
+        referencedFolders.add(folder);
+        for (const ancestor of folderNotes.ancestorsOf(folder)) referencedFolders.add(ancestor);
+        return folder.id;
+    };
 
     // Wipe and recreate so removed content notes leave no stale JSON.
     fs.rmSync(dest, { recursive: true, force: true });
@@ -376,7 +421,44 @@ async function generatePack(
         routingReporter,
     });
     await pack.compile();
+
+    // After the pass, because only now is it known what this pack references.
+    // One folder note materialises in several packs — the items pack and the
+    // journals pack both hold it when both hold something filed in it — and
+    // every copy carries the same `_id`, which is what files a documentation
+    // journal beside the item it describes rather than in a folder that merely
+    // looks alike (#257).
+    writeFolderNoteDocs(referencedFolders, folderNotes, statsForPack(system, config), dest, type);
+
     return { errors: pack.errorCount, compiled: pack.compiledCount };
+}
+
+/**
+ * Write one `Folder` document per referenced folder note into a pack.
+ *
+ * Emitted in address order rather than in the order the pass happened to
+ * reference them, so the same tree compiles to the same bytes on every run.
+ *
+ * @param {Set<import("./folder-notes.mjs").FolderNote>} referenced - The folder
+ *   notes this pack holds something for, ancestors included.
+ * @param {object} folderNotes - The folder-note index.
+ * @param {object} stats - The `_stats` block every emitted document carries.
+ * @param {string} dest - The pack's JSON directory.
+ * @param {string} documentType - The document class the pack holds.
+ * @returns {void}
+ */
+function writeFolderNoteDocs(referenced, folderNotes, stats, dest, documentType) {
+    if (referenced.size === 0) return;
+    const ordered = [...referenced].sort((a, b) => (a.address < b.address ? -1 : 1));
+    for (const folder of ordered) {
+        const doc = folderDocument(folder, folderNotes.parentOf(folder), documentType, stats);
+        fs.writeFileSync(
+            path.join(dest, folderFilename(folder.name, folder.id)),
+            JSON.stringify(doc, null, 2),
+            "utf8",
+        );
+    }
+    log.info(`Emitted ${ordered.length} folder-note document(s) to ${dest}`);
 }
 
 /**
@@ -470,6 +552,29 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // goes, and the first pack of each document type owns the error message for
     // a note of that type that goes nowhere.
     const router = routerFor(config);
+
+    // Built once for the whole build, not once per pack: a folder note is one
+    // definition with one address, and every pass resolves against the same
+    // index. A dangling `parent` or a parent cycle is therefore reported once,
+    // as a fact about the tree, rather than once per pass that happened to walk
+    // it (#256).
+    let folderNotes;
+    try {
+        folderNotes = buildFolderNoteIndex(
+            collectFolderNotes(
+                walkMarkdownTree(contentBase, { skipDirectories: config.skipDirectories }),
+                contentPackage(),
+            ),
+        );
+    } catch (err) {
+        emitDiagnostic({
+            file: err.absPath ?? contentBase,
+            severity: "error",
+            message: err.message,
+        });
+        return 1;
+    }
+
     const firstOfType = new Map();
     for (const pack of config.packs) {
         if (!firstOfType.has(pack.type)) firstOfType.set(pack.type, pack.name);
@@ -505,6 +610,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
             config,
             router,
             firstOfType.get(pack.type) === pack.name,
+            folderNotes,
         );
         totalErrors += errors;
         passes.push({

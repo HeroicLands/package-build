@@ -332,31 +332,46 @@ A note says which folder of its pack it lands in. Two spellings are read, and
 `packFolder` wins where both are present:
 
 ```yaml
-packFolder: Possessions/Consumables/Poisons and Toxins # a path
+packFolder: poisonsandtoxins # a folder note's address
 folder: ONXsqZAIZr2qzxTb # a Foundry id
 ```
 
-**`packFolder` is a path** through the pack's folder file, `/`-separated, using
-each folder's `name`. Sibling names are unique and no name may contain `/`, so a
-full path identifies exactly one folder. A path the pack does not declare is a
-build error naming every path it does.
+**`packFolder` is a folder note's address** — an ordinary address, resolved the
+way every other reference is, and written in any form [the grammar
+admits](#shorter-forms). The field supplies the type, so a bare shortcode is a
+complete address here; `folder-poisonsandtoxins` and the fully qualified
+`sohl-none-folder-poisonsandtoxins` name the same folder. An address no folder
+note answers to is a build error naming the folders the package does declare.
 
 **`folder` is a Foundry id**, and is unchanged: a note that names one is read,
 resolved and emitted exactly as before.
 
 **Which one a value is comes from the field it was written in, never from the
-string.** A top-level path is a bare name, and a name is as alphanumeric as an
-id, so there is nothing in `Possessions` to tell the two apart.
+string.** Both are alphanumeric, so there is nothing in the value to tell them
+apart.
 
 Note this is the _pack_ folder, not the note's directory. The directory is
 `file.path` / `file.folder`, which a content table reads separately.
 
-**A documentation journal is filed beside the document it describes**, so the
-journals pack must declare that folder too. Where it does not, the build fails
-naming the path — the folder files disagree, and that is worth catching at once.
-The id spelling never noticed: it was passed across packs verbatim and validated
-nowhere, so the journal simply carried a folder reference its pack could not
-honour.
+**Where a folder materialises is derived from what references it.** Every pack
+holding a document that names a folder gets that folder, and its ancestors with
+it — so a documentation journal is filed beside the item it describes without
+the journals pack having to declare anything. A folder nothing references
+materialises nowhere.
+
+That derivation is what makes a whole class of defect unrepresentable. The
+folder used to be declared twice, once per pack, in two files free to disagree:
+`sohl-thalorna` was missing 57 of its item folders from its journal folder file
+and `sohl-kethira-basic` had no journal folder file at all, so both emitted
+documentation journals into folders their own pack never declared — silently.
+With one folder note and one address there is no second file to disagree with
+the first.
+
+> **`packFolder` was a path** for one release (`Possessions/Misc_Gear/Cooking`).
+> A path encoded the hierarchy in the value, so reparenting a folder made every
+> note naming it wrong — a structural edit became a corpus-wide rewrite. The
+> path form is **removed**, not deprecated: nothing authored it yet, which is
+> the whole reason the change was cheap enough to make.
 
 ### WikiLinks
 
@@ -1742,3 +1757,55 @@ persists in the pack.
 Note that an `Adventure` has no `system` field of its own. A bundle spanning two
 systems therefore cannot be one document that knows it spans them; it is one
 Adventure per system, and the pack each is written to is what carries the system.
+
+### type: folder
+
+Foundry's `Folder` — the grouping documents are filed in, and the last document
+this package compiled from bespoke configuration (`*-folders.yaml`, five files
+per tree) rather than from a note.
+
+```yaml
+---
+type: folder
+shortcode: possessionscooking
+name:
+  full: Cooking
+data:
+  parent: possessionsmiscgear
+  color: "#7a4b2a"
+---
+```
+
+| `data` property | Values                | Description                                       |
+| --------------- | --------------------- | ------------------------------------------------- |
+| `parent`        | `WikiLink`            | The folder this one sits in. Unset at the root.   |
+| `color`         | `"#RRGGBB"`, a string | The folder's colour. Unset for Foundry's default. |
+
+A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
+`Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
+system's. Its shortcode is [an address segment](#the-canonical-address) like
+every other, so it is strictly alphanumeric: `possessionscooking`, never
+`possessions-cooking`, which would read as two segments and resolve to nothing.
+
+**`color` must be quoted**, and YAML gives no third option: `color: #7a4b2a`
+parses as `null` (a `#` after a space opens a comment) and `color: 000000` parses
+as the number `0`. All 639 colour values across the five trees are already
+written `"#RRGGBB"`.
+
+`parent` is an address, so a dangling one is an ordinary dead-address finding
+rather than a special-cased `Unknown folder id`, and a cycle is refused. Both are
+reported when the tree is read, not when something happens to reference the
+folder that carries them.
+
+**A folder note carries no prose.** It is structure, not content, so it produces
+no documentation journal and takes no part in `docEntryTypes`.
+
+**It declares no pack.** Which packs a folder materialises in is derived from
+[what references it](#the-compendium-folder), and its ancestors materialise with
+it; a folder nothing references materialises nowhere.
+
+**Its Foundry `_id` is derived from its address**, stable across runs, so a new
+folder needs no invented id. An authored `id` is kept where one is present —
+which is what lets a tree sweep its folder YAML into notes without a world that
+already holds those folders losing them. Two folders claiming one id is a build
+error.

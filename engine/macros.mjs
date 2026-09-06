@@ -316,7 +316,7 @@ export class Macros extends BasePackCompiler {
         return buildMacroEntry(fm, {
             command: macroCommand(body, name),
             folder: this.folderResolver(folderField(fm).value, {
-                isPath: folderField(fm).isPath,
+                isAddress: folderField(fm).isAddress,
             }),
             // This pack's system, not the package-wide one (#48).
             stats: this.stats,
