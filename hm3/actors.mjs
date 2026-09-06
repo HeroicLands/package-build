@@ -245,8 +245,16 @@ export class Hm3Actors extends SystemActorCompiler {
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
-        const folderId = blockField(fm, block, "folder", null);
-        const folder = this.folderResolver(folderId);
+        // Both spellings, as everywhere else: `packFolder` is a folder note's
+        // address and `folder` a Foundry id, and which one applies comes from
+        // the field it was written in rather than from the string (#251, #255).
+        // This pass read only the id, so an HM3 tree could not file an actor by
+        // address at all — which its own sweep needs.
+        const packFolderAddress = blockField(fm, block, "packFolder", null);
+        const folder =
+            packFolderAddress ?
+                this.folderResolver(packFolderAddress, { isAddress: true })
+            :   this.folderResolver(blockField(fm, block, "folder", null));
 
         const system = {
             // Nullish, not `||` (#218): a note that names no portrait gets the

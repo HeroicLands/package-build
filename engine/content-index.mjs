@@ -91,6 +91,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
 /**
@@ -493,6 +494,10 @@ export function collectContentIndex(contentBase, { contentPackage, skipDirectori
         walkOpts,
     )) {
         const fm = frontmatter ?? {};
+        // The id the note's document is filed under (#270), resolved before
+        // the record is built so the index publishes the address *and* the id
+        // that address derives.
+        resolveNoteId(fm, { pkg: contentPackage });
         const relPath = path.relative(contentBase, absPath);
         const record = buildIndexRecord({
             frontmatter: fm,

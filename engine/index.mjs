@@ -57,6 +57,9 @@ export * as packRouter from "./pack-router.mjs";
 /** Which note types a configuration compiles, and the notes nothing claims (#146). */
 export * as noteClaims from "./note-claims.mjs";
 
+/** Folders as notes: the address index, the parent chain, and the emitted `Folder` (#256). */
+export * as folderNotes from "./folder-notes.mjs";
+
 /** The content package a build compiles, and the Foundry package it ships in. */
 export * as contentPackage from "./content-package.mjs";
 
@@ -85,6 +88,12 @@ export * as contentSlug from "./content-slug.mjs";
 
 /** Where a content note publishes: its section, and its `type-shortcode` URL. */
 export * as contentAddress from "./content-address.mjs";
+
+/** Which note-type → document-subtype maps this toolchain ships. */
+export * as subtypeRegistry from "./subtype-registry.mjs";
+
+/** The id a note's document is filed under: its pin, or its address (#270). */
+export * as noteIds from "./note-ids.mjs";
 
 /** The published content index packages exchange addresses through (#239). */
 export * as metadataIndex from "./metadata-index.mjs";

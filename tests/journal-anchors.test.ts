@@ -8,7 +8,7 @@
 import { describe, it, expect } from "vitest";
 // Build-time pack helper (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
-import { splitPages, assertUniqueAnchors } from "../engine/journals.mjs";
+import { splitPages, assertUniquePages } from "../engine/journals.mjs";
 
 describe("splitPages (a page per H1, and per anchored heading)", () => {
     it("splits on an H1 and keeps its heading depth", () => {
@@ -39,19 +39,62 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
     });
 });
 
-describe("assertUniqueAnchors", () => {
+describe("assertUniquePages", () => {
     it("accepts distinct anchors", () => {
         expect(() =>
-            assertUniqueAnchors(
-                [{ anchorSlug: "a" }, { anchorSlug: "b" }, { anchorSlug: null }],
+            assertUniquePages(
+                [
+                    { anchorSlug: "a", name: "A" },
+                    { anchorSlug: "b", name: "B" },
+                    { anchorSlug: null, name: "C" },
+                ],
                 "Note",
             ),
         ).not.toThrow();
     });
 
     it("accepts several pages with no anchor at all", () => {
+        // Each still has its own heading, which is what identifies it since
+        // #268 took the index out of the key. `splitPages` never yields a page
+        // without a name, so this is the shape the compiler actually passes.
         expect(() =>
-            assertUniqueAnchors([{ anchorSlug: null }, { anchorSlug: null }], "Note"),
+            assertUniquePages(
+                [
+                    { anchorSlug: null, name: "One" },
+                    { anchorSlug: null, name: "Two" },
+                ],
+                "Note",
+            ),
+        ).not.toThrow();
+    });
+
+    it("rejects two unanchored pages sharing a heading (#268)", () => {
+        // They derive one page id, so the two compile to a single document —
+        // reported here, where the note and the heading can be named, rather
+        // than by the LevelDB packer as an opaque key collision.
+        expect(() =>
+            assertUniquePages(
+                [
+                    { anchorSlug: null, name: "Notes" },
+                    { anchorSlug: null, name: "Notes" },
+                ],
+                "Mystical Ability",
+            ),
+        ).toThrow(/Mystical Ability.*"Notes"/);
+    });
+
+    it("does not confuse an anchor with a name", () => {
+        // The two halves key differently — a slug through `anchorPageId`, a
+        // name through `makeId` — so a page named for another's anchor is not
+        // a collision.
+        expect(() =>
+            assertUniquePages(
+                [
+                    { anchorSlug: "notes", name: "Something Else" },
+                    { anchorSlug: null, name: "notes" },
+                ],
+                "Note",
+            ),
         ).not.toThrow();
     });
 
@@ -59,8 +102,11 @@ describe("assertUniqueAnchors", () => {
         // Two headings sharing an anchor derive the same page id, which the
         // LevelDB packer would only report as an opaque key collision.
         expect(() =>
-            assertUniqueAnchors(
-                [{ anchorSlug: "before-you-start" }, { anchorSlug: "before-you-start" }],
+            assertUniquePages(
+                [
+                    { anchorSlug: "before-you-start", name: "Before You Start" },
+                    { anchorSlug: "before-you-start", name: "Before You Start (2)" },
+                ],
                 "Mystical Ability",
             ),
         ).toThrow(/Mystical Ability.*before-you-start/);

@@ -38,6 +38,7 @@ import { packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
@@ -525,6 +526,14 @@ export function buildContentLinkIndex(
     for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
         skipDirectories,
     })) {
+        // The id a note's document is filed under: its authored pin, or the
+        // one derived from its canonical address (#270). Resolved here rather
+        // than read, because this index and the compile pass must agree about
+        // every note's id and neither can see the other's answer.
+        resolveNoteId(fm);
+        // What is left after that is a file with **no address** — no type, or
+        // no shortcode — which is not an addressable note and has no document
+        // to link to.
         if (!fm?.id) continue;
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note
@@ -811,16 +820,6 @@ export function buildFolderResolver(folders) {
         if (!f.name) {
             throw new Error(`Folder ${f.id} missing name`);
         }
-        // `packFolder` addresses a folder by its path, so a name carrying the
-        // separator would make one path mean two things. No folder in any tree
-        // has ever had one; this keeps it that way rather than discovering it
-        // through a note that files itself somewhere unintended.
-        if (String(f.name).includes("/")) {
-            throw new Error(
-                `Folder ${f.id} name "${f.name}" contains "/", which is the ` +
-                    `separator a \`packFolder:\` path is written with`,
-            );
-        }
         if (byId.has(f.id)) {
             throw new Error(`Duplicate folder id ${f.id}`);
         }
@@ -847,65 +846,30 @@ export function buildFolderResolver(folders) {
         siblings.add(f.name);
     }
 
-    // Every folder's full path, so a note can name one by where it is rather
-    // than by an id it cannot read. Sibling names are unique and no name holds
-    // a `/`, so a full path identifies exactly one folder.
-    const byPath = new Map();
     /**
-     * One folder's path from the root, `/`-separated.
+     * The folder id a note names, by id.
      *
-     * @param {object} folder - The folder.
-     * @returns {string} Its path.
-     */
-    const pathOf = (folder) => {
-        const segments = [];
-        let current = folder;
-        // Bounded by the number of folders: `parentFolderId` is validated to
-        // exist above, and a cycle would otherwise spin here forever.
-        for (let hops = 0; current && hops <= folders.length; hops += 1) {
-            segments.unshift(current.name);
-            const parentId = current.parentFolderId || "";
-            if (!parentId) return segments.join("/");
-            current = byId.get(parentId);
-        }
-        throw new Error(`Folder ${folder.id} (${folder.name}) sits in a parent cycle`);
-    };
-    for (const f of folders) byPath.set(pathOf(f), f.id);
-
-    /**
-     * The folder id a note names, by id or by path.
-     *
-     * Which one is not guessed from the string — a top-level path is a bare
-     * name, and a name is as alphanumeric as an id. The caller says, because
-     * the note said: `folder:` carries an id and `packFolder:` a path.
+     * **Only by id.** This resolver answers for `folder:` alone; `packFolder:`
+     * names a folder *note* and is resolved through the address index instead
+     * (#255). The path lookup that briefly lived here is gone with the path
+     * spelling it served — it was never released, so there is nothing to
+     * deprecate.
      *
      * @param {string|null|undefined} value - As authored.
-     * @param {object} [opts]
-     * @param {boolean} [opts.isPath] - Whether `value` is a path.
      * @returns {string|null} The id, or `null` for an absent value.
-     * @throws {Error} When the path is not one this pack declares.
+     * @throws {Error} When the id is not one this pack declares.
      */
-    function resolver(value, { isPath = false } = {}) {
+    function resolver(value) {
         if (value == null || value === "") return null;
         const authored = String(value).trim();
         if (!authored) return null;
-        if (isPath) {
-            const id = byPath.get(authored);
-            if (!id) {
-                throw new Error(
-                    `Unknown folder path "${authored}" — this pack declares ` +
-                        `${byPath.size} folder(s): ${[...byPath.keys()].sort().join(", ")}`,
-                );
-            }
-            return id;
-        }
         if (!byId.has(authored)) {
             throw new Error(`Unknown folder id "${authored}"`);
         }
         return authored;
     }
 
-    return { resolver, folders, byPath };
+    return { resolver, folders };
 }
 
 /**

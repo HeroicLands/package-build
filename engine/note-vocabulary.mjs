@@ -713,6 +713,33 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     macro: Object.freeze({ data: Object.freeze([]) }),
 
+    // Foundry's `Folder`, and the last document this package compiled from
+    // bespoke configuration rather than from a note (#256). It declares no
+    // system-block fields, like a bundle: a `Folder` is a core Foundry
+    // document, so its address carries the `none` system segment and
+    // everything it says is a `data` property.
+    //
+    // It carries **no prose**, which is the decision #256 left open: a folder
+    // is structure, not content, so it wants no documentation journal and takes
+    // no part in `docEntryTypes`.
+    folder: Object.freeze({
+        data: Object.freeze([
+            {
+                name: "parent",
+                ...LINK,
+                describe:
+                    "The folder this one sits in, as an address. Unset at the " +
+                    "root. A dead address is a dead-address finding and a " +
+                    "cycle is refused.",
+            },
+            {
+                name: "color",
+                ...TEXT,
+                describe: "The folder's colour, as a CSS hex code. Unset for Foundry's default.",
+            },
+        ]),
+    }),
+
     // Foundry's `Adventure`, named for what it is rather than what Foundry
     // calls it: a set of documents taken as a unit. The document is an
     // installer — it carries copies, and importing one creates or updates each

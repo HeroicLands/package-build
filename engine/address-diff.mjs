@@ -40,15 +40,31 @@
  * string. Here both sides are whole documents, so the question is decidable.
  *
  * **A rename is told from a removal by the document id, and that is an identity
- * match rather than an inference.** A note authors its `_id` in frontmatter; it
- * is not derived from the shortcode, and the `Tabri` → `Taburi` commit changed
- * the shortcode alone. So an address that disappeared while its document is
- * still published elsewhere *is* a rename — not "probably" one. When the id is
- * published under no address at all, that is all this can say: **withdrawn**,
- * with no successor named. A split, a deletion and a merge are indistinguish-
- * able from one another at that point, and inventing a "did you mean" from
- * string similarity would be worse than saying nothing, because a wrong one
- * sends the reader to the wrong fix.
+ * match rather than an inference.** An address that disappeared while its
+ * document is still published elsewhere *is* a rename — not "probably" one.
+ * When the id is published under no address at all, that is all this can say:
+ * **withdrawn**, with no successor named. A split, a deletion and a merge are
+ * indistinguishable from one another at that point, and inventing a "did you
+ * mean" from string similarity would be worse than saying nothing, because a
+ * wrong one sends the reader to the wrong fix.
+ *
+ * **#270 narrowed what that can see, and the narrowing is worth stating.** The
+ * match rested on the id being independent of the shortcode: a note authored
+ * its `_id`, so the `Tabri` → `Taburi` commit changed the shortcode alone and
+ * left the id to join the two sides. Since #270 an id is *derived from the
+ * canonical address*, which carries the shortcode — so renaming a shortcode
+ * moves the id too, both sides of the join move together, and a rename is
+ * reported as a **withdrawal** with no successor named.
+ *
+ * That is a real loss rather than a presentational one, and there is exactly
+ * one lever against it: an authored `id:` still wins, and pinning one is how a
+ * document keeps its identity across a rename — which is the case this
+ * diagnostic was built for. It remains fully accurate for a pinned note, and
+ * degrades to "withdrawn" for an unpinned one; it never reports a *wrong*
+ * successor, because the join is still an identity match and simply finds
+ * nothing. Tracked as its own question rather than absorbed here: the honest
+ * alternatives are to key the diff on something the address does not carry, or
+ * to accept that renames are announced rather than detected.
  *
  * **Severity is decided per case.** A withdrawal is legitimate — content is
  * allowed to be retired — so it is reported and does not fail a build. A rename
@@ -69,6 +85,7 @@ import path from "node:path";
 import { formatDiagnostic, positionInFrontmatter } from "./diagnostics.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 
 /**
  * The address space a set of compiled Item pack directories publishes.
@@ -199,6 +216,7 @@ export function noteFilesById(contentBase, { skipDirectories } = {}) {
     const byId = new Map();
     const walkOpts = skipDirectories ? { skipDirectories } : undefined;
     for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
+        resolveNoteId(fm);
         if (fm?.id && !byId.has(fm.id)) byId.set(fm.id, absPath);
     }
     return byId;

@@ -47,6 +47,10 @@ import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 // the direction is toward the leaf and cannot close a cycle.
 import { NO_SYSTEM, assertSystemSegment } from "./systems.mjs";
 
+// `ids.mjs` is a leaf with no local imports — the module note there says why —
+// so an address may hash itself without any risk of closing a cycle.
+import { makeId } from "./ids.mjs";
+
 export { DEFAULT_ADDRESS_SCHEME };
 
 /**
@@ -327,4 +331,50 @@ export function resolvePackageUrl(rel, base) {
         );
     }
     return `${base}${rel}`;
+}
+
+/**
+ * The namespace {@link documentId} hashes a canonical address under.
+ *
+ * Named rather than written as a literal at the one call site, because it is
+ * part of the published derivation: a consumer holding a content-index entry
+ * recomputes the document's id — and therefore its compendium UUID — as
+ * `makeId(DOCUMENT_ID_NAMESPACE, entry.canonical)`, so the string is a fact
+ * about the format rather than an implementation detail. Changing it moves
+ * every id this toolchain has ever emitted.
+ *
+ * @type {string}
+ */
+export const DOCUMENT_ID_NAMESPACE = "document";
+
+/**
+ * The Foundry `_id` of the document a note compiles into, derived from its
+ * canonical address (#270).
+ *
+ * A note used to author this — an opaque 16-character string, one per note,
+ * that said nothing its address did not and that no check guaranteed. The
+ * address is the identity that *is* guaranteed: `content-lint` refuses a
+ * duplicate `(type, shortcode)` across every pack of a document type, which is
+ * exactly the scope a primary document's id must be unique within. So the
+ * derived id inherits a guard that already exists, where the authored one had
+ * none.
+ *
+ * **The coupling this creates, stated plainly.** The address carries the
+ * shortcode, so renaming a shortcode moves the document's id — where an
+ * authored id survived one. That is a real trade rather than a free win, and
+ * two things make it acceptable: a rename already breaks every wikilink to the
+ * note, so it is a breaking change either way; and a note that must keep its
+ * identity across a rename pins an `id`, which is what the pin is for. One
+ * thing genuinely degrades — `engine/address-diff.mjs` tells a rename from a
+ * withdrawal by matching document ids, and can no longer do so for a note that
+ * authors none. Its module note records that.
+ *
+ * @param {string} pkg - The owning **content** package.
+ * @param {string} system - The system whose document this is, or `none`.
+ * @param {string} type - The note's `type`.
+ * @param {string} shortcode - The note's `shortcode`.
+ * @returns {string} A 16-character Foundry id.
+ */
+export function documentId(pkg, system, type, shortcode) {
+    return makeId(DOCUMENT_ID_NAMESPACE, canonicalKey(pkg, system, type, shortcode));
 }

@@ -13,6 +13,8 @@ import path from "node:path";
 // Build-time pack compilers (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { documentId } from "../engine/content-address.mjs";
+import { contentPackage } from "../engine/content-package.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Journals } from "../engine/journals.mjs";
 import { Actors } from "../sohl/actors.mjs";
@@ -204,8 +206,11 @@ describe("BasePackCompiler's per-pass switches", () => {
         expect(read(out)["Probe One"].body).toContain("[[doc-probetarget|Target]]");
     });
 
-    it("fails the build on a note with no id", async () => {
-        const noId = path.join(tmp, "noid");
+    it("compiles a note that authors no id, deriving one from its address (#270)", async () => {
+        // `id:` used to be mandatory and is now optional: the document is filed
+        // under `makeId("document", <canonical address>)`, an identity the note
+        // already had and `content-lint` already guards.
+        const noId = path.join(tmp, "noid-derived");
         fs.mkdirSync(noId, { recursive: true });
         fs.writeFileSync(
             path.join(noId, "NoId.md"),
@@ -215,14 +220,41 @@ describe("BasePackCompiler's per-pass switches", () => {
                 type: "probe",
             }),
         );
-        const pack = new Probe({ skipDirectories: [], contentBase: noId, dest: dest("noid-out") });
-        await expect(pack.compile()).rejects.toThrow(/Probe missing id/);
+        const out = dest("noid-out");
+        const pack = new Probe({ skipDirectories: [], contentBase: noId, dest: out });
+        await pack.compile();
+        expect(pack.compiledCount).toBe(1);
+        expect(read(out)["Probe No Id"]._id).toBe(
+            documentId(contentPackage(), "none", "probe", "noid"),
+        );
     });
 
-    it("skips a note with no id when the pass tolerates one", async () => {
-        const noId = path.join(tmp, "noid");
+    it("fails the build on a note with no address to derive an id from", async () => {
+        // What is fatal now is a note that cannot be addressed at all. A
+        // missing `shortcode:` is the real defect the old "missing id" check
+        // was standing in front of: such a note has no identity, so nothing can
+        // link to it and no id can be derived for it.
+        const noAddr = path.join(tmp, "noaddress");
+        fs.mkdirSync(noAddr, { recursive: true });
+        fs.writeFileSync(
+            path.join(noAddr, "NoAddress.md"),
+            note("No shortcode at all.", {
+                name: { full: "Probe No Address" },
+                type: "probe",
+            }),
+        );
+        const pack = new Probe({
+            skipDirectories: [],
+            contentBase: noAddr,
+            dest: dest("noaddr-out"),
+        });
+        await expect(pack.compile()).rejects.toThrow(/has no address, so it has no document id/);
+    });
+
+    it("skips an unaddressable note when the pass tolerates one", async () => {
+        const noAddr = path.join(tmp, "noaddress");
         const out = dest("lenient");
-        const pack = new LenientProbe({ skipDirectories: [], contentBase: noId, dest: out });
+        const pack = new LenientProbe({ skipDirectories: [], contentBase: noAddr, dest: out });
         await pack.compile();
         expect(pack.errorCount).toBe(0);
         expect(pack.compiledCount).toBe(0);

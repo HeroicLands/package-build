@@ -62,6 +62,7 @@ import {
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
@@ -198,6 +199,10 @@ export class Scenes extends BasePackCompiler {
             // `draft:` (#69) is reported, once. Repeating either check here
             // would double the diagnostic or throw past it. A refused note is
             // indexed and then never compiled, so it reaches no document.
+            // As every corpus reader does, before asking for the id: a note
+            // that authors none takes the one derived from its canonical
+            // address (#270). What remains unset is a file with no address.
+            resolveNoteId(fm);
             if (!fm || !fm.id) continue;
             if (fm.shortcode && Array.isArray(fm.effects) && fm.effects.length) {
                 effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
@@ -350,8 +355,8 @@ export class Scenes extends BasePackCompiler {
      */
     #pageIds(markdown, entryId, name) {
         const pageIds = new Map();
-        splitPages(markdown, name).forEach((page, index) => {
-            const id = journalPageId(entryId, page, index);
+        splitPages(markdown, name).forEach((page) => {
+            const id = journalPageId(entryId, page);
             if (page.anchorSlug) pageIds.set(page.anchorSlug, id);
             const slug = slugify(page.name);
             if (slug && !pageIds.has(slug)) pageIds.set(slug, id);
@@ -394,8 +399,8 @@ export class Scenes extends BasePackCompiler {
         // shared `docEntryTypes` arrangement (#1514) — so neither
         // pass has to read the other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
-        const { value: authoredFolder, isPath: folderIsPath } = folderField(fm);
-        const folder = this.folderResolver(authoredFolder, { isPath: folderIsPath });
+        const { value: authoredFolder, isAddress: folderIsAddress } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isAddress: folderIsAddress });
         // The retired spelling of the background art, reported where an author
         // meets it soonest — every consumer runs the compile, and not every
         // one runs the lint (#142). Located by reading the note back, which is
@@ -443,10 +448,11 @@ export class Scenes extends BasePackCompiler {
                     markdown,
                     leadName: name,
                     // As in the journals pass: an id crosses packs verbatim,
-                    // a path must resolve in the pack that emits it.
+                    // an address resolves in the pack that emits it — which is
+                    // what makes the folder materialise there too (#257).
                     folder:
-                        folderIsPath ?
-                            this.folderResolver(authoredFolder, { isPath: true })
+                        folderIsAddress ?
+                            this.folderResolver(authoredFolder, { isAddress: true })
                         :   authoredFolder,
                     flags: fm.flags,
                 })

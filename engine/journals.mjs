@@ -130,25 +130,61 @@ export function splitPages(body, leadName = "Introduction") {
 }
 
 /**
- * Two headings in one note sharing an `{#anchor}` derive the same page id, which
- * the LevelDB packer reports only as an opaque duplicate-key collision. Catch it
- * here, where the note and the slug can be named.
+ * Two pages in one note that would derive the same id, which the LevelDB packer
+ * reports only as an opaque duplicate-key collision. Catch it here, where the
+ * note and the page can be named.
  *
- * @param {Array<{anchorSlug: string|null}>} rawPages - From {@link splitPages}.
+ * Both halves of {@link journalPageId} are checked, because each is now keyed
+ * on an identity alone:
+ *
+ * - **An anchor**, declared twice, has always collided.
+ * - **A name**, repeated among the unanchored pages, collides since #268 took
+ *   the index out of the key. `MD024` with `siblings_only` already makes two
+ *   sibling headings with the same text a lint error, so this is the same rule
+ *   restated where the build can enforce it — a lint is a separate command, and
+ *   the compile must not depend on someone having run it.
+ *
+ * The two are counted separately: an anchored page takes its id from the slug
+ * and an unanchored one from the name, so a page named for another's anchor is
+ * not a collision.
+ *
+ * @param {Array<{anchorSlug: string|null, name: string}>} rawPages - From
+ *   {@link splitPages}.
  * @param {string} noteName - The note, for the error message.
- * @throws {Error} When an anchor is declared twice in the same note.
+ * @throws {Error} When two pages in one note share an anchor or a name.
  */
-export function assertUniqueAnchors(rawPages, noteName) {
-    const seen = new Set();
+export function assertUniquePages(rawPages, noteName) {
+    const anchors = new Set();
+    const names = new Set();
     for (const page of rawPages) {
-        if (!page.anchorSlug) continue;
-        if (seen.has(page.anchorSlug)) {
+        if (page.anchorSlug) {
+            if (anchors.has(page.anchorSlug)) {
+                throw new Error(
+                    `note "${noteName}" declares the anchor {#${page.anchorSlug}} on more than one heading; an anchor must be unique within its note`,
+                );
+            }
+            anchors.add(page.anchorSlug);
+            continue;
+        }
+        if (names.has(page.name)) {
             throw new Error(
-                `note "${noteName}" declares the anchor {#${page.anchorSlug}} on more than one heading; an anchor must be unique within its note`,
+                `note "${noteName}" has more than one page named "${page.name}"; a page is identified by its heading, so the two would compile to one document — rename one, or give it an {#anchor}`,
             );
         }
-        seen.add(page.anchorSlug);
+        names.add(page.name);
     }
+}
+
+/**
+ * The anchor half of {@link assertUniquePages}, under its former name.
+ *
+ * @deprecated Call {@link assertUniquePages}, which checks page names too.
+ * @param {Array<{anchorSlug: string|null, name: string}>} rawPages - From
+ *   {@link splitPages}.
+ * @param {string} noteName - The note, for the error message.
+ */
+export function assertUniqueAnchors(rawPages, noteName) {
+    assertUniquePages(rawPages, noteName);
 }
 
 /**
@@ -156,19 +192,29 @@ export function assertUniqueAnchors(rawPages, noteName) {
  *
  * An anchored page takes the id its inbound links compute from the note id and
  * the slug, so link and page agree without shared state. Every other page is
- * keyed by its position and name, which is what lets the items pass address an
- * item doc's first page without having compiled it (see
+ * keyed by its **name**, which is what lets the items pass address an item
+ * doc's first page without having compiled it (see
  * {@link sohl.utils.packs.itemDocPointer}).
+ *
+ * **It takes no index** (#268). A page used to be keyed by position *and* name,
+ * so inserting a heading renumbered every page after it and a re-import created
+ * new pages beside the old ones — while nothing about those pages had changed.
+ * The anchored case above never took one, and is the shape this now shares.
+ *
+ * The name is a sound identity here in a way it is not for an embedded item: a
+ * page's name is its heading, and `MD024` with `siblings_only` is in the shared
+ * markdownlint rule set, so two sibling headings with the same text are already
+ * a lint error. {@link assertUniquePages} states the same thing at compile
+ * time, where the packer would otherwise report only an opaque duplicate key.
  *
  * @param {string} entryId - The owning JournalEntry's `_id`.
  * @param {{anchorSlug: string|null, name: string}} page - From {@link splitPages}.
- * @param {number} index - The page's position in the entry.
  * @returns {string} A 16-character Foundry id.
  */
-export function journalPageId(entryId, page, index) {
+export function journalPageId(entryId, page) {
     return page.anchorSlug ?
             anchorPageId(entryId, page.anchorSlug)
-        :   makeId("journal-page", `${entryId}:${index}:${page.name}`);
+        :   makeId("journal-page", `${entryId}:${page.name}`);
 }
 
 /**
@@ -189,9 +235,9 @@ export function buildPages(rawPages, entryId, noteName) {
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
         );
     }
-    assertUniqueAnchors(rawPages, noteName);
-    return rawPages.map((page, index) => {
-        const pageId = journalPageId(entryId, page, index);
+    assertUniquePages(rawPages, noteName);
+    return rawPages.map((page) => {
+        const pageId = journalPageId(entryId, page);
         return {
             _id: pageId,
             name: page.name,
@@ -340,16 +386,19 @@ export class Journals extends BasePackCompiler {
         // against this pack's own folders.yaml — an item folder is declared in
         // the items one, a macro folder in the macros one, and a map's in the
         // scenes one.
-        const { value: authoredFolder, isPath } = folderField(fm);
-        // A path is resolved wherever it is written, including here. An id can
-        // cross packs verbatim — both declare it, or so the arrangement assumes
-        // — but a path must become an id before it is emitted, and the pack
-        // emitting it is the one that has to know it. Where the journals pack
-        // does not declare the folder, that is a defect in the folder files and
-        // the build says so, rather than filing documentation somewhere nobody
-        // asked for. `folder:` is unchanged.
+        const { value: authoredFolder, isAddress } = folderField(fm);
+        // An address is resolved wherever it is written, including here — and
+        // resolving it *here* is what cures the defect this comment used to
+        // describe. A folder note has one definition and one address, so the
+        // journals pack materialises the very folder the items pack does, by
+        // the same id (#257). There is no second folder file left to disagree
+        // with the first, and so no arrangement to assume: the mirroring
+        // failure is unrepresentable rather than merely reported.
+        //
+        // `folder:` is unchanged, and still crosses packs verbatim on the
+        // assumption both declare it — the arrangement #260 retires.
         const folder =
-            isPath ? this.folderResolver(authoredFolder, { isPath: true })
+            isAddress ? this.folderResolver(authoredFolder, { isAddress: true })
             : ownsDoc ? authoredFolder
             : this.folderResolver(authoredFolder);
 
