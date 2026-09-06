@@ -123,6 +123,32 @@ export function parseMarkdownFile(filePath) {
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
  *   Defaults to the configured list.
  */
+/**
+ * Refuse a corpus read whose scope its caller did not state.
+ *
+ * The rule of #243 in one place, so every reader of the tree refuses the same
+ * way and says so in the same words. It is shared rather than repeated because
+ * the corpus is no longer read only by {@link walkMarkdownTree}: a pass that
+ * reads the content index instead is making the identical claim about which
+ * files it is looking at, and must be held to the identical requirement — a
+ * scope that quietly defaulted there would reintroduce exactly the second
+ * answer the walk's requirement removed.
+ *
+ * @param {readonly string[]|undefined} skipDirectories - The stated scope.
+ * @param {string} who - The reader, named in the message.
+ * @throws {Error} When no scope was stated.
+ * @returns {void}
+ */
+export function assertStatedScope(skipDirectories, who) {
+    if (skipDirectories === undefined) {
+        throw new Error(
+            `${who} requires \`skipDirectories\`: the scope is the ` +
+                "caller's to state, so two passes cannot disagree about which " +
+                "files are the corpus",
+        );
+    }
+}
+
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // Stated by the caller, never resolved here. The default this used to carry
     // — `loadPackConfig().skipDirectories` — read whichever configuration
@@ -135,13 +161,7 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // (#243) — the same defect class as `entriesForNote` reading
     // `docEntryTypes` from the ambient config, fixed in #240 after a fixture
     // had been passing on the leak for as long as it existed.
-    if (skipDirectories === undefined) {
-        throw new Error(
-            "walkMarkdownTree requires `skipDirectories`: the scope is the " +
-                "caller's to state, so two passes cannot disagree about which " +
-                "files are the corpus",
-        );
-    }
+    assertStatedScope(skipDirectories, "walkMarkdownTree");
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
     while (stack.length > 0) {

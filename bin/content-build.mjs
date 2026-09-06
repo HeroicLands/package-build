@@ -1600,10 +1600,13 @@ async function diffAddresses(config, argv) {
         );
     }
 
-    // Stated by the caller, like every other walk in this file (#243): the two
-    // tree reads below must agree with each other and with the compile about
-    // which files are the corpus.
+    // Stated by the caller, like every other corpus read in this file (#243):
+    // the two tree reads below must agree with each other and with the compile
+    // about which files are the corpus. They now do so by construction — the
+    // corpus is derived once, here, and handed to both.
     const scope = { skipDirectories: config.skipDirectories };
+    const records = indexRecordsFor({ contentBase: config.paths.content, config, ...scope });
+    const corpus = { config, records, ...scope };
 
     const findings = diffItemAddresses(
         readItemAddresses(baselineDirs),
@@ -1613,7 +1616,7 @@ async function diffAddresses(config, argv) {
             // Read whether or not anything departed: an id match needs no tree,
             // but the diff decides rename-versus-withdrawal as it walks the
             // baseline, so the declarations have to be in hand before it does.
-            predecessors: declaredPredecessors(config.paths.content, scope),
+            predecessors: declaredPredecessors(config.paths.content, corpus),
         },
     );
     if (!findings.length) {
@@ -1624,7 +1627,7 @@ async function diffAddresses(config, argv) {
     // A rename is fixed in the note that made it, so findings are placed
     // against the tree rather than against the compiled output they were read
     // from.
-    const noteFiles = noteFilesById(config.paths.content, scope);
+    const noteFiles = noteFilesById(config.paths.content, corpus);
     const severity = argv.strict ? "error" : "warning";
     for (const finding of findings) {
         emitDiagnostic({

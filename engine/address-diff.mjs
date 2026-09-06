@@ -90,8 +90,11 @@ import path from "node:path";
 
 import { formatDiagnostic, positionInFrontmatter } from "./diagnostics.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
-import { walkMarkdownTree } from "./helpers.mjs";
-import { resolveNoteId } from "./note-ids.mjs";
+import { assertStatedScope } from "./helpers.mjs";
+// The corpus, read from the one pass that derives it (#243). Nothing in the
+// index's import graph reaches this module — only `bin/` imports it — so this
+// is a plain static import, as in the link checker.
+import { indexRecordsFor, isNoteRecord } from "./content-index.mjs";
 import { renamedFrom } from "./note-renames.mjs";
 import { referencedSubtype } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -202,27 +205,93 @@ export function readItemAddresses(dirs) {
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} opts
- * @param {readonly string[]} opts.skipDirectories - Passed to the walk. Stated
- *   by the caller, never defaulted — see {@link walkMarkdownTree}.
+ * @param {readonly string[]} [opts.skipDirectories] - The corpus scope. Stated
+ *   by the caller, never defaulted — see {@link addressCorpus}.
  * @param {readonly object[]} [opts.maps] - The document-subtype maps.
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {readonly object[]} [opts.records] - Index records the caller already
+ *   derived, shared with {@link noteFilesById} so one command reads one corpus.
  * @returns {Map<string, {to: string, file: string, shortcode: string}>} Old
  *   address → the address the declaring note publishes at now, and that note.
  */
+/**
+ * The corpus both reads below share, as content-index records.
+ *
+ * **One walk, not two.** `addresses diff` reads the tree twice — once for the
+ * declarations and once to place its findings — and until #243 those were two
+ * independent walks that each parsed every note. They are now one derivation,
+ * shared: the caller derives the records and hands them to both, so the two
+ * halves of a single command cannot disagree about which files the corpus is,
+ * or about the ids in it.
+ *
+ * **The id is why it matters, and not only tidiness.** `noteFilesById` joins
+ * tree-side ids against ids read out of the *compiled packs*. Since #270 an id
+ * is derived from the canonical address, whose first segment is the content
+ * package — and the tree side used to derive it through `resolveNoteId(fm)`
+ * with no package, which falls back to `contentPackage()` and so to whichever
+ * configuration the working directory answers with. The compiled side is
+ * produced by a compiler running on the configuration the *build* resolved. Let
+ * those differ — under `PACKAGE_BUILD_CONFIG`, in a worktree, in a test — and
+ * every id fails to join, so every rename degrades to a withdrawal and every
+ * finding loses the note it should have been reported against. Reading the
+ * index derives both sides from the one resolved configuration.
+ *
+ * A tree that is not there yields no records rather than throwing, which is
+ * what the walk this replaces did: an absent tree is a caller's business, and
+ * these two functions have never been the ones to report it.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} opts - Options.
+ * @param {readonly string[]} [opts.skipDirectories] - The scope, required
+ *   unless `records` supplies the corpus outright.
+ * @param {object} [opts.config] - The resolved configuration.
+ * @param {readonly object[]} [opts.records] - Records the caller derived.
+ * @returns {readonly object[]} The index records.
+ */
+function addressCorpus(contentBase, { skipDirectories, config, records } = {}) {
+    if (records) return records;
+    assertStatedScope(skipDirectories, "reading the address corpus");
+    if (!fs.existsSync(contentBase)) return [];
+    return indexRecordsFor({ contentBase, config, skipDirectories });
+}
+
+/**
+ * The file a record was read from, as an absolute path.
+ *
+ * The index records a path *relative* to the content root deliberately — an
+ * absolute one is a fact about the machine that built it — and a diagnostic
+ * needs the absolute form. The root is in hand, so this is the composition the
+ * index's own documentation names.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} record - An index record.
+ * @returns {string} The absolute path.
+ */
+function fileOf(contentBase, record) {
+    return path.join(contentBase, ...String(record.file.path).split("/"));
+}
+
 export function declaredPredecessors(
     contentBase,
-    { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS } = {},
+    { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS, config, records } = {},
 ) {
     const byOldAddress = new Map();
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, { skipDirectories })) {
-        const declared = renamedFrom(fm);
+    for (const record of addressCorpus(contentBase, { skipDirectories, config, records })) {
+        // A documentation journal is a document this tree emits, not a note in
+        // it: it has no file and declares nothing.
+        if (!isNoteRecord(record)) continue;
+        // The record carries the note's frontmatter, so a declaration is read
+        // off it exactly as it was read off the parse.
+        const declared = renamedFrom(record);
         if (!declared.length) continue;
-        const shortcode = typeof fm?.shortcode === "string" ? fm.shortcode.trim() : "";
+        const shortcode = typeof record.shortcode === "string" ? record.shortcode.trim() : "";
         // A note with no address of its own has nowhere for a predecessor to
         // have gone, so it declares a rename to nothing. Reported by the lint;
         // silently skipped here rather than indexed as a rename to `type:`.
         if (!shortcode) continue;
+        const absPath = fileOf(contentBase, record);
         for (const map of maps) {
-            const { subType } = referencedSubtype(map, fm?.type, "Item");
+            const { subType } = referencedSubtype(map, record.type, "Item");
             if (!subType) continue;
             const to = itemAddressKey(subType, shortcode);
             for (const old of declared) {
@@ -327,15 +396,28 @@ export function diffItemAddresses(baseline, current, { baseline: label, predeces
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
+ * @param {readonly string[]} [opts.skipDirectories] - The corpus scope, stated
+ *   by the caller — see {@link addressCorpus}.
+ * @param {object} [opts.config] - The resolved build configuration, which the
+ *   id is derived against. See {@link addressCorpus} for why that matters.
+ * @param {readonly object[]} [opts.records] - Index records the caller already
+ *   derived, shared with {@link declaredPredecessors}.
  * @returns {Map<string, string>} Document id → the note's absolute path.
  */
-export function noteFilesById(contentBase, { skipDirectories } = {}) {
+export function noteFilesById(contentBase, { skipDirectories, config, records } = {}) {
     const byId = new Map();
-    const walkOpts = skipDirectories ? { skipDirectories } : undefined;
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
-        resolveNoteId(fm);
-        if (fm?.id && !byId.has(fm.id)) byId.set(fm.id, absPath);
+    for (const record of addressCorpus(contentBase, { skipDirectories, config, records })) {
+        // A documentation journal shares its note's file and has no id of its
+        // own, so indexing it would file one path under two identities.
+        if (!isNoteRecord(record)) continue;
+        // Derived by the index, against the configuration this build resolved —
+        // which is the same configuration the compiled ids on the other side of
+        // the join were produced under. See {@link addressCorpus}.
+        //
+        // First record wins, and the records are in content-path order, so
+        // which note answers for a duplicated id is now a stable fact about the
+        // tree rather than an artefact of directory-read order.
+        if (record.id && !byId.has(record.id)) byId.set(record.id, fileOf(contentBase, record));
     }
     return byId;
 }
