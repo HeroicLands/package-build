@@ -92,12 +92,19 @@ import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"} [kind] - The value's
- *   shape, for the lint. Absent means no claim is made about the value — which
- *   is the honest answer wherever the specification's stated shape and the
- *   shape notes are authored in today disagree.
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"} [kind] -
+ *   The value's shape, for the lint. Absent means no claim is made about the
+ *   value — which is the honest answer wherever the specification's stated
+ *   shape and the shape notes are authored in today disagree.
  * @property {string} [shape] - Human-readable shape, for a finding and for
  *   documentation.
+ * @property {string} [entryShape] - For a `scalar-or-map` field, what one
+ *   entry of the map is. A finding names the entry at fault rather than
+ *   quoting the whole map back, so the string an author has to correct is the
+ *   one the message holds.
+ * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
+ *   `"pack"` means each is a pack this package declares, so a key naming none
+ *   is a finding of its own: it addresses a hierarchy nothing will ever read.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -137,6 +144,26 @@ const LINK = Object.freeze({ shape: "a wikilink", kind: "string" });
 
 /** A list of wikilinks. */
 const LINKS = Object.freeze({ shape: "list of wikilinks", kind: "list" });
+
+/**
+ * A single wikilink, or one per pack.
+ *
+ * The map form is not a convenience spelling of the scalar: it says something
+ * the scalar cannot, that the answer *differs by pack*. A folder's `parent` is
+ * the case it exists for — a folder's identity is one thing and its hierarchy
+ * another, and both large trees file the same folder under a different parent
+ * in the items pack and the journals pack (#276).
+ *
+ * Typing it as a bare {@link LINK} is what #288 was: the compiler read both
+ * forms and the lint rejected one of them, so every note using the form the
+ * specification prescribes was a finding and no note using it was not.
+ */
+const LINK_BY_PACK = Object.freeze({
+    shape: "a wikilink, or a map of wikilinks keyed by pack",
+    kind: "scalar-or-map",
+    entryShape: "a wikilink",
+    keys: "pack",
+});
 
 /** Whatever the author wrote — declared, but with no claim about its shape. */
 const ANY = Object.freeze({ shape: "as authored" });
@@ -726,11 +753,12 @@ export const NOTE_VOCABULARY = Object.freeze({
         data: Object.freeze([
             {
                 name: "parent",
-                ...LINK,
+                ...LINK_BY_PACK,
                 describe:
-                    "The folder this one sits in, as an address. Unset at the " +
-                    "root. A dead address is a dead-address finding and a " +
-                    "cycle is refused.",
+                    "The folder this one sits in, as an address — or one " +
+                    "address per pack, keyed by pack name with `default` for " +
+                    "the rest. Unset at the root. A dead address is a " +
+                    "dead-address finding and a cycle is refused, per pack.",
             },
             {
                 name: "color",
