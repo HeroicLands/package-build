@@ -142,9 +142,15 @@ export function anchorsOf(body) {
  * @param {object[]} [opts.records] - Index records the caller already derived,
  *   so a command that also needs them — every one of them does, to answer its
  *   `sql` tables — enumerates the corpus once rather than twice.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, as diagnostics, instead of letting one of them abort the check
+ *   before it has reported anything else.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables, records } = {}) {
+export function buildLinkIndex(
+    contentBase,
+    { config, skipDirectories, sqlTables, records, problems } = {},
+) {
     const notes = [];
     const frontmatterLinks = [];
 
@@ -158,7 +164,7 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
     const pkg = resolved.contentPackage;
 
     const indexRecords =
-        records ?? indexRecordsFor({ contentBase, config: resolved, skipDirectories });
+        records ?? indexRecordsFor({ contentBase, config: resolved, skipDirectories, problems });
 
     const byKey = new Map();
     const anchors = new Map();
