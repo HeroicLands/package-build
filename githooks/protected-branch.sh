@@ -25,7 +25,15 @@
 # shared through a GitHub Action. Keep the copies identical.
 
 guard_protected_branch() {
-    # Per-repository opt-out.
+    . "$(dirname "$0")/hook-enabled.sh"
+
+    # Off where this repository says so. Two spellings: `hooks.protectedBranch`
+    # is this hook's key in the per-hook scheme, and `hooks.allowCommitOnMain`
+    # is the name that has always meant this — kept, and still honoured, so an
+    # existing opt-out does not quietly stop working.
+    if ! hook_enabled protectedBranch true; then
+        return 0
+    fi
     if [ "$(git config --bool hooks.allowCommitOnMain 2>/dev/null)" = "true" ]; then
         return 0
     fi

@@ -58,9 +58,9 @@
 #
 # Silent when off: a message on every push, to everyone who never asked for
 # this, is noise.
-if [ "$(git config --bool hooks.prePushCi)" != "true" ]; then
-    exit 0
-fi
+. "$(dirname "$0")/hook-enabled.sh"
+
+hook_enabled prePushCi false || exit 0
 
 # Read the ref list on stdin; a delete has an all-zero local sha.
 has_commits=""

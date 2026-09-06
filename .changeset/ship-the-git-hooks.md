@@ -21,6 +21,25 @@ A consumer points git at the packaged directory once:
 
 and then carries no hook files at all.
 
+**Every hook has its own switch.** They read `hooks.<key>` through one shared
+`hook_enabled` helper, with git's normal precedence — a plain `git config` sets
+one clone, `--global` sets a machine — so they are turned on and off
+individually rather than as a set:
+
+| hook                             | key                     | default |
+| -------------------------------- | ----------------------- | ------- |
+| `pre-commit`, `pre-merge-commit` | `hooks.protectedBranch` | on      |
+| `commit-msg`                     | `hooks.noAttribution`   | on      |
+| `pre-push`                       | `hooks.prePushCi`       | **off** |
+
+The defaults differ deliberately: a guard that costs nothing is on unless
+refused, while one that runs a container for minutes is off unless asked for.
+`hooks.allowCommitOnMain` is still honoured — it is the name that has always
+meant this, and an existing opt-out must not quietly stop working. The two
+branch hooks share a key because they are one rule: git runs `pre-merge-commit`
+_instead of_ `pre-commit` for a merge, so separate keys would let a `git pull`
+on `main` through a half-disabled guard.
+
 **The new hook, and it is off unless you ask for it.** `pre-push` runs the
 steps of the repository's own `.github/workflows/build.yml` and refuses the push
 if they fail — but only where someone has opted in:

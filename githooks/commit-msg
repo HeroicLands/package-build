@@ -12,6 +12,12 @@
 # Installed for everyone via the package.json "prepare" script, which points
 # git at this directory (`git config core.hooksPath .githooks`) on `npm install`.
 
+. "$(dirname "$0")/hook-enabled.sh"
+
+# On unless refused: it costs nothing, and the No Attribution workflow enforces
+# the same rule on GitHub, so opting out locally only moves the failure later.
+hook_enabled noAttribution true || exit 0
+
 msg_file="$1"
 
 # Scan only the real message: drop the diff appended by `commit --verbose` (from
