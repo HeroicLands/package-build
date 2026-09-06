@@ -98,4 +98,54 @@ describe("a content command reaches the content", () => {
 
         expect(out).not.toMatch(/Skeleton/);
     });
+
+    /*
+     * `content-format notes` was the last check reading the tree for itself
+     * (#243). A report measuring the corpus against the declared vocabulary has
+     * to be looking at the tree the compile will, or its counts describe a
+     * corpus nobody builds.
+     */
+    it("`content-build content-format notes` measures the configured corpus", () => {
+        const out = run("content-format", "notes");
+
+        expect(out).not.toMatch(/requires `skipDirectories`/);
+        // One note in scope, and the skipped directory's is not counted.
+        expect(out).toMatch(/across 1 note\(s\)/);
+        expect(out).not.toMatch(/Skeleton/);
+    });
+});
+
+/*
+ * Every check reads the content index now, so every one of them meets the note
+ * the index cannot record — and none of them may be silenced by it (#243).
+ */
+describe("a note the content index cannot record", () => {
+    let bad: string;
+
+    beforeAll(() => {
+        bad = path.join(root, "assets", "content", "Legacy.md");
+        fs.writeFileSync(
+            bad,
+            "---\nname:\n  full: Legacy\ndescription: A legacy note.\n" +
+                "id: legacyxxxxxxxxxx\nshortcode: legacy\ntype: miscgear\npackage: sohl\n" +
+                "sohl:\n  archetype: 0\n  quality: 0\n  durability: 2\n  kbcat: cooking\n" +
+                "  value: 6\n  weight: 3\n---\n\nProse.\n",
+        );
+    });
+    afterAll(() => fs.rmSync(bad, { force: true }));
+
+    it.each(["lint", "links", "content-format notes"])(
+        "`content-build %s` reports it with a position and still reads the tree",
+        (cmd) => {
+            const out = run(...cmd.split(" "));
+
+            // Located and correctly advised — `package:` is retired, not
+            // renamed — rather than a bare abort.
+            expect(out).toMatch(/Legacy\.md:\d+:\d+: error: `package: sohl` is a retired/);
+            // And the rest of the tree was still read: the one good note is
+            // counted. (Each command words its tally differently — "1 notes:"
+            // from `links`, "across 1 note(s)" from the other two.)
+            expect(out).toMatch(/\b1 note/);
+        },
+    );
 });
