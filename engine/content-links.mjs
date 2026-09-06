@@ -301,13 +301,16 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
     function resolveAddress(target) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
-        // Unqualified stays the system-blind short key, which is already the
-        // wildcard an author writing `[[skill-melee]]` means. A package-
-        // qualified target names no system either, so it is matched by the
-        // segments it *did* supply rather than by an exact key (#59) — and one
-        // hit is required, since two systems' documents legitimately share a
-        // `(package, type, shortcode)`.
-        if (!qualified.package) {
+        // A target naming neither package nor system stays the system-blind
+        // short key, which is already the wildcard an author writing
+        // `[[skill-melee]]` means.
+        //
+        // Anything that *does* state one is matched by the segments it supplied
+        // rather than by an exact key (#59), and exactly one hit is required —
+        // two systems' documents legitimately share a
+        // `(package, type, shortcode)`, so a target that names no system may
+        // name two notes, and naming two is not resolving.
+        if (!qualified.package && !qualified.system) {
             return byKey.get(`${qualified.type}/${qualified.shortcode}`.toLowerCase());
         }
         const hits = matchLocal(qualified);
@@ -318,11 +321,11 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
      * Every foreign manifest entry an address names, in package order.
      *
      * A written target is a **partial** address, so this matches on the
-     * segments it supplies and wildcards the rest (#59). A package-qualified
-     * target still names no system, so it may match one entry per system; an
-     * unqualified one names no package either, so it resolves against any
-     * foreign package that publishes it. Either way only exactly one hit
-     * resolves. Two claimants make it ambiguous, which is a different finding
+     * segments it supplies and wildcards the rest (#59). A target naming a
+     * package necessarily names its system too — omission runs left to right —
+     * so the fully qualified form matches at most one entry; a shorter one
+     * names no package, and resolves against any foreign package that
+     * publishes it. Either way only exactly one hit resolves. Two claimants make it ambiguous, which is a different finding
      * from resolving nowhere and has a different fix, so the count is returned
      * rather than collapsed here (#184).
      *
