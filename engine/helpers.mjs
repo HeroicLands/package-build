@@ -776,101 +776,8 @@ export function expandNoteTables(body, { docs, name, fm, bodyLine, sqlTables }) 
 }
 
 /* ------------------------------------------------------------------------ */
-/*  Folder hierarchy: loading, resolution, emission                         */
+/*  Folder document filenames                                               */
 /* ------------------------------------------------------------------------ */
-
-/**
- * Loads a folders.yaml file as an array of folder entries. Returns []
- * when the file is missing (logging a warning) so packs without folders
- * can opt out simply by not committing the file.
- */
-export function loadFolders(foldersFile) {
-    if (!fs.existsSync(foldersFile)) {
-        log.warn(`No folders.yaml at ${foldersFile}; no folders will be emitted`);
-        return [];
-    }
-    const raw = fs.readFileSync(foldersFile, "utf8");
-    const parsed = yaml.parse(raw);
-    if (parsed == null) return [];
-    if (!Array.isArray(parsed)) {
-        throw new Error(`folders.yaml must contain a YAML list; got ${typeof parsed}`);
-    }
-    return parsed;
-}
-
-/**
- * Validates folder invariants and returns a resolver function that maps a
- * folder id to the same id (after verifying it exists). Returns `null` for
- * a null/empty input; throws for an unknown id.
- *
- * Invariants:
- *   - Every folder must have a non-empty id
- *   - Every folder must have a name
- *   - Sibling folders (same parentFolderId) must have unique names
- *   - Every parentFolderId must match an existing folder id (or be "")
- *
- * Returns { resolver, folders } where folders is the validated list.
- */
-export function buildFolderResolver(folders) {
-    const byId = new Map();
-    for (const f of folders) {
-        if (!f.id) {
-            throw new Error(`Folder missing id: ${JSON.stringify(f)}`);
-        }
-        if (!f.name) {
-            throw new Error(`Folder ${f.id} missing name`);
-        }
-        if (byId.has(f.id)) {
-            throw new Error(`Duplicate folder id ${f.id}`);
-        }
-        byId.set(f.id, f);
-    }
-
-    const siblingsByParent = new Map();
-    for (const f of folders) {
-        const parentId = f.parentFolderId || "";
-        if (parentId && !byId.has(parentId)) {
-            throw new Error(
-                `Folder ${f.id} (${f.name}) references unknown parentFolderId ${parentId}`,
-            );
-        }
-        if (!siblingsByParent.has(parentId)) {
-            siblingsByParent.set(parentId, new Set());
-        }
-        const siblings = siblingsByParent.get(parentId);
-        if (siblings.has(f.name)) {
-            throw new Error(
-                `Sibling folders share name "${f.name}" under parent ${parentId || "(root)"} — names must be unique among siblings`,
-            );
-        }
-        siblings.add(f.name);
-    }
-
-    /**
-     * The folder id a note names, by id.
-     *
-     * **Only by id.** This resolver answers for `folder:` alone; `packFolder:`
-     * names a folder *note* and is resolved through the address index instead
-     * (#255). The path lookup that briefly lived here is gone with the path
-     * spelling it served — it was never released, so there is nothing to
-     * deprecate.
-     *
-     * @param {string|null|undefined} value - As authored.
-     * @returns {string|null} The id, or `null` for an absent value.
-     * @throws {Error} When the id is not one this pack declares.
-     */
-    function resolver(value) {
-        if (value == null || value === "") return null;
-        const authored = String(value).trim();
-        if (!authored) return null;
-        if (!byId.has(authored)) {
-            throw new Error(`Unknown folder id "${authored}"`);
-        }
-        return authored;
-    }
-
-    return { resolver, folders };
-}
 
 /**
  * Builds a compendium-source filename for a folder JSON document:
@@ -879,29 +786,4 @@ export function buildFolderResolver(folders) {
  */
 export function folderFilename(name, id) {
     return `folder_${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";
-}
-
-/**
- * Writes one JSON document per folder into `destDir`. `documentType`
- * determines the folder's Foundry `type` field — `"Item"` for the items
- * pack, `"JournalEntry"` for the journals pack.
- */
-export function writeFolderDocs(folders, stats, destDir, documentType) {
-    for (const folder of folders) {
-        const doc = {
-            name: folder.name,
-            sorting: "a",
-            folder: folder.parentFolderId || null,
-            type: documentType,
-            _id: folder.id,
-            sort: 0,
-            color: folder.color,
-            flags: folder.flags || {},
-            _stats: stats,
-            _key: `!folders!${folder.id}`,
-        };
-        const outPath = path.join(destDir, folderFilename(folder.name, folder.id));
-        fs.writeFileSync(outPath, JSON.stringify(doc, null, 2), "utf8");
-    }
-    log.info(`Emitted ${folders.length} folder document(s) to ${destDir}`);
 }

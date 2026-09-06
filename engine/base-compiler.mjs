@@ -78,6 +78,7 @@ import {
 import { prepareTreeSqlTables } from "./sql-tables.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
     assertNoAliasesField,
     assertNoDraftField,
@@ -834,6 +835,7 @@ export class BasePackCompiler {
             // neither message may repeat it.
             try {
                 assertNoDeclaredPackage(fm, { absPath });
+                assertNoDeclaredFolder(fm, { absPath });
                 assertNoDraftField(fm, { absPath });
                 assertNoAliasesField(fm, { absPath });
                 assertNoSectionField(fm, { absPath });

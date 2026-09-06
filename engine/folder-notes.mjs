@@ -56,6 +56,7 @@ import log from "loglevel";
 import { NO_SYSTEM, canonicalKey } from "./content-address.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 import { makeId } from "./ids.mjs";
+import { locateFrontmatterKey } from "./retired-fields.mjs";
 
 /**
  * The note type a folder is authored as.
@@ -467,4 +468,67 @@ export function folderDocument(folder, parent, documentType, stats) {
         _stats: stats,
         _key: `!folders!${folder.id}`,
     };
+}
+
+/**
+ * Refuse a note that declares the retired `folder:` spelling.
+ *
+ * `folder:` named a compendium folder by the raw Foundry id declared in a
+ * per-pack `*-folders.yaml`. Both halves are retired together (#260): the id
+ * spelling has nothing left to resolve against once the YAML is gone, and the
+ * YAML has no reader once the spelling is refused.
+ *
+ * **Presence is the whole test.** An empty `folder:` — which parses as `null`
+ * — is still the field, and a value that happens to match a folder note's id
+ * is still the retired spelling. There is no value that makes writing it
+ * correct, so the message says what to write instead rather than which value
+ * to change.
+ *
+ * **Both positions**, because notes wrote it both ways: top-level, and inside
+ * the `sohl:` block. Checking only the more common one is how a sweep leaves
+ * a tail behind.
+ *
+ * Refused rather than ignored, on the pattern `package:` set: a retired field
+ * left ignored reads to its author as though it still works — the note says
+ * one thing and the build does another, and nothing says so.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
+ *   could not be parsed.
+ * @param {object} [options] - Options.
+ * @param {string} [options.file] - The note's path, named in the message. Omit
+ *   it where the caller emits through a diagnostic, which puts the locator at
+ *   the start of the line already — repeating it prints the path twice.
+ * @param {string} [options.absPath] - The note's file on disk, read only on
+ *   the failing path to locate the offending line and column. The position
+ *   rides on the thrown error as `position`, for a caller that emits a
+ *   diagnostic.
+ * @returns {void}
+ * @throws {Error} When the note declares the field.
+ */
+export function assertNoDeclaredFolder(fm, { file, absPath } = {}) {
+    if (!fm || typeof fm !== "object") return;
+    const sohl = fm.sohl;
+    const inBlock = !!sohl && typeof sohl === "object" && Object.hasOwn(sohl, "folder");
+    if (!Object.hasOwn(fm, "folder") && !inBlock) return;
+
+    const declared = inBlock ? sohl.folder : fm.folder;
+    const wrote =
+        declared === null || declared === undefined || declared === "" ?
+            "`folder:`"
+        :   `\`folder: ${declared}\``;
+
+    const err = new Error(
+        `${wrote} is a retired frontmatter field — write \`packFolder\` ` +
+            `instead` +
+            (file ? ` — ${file}` : "") +
+            `. A folder is a note now, and \`packFolder\` names it by its ` +
+            `address (\`packFolder: miscgear\`), not by the Foundry id a ` +
+            `retired \`*-folders.yaml\` used to declare.`,
+    );
+    // Where the field is, so the caller's diagnostic opens on the line that
+    // has to be rewritten. Read here rather than carried through every walk:
+    // this is the failing path, and the build stops on it.
+    const position = locateFrontmatterKey(absPath, "folder");
+    if (position) err.position = position;
+    throw err;
 }

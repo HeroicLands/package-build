@@ -85,7 +85,7 @@ paths:
 # order is worked out separately, from what each pass reads (see "Declaration
 # order is presentation" below).
 packs:
-  - { name: items, type: Item, label: Items, folders: item-folders.yaml }
+  - { name: items, type: Item, label: Items }
   - { name: journals, type: JournalEntry, label: Journals }
   # A companion is written by its parent's pass rather than one of its own.
   - name: scenes
@@ -96,7 +96,7 @@ packs:
   # A pack whose per-document JSON is already built — checked in rather than
   # generated. `prebuilt` names where it lives, generation is skipped for it,
   # and `cleanPackEntry` and the Scene/Level integrity check still run. It may
-  # not carry `folders`, `companions` or `default`, and may not be a companion:
+  # not carry `companions` or `default`, and may not be a companion:
   # each of those describes a generation pass a prebuilt pack does not have.
   # When every configured pack is prebuilt the content walk is skipped
   # entirely, so a package with no `assets/content` builds.

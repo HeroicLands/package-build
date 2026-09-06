@@ -71,6 +71,7 @@ import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { isHomepage } from "./homepage.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
     assertNoAliasesField,
     assertNoDraftField,
@@ -270,6 +271,7 @@ export function collectFoundryEntries(contentBase, ctx) {
             absPath,
             configured: ctx.contentPackage,
         });
+        assertNoDeclaredFolder(fm, { file: rel, absPath });
         assertNoDraftField(fm, { file: rel, absPath });
         assertNoAliasesField(fm, { file: rel, absPath });
         assertNoSectionField(fm, { file: rel, absPath });

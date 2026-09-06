@@ -281,5 +281,5 @@ export function parseValueDesc(raw) {
 export function folderField(fm) {
     const asAddress = sohlField(fm, "packFolder", null);
     if (asAddress != null && asAddress !== "") return { value: asAddress, isAddress: true };
-    return { value: sohlField(fm, "folder", null), isAddress: false };
+    return { value: null, isAddress: true };
 }

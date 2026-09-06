@@ -106,14 +106,11 @@ describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", (
         );
     });
 
-    it("gives each generated pack its folder-hierarchy file", () => {
-        expect(packConfig.packs.map((p) => [p.name, p.folders])).toEqual([
-            ["items", "item-folders.yaml"],
-            ["journals", "journal-folders.yaml"],
-            ["actors", "actor-folders.yaml"],
-            ["macros", "macro-folders.yaml"],
-            ["scenes", "scene-folders.yaml"],
-        ]);
+    it("names no folder-hierarchy file, there being none to name", () => {
+        // The per-pack `*-folders.yaml` — five files per tree — is retired
+        // (#260). A folder is a note, and a pack materialises the folders its
+        // documents reference through `packFolder`.
+        expect(packConfig.packs.every((p) => !("folders" in p))).toBe(true);
     });
 
     it("skips the Obsidian scaffolding directory by configuration", () => {

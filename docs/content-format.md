@@ -457,12 +457,10 @@ of the same entry is a warning; the declaration still works.
 
 #### The compendium folder
 
-A note says which folder of its pack it lands in. Two spellings are read, and
-`packFolder` wins where both are present:
+A note says which folder of its pack it lands in:
 
 ```yaml
 packFolder: poisonsandtoxins # a folder note's address
-folder: ONXsqZAIZr2qzxTb # a Foundry id
 ```
 
 **`packFolder` is a folder note's address** — an ordinary address, resolved the
@@ -471,13 +469,6 @@ admits](#shorter-forms). The field supplies the type, so a bare shortcode is a
 complete address here; `folder-poisonsandtoxins` and the fully qualified
 `sohl-none-folder-poisonsandtoxins` name the same folder. An address no folder
 note answers to is a build error naming the folders the package does declare.
-
-**`folder` is a Foundry id**, and is unchanged: a note that names one is read,
-resolved and emitted exactly as before.
-
-**Which one a value is comes from the field it was written in, never from the
-string.** Both are alphanumeric, so there is nothing in the value to tell them
-apart.
 
 Note this is the _pack_ folder, not the note's directory. The directory is
 `file.path` / `file.folder`, which a content table reads separately.
@@ -501,6 +492,14 @@ the first.
 > note naming it wrong — a structural edit became a corpus-wide rewrite. The
 > path form is **removed**, not deprecated: nothing authored it yet, which is
 > the whole reason the change was cheap enough to make.
+
+> **`folder:` was a Foundry id**, resolved against a per-pack
+> `*-folders.yaml` — five files per tree. Both halves are **retired** together
+> (#260): the id spelling has nothing left to resolve against once the YAML is
+> gone, and the YAML has no reader once the spelling is refused. A note that
+> still writes `folder:` fails the build, naming `packFolder` and the line to
+> rewrite, rather than being ignored — a retired field left ignored reads to
+> its author as though it still works.
 
 #### The knowledgebase category
 
@@ -916,8 +915,9 @@ heading level is `##`, or whatever `sql section-level=3` says.
 `sql allow-empty` works exactly as its `dataview` counterpart does, and for the
 same reason.
 
-**Beware `folder`.** It is a note's _pack_ folder, not its directory — the
-directory is `file.folder`.
+**Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
+directory is `file.folder`. (The `folder` field it replaced is retired; a query
+naming it matches nothing.)
 
 ```
 :::secret
@@ -1987,7 +1987,8 @@ Adventure per system, and the pack each is written to is what carries the system
 
 Foundry's `Folder` — the grouping documents are filed in, and the last document
 this package compiled from bespoke configuration (`*-folders.yaml`, five files
-per tree) rather than from a note.
+per tree) rather than from a note. Those files are retired (#260); a pack that
+still names one is refused.
 
 ```yaml
 ---

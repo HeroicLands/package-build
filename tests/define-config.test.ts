@@ -57,7 +57,6 @@ describe("defineConfig", () => {
                 type: "Item",
                 label: "items",
                 private: false,
-                folders: null,
                 companions: [],
                 mayBeEmpty: false,
                 default: false,
@@ -245,7 +244,7 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
         const config = defineConfig({
             ...minimal(),
             packs: [
-                { name: "items", type: "Item", folders: "item-folders.yaml" },
+                { name: "items", type: "Item" },
                 {
                     name: "scenes",
                     type: "Scene",
@@ -255,14 +254,12 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
         });
 
         expect(config.packDirectories).toEqual(["items", "scenes", "adventures"]);
-        expect(config.packs[0].folders).toBe("item-folders.yaml");
         expect(config.packs[1].companions).toEqual([
             {
                 name: "adventures",
                 type: "Adventure",
                 label: "adventures",
                 private: false,
-                folders: null,
                 companions: [],
                 mayBeEmpty: false,
                 default: false,
@@ -521,6 +518,35 @@ describe("the address scheme a repository publishes at (#58)", () => {
     });
 });
 
+describe("the retired per-pack folder file (#260)", () => {
+    it("refuses a pack that still names one, saying where the folders went", () => {
+        // Refused explicitly rather than left to the unknown-key check: the
+        // useful thing to say to a tree that has not swept is not "no such
+        // key" but that a folder is a note now.
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [{ name: "items", type: "Item", folders: "item-folders.yaml" }],
+            }),
+        ).toThrow(/retired/);
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [{ name: "items", type: "Item", folders: "item-folders.yaml" }],
+            }),
+        ).toThrow(/packFolder/);
+    });
+
+    it("refuses it written empty, presence being the whole test", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [{ name: "items", type: "Item", folders: null }],
+            }),
+        ).toThrow(/retired/);
+    });
+});
+
 describe("prebuilt packs and per-pack systems (#40)", () => {
     it("accepts a pack whose JSON is already built, and records where it lives", () => {
         const config = defineConfig({
@@ -578,15 +604,6 @@ describe("prebuilt packs and per-pack systems (#40)", () => {
 
     // Each of these describes a generation pass, and a prebuilt pack has none.
     it.each([
-        [
-            "folders",
-            {
-                name: "adventures",
-                type: "Adventure",
-                prebuilt: "assets/packs/adventure",
-                folders: "adventure-folders.yaml",
-            },
-        ],
         [
             "default",
             {

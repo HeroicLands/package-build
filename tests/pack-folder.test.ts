@@ -19,8 +19,8 @@
  * materialises in **every pack holding a document that references it**, so the
  * mirroring defect the path form could only *report* is now unrepresentable.
  *
- * `folder:` is unchanged throughout: a note that names an id is read, resolved
- * and emitted exactly as before, and nothing warns about it — until #260.
+ * The `folder:` Foundry-id spelling it replaced is retired (#260); what is
+ * left of it is asserted in `retired-folder-field.test.ts`.
  */
 
 import fs from "node:fs";
@@ -31,20 +31,12 @@ import { pathToFileURL, fileURLToPath } from "node:url";
 
 import { describe, it, expect, afterAll } from "vitest";
 
-import { buildFolderResolver, folderField } from "../engine/helpers.mjs";
+import { folderField } from "../engine/helpers.mjs";
 import { UNIVERSAL_KEYS } from "../engine/frontmatter-lint.mjs";
 import { folderAddress } from "../engine/folder-notes.mjs";
 import { makeId } from "../engine/ids.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
-
-/** Three folders, two levels deep, as `item-folders.yaml` declares them. */
-const FOLDERS = [
-    { name: "Possessions", id: "aaaaaaaaaaaaaaaa", parentFolderId: "" },
-    { name: "Consumables", id: "bbbbbbbbbbbbbbbb", parentFolderId: "aaaaaaaaaaaaaaaa" },
-    { name: "Poisons and Toxins", id: "cccccccccccccccc", parentFolderId: "bbbbbbbbbbbbbbbb" },
-    { name: "Cooking", id: "dddddddddddddddd", parentFolderId: "aaaaaaaaaaaaaaaa" },
-];
 
 describe("reading the field", () => {
     it("prefers `packFolder`, and says it is an address", () => {
@@ -54,69 +46,21 @@ describe("reading the field", () => {
         });
     });
 
-    it("falls back to `folder`, and says it is not", () => {
-        expect(folderField({ folder: "dddddddddddddddd" })).toEqual({
-            value: "dddddddddddddddd",
-            isAddress: false,
-        });
-    });
-
-    it("lets `packFolder` win where a note carries both", () => {
-        const read = folderField({ packFolder: "cooking", folder: "aaaaaaaaaaaaaaaa" });
-
-        expect(read).toEqual({ value: "cooking", isAddress: true });
-    });
-
-    it("reads either from the `sohl:` block, as every other field is read", () => {
+    it("reads from the `sohl:` block, as every other field is read", () => {
         expect(folderField({ sohl: { packFolder: "cooking" } }).value).toBe("cooking");
-        expect(folderField({ sohl: { folder: "aaaaaaaaaaaaaaaa" } }).isAddress).toBe(false);
     });
 
-    it("treats a blank `packFolder` as absent rather than as an address", () => {
-        // A key cleared in an editor means the note names no folder there, and
-        // falling through is what an author part-way through a rename means.
-        expect(folderField({ packFolder: "", folder: "aaaaaaaaaaaaaaaa" })).toEqual({
-            value: "aaaaaaaaaaaaaaaa",
-            isAddress: false,
-        });
+    it("treats a blank `packFolder` as naming no folder", () => {
+        // A key cleared in an editor means the note names no folder.
+        expect(folderField({ packFolder: "" })).toEqual({ value: null, isAddress: true });
     });
 
     it("reports nothing for a note that names no folder", () => {
-        expect(folderField({})).toEqual({ value: null, isAddress: false });
+        expect(folderField({})).toEqual({ value: null, isAddress: true });
     });
 
     it("is a key every note type may write", () => {
         expect(UNIVERSAL_KEYS.has("packFolder")).toBe(true);
-        // The id spelling is untouched.
-        expect(UNIVERSAL_KEYS.has("folder")).toBe(true);
-    });
-});
-
-describe("the id spelling, which is unchanged", () => {
-    const { resolver } = buildFolderResolver(FOLDERS);
-
-    it("still resolves an id exactly as before", () => {
-        expect(resolver("cccccccccccccccc")).toBe("cccccccccccccccc");
-        expect(resolver(null)).toBeNull();
-        expect(resolver("")).toBeNull();
-        expect(resolver("   ")).toBeNull();
-    });
-
-    it("still refuses an id the folder file does not declare", () => {
-        expect(() => resolver("nosuchfolderxxxx")).toThrow(/Unknown folder id/);
-    });
-
-    it("keeps every invariant it already had", () => {
-        expect(() => buildFolderResolver([{ name: "A", parentFolderId: "" }])).toThrow(
-            /missing id/,
-        );
-        expect(() => buildFolderResolver([{ id: "aaaaaaaaaaaaaaaa" }])).toThrow(/missing name/);
-        expect(() =>
-            buildFolderResolver([
-                { name: "A", id: "aaaaaaaaaaaaaaaa", parentFolderId: "" },
-                { name: "A", id: "bbbbbbbbbbbbbbbb", parentFolderId: "" },
-            ]),
-        ).toThrow(/share name/);
     });
 });
 
@@ -175,11 +119,9 @@ ${Object.entries(parents)
 /**
  * A throwaway repository with an item pack and a journals pack.
  *
- * The folder **YAML** is still written, because `folder:` still resolves
- * through it — but note that no `journal-folders.yaml` is ever written here.
- * That is the point: under the address form the journals pack materialises the
- * folders it needs from what its documents reference, so there is no second
- * file left to mirror (#257).
+ * No folder YAML is written for either, because there is no longer any such
+ * file to write (#260). Each pack materialises the folders it needs from what
+ * its documents reference, so there is no second file left to mirror (#257).
  */
 function folderRepo(notes: Record<string, string>): string {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-folder-tree-"));
@@ -188,10 +130,6 @@ function folderRepo(notes: Record<string, string>): string {
         path.join(root, "package.json"),
         JSON.stringify({ name: "sohl", version: "1.0.0" }),
     );
-    const folderYaml = FOLDERS.map(
-        (f) => `- name: ${f.name}\n  id: ${f.id}\n  parentFolderId: "${f.parentFolderId}"\n`,
-    ).join("");
-    fs.writeFileSync(path.join(root, "assets", "content", "item-folders.yaml"), folderYaml);
     fs.writeFileSync(
         path.join(root, "package-build.config.yaml"),
         `contentPackage: sohl
@@ -211,7 +149,6 @@ packs:
       type: Item
       system: sohl
       default: true
-      folders: item-folders.yaml
     - name: journals
       label: Journals
       type: JournalEntry
@@ -356,7 +293,10 @@ describe("compiling a note that names its folder by address", () => {
         expect(result.output).toMatch(/no folder note is addressed "nowhere"/);
     });
 
-    it("still files a note that names an id, exactly as before", () => {
+    it("refuses a note that still names a Foundry id, naming `packFolder`", () => {
+        // The retirement, through a real compile (#260): the id spelling has
+        // nothing left to resolve against, so it fails rather than filing the
+        // note somewhere arbitrary — or, worse, nowhere and silently.
         const root = folderRepo({
             ...TREE_NOTES,
             "ById.md": gear("Bowl By Id", "bowlid", "folder", "dddddddddddddddd"),
@@ -364,8 +304,9 @@ describe("compiling a note that names its folder by address", () => {
         roots.push(root);
         const result = compile(root);
 
-        expect(result.errors).toBe(0);
-        expect(packDocs(root, "items")["Bowl By Id"].folder).toBe("dddddddddddddddd");
+        expect(result.errors).toBeGreaterThan(0);
+        expect(result.output).toMatch(/retired frontmatter field/);
+        expect(result.output).toMatch(/packFolder/);
     });
 
     it("gives one folder a different parent in each pack it materialises in", () => {
