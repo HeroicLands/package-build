@@ -75,6 +75,7 @@ import {
     assertNoAliasesField,
     assertNoDraftField,
     assertNoSectionField,
+    assertNoTraitsField,
 } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
@@ -275,6 +276,7 @@ export function collectFoundryEntries(contentBase, ctx) {
         assertNoDraftField(fm, { file: rel, absPath });
         assertNoAliasesField(fm, { file: rel, absPath });
         assertNoSectionField(fm, { file: rel, absPath });
+        assertNoTraitsField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
         // A homepage is addressed like every other note since #182, and a
         // shortcode alone would now put it here. It stays out for the reason it
