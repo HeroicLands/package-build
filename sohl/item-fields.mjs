@@ -51,7 +51,7 @@ import {
     resolveCharges,
     resolveRelation,
     resolveSkillAptitudes,
-    sohlField,
+    sohlSystemField,
 } from "../engine/frontmatter.mjs";
 
 /* --------------------------------------------------------------------- */
@@ -162,11 +162,14 @@ const STRIKE_MODES = Object.freeze({
  * A projectile's impact die, read wherever the default of another impact field
  * depends on it.
  *
+ * Authored `impact.die`, stored `impactBase.die` — the one re-reading field
+ * whose two positions are spelled differently, so both are named (#126).
+ *
  * @param {object} fm - The note's frontmatter.
  * @returns {number} The die size, `0` when the projectile declares none.
  */
 function impactDie(fm) {
-    return Number(sohlField(fm, "impact.die", 0)) || 0;
+    return Number(sohlSystemField(fm, "impactBase.die", 0, { legacyKey: "impact.die" })) || 0;
 }
 
 /** A strike mode discriminated by `type`, mandatory on a combat technique. */
