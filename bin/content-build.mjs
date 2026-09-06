@@ -717,17 +717,13 @@ function lintCommand() {
                 const config = loadPackConfig();
                 const root = argv.root ?? config.paths.content;
 
-                // The package is passed for the homepage rule (#52), which
-                // names the address a tree with no front page fails to serve.
-                const addresses = lintContentTree(root, {
-                    contentPackage: config.contentPackage,
-                    skipDirectories: config.skipDirectories,
-                });
                 // The corpus, enumerated once for this command and handed to
-                // every pass that needs it, rather than derived again by each
-                // (#243). The `sql` tables select over it and the link index is
-                // built from it, so the two cannot disagree about which files
-                // the content is.
+                // every pass below, rather than derived again by each (#243).
+                // The address lint reads it, the `sql` tables select over it
+                // and the link index is built from it, so no two findings this
+                // command reports can be drawn from different ideas of which
+                // files the content is.
+                //
                 // A note the index cannot record is reported like any other
                 // finding rather than thrown (#243): one malformed note must
                 // not take every other finding in the tree with it, and the
@@ -744,6 +740,15 @@ function lintCommand() {
                 // absent from every answer below, so reporting it and exiting 0
                 // would call the tree clean while silently omitting a note.
                 if (corpusProblems.length) process.exitCode = 1;
+
+                // The package is passed for the homepage rule (#52), which
+                // names the address a tree with no front page fails to serve.
+                const addresses = lintContentTree(root, {
+                    contentPackage: config.contentPackage,
+                    skipDirectories: config.skipDirectories,
+                    config,
+                    records,
+                });
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
