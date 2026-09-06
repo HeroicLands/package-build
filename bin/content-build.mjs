@@ -105,7 +105,6 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import { emitLinkManifest } from "../engine/manifest-emit.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
 import {
     buildSite,
@@ -234,7 +233,6 @@ const argv = yargs(hideBin(process.argv))
     .command(linksCommand())
     .command(formatCommand())
     .command(markdownCommand())
-    .command(manifestCommand())
     .command(contentIndexCommand())
     .command(siteCommand())
     .command(reachabilityCommand())
@@ -712,11 +710,6 @@ function lintCommand() {
                 type: "boolean",
                 default: true,
             });
-            yargs.option("manifests", {
-                describe:
-                    "Directory of vendored foreign link manifests, for the reference check. Defaults to the configured `paths.manifests`.",
-                type: "string",
-            });
         },
         handler: async (argv) => {
             try {
@@ -1006,12 +999,6 @@ function linksCommand() {
                 describe: "Content tree to check. Defaults to the configured contentBase.",
                 type: "string",
             });
-            yargs.option("manifests", {
-                describe:
-                    "Directory of vendored foreign link manifests. Defaults " +
-                    "to the configured `paths.manifests`.",
-                type: "string",
-            });
         },
         handler: async (argv) => {
             try {
@@ -1137,77 +1124,6 @@ function linksCommand() {
 }
 
 /**
- * `content-build manifest` — emit this package's cross-package link manifest.
- *
- * The last capability the library exposed without a command (#58). Every
- * consumer that publishes a manifest had to write the walk, the address
- * derivation, the anchor pass and the entry assembly for itself, and the two
- * that did drifted apart: one routed its UUIDs through the pack router and one
- * did not, so a repository shipping several packs of a type published UUIDs
- * naming the wrong one.
- *
- * Takes no paths. The content tree, the output directory, the content and
- * Foundry package identities and the address scheme all come from
- * `package-build.config.yaml`; `[root]` and `--out` exist to point the same
- * derivation at a scratch tree, not because a build needs to name them.
- *
- * @returns {object} The yargs command module.
- */
-// eslint-disable-next-line
-function manifestCommand() {
-    return {
-        command: "manifest [root]",
-        describe: "Emit this package's cross-package link manifest",
-        builder: (yargs) => {
-            yargs.positional("root", {
-                describe: "Content tree to read. Defaults to the configured contentBase.",
-                type: "string",
-            });
-            yargs.option("out", {
-                describe:
-                    "Directory to write into. Defaults to the configured " + "`paths.manifestOut`.",
-                type: "string",
-            });
-        },
-        handler: (argv) => {
-            try {
-                const config = loadPackConfig();
-                const { written, notes, skipped } = emitLinkManifest({
-                    config,
-                    ...(argv.root ? { contentBase: argv.root } : {}),
-                    ...(argv.out ? { outDir: argv.out } : {}),
-                });
-
-                for (const { package: pkg, file, count } of written) {
-                    log.info(
-                        `${pkg} → ${path.relative(process.cwd(), file)} ` +
-                            `(${count} entries, from ${notes} addressable ` +
-                            `note(s))`,
-                    );
-                }
-
-                // Reported rather than fatal: a note with no address is
-                // ordinary — a template, a stub, a `doc` with no category —
-                // and failing the build on one would make the manifest
-                // unemittable for a reason that is not about the manifest.
-                // Silence is the thing to avoid, since a note that quietly
-                // lost its address becomes a dead link in every consumer.
-                for (const s of skipped) {
-                    emitDiagnostic({
-                        file: path.join(argv.root ?? config.paths.content, s.file),
-                        severity: "warning",
-                        message: `no address, so it is absent from the manifest: ${s.reason}`,
-                    });
-                }
-            } catch (err) {
-                reportFailure(err);
-                process.exitCode = 1;
-            }
-        },
-    };
-}
-
-/**
  * `content-build content-index` — emit this package's note index.
  *
  * Every build already walks the tree and parses every note's frontmatter, then
@@ -1318,13 +1234,13 @@ function siteCommand() {
                 }
                 for (const s of gates.staleManifests) {
                     emitDiagnostic({
-                        file: path.join(loadPackConfig().paths.manifests, `${s.package}.json`),
+                        file: cachedIndexPath(loadPackConfig(), s.package),
                         severity: "error",
-                        message: `unusable link manifest: ${s.reason}`,
+                        message: `unusable content index: ${s.reason}`,
                     });
                 }
                 for (const f of gates.unaddressable) {
-                    console.error(formatUnaddressable(f, loadPackConfig().paths.manifests));
+                    console.error(formatUnaddressable(f, loadPackConfig()));
                 }
                 for (const c of gates.conflicts) {
                     log.error(`address ${c.key} is also published by ${c.package}`);

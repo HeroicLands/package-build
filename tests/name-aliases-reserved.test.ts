@@ -41,7 +41,8 @@ import { defineConfig } from "../index.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { buildContentLinkIndex } from "../engine/helpers.mjs";
 import { convertWikilinks } from "../engine/wikilinks.mjs";
-import { emitLinkManifest } from "../engine/manifest-emit.mjs";
+import { emitContentIndex } from "../engine/content-index.mjs";
+import { metadataFileName } from "../engine/metadata-index.mjs";
 import { collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
 import { resolveWebWikilinks } from "../engine/web-wikilinks.mjs";
@@ -232,10 +233,17 @@ describe("a link into it resolves exactly as if the field were absent", () => {
 });
 
 describe("it reaches no derived address", () => {
-    it("emits a byte-identical link manifest", () => {
+    // The index is what every other package resolves this one's addresses
+    // through (#239), so an address that moved because of this field would
+    // move for every consumer.
+    //
+    // Addresses rather than bytes: the index spreads the note's frontmatter, so
+    // it carries `name.aliases` verbatim and the two files differ *by exactly
+    // that echo*. That is the claim — retained, and read by nothing.
+    it("derives every address identically", () => {
         const emit = (dir: string, tag: string) => {
-            const out = path.join(root, `manifest-${tag}`);
-            emitLinkManifest({
+            const out = path.join(root, `index-${tag}`);
+            emitContentIndex({
                 config: defineConfig({
                     rootDir: path.dirname(path.dirname(dir)),
                     contentPackage: "demo",
@@ -243,17 +251,31 @@ describe("it reaches no derived address", () => {
                     packageKind: "modules",
                     stats: { lastModifiedBy: "demobuilder0000" },
                     packs: [{ name: "journals", type: "JournalEntry" }],
-                    publish: {
-                        site: "content",
-                        manifests: { publish: true, consume: false },
-                        address: { prefix: "kb/" },
-                    },
+                    publish: { site: "content", address: { prefix: "kb/" } },
                 }),
+                contentBase: dir,
                 outDir: out,
             });
-            return fs.readFileSync(path.join(out, "demo.json"), "utf8");
+            return (
+                fs
+                    .readFileSync(path.join(out, metadataFileName("demo")), "utf8")
+                    .split("\n")
+                    .filter(Boolean)
+                    .map((line) => JSON.parse(line))
+                    // Every address the record states, and nothing that is merely a
+                    // fact about the file: an anchor's `line` moves because the
+                    // aliased note has three more frontmatter lines, which is the
+                    // echo itself and not a derived address.
+                    .map((r) => [
+                        r.address?.canonical,
+                        r.address?.slug,
+                        r.foundry,
+                        (r.anchors ?? []).map((a: { link: string }) => a.link),
+                    ])
+                    .sort()
+            );
         };
-        expect(emit(withField, "with")).toBe(emit(withoutField, "without"));
+        expect(emit(withField, "with")).toEqual(emit(withoutField, "without"));
     });
 
     it("gives every page the same URL, slug, section and title", () => {

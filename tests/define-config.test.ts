@@ -41,7 +41,6 @@ describe("defineConfig", () => {
             },
             publish: {
                 site: "content",
-                manifests: { publish: true, consume: false },
             },
         });
 
@@ -73,7 +72,6 @@ describe("defineConfig", () => {
         });
         expect(config.publish).toEqual({
             site: "content",
-            manifests: { publish: true, consume: false },
             address: { prefix: "" },
         });
     });
@@ -84,12 +82,11 @@ describe("defineConfig", () => {
         expect(config.packageBuild).toEqual({});
         expect(config.publish).toEqual({
             site: "homepage",
-            manifests: { publish: false, consume: false },
             address: { prefix: "" },
         });
     });
 
-    it("treats the three publishing switches as independent", () => {
+    it("defaults publishing to the floor", () => {
         // `kethira` publishes a homepage and no other page, and no manifest at
         // all, while still consuming other packages' (#1385/#1446) — the shape
         // must express exactly that. The site mode and the manifest switches
@@ -98,12 +95,10 @@ describe("defineConfig", () => {
         // module being withdrawable (#55).
         const config = defineConfig({
             ...minimal(),
-            publish: { manifests: { consume: true } },
+            publish: {},
         });
 
         expect(config.publish.site).toBe("homepage");
-        expect(config.publish.manifests.publish).toBe(false);
-        expect(config.publish.manifests.consume).toBe(true);
     });
 
     it("freezes the returned config, deeply", () => {
@@ -209,8 +204,6 @@ describe("defineConfig — the layout a consumer supplies (#1508)", () => {
 
         expect(config.paths).toEqual({
             content: path.join("/repo", "assets/content"),
-            manifests: path.join("/repo", "assets/manifests"),
-            manifestOut: path.join("/repo", "build/manifests"),
             contentIndex: path.join("/repo", "build/content-index"),
             packJson: path.join("/repo", "build/packs-json"),
             stage: path.join("/repo", "build/stage/packs"),

@@ -110,7 +110,6 @@ function configFor(site: Record<string, unknown> = {}) {
         ],
         publish: {
             site: "content",
-            manifests: { publish: true, consume: true },
             address: { prefix: "kb/" },
         },
         site: { out: "out", ...site },

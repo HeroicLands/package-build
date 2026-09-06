@@ -944,7 +944,7 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
 
         // A reference names another note by shortcode. Resolved through the
         // link index's own resolver, so a cross-package reference answered by a
-        // vendored manifest lands exactly as the same address in a wikilink
+        // fetched index lands exactly as the same address in a wikilink
         // would — rather than through a second, subtly different rule.
         //
         // **As an address, always** — which is now the only namespace there
@@ -962,7 +962,7 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                     severity: "error",
                     message:
                         `${label} names ${field.ref} ` +
-                        `"${value}", and no note or vendored manifest declares it`,
+                        `"${value}", and no note or fetched index declares it`,
                 });
             }
         }

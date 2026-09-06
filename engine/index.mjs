@@ -86,14 +86,11 @@ export * as contentSlug from "./content-slug.mjs";
 /** Where a content note publishes: its section, and its `type-shortcode` URL. */
 export * as contentAddress from "./content-address.mjs";
 
-/** The cross-package link manifest: reader, writer, and canonical keys. */
-export * as kbManifest from "./kb-manifest.mjs";
-
 /** The published content index packages exchange addresses through (#239). */
 export * as metadataIndex from "./metadata-index.mjs";
 
 /** Deriving this package's own link manifest from its content tree. */
-export * as manifestEmit from "./manifest-emit.mjs";
+export * as foundryEntries from "./foundry-entries.mjs";
 
 /** Publishing the note tree as a queryable JSON Lines index. */
 export * as contentIndex from "./content-index.mjs";

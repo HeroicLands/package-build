@@ -395,17 +395,17 @@ const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
  * is that a landing therefore cannot be addressed. It does not follow: a
  * landing's address is not a *note's* address but the **package's**, and
  * {@link PACKAGE_BASE} already records where each package is served. That is a
- * frozen constant vendored into every repository, so consulting it walks no
+ * frozen constant compiled into every build, so consulting it walks no
  * tree, reads no manifest and builds no index — which is precisely why the
  * mechanism survives `homepage` mode, where the licensing fence means none of
  * those exist.
  *
  * The roster is consulted **for landings only**. Widening the package set the
  * other rules read would make them offer manifest-based advice about packages
- * no manifest is vendored for.
+ * no index has been fetched for.
  *
  * @param {string} ownPackage - The package this build publishes.
- * @param {Iterable<string>} manifestPackages - Packages a vendored manifest
+ * @param {Iterable<string>} manifestPackages - Packages a fetched index
  *   names, which are addressable whether or not the roster lists them.
  * @returns {Map<string, string>} Package to base, each base slash-terminated.
  */
@@ -515,7 +515,7 @@ function readAddress(url, packages) {
  *   and what replaced it, so this is a fact rather than a guess — and it is
  *   exactly the SoHL defect.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
- *   vendored manifest names. Every one of them has a better form to write, which
+ *   a fetched index names. Every one of them has a better form to write, which
  *   is why every one is reported — including a bare `/<package>/`, which names
  *   another package's landing (#87).
  *
@@ -590,7 +590,7 @@ export function auditHomepageLinks(index) {
 
             // Landings first, and by the roster rather than by the manifest
             // package set: a landing is addressable in a repository that
-            // vendors no manifest at all, which is the case the fence creates
+            // has fetched no index at all, which is the case the fence creates
             // and the case this rule exists for (#87).
             const landing = landingTarget(url, bases);
             if (landing) {

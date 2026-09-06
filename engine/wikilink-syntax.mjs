@@ -194,11 +194,11 @@ export const LINK_FINDING_REASONS = Object.freeze(
  *
  * **Both corrections, because the author cannot tell which applies.** An
  * address lands nowhere either because the shortcode is wrong or because the
- * package publishing it has no manifest vendored here, and the link itself
- * looks identical in the two cases.
+ * package publishing it is not a declared dependency — or is one whose index
+ * has not been fetched — and the link itself looks identical in every case.
  *
  * This used to be a **warning** in the checker and, in the site build, nothing
- * at all until every linkable package had vendored a manifest — on the
+ * at all until every linkable package's manifest was accounted for — on the
  * reasoning that a bare `[[Name]]` might be a placeholder for a note nobody had
  * written yet. That reasoning was a property of the bare form, which is retired
  * (#180); the intent behind it now has a real spelling, a `draft`-tagged note
@@ -211,8 +211,8 @@ export const LINK_FINDING_REASONS = Object.freeze(
 export function unresolvedAddressMessage(target) {
     return (
         `address [[${target}]] resolves to no note — no package publishes ` +
-        `it. Fix the shortcode, or vendor the link manifest of the package ` +
-        `that does`
+        `it. Fix the shortcode, or declare the package that does as a ` +
+        `dependency and run \`content-build deps fetch\``
     );
 }
 

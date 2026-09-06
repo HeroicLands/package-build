@@ -89,7 +89,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
  */
 
 export { collectAnchors };
-import { entriesForNote, foundryIdentities } from "./manifest-emit.mjs";
+import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 

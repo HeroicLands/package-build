@@ -409,7 +409,7 @@ export function resolveWebWikilinks(body, ctx) {
 
         // **An address resolving nowhere is a failure, unconditionally** (#184).
         //
-        // It was gated on `manifestsComplete` — while any linkable package was
+        // It was gated on a manifest-completeness check — while any linkable package was
         // invisible here, `Rules/Bestiary.md` addressing `being-grkrahk` in the
         // `thalorna` package was indistinguishable from a typo, so the form
         // stayed unguarded rather than fail correct content. The gate has

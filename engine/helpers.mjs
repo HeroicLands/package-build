@@ -545,7 +545,7 @@ export function buildContentLinkIndex(
             draft: isDraftNote(fm),
             // The anchors this note declares, carried so the *builds* can check
             // a `#section` link and not only the checker (#193). A foreign
-            // anchor has always been checked, because a vendored manifest
+            // anchor has always been checked, because a fetched index
             // publishes the map; a local one was not, because the set was
             // discarded here — the walk yields the body and nothing read it.
             anchors: new Set(collectAnchors(body ?? "").map((anchor) => anchor.slug)),

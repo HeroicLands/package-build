@@ -163,7 +163,7 @@ function mergeForeign(index, foreignIndex) {
  *   each already knowing its own `url`.
  * @param {object} [options] - Cross-package inputs.
  * @param {Map<string, {package: string, type?: string}>} [options.foreignIndex]
- *   The merged index from `loadForeignManifests`. Omit when the build publishes
+ *   The merged index from `loadForeignIndexes`. Omit when the build publishes
  *   no cross-package links.
  * @returns {SiteIndex} The index, and what could not be addressed unambiguously.
  */
@@ -214,7 +214,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
 
     // Merged *before* the local type-scoped pass below, so a local page always
     // ends up owning its own canonical `package-system-type-shortcode` address: the
-    // local write lands last and wins. `loadForeignManifests` already excludes
+    // local write lands last and wins. `loadForeignIndexes` already excludes
     // the local packages, so a manifest should never carry one — this is what
     // makes that a belt-and-braces rather than the only thing standing between
     // a stale vendored manifest and a shadowed local page.

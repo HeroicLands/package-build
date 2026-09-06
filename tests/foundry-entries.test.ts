@@ -23,12 +23,12 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import {
-    collectManifestEntries,
-    emitLinkManifest,
-    manifestContext,
+    collectFoundryEntries,
+    entryContext,
     anchorsOf,
     LEAD_ANCHOR,
-} from "../engine/manifest-emit.mjs";
+} from "../engine/foundry-entries.mjs";
+import { emitContentIndex } from "../engine/content-index.mjs";
 import { packageAddress, readCanonicalKey } from "../engine/content-address.mjs";
 
 /** The manifest document's shape — see the note in `kb-manifest.test.ts`. */
@@ -149,17 +149,33 @@ function configFor(publish: Record<string, unknown>) {
     });
 }
 
+/**
+ * The entries a tree yields, keyed by canonical address.
+ *
+ * These are the entries the link manifest used to be written from, so every
+ * case below still asserts the same derivation — only the artifact they were
+ * once read back out of is gone (#239). `path` is derived here rather than
+ * carried, because that is what the manifest did: an entry's page address is
+ * its slug, and the slug is the address minus its package and system.
+ */
 function emit(publish: Record<string, unknown>): Manifest {
     const config = configFor(publish);
-    const out = path.join(root, "out", String(Math.random()).slice(2));
-    emitLinkManifest({ config, outDir: out });
-    return JSON.parse(fs.readFileSync(path.join(out, "demo.json"), "utf8")) as Manifest;
+    const { entries } = collectFoundryEntries(config.paths.content, entryContext(config));
+    const out: Manifest = { entries: {} } as Manifest;
+    for (const e of entries) {
+        const key = e.key;
+        out.entries[key] = {
+            ...(e.url ? { path: e.url.replace(/^\//, "") } : {}),
+            name: e.name,
+            ...(e.uuid ? { uuid: e.uuid } : {}),
+            ...(e.doc ? { doc: e.doc } : {}),
+            ...(e.anchors && Object.keys(e.anchors).length ? { anchors: e.anchors } : {}),
+        };
+    }
+    return out;
 }
 
-const WEB = {
-    site: "content",
-    manifests: { publish: true, consume: false },
-};
+const WEB = { site: "content" };
 
 describe("the address scheme is configuration, and a prefix is all of it", () => {
     it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
@@ -249,8 +265,8 @@ name:
     full: Anonymous`,
         );
         try {
-            const ctx = manifestContext(configFor(WEB));
-            const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
+            const ctx = entryContext(configFor(WEB));
+            const { skipped } = collectFoundryEntries(path.join(root, "assets/content"), ctx);
             const hit = skipped.find((s) => s.file === path.join("Rules", "Anonymous.md"));
             expect(hit?.reason).toMatch(/no shortcode/);
         } finally {
@@ -314,13 +330,15 @@ describe("anchors are computed, never approximated", () => {
 });
 
 describe("both addresses are optional, independently (#1516)", () => {
-    it("emits no `path` when the build publishes only a homepage", () => {
-        const doc = emit({ site: "homepage", manifests: { publish: true } });
-        for (const entry of Object.values(doc.entries)) {
-            expect(entry.path).toBeUndefined();
-        }
-        // …but the Foundry addresses are still there, which is the whole point
-        // of a pack-only manifest.
+    // A homepage-only package still *addresses* its notes — the address is a
+    // package-wide identity, not a statement that a page is served at it. What
+    // used to suppress the web half here has moved to the consuming side
+    // (#239): a URL is produced only where that consumer has a `PACKAGE_BASE`
+    // for the package, which is the side that actually knows where it serves
+    // things. See `metadata-index.test.ts`, "still resolves a package it has no
+    // base for, without a URL".
+    it("addresses its notes even when the build publishes only a homepage", () => {
+        const doc = emit({ site: "homepage" });
         expect(doc.entries["demo-sohl-weapongear-dagger"].uuid).toBeDefined();
     });
 
@@ -341,47 +359,25 @@ name:
     });
 });
 
-describe("the manifest names the package the configuration declares", () => {
-    it("emits exactly one, for `contentPackage`", () => {
-        const config = configFor(WEB);
-        const out = path.join(root, "out-one");
-        const { written } = emitLinkManifest({ config, outDir: out });
-        expect(written.map((w) => w.package)).toEqual(["demo"]);
-        expect(fs.readdirSync(out)).toEqual(["demo.json"]);
-    });
-
-    it("records the Foundry package the documents ship in", () => {
-        expect(emit(WEB).foundryPackage).toBe("demo-module");
-    });
-
+describe("what a tree yields, and what it refuses", () => {
+    // An empty index is indistinguishable from a mis-pointed tree, and a
+    // consumer would read it as the authoritative claim that this package has
+    // no content at all.
     it("refuses to claim a package publishes nothing", () => {
         const empty = fs.mkdtempSync(path.join(os.tmpdir(), "cb-empty-"));
         expect(() =>
-            emitLinkManifest({
+            emitContentIndex({
                 config: configFor(WEB),
                 contentBase: empty,
                 outDir: path.join(root, "out-empty"),
             }),
-        ).toThrow(/publishes nothing/);
+        ).toThrow(/no notes/);
         fs.rmSync(empty, { recursive: true, force: true });
-    });
-
-    it("refuses to emit one the repository has not declared it publishes", () => {
-        // The switch is a declaration, not a preference: the file is vendored
-        // by consumers and read as authoritative. Enforced in the library, so a
-        // caller that bypasses the command cannot bypass the declaration.
-        expect(() =>
-            emitLinkManifest({
-                config: configFor({ site: "content" }),
-                outDir: path.join(root, "out-undeclared"),
-            }),
-        ).toThrow(/does not publish a link manifest/);
-        expect(fs.existsSync(path.join(root, "out-undeclared"))).toBe(false);
     });
 
     it("refuses a content tree that is not there", () => {
         expect(() =>
-            emitLinkManifest({
+            emitContentIndex({
                 config: configFor(WEB),
                 contentBase: path.join(root, "absent"),
                 outDir: path.join(root, "out-absent"),

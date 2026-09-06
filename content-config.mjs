@@ -34,7 +34,6 @@
  *         - { from: assets/icons, to: assets/icons }
  * publish:
  *     site: content
- *     manifests: { publish: true, consume: true }
  * ```
  *
  * `defineConfig` is the whole of the contract: it validates the object, fills
@@ -89,8 +88,6 @@ export const PACKAGE_KINDS = /** @type {const} */ (["systems", "modules"]);
  */
 export const DEFAULT_PATHS = /** @type {const} */ ({
     content: "assets/content",
-    manifests: "assets/manifests",
-    manifestOut: "build/manifests",
     // Where `content-index` writes this package's note index. Under `build/`
     // because it is derived and disposable — regenerating it costs a
     // frontmatter parse — and emphatically not under `stage`, which is mirrored
@@ -169,7 +166,7 @@ export const RETIRED_ADDRESS_KEYS = Object.freeze({
  * `sohl`, whose knowledgebase is one surface among several, and empty for
  * `thalorna`, whose site is nothing but its content. It is not the package's
  * own mount point: where the package itself is served is the consuming build's
- * knowledge, held in `PACKAGE_BASE` (`engine/kb-manifest.mjs`) and prefixed at
+ * knowledge, held in `PACKAGE_BASE` (`engine/content-address.mjs`) and prefixed at
  * resolve time, so it is never recorded here (#1465).
  *
  * It is the whole scheme: `landing`, the key that named which note addressed a
@@ -191,7 +188,7 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *
  * - `homepage` — the authored homepage, and **no other page**. The content tree
  *   is not walked for pages, `site.sections` / `site.trees` / `site.landing`
- *   emit nothing, and link-manifest entries carry no web `path`.
+ *   emit nothing, and nothing serves a page for its addresses.
  * - `content` — the homepage *plus* every page the content tree publishes: the
  *   knowledgebase, the extra trees, the section landings.
  *
@@ -225,7 +222,7 @@ export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
  * Whether this package publishes the pages its content tree compiles to.
  *
  * The one question every reader of the mode actually asks — the site build, to
- * decide whether to walk the tree at all, and the link-manifest emitter, to
+ * decide whether to walk the tree at all, and the content index, to
  * decide whether an entry carries a web `path`. Written once here so the two
  * cannot come to disagree about what a mode means.
  *
@@ -311,13 +308,6 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} PathsInput
  * @property {string} [content]          Content tree root.
- * @property {string} [manifests]        Vendored cross-package link manifests,
- *                                       read by `links`. Inbound.
- * @property {string} [manifestOut]      Where `manifest` writes this package's
- *                                       own link manifest. Outbound, and a
- *                                       build artifact — the published copy is
- *                                       the one a consumer vendors into its
- *                                       `manifests` directory.
  * @property {string} [contentIndex]     Where `content-index` writes this
  *                                       package's note index. Outbound, and a
  *                                       derived artifact — never a source, and
@@ -340,8 +330,6 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} ResolvedPaths
  * @property {string} content
- * @property {string} manifests
- * @property {string} manifestOut
  * @property {string} contentIndex
  * @property {string} packJson
  * @property {string} stage
@@ -387,26 +375,9 @@ export function publishesContentPages(config) {
  */
 
 /**
- * The two manifest switches. A package may publish a link manifest, consume
- * other packages' manifests, both, or neither — the four combinations are all
- * real (see #1385/#1446: `kethira` consumes but never publishes).
- *
- * @typedef {object} ManifestSwitches
- * @property {boolean} publish  Emit this package's link manifest.
- * @property {boolean} consume  Resolve cross-package links through vendored manifests.
- */
-
-/**
  * @typedef {object} PublishSwitches
  * @property {SiteMode} site          How much of this package reaches the web.
  *                                    See {@link SITE_MODES}.
- * @property {ManifestSwitches} manifests
- */
-
-/**
- * @typedef {object} ManifestSwitchesInput
- * @property {boolean} [publish]
- * @property {boolean} [consume]
  */
 
 /**
@@ -487,7 +458,6 @@ export function publishesContentPages(config) {
 /**
  * @typedef {object} PublishSwitchesInput
  * @property {SiteMode} [site]
- * @property {ManifestSwitchesInput} [manifests]
  * @property {AddressSchemeInput} [address]
  */
 
@@ -712,8 +682,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  * @type {symbol}
  */
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
-const PUBLISH_KEYS = ["site", "manifests", "address"];
-const MANIFEST_KEYS = ["publish", "consume"];
+const PUBLISH_KEYS = ["site", "address"];
 const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
@@ -1803,20 +1772,12 @@ function normalizePublish(value) {
     if (value === undefined) {
         return Object.freeze({
             site: "homepage",
-            manifests: Object.freeze({ publish: false, consume: false }),
             address: Object.freeze({ ...DEFAULT_ADDRESS_SCHEME }),
         });
     }
     if (!isPlainObject(value)) fail("publish", "must be an object");
     const publish = /** @type {Record<string, unknown>} */ (value);
     rejectUnknownKeys(publish, PUBLISH_KEYS, "publish.");
-
-    const manifestsInput = publish.manifests;
-    if (manifestsInput !== undefined && !isPlainObject(manifestsInput)) {
-        fail("publish.manifests", "must be an object");
-    }
-    const manifests = /** @type {Record<string, unknown>} */ (manifestsInput ?? {});
-    rejectUnknownKeys(manifests, MANIFEST_KEYS, "publish.manifests.");
 
     const addressInput = publish.address;
     if (addressInput !== undefined && !isPlainObject(addressInput)) {
@@ -1853,10 +1814,6 @@ function normalizePublish(value) {
     return Object.freeze({
         site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix }),
-        manifests: Object.freeze({
-            publish: optionalBoolean(manifests.publish, "publish.manifests.publish", false),
-            consume: optionalBoolean(manifests.consume, "publish.manifests.consume", false),
-        }),
     });
 }
 

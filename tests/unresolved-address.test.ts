@@ -190,7 +190,7 @@ describe("one vocabulary of link findings", () => {
         const message = unresolvedAddressMessage("thalorna-creature-grkrahk");
         expect(message).toContain("thalorna-creature-grkrahk");
         expect(message).toMatch(/shortcode/);
-        expect(message).toMatch(/manifest/);
+        expect(message).toMatch(/deps fetch/);
     });
 
     it("names the claiming packages for an ambiguous address", () => {

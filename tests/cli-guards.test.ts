@@ -74,7 +74,7 @@ describe("an invocation that names no command", () => {
         const { out, err } = run();
         const shown = out + err;
         expect(shown).toMatch(/command/i);
-        for (const command of ["package", "docs", "lint", "links", "manifest", "reachability"]) {
+        for (const command of ["package", "docs", "lint", "links", "deps", "reachability"]) {
             expect(shown).toContain(command);
         }
     });
@@ -138,17 +138,13 @@ describe("what still answers without a configuration", () => {
         expect(out.trim()).toBe(manifest.version);
     });
 
-    it("refuses to emit a manifest the repository does not publish", () => {
-        // The switch is a declaration, not a preference: emitting without it
-        // publishes a file a consumer vendors and treats as authoritative.
-        // Reported here rather than in the library, because it is a question
-        // about the invocation and not about the tree.
+    // `manifest` was the command that wrote the vendored link manifest, and it
+    // is gone with the mechanism (#239). A retired command must fail rather
+    // than be quietly accepted as an unknown positional.
+    it("refuses the retired `manifest` command", () => {
         const { code, err } = run("manifest");
 
         expect(code).toBe(1);
-        // No configuration exists at all in this sandbox, so the failure is the
-        // missing config rather than the switch — either way it must not be a
-        // silent success.
         expect(err).not.toBe("");
     });
 

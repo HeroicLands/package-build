@@ -31,8 +31,7 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { homepageFrontmatter } from "../engine/homepage.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
-import { readCanonicalKey } from "../engine/content-address.mjs";
-import { buildManifest } from "../engine/kb-manifest.mjs";
+import { packageRelative } from "../engine/content-address.mjs";
 
 let root: string;
 
@@ -93,7 +92,6 @@ function configFor(site: Record<string, unknown> = {}) {
         ],
         publish: {
             site: "content",
-            manifests: { publish: true, consume: true },
             address: { prefix: "kb/" },
         },
         site: {
@@ -169,19 +167,17 @@ describe("everything that points at a page keeps the package base", () => {
         );
     });
 
-    it("measures a link-manifest `path` against that base, and it still strips", () => {
+    // The two quantities are one function apart, and that is the whole point:
+    // a page's URL carries the base this build serves the package at, and the
+    // address a *consumer* resolves is that URL with the base stripped. Stating
+    // them separately is how a published address came to assert a URL the site
+    // no longer served (#239).
+    it("strips that base back off to recover the package-relative address", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
-        const manifest = buildManifest("demo", pages, "/demo/");
-        // Found by its shortcode rather than by a spelled-out key: the subject
-        // here is `path`, and the key's `<system>` segment is whatever the
-        // caller stated. `collectContentPages` yields *site pages*, which state
-        // no system, so `buildManifest` keys these under its `none` fallback —
-        // a different answer from the one the site index derives above, and not
-        // what this case is measuring.
-        const [, entry] = Object.entries(manifest.entries).find(
-            ([key]) => readCanonicalKey(key)?.shortcode === "dagger",
-        )!;
-        expect(entry.path).toBe("weapongear-dagger/");
+        const page = pages.find((p) => p.url?.includes("weapongear-dagger"))!;
+
+        expect(page.url).toBe("/demo/weapongear-dagger/");
+        expect(packageRelative(page.url, "/demo/")).toBe("weapongear-dagger/");
     });
 });
 

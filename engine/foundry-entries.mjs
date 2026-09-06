@@ -14,7 +14,7 @@
 /**
  * Emitting this package's cross-package link manifest (#58).
  *
- * `engine/kb-manifest.mjs` owns the *format* — what an entry may say, how a
+ * `engine/content-address.mjs` owns the address *grammar* — how a key is
  * version is read, how a foreign file resolves. This module owns the *pass*:
  * walking a content tree and deriving, for every note it publishes, the
  * addresses that entry states. The two halves were split across the format
@@ -59,7 +59,6 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { canonicalKey, packageAddress } from "./content-address.mjs";
-import { writeManifests } from "./kb-manifest.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
@@ -229,7 +228,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * @returns {{entries: Array<object>, notes: number,
  *   skipped: Array<{file: string, reason: string}>}}
  */
-export function collectManifestEntries(contentBase, ctx) {
+export function collectFoundryEntries(contentBase, ctx) {
     const entries = [];
     const skipped = [];
     // Counted separately because they are genuinely different numbers: an item
@@ -310,7 +309,7 @@ export function foundryIdentities(config = loadPackConfig()) {
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
  *   web: boolean, skipDirectories: readonly string[]}}
  */
-export function manifestContext(config = loadPackConfig()) {
+export function entryContext(config = loadPackConfig()) {
     return {
         ...foundryIdentities(config),
         web: publishesContentPages(config),
@@ -318,73 +317,4 @@ export function manifestContext(config = loadPackConfig()) {
         // its default, so a caller that passes a config drives every read.
         skipDirectories: config.skipDirectories,
     };
-}
-
-/**
- * Emits this package's link manifest.
- *
- * One package, because a configuration declares exactly one `contentPackage`
- * and nothing in the surface can express a second. {@link writeManifests} keeps
- * its package→entries map — it is the general writer — but there is no setting
- * here to choose with.
- *
- * @param {object} [options] - Options.
- * @param {string} [options.contentBase] - The content tree; defaults to the
- *   configured `paths.content`.
- * @param {string} [options.outDir] - Where to write; defaults to the configured
- *   `paths.manifestOut`.
- * @param {object} [options.config] - A resolved configuration; loaded when
- *   omitted.
- * @returns {{written: Array<{package: string, file: string, count: number}>,
- *   entries: number, notes: number,
- *   skipped: Array<{file: string, reason: string}>}}
- * @throws {Error} When the repository does not declare that it publishes a
- *   manifest, when the tree is absent, or when it yields no published note — a
- *   manifest claiming this package publishes nothing is worse than none, since
- *   a consumer reads it as authoritative and turns every link into this package
- *   into a reported typo.
- */
-export function emitLinkManifest({ contentBase, outDir, config } = {}) {
-    const resolved = config ?? loadPackConfig();
-    const tree = contentBase ?? resolved.paths.content;
-    const dir = outDir ?? resolved.paths.manifestOut;
-    const ctx = manifestContext(resolved);
-
-    // A repository that has not declared it publishes a manifest must not
-    // produce one: the file is vendored by consumers and read as authoritative,
-    // so emitting it is a statement about this package rather than a local
-    // convenience. Checked here rather than in the command, so a library caller
-    // cannot route around the declaration.
-    if (!resolved.publish.manifests.publish) {
-        throw new Error(
-            `this repository does not publish a link manifest — set ` +
-                `\`publish.manifests.publish: true\` in its content-build ` +
-                `configuration to change that`,
-        );
-    }
-
-    if (!fs.existsSync(tree)) {
-        throw new Error(`no content tree at ${tree}`);
-    }
-
-    const { entries, notes, skipped } = collectManifestEntries(tree, ctx);
-    if (entries.length === 0) {
-        throw new Error(
-            `${tree} yielded no published notes, so the manifest would ` +
-                `claim this package publishes nothing`,
-        );
-    }
-
-    const written = writeManifests(
-        new Map([[ctx.contentPackage, entries]]),
-        dir,
-        // The one surviving role of a base: `undefined` is the statement "this
-        // build publishes no pages", and no entry then carries a `path`
-        // (#1516). The value itself cancels — every address above is already
-        // package-relative — so it is a sentinel, not a location.
-        ctx.web ? { [ctx.contentPackage]: "/" } : undefined,
-        { [ctx.contentPackage]: ctx.foundryPackageId },
-    );
-
-    return { written, entries: entries.length, notes, skipped };
 }

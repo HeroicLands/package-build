@@ -37,7 +37,7 @@ import * as notePackageModule from "../engine/note-package.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
-import { collectManifestEntries, manifestContext } from "../engine/manifest-emit.mjs";
+import { collectFoundryEntries, entryContext } from "../engine/foundry-entries.mjs";
 import { defineConfig } from "../index.mjs";
 
 /** The package this suite's fixture repository compiles. */
@@ -444,7 +444,7 @@ describe("addresses are keyed from the configuration alone", () => {
                 { name: "items", type: "Item" },
                 { name: "journals", type: "JournalEntry" },
             ],
-            publish: { site: "content", manifests: { publish: true } },
+            publish: { site: "content" },
         });
     }
 
@@ -458,9 +458,9 @@ describe("addresses are keyed from the configuration alone", () => {
 
     it("keys the link manifest from `contentPackage`", () => {
         const root = tree("manifest");
-        const { entries } = collectManifestEntries(
+        const { entries } = collectFoundryEntries(
             path.join(root, "assets/content"),
-            manifestContext(configFor(root)),
+            entryContext(configFor(root)),
         );
         // The manifest key is the *full* canonical address, so it carries the
         // system segment (#59) — unlike the wikilink form above, which is a
@@ -483,7 +483,7 @@ describe("addresses are keyed from the configuration alone", () => {
             }),
             "utf8",
         );
-        expect(() => collectManifestEntries(content, manifestContext(configFor(root)))).toThrow(
+        expect(() => collectFoundryEntries(content, entryContext(configFor(root)))).toThrow(
             /retired/,
         );
     });
