@@ -468,6 +468,24 @@ export function systemDataPaths(data, prefix = "") {
  * this is the difference between "the field is lost at load" and "the build
  * told you where".
  *
+ * **A declared *leaf* holds values, not fields.** A schema declares a path that
+ * has no children of its own for two ordinary reasons — a map with **dynamic
+ * keys** (`mystery.skillAptitudes` is skill selector → modifier) and a
+ * **TypedSchemaField** (`strikeModes`, discriminated by `type`) — and in both
+ * the contents are data an author wrote, not paths the schema names. Walking
+ * into one reports every entry as an undeclared field: one finding per skill
+ * aptitude, per strike mode, per standing.
+ *
+ * It stayed invisible while those maps were authored *outside* `<system>.system`
+ * and so were never walked. The moment the corpus moves them to the destination
+ * (#126) every one of them lights up — 62 findings on `sohl-thalorna` alone,
+ * none of them a defect.
+ *
+ * So descent is conditional on the schema declaring something *beneath* the
+ * path. `body.structure` declares `parts` and `zones`, so it is a real
+ * container and an undeclared `adjacent` under it is a real finding;
+ * `skillAptitudes` declares nothing beneath it, so what is beneath is a value.
+ *
  * @param {Record<string, unknown>} data - The authored `system` data.
  * @param {ReadonlySet<string>} declared - Every field path the schema declares
  *   for this subtype, inherited ones included.
@@ -483,13 +501,32 @@ export function undeclaredPaths(data, declared, prefix = "") {
             out.push(path);
             continue;
         }
-        if (isMapping(value) && Object.keys(value).length) {
+        if (isMapping(value) && Object.keys(value).length && declaresChildren(declared, path)) {
             out.push(
                 ...undeclaredPaths(/** @type {Record<string, unknown>} */ (value), declared, path),
             );
         }
     }
     return out;
+}
+
+/**
+ * Whether the schema declares any path beneath this one.
+ *
+ * The test for "container, not leaf" — see {@link undeclaredPaths}. Asked of
+ * the declared set rather than of the authored value, because it is a question
+ * about the *schema*: an author can nest a map under either.
+ *
+ * @param {ReadonlySet<string>} declared - The declared field paths.
+ * @param {string} path - The path to test.
+ * @returns {boolean} True when something is declared beneath it.
+ */
+function declaresChildren(declared, path) {
+    const prefix = `${path}.`;
+    for (const candidate of declared) {
+        if (candidate.startsWith(prefix)) return true;
+    }
+    return false;
 }
 
 /**
