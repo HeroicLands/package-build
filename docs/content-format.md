@@ -1772,8 +1772,8 @@ Foundry, so the build refuses rather than resolving.
 > system-specific, and HM3 would want the identical Scene. Authoring it under
 > `sohl:` means a map produces nothing for a system-agnostic build and carries a
 > SoHL infobox implying a specificity it does not have. It is the same class of
-> mistake as storing `archetype` in flags: the data went where the only available
-> container was, rather than where it belongs. Three notes carry it today.
+> mistake as storing the template priority in flags: the data went where the only
+> available container was, rather than where it belongs. Three notes carry it today.
 
 **A map is always a leaf.** Its frontmatter references nothing outside itself.
 `notes:` is a list of `[anchor, GridLocation]`, and each anchor names a heading in
