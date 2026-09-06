@@ -213,6 +213,32 @@ describe("one vocabulary of link findings", () => {
 /* ---------------------------------------------------------------------- */
 
 describe("the checker fails an address that resolves to no note", () => {
+    // The grammar's middle form: a system stated, the package left to default
+    // to the citing note's own (#59). Nothing covered it, because until the
+    // parser counted segments no written target could state a system at all.
+    it("resolves a system-qualified address in the local package", () => {
+        const r = audit(corpus("See [[sohl-skill-clmb|Climbing]]."));
+        expect(r.deadAddresses).toEqual([]);
+    });
+
+    // The system is matched, not merely parsed and dropped: a note compiles
+    // under `sohl` here, so naming a different one resolves to nothing rather
+    // than falling back to the system-blind short key.
+    it("fails a system-qualified address whose system nothing answers", () => {
+        const r = audit(corpus("See [[hm3-skill-clmb|Climbing]]."));
+        expect(r.deadAddresses).toHaveLength(1);
+        expect(r.deadAddresses[0]).toMatchObject({ reason: "unresolved" });
+    });
+
+    // The form the grammar has no spelling for: a package with its system
+    // omitted. It is not an address, so it is not read as one.
+    it("fails a package named without its system", () => {
+        const r = audit(corpus("See [[thalorna-creature-wolf|a wolf]]."), {
+            thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
+        });
+        expect(r.deadAddresses).toHaveLength(1);
+    });
+
     it("reports a labelled address nothing answers", () => {
         const r = audit(corpus("See [[skill-nosuch|Nothing]]."));
         expect(r.deadAddresses).toHaveLength(1);
@@ -255,8 +281,8 @@ describe("the checker fails an address that resolves to no note", () => {
         expect([...r.deadAddresses[0].packages].sort()).toEqual(["kethira", "thalorna"]);
     });
 
-    it("resolves the package-qualified form the ambiguity message asks for", () => {
-        const r = audit(corpus("See [[thalorna-creature-wolf|a wolf]]."), {
+    it("resolves the fully qualified form the ambiguity message asks for", () => {
+        const r = audit(corpus("See [[thalorna-sohl-creature-wolf|a wolf]]."), {
             thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
             kethira: [packOnlyRecord("kethira", "creature", "wolf", "Grey Wolf")],
         });
