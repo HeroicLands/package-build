@@ -138,6 +138,18 @@ it _there_, and a system that disagrees is not in error. A weapon weighs what
 This is the same rule as `hm3.type` overriding a derived document type, applied
 to fields: derive from the shared source, and let the system state the exception.
 
+**A shared source and the key a system block still carries are two
+declarations.** The mapping tables name the shared source — `data.species` — and
+the corpus writes the same fact inside the block it has always written it in —
+`hm3.species`. Those are two positions for one field, and both are read while
+the corpus moves, with the block winning. A field says so by naming each: its
+shared source, and the legacy in-block key it is being swept off. Reading it
+from the legacy position is _reported_, so the sweep has a progress signal, and
+the note compiles to the identical document either way — the same read-both,
+report-one shape every other retirement in this format uses. Until #305 the two
+were one declaration, so a field could name only one of them, and a row this
+table stated was reachable only by a note that had already moved.
+
 **A field whose spelling means something else at the note level has no shared
 source.** The fallback assumes the two vocabularies agree about what a name
 means, and they do not always: a note's top-level `title` is the heading its page

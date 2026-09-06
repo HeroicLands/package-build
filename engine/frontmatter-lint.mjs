@@ -55,8 +55,9 @@
  * @module
  */
 
-import { authoredFields } from "./field-spec.mjs";
+import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
+    legacyKeyOf,
     resolveFieldValue,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
@@ -77,6 +78,7 @@ import {
     aliasesRetiredMessage,
     declaresRetiredAliasesField,
     draftRetiredMessage,
+    legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
     sectionRetiredMessage,
@@ -975,8 +977,15 @@ export function lintNote(
     }
 
     const fields = authoredFields(schema);
-    /** First segment of each declared name — `impact.die` is authored as `impact`. */
-    const declared = new Set(fields.map((f) => f.name.split(".")[0]));
+    /**
+     * First segment of the key each field is authored at **inside the block** —
+     * `impact.die` is authored as `impact`, and a field whose shared source
+     * moved under `data:` is authored at the `legacyKey` it declares rather
+     * than at its dotted name (#305). Keying this on the name would report
+     * `sohl.species` as a property no `being` has, against exactly the notes
+     * the sweep has not reached yet.
+     */
+    const declared = new Set(fields.map((f) => legacyKeyOf(f).split(".")[0]));
 
     // The retired spelling of a field this type declares → what to write now.
     // Built from the type's own vocabulary, so a renamed field is retired
@@ -1062,11 +1071,28 @@ export function lintNote(
                 from = "block";
             }
         }
+        // The sweep's progress signal (#305). A **warning**, for the reason a
+        // retired spelling is one: the note compiles to the correct document,
+        // so failing a build over it would red a tree that has done nothing
+        // wrong yet. The refusal comes once no tree writes the position.
+        if (readsLegacyKey(field, from)) {
+            findings.push({
+                file: note.file,
+                ...at(legacyKeyOf(field)),
+                severity: "warning",
+                message: legacyKeyMessage("sohl", field),
+            });
+        }
         const absent = from === "default" || value === undefined || value === null;
         // Where the field belongs, as a message names it: a shared field is not
         // under `sohl:`, so telling an author to write `sohl.img` would send
-        // them to the wrong region.
-        const label = field.shared ? `\`${field.name}\`` : `\`sohl.${field.name}\``;
+        // them to the wrong region. Nor is a field whose shared source is a
+        // path into `data:` — `sohl.data.species` is a region that does not
+        // exist, and the home of that field is the container it names (#305).
+        const label =
+            field.shared || (field.name.includes(".") && field.legacyKey !== undefined) ?
+                `\`${field.name}\``
+            :   `\`sohl.${field.name}\``;
 
         if (field.required && absent) {
             findings.push({

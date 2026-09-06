@@ -487,9 +487,10 @@ name:
 id: BBBBBBBBBBBBBBBB
 shortcode: aldric
 type: being
-species: human
-gender: male
-occupation: Knight
+data:
+  species: human
+  gender: male
+  occupation: Knight
 sohl:
   pack: actors-sohl
   archetype: null
@@ -596,6 +597,12 @@ describe("one note carrying both blocks compiles a document in each system", () 
     });
 
     it("writes each actor's shared facts at its own system's paths", () => {
+        // Authored under `data:`, which is where the specification's
+        // `data.species` → `system.species` row says they live, and reached
+        // through the shared source the declaration names (#305). Before that
+        // the row was unreachable: the field named the bare key, so it read a
+        // top-level `species:` by coincidence of spelling and could not see the
+        // container the format actually maps from.
         const hm3 = packDocs(root, "actors-hm3")["Sir Aldric"].system;
         expect(hm3.species).toBe("human");
         expect(hm3.gender).toBe("male");
@@ -636,6 +643,51 @@ describe("one note carrying both blocks compiles a document in each system", () 
             "Broadsword",
             "Training Sword",
         ]);
+    });
+});
+
+/**
+ * A `being` written the way the corpus writes it today: the shared facts inside
+ * the `hm3:` block, where every one of the 2,512 `harn-ensemble` beings carries
+ * them.
+ */
+const LEGACY_KNIGHT = KNIGHT.replace(
+    "data:\n  species: human\n  gender: male\n  occupation: Knight\n",
+    "",
+).replace("  type: character\n", "  type: character\n  species: human\n  gender: male\n");
+
+describe("a field mid-sweep reads either position, and says which (#305)", () => {
+    let root: string;
+    let result: { errors: number; output: string };
+
+    beforeAll(() => {
+        // The sword rides along so the item and journal packs are not empty —
+        // an empty pack is its own error, and this test is about the being.
+        root = dualRepo({ "Aldric.md": LEGACY_KNIGHT, "Broadsword.md": SWORD });
+        roots.push(root);
+        result = compile(root);
+    });
+
+    it("still compiles a note that writes the legacy in-block key", () => {
+        // The whole reason the two positions are declared separately. A field
+        // named only `data.species` would ship `""` here — silently, with the
+        // note compiling and the value gone — which is what made moving any
+        // field into `data:` a flag day across four repositories.
+        expect(result.errors).toBe(0);
+        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("human");
+        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.gender).toBe("male");
+    });
+
+    it("reports the legacy position, so the sweep has something to count down", () => {
+        expect(result.output).toContain("`hm3.species:` is the legacy position");
+        expect(result.output).toContain("`data.species:`");
+    });
+
+    it("reports it as a warning, not an error", () => {
+        // The note compiles to the correct document; failing a build over it
+        // would red a tree that has done nothing wrong yet.
+        expect(result.output).toMatch(/warning: `hm3\.species:`/);
+        expect(result.errors).toBe(0);
     });
 });
 
