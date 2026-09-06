@@ -295,8 +295,8 @@ export class Actors extends SystemActorCompiler {
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
-        const { value: authoredFolder, isPath } = folderField(fm);
-        const folder = this.folderResolver(authoredFolder, { isPath });
+        const { value: authoredFolder, isAddress } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isAddress });
 
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`

@@ -458,7 +458,11 @@ export function folderDocument(folder, parent, documentType, stats) {
         type: documentType,
         _id: folder.id,
         sort: 0,
-        color: folder.color,
+        // `undefined`, not `null`, when a folder declares no colour: an absent
+        // key is what the YAML emitter produced and what Foundry reads as "no
+        // colour set". `JSON.stringify` drops the key entirely, so a swept tree
+        // emits the same bytes an unswept one does.
+        color: folder.color ?? undefined,
         flags: {},
         _stats: stats,
         _key: `!folders!${folder.id}`,
