@@ -71,7 +71,12 @@ import {
     fetchMetadataFromPath,
     itemCatalogRelationships,
 } from "../engine/foreign-catalog.mjs";
-import { metadataRelationships } from "../engine/metadata-index.mjs";
+import {
+    metadataRelationships,
+    cachedIndexPath,
+    unaddressableForeignPackages,
+    formatUnaddressableFinding,
+} from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -126,10 +131,6 @@ import {
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
 import { walkMarkdownTree } from "../engine/helpers.mjs";
-import {
-    formatUnaddressableFinding,
-    unaddressableForeignPackages,
-} from "../engine/foreign-manifests.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -721,7 +722,6 @@ function lintCommand() {
             try {
                 const config = loadPackConfig();
                 const root = argv.root ?? config.paths.content;
-                const manifestDir = argv.manifests ?? config.paths.manifests;
 
                 // The package is passed for the homepage rule (#52), which
                 // names the address a tree with no front page fails to serve.
@@ -732,7 +732,7 @@ function lintCommand() {
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
                 const index = buildLinkIndex(root, {
-                    manifestDir,
+                    config,
                     skipDirectories: config.skipDirectories,
                     sqlTables: await prepareTreeSqlTables(root, { config }),
                 });
@@ -1017,11 +1017,10 @@ function linksCommand() {
             try {
                 const config = loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
-                const manifestDir = argv.manifests ?? config.paths.manifests;
 
                 const scope = { skipDirectories: config.skipDirectories };
                 const index = buildLinkIndex(contentBase, {
-                    manifestDir,
+                    config,
                     ...scope,
                     sqlTables: await prepareTreeSqlTables(contentBase, scope),
                 });
@@ -1032,12 +1031,12 @@ function linksCommand() {
                 if (index.foreign.stale.length) {
                     for (const s of index.foreign.stale) {
                         emitDiagnostic({
-                            file: path.join(manifestDir, `${s.package}.json`),
+                            file: cachedIndexPath(config, s.package),
                             severity: "error",
-                            message: `unusable link manifest: ${s.reason}`,
+                            message: `unusable content index: ${s.reason}`,
                         });
                     }
-                    log.error("Refresh the vendored copy from that package's own build.");
+                    log.error("Re-run `content-build deps fetch`.");
                     process.exitCode = 1;
                     return;
                 }
@@ -1048,7 +1047,7 @@ function linksCommand() {
                 const drifted = unaddressableForeignPackages(index.foreign.index);
                 if (drifted.length) {
                     for (const f of drifted) {
-                        console.error(formatUnaddressableFinding(f, manifestDir));
+                        console.error(formatUnaddressableFinding(f, config));
                     }
                     process.exitCode = 1;
                     return;
@@ -1373,20 +1372,6 @@ function siteCommand() {
                 if (result.tableErrors.length || result.wikiErrors.length) {
                     process.exitCode = 1;
                     return;
-                }
-
-                if (result.manifests && !result.manifests.complete) {
-                    // Not a softening any more (#184): an address into one of
-                    // these packages fails like any other that resolves
-                    // nowhere. The warning names them so an author meeting that
-                    // failure knows the fix may be to vendor a manifest rather
-                    // than to correct a shortcode.
-                    log.warn(
-                        `no link manifest vendored for ` +
-                            `${result.manifests.missing.join(", ")} — an ` +
-                            `address into one of those packages resolves ` +
-                            `nowhere and fails the build.`,
-                    );
                 }
 
                 const s = result.stats;

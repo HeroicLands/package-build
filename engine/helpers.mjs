@@ -38,7 +38,7 @@ import { packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
-import { loadForeignManifests } from "./kb-manifest.mjs";
+import { loadForeignIndexes } from "./metadata-index.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently (#184).
@@ -551,23 +551,23 @@ export function buildContentLinkIndex(
             anchors: new Set(collectAnchors(body ?? "").map((anchor) => anchor.slug)),
         });
     }
-    // Packages this build links *into* but does not publish. Their manifests
-    // are vendored and committed, so a contributor without every repository
-    // checked out resolves the same links CI does (#1446, #1499).
-    // Packages this repository links into but does not publish; their vendored
-    // manifests live at the configured location (#1446, #1499).
-    const { index: foreign, stale } = loadForeignManifests(
-        loadPackConfig().paths.manifests,
+    // Packages this build links *into* but does not publish. Each publishes
+    // its own content index and this build fetched the ones it depends on, so
+    // a contributor without every repository checked out resolves the same
+    // links CI does — from an artifact the producer shipped rather than a copy
+    // this repository committed (#239).
+    const { index: foreign, stale } = loadForeignIndexes(
+        loadPackConfig(),
         [contentPackage()],
         PACKAGE_BASE,
     );
     if (stale.length) {
         for (const st of stale) {
-            log.error(`Unusable link manifest for "${st.package}": ${st.reason}`);
+            log.error(`Unusable content index for "${st.package}": ${st.reason}`);
         }
         throw new Error(
-            "Cross-package links cannot be resolved from a stale manifest; " +
-                "re-vendor it from that package's build.",
+            "Cross-package links cannot be resolved from an unusable index; " +
+                "re-run `content-build deps fetch`.",
         );
     }
     log.debug(

@@ -42,6 +42,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
+import { PACKAGE_BASE, readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
+
 /**
  * Written once a fetch completes, so a half-finished cache is never used.
  *
@@ -236,4 +239,221 @@ function newestIndex(dirs) {
         throw new Error(`${dir} was fetched but holds no index file`);
     }
     return path.join(dir, entries[0]);
+}
+
+/**
+ * Resolve every foreign address this build can cite, from the fetched indexes.
+ *
+ * The replacement for the vendored link manifest, and deliberately the same
+ * return shape — a `Map` from canonical address to `{ url, name, uuid, … }` —
+ * so a foreign entry and a local one stay interchangeable at the point of use.
+ * What changed is where the data comes from: a file the producer published,
+ * not a copy a consumer committed.
+ *
+ * **A package this build publishes is skipped**, however it got into the cache.
+ * A build is authoritative in its own addresses, and reading them back from a
+ * fetched artifact would let a stale copy overrule the tree that is being
+ * compiled right now. It is also what stops a cycle forming: the mutual
+ * vendoring this replaces deadlocked because each package had to read the
+ * other's file before it could publish its own.
+ *
+ * **Nothing here can be stale.** The version gate the manifest needed existed
+ * because a vendored copy could sit at any age; a fetched index is pinned to
+ * the version the relationship declares, so `stale` now reports only what is
+ * genuinely unusable — an unreadable file, or a package with pages and no base
+ * to serve them from.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {Iterable<string>} localPackages - Packages this build publishes.
+ * @param {Record<string, string>} [bases] - Where each package is served.
+ * @returns {{index: Map<string, object>, packages: Set<string>,
+ *   stale: Array<{package: string, reason: string}>}} The resolved addresses,
+ *   which packages contributed, and what could not be read.
+ */
+export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) {
+    const local = new Set(localPackages);
+    const index = new Map();
+    const packages = new Set();
+    const stale = [];
+
+    for (const file of cachedMetadataFiles(config)) {
+        let records;
+        try {
+            records = fs
+                .readFileSync(file, "utf8")
+                .split("\n")
+                .filter((line) => line.trim())
+                .map((line) => JSON.parse(line));
+        } catch (err) {
+            stale.push({ package: packageOfCache(file), reason: `unreadable: ${err.message}` });
+            continue;
+        }
+
+        const pkg = records[0]?.package ?? packageOfCache(file);
+        if (local.has(pkg)) continue;
+
+        // A base is only needed to resolve a page *URL*, so a pack-only
+        // dependency — Foundry addresses and no site, which `kethira` is by
+        // licensing rather than by accident — needs none. Demanding one would
+        // make its documents uncitable from anywhere, which is a worse answer
+        // than citing them by UUID and rendering the prose unlinked.
+        //
+        // So an absent base degrades rather than fails: every entry keeps its
+        // `uuid` and simply has no `url`, exactly as a consumer must already
+        // tolerate for an entry that compiles into no document.
+        const base = bases?.[pkg];
+        const web = typeof base === "string" && base.length > 0;
+
+        for (const record of records) {
+            const key = record?.address?.canonical;
+            if (!key) continue;
+            const parts = readCanonicalKey(key);
+            if (!parts) continue;
+            // First writer wins, so two packages claiming one address cannot
+            // make the build depend on the order the cache was read in.
+            if (index.has(key)) continue;
+            const foundry = record.foundry?.[parts.system];
+            index.set(key, {
+                name: record.name?.full ?? record.name,
+                // Absent where the package publishes no page for it. A consumer
+                // must tolerate that rather than invent an href, exactly as it
+                // already tolerates an entry with no `uuid`.
+                url:
+                    web && record.address.slug ?
+                        resolvePackageUrl(`${record.address.slug}/`, base)
+                    :   undefined,
+                uuid: foundry?.uuid,
+                doc: record.documentation ?? undefined,
+                anchors: foundry?.anchors,
+                type: parts.type,
+                package: pkg,
+            });
+        }
+        packages.add(pkg);
+    }
+
+    return { index, packages, stale };
+}
+
+/**
+ * Which package a cached index belongs to, read from its directory name.
+ *
+ * Used only to name a package in a diagnostic when its records could not be
+ * read — the authoritative answer is the `package` field the records carry.
+ *
+ * @param {string} file - The cached index file.
+ * @returns {string} The dependency id.
+ */
+function packageOfCache(file) {
+    return path.basename(path.dirname(file)).split("@")[0];
+}
+
+/**
+ * Where a dependency's fetched index sits, for naming it in a diagnostic.
+ *
+ * Best effort: the newest complete cache for that package, or the directory it
+ * would occupy. A finding has to name *a* file even when the cache is in the
+ * state the finding is about.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {string} pkg - The dependency's package id.
+ * @returns {string} A path to name in a diagnostic.
+ */
+export function cachedIndexPath(config, pkg) {
+    const root = config?.paths?.metadataCache ?? "build/cache/metadata";
+    try {
+        const dirs = fs
+            .readdirSync(root)
+            .filter((name) => name.startsWith(`${pkg}@`))
+            .map((name) => path.join(root, name))
+            .filter(isComplete);
+        if (dirs.length) {
+            const dir = dirs.sort()[dirs.length - 1];
+            const file = fs.readdirSync(dir).find((n) => n.endsWith(".jsonl"));
+            if (file) return path.join(dir, file);
+        }
+    } catch {
+        // The cache is missing or unreadable, which is often the very thing
+        // being reported. The conventional path is all that can be named.
+    }
+    return path.join(root, `${pkg}@<version>`, metadataFileName(pkg));
+}
+
+/**
+ * Whether a fetched index can still be *addressed*, as distinct from read.
+ *
+ * A consumer resolves cross-package links by canonical key, so it needs both
+ * sides to agree on the key's shape. When they drift the lookup cannot match on
+ * *any* input — and because a miss is indistinguishable from a typo, the
+ * symptom is a pile of dead addresses blamed on the notes that cite them rather
+ * than on the index at fault. A package whose every key is unreadable is
+ * therefore reported against the index, once, instead of once per citing note.
+ *
+ * The realistic cause is a version skew: a dependency released before the
+ * address grammar gained its `<system>` segment (#59) ships three-segment keys.
+ * Re-fetching after that dependency releases is the fix.
+ *
+ * @param {Map<string, object>} foreignIndex - The resolved foreign index.
+ * @returns {Array<{package: string, entries: number, sampleKey: string}>} One
+ *   finding per drifted package, in the order the index first names each.
+ */
+export function unaddressableForeignPackages(foreignIndex) {
+    const byPackage = new Map();
+    for (const [key, value] of foreignIndex ?? new Map()) {
+        // The package is read from the entry rather than the key, since the key
+        // is the very thing under suspicion — deriving it from a shape that may
+        // not parse would report the finding against `undefined`.
+        const pkg = value?.package;
+        if (!pkg) continue;
+        const seen = byPackage.get(pkg) ?? { entries: 0, readable: 0, sampleKey: key };
+        seen.entries += 1;
+        if (readCanonicalKey(key)) seen.readable += 1;
+        byPackage.set(pkg, seen);
+    }
+
+    const findings = [];
+    for (const [pkg, seen] of byPackage) {
+        if (seen.entries > 0 && seen.readable === 0) {
+            findings.push({ package: pkg, entries: seen.entries, sampleKey: seen.sampleKey });
+        }
+    }
+    return findings;
+}
+
+/**
+ * One finding, in the standard `file:line:column: severity: message` form.
+ *
+ * The position is recovered by locating the offending key in the index text:
+ * the finding is about a literal the reader can see in the file, so its
+ * position is implicit rather than absent. When the file cannot be read, or the
+ * key is not in it, the locator degrades to the file alone — a dropped field,
+ * never a guessed `1:1` that would send the reader to the top of a large file
+ * for a finding that is not there.
+ *
+ * @param {{package: string, entries: number, sampleKey: string}} finding - One
+ *   finding from {@link unaddressableForeignPackages}.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string} The formatted diagnostic, path first on the line.
+ */
+export function formatUnaddressableFinding(finding, config) {
+    const file = cachedIndexPath(config, finding.package);
+    let at = {};
+    try {
+        at = positionOfLiteral(fs.readFileSync(file, "utf8"), `"${finding.sampleKey}"`);
+    } catch {
+        // Unreadable here is not itself the finding — the loader already
+        // reports that. The file is simply all that is known about where this
+        // one is.
+    }
+    return formatDiagnostic({
+        file,
+        ...at,
+        severity: "error",
+        message:
+            "no key in this content index is a canonical " +
+            `\`package-system-type-shortcode\` address (${finding.entries} ` +
+            `${finding.entries === 1 ? "entry" : "entries"}, none addressable; ` +
+            `first is \`${finding.sampleKey}\`) — every cross-package link to ` +
+            `${finding.package} would resolve to nothing, silently`,
+    });
 }

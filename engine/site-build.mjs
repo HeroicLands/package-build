@@ -55,8 +55,8 @@ import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
-import { loadForeignManifests, manifestsComplete } from "./kb-manifest.mjs";
-import { formatUnaddressableFinding, unaddressableForeignPackages } from "./foreign-manifests.mjs";
+import { loadForeignIndexes } from "./metadata-index.mjs";
+import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
@@ -380,10 +380,10 @@ export function writeHomepages(outRoot, pages, config) {
  * @param {object[]} pages - Every page, from both walks.
  * @param {object} findings - `{ addressFindings, fmLinkFindings }` from
  *   collection.
- * @param {object} options - `{ manifestDir }`.
+ * @param {object} options - `{ config }`.
  * @returns {object} The gate results and, when they pass, the built index.
  */
-export function siteGates(pages, findings, { manifestDir }) {
+export function siteGates(pages, findings, { config }) {
     const out = {
         // Always empty here: the homepage count is decided in `buildSite`
         // before the content walk, and a failing count returns without ever
@@ -406,7 +406,7 @@ export function siteGates(pages, findings, { manifestDir }) {
     // configured list instead silently discarded the manifest of any package
     // the list named but the tree did not contain.
     const localPackages = new Set(content.map((p) => p.pkg));
-    const foreign = loadForeignManifests(manifestDir, localPackages);
+    const foreign = loadForeignIndexes(config, localPackages);
     out.foreign = foreign;
     if (foreign.stale.length) {
         out.staleManifests = foreign.stale;
@@ -416,7 +416,6 @@ export function siteGates(pages, findings, { manifestDir }) {
     out.unaddressable = unaddressableForeignPackages(foreign.index);
     if (out.unaddressable.length) return out;
 
-    out.manifests = manifestsComplete(localPackages, foreign.packages);
     const index = buildSiteIndex(pages, { foreignIndex: foreign.index });
     out.conflicts = index.conflicts;
     if (out.conflicts.length) return out;
@@ -1046,7 +1045,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const gates = siteGates(
         [...pages, ...homepageEntries],
         { ...content, fmLinkFindings },
-        { manifestDir: resolved.paths.manifests },
+        { config: resolved },
     );
     if (gatesFailed(gates)) {
         return {
@@ -1054,7 +1053,6 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             stats: null,
             tableErrors: [],
             wikiErrors: [],
-            manifests: gates.manifests,
         };
     }
 
@@ -1094,7 +1092,6 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
 
     return {
         gates,
-        manifests: gates.manifests,
         tableErrors: rendered.tableErrors,
         wikiErrors: rendered.wikiErrors,
         stats: {

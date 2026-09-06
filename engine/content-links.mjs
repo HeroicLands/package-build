@@ -67,7 +67,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
-import { loadForeignManifests, manifestsComplete } from "./kb-manifest.mjs";
+import { loadForeignIndexes } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
@@ -108,12 +108,13 @@ export function anchorsOf(body) {
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {string} [opts.manifestDir] - Where vendored foreign manifests live.
+ * @param {object} [opts.config] - The resolved build configuration, whose
+ *   fetched dependency indexes foreign addresses resolve through (#239).
  *   Omitted, no cross-package address resolves.
  * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlTables } = {}) {
+export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables } = {}) {
     const notes = [];
     const frontmatterLinks = [];
     // Passed through rather than defaulted away: an absent scope is the
@@ -174,8 +175,8 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
     // is never checked at all.
     const localPackages = new Set([pkg]);
     const foreign =
-        manifestDir ?
-            loadForeignManifests(manifestDir, localPackages)
+        config ?
+            loadForeignIndexes(config, localPackages)
         :   { index: new Map(), packages: new Set(), stale: [] };
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
@@ -356,7 +357,6 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
          */
         contentPackage: pkg,
         foreign,
-        manifests: manifestsComplete(localPackages, foreign.packages),
         linksOf,
         /**
          * Resolve a link target the way both builds do, or `undefined`. Every

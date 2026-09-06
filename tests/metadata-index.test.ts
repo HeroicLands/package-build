@@ -21,6 +21,7 @@ import {
     metadataRelationships,
     metadataCacheDir,
     cachedMetadataFiles,
+    loadForeignIndexes,
 } from "../engine/metadata-index.mjs";
 
 const LATEST = "https://github.com/HeroicLands/sohl/releases/latest/download/system.json";
@@ -154,5 +155,134 @@ describe("where a dependency's index is cached", () => {
         expect(metadataCacheDir(config, "sohl", "0.8.2")).toBe(
             path.join("/repo/build/cache/metadata", "sohl@0.8.2"),
         );
+    });
+});
+
+describe("resolving foreign addresses from cached indexes", () => {
+    let root: string;
+
+    beforeEach(() => {
+        root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-foreign-idx-"));
+    });
+    afterEach(() => {
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    /** One record per line, as the emitted index is. */
+    function cacheIndex(id: string, version: string, records: unknown[]) {
+        const dir = path.join(root, `${id}@${version}`);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, metadataFileName(id)),
+            records.map((r) => JSON.stringify(r)).join("\n") + "\n",
+        );
+        fs.writeFileSync(path.join(dir, ".complete"), "");
+    }
+
+    const config = () =>
+        ({
+            paths: { metadataCache: root },
+            relationships: { systems: [{ id: "thalorna", manifest: LATEST }] },
+        }) as never;
+
+    const record = (over: Record<string, unknown> = {}) => ({
+        package: "thalorna",
+        type: "affiliation",
+        shortcode: "aerarimmpr",
+        name: { full: "The Aerarium Imperii" },
+        address: {
+            slug: "affiliation-aerarimmpr",
+            canonical: "thalorna-none-affiliation-aerarimmpr",
+        },
+        anchors: [],
+        foundry: null,
+        documentation: null,
+        ...over,
+    });
+
+    it("keys every record by its canonical address", () => {
+        cacheIndex("thalorna", "0.1.0", [record()]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect([...index.keys()]).toEqual(["thalorna-none-affiliation-aerarimmpr"]);
+    });
+
+    // The bug that killed the vendored manifest: SoHL's committed copy held
+    // 2,101 entries whose address was the old name-derived form, so every link
+    // it rendered resolved at build time and 404'd for the reader. A URL
+    // derived from the fetched address cannot drift from what the producer
+    // publishes.
+    it("derives the page URL from the address and the package base", () => {
+        cacheIndex("thalorna", "0.1.0", [record()]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.get("thalorna-none-affiliation-aerarimmpr")!.url).toBe(
+            "/thalorna/affiliation-aerarimmpr/",
+        );
+    });
+
+    it("carries the name and the type a consumer renders with", () => {
+        cacheIndex("thalorna", "0.1.0", [record()]);
+        const entry = loadForeignIndexes(config(), ["sohl"]).index.get(
+            "thalorna-none-affiliation-aerarimmpr",
+        )!;
+        expect(entry.name).toBe("The Aerarium Imperii");
+        expect(entry.type).toBe("affiliation");
+        expect(entry.package).toBe("thalorna");
+    });
+
+    // A note compiling into two systems' documents holds a block per system,
+    // and the key's own system segment says which one this address names.
+    it("takes the uuid of the system the address names", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "being",
+                shortcode: "grod",
+                address: { slug: "being-grod", canonical: "thalorna-sohl-being-grod" },
+                foundry: {
+                    sohl: { uuid: "Compendium.thalorna.actors-sohl.Actor.aaa" },
+                    hm3: { uuid: "Compendium.thalorna.actors-hm3.Actor.bbb" },
+                },
+            }),
+        ]);
+        const entry = loadForeignIndexes(config(), ["sohl"]).index.get("thalorna-sohl-being-grod")!;
+        expect(entry.uuid).toBe("Compendium.thalorna.actors-sohl.Actor.aaa");
+    });
+
+    // A package is authoritative in its own addresses and never resolves them
+    // through a fetched index — which is also what stops a cycle forming.
+    it("ignores a cached index for a package this build publishes", () => {
+        cacheIndex("thalorna", "0.1.0", [record()]);
+        const { index, packages } = loadForeignIndexes(config(), ["thalorna"]);
+        expect(index.size).toBe(0);
+        expect(packages.has("thalorna")).toBe(false);
+    });
+
+    it("reports an unreadable line rather than failing the load", () => {
+        const dir = path.join(root, "thalorna@0.1.0");
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(path.join(dir, metadataFileName("thalorna")), "{ not json\n");
+        fs.writeFileSync(path.join(dir, ".complete"), "");
+        const { index, stale } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.size).toBe(0);
+        expect(stale[0].package).toBe("thalorna");
+    });
+
+    // A pack-only dependency — Foundry addresses and no site, which `kethira`
+    // is by licensing — has no base and must stay citable by UUID. Demanding
+    // one would make its documents unaddressable from anywhere, which is worse
+    // than rendering the prose unlinked.
+    it("still resolves a package it has no base for, without a URL", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({ foundry: { none: { uuid: "Compendium.x.items.Item.aaa" } } }),
+        ]);
+        const { index, stale } = loadForeignIndexes(config(), ["sohl"], {});
+        const entry = index.get("thalorna-none-affiliation-aerarimmpr")!;
+        expect(stale).toEqual([]);
+        expect(entry.url).toBeUndefined();
+        expect(entry.uuid).toBe("Compendium.x.items.Item.aaa");
+    });
+
+    it("skips a record with no address at all", () => {
+        cacheIndex("thalorna", "0.1.0", [record({ address: null })]);
+        expect(loadForeignIndexes(config(), ["sohl"]).index.size).toBe(0);
     });
 });

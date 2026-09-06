@@ -55,7 +55,7 @@ beforeAll(() => {
         path.join(root, "package.json"),
         JSON.stringify({ name: "sandbox", version: "1.0.0" }),
     );
-    fs.mkdirSync(path.join(root, "assets/manifests"), { recursive: true });
+    fs.mkdirSync(path.join(root, "build/cache/metadata"), { recursive: true });
 
     // Every package publishes exactly one homepage (#52), so a sandbox that
     // builds a site has to carry one.
@@ -222,10 +222,21 @@ describe("a page's address comes from the shared scheme", () => {
 describe("every gate reports; none exits", () => {
     const base = () => collectContentPages(path.join(root, "assets/content"), ctx);
 
+    /**
+     * A configuration pointing at a metadata cache, declaring the dependencies
+     * it is expected to hold. Both halves matter: a build resolves only through
+     * packages it declared it depends on, and a declared dependency with no
+     * cached index is a hard error naming `deps fetch`.
+     */
+    const cacheConfig = (cache = path.join(root, "build/cache/metadata"), ids: string[] = []) => ({
+        paths: { metadataCache: cache },
+        relationships: {
+            requires: ids.map((id) => ({ id, manifest: "https://x/y.json" })),
+        },
+    });
+
     it("passes a clean tree, and yields an index", () => {
-        const gates = siteGates(base().pages, base(), {
-            manifestDir: path.join(root, "assets/manifests"),
-        });
+        const gates = siteGates(base().pages, base(), { config: cacheConfig() });
         expect(gatesFailed(gates)).toBe(false);
         expect(gates.index).not.toBeNull();
     });
@@ -289,9 +300,7 @@ name:
     full: Dagger`,
         );
         const got = base();
-        const gates = siteGates(got.pages, got, {
-            manifestDir: path.join(root, "assets/manifests"),
-        });
+        const gates = siteGates(got.pages, got, { config: cacheConfig() });
         expect("collisions" in gates).toBe(false);
         expect(gatesFailed(gates)).toBe(false);
         const urls = got.pages.filter((p) => p.kind === "content").map((p) => p.url);
@@ -299,15 +308,17 @@ name:
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger2.md"));
     });
 
-    it("catches an unusable vendored manifest", () => {
-        const dir = path.join(root, "bad-manifests");
+    it("catches an unusable fetched index", () => {
+        const cache = path.join(root, "bad-cache");
+        const dir = path.join(cache, "elsewhere@0.1.0");
         fs.mkdirSync(dir, { recursive: true });
-        fs.writeFileSync(path.join(dir, "elsewhere.json"), "{ not json");
+        fs.writeFileSync(path.join(dir, "elsewhere-metadata.jsonl"), "{ not json\n");
+        fs.writeFileSync(path.join(dir, ".complete"), "");
         const got = base();
-        const gates = siteGates(got.pages, got, { manifestDir: dir });
+        const gates = siteGates(got.pages, got, { config: cacheConfig(cache, ["elsewhere"]) });
         expect(gates.staleManifests.length).toBe(1);
         expect(gatesFailed(gates)).toBe(true);
-        fs.rmSync(dir, { recursive: true });
+        fs.rmSync(cache, { recursive: true });
     });
 });
 
