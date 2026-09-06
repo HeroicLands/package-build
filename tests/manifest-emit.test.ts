@@ -29,8 +29,7 @@ import {
     anchorsOf,
     LEAD_ANCHOR,
 } from "../engine/manifest-emit.mjs";
-import { packageAddress } from "../engine/content-address.mjs";
-import { readCanonicalKey } from "../engine/kb-manifest.mjs";
+import { packageAddress, readCanonicalKey } from "../engine/content-address.mjs";
 
 /** The manifest document's shape — see the note in `kb-manifest.test.ts`. */
 interface Manifest {

@@ -38,7 +38,7 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
-import { readCanonicalKey } from "./kb-manifest.mjs";
+import { readCanonicalKey } from "./content-address.mjs";
 
 /**
  * Every foreign package whose manifest entries a build cannot address.

@@ -46,7 +46,7 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-system-type-shortcode` key, so a package-qualified
 // address is matched the way a vendored manifest publishes it — by the
 // segments the target supplies, with the system wildcarded unless stated (#59).
-import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
+import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
 // The one rule about a link's shape both builds share: it carries a label, and
 // {@link unlabelledLinkMessage} is the one place that says so (#180).
 import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";

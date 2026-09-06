@@ -66,13 +66,8 @@ import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-import {
-    canonicalKey,
-    loadForeignManifests,
-    manifestsComplete,
-    PACKAGE_BASE,
-    readCanonicalKey,
-} from "./kb-manifest.mjs";
+import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
+import { loadForeignManifests, manifestsComplete } from "./kb-manifest.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";

@@ -23,8 +23,12 @@
 import { describe, it, expect } from "vitest";
 
 import * as contentAddressModule from "../engine/content-address.mjs";
-import { addressSlug, packageAddress } from "../engine/content-address.mjs";
-import { canonicalKey, readCanonicalKey } from "../engine/kb-manifest.mjs";
+import {
+    addressSlug,
+    canonicalKey,
+    packageAddress,
+    readCanonicalKey,
+} from "../engine/content-address.mjs";
 
 describe("addressSlug", () => {
     it("is the note's type and shortcode, hyphen-separated", () => {

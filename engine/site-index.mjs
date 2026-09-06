@@ -51,7 +51,7 @@
 
 import path from "node:path";
 
-import { canonicalKey, readCanonicalKey } from "./kb-manifest.mjs";
+import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { hasDocEntry } from "./item-docs.mjs";

@@ -31,7 +31,8 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { homepageFrontmatter } from "../engine/homepage.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
-import { buildManifest, readCanonicalKey } from "../engine/kb-manifest.mjs";
+import { readCanonicalKey } from "../engine/content-address.mjs";
+import { buildManifest } from "../engine/kb-manifest.mjs";
 
 let root: string;
 

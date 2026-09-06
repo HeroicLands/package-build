@@ -58,8 +58,8 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { packageAddress } from "./content-address.mjs";
-import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
+import { canonicalKey, packageAddress } from "./content-address.mjs";
+import { writeManifests } from "./kb-manifest.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";

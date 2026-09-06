@@ -12,17 +12,15 @@ import path from "node:path";
 
 // The link manifest — the cross-package index — is engine machinery: every
 // HeroicLands content package reads and writes it (#1512).
+import { packageRelative, resolvePackageUrl, PACKAGE_BASE } from "../engine/content-address.mjs";
 import {
     buildManifest,
     writeManifests,
     loadForeignManifests,
     manifestsComplete,
-    packageRelative,
-    resolvePackageUrl,
     MANIFEST_VERSION,
     READABLE_VERSIONS,
     LINK_PACKAGES,
-    PACKAGE_BASE,
 } from "../engine/kb-manifest.mjs";
 
 /**

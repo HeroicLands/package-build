@@ -86,7 +86,7 @@
 import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
-import { readCanonicalKey } from "./kb-manifest.mjs";
+import { readCanonicalKey } from "./content-address.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this

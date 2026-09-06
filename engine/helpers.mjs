@@ -37,7 +37,8 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-import { loadForeignManifests, PACKAGE_BASE } from "./kb-manifest.mjs";
+import { PACKAGE_BASE } from "./content-address.mjs";
+import { loadForeignManifests } from "./kb-manifest.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently (#184).

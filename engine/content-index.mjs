@@ -69,8 +69,7 @@ import path from "node:path";
 
 import unidecode from "unidecode";
 
-import { addressSlug } from "./content-address.mjs";
-import { canonicalKey } from "./kb-manifest.mjs";
+import { addressSlug, canonicalKey } from "./content-address.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link (#243). Re-exported because this is where callers
 // have always addressed it.

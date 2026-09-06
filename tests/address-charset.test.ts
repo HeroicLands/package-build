@@ -42,7 +42,11 @@ import YAML from "yaml";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "../engine/address-charset.mjs";
 import { isValidShortcode } from "../engine/content-lint.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
-import { canonicalKey, readCanonicalKey, CANONICAL_KEY_SEGMENTS } from "../engine/kb-manifest.mjs";
+import {
+    canonicalKey,
+    readCanonicalKey,
+    CANONICAL_KEY_SEGMENTS,
+} from "../engine/content-address.mjs";
 
 /** The smallest configuration body that resolves, minus its `contentPackage`. */
 const REST = [

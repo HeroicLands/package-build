@@ -28,8 +28,7 @@ import {
     serializeContentIndex,
     emitContentIndex,
 } from "../engine/content-index.mjs";
-import { addressSlug } from "../engine/content-address.mjs";
-import { canonicalKey } from "../engine/kb-manifest.mjs";
+import { addressSlug, canonicalKey } from "../engine/content-address.mjs";
 import { systemOf } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { splitPages } from "../engine/journals.mjs";
