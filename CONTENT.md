@@ -641,16 +641,24 @@ toolchain vocabulary, and the _generators_ `items` and `attributes` expand into
 embedded documents rather than mapping anywhere, so neither has a `system` path
 to be written at.
 
-`archetype` is authored there too, and is the one such key that _is_ a field:
-the builder writes it to `system.archetype` — a number is an archetype at that
-priority, `null` is not an archetype — exactly as `portrait` reaches
-`sohl.system.portrait` from a shared top-level property. Its authored position
-is unchanged (#126).
+`templatePriority` is the one key of this shape that _is_ a field, and it is
+**shared rather than per-system**: its home is `data.templatePriority`, and it
+reaches `sohl.system.templatePriority` and `hm3.flags.hm3.templatePriority` —
+exactly as `portrait` reaches two differently-named fields from one shared
+property. A number is a template at that priority, `null` is not a template, and
+absent is an authoring error (#126, #266). The legacy in-block and top-level
+positions are still read, in that order after `data:`, so a tree sweeps on its
+own schedule; `archetype` is the retiring spelling of the same field, still read
+last but **refused by the frontmatter linter** — a priority and the `archetypes`
+a being fits are different things, and one letter is not enough to tell them
+apart.
 
 ```yaml
 type: being # the content type — system-agnostic
 pack: actors # shared: unless a block says otherwise
 portrait: kaldor.webp # shared: reaches both systems' fields, differently named
+data:
+  templatePriority: 1 # shared: → sohl `system.`, hm3 `flags.hm3.`
 hm3:
   type: character # this system's document subtype
   pack: actors-hm3 # overrides the shared one, for HM3 only
@@ -662,7 +670,6 @@ sohl:
   type: being
   system:
     currentMoveMedium: walk
-  archetype: 1
 ```
 
 **The shared fallback is declared, not name-matched.** `sohl.system.portrait`
@@ -733,7 +740,7 @@ value goes through one coercion rather than two.
 
 **What the compiler writes on its own is checked too.** A compiled document
 carries keys no field declaration and no note ever names — `shortcode`,
-`archetype`, `actionDefs`, `notes`, `docHtml` — because the pass writes them
+`templatePriority`, `actionDefs`, `notes`, `docHtml` — because the pass writes them
 itself, and they were compared against nothing: the declaration-derived check
 reads `itemBuilders`, the note-side check reads `<system>.system`, and these are
 in neither. A compile now reads the `system` block each pass **assembled** and

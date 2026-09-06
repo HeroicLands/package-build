@@ -170,44 +170,44 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
 }
 
 /**
- * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
- * (the archetype contract, #604). The property is a nullable number that
- * authors must state explicitly:
- *   - a number → the document is a template of that priority.
- *   - `null`   → the document is not a template.
- *   - absent   → an authoring error (throws), so "not a template" is never
- *                silently assumed.
+ * Every position a note may state its template priority at, for one system
+ * block, in the order they answer — and whichever of them the note actually
+ * wrote (#266).
  *
- * Reads `data.templatePriority` first — the specified home — then the `sohl:`
- * block and the top level, and finally the retiring `archetype` spelling in the
- * same two places (#266).
+ * Three places, in the order the migration runs. The specification calls this
+ * `data.templatePriority`; `sohl-thalorna` already writes it there on 941
+ * notes, beside the `archetype` the build reads — so a tree that has authored
+ * forward is read from the key it authored, and only then does the retiring
+ * spelling answer.
  *
- * @param {object} fm      Parsed frontmatter.
- * @param {string} label   Human-readable context for error messages.
- * @returns {number|undefined}  The template priority, or `undefined` when null.
- * @throws {Error} When the property is absent, is not a number/null, or both
- *   spellings are present and disagree.
+ * **The block is a parameter because the value is shared, not per-system.** One
+ * `data.templatePriority` is the note's statement that it is a template; SoHL
+ * records it as `system.templatePriority` and HM3 as `flags.hm3.templatePriority`.
+ * The legacy in-block position is therefore read from *the block being compiled*
+ * rather than always from `sohl:`, so an HM3-only note is not asked to author a
+ * SoHL block to be read.
+ *
+ * @param {object} fm     Parsed frontmatter.
+ * @param {string} block  The system block being compiled.
+ * @returns {{found: [object, string]|undefined, retiring: [object, string]|undefined,
+ *   NEW: string, OLD: string}} The answering position, the retiring spelling's
+ *   position if the note also carries it, and the two key names.
  */
-export function resolveTemplatePriority(fm, label) {
-    const sohl = fm != null && typeof fm.sohl === "object" ? fm.sohl : null;
+function findTemplatePriority(fm, block) {
+    const inBlock =
+        fm != null && typeof fm[block] === "object" && fm[block] !== null ? fm[block] : null;
     const data = fm != null && typeof fm.data === "object" && fm.data !== null ? fm.data : null;
 
-    // Three places, in the order the migration runs (#266). The specification
-    // calls this `data.templatePriority`; `sohl-thalorna` already writes it
-    // there on 941 notes, beside the `archetype` the build reads — so a tree
-    // that has authored forward is read from the key it authored, and only then
-    // does the retiring spelling answer.
     const NEW = "templatePriority";
     const OLD = "archetype";
-    const sources = [
+    const sources = /** @type {[object|null, string][]} */ ([
         [data, NEW],
-        [sohl, NEW],
+        [inBlock, NEW],
         [fm, NEW],
-        [sohl, OLD],
+        [inBlock, OLD],
         [fm, OLD],
-    ];
+    ]);
     const found = sources.find(([where, key]) => where != null && key in where);
-
     // A note part-way through the rename may carry both spellings, and they may
     // *disagree*: 145 of `sohl-thalorna`'s 941 dual-spelled notes say
     // `templatePriority: null` where `archetype: 0` says the opposite — "not a
@@ -218,6 +218,72 @@ export function resolveTemplatePriority(fm, label) {
     const retiring = sources
         .slice(sources.findIndex(([, key]) => key === OLD))
         .find(([where, key]) => where != null && key in where);
+    return {
+        found: /** @type {[object, string]|undefined} */ (found),
+        retiring: /** @type {[object, string]|undefined} */ (retiring),
+        NEW,
+        OLD,
+    };
+}
+
+/**
+ * The template priority a note states, for a system that treats an unstated one
+ * as "not a template" rather than as an authoring error (#266).
+ *
+ * Reads exactly the positions {@link resolveTemplatePriority} reads, including
+ * the retiring `archetype` spelling, and refuses the same contradiction — so
+ * the two systems cannot disagree about what a note said. It differs only in
+ * what silence means: SoHL requires the statement, while HM3 keeps the value in
+ * a flag it simply omits, so there is no tri-state for an absent value to
+ * corrupt and nothing to demand.
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @param {object} [options] Options.
+ * @param {string} [options.block="sohl"] The system block being compiled.
+ * @returns {number|null}  The priority, or `null` when the note is not a
+ *   template or states nothing.
+ * @throws {Error} When both spellings are present and disagree.
+ */
+export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
+    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
+    if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
+        throw new Error(
+            `Conflicting ${NEW} for ${label}: ` +
+                `${NEW} is ${JSON.stringify(found[0][found[1]])} and the retiring ` +
+                `${OLD} is ${JSON.stringify(retiring[0][OLD])}. Both are read and ` +
+                `${NEW} wins, so they must agree — delete ${OLD}, or correct it`,
+        );
+    }
+    if (!found) return null;
+    const raw = found[0][found[1]];
+    return raw === null || raw === "" || raw === undefined ? null : raw;
+}
+
+/**
+ * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
+ * (the archetype contract, #604). The property is a nullable number that
+ * authors must state explicitly:
+ *   - a number → the document is a template of that priority.
+ *   - `null`   → the document is not a template.
+ *   - absent   → an authoring error (throws), so "not a template" is never
+ *                silently assumed.
+ *
+ * Reads the positions {@link findTemplatePriority} lists: `data.templatePriority`
+ * first — the specified home — then the system block and the top level, and
+ * finally the retiring `archetype` spelling in the same two places (#266).
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @param {object} [options] Options.
+ * @param {string} [options.block="sohl"] The system block being compiled.
+ * @returns {number|undefined}  The template priority, or `undefined` when null.
+ * @throws {Error} When the property is absent, is not a number/null, or both
+ *   spellings are present and disagree.
+ */
+export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
+    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
+
     if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
         throw new Error(
             `Conflicting ${NEW} for ${label}: ` +

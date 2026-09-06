@@ -748,3 +748,68 @@ describe("the hm3 half stays a half", () => {
         expect(typeof contentPackage()).toBe("string");
     });
 });
+
+/**
+ * The template priority is a *shared* statement — one note-level fact both
+ * systems record, SoHL as `system.templatePriority` and HM3 as
+ * `flags.hm3.templatePriority` (#266).
+ *
+ * It was resolved here as an ordinary declared field, whose shared source is a
+ * single position, so only a bare top-level `templatePriority` ever answered.
+ * A note authoring it at the *specified* home (`data:`), or at the retiring
+ * `archetype` spelling every unswept tree still uses, wrote no flag at all —
+ * silently, since HM3 omits the flag for a note that is not a template, making
+ * "lost" and "not a template" the same output. `harn-ensemble` authors
+ * `archetype:` on 2,502 notes and `templatePriority` on none.
+ */
+describe("the HM3 template flag reads every position the priority is stated at", () => {
+    // `actorFlags` reads only its arguments, so it is exercised off the
+    // prototype rather than through a constructed compiler, which would want a
+    // content tree on disk to say nothing about this.
+    const flagsFor = (fm: Record<string, unknown>) =>
+        Hm3Actors.prototype.actorFlags.call({}, fm, "hm3") as Record<string, any>;
+
+    it.each([
+        ["the specified home, `data:`", { data: { templatePriority: 3 } }, 3],
+        ["the top level", { templatePriority: 4 }, 4],
+        ["this system's own block", { hm3: { templatePriority: 5 } }, 5],
+        ["the retiring spelling, top level", { archetype: 7 }, 7],
+        ["the retiring spelling, in block", { hm3: { archetype: 8 } }, 8],
+        ["a priority of 0, which is a real one", { data: { templatePriority: 0 } }, 0],
+    ])("writes the flag from %s", (_where, fm, expected) => {
+        expect(flagsFor(fm as Record<string, unknown>).hm3.templatePriority).toBe(expected);
+    });
+
+    it.each([
+        ["states nothing", {}],
+        ["states null — it is not a template", { data: { templatePriority: null } }],
+    ])("writes no flag when the note %s", (_case, fm) => {
+        expect(flagsFor(fm as Record<string, unknown>).hm3).toBeUndefined();
+    });
+
+    it("keeps the flags the note itself authored", () => {
+        const flags = flagsFor({
+            data: { templatePriority: 1 },
+            hm3: { flags: { core: { x: 1 } } },
+        });
+        expect(flags.core).toEqual({ x: 1 });
+        expect(flags.hm3.templatePriority).toBe(1);
+    });
+
+    /**
+     * Deliberate, and the reason `harn-ensemble` is not fixed by this read
+     * alone: it states the priority at `sohl.archetype` on 2,502 notes, and
+     * those notes get their HM3 flag when the tree sweeps to `data:` (step 2 of
+     * #266's migration), not by this pass reaching into another system's block.
+     */
+    it("does not read the other system's block", () => {
+        expect(flagsFor({ sohl: { archetype: 1 } }).hm3).toBeUndefined();
+        expect(flagsFor({ sohl: { templatePriority: 1 } }).hm3).toBeUndefined();
+    });
+
+    it("refuses a note whose two spellings disagree, rather than picking one", () => {
+        expect(() => flagsFor({ data: { templatePriority: null }, archetype: 0 })).toThrow(
+            /Conflicting templatePriority/,
+        );
+    });
+});

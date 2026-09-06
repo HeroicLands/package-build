@@ -48,8 +48,8 @@
 
 import log from "loglevel";
 
-import { resolveName, resolveImg } from "../engine/helpers.mjs";
-import { buildFromFields, readField, STRING } from "../engine/field-spec.mjs";
+import { resolveName, resolveImg, statedTemplatePriority } from "../engine/helpers.mjs";
+import { buildFromFields, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
@@ -101,21 +101,6 @@ const CHARACTER_FIELDS = Object.freeze([
         describe: "What the character does for a living.",
     },
 ]);
-
-/**
- * The template priority a note declares, which HM3 keeps in flags.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-const TEMPLATE_PRIORITY = Object.freeze({
-    name: "templatePriority",
-    to: "templatePriority",
-    shape: "number or unset",
-    kind: "number",
-    read: (raw) => (raw == null || raw === "" ? null : Number(raw)),
-    default: null,
-    describe: "Template priority; unset for an actor that is not a template.",
-});
 
 /**
  * Default art per HM3 actor **subtype**, applied when the note supplies no
@@ -327,18 +312,39 @@ export class Hm3Actors extends SystemActorCompiler {
      * flag scope. A note that is not a template writes nothing, rather than a
      * `null` nothing reads.
      *
+     * **Read through the shared resolver, not this pass's field declaration**
+     * (#266). A `FieldSpec`'s shared source is a single position, and this value
+     * has five: `data:`, this block, the top level, and the retiring `archetype`
+     * spelling in the latter two. Resolved as an ordinary field, only a bare
+     * top-level `templatePriority` ever answered — so a note authoring it at the
+     * *specified* home wrote no flag at all, silently: an omitted flag is exactly
+     * how this pass says "not a template", so a lost priority and a deliberate
+     * one look identical. That made `data.templatePriority` — the home every
+     * tree is migrating to, and the one this docstring already claimed to read —
+     * the one position that did not work.
+     *
+     * The resolver is the single implementation of what a note said, so the two
+     * systems cannot disagree about it. It is read against **this** block: the
+     * `sohl:` block is not a source for an HM3 document, so a tree that still
+     * states the priority there (`harn-ensemble`, on 2,502 notes) writes no HM3
+     * flag until it sweeps to `data:` — which is step 2 of #266's migration, and
+     * which this fix is the prerequisite for rather than a substitute for.
+     *
      * @param {object} fm - The note's frontmatter.
      * @param {string} block - This pass's system block.
      * @returns {object} The flags to emit.
      */
     actorFlags(fm, block) {
         const authored = blockProperty(fm, block, "flags", {});
-        const value = readField(TEMPLATE_PRIORITY, fm, { block });
-        if (value == null) return authored;
+        const stated = statedTemplatePriority(fm, resolveName(fm), { block });
+        if (stated == null) return authored;
+        // Coerced, as the field declaration this replaced coerced it: a note
+        // may state the priority as a YAML string, and `"3"` is a priority.
+        const value = Number(stated);
         if (!Number.isFinite(value)) {
             log.warn(
-                `${resolveName(fm)}: \`data.templatePriority\` is not a ` +
-                    `number; no template flag written.`,
+                `${resolveName(fm)}: template priority ${JSON.stringify(stated)} is ` +
+                    `not a number; no template flag written.`,
             );
             return authored;
         }
