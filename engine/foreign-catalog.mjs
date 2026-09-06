@@ -51,6 +51,7 @@ import {
     metadataRelationships,
     metadataCacheDir,
     metadataFileName,
+    newestVersionDir,
     isComplete as metadataIsComplete,
     markComplete as markMetadataComplete,
 } from "./metadata-index.mjs";
@@ -657,10 +658,13 @@ export function foreignItemCatalogDirs(config) {
                     `fetched. Run \`content-build deps fetch\` first.`,
             );
         }
-        // Newest last wins if several versions are cached; a fetch always
-        // writes the currently declared one, so that is the one to use.
-        cached.sort();
-        const items = itemsDir(cached[cached.length - 1]);
+        // Newest wins if several versions are cached; a fetch always writes
+        // the currently declared one, so that is the one to use. The
+        // comparison is the content-index cache's, shared rather than
+        // rewritten: a plain string sort would put `0.8.10` before `0.8.2` and
+        // silently resolve every embedded item against the older catalogue
+        // (#272).
+        const items = itemsDir(newestVersionDir(cached));
         for (const name of fs.readdirSync(items)) {
             dirs.push(path.join(items, name));
         }

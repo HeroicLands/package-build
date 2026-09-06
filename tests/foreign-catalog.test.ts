@@ -186,6 +186,21 @@ describe("reading the catalogue cache", () => {
         ]);
     });
 
+    it("compares version segments numerically, so 0.8.10 beats 0.8.2 (#272)", () => {
+        // A plain string sort puts `0.8.10` before `0.8.2`, and the build
+        // would then resolve its embedded item references against the older
+        // catalogue with nothing to report it: both caches are complete and
+        // stamped, and the wrong one is a perfectly valid catalogue.
+        for (const v of ["0.8.2", "0.8.10"]) {
+            const dir = path.join(root, `sohl@${v}`);
+            fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
+            fs.writeFileSync(path.join(dir, ".complete"), `${v}\n`);
+        }
+        expect(foreignItemCatalogDirs(config(root))).toEqual([
+            path.join(root, "sohl@0.8.10", "items", "items"),
+        ]);
+    });
+
     it("asks for nothing when no relationship opted in", () => {
         expect(
             foreignItemCatalogDirs({
