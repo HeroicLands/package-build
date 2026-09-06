@@ -384,7 +384,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
 
     it("still resolves a foreign macro's documentation through the prefix", () => {
         const idx = buildWikilinkIndex(localOnlyDocs, "sohl", foreign, "sohl");
-        const out = convertWikilinks("[[thalorna-docmacro-summon|S]]", {
+        const out = convertWikilinks("[[thalorna-none-docmacro-summon|S]]", {
             type: "doc",
             id: "src0000000000000",
             index: idx,

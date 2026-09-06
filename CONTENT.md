@@ -991,6 +991,43 @@ folded in every note's `name.full` and so decided what a note could be named
 `[[type-shortcode|Text]]`, and declaring `aliases:` is refused naming the file
 and the line.
 
+### Writing a link: the address grammar
+
+Every wikilink is an address, and omission runs **strictly left to right**:
+
+```text
+[[[[<package>-]<system>-]<type>-]<shortcode>]
+```
+
+So the written forms are exactly the suffixes of the canonical address:
+
+| Form                            | Example                              | Means                             |
+| ------------------------------- | ------------------------------------ | --------------------------------- |
+| `type-shortcode`                | `[[skill-clmb\|Climbing]]`           | This package, any system.         |
+| `system-type-shortcode`         | `[[sohl-skill-clmb\|Climbing]]`      | This package, the `sohl` system.  |
+| `package-system-type-shortcode` | `[[thalorna-sohl-being-grod\|Grod]]` | Another package, fully qualified. |
+
+**There is no `package-type-shortcode`.** Naming a package means naming the
+system before the type, because the segments are positional rather than tagged.
+A link into another package must therefore be fully qualified — which is the
+price of a grammar that needs no vocabulary to parse.
+
+**An omitted system is a wildcard; an omitted package is a default.** Most links
+target items, which belong to a system, so a target naming none matches a note
+under any of them and exactly one hit is required — two claimants is an
+_ambiguity_, a different finding with a different fix from resolving nowhere. A
+target naming no package means the citing note's own, so an unqualified link
+resolves locally and only locally.
+
+**`sohl` is both a package and a system**, and positional counting is what makes
+that harmless: three segments name a _system_ whatever the first segment could
+also have meant, and four is the full form.
+
+**Parsing is plain segment counting**, the same rule the canonical key follows,
+and it is sound because every segment is `^[A-Za-z0-9]+$` — so a hyphen is
+purely a separator. A target with five segments is not a hyphenated shortcode;
+it is a name, and not an address.
+
 **`name.aliases` is kept, and is read by nothing.** It fed the same index and
 lost the same reader, but unlike the top-level list it is **reserved** — held
 for a use that does not exist yet. So it is the one field in the format that is
