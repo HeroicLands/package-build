@@ -80,6 +80,7 @@ import {
     readAliasedField,
     retiredAliasMessage,
     sectionRetiredMessage,
+    traitsRetiredMessage,
 } from "./retired-fields.mjs";
 
 /**
@@ -851,6 +852,18 @@ export function lintNote(
             ...positionInFrontmatter(raw(), "section", undefined, { topLevel: true }),
             severity: "error",
             message: sectionRetiredMessage(),
+        });
+    }
+    // Anchored at column 1 for the same reason `section` is, and with more at
+    // stake: `sohl.traits` is a *different field that shares the name* —
+    // `projectilegear` declares one and the theme's gear sidebar reads it — so
+    // a finding about the retired top-level block must never open on it (#291).
+    if (Object.hasOwn(fm, "traits")) {
+        findings.push({
+            file: note.file,
+            ...positionInFrontmatter(raw(), "traits", undefined, { topLevel: true }),
+            severity: "error",
+            message: traitsRetiredMessage(),
         });
     }
     // Only the top-level `aliases` is retired. `name.aliases` writes the same
