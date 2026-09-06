@@ -28,7 +28,7 @@
  * | `<system>.flags` | `document.flags` |
  * | `<system>.pack` | *nothing on the document* — a build directive naming the compendium |
  *
- * Everything else a system declares — `archetype`, `kbcat`, and the
+ * Everything else a system declares — `templatePriority`, `kbcat`, and the
  * *generators* `items` and `attributes`, which expand into embedded documents
  * rather than mapping anywhere — sits directly under the block, which is why it
  * has to be somewhere the schema cannot claim.
@@ -148,7 +148,7 @@ export const BLOCK_DIRECTIVES = Object.freeze(["pack"]);
 /**
  * Every key any system block may carry, whatever the system.
  *
- * A system adds its own on top — `archetype`, `kbcat` and the generators — and
+ * A system adds its own on top — `templatePriority`, `kbcat` and the generators — and
  * names them where it declares its vocabulary; see {@link unknownBlockKeys}.
  *
  * @type {ReadonlySet<string>}

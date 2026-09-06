@@ -27,7 +27,7 @@
  *
  * - **The map**, declared in `document-subtypes.mjs` and named here, which
  *   decides which notes this pass claims and what each one becomes (#79).
- * - **`commonSystem`** — `shortcode`, `archetype`, `actionDefs`, `notes` and
+ * - **`commonSystem`** — `shortcode`, `templatePriority`, `actionDefs`, `notes` and
  *   `docHtml`, which SoHL's compiler writes on every item of every type and no
  *   field declaration states.
  *
@@ -37,7 +37,7 @@
  * @module
  */
 
-import { systemArchetype } from "../engine/helpers.mjs";
+import { systemTemplatePriority } from "../engine/helpers.mjs";
 import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 
@@ -53,7 +53,7 @@ export class Items extends SystemItemCompiler {
 
     /**
      * The `system.*` fields SoHL writes on every item, whatever its type:
-     * shortcode, archetype, actionDefs, notes, docHtml.
+     * shortcode, templatePriority, actionDefs, notes, docHtml.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {object} at - What the pass already knows about this note.
@@ -65,8 +65,12 @@ export class Items extends SystemItemCompiler {
         return {
             shortcode: fm.shortcode,
             // Required nullable number: a priority, or `null` for a document
-            // that is not an archetype (#126 / archetype contract #604).
-            archetype: systemArchetype(fm, label),
+            // that is not a template (#126 / archetype contract #604). The
+            // field was `system.archetype` until #266 / sohl#1836; the receiving
+            // schema declares only the new name, so the emitted key moves with
+            // it — an undeclared `system` key is discarded at construction
+            // without a warning.
+            templatePriority: systemTemplatePriority(fm, label),
             actionDefs: Array.isArray(fm.actionDefs) ? fm.actionDefs : [],
             notes: "",
             docHtml: description || "",

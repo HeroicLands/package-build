@@ -595,7 +595,7 @@ export class BasePackCompiler {
      * The sibling of {@link BasePackCompiler#reportUndeclaredSystemData}, and
      * the half that sees what no declaration states. A compiler writes keys of
      * its own alongside the declared fields — `shortcode`, `actionDefs`,
-     * `notes`, `docHtml`, `archetype` — and neither the field-declaration check
+     * `notes`, `docHtml`, `templatePriority` — and neither the field-declaration check
      * nor the authored-`system` check can see them, so until this nothing
      * compared them at all. Foundry's discard is the same silent one either
      * way.

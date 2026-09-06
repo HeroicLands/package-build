@@ -39,7 +39,7 @@
  *
  * **The rest of the emission is only observable.** A compiler writes keys of
  * its own alongside the declared fields — `shortcode`, `actionDefs`, `notes`,
- * `docHtml`, and since #126 `archetype` — and those appear in neither set
+ * `docHtml`, and since #126 `templatePriority` — and those appear in neither set
  * {@link compareFields} compares, so nothing compared them at all (#155). They
  * cannot be listed here without the list going stale the next time a compiler
  * grows a key, so they are read off the `system` object the compiler produced:
@@ -357,7 +357,7 @@ function undeclaredEmittedPaths(data, declared, enumerated, prefix = "") {
  * *observed*. {@link compareFields} reads the `itemBuilders` declarations and
  * {@link checkAuthoredSystemData} reads a note's `<system>.system`; between them
  * they miss every key a compiler writes on its own initiative, which is not a
- * residue — it is `shortcode`, `actionDefs`, `notes`, `docHtml` and `archetype`.
+ * residue — it is `shortcode`, `actionDefs`, `notes`, `docHtml` and `templatePriority`.
  *
  * **The keys come from the object the compiler built, after a JSON round trip.**
  * That is exactly what the pack file receives, so a key whose value is
