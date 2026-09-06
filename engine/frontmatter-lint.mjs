@@ -890,7 +890,18 @@ export function lintNote(
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
 
-    for (const { locator, message } of checkHomepageAddressFields(fm)) {
+    // A refused field must be one the note *wrote*: `resolveNoteId` fills
+    // `fm.id` in place, so the parsed frontmatter carries a derived id the
+    // author never typed (#319). The raw text is the only place that
+    // distinguishes them, and `positionInFrontmatter` already answers it —
+    // `topLevel` so a nested `id:` under some other key is not mistaken for the
+    // note's own.
+    const authoredAtTopLevel = (key) =>
+        positionInFrontmatter(note.raw ?? "", key, undefined, { topLevel: true }).line !==
+        undefined;
+    for (const { locator, message } of checkHomepageAddressFields(fm, {
+        isAuthored: authoredAtTopLevel,
+    })) {
         findings.push({
             file: note.file,
             ...at(locator.key, locator.literal),
