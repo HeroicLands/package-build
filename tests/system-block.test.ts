@@ -393,3 +393,45 @@ describe("a field declaration reads through the block", () => {
         expect(readField(contained[0], own)).toBe(7);
     });
 });
+
+/* --------------------------------------------------------------------- */
+/*  A declared leaf holds values, not fields (#126)                       */
+/* --------------------------------------------------------------------- */
+
+describe("undeclaredPaths stops descending at a declared leaf", () => {
+    it("does not report the keys of a declared dynamic-key map", () => {
+        // `skillAptitudes` is a map of *skill selector → modifier*: the schema
+        // declares the container and nothing beneath it, because what is
+        // beneath is data. Walking into it reports one undeclared field per
+        // authored entry — ~40 false positives when this was first met, and one
+        // per key on every note the corpus moves under `<system>.system` (#126).
+        const declared = new Set(["skillAptitudes", "subType"]);
+        const data = { subType: "grimoire", skillAptitudes: { zepharis: 2, "subType:social": 1 } };
+        expect(undeclaredPaths(data, declared)).toEqual([]);
+    });
+
+    it("still descends where the schema declares children", () => {
+        // `body.structure` declares `parts` and `zones`, so it is a real
+        // container and an undeclared sibling under it is a real finding.
+        const declared = new Set([
+            "body",
+            "body.structure",
+            "body.structure.parts",
+            "body.structure.zones",
+        ]);
+        const data = { body: { structure: { parts: [], zones: [], adjacent: [] } } };
+        expect(undeclaredPaths(data, declared)).toEqual(["body.structure.adjacent"]);
+    });
+
+    it("still reports an undeclared container at its own path", () => {
+        expect(undeclaredPaths({ wieght: { base: 1 } }, new Set(["weight"]))).toEqual(["wieght"]);
+    });
+
+    it("treats a declared leaf holding a nested map as a value too", () => {
+        // A TypedSchemaField — `strikeModes` — is declared as a bare path and
+        // its contents are discriminated data, not schema paths.
+        const declared = new Set(["strikeModes"]);
+        const data = { strikeModes: { impale: { type: "melee", impact: { die: 6 } } } };
+        expect(undeclaredPaths(data, declared)).toEqual([]);
+    });
+});
