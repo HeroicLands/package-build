@@ -100,8 +100,17 @@ describe("packForType (content type → the pack it compiles into)", () => {
                 docType: "Scene",
             });
         }
+        // A bundle compiles into an Adventure — the installer a set of
+        // documents is packaged as (#259). Conventionally the `adventures`
+        // pack, which is also what the scenes pass calls its companion; a
+        // repository shipping both names them apart.
+        expect(packForType("bundle")).toEqual({
+            pack: "adventures",
+            docType: "Adventure",
+        });
         expect(Object.keys(PACK_BY_TYPE).sort()).toEqual([
             "being",
+            "bundle",
             "doc",
             "lore",
             "macro",

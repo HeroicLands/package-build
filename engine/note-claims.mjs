@@ -71,6 +71,7 @@ import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
+import { BUNDLE_TYPE } from "./bundle-notes.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /**
@@ -210,6 +211,12 @@ export function noteTypesClaimedBy(docType, sources) {
             return Object.freeze(new Set(["macro"]));
         case "Scene":
             return Object.freeze(new Set(MAP_TYPES));
+        // The bundles pass: an Adventure is what a `bundle` note compiles into
+        // (#259). A **prebuilt** Adventure pack still claims nothing —
+        // {@link claimedNoteTypes} passes over it, because no note is routed
+        // into a pack whose JSON is checked in rather than compiled.
+        case "Adventure":
+            return Object.freeze(new Set([BUNDLE_TYPE]));
         default:
             return Object.freeze(new Set());
     }
@@ -222,6 +229,15 @@ export function noteTypesClaimedBy(docType, sources) {
  * is claimed — which is what keeps a type deliberately unmapped for one system,
  * and claimed for another, silent (#79).
  *
+ * **A prebuilt pack claims nothing.** Its per-document JSON is checked in
+ * rather than compiled, so it has no pass and no note is routed into one —
+ * which `content-config.mjs` already states by refusing `default: true`
+ * alongside `prebuilt`. Counting it would tell an author their note is claimed
+ * by a pack that will never look at it. Before #259 the point could not arise:
+ * the only prebuilt pack in the wild is `harn-adventures`'s Adventure pack, and
+ * no compiler was registered for that document type, so the row answered for
+ * nothing whatever it was asked. Now one is.
+ *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
@@ -230,6 +246,7 @@ export function noteTypesClaimedBy(docType, sources) {
 export function claimedNoteTypes(config = loadPackConfig(), sources) {
     const claimed = new Set();
     for (const pack of config.packs ?? []) {
+        if (pack.prebuilt) continue;
         for (const type of noteTypesClaimedBy(pack.type, sources)) claimed.add(type);
     }
     return Object.freeze(claimed);

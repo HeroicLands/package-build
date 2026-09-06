@@ -50,6 +50,7 @@ import { Hm3Items } from "../hm3/items.mjs";
 import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
+import { Bundles } from "./bundles.mjs";
 import {
     statsForPack,
     loadFolders,
@@ -75,12 +76,14 @@ import { contentPackage } from "./content-package.mjs";
  * declaring a type nothing can compile is loud at the first pass instead of
  * shipping empty.
  *
- * **Two of the five are a system's, and the SoHL pair is not a default.** An
+ * **Two of the six are a system's, and the SoHL pair is not a default.** An
  * Item or an Actor *is* a system's data — both passes declare
  * `requiresSystemBlock` — so which compiler a pack gets is decided together
- * with which system it declares; see {@link SYSTEM_COMPILERS}. The three
- * system-neutral passes have one implementation because a JournalEntry, a Macro
- * and a Scene are Foundry's documents rather than any system's.
+ * with which system it declares; see {@link SYSTEM_COMPILERS}. The four
+ * system-neutral passes have one implementation because a JournalEntry, a
+ * Macro, a Scene and an Adventure are Foundry's documents rather than any
+ * system's — an `Adventure` does not even have a `system` field, which is why a
+ * bundle spanning two systems is two documents (#259).
  */
 const COMPILERS = {
     Item: Items,
@@ -88,6 +91,7 @@ const COMPILERS = {
     Actor: Actors,
     Macro: Macros,
     Scene: Scenes,
+    Adventure: Bundles,
 };
 
 /**
@@ -173,6 +177,45 @@ export function itemPackJsonDirs(config = loadPackConfig(), system = null) {
         .filter((pack) => pack.type === "Item")
         .filter((pack) => system == null || !pack.system || pack.system === system)
         .map((pack) => packJsonDir(pack.name, config));
+}
+
+/**
+ * The compiled JSON a bundle may hold copies of, by document type.
+ *
+ * An `Adventure` carries **copies**, not references, so a bundle resolves its
+ * `contents` against compiled output rather than against the content tree — the
+ * same arrangement the actors pass has for `itemsSourceDirs`, generalised to
+ * every document class an Adventure can hold (#259).
+ *
+ * Two kinds of pack are left out, each because it holds nothing a note
+ * addresses. A **prebuilt** pack's JSON is checked in rather than compiled, so
+ * no note is routed into it and nothing in it answers to an address. An
+ * **Adventure** pack holds Adventures, and Foundry's `contentFields` has no
+ * field for one — a bundle of bundles is not a shape the document admits.
+ *
+ * **Scoped to one system when the pack has one**, exactly as
+ * {@link itemPackJsonDirs} is: a pack declaring `system: sohl` reads that
+ * system's packs and the system-neutral ones, so a `(type, shortcode)` that
+ * exists in two systems is read out of the right catalogue. Asking for no
+ * system reads them all, which is every single-system build.
+ *
+ * @param {object} [config] - The resolved build configuration. Defaults to this
+ *   repository's.
+ * @param {string|null} [system] - The system whose documents are wanted.
+ *   Omitted or `null`, every pack is read.
+ * @returns {Record<string, string[]>} Each readable pack's JSON directory, by
+ *   the Foundry document type it holds.
+ */
+export function bundleSourceJsonDirs(config = loadPackConfig(), system = null) {
+    /** @type {Record<string, string[]>} */
+    const dirs = {};
+    for (const pack of config.packs) {
+        if (pack.prebuilt) continue;
+        if (pack.type === "Adventure") continue;
+        if (system != null && pack.system && pack.system !== system) continue;
+        (dirs[pack.type] ??= []).push(packJsonDir(pack.name, config));
+    }
+    return dirs;
 }
 
 /**
@@ -414,6 +457,11 @@ async function generatePack(
         // cache throws naming `content-build deps fetch` rather than
         // downloading inside a compile.
         foreignSourceDirs: foreignItemCatalogDirs(config),
+        // The bundles pass resolves each Adventure's members against the output
+        // of every pass that produces one. Stated from the configured pack list
+        // for the same reason `itemsSourceDirs` is (#1508), and scoped to this
+        // pack's system so a bundle holds the catalogue it is compiled for.
+        bundleSourceDirs: bundleSourceJsonDirs(config, system ?? null),
         folderResolver: resolver,
         // One answer to "which files are the corpus?", from the configuration
         // this build resolved rather than from the working directory (#243).
@@ -561,11 +609,20 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
 
     // A companion pack has no pass of its own — naming it selects the pass that
     // writes it, so `compile adventures` is not a silent no-op.
+    //
+    // A **prebuilt** pack has no pass either, and for a plainer reason: its
+    // per-document JSON is checked in. Passed over rather than compiled — which
+    // it could not be before #259, since the only prebuilt pack in the wild
+    // holds Adventures and no compiler was registered for that document type,
+    // so the pack failed the build with "no compiler for document type". Now
+    // one is registered, and running it would wipe `build/packs-json/<name>/`
+    // and write nothing into it — then report the empty pass as an error.
     const packs = config.packs.filter(
         (pack) =>
-            !only ||
-            pack.name === only ||
-            pack.companions.some((companion) => companion.name === only),
+            !pack.prebuilt &&
+            (!only ||
+                pack.name === only ||
+                pack.companions.some((companion) => companion.name === only)),
     );
     // One router per configuration, so every pass agrees about where a note
     // goes, and the first pack of each document type owns the error message for

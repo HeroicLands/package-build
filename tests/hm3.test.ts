@@ -29,6 +29,7 @@ import { configFromData } from "../engine/pack-config.mjs";
 import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { compilerFor } from "../engine/generate.mjs";
+import { Bundles } from "../engine/bundles.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { HM3_ITEM_BUILDERS } from "../hm3/item-builders.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
@@ -259,8 +260,18 @@ describe("compilerFor — the pass a pack of one system gets", () => {
         expect(compilerFor("JournalEntry", "hm3")).toBe(compilerFor("JournalEntry", null));
     });
 
+    it("gives an Adventure pack the bundles pass, whichever system it declares", () => {
+        // An `Adventure` has no `system` field, so a bundle is not a system's
+        // data and there is nothing for a per-system compiler to differ about:
+        // a bundle spanning two systems is two documents, and the pack each is
+        // written to is what carries the system (#259).
+        expect(compilerFor("Adventure", "hm3")).toBe(Bundles);
+        expect(compilerFor("Adventure", null)).toBe(Bundles);
+    });
+
     it("has no compiler for a document type nothing compiles", () => {
-        expect(compilerFor("Adventure", "hm3")).toBeUndefined();
+        expect(compilerFor("Cards", "hm3")).toBeUndefined();
+        expect(compilerFor("RollTable", null)).toBeUndefined();
     });
 });
 
