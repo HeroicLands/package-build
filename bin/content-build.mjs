@@ -753,6 +753,11 @@ function lintCommand() {
                     // whatever it is handed and this stays the one place that
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
+                    // The pack names, for a `data:` field keyed by pack — a
+                    // folder's `parent` is one (#288). Companions included:
+                    // the compile asks the map for whichever pack it is
+                    // writing, and a companion is a pack it writes.
+                    packs: config.packDirectories,
                     references: argv.references,
                 });
 

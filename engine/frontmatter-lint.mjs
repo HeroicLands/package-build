@@ -66,6 +66,10 @@ import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
+// The one place the "every pack not named" key is spelled. Imported rather
+// than repeated, because a linter holding its own copy of what the compiler
+// reads is exactly the disagreement #288 was.
+import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
@@ -217,9 +221,31 @@ export function matchesKind(value, kind) {
                 (typeof value === "object" && value !== null && !Array.isArray(value)) ||
                 (Array.isArray(value) && value.length === 0)
             );
+        case "scalar-or-map":
+            // A scalar, or a map of them. The map's *entries* are checked
+            // separately, by the caller that can name the key at fault; all
+            // this answers is whether the value has one of the two shapes the
+            // field admits. A list has neither.
+            return matchesKind(value, "string") || matchesKind(value, "map");
         default:
             return true;
     }
+}
+
+/**
+ * The entries of a `scalar-or-map` value written in its map form, or `null`
+ * where it was written as the scalar.
+ *
+ * The empty-list spelling of an emptied map ({@link matchesKind}) has no
+ * entries, so it reads the same as `{}` here too.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {Record<string, unknown>|null} Its entries, or `null` for a scalar.
+ */
+function mapEntries(value) {
+    if (Array.isArray(value)) return value.length === 0 ? {} : null;
+    if (typeof value !== "object" || value === null) return null;
+    return /** @type {Record<string, unknown>} */ (value);
 }
 
 /**
@@ -262,9 +288,14 @@ function dataBlock(fm) {
  * @param {object} opts
  * @param {string} opts.type - The note's type, for the message.
  * @param {readonly object[]} opts.fields - The type's `data:` declaration.
+ * @param {readonly string[]} [opts.packs] - The pack names this package
+ *   declares, against which a `keys: "pack"` map's keys are checked. Absent,
+ *   no claim is made about them: a caller that cannot see the configuration
+ *   knows no pack names, and reporting every key as unknown because nothing
+ *   was loaded to recognise it would be worse than not checking.
  * @returns {object[]} Findings.
  */
-function checkDataContainer(note, { type, fields }) {
+function checkDataContainer(note, { type, fields, packs }) {
     const findings = [];
     const { present, entries, malformed } = dataBlock(note.fm ?? {});
     if (!present) return findings;
@@ -308,13 +339,91 @@ function checkDataContainer(note, { type, fields }) {
             value = value && typeof value === "object" ? value[segment] : undefined;
         }
         if (value === undefined || value === null) continue;
-        if (matchesKind(value, field.kind)) continue;
+        if (!matchesKind(value, field.kind)) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+                severity: "error",
+                message:
+                    `\`data.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                    `but reads ${JSON.stringify(value)}`,
+            });
+            continue;
+        }
+        // A `scalar-or-map` written in its map form is checked entry by entry,
+        // because that is the correction an author has to make: one key's
+        // value, not the whole map. Quoting the map back would name every
+        // entry that is right alongside the one that is not.
+        const written = field.kind === "scalar-or-map" ? mapEntries(value) : null;
+        if (written) {
+            findings.push(
+                ...checkKeyedMap(note, { field, segments, entries: written, raw, packs }),
+            );
+        }
+    }
+
+    return findings;
+}
+
+/**
+ * Check one `scalar-or-map` field written in its map form, entry by entry.
+ *
+ * Two separate statements are checked, and they fail independently: whether a
+ * key names something — a pack, for `keys: "pack"` — and whether the value
+ * under it has the shape one entry is declared to have. A key nobody declares
+ * is not a harmless surplus: the compiler asks the map for the pack it is
+ * compiling and takes `default` when there is no such key, so a mistyped
+ * `journal:` silently files the folder wherever the default puts it, which is
+ * exactly the hierarchy the author wrote the key to override.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {object} opts.field - The field's declaration.
+ * @param {readonly string[]} opts.segments - Its path under `data:`.
+ * @param {Record<string, unknown>} opts.entries - The map's entries.
+ * @param {string} opts.raw - The note's raw text, for positions.
+ * @param {readonly string[]} [opts.packs] - The declared pack names, if known.
+ * @returns {object[]} Findings, one per offending entry.
+ */
+function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
+    const findings = [];
+    const known = field.keys === "pack" && packs?.length ? new Set(packs) : undefined;
+
+    for (const [key, value] of Object.entries(entries)) {
+        const path = ["data", ...segments, key];
+        const named = `data.${field.name}.${key}`;
+
+        // `default` is the map's own key for "every pack not named", not a
+        // pack — spelled out rather than left as an absent key, so a map
+        // stating only exceptions still reads as a complete answer (#276).
+        if (known && key !== DEFAULT_PARENT && !known.has(key)) {
+            const guess = nearest(key, known);
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, path, { key: true }),
+                severity: "error",
+                message:
+                    `"${key}" is not a pack this package declares, so ` +
+                    `\`${named}\` states a hierarchy nothing reads` +
+                    (guess ? `. Did you mean "${guess}"?` : ""),
+            });
+            continue;
+        }
+
+        // An explicit `~` under a key is a statement, not an omission: it says
+        // "at the root there", which is different from saying nothing.
+        if (value === undefined || value === null) continue;
+        if (matchesKind(value, "string")) continue;
         findings.push({
             file: note.file,
-            ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+            // On the key, not the value: an entry whose value is itself a map
+            // begins on the *next* line, so pointing at the value lands a
+            // reader inside the thing that is wrong rather than on the entry
+            // the message names.
+            ...positionOfFrontmatterPath(raw, path, { key: true }),
             severity: "error",
             message:
-                `\`data.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                `\`${named}\` should be ${field.entryShape ?? "a scalar"}, ` +
                 `but reads ${JSON.stringify(value)}`,
         });
     }
@@ -600,9 +709,16 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check, and what each accepts. See
  *   {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {readonly string[]} [opts.packs] - The pack names this package
+ *   declares, for a `data:` field whose map is keyed by pack. Supplied by the
+ *   caller like `schemas` and `vocabulary`, and absent it no claim is made
+ *   about those keys.
  * @returns {object[]} Findings, each with a locator where one is obtainable.
  */
-export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_SYSTEM_BLOCKS }) {
+export function lintNote(
+    note,
+    { schemas, index, vocabulary, packs, systems = DEFAULT_SYSTEM_BLOCKS },
+) {
     const findings = [];
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
@@ -821,7 +937,7 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // to recognise it would be worse than not checking.
     const entry = vocabulary?.[type];
     if (entry) {
-        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [] }));
+        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [], packs }));
         findings.push(...checkSubType(note, { type, entry }));
     }
 
@@ -982,10 +1098,12 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
  * @param {boolean} [opts.references=true] - Whether to check references.
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {readonly string[]} [opts.packs] - The declared pack names; see
+ *   {@link lintNote}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(index, { schemas, vocabulary, references = true, systems }) {
+export function lintFrontmatter(index, { schemas, vocabulary, packs, references = true, systems }) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -997,6 +1115,7 @@ export function lintFrontmatter(index, { schemas, vocabulary, references = true,
             ...lintNote(note, {
                 schemas,
                 vocabulary,
+                packs,
                 index: references ? index : undefined,
                 ...(systems ? { systems } : {}),
             }),
