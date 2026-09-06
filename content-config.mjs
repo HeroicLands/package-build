@@ -102,6 +102,13 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     // Where a dependency declaring `itemCatalog: true` is unpacked. Under
     // `build/` because it is derived, disposable, and version-keyed.
     foreignCache: "build/cache/foreign",
+    // Where a dependency's published content index is fetched to (#239). A
+    // sibling of the item catalogue rather than a subdirectory of it: the two
+    // are fetched for different dependency sets — a catalogue only where
+    // `itemCatalog: true` is declared, an index for *every* declared
+    // dependency — so nesting one under the other would imply a containment
+    // that does not hold.
+    metadataCache: "build/cache/metadata",
 });
 
 /**
@@ -318,6 +325,14 @@ export function publishesContentPages(config) {
  * @property {string} [packJson]         Build-only per-entry JSON intermediate.
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
+ * @property {string} [foreignCache]     Where a dependency declaring
+ *                                       `itemCatalog: true` is unpacked.
+ *                                       Inbound, and fetched rather than
+ *                                       committed.
+ * @property {string} [metadataCache]    Where a dependency's published content
+ *                                       index is fetched to (#239). Inbound,
+ *                                       for *every* declared dependency, not
+ *                                       only those supplying a catalogue.
  */
 
 /**
@@ -331,6 +346,8 @@ export function publishesContentPages(config) {
  * @property {string} packJson
  * @property {string} stage
  * @property {string} unpack
+ * @property {string} foreignCache
+ * @property {string} metadataCache
  */
 
 /**

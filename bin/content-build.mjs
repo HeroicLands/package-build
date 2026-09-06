@@ -67,8 +67,11 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 import {
     fetchAllCatalogs,
     fetchCatalogFromPath,
+    fetchAllMetadata,
+    fetchMetadataFromPath,
     itemCatalogRelationships,
 } from "../engine/foreign-catalog.mjs";
+import { metadataRelationships } from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -1496,8 +1499,14 @@ function reachabilityCommand() {
 
 // eslint-disable-next-line
 /**
- * `deps fetch` — fill the item-catalogue cache for every dependency that
- * declares `itemCatalog: true`.
+ * `deps fetch` — fill the caches this build resolves other packages through:
+ * the **content index** of every declared dependency (#239), and the **item
+ * catalogue** of those additionally declaring `itemCatalog: true`.
+ *
+ * The two sets differ deliberately. Citing another package's *addresses* and
+ * embedding its *items* are separate edges, and a package may have either
+ * without the other — `harn-ensemble` cites no foreign address and embeds
+ * 324,016 item references.
  *
  * Its own command rather than a step of `package compile`, so that a compile
  * never reaches the network. A build that downloads silently is not
@@ -1521,7 +1530,11 @@ function reachabilityCommand() {
  * @returns {Promise<void>}
  */
 async function fetchFromLocalArtifact(config, argv) {
-    const rels = itemCatalogRelationships(config);
+    // Two caches, two dependency sets: an index is fetched for every declared
+    // dependency, a catalogue only for those declaring `itemCatalog: true`
+    // (#239). `--from` fills whichever of them this dependency belongs to, so
+    // that testing against an unreleased build behaves like a release would.
+    const rels = metadataRelationships(config);
     const named = rels.map((r) => r.id).join(", ") || "none";
     const rel =
         argv.id ? rels.find((r) => r.id === argv.id)
@@ -1532,11 +1545,14 @@ async function fetchFromLocalArtifact(config, argv) {
         // config is the only place that says which those are.
         throw new Error(
             argv.id ?
-                `no dependency "${argv.id}" declares \`itemCatalog: true\` (declared: ${named})`
-            :   `--from needs --id when several dependencies declare \`itemCatalog: true\` (declared: ${named})`,
+                `no declared dependency "${argv.id}" (declared: ${named})`
+            :   `--from needs --id when a package declares several dependencies (declared: ${named})`,
         );
     }
-    await fetchCatalogFromPath(config, rel, argv.from);
+    await fetchMetadataFromPath(config, rel, argv.from);
+    if (itemCatalogRelationships(config).some((r) => r.id === rel.id)) {
+        await fetchCatalogFromPath(config, rel, argv.from);
+    }
 }
 
 function depsCommand() {
@@ -1562,7 +1578,7 @@ function depsCommand() {
             yargs.option("id", {
                 describe:
                     "Which declared dependency `--from` supplies. Only needed " +
-                    "when more than one declares `itemCatalog: true`.",
+                    "when a package declares more than one.",
                 type: "string",
             });
         },
@@ -1573,8 +1589,11 @@ function depsCommand() {
                     await fetchFromLocalArtifact(config, argv);
                     return;
                 }
+                const indexes = await fetchAllMetadata(config);
+                if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);
                 if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
+                if (!indexes && !count) log.info("This package declares no dependencies.");
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

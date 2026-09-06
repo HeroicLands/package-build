@@ -47,6 +47,14 @@ import { extractPack } from "@foundryvtt/foundryvtt-cli";
 
 import log from "loglevel";
 
+import {
+    metadataRelationships,
+    metadataCacheDir,
+    metadataFileName,
+    isComplete as metadataIsComplete,
+    markComplete as markMetadataComplete,
+} from "./metadata-index.mjs";
+
 /** Written once a fetch completes, so a half-finished cache is never used. */
 const STAMP = ".complete";
 
@@ -424,6 +432,185 @@ export async function fetchCatalogFromPath(config, rel, source) {
     } finally {
         fs.rmSync(staging, { recursive: true, force: true });
     }
+}
+
+/**
+ * Fetch one dependency's published content index (#239).
+ *
+ * **The chain is entirely declared.** The relationship names the dependency's
+ * manifest, the manifest advertises `flags.metadataUrl`, and that URL is the
+ * index — so nothing here holds an address of its own, and a dependency that
+ * moves its release assets does not break its consumers.
+ *
+ * Pinned by the same rule as the catalogue: `compatibility.verified` is the
+ * version this repository was built against, so a floating `releases/latest`
+ * URL is rewritten to it. A consumer resolving addresses against whatever the
+ * dependency published this morning is not reproducible.
+ *
+ * Idempotent: a complete cache for the resolved version is left alone.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{id: string, manifest: string, verified?: string}} rel - The declared
+ *   relationship.
+ * @returns {Promise<string>} The cached index file.
+ */
+export async function fetchMetadata(config, rel) {
+    const { url, pinned } = pinnedManifestUrl(rel.manifest, rel.verified);
+    const manifest = await fetchManifest(url);
+    const version = manifest.version;
+    if (!version) {
+        throw new Error(`${rel.id}: its manifest declares no \`version\``);
+    }
+    if (!pinned && rel.verified && version !== rel.verified) {
+        throw new Error(
+            `${rel.id}: declares \`compatibility.verified: ${rel.verified}\` but ` +
+                `${url} offers ${version}. Building against a moving target is ` +
+                `not reproducible — update \`verified\`, or point \`manifest\` ` +
+                `at a pinned release.`,
+        );
+    }
+
+    const dir = metadataCacheDir(config, rel.id, version);
+    const indexUrl = manifest.flags?.metadataUrl;
+    if (!indexUrl) {
+        throw new Error(
+            `${rel.id}@${version}: its manifest advertises no ` +
+                `\`flags.metadataUrl\`, so it publishes no content index and ` +
+                `nothing can link into it. It needs a release built with ` +
+                `package-build 18 or later.`,
+        );
+    }
+
+    if (metadataIsComplete(dir)) {
+        log.info(`${rel.id}@${version}: index already cached`);
+        return path.join(dir, path.basename(new URL(indexUrl).pathname));
+    }
+
+    // Rebuild from empty: a previous run may have died partway, and a stale
+    // half-written index is worse than none.
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.mkdirSync(dir, { recursive: true });
+
+    log.info(`${rel.id}@${version}: downloading ${indexUrl}`);
+    const res = await fetch(indexUrl, { redirect: "follow" });
+    if (!res.ok) {
+        throw new Error(
+            `${rel.id}@${version}: could not download its content index at ` +
+                `${indexUrl}: HTTP ${res.status} ${res.statusText}`,
+        );
+    }
+    const file = path.join(dir, path.basename(new URL(indexUrl).pathname));
+    fs.writeFileSync(file, Buffer.from(await res.arrayBuffer()));
+    markMetadataComplete(dir);
+    return file;
+}
+
+/**
+ * Fill the index cache from a locally built artifact rather than a release.
+ *
+ * The counterpart of {@link fetchCatalogFromPath}, and the same escape hatch
+ * for the same reason: two packages being changed together cannot each wait for
+ * the other to ship. The index is looked for beside the manifest — which is
+ * where a build leaves it and where the release publishes it — so a package
+ * directory and an unpacked zip are both usable as-is.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {{id: string}} rel - The declared relationship.
+ * @param {string} source - Path to the artifact or its directory.
+ * @returns {Promise<string>} The cached index file.
+ */
+export async function fetchMetadataFromPath(config, rel, source) {
+    if (!fs.existsSync(source)) {
+        throw new Error(`${rel.id}: nothing at ${source}`);
+    }
+
+    const staging = fs.mkdtempSync(path.join(os.tmpdir(), `content-build-meta-${rel.id}-`));
+    try {
+        let root = source;
+        if (!fs.statSync(source).isDirectory()) {
+            writeZipEntries(unzipSync(new Uint8Array(fs.readFileSync(source))), staging);
+            root = staging;
+        }
+
+        const manifest = readLocalManifest(root);
+        if (!manifest) {
+            throw new Error(
+                `${rel.id}: ${source} holds no system.json or module.json, so ` +
+                    `its version cannot be read`,
+            );
+        }
+        if (manifest.id && manifest.id !== rel.id) {
+            throw new Error(`${rel.id}: ${source} is package "${manifest.id}", not "${rel.id}"`);
+        }
+        const version = manifest.version;
+        if (!version) {
+            throw new Error(`${rel.id}: ${source} declares no \`version\``);
+        }
+
+        // Named by the manifest where it advertises one, so a local artifact
+        // and a released one are cached under the same name; falling back to
+        // the id covers a build whose manifest predates the flag.
+        const name =
+            manifest.flags?.metadataUrl ?
+                path.basename(new URL(manifest.flags.metadataUrl).pathname)
+            :   metadataFileName(rel.id);
+        const found = findLocalIndex(root, name);
+        if (!found) {
+            throw new Error(
+                `${rel.id}: ${source} holds no ${name}, so it publishes no ` +
+                    `content index. Build it before fetching from it.`,
+            );
+        }
+
+        const dir = metadataCacheDir(config, rel.id, version);
+        fs.rmSync(dir, { recursive: true, force: true });
+        fs.mkdirSync(dir, { recursive: true });
+        const file = path.join(dir, name);
+        fs.copyFileSync(found, file);
+        markMetadataComplete(dir);
+        log.info(`${rel.id}@${version}: index cached from ${source}`);
+        return file;
+    } finally {
+        fs.rmSync(staging, { recursive: true, force: true });
+    }
+}
+
+/**
+ * Locate an index file in an unpacked artifact.
+ *
+ * Foundry archives are inconsistent about whether they nest their contents
+ * under a top-level directory, so try the root and then one level in — the same
+ * allowance {@link resolvePackPath} makes for packs.
+ *
+ * @param {string} root - The unpacked package root.
+ * @param {string} name - The index file name.
+ * @returns {string|null} The path, or null when absent.
+ */
+function findLocalIndex(root, name) {
+    const direct = path.join(root, name);
+    if (fs.existsSync(direct)) return direct;
+    for (const entry of fs.readdirSync(root, { withFileTypes: true })) {
+        if (!entry.isDirectory()) continue;
+        const nested = path.join(root, entry.name, name);
+        if (fs.existsSync(nested)) return nested;
+    }
+    return null;
+}
+
+/**
+ * Fetch every declared dependency's content index.
+ *
+ * A wider set than {@link fetchAllCatalogs}: an index is fetched for *every*
+ * dependency, a catalogue only for those declaring `itemCatalog: true`. See
+ * {@link metadataRelationships} for why the two sets differ.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {Promise<number>} How many indexes were fetched.
+ */
+export async function fetchAllMetadata(config) {
+    const rels = metadataRelationships(config);
+    for (const rel of rels) await fetchMetadata(config, rel);
+    return rels.length;
 }
 
 /**
