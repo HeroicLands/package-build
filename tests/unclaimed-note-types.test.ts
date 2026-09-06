@@ -459,6 +459,39 @@ describe("the claim table and the compilers agree", () => {
     });
 });
 
+/*
+ * #241's closing note: "worth checking `vehicle` and `armorlocation` at the
+ * same time — #233 declared those two as well, and neither has been exercised
+ * by a tree that authors one." Checked, and neither is a second instance of
+ * that issue. They are not even the same case as each other.
+ *
+ * `armorlocation` is **HM3's**: the specification says "HM3 only", it has no
+ * SoHL form, and `hm3/document-subtypes.mjs` maps it. A SoHL configuration
+ * claiming it would be wrong, so its absence from this map is the answer rather
+ * than a gap — which is what the rows below pin, since nothing else did.
+ *
+ * `vehicle` is **specified but not yet implemented**, and says so: a note of
+ * that type is reported as "the content format specifies `vehicle`, so the note
+ * is not wrong — this toolchain has not implemented the type yet … do not
+ * author the type until a release compiles it". That is the opposite of #241,
+ * where the failure was silent and misattributed. It is asserted by the
+ * `it.each` case above, which is deliberately parameterised so that a type
+ * moves off it when implemented — as `bundle` did in #259.
+ */
+describe("the two types #241 left to check", () => {
+    it("leaves armorlocation to HM3, which maps it", () => {
+        expect(Object.keys(SOHL_DOCUMENT_SUBTYPES.types)).not.toContain("armorlocation");
+        expect(noteTypesClaimedBy("Item").has("armorlocation")).toBe(false);
+    });
+
+    it("claims neither for a SoHL pass, which is why each is reported rather than compiled", () => {
+        for (const docType of ["Actor", "Item", "JournalEntry"]) {
+            expect(noteTypesClaimedBy(docType).has("vehicle"), docType).toBe(false);
+            expect(noteTypesClaimedBy(docType).has("armorlocation"), docType).toBe(false);
+        }
+    });
+});
+
 describe("a type whose whole document is a journal (#241)", () => {
     it("routes place, lore and scenario to the journals pack", () => {
         for (const type of ["place", "lore", "scenario"]) {

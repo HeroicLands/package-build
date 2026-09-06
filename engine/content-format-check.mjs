@@ -472,6 +472,27 @@ export function fieldDriftMessage({ noteType, source, target, name, to }) {
 }
 
 /**
+ * A shared source, as the two sides spell it.
+ *
+ * The specification writes every type-specific row `data.<key>` — the container
+ * `data:` (#128) put those facts in — while a declaration writes either: the
+ * bare key it has always named, or the same dotted path now that a field can
+ * declare its shared source and its legacy in-block key separately (#305).
+ * Both are the same source, so both are normalized before they are compared;
+ * matching one spelling against the other would report every moved field as
+ * unmapped, which is the opposite of what this check is for.
+ *
+ * A note-level source — the `subType` several tables name — carries no prefix
+ * and is returned unchanged.
+ *
+ * @param {string} path - The source, as either side wrote it.
+ * @returns {string} The source without its `data.` prefix.
+ */
+function sharedSource(path) {
+    return String(path).replace(/^data\./, "");
+}
+
+/**
  * The specification's mapping rows for one type and one system, as field paths.
  *
  * @param {import("./content-format.mjs").ContentFormat} format - The parsed
@@ -521,20 +542,23 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
 
         const authored = authoredFields(declared[noteType]);
         for (const claim of claimsFor(format, noteType, system)) {
-            // A shared source is written `data.<path>`; a note-level one — the
-            // `subType` several tables name — carries no prefix.
-            const source = claim.source.replace(/^data\./, "");
+            const source = sharedSource(claim.source);
             const target = claim.target.replace(/^system\./, "");
             // The longest declared name that the source sits under: a field
             // declared `impact.die` claims `data.impact.die` ahead of any
-            // field declared `impact`.
+            // field declared `impact`. Compared on the normalized spelling, so
+            // a field that has moved its source under `data:` is the same
+            // length it was.
             let match;
             let rest;
+            let matched = "";
             for (const field of authored) {
-                const remainder = under(source, field.name);
+                const name = sharedSource(field.name);
+                const remainder = under(source, name);
                 if (remainder === undefined) continue;
-                if (match && field.name.length <= match.name.length) continue;
+                if (match && name.length <= matched.length) continue;
                 match = field;
+                matched = name;
                 rest = remainder;
             }
             // No declaration names it. That is coverage, not a contradiction —
@@ -564,7 +588,9 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
         // equal: the document names the *shared* source a field is written as,
         // and a declaration names every key the system's own block accepts, so
         // the sets legitimately differ until #127 has moved the corpus.
-        const registryKeys = new Set(authored.map((field) => field.name.split(".")[0]));
+        const registryKeys = new Set(
+            authored.map((field) => sharedSource(field.name).split(".")[0]),
+        );
         const specKeys = format.types.get(noteType).dataKeys;
         coverage.push({
             type: noteType,

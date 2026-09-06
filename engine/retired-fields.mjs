@@ -84,6 +84,15 @@
  * the refusal come later, once no tree writes it. See
  * {@link RETIRED_FIELD_ALIASES}.
  *
+ * **A retired *position* is the same case, and reads the same (#305).** A field
+ * whose shared source moved under `data:` is not renamed — `data.species` and
+ * `hm3.species` are one field written in two places — but the retirement has
+ * the identical shape: both are read, the one the note carries wins, and the
+ * legacy in-block key is reported by {@link legacyKeyMessage} so the sweep has
+ * something to count down. Which position a value came from is
+ * {@link module:engine/system-block.resolveFieldValue}'s answer; this module
+ * only says what an author is told about it.
+ *
  * @module
  */
 
@@ -463,6 +472,38 @@ export function retiredAliasMessage(retired, current, file) {
         (file ? ` — ${file}` : "") +
         `. Both are read and \`${current}\` wins, so the note compiles ` +
         `identically either way; \`${retired}\` is removed in a later release`
+    );
+}
+
+/**
+ * What a note writing a field at its **legacy in-block position** is told.
+ *
+ * The same three-step retirement `retiredAliasMessage` announces, applied to a
+ * *position* rather than a spelling (#305). A field whose shared source moved
+ * under `data:` keeps reading the key its block still carries, that read wins,
+ * and it is reported here so a sweep has something to count down — without it,
+ * moving a field into `data:` would be a flag day across every repository that
+ * authors it.
+ *
+ * It names the block, because the key is `hm3.species` and not `species`: an
+ * author told to move "`species`" has two regions to guess between.
+ *
+ * @param {string} block - The system block the key was written in.
+ * @param {{name?: string, legacyKey?: string}} field - The declaration, which
+ *   names both positions.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function legacyKeyMessage(block, field, file) {
+    const legacy = `${block}.${field.legacyKey}`;
+    return (
+        `\`${legacy}:\` is the legacy position of the shared \`${field.name}:\` ` +
+        `— write it under \`data:\` instead` +
+        (file ? ` — ${file}` : "") +
+        `. Both are read and \`${legacy}\` wins, so the note compiles ` +
+        `identically either way; the in-block key is removed in a later release`
     );
 }
 

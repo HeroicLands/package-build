@@ -46,11 +46,34 @@
  * order for a system `S` is:
  *
  * 1. `S.system.<to>` — authored directly, wins outright;
- * 2. `S.<name>` — the legacy in-block position the corpus still writes, kept
- *    until #126 moves it;
+ * 2. `S.<legacyKey>` — the legacy in-block position the corpus still writes,
+ *    kept until #126 moves it;
  * 3. the shared top-level property the field **declares** as its source, which
  *    may be a dotted path (`data.portrait`) rather than a sibling key;
  * 4. the field's own default.
+ *
+ * ## Steps 2 and 3 are two declarations, because they are two positions
+ *
+ * They used to be one: both were keyed on `name`, which was fine only while the
+ * shared source and the in-block key were the same word. `data:` (#128) ended
+ * that — a shared source is now a path *into* a container, so `data.species`
+ * and `species` are two spellings of two different places, and no single value
+ * of `name` reached both. `name: "species"` read `hm3.species` and could not
+ * see `data.species`; `name: "data.species"` read the shared source and could
+ * not see `hm3.species`. Each yielded the field's **default** wherever only the
+ * other position was authored — silently, since the field compiles and the
+ * document is emitted with the value simply gone (#305).
+ *
+ * That made every move into `data:` a flag day. Each of this package's other
+ * retirements — `package:`, `image`, `archetype`, `relation` — works because
+ * *both spellings are read while the corpus moves*, and one property could not
+ * offer that here.
+ *
+ * So a field declares `legacyKey` beside `name`: the key it is authored at
+ * inside the block, which step 2 reads and which **falls back to `name`** when
+ * absent, so every declaration written before this resolves unchanged. A field
+ * that declares one is mid-sweep by construction, which is what
+ * {@link module:engine/field-spec.readsLegacyKey} reports on.
  *
  * ## A name that collides across the two vocabularies skips step 3
  *
@@ -313,6 +336,27 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
+ * The key a field is authored at **inside** a system block — step 2.
+ *
+ * `legacyKey` when the field declares one, and `name` otherwise. The fallback
+ * is what makes this change invisible to every declaration written before it:
+ * a field whose shared source and in-block key are the same word says so once,
+ * as it always did.
+ *
+ * Named and exported rather than spelled inline because three readers ask the
+ * question and must agree — the resolver here, the frontmatter lint building
+ * the set of keys a block may carry, and the author-facing surfaces naming
+ * where a value was written.
+ *
+ * @param {{name?: string, legacyKey?: string}} field - The declaration.
+ * @returns {string|undefined} The in-block key, or `undefined` for a field that
+ *   is not authored at all.
+ */
+export function legacyKeyOf(field) {
+    return field?.legacyKey ?? field?.name;
+}
+
+/**
  * Where a declared field's value came from.
  *
  * Reported alongside the value so a caller — a linter, a migration, a test —
@@ -356,16 +400,19 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
         if (own !== undefined) return { value: own, from: "system" };
     }
 
-    // 2. The legacy in-block position. Every note in every tree writes here
-    //    today, and will until #126 moves them; dropping it would be a corpus
-    //    migration disguised as a mechanism change.
+    // 2. The legacy in-block position, keyed on `legacyKey` — the shared
+    //    source is a path into `data:` and the in-block key is a bare word, so
+    //    the two are declared separately (#305). Every note in every tree
+    //    writes here today, and will until #126 moves them; dropping it would
+    //    be a corpus migration disguised as a mechanism change.
     const declared = systemBlock(fm, block);
-    if (declared) {
-        if (field.name in declared) {
-            const value = declared[field.name];
+    const legacyKey = legacyKeyOf(field);
+    if (declared && legacyKey) {
+        if (legacyKey in declared) {
+            const value = declared[legacyKey];
             return { value: value ?? field.default, from: "block" };
         }
-        const nested = getFrontmatter(declared, field.name, undefined);
+        const nested = getFrontmatter(declared, legacyKey, undefined);
         if (nested !== undefined) return { value: nested, from: "block" };
     }
 
