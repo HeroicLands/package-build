@@ -24,11 +24,11 @@ note.** A type that both systems support always shows both system boxes, and a
 box whose system this particular note produces no document for reads
 **"Not available"**.
 
-| note type                                                         | system boxes shown                                 |
-| ----------------------------------------------------------------- | -------------------------------------------------- |
-| `weapon`, `skill`, `being`, `armor`, `containergear`, `miscgear`… | SoHL **and** HM3 — either may read _Not available_ |
-| `affiliation`, `affliction`, `attribute`, `concoction`, `mystery` | SoHL only                                          |
-| `armorlocation`                                                   | HM3 only                                           |
+| note type                                                             | system boxes shown                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------- |
+| `weapon`, `skill`, `being`, `armorgear`, `containergear`, `miscgear`… | SoHL **and** HM3 — either may read _Not available_ |
+| `affiliation`, `affliction`, `attribute`, `concoctiongear`, `mystery` | SoHL only                                          |
+| `armorlocation`                                                       | HM3 only                                           |
 
 This is stated rather than inferred from an empty block, because an absence is a
 poor signal: noticing that something is missing requires already knowing it
@@ -178,7 +178,7 @@ at all in any particular system.
 
 Each system then declares a map from the note's `(type, subType)` onto its own
 document type — and, for SoHL, its own `system.subType`. The map is **declared**,
-never inferred from a coincidence of names: `skill`, `weapongear`, `armor`,
+never inferred from a coincidence of names: `skill`, `weapongear`, `armorgear`,
 `containergear` and `miscgear` exist in both systems with _different_ data
 models, so name-matching there would not fail, it would succeed wrongly.
 
@@ -902,7 +902,7 @@ A fenced `dataview` block is replaced by the table its query selects:
 ````markdown
 ```dataview
 TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"
-WHERE type = "armor"
+WHERE type = "armorgear"
 ```
 ````
 
@@ -1423,7 +1423,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
-### type: armor
+### type: armorgear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
@@ -1437,9 +1437,7 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 
 If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
 
-if a `hm3` property is present, an HM3 item of type "armorgear" will be created. The
-note type is `armor` in both cases: the `gear` suffix named a document subtype rather
-than the thing the note is about.
+The note type is `armorgear` in both cases. The `gear` suffix was briefly renamed away on the argument that it named a SoHL document subtype rather than the thing the note is about; that rename is reversed. Nothing had adopted the bare spelling — every note in every tree still writes the suffix — and dropping it from three of the five gear types while `weapongear` and `containergear` kept theirs cost more consistency than the argument bought.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |
@@ -1471,7 +1469,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
 
-### type: concoction
+### type: concoctiongear
 
 **subType**:
 
@@ -1624,7 +1622,7 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 | `data.charges.value`    | `system.charges.value`        | NA            |
 | `data.charges.max`      | `system.charges.max`          | NA            |
 
-### type: projectile
+### type: projectilegear
 
 **subTypes**:
 
@@ -1649,7 +1647,7 @@ if a `sohl` property is present, a SoHL item of type "projectilegear" will be cr
 If an `hm3` property is present, then an HM3 item of type "missilegear" will be created.
 
 Note that `weapon` can also produce an HM3 `missilegear`. Since `(type, shortcode)` is a
-flat namespace, a `projectile` and a `weapon` sharing a shortcode would collide on the
+flat namespace, a `projectilegear` and a `weapon` sharing a shortcode would collide on the
 HM3 side while remaining distinct on the SoHL side.
 
 | shared source     | → sohl                  | → hm3             |

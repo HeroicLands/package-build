@@ -590,7 +590,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
-    armor: Object.freeze({
+    armorgear: Object.freeze({
         // Quantity is always one, so the specification refuses the key rather
         // than defaulting it.
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
@@ -605,7 +605,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         data: Object.freeze([TEMPLATE_PRIORITY]),
     }),
 
-    concoction: Object.freeze({
+    concoctiongear: Object.freeze({
         subTypes: Object.freeze(["mundane", "exotic", "elixir"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
@@ -680,7 +680,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
-    projectile: Object.freeze({
+    projectilegear: Object.freeze({
         subTypes: Object.freeze(["none", "arrow", "bolt", "bullet", "dart", "other"]),
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
     }),

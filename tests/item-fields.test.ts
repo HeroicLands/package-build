@@ -97,7 +97,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
     });
 
     it("nests armour protection and locations under their blocks", () => {
-        const out = build("armor", {
+        const out = build("armorgear", {
             flexloc: ["torso"],
             protection: { blunt: 3, edged: 5 },
             facing: [{ location: "skull", side: "front" }],
@@ -116,7 +116,7 @@ describe("the declarations preserve the vocabulary they replaced", () => {
     });
 
     it("derives a projectile's dice from its declared die", () => {
-        const withDie = build("projectile", {
+        const withDie = build("projectilegear", {
             subType: "arrow",
             impact: { die: 6 },
         });
@@ -126,12 +126,12 @@ describe("the declarations preserve the vocabulary they replaced", () => {
             modifier: 0,
             aspect: "piercing",
         });
-        const withoutDie = build("projectile", { subType: "arrow" });
+        const withoutDie = build("projectilegear", { subType: "arrow" });
         expect(withoutDie.impactBase.numDice).toBe(0);
     });
 
     it("layers the gear constants onto every gear type", () => {
-        for (const type of ["miscgear", "weapongear", "armor", "containergear"]) {
+        for (const type of ["miscgear", "weapongear", "armorgear", "containergear"]) {
             const out = build(type, { subType: "x" });
             expect(out.quantity).toBe(1);
             expect(out.isCarried).toBe(true);
@@ -247,11 +247,11 @@ describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => 
 // emitting.
 describe("a compiled gear item carries no isEquipped (#68)", () => {
     const GEAR_TYPES = [
-        "armor",
-        "concoction",
+        "armorgear",
+        "concoctiongear",
         "containergear",
         "miscgear",
-        "projectile",
+        "projectilegear",
         "weapongear",
     ];
 
@@ -280,7 +280,7 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 
     // The armour-only replacement is `isWorn`, which `GEAR_COMMON` must not
     // acquire in its place: it belongs to `ArmorGearDataModel` alone, and
-    // whether an `armor` note should be able to author one is a separate
+    // whether an `armorgear` note should be able to author one is a separate
     // content question (see #68).
     it("does not substitute isWorn for it", () => {
         for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
@@ -300,11 +300,11 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 describe("the surviving gear possession constants (#68)", () => {
     it("layers all three onto every gear type", () => {
         for (const type of [
-            "armor",
-            "concoction",
+            "armorgear",
+            "concoctiongear",
             "containergear",
             "miscgear",
-            "projectile",
+            "projectilegear",
             "weapongear",
         ]) {
             const out = build(type, { subType: "x" });

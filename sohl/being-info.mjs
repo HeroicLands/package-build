@@ -76,11 +76,11 @@ export function isBeing(fm) {
  */
 export const GEAR_TYPE_TO_KEY = Object.freeze({
     weapongear: "weapons",
-    armor: "armor",
-    projectile: "projectiles",
+    armorgear: "armor",
+    projectilegear: "projectiles",
     miscgear: "misc",
     containergear: "containers",
-    concoction: "concoctions",
+    concoctiongear: "concoctions",
 });
 
 /** Whether a value is a plain mapping. */

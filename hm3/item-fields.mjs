@@ -127,7 +127,7 @@ const QUANTITY = Object.freeze({
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
 export const HM3_ITEM_FIELDS = Object.freeze({
-    armor: Object.freeze([...GEAR_COMMON]),
+    armorgear: Object.freeze([...GEAR_COMMON]),
 
     // The one subtype that extends the Foundry base directly, with none of the
     // shared templates. Its content-format table has a single row, and that row
@@ -152,7 +152,7 @@ export const HM3_ITEM_FIELDS = Object.freeze({
     // A note's `projectile` is HM3's `missilegear`; the fields are the gear
     // template's, and the aspect, impact and range that make it a missile are
     // authored under `hm3.system`.
-    projectile: Object.freeze([...GEAR_COMMON, QUANTITY]),
+    projectilegear: Object.freeze([...GEAR_COMMON, QUANTITY]),
 
     // `hm3.system.type` — "Craft", "Physical", "Communication", "Combat",
     // "Magic", "Ritual" — has no shared source: the content format states

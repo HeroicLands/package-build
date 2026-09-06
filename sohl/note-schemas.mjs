@@ -244,7 +244,7 @@ const MAP_FIELDS = Object.freeze([
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
 const PRESENTATION_FIELDS = Object.freeze({
-    armor: Object.freeze([
+    armorgear: Object.freeze([
         {
             name: "craft",
             ...MAP,
@@ -291,7 +291,7 @@ const PRESENTATION_FIELDS = Object.freeze({
                 "The craft that makes it — `{skill, secondary}` — for knowledgebase grouping.",
         },
     ]),
-    projectile: Object.freeze([
+    projectilegear: Object.freeze([
         {
             name: "craft",
             ...MAP,

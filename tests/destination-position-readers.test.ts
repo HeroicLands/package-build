@@ -107,9 +107,9 @@ describe("a note that authors at the destination still compiles", () => {
         };
         // `numDice` is *derived* from the die, so a die the reader cannot see
         // ships a projectile that rolls nothing.
-        expect(build("projectile", fm).impactBase.numDice).toBe(1);
+        expect(build("projectilegear", fm).impactBase.numDice).toBe(1);
         expect(
-            build("projectile", { sohl: { system: { subType: "arrow" } } }).impactBase.numDice,
+            build("projectilegear", { sohl: { system: { subType: "arrow" } } }).impactBase.numDice,
         ).toBe(0);
     });
 });
@@ -134,7 +134,7 @@ describe("the corpus's current spelling is unchanged", () => {
                 .relations,
         ).toEqual({ guild: "rival" });
         expect(
-            build("projectile", { sohl: { subType: "arrow", impact: { die: 6 } } }).impactBase
+            build("projectilegear", { sohl: { subType: "arrow", impact: { die: 6 } } }).impactBase
                 .numDice,
         ).toBe(1);
     });

@@ -41,9 +41,9 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
 describe("renamed content types (#78)", () => {
     it("names the current spelling of each renamed type", () => {
         expect(RENAMED_TYPES).toEqual({
-            armorgear: "armor",
-            concoctiongear: "concoction",
-            projectilegear: "projectile",
+            armor: "armorgear",
+            concoction: "concoctiongear",
+            projectile: "projectilegear",
         });
     });
 
@@ -63,13 +63,13 @@ describe("renamed content types (#78)", () => {
 
     it("leaves anything it does not name alone, including a non-string", () => {
         expect(currentType("skill")).toBe("skill");
-        expect(currentType("armor")).toBe("armor");
+        expect(currentType("armorgear")).toBe("armorgear");
         expect(currentType(undefined)).toBeUndefined();
         expect(currentType(7)).toBe(7);
     });
 
     it("says what to write, and that the note compiles either way", () => {
-        const message = renamedTypeMessage("armorgear", "armor", "/tree/Mail.md");
+        const message = renamedTypeMessage("armor", "armorgear", "/tree/Mail.md");
         expect(message).toContain('"armorgear"');
         expect(message).toContain('"armor"');
         expect(message).toContain("/tree/Mail.md");
@@ -179,7 +179,7 @@ describe("a note on a retired spelling is reported, never refused", () => {
     });
 
     it("warns, naming the file, the line and what to write instead", () => {
-        const findings = lintNote(noteOn("armorgear"), {
+        const findings = lintNote(noteOn("armor"), {
             schemas: NOTE_SCHEMAS,
             vocabulary: NOTE_VOCABULARY,
             references: false,
@@ -187,9 +187,9 @@ describe("a note on a retired spelling is reported, never refused", () => {
         const renamed = findings.filter((f: any) => /was renamed to/.test(f.message));
         expect(renamed).toHaveLength(1);
         expect(renamed[0].severity).toBe("warning");
-        expect(renamed[0].file).toBe("/tree/armorgear.md");
+        expect(renamed[0].file).toBe("/tree/armor.md");
         expect(renamed[0].line).toBe(2);
-        expect(renamed[0].message).toContain('"armor"');
+        expect(renamed[0].message).toContain('"armorgear"');
     });
 
     it("still lints the note against its type rather than stopping there", () => {
@@ -205,7 +205,7 @@ describe("a note on a retired spelling is reported, never refused", () => {
     });
 
     it("says nothing about a note already on the current spelling", () => {
-        const findings = lintNote(noteOn("armor"), {
+        const findings = lintNote(noteOn("armorgear"), {
             schemas: NOTE_SCHEMAS,
             vocabulary: NOTE_VOCABULARY,
             references: false,
