@@ -397,14 +397,34 @@ describe("buildIndexRecord", () => {
         expect(record.file.folder).toBe("Bestiary");
     });
 
-    it.each(DERIVED_KEYS)("refuses a note that authors the derived `%s` key", (key) => {
+    it.each(DERIVED_KEYS.filter((k) => k !== "package"))(
+        "refuses a note that authors the derived `%s` key",
+        (key) => {
+            expect(() =>
+                buildIndexRecord({
+                    frontmatter: { type: "being", [key]: "whatever" },
+                    relPath: "A.md",
+                    contentPackage: "sohl",
+                }),
+            ).toThrow(new RegExp(`\`${key}:\` is derived`));
+        },
+    );
+
+    /*
+     * `package` is on the derived list, but it is not a name collision — it is
+     * a **retired field** (#56), and the correction is to delete it rather than
+     * to rename it. `assertNoDeclaredPackage` has always said so and, until
+     * #243 gave it this caller, had nobody to say it to. Two messages
+     * contradicting each other about the fix is worse than one.
+     */
+    it("tells a note authoring `package:` to delete it, not to rename it", () => {
         expect(() =>
             buildIndexRecord({
-                frontmatter: { type: "being", [key]: "whatever" },
+                frontmatter: { type: "being", package: "whatever" },
                 relPath: "A.md",
                 contentPackage: "sohl",
             }),
-        ).toThrow(new RegExp(`\`${key}:\` is derived`));
+        ).toThrow(/retired frontmatter field — delete it/);
     });
 
     it("sorts every key, so a record serializes identically however authored", () => {
@@ -455,6 +475,47 @@ describe("collectContentIndex", () => {
             skipDirectories: [],
         });
         expect(records).toEqual([]);
+    });
+
+    /*
+     * A note the index cannot record used to abort whichever pass was building
+     * it. That was the whole story while the only such pass was the emitter;
+     * since #243 the link check and the address diff build one too, and there
+     * an abort reports *nothing* about the tree — one malformed note takes every
+     * other finding with it, and the reader is handed a stack rather than a
+     * line to open.
+     */
+    describe("a note the index cannot record (#243)", () => {
+        it("is collected as a located diagnostic, and the rest of the tree is read", () => {
+            note("Good.md", "type: being\nid: g\nshortcode: good");
+            note("Legacy.md", "type: being\nid: l\nshortcode: leg\npackage: sohl");
+
+            const problems: any[] = [];
+            const records = collectContentIndex(tmp, {
+                contentPackage: "sohl",
+                skipDirectories: [],
+                problems,
+            });
+
+            // The good note is still read — that is the point.
+            expect(records.map((r) => r.file.path)).toEqual(["Good.md"]);
+            expect(problems).toHaveLength(1);
+            expect(problems[0]).toMatchObject({
+                file: path.join(tmp, "Legacy.md"),
+                severity: "error",
+            });
+            // Located, so the diagnostic opens on the line to delete rather
+            // than at the top of the file.
+            expect(problems[0].line).toBeGreaterThan(0);
+            expect(problems[0].column).toBeGreaterThan(0);
+        });
+
+        it("still aborts when no collector is offered, which is the emitter's contract", () => {
+            note("Legacy.md", "type: being\nid: l\nshortcode: leg\npackage: sohl");
+            expect(() =>
+                collectContentIndex(tmp, { contentPackage: "sohl", skipDirectories: [] }),
+            ).toThrow(/retired frontmatter field/);
+        });
     });
 });
 

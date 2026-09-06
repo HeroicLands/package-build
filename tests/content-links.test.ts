@@ -431,3 +431,42 @@ describe("the link index is read from the content index", () => {
         expect(auditLinks(index).deadAddresses).toEqual([]);
     });
 });
+
+/*
+ * A note the index cannot record must not silence the check. Before #243 the
+ * link check walked the tree itself, so such a note was simply an ordinary note
+ * to it; after the conversion it aborted the whole pass, losing every finding
+ * in the tree to one malformed file.
+ */
+describe("a note the content index cannot record (#243)", () => {
+    it("is reported, and every other note is still checked", () => {
+        const root = tree({
+            "Skills/Climbing.md": note(
+                { type: "skill", shortcode: "clmb" },
+                "See [[skill-nosuch|missing]].",
+            ),
+            "Skills/Legacy.md": note({ type: "skill", shortcode: "leg", package: "sohl" }),
+        });
+        const problems: any[] = [];
+        const index = buildLinkIndex(root, { skipDirectories: [], problems });
+
+        expect(problems).toHaveLength(1);
+        expect(problems[0].message).toMatch(/retired frontmatter field/);
+        expect(problems[0].file).toBe(path.join(root, "Skills", "Legacy.md"));
+
+        // The dead link in the *other* note is still found, which is the whole
+        // reason the problem is collected rather than thrown.
+        const { deadAddresses } = auditLinks(index);
+        expect(deadAddresses).toHaveLength(1);
+        expect(index.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
+    });
+
+    it("throws when the caller offers no collector, so nothing is skipped in silence", () => {
+        const root = tree({
+            "Skills/Legacy.md": note({ type: "skill", shortcode: "leg", package: "sohl" }),
+        });
+        expect(() => buildLinkIndex(root, { skipDirectories: [] })).toThrow(
+            /retired frontmatter field/,
+        );
+    });
+});

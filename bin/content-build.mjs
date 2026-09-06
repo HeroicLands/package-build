@@ -728,11 +728,22 @@ function lintCommand() {
                 // (#243). The `sql` tables select over it and the link index is
                 // built from it, so the two cannot disagree about which files
                 // the content is.
+                // A note the index cannot record is reported like any other
+                // finding rather than thrown (#243): one malformed note must
+                // not take every other finding in the tree with it, and the
+                // reader needs a line to open, not a stack.
+                const corpusProblems = [];
                 const records = indexRecordsFor({
                     contentBase: root,
                     config,
                     skipDirectories: config.skipDirectories,
+                    problems: corpusProblems,
                 });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
@@ -1028,8 +1039,20 @@ function linksCommand() {
                 const contentBase = argv.root ?? config.paths.content;
 
                 const scope = { skipDirectories: config.skipDirectories };
-                // Enumerated once and shared, as in `lint` (#243).
-                const records = indexRecordsFor({ contentBase, config, ...scope });
+                // Enumerated once and shared, as in `lint` (#243), and a note
+                // it cannot record is reported rather than thrown.
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase,
+                    config,
+                    ...scope,
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
                 const index = buildLinkIndex(contentBase, {
                     config,
                     records,
@@ -1386,7 +1409,18 @@ function reachabilityCommand() {
                 const contentBase = argv.root ?? config.paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
                 const scope = { skipDirectories: config.skipDirectories };
-                const records = indexRecordsFor({ contentBase, config, ...scope });
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase,
+                    config,
+                    ...scope,
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
                 const index = buildLinkIndex(contentBase, {
                     config,
                     records,
@@ -1605,7 +1639,17 @@ async function diffAddresses(config, argv) {
     // about which files are the corpus. They now do so by construction — the
     // corpus is derived once, here, and handed to both.
     const scope = { skipDirectories: config.skipDirectories };
-    const records = indexRecordsFor({ contentBase: config.paths.content, config, ...scope });
+    const corpusProblems = [];
+    const records = indexRecordsFor({
+        contentBase: config.paths.content,
+        config,
+        ...scope,
+        problems: corpusProblems,
+    });
+    for (const problem of corpusProblems) emitDiagnostic(problem);
+    // An error whatever `--strict` says: the note is in none of the answers
+    // below, so exiting 0 would call the tree clean while omitting a note.
+    if (corpusProblems.length) process.exitCode = 1;
     const corpus = { config, records, ...scope };
 
     const findings = diffItemAddresses(

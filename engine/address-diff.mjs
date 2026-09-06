@@ -246,13 +246,15 @@ export function readItemAddresses(dirs) {
  *   unless `records` supplies the corpus outright.
  * @param {object} [opts.config] - The resolved configuration.
  * @param {readonly object[]} [opts.records] - Records the caller derived.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, so one of them does not abort the diff before it reports.
  * @returns {readonly object[]} The index records.
  */
-function addressCorpus(contentBase, { skipDirectories, config, records } = {}) {
+function addressCorpus(contentBase, { skipDirectories, config, records, problems } = {}) {
     if (records) return records;
     assertStatedScope(skipDirectories, "reading the address corpus");
     if (!fs.existsSync(contentBase)) return [];
-    return indexRecordsFor({ contentBase, config, skipDirectories });
+    return indexRecordsFor({ contentBase, config, skipDirectories, problems });
 }
 
 /**
@@ -273,10 +275,15 @@ function fileOf(contentBase, record) {
 
 export function declaredPredecessors(
     contentBase,
-    { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS, config, records } = {},
+    { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS, config, records, problems } = {},
 ) {
     const byOldAddress = new Map();
-    for (const record of addressCorpus(contentBase, { skipDirectories, config, records })) {
+    for (const record of addressCorpus(contentBase, {
+        skipDirectories,
+        config,
+        records,
+        problems,
+    })) {
         // A documentation journal is a document this tree emits, not a note in
         // it: it has no file and declares nothing.
         if (!isNoteRecord(record)) continue;
@@ -404,9 +411,14 @@ export function diffItemAddresses(baseline, current, { baseline: label, predeces
  *   derived, shared with {@link declaredPredecessors}.
  * @returns {Map<string, string>} Document id → the note's absolute path.
  */
-export function noteFilesById(contentBase, { skipDirectories, config, records } = {}) {
+export function noteFilesById(contentBase, { skipDirectories, config, records, problems } = {}) {
     const byId = new Map();
-    for (const record of addressCorpus(contentBase, { skipDirectories, config, records })) {
+    for (const record of addressCorpus(contentBase, {
+        skipDirectories,
+        config,
+        records,
+        problems,
+    })) {
         // A documentation journal shares its note's file and has no id of its
         // own, so indexing it would file one path under two identities.
         if (!isNoteRecord(record)) continue;
