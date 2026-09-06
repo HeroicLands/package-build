@@ -62,7 +62,7 @@
  */
 
 import { walkMarkdownTree } from "./helpers.mjs";
-import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "./ids.mjs";
+import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -314,14 +314,18 @@ function article(word) {
  * @returns {string} The message.
  */
 function configurationMessage(type, config, sources) {
+    // Every table below is keyed by the current spelling of a note type; the
+    // message quotes the authored one, which is what the reader has in front of
+    // them (#78).
+    const current = currentType(type);
     const documents = mappedDocuments(sources.maps, type);
-    if (!documents.length && sources.itemTypes.has(type)) documents.push("Item");
-    if (!documents.length && PACK_BY_TYPE[type]) documents.push(PACK_BY_TYPE[type].docType);
+    if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
+    if (!documents.length && PACK_BY_TYPE[current]) documents.push(PACK_BY_TYPE[current].docType);
 
     const systems = mappingSystems(sources.maps, type);
     const configured = new Set((config.packs ?? []).map((pack) => pack.type));
     const packless = documents.filter((document) => !configured.has(document));
-    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(type);
+    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(current);
 
     const into = documents.map((document) => `${article(document)} ${document}`).join(" or ");
     const becomes =
@@ -425,7 +429,13 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
         if (NEVER_PACKED_TYPES.has(type)) continue;
         if (DERIVED_PACKED_TYPES.has(type)) continue;
         if (RETIRED_TYPES[type]) continue;
-        if (claimed.has(type)) continue;
+        // A **renamed** spelling is a live type, not an unknown one: it resolves
+        // to the same row, the same registry entry and the same pack. So the
+        // claim is asked of the current spelling while the finding quotes the
+        // authored one (#78). The rename itself is reported by the frontmatter
+        // lint, which can say what to write instead.
+        const current = currentType(type);
+        if (claimed.has(current)) continue;
 
         findings.push({
             file: absPath,
@@ -433,8 +443,8 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
-                vocabulary.has(type) ? configurationMessage(type, config, resolved)
-                : Object.hasOwn(NOTE_VOCABULARY, type) ? specifiedMessage(type)
+                vocabulary.has(current) ? configurationMessage(type, config, resolved)
+                : Object.hasOwn(NOTE_VOCABULARY, current) ? specifiedMessage(type)
                 : authoringMessage(type),
         });
     }

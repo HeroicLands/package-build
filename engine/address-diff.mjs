@@ -182,7 +182,7 @@ export function readItemAddresses(dirs) {
  *
  * **A declaration is keyed by document subtype, not by note type.** The address
  * space is the one consumers resolve against, and it is spelled in compiled
- * documents: `hm3` compiles a `projectilegear` note into a `missilegear` item,
+ * documents: `hm3` compiles a `projectile` note into a `missilegear` item,
  * so that is the address a rename of it moves. {@link referencedSubtype} is the
  * function that already answers this for a being's embedded `(type, shortcode)`
  * references, so both sides read the same rule rather than a second copy of it.

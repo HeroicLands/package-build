@@ -166,7 +166,7 @@ at all in any particular system.
 
 Each system then declares a map from the note's `(type, subType)` onto its own
 document type — and, for SoHL, its own `system.subType`. The map is **declared**,
-never inferred from a coincidence of names: `skill`, `weapongear`, `armorgear`,
+never inferred from a coincidence of names: `skill`, `weapongear`, `armor`,
 `containergear` and `miscgear` exist in both systems with _different_ data
 models, so name-matching there would not fail, it would succeed wrongly.
 
@@ -890,7 +890,7 @@ A fenced `dataview` block is replaced by the table its query selects:
 ````markdown
 ```dataview
 TABLE WITHOUT ID name.full AS "Name", shortcode AS "Code"
-WHERE type = "armorgear"
+WHERE type = "armor"
 ```
 ````
 
@@ -1358,7 +1358,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
-### type: armorgear
+### type: armor
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
@@ -1372,7 +1372,9 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 
 If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
 
-if a `hm3` property is present, an HM3 item of type "armorgear" will be created.
+if a `hm3` property is present, an HM3 item of type "armorgear" will be created. The
+note type is `armor` in both cases: the `gear` suffix named a document subtype rather
+than the thing the note is about.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |
@@ -1404,7 +1406,7 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 | shared source | → sohl | → hm3 |
 | ------------- | ------ | ----- |
 
-### type: concoctiongear
+### type: concoction
 
 **subType**:
 
@@ -1557,7 +1559,7 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 | `data.charges.value`    | `system.charges.value`        | NA            |
 | `data.charges.max`      | `system.charges.max`          | NA            |
 
-### type: projectilegear
+### type: projectile
 
 **subTypes**:
 

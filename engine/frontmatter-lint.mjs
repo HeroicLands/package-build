@@ -64,7 +64,7 @@ import {
 } from "./system-block.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
-import { RETIRED_TYPES } from "./ids.mjs";
+import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
 // than repeated, because a linter holding its own copy of what the compiler
@@ -917,7 +917,27 @@ export function lintNote(
         return findings;
     }
 
-    const schema = schemas[type];
+    // A **renamed** type is the opposite case, and the opposite answer: the
+    // note compiles into exactly the document it always did, so refusing it
+    // would fail a build over a note that is not wrong. It is reported, and
+    // every lookup below reads the current spelling (#78).
+    const renamedTo = RENAMED_TYPES[type];
+    if (renamedTo) {
+        findings.push({
+            file: note.file,
+            ...at("type", type),
+            // A warning, for the reason the retired *field* alias below is one:
+            // the sweep is the content trees' work and the refusal comes after
+            // it, as `package:`'s did (#56).
+            severity: "warning",
+            message: renamedTypeMessage(type, renamedTo),
+        });
+    }
+    // What every type-keyed table is keyed by. The authored spelling is still
+    // what a message quotes — it is what the reader has in front of them.
+    const current = currentType(type);
+
+    const schema = schemas[current];
     if (!schema) {
         findings.push({
             file: note.file,
@@ -935,7 +955,7 @@ export function lintNote(
     // one this type may write. Skipped entirely when the caller declares no
     // vocabulary — reporting every key as unknown because nothing was loaded
     // to recognise it would be worse than not checking.
-    const entry = vocabulary?.[type];
+    const entry = vocabulary?.[current];
     if (entry) {
         findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [], packs }));
         findings.push(...checkSubType(note, { type, entry }));

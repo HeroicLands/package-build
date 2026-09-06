@@ -36,6 +36,10 @@
  * @module
  */
 
+// The retirement window for a renamed note type (#78): an embedded reference
+// still spelling `armorgear` names the same gear group as `armor`.
+import { currentType } from "../engine/ids.mjs";
+
 /**
  * The note `type` whose pages carry a being info block.
  *
@@ -59,19 +63,24 @@ export function isBeing(fm) {
 /**
  * The sidebar group each gear item type is displayed under.
  *
- * Presentation naming, not data-model naming: the model says `weapongear`, the
- * sidebar heading says "weapons". Kept as one table so a new gear type is added
- * in a single place rather than in each consumer's site build.
+ * Presentation naming, not data-model naming: the note type says `weapongear`,
+ * the sidebar heading says "weapons". Kept as one table so a new gear type is
+ * added in a single place rather than in each consumer's site build.
+ *
+ * Keyed by **note** type, which is what a being's embedded `(type, shortcode)`
+ * references spell — and since #78 three of those are no longer the document
+ * subtype they compile into. A reference still on a renamed spelling is
+ * normalised at the lookup below rather than given a second row here.
  *
  * @type {Readonly<Record<string, string>>}
  */
 export const GEAR_TYPE_TO_KEY = Object.freeze({
     weapongear: "weapons",
-    armorgear: "armor",
-    projectilegear: "projectiles",
+    armor: "armor",
+    projectile: "projectiles",
     miscgear: "misc",
     containergear: "containers",
-    concoctiongear: "concoctions",
+    concoction: "concoctions",
 });
 
 /** Whether a value is a plain mapping. */
@@ -132,7 +141,7 @@ export function deriveBeingInfo(sohl, index) {
         const gear = {};
         for (const it of items) {
             if (!isMap(it)) continue;
-            const key = GEAR_TYPE_TO_KEY[it.type];
+            const key = GEAR_TYPE_TO_KEY[currentType(it.type)];
             if (!key) continue;
             const shortcode = typeof it.shortcode === "string" ? it.shortcode : undefined;
             const ref = lookup(it.type, shortcode);

@@ -40,6 +40,15 @@
  *
  * Paths are fully resolved (`systems/sohl/...`) — the served path both layers
  * need. If a new item type is added, add its default here.
+ *
+ * **The keys are SoHL *document* subtypes, not markdown note types.** The
+ * runtime reads this with `itemData.type`, which is a Foundry Item subtype, and
+ * that is the vocabulary a compendium document carries. The two vocabularies
+ * were the same string until #78 renamed three note types (`armorgear` →
+ * `armor`, and its two siblings), and this map stayed on the document side
+ * because that is the side the runtime cannot translate: `sohl/item-builders.mjs`
+ * asks SoHL's own note-type → subtype map before it looks art up here, so the
+ * build translates once and no second copy of those three rows exists.
  */
 export const DEFAULT_ITEM_ART = {
     affiliation: "systems/sohl/assets/icons/noun/shield.svg",
@@ -58,7 +67,8 @@ export const DEFAULT_ITEM_ART = {
 };
 
 /**
- * The default art path for an item `type`, or throw when the type is unknown —
+ * The default art path for an item **document subtype**, or throw when it is
+ * unknown —
  * the build's fail-fast contract, so an unrecognized type is never silently
  * defaulted (aborting the pack build rather than shipping a mismatched icon).
  *
@@ -66,8 +76,9 @@ export const DEFAULT_ITEM_ART = {
  * {@link DEFAULT_ITEM_ART} directly and fall back to Foundry's default instead
  * of calling this — see `SohlItem.getDefaultArtwork`.
  *
- * @param {string} type - the item type.
- * @returns {string} the default image path for that type.
+ * @param {string} type - The SoHL Item document subtype — `armorgear`, not the
+ *   `armor` note type that compiles into one.
+ * @returns {string} the default image path for that subtype.
  */
 export function defaultItemArt(type) {
     if (!(type in DEFAULT_ITEM_ART)) {

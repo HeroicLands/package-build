@@ -29,6 +29,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineDocumentSubtypes, referencedSubtype } from "../engine/document-subtypes.mjs";
+import { RENAMED_TYPES } from "../engine/ids.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Actors } from "../sohl/actors.mjs";
@@ -108,14 +109,30 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
         expect(referencedSubtype(DEMO, undefined, "Item").problem).toBeTruthy();
     });
 
-    it("is the identity for every row SoHL ships, which is why nothing moves", () => {
+    it("is the identity for every SoHL row but the three #78 renamed", () => {
+        const renamed = new Map(Object.entries(RENAMED_TYPES).map(([old_, now]) => [now, old_]));
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
             const row = SOHL_DOCUMENT_SUBTYPES.types[type];
             if (row.document !== "Item") continue;
             expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, type, "Item"), type).toEqual({
-                subType: type,
+                subType: renamed.get(type) ?? type,
             });
         }
+    });
+
+    it("resolves a reference still on a renamed type's retired spelling (#78)", () => {
+        // The half of the window that matters most: the old names occur ~1,000
+        // times as often inside a being's `(type, shortcode)` items list as
+        // they do as a note's own `type:`. A window that resolved notes but not
+        // references would silently drop 30,000 embedded items.
+        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
+            expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, retired, "Item"), retired).toEqual(
+                referencedSubtype(SOHL_DOCUMENT_SUBTYPES, current, "Item"),
+            );
+        }
+        expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, "armorgear", "Item")).toEqual({
+            subType: "armorgear",
+        });
     });
 });
 

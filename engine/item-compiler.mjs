@@ -58,6 +58,7 @@ import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // them with are one table — the consuming repository's, not this package's
 // (#1504/#1563).
 import { itemTypes, itemBuilder, itemArt, itemFields } from "./item-registry.mjs";
+import { currentType } from "./ids.mjs";
 // Which Foundry Item subtype a note's `type` compiles into. Looked up in the
 // system's declared map, never inferred from the type itself (#79).
 import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
@@ -164,7 +165,10 @@ export class SystemItemCompiler extends BasePackCompiler {
      * @returns {boolean} True for a whitelisted item type.
      */
     selects(fm) {
-        if (!fm.type || !itemTypes().has(fm.type)) return false;
+        // Through {@link currentType}: the registry is keyed by the current
+        // spelling, and a note still on a renamed one compiles unchanged
+        // during the retirement window (#78).
+        if (!fm.type || !itemTypes().has(currentType(fm.type))) return false;
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
         const row = subtypeRow(/** @type {never} */ (map), fm.type);
         return !row || row.document === "Item";
@@ -327,7 +331,7 @@ export class SystemItemCompiler extends BasePackCompiler {
 
     /** @inheritdoc */
     onCompiled(fm) {
-        this.counts[fm.type]++;
+        this.counts[currentType(fm.type)]++;
     }
 
     /** @inheritdoc */
