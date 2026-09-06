@@ -135,12 +135,24 @@ export function declaredPaths(artifact) {
  * {@link undeclaredMessage} draws, and the difference between "the
  * specification is wrong" and "the schema has not caught up".
  *
- * @param {object} finding - `{system, systemVersion, noteType, source, target}`.
+ * A shared row names no type, so it is placed rather than typed: "in the shared
+ * mappings" instead of "on a `weapongear`". Reading `on a \`the shared
+ * mappings\`` would be the alternative, and a diagnostic is prose (#275).
+ *
+ * @param {object} finding - `{system, systemVersion, noteType, source, target, shared}`.
  * @returns {string} The message.
  */
-export function undeclaredTargetMessage({ system, systemVersion, noteType, source, target }) {
+export function undeclaredTargetMessage({
+    system,
+    systemVersion,
+    noteType,
+    source,
+    target,
+    shared,
+}) {
+    const where = shared ? `in ${noteType}` : `on a \`${noteType}\``;
     return (
-        `the format maps \`${source}\` on a \`${noteType}\` to \`${target}\` in ` +
+        `the format maps \`${source}\` ${where} to \`${target}\` in ` +
         `${system}, which ${system}@${systemVersion} does not declare on any ` +
         `document subtype — the specification and the system disagree, and one ` +
         `of the two is wrong`
