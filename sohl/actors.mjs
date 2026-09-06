@@ -50,7 +50,7 @@ import {
     sohlField,
     resolveName,
     resolveImg,
-    systemArchetype,
+    systemTemplatePriority,
     folderField,
 } from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
@@ -304,8 +304,11 @@ export class Actors extends SystemActorCompiler {
             // identity (the dedup/override key of the Create-dialog picker, #604).
             shortcode: fm.shortcode || "",
             // Required nullable number: a priority, or `null` for a being that
-            // is not an archetype (#126 / archetype contract #604).
-            archetype: systemArchetype(fm, ctx),
+            // is not a template (#126 / archetype contract #604). The field was
+            // `system.archetype` until #266 / sohl#1836; the emitted key moves
+            // with the schema, since an undeclared `system` key is discarded at
+            // construction without a warning.
+            templatePriority: systemTemplatePriority(fm, ctx),
             // Nullish, not `||` (#218): a note that names no portrait gets the
             // subtype's default, one that writes `""` ships blank on purpose.
             portrait: resolveImg(blockProperty(fm, SYSTEM, "portrait")) ?? defaultImg,
@@ -346,7 +349,7 @@ export class Actors extends SystemActorCompiler {
         this.reportUndeclaredSystemData(fm, SYSTEM, "Actor", subType);
         // And what this pass wrote itself. There is no field declaration for a
         // being at all, so *every* key here is a compiler emission — including
-        // `archetype` (#126), which nothing compared until #155.
+        // `templatePriority` (#126), which nothing compared until #155.
         this.reportEmittedSystemData(system, {
             fm,
             block: SYSTEM,
@@ -379,7 +382,7 @@ export class Actors extends SystemActorCompiler {
             folder,
             sort: 0,
             ownership: { default: 0 },
-            // Whatever the note authors, and nothing else. `archetype` used to
+            // Whatever the note authors, and nothing else. The priority used to
             // be spliced in here as `flags.sohl.docArchetype`; it is a schema
             // field now and sits in `system` (#126).
             flags: blockProperty(fm, SYSTEM, "flags", {}),

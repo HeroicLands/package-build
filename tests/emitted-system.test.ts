@@ -265,10 +265,10 @@ describe("the two conditions are told apart, because the fixes differ", () => {
     });
 });
 
-describe("`archetype` — the key the check was blind to (#155, #126)", () => {
+describe("`templatePriority` — the key the check was blind to (#155, #126)", () => {
     // The shape SoHL 0.8.2 publishes: everything a `skill` carries except the
     // field #154 started writing.
-    const withoutArchetype = artifact({
+    const withoutPriority = artifact({
         Item: {
             skill: {
                 own: ["subType", "masteryLevelBase", "skillBaseFormula"],
@@ -284,17 +284,17 @@ describe("`archetype` — the key the check was blind to (#155, #126)", () => {
     });
 
     /** The same, with the field declared on the shared base (SoHL#1785). */
-    const withArchetype = artifact({
+    const withPriority = artifact({
         Item: {
             skill: {
                 own: ["subType", "masteryLevelBase", "skillBaseFormula"],
-                inherited: ["shortcode", "actionDefs", "notes", "docHtml", "archetype"],
+                inherited: ["shortcode", "actionDefs", "notes", "docHtml", "templatePriority"],
             },
         },
         Actor: {
             being: {
                 own: ["portrait", "appearance", "dossier"],
-                inherited: ["shortcode", "actionDefs", "notes", "docHtml", "archetype"],
+                inherited: ["shortcode", "actionDefs", "notes", "docHtml", "templatePriority"],
             },
         },
     });
@@ -308,46 +308,46 @@ describe("`archetype` — the key the check was blind to (#155, #126)", () => {
     it("fires on a compiled Item against a schema that omits it", () => {
         const findings = compareEmittedSystem({
             system: compiledSkill(),
-            artifact: withoutArchetype,
+            artifact: withoutPriority,
             documentType: "Item",
             subtype: "skill",
             type: "skill",
         });
-        expect(findings.map((f) => f.field)).toContain("archetype");
-        expect(findings.find((f) => f.field === "archetype")!.origin).toBe("compiler");
+        expect(findings.map((f) => f.field)).toContain("templatePriority");
+        expect(findings.find((f) => f.field === "templatePriority")!.origin).toBe("compiler");
     });
 
     it("is silent on the same document against a schema that declares it", () => {
         const findings = compareEmittedSystem({
             system: compiledSkill(),
-            artifact: withArchetype,
+            artifact: withPriority,
             documentType: "Item",
             subtype: "skill",
             type: "skill",
         });
-        expect(findings.map((f) => f.field)).not.toContain("archetype");
+        expect(findings.map((f) => f.field)).not.toContain("templatePriority");
     });
 
     it("fires on a compiled Actor too — the actors pass writes it as well", () => {
         const findings = compareEmittedSystem({
             system: compiledBeing(),
-            artifact: withoutArchetype,
+            artifact: withoutPriority,
             documentType: "Actor",
             subtype: "being",
             type: "being",
         });
-        expect(findings.map((f) => f.field)).toContain("archetype");
+        expect(findings.map((f) => f.field)).toContain("templatePriority");
     });
 
     it("is silent on the Actor against a schema that declares it", () => {
         const findings = compareEmittedSystem({
             system: compiledBeing(),
-            artifact: withArchetype,
+            artifact: withPriority,
             documentType: "Actor",
             subtype: "being",
             type: "being",
         });
-        expect(findings.map((f) => f.field)).not.toContain("archetype");
+        expect(findings.map((f) => f.field)).not.toContain("templatePriority");
     });
 
     it("is the coverage `compareFields` could not give, which sees nothing either way", () => {
@@ -355,9 +355,11 @@ describe("`archetype` — the key the check was blind to (#155, #126)", () => {
         // check answers identically whether or not the schema declares the
         // field, because the field is in neither of the sets it compares.
         const builders = { skill: [{ to: "subType" }, { to: "masteryLevelBase" }] };
-        for (const a of [withoutArchetype, withArchetype]) {
+        for (const a of [withoutPriority, withPriority]) {
             const { undeclared, unemitted } = compareFields({ builders, artifact: a });
-            expect([...undeclared, ...unemitted].map((f) => f.field)).not.toContain("archetype");
+            expect([...undeclared, ...unemitted].map((f) => f.field)).not.toContain(
+                "templatePriority",
+            );
         }
     });
 });
@@ -392,19 +394,19 @@ describe("what a build does with it", () => {
      * goes stale, and a case that fails because the fixture is behind the
      * builder proves nothing about the field under test.
      */
-    const skillSchema = (archetype: boolean) => {
+    const skillSchema = (declared: boolean) => {
         const emitted = Object.keys(items().buildEntry(skillNote({}), "").system);
         return {
             Item: {
                 skill: {
-                    own: emitted.filter((k) => archetype || k !== "archetype"),
+                    own: emitted.filter((k) => declared || k !== "templatePriority"),
                     inherited: [],
                 },
             },
         };
     };
 
-    it("finds `archetype` on a real compiled document, through the build's own seam", () => {
+    it("finds `templatePriority` on a real compiled document, through the build's own seam", () => {
         const compiler = items();
         const doc = compiler.buildEntry(skillNote({}), "");
         const added = compiler.reportEmittedSystemData(doc.system, {
@@ -416,7 +418,7 @@ describe("what a build does with it", () => {
             config: configWithSchema(skillSchema(false)),
         });
         expect(added).toBeGreaterThan(0);
-        expect([...compiler.emittedFindings.keys()]).toContain("Item|skill|archetype");
+        expect([...compiler.emittedFindings.keys()]).toContain("Item|skill|templatePriority");
     });
 
     it("says nothing once the receiving system declares it", () => {
@@ -453,7 +455,7 @@ describe("what a build does with it", () => {
         }
         expect(compiler.emittedFindings.size).toBe(added);
         expect(
-            [...compiler.emittedFindings.keys()].filter((k) => k === "Item|skill|archetype"),
+            [...compiler.emittedFindings.keys()].filter((k) => k === "Item|skill|templatePriority"),
         ).toHaveLength(1);
     });
 

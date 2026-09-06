@@ -268,27 +268,29 @@ which of several competing templates a player is actually offered.
 The shared mapping table above names it `data.templatePriority`, targeting
 `system.templatePriority` in SoHL and `flags.hm3.templatePriority` in HM3.
 
-> **What a note writes today is `archetype`.** The build still reads
-> `sohl.archetype` and SoHL's data model still declares `system.archetype`. The
-> name is now settled as `templatePriority` on all three sides — the authored
-> key, `system.templatePriority`, and `flags.hm3.templatePriority` — and the move
-> is tracked by `HeroicLands/package-build#266` here and
-> `Song-of-Heroic-Lands-FoundryVTT#1836` in the system.
+> **`archetype` is the retiring spelling.** It is still read, in the `sohl:`
+> block and at the top level, so a tree sweeps on its own schedule
+> (`HeroicLands/package-build#266`) — but the frontmatter linter refuses it, and
+> what is compiled and emitted is `templatePriority` on all three sides.
 >
 > It is more than a rename, and the collision is **already live** rather than
 > pending: `archetypes` is specified above as the _sort_ a character is, and a
 > being's row declares it. So a number deciding which template wins and a list of
-> what sort of character this is are today distinguished **only by a plural
-> `s`**. Both spellings of the priority are read through the transition.
+> what sort of character this is would otherwise be distinguished **only by a
+> plural `s`**.
+>
+> A note carrying both spellings with **different** values is refused rather than
+> resolved quietly — `templatePriority: null` and `archetype: 0` say opposite
+> things, and picking either silently would decide it on the author's behalf.
 
 ```yaml
-sohl:
-  archetype: 0 # a template, at the priority SoHL's own ship at
+data:
+  templatePriority: 0 # a template, at the priority SoHL's own ship at
 ```
 
 ```yaml
-sohl:
-  archetype: null # not a template
+data:
+  templatePriority: null # not a template
 ```
 
 **Every note SoHL compiles into an Item or an Actor must state it.** Absent, the

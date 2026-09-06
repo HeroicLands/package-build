@@ -27,8 +27,8 @@ import { fileURLToPath } from "node:url";
 // Build-time pack helpers (plain ESM, no Foundry). Imported by relative path
 // because the pack-build scripts live outside the `@src` alias tree.
 import {
-    resolveArchetype,
-    systemArchetype,
+    resolveTemplatePriority,
+    systemTemplatePriority,
     // eslint-disable-next-line
 } from "../engine/helpers.mjs";
 import * as helpers from "../engine/helpers.mjs";
@@ -78,54 +78,54 @@ const beingNote = (sohl: Record<string, unknown>) => ({
     sohl,
 });
 
-describe("resolveArchetype (build:compiledb archetype contract, #640)", () => {
+describe("resolveTemplatePriority (build:compiledb archetype contract, #640)", () => {
     it("returns the number when sohl.archetype is a number", () => {
-        expect(resolveArchetype({ sohl: { archetype: 0 } }, "x")).toBe(0);
-        expect(resolveArchetype({ sohl: { archetype: 3 } }, "x")).toBe(3);
+        expect(resolveTemplatePriority({ sohl: { archetype: 0 } }, "x")).toBe(0);
+        expect(resolveTemplatePriority({ sohl: { archetype: 3 } }, "x")).toBe(3);
     });
 
     it("returns undefined when sohl.archetype is null (not an archetype)", () => {
-        expect(resolveArchetype({ sohl: { archetype: null } }, "x")).toBe(undefined);
+        expect(resolveTemplatePriority({ sohl: { archetype: null } }, "x")).toBe(undefined);
     });
 
     it("throws when neither spelling is present", () => {
         // The message names `templatePriority`, the spelling to write — not
         // `archetype`, which is retiring (#266).
-        expect(() => resolveArchetype({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
-        expect(() => resolveArchetype({}, "widget")).toThrow(/templatePriority/i);
+        expect(() => resolveTemplatePriority({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
+        expect(() => resolveTemplatePriority({}, "widget")).toThrow(/templatePriority/i);
     });
 
     it("throws when sohl.archetype is a non-number, non-null value", () => {
-        expect(() => resolveArchetype({ sohl: { archetype: "0" } }, "widget")).toThrow(
+        expect(() => resolveTemplatePriority({ sohl: { archetype: "0" } }, "widget")).toThrow(
             /archetype/i,
         );
-        expect(() => resolveArchetype({ sohl: { archetype: true } }, "widget")).toThrow(
+        expect(() => resolveTemplatePriority({ sohl: { archetype: true } }, "widget")).toThrow(
             /archetype/i,
         );
     });
 
     it("accepts a top-level archetype key (sohlField fallback parity)", () => {
-        expect(resolveArchetype({ archetype: 2 }, "x")).toBe(2);
-        expect(resolveArchetype({ archetype: null }, "x")).toBe(undefined);
+        expect(resolveTemplatePriority({ archetype: 2 }, "x")).toBe(2);
+        expect(resolveTemplatePriority({ archetype: null }, "x")).toBe(undefined);
     });
 });
 
-describe("systemArchetype (the `system.archetype` value, #126)", () => {
+describe("systemTemplatePriority (the `system.templatePriority` value, #126, #266)", () => {
     it("is the number when sohl.archetype is a number", () => {
-        expect(systemArchetype({ sohl: { archetype: 3 } }, "x")).toBe(3);
+        expect(systemTemplatePriority({ sohl: { archetype: 3 } }, "x")).toBe(3);
     });
 
     it("is `0` — not `null` — for an archetype at priority 0", () => {
-        // The falsy trap. `resolveArchetype(...) || null` passes every other
+        // The falsy trap. `resolveTemplatePriority(...) || null` passes every other
         // case in this file and fails this one.
-        const value = systemArchetype({ sohl: { archetype: 0 } }, "x");
+        const value = systemTemplatePriority({ sohl: { archetype: 0 } }, "x");
         expect(value).toBe(0);
         expect(typeof value).toBe("number");
         expect(value).not.toBeNull();
     });
 
     it("is `null` when sohl.archetype is null (not an archetype)", () => {
-        const value = systemArchetype({ sohl: { archetype: null } }, "x");
+        const value = systemTemplatePriority({ sohl: { archetype: null } }, "x");
         expect(value).toBeNull();
         expect(typeof value).not.toBe("number");
     });
@@ -134,23 +134,25 @@ describe("systemArchetype (the `system.archetype` value, #126)", () => {
         // `undefined` would be dropped by `JSON.stringify`, so the compiled
         // document would carry no `archetype` at all and the tri-state would
         // read as two.
-        expect(systemArchetype({ sohl: { archetype: null } }, "x")).not.toBe(undefined);
-        expect(systemArchetype({ sohl: { archetype: 0 } }, "x")).not.toBe(undefined);
+        expect(systemTemplatePriority({ sohl: { archetype: null } }, "x")).not.toBe(undefined);
+        expect(systemTemplatePriority({ sohl: { archetype: 0 } }, "x")).not.toBe(undefined);
     });
 
     it("accepts a top-level archetype key (sohlField fallback parity)", () => {
-        expect(systemArchetype({ archetype: 2 }, "x")).toBe(2);
-        expect(systemArchetype({ archetype: 0 }, "x")).toBe(0);
-        expect(systemArchetype({ archetype: null }, "x")).toBeNull();
+        expect(systemTemplatePriority({ archetype: 2 }, "x")).toBe(2);
+        expect(systemTemplatePriority({ archetype: 0 }, "x")).toBe(0);
+        expect(systemTemplatePriority({ archetype: null }, "x")).toBeNull();
     });
 
     it("throws when archetype is absent, so 'not an archetype' is never assumed", () => {
-        expect(() => systemArchetype({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
-        expect(() => systemArchetype({}, "widget")).toThrow(/templatePriority/i);
+        expect(() => systemTemplatePriority({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
+        expect(() => systemTemplatePriority({}, "widget")).toThrow(/templatePriority/i);
     });
 
     it("throws when archetype is a non-number, non-null value", () => {
-        expect(() => systemArchetype({ sohl: { archetype: "0" } }, "widget")).toThrow(/archetype/i);
+        expect(() => systemTemplatePriority({ sohl: { archetype: "0" } }, "widget")).toThrow(
+            /archetype/i,
+        );
     });
 });
 
@@ -161,10 +163,10 @@ describe("withArchetypeFlag is gone (#126)", () => {
 });
 
 describe("where the ordering constraint actually binds (sohl#1780)", () => {
-    // `archetype` must be declared by the receiving system before a builder
+    // `templatePriority` must be declared by the receiving system before a builder
     // emits it, and it is worth being exact about what enforces that. Neither
     // schema check does: `compareFields` derives the emitted set from the
-    // `itemBuilders` field declarations, and `archetype` is written by the
+    // `itemBuilders` field declarations, and `templatePriority` is written by the
     // compiler itself — alongside `shortcode`, `actionDefs`, `notes` and
     // `docHtml`, none of which are declared fields either. So the constraint is
     // Foundry's own silent discard at construction, which no build reports.
@@ -176,7 +178,7 @@ describe("where the ordering constraint actually binds (sohl#1780)", () => {
     });
     const builders = { skill: [{ to: "subType" }, { to: "masteryLevelBase" }] };
 
-    it("says nothing about `archetype` against a schema that omits it", () => {
+    it("says nothing about `templatePriority` against a schema that omits it", () => {
         const { undeclared, unemitted } = compareFields({
             builders,
             artifact: artifact({
@@ -185,7 +187,7 @@ describe("where the ordering constraint actually binds (sohl#1780)", () => {
                 },
             }),
         });
-        expect([...undeclared, ...unemitted].map((f) => f.field)).not.toContain("archetype");
+        expect([...undeclared, ...unemitted].map((f) => f.field)).not.toContain("templatePriority");
     });
 
     it("says nothing about it against a schema that declares it, either", () => {
@@ -197,32 +199,32 @@ describe("where the ordering constraint actually binds (sohl#1780)", () => {
                 Item: {
                     skill: {
                         own: ["subType", "masteryLevelBase"],
-                        inherited: ["shortcode", "archetype"],
+                        inherited: ["shortcode", "templatePriority"],
                     },
                 },
             }),
         });
         expect(undeclared).toEqual([]);
-        expect([...unemitted].map((f) => f.field)).not.toContain("archetype");
+        expect([...unemitted].map((f) => f.field)).not.toContain("templatePriority");
     });
 });
 
-describe("the compiled Item carries `system.archetype`, not the flag", () => {
+describe("the compiled Item carries `system.templatePriority`, not the flag", () => {
     it("emits the number", () => {
         const doc = items().buildEntry(skillNote({ archetype: 3 }), "");
-        expect(doc.system.archetype).toBe(3);
+        expect(doc.system.templatePriority).toBe(3);
     });
 
     it("emits `0` as `0`", () => {
         const doc = items().buildEntry(skillNote({ archetype: 0 }), "");
-        expect(doc.system.archetype).toBe(0);
-        expect(typeof doc.system.archetype).toBe("number");
+        expect(doc.system.templatePriority).toBe(0);
+        expect(typeof doc.system.templatePriority).toBe("number");
     });
 
     it("emits `null` for a document that is not an archetype", () => {
         const doc = items().buildEntry(skillNote({ archetype: null }), "");
-        expect(doc.system.archetype).toBeNull();
-        expect("archetype" in doc.system).toBe(true);
+        expect(doc.system.templatePriority).toBeNull();
+        expect("templatePriority" in doc.system).toBe(true);
     });
 
     it("survives JSON as it was written — `0` is not dropped and not nulled", () => {
@@ -231,9 +233,9 @@ describe("the compiled Item carries `system.archetype`, not the flag", () => {
         // only after the round trip.
         const round = (archetype: number | null) =>
             JSON.parse(JSON.stringify(items().buildEntry(skillNote({ archetype }), "")));
-        expect(round(0).system.archetype).toBe(0);
-        expect(round(1).system.archetype).toBe(1);
-        expect(round(null).system.archetype).toBeNull();
+        expect(round(0).system.templatePriority).toBe(0);
+        expect(round(1).system.templatePriority).toBe(1);
+        expect(round(null).system.templatePriority).toBeNull();
     });
 
     it("writes no `flags.sohl.docArchetype`, whatever the priority", () => {
@@ -268,20 +270,20 @@ describe("the compiled Item carries `system.archetype`, not the flag", () => {
     });
 });
 
-describe("the compiled Actor carries `system.archetype`, not the flag", () => {
+describe("the compiled Actor carries `system.templatePriority`, not the flag", () => {
     it("emits the number, and `0` as `0`", () => {
         expect(
-            actors().buildBeing(new Map(), beingNote({ archetype: 2 }), "").system.archetype,
+            actors().buildBeing(new Map(), beingNote({ archetype: 2 }), "").system.templatePriority,
         ).toBe(2);
         const zero = actors().buildBeing(new Map(), beingNote({ archetype: 0 }), "");
-        expect(zero.system.archetype).toBe(0);
-        expect(typeof zero.system.archetype).toBe("number");
+        expect(zero.system.templatePriority).toBe(0);
+        expect(typeof zero.system.templatePriority).toBe("number");
     });
 
     it("emits `null` for a being that is not an archetype", () => {
         const doc = actors().buildBeing(new Map(), beingNote({ archetype: null }), "");
-        expect(doc.system.archetype).toBeNull();
-        expect("archetype" in doc.system).toBe(true);
+        expect(doc.system.templatePriority).toBeNull();
+        expect("templatePriority" in doc.system).toBe(true);
     });
 
     it("writes no `flags.sohl.docArchetype`, whatever the priority", () => {

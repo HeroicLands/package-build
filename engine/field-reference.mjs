@@ -170,7 +170,7 @@ function workedExample(type, fields) {
         // this example is the smallest note that compiles.
         "id: <16-character id>",
         "sohl:",
-        "  archetype: null",
+        "  templatePriority: null",
     ];
     for (const field of required) {
         lines.push(`  ${field.name}: <${field.shape ?? "value"}>`);

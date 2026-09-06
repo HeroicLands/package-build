@@ -169,23 +169,25 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
 }
 
 /**
- * Resolve the required `sohl.archetype` frontmatter for an Item/Actor entry
+ * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
  * (the archetype contract, #604). The property is a nullable number that
  * authors must state explicitly:
- *   - a number → the document is an archetype of that priority.
- *   - `null`   → the document is not an archetype.
- *   - absent   → an authoring error (throws), so "not an archetype" is never
+ *   - a number → the document is a template of that priority.
+ *   - `null`   → the document is not a template.
+ *   - absent   → an authoring error (throws), so "not a template" is never
  *                silently assumed.
  *
- * Reads `sohl.archetype`, falling back to a top-level `archetype` key to match
- * {@link sohlField}'s nested-then-top-level resolution.
+ * Reads `data.templatePriority` first — the specified home — then the `sohl:`
+ * block and the top level, and finally the retiring `archetype` spelling in the
+ * same two places (#266).
  *
  * @param {object} fm      Parsed frontmatter.
  * @param {string} label   Human-readable context for error messages.
- * @returns {number|undefined}  The archetype priority, or `undefined` when null.
- * @throws {Error} When `sohl.archetype` is absent or is not a number/null.
+ * @returns {number|undefined}  The template priority, or `undefined` when null.
+ * @throws {Error} When the property is absent, is not a number/null, or both
+ *   spellings are present and disagree.
  */
-export function resolveArchetype(fm, label) {
+export function resolveTemplatePriority(fm, label) {
     const sohl = fm != null && typeof fm.sohl === "object" ? fm.sohl : null;
     const data = fm != null && typeof fm.data === "object" && fm.data !== null ? fm.data : null;
 
@@ -239,29 +241,30 @@ export function resolveArchetype(fm, label) {
 }
 
 /**
- * The value a document's `system.archetype` carries, from the required
- * `sohl.archetype` frontmatter (#126, sohl#1780).
+ * The value a document's `system.templatePriority` carries, from the required
+ * `templatePriority` frontmatter (#126, sohl#1780, renamed off `archetype` by
+ * #266 / sohl#1836).
  *
  * A **schema field**, so the tri-state is written out in full rather than
- * expressed by a key's presence: a number is an archetype at that priority,
- * and `null` is not an archetype. This is where {@link resolveArchetype}'s
+ * expressed by a key's presence: a number is a template at that priority, and
+ * `null` is not a template. This is where {@link resolveTemplatePriority}'s
  * `undefined` becomes the field's `null` — an emitted `undefined` would be
  * dropped by `JSON.stringify`, leaving the compiled document with no
- * `archetype` at all and the tri-state readable as two.
+ * `templatePriority` at all and the tri-state readable as two.
  *
- * **`0` is an archetype.** It is the priority SoHL's own archetypes ship at,
- * and it is falsy, so this returns it unchanged and every caller must ask
+ * **`0` is a template.** It is the priority SoHL's own templates ship at, and
+ * it is falsy, so this returns it unchanged and every caller must ask
  * `typeof v === "number"` rather than testing truthiness.
  *
  * @param {object} fm      Parsed frontmatter.
  * @param {string} label   Human-readable context for error messages.
- * @returns {number|null}  The archetype priority, or `null` for a document
- *   that is not an archetype.
- * @throws {Error} When `sohl.archetype` is absent or invalid.
+ * @returns {number|null}  The template priority, or `null` for a document that
+ *   is not a template.
+ * @throws {Error} When the property is absent or invalid.
  */
-export function systemArchetype(fm, label) {
-    const archetype = resolveArchetype(fm, label);
-    return archetype === undefined ? null : archetype;
+export function systemTemplatePriority(fm, label) {
+    const priority = resolveTemplatePriority(fm, label);
+    return priority === undefined ? null : priority;
 }
 
 /**

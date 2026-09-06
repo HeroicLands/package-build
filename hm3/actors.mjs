@@ -314,7 +314,7 @@ export class Hm3Actors extends SystemActorCompiler {
      * template priority.
      *
      * `data.templatePriority` is the shared statement that a note is a
-     * *template* — SoHL records the same fact as `system.archetype` — and HM3's
+     * *template* — SoHL records the same fact as `system.templatePriority` — and HM3's
      * data model declares no field for it, so it lands under this system's own
      * flag scope. A note that is not a template writes nothing, rather than a
      * `null` nothing reads.

@@ -348,7 +348,7 @@ const SCHEMAS: Record<string, { version: string; own: string[] }> = {
         version: "0.9.0",
         own: [
             "shortcode",
-            "archetype",
+            "templatePriority",
             "actionDefs",
             "notes",
             "docHtml",
