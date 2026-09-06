@@ -62,6 +62,8 @@ import {
 import { buildFolderNoteIndex, collectFolderNotes, folderDocument } from "./folder-notes.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
+// The corpus every pass runs over, derived once (#243).
+import { buildCompileCorpus } from "./compile-corpus.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { unclaimedNoteFindings } from "./note-claims.mjs";
@@ -355,6 +357,7 @@ async function generatePack(
     router,
     routingReporter,
     folderNotes,
+    corpus,
 ) {
     const contentBase = config.paths.content;
     const dest = packJsonDir(name, config);
@@ -441,6 +444,8 @@ async function generatePack(
     const pack = new packClass({
         contentBase,
         dest,
+        // The corpus this compile derived once, shared by every pass (#243).
+        corpus,
         companionDests,
         // The actors pass resolves each being's embedded items against the items
         // passes' output. That used to be an unwritten sibling-directory contract
@@ -678,7 +683,23 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         return unsatisfied.length + unclaimed.length;
     }
 
-    let totalErrors = unclaimed.length;
+    // The corpus every pass runs over, and the three whole-tree indexes built
+    // over it, derived **once** for the whole compile (#243). Each is a pure
+    // function of (tree, scope, router), none of which varies between passes —
+    // `router` is the one resolved above and handed to all of them — so the
+    // passes were deriving the same answers over and over. Compiling `sohl`
+    // read every note twenty times before this: four per pass, five passes.
+    const corpusProblems = [];
+    const corpus = await buildCompileCorpus({
+        contentBase: config.paths.content,
+        skipDirectories: config.skipDirectories,
+        router,
+        config,
+        problems: corpusProblems,
+    });
+    for (const problem of corpusProblems) emitDiagnostic(problem);
+
+    let totalErrors = unclaimed.length + corpusProblems.length;
     const passes = [];
     for (const pack of ordered) {
         const { errors, compiled } = await generatePack(
@@ -687,6 +708,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
             router,
             firstOfType.get(pack.type) === pack.name,
             folderNotes,
+            corpus,
         );
         totalErrors += errors;
         passes.push({

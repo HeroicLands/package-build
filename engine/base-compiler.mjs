@@ -66,16 +66,16 @@ import path from "path";
 import log from "loglevel";
 
 import {
-    walkMarkdownTree,
+    parseMarkdownFile,
     makeFilename,
     resolveName,
-    buildContentLinkIndex,
     convertNoteWikilinks,
-    collectContentDocs,
     expandNoteTables,
     statsForPack,
 } from "./helpers.mjs";
-import { prepareTreeSqlTables } from "./sql-tables.mjs";
+// The record accessors only — see `engine/index-records.mjs` for why they live
+// apart from the index that builds them (#243).
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import {
@@ -268,7 +268,7 @@ export class BasePackCompiler {
      * @param {string} options.contentBase - Root of the content tree.
      * @param {string} options.dest - Where this pass writes its JSON.
      * @param {readonly string[]} options.skipDirectories - Directories the walk
-     *   never descends into. Required: see {@link walkMarkdownTree}.
+     *   never descends into. Required: see {@link assertStatedScope}.
      * @param {(path: string|null) => string|null} [options.folderResolver] -
      *   Resolves a `sohl.folder` id against this pack's folder hierarchy.
      * @param {string} [options.packName] - The pack this pass writes.
@@ -288,6 +288,7 @@ export class BasePackCompiler {
         docType,
         router,
         routingReporter = false,
+        corpus,
     } = {}) {
         if (!contentBase) {
             throw new Error(`${this.constructor.name} compiler requires \`contentBase\``);
@@ -327,6 +328,11 @@ export class BasePackCompiler {
         this.docType = docType;
         this.router = router;
         this.routingReporter = routingReporter;
+        // The corpus this compile is running over, derived once by
+        // `generatePacksJson` and shared by every pass (#243). A pass that is
+        // handed none derives its own in `prepare`, which is what a consumer
+        // constructing one compiler directly does.
+        this.corpus = corpus;
     }
 
     /**
@@ -459,11 +465,35 @@ export class BasePackCompiler {
      * @returns {Promise<void>}
      */
     async prepare() {
+        // The corpus, and the three whole-tree derivations built over it. Every
+        // one of them is a pure function of (tree, scope, router), which do not
+        // vary between the passes of a single compile — so `generatePacksJson`
+        // derives them once and hands them to each pass (#243).
+        //
+        // The measurement that motivated it: compiling `sohl` read every note
+        // **20 times**, four per pass — this link index, the table corpus, the
+        // `sql` scan, and the pass's own walk — across five passes.
+        // Imported here rather than at module scope: deriving the corpus
+        // reaches the pack router and the manifest emitter, which reach this
+        // module, so a static import would close a cycle. `generate.mjs`
+        // normally supplies the corpus and this path never runs.
+        const { buildCompileCorpus } = await import("./compile-corpus.mjs");
+        if (!this.corpus) {
+            this.corpus = await buildCompileCorpus({
+                contentBase: this.contentBase,
+                skipDirectories: this.skipDirectories,
+                router: this.router,
+            });
+            // Derived here, so reported here. A corpus handed in was derived by
+            // `generatePacksJson`, which has already reported its problems
+            // once — and reporting them again in each of five passes would say
+            // the same thing six times.
+            this.reportsCorpusProblems = true;
+        }
         if (this.constructor.convertsWikilinks) {
-            const scope = { skipDirectories: this.skipDirectories };
-            this.linkIndex = buildContentLinkIndex(this.contentBase, this.router, scope);
-            this.contentDocs = collectContentDocs(this.contentBase, scope);
-            this.sqlTables = await prepareTreeSqlTables(this.contentBase, scope);
+            this.linkIndex = this.corpus.linkIndex;
+            this.contentDocs = this.corpus.contentDocs;
+            this.sqlTables = this.corpus.sqlTables;
         }
         this.unresolvedLinks = 0;
     }
@@ -801,10 +831,40 @@ export class BasePackCompiler {
         const label = this.constructor.label;
         const Label = label.charAt(0).toUpperCase() + label.slice(1);
 
-        for (const { frontmatter: fm, body, absPath, bodyLine, bodyColumn } of walkMarkdownTree(
-            this.contentBase,
-            { skipDirectories: this.skipDirectories },
-        )) {
+        // A note the index could not record is a note this pass declines —
+        // counted and reported exactly as the loop below does for the same
+        // refusal, because it *is* the same refusal: the index defers to
+        // `assertNoDeclaredPackage` for a retired `package:`, which is the
+        // check this loop makes a few lines further down. All that changed is
+        // which pass sees the note first (#243).
+        if (this.reportsCorpusProblems) {
+            for (const problem of this.corpus.problems ?? []) {
+                stats.declined++;
+                this.errorCount++;
+                // Emitted directly rather than through `noteError`, which reads
+                // the file from `currentNote` — the loop has not started, so
+                // there is no current note and the problem carries its own.
+                emitDiagnostic({
+                    file: problem.file,
+                    line: problem.line,
+                    column: problem.column,
+                    severity: "error",
+                    message: problem.message,
+                });
+            }
+        }
+
+        // The corpus, from the index this compile derived once — not a walk of
+        // this pass's own (#243). Each note is then read for its **prose**: the
+        // index carries what is *about* a note and deliberately not its text,
+        // nor the `bodyLine`/`bodyColumn` a diagnostic needs, and this pass has
+        // to have the body anyway. So the read is one this pass was already
+        // making; what it no longer does is decide for itself which files to
+        // make it over.
+        for (const record of this.corpus.records) {
+            if (!isNoteRecord(record)) continue;
+            const absPath = noteFile(this.contentBase, record);
+            const { frontmatter: fm, body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one (#17).
             this.currentNote = { absPath, bodyLine, bodyColumn };

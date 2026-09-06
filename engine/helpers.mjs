@@ -40,6 +40,10 @@ import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
+// The record accessors only — deriving records reaches the pack router and the
+// manifest emitter, which reach the compilers, which load this module. Reading
+// a record needs none of that (#243).
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently (#184).
@@ -145,6 +149,35 @@ export function assertStatedScope(skipDirectories, who) {
             `${who} requires \`skipDirectories\`: the scope is the ` +
                 "caller's to state, so two passes cannot disagree about which " +
                 "files are the corpus",
+        );
+    }
+}
+
+/**
+ * Refuse a corpus read whose records its caller did not supply.
+ *
+ * The sibling of {@link assertStatedScope}, and required for the same reason
+ * one step further on. These two readers cannot derive the corpus themselves:
+ * deriving it reaches the pack router and the manifest emitter, which reach the
+ * compilers, which load this module — so importing the index here closes a
+ * cycle. They take the records their caller already holds.
+ *
+ * That is not a workaround dressed up as a rule. A compile runs several passes
+ * over one tree, and the whole of #243 is that they must not each answer "which
+ * files are the corpus?" for themselves. Requiring the answer to be handed in
+ * makes the sharing structural rather than remembered.
+ *
+ * @param {readonly object[]|undefined} records - The supplied corpus.
+ * @param {string} who - The reader, named in the message.
+ * @throws {Error} When no corpus was supplied.
+ * @returns {void}
+ */
+export function assertSuppliedCorpus(records, who) {
+    if (!records) {
+        throw new Error(
+            `${who} requires \`records\`: the corpus is derived once per ` +
+                "compile and handed to every pass, so no two passes can " +
+                "disagree about which files it holds",
         );
     }
 }
@@ -606,17 +639,26 @@ import { collectAnchors } from "./anchors.mjs";
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { skipDirectories } = {},
+    { skipDirectories, config, records, problems } = {},
 ) {
     const docs = [];
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories,
-    })) {
+    const resolved = config ?? loadPackConfig();
+    assertSuppliedCorpus(records, "buildContentLinkIndex");
+    for (const record of records) {
+        // A documentation journal is a document this tree emits, not a note in
+        // it; the note it documents is indexed here and carries its address.
+        if (!isNoteRecord(record)) continue;
+        // The note as its author wrote it — the router, the draft tag and the
+        // retired-type check all read authored fields, and none of them may be
+        // handed the keys the index derived.
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(contentBase, record);
         // The id a note's document is filed under: its authored pin, or the
-        // one derived from its canonical address (#270). Resolved here rather
-        // than read, because this index and the compile pass must agree about
-        // every note's id and neither can see the other's answer.
-        resolveNoteId(fm);
+        // one derived from its canonical address (#270). Derived by the index
+        // against the configuration this build resolved — it used to be
+        // derived here through `resolveNoteId(fm)` with no package, which falls
+        // back to the ambient `contentPackage()` and so to whichever
+        // configuration the working directory answers with (#243).
         // What is left after that is a file with **no address** — no type, or
         // no shortcode — which is not an addressable note and has no document
         // to link to.
@@ -626,7 +668,7 @@ export function buildContentLinkIndex(
         // left on a retired type is reported here, by name, rather than
         // several frames deeper with nothing to go on (SoHL#1580).
         assertTypeNotRetired(fm.type, absPath);
-        const base = path.basename(absPath, ".md").replace(/_/g, " ");
+        const base = String(record.file.name).replace(/_/g, " ");
         docs.push({
             type: fm.type,
             id: fm.id,
@@ -646,7 +688,9 @@ export function buildContentLinkIndex(
             // anchor has always been checked, because a fetched index
             // publishes the map; a local one was not, because the set was
             // discarded here — the walk yields the body and nothing read it.
-            anchors: new Set(collectAnchors(body ?? "").map((anchor) => anchor.slug)),
+            // Read from the record rather than from a second reading of the
+            // note's headings — the one-anchor-reader rule (#243).
+            anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
         });
     }
     // Packages this build links *into* but does not publish. Each publishes
@@ -655,8 +699,8 @@ export function buildContentLinkIndex(
     // links CI does — from an artifact the producer shipped rather than a copy
     // this repository committed (#239).
     const { index: foreign, stale } = loadForeignIndexes(
-        loadPackConfig(),
-        [contentPackage()],
+        resolved,
+        [resolved.contentPackage],
         PACKAGE_BASE,
     );
     if (stale.length) {
@@ -672,7 +716,7 @@ export function buildContentLinkIndex(
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
-    return buildWikilinkIndex(docs, foundryPackageId(), foreign, contentPackage());
+    return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage);
 }
 
 /**
@@ -771,18 +815,25 @@ export function convertNoteWikilinks(
  * @returns {Array<{fm: object, path: string, tld: string, folder: string,
  *   absPath: string}>}
  */
-export function collectContentDocs(contentBase, { skipDirectories } = {}) {
+export function collectContentDocs(
+    contentBase,
+    { skipDirectories, config, records, problems } = {},
+) {
     const docs = [];
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories,
-    })) {
-        if (!fm) continue;
-        const segments = path.relative(contentBase, absPath).split(path.sep);
+    const resolved = config ?? loadPackConfig();
+    assertSuppliedCorpus(records, "collectContentDocs");
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(contentBase, record);
+        const segments = String(record.file.path).split("/");
         docs.push({
             // With its package supplied for a `WHERE … package = "…"` query —
-            // synthesised from the configuration, since no note declares it
-            // (#56).
-            fm: searchableFrontmatter(fm),
+            // synthesised from the configuration this build resolved, since no
+            // note declares it (#56) and the ambient one is a different
+            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`
+            // (#243).
+            fm: searchableFrontmatter(fm, resolved.contentPackage),
             // POSIX-separated and relative to the content root — what a
             // `path:` search term globs, on every platform.
             path: segments.join("/"),

@@ -305,7 +305,16 @@ describe("a note still declaring `package:` is refused, not skipped", () => {
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines.some((l) => l.includes("OtherSkill.md"))).toBe(true);
             expect(lines.some((l) => l.includes("retired"))).toBe(true);
-            expect(lines.some((l) => l.includes("thalorna"))).toBe(true);
+            /*
+             * The message names the package **this build resolved**, from the
+             * configuration — not the ambient `contentPackage()` accessor this
+             * file mocks. In a real repository the two are the same value (the
+             * accessor *is* `loadPackConfig().contentPackage`); they differ
+             * here only because the mock replaces one of them, which is the
+             * divergence #243 exists to make impossible. Asserting the mocked
+             * value would be asserting the ambient read.
+             */
+            expect(lines.some((l) => /configured `contentPackage` \("sohl"/.test(l))).toBe(true);
         } finally {
             spy.mockRestore();
         }

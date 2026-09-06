@@ -39,6 +39,7 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
 import { buildContentLinkIndex } from "../engine/helpers.mjs";
 import { convertWikilinks } from "../engine/wikilinks.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
@@ -182,7 +183,9 @@ describe("a note carrying `name.aliases` compiles exactly as one without it", ()
 describe("a link into it resolves exactly as if the field were absent", () => {
     it("emits the identical `@UUID` markup in the pack build", () => {
         const render = (content: string) => {
-            const index = buildContentLinkIndex(content, undefined, { skipDirectories: [] });
+            const index = buildContentLinkIndex(content, undefined, {
+                records: indexRecordsFor({ contentBase: content, skipDirectories: [] }),
+            });
             const citing = "Worse than [[doc-aconite|Aconite]], and [[doc-aconite#onset|onset]].";
             return convertWikilinks(citing, {
                 type: "doc",
@@ -227,7 +230,9 @@ describe("a link into it resolves exactly as if the field were absent", () => {
         for (const key of ["doc/wolfsbane", "wolfsbane", "rules/wolfsbane", "doc/monkshood"]) {
             expect(built.index.has(key)).toBe(false);
         }
-        const index = buildContentLinkIndex(withField, undefined, { skipDirectories: [] });
+        const index = buildContentLinkIndex(withField, undefined, {
+            records: indexRecordsFor({ contentBase: withField, skipDirectories: [] }),
+        });
         expect(index.byShortcode.has("wolfsbane")).toBe(false);
     });
 });
