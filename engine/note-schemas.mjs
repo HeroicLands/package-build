@@ -74,17 +74,15 @@ const JOURNAL_ONLY_FIELDS = Object.freeze([]);
 const ARMORLOCATION_FIELDS = Object.freeze([]);
 
 /**
- * A `folder` note — the compendium folder itself, as a note.
+ * A `bundle` note — a set of documents taken as a unit, Foundry's `Adventure`.
  *
- * A `Folder` is a real Foundry document, and was the one kind this package
- * compiled from bespoke configuration rather than from a note (#254). It
- * declares no system-block fields: a folder belongs to no game system, which is
- * why its canonical address carries `none`, and everything it says — its parent
- * and its colour — is a `data` property, declared in the vocabulary.
+ * Like a folder, it declares no system-block fields: everything it says is a
+ * `data` property. Its `system` names which system's documents it may hold
+ * rather than which system it belongs to, so the note itself is system-neutral.
  *
  * @type {readonly import("./field-spec.mjs").FieldSpec[]}
  */
-const FOLDER_FIELDS = Object.freeze([]);
+const BUNDLE_FIELDS = Object.freeze([]);
 
 /**
  * Every engine-level content type, and what a note of that type may write.
@@ -97,5 +95,5 @@ export const ENGINE_NOTE_SCHEMAS = Object.freeze({
     lore: JOURNAL_ONLY_FIELDS,
     scenario: JOURNAL_ONLY_FIELDS,
     armorlocation: ARMORLOCATION_FIELDS,
-    folder: FOLDER_FIELDS,
+    bundle: BUNDLE_FIELDS,
 });

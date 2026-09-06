@@ -9,15 +9,15 @@
         "tracked, so pointing CI at the real artifact would fail this repository's build for",
         "a reason that is not this repository's:",
         "",
-        "  - Song-of-Heroic-Lands-FoundryVTT#1780 — the archetype/template field, which lives",
+        "  - HeroicLands/package-build#266 and Song-of-Heroic-Lands-FoundryVTT#1836 \u2014 the",
         "    in flags.sohl.docArchetype today and moves into the schema. The specification",
-        "    spells the target `system.template` and #1780 proposes `system.archetype`; the",
-        "    two disagree, and settling that is #1780's. The fixture takes the specification's",
-        "    spelling so the check is green on what is committed here.",
-        "  - Song-of-Heroic-Lands-FoundryVTT#1781 — AffiliationDataModel gains `parents`,",
+        "    template-priority field. The name is settled as `templatePriority` on all three",
+        "    sides; SoHL still declares `system.archetype` until #1836 lands, so the fixture",
+        "    takes the settled name and the check stays green on what is committed here.",
+        "  - Song-of-Heroic-Lands-FoundryVTT#1781 \u2014 AffiliationDataModel gains `parents`,",
         "    `seat` and `domain`, and `relation` is renamed `relations`. The fixture adds all",
         "    four and keeps `relation`, since the artifact it was copied from still has it.",
-        "  - Song-of-Heroic-Lands-FoundryVTT#1782 — `outcomeTrauma` is renamed",
+        "  - Song-of-Heroic-Lands-FoundryVTT#1782 \u2014 `outcomeTrauma` is renamed",
         "    `outcomeTraumas`.",
         "",
         "So the delta above is the whole of the disagreement between the specification and a",
@@ -45,7 +45,7 @@
                     "seat",
                     "society",
                     "subType",
-                    "template",
+                    "templatePriority",
                     "title"
                 ],
                 "inherited": [
@@ -79,7 +79,7 @@
                     "resolutionDurationBase",
                     "resolutionDurationFormula",
                     "subType",
-                    "template",
+                    "templatePriority",
                     "transmission",
                     "treatmentDate"
                 ],
@@ -108,7 +108,7 @@
                     "protectionBase.edged",
                     "protectionBase.fire",
                     "protectionBase.piercing",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -128,7 +128,13 @@
                 ]
             },
             "attribute": {
-                "own": ["impairedByRoles", "initDiceFormula", "scoreBase", "template", "valueDesc"],
+                "own": [
+                    "impairedByRoles",
+                    "initDiceFormula",
+                    "scoreBase",
+                    "templatePriority",
+                    "valueDesc"
+                ],
                 "inherited": [
                     "actionDefs",
                     "docHtml",
@@ -139,7 +145,7 @@
                 ]
             },
             "concoctiongear": {
-                "own": ["potency", "strength", "subType", "template"],
+                "own": ["potency", "strength", "subType", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "containerId",
@@ -158,7 +164,7 @@
                 ]
             },
             "containergear": {
-                "own": ["maxCapacityBase", "template"],
+                "own": ["maxCapacityBase", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "containerId",
@@ -177,7 +183,7 @@
                 ]
             },
             "miscgear": {
-                "own": ["template"],
+                "own": ["templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "containerId",
@@ -205,7 +211,7 @@
                     "levelBase",
                     "skillAptitudes",
                     "subType",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -227,7 +233,7 @@
                     "levelBase",
                     "masteryLevelBase",
                     "subType",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -248,7 +254,7 @@
                     "impactBase.traits",
                     "impactBase.traits.broadhead",
                     "subType",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -279,7 +285,7 @@
                     "skillBaseFormula",
                     "strikeMode",
                     "subType",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -307,7 +313,7 @@
                     "levelBase",
                     "permanentImpairmentEligible",
                     "subType",
-                    "template",
+                    "templatePriority",
                     "treatmentDate",
                     "treatmentModifierBase"
                 ],
@@ -321,7 +327,7 @@
                 ]
             },
             "weapongear": {
-                "own": ["encumbranceBase", "heftBase", "strikeModes", "template"],
+                "own": ["encumbranceBase", "heftBase", "strikeModes", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "containerId",
@@ -355,7 +361,7 @@
                     "body.weight.base",
                     "body.weight.calc",
                     "defaultCombatGroup",
-                    "template"
+                    "templatePriority"
                 ],
                 "inherited": [
                     "actionDefs",
@@ -373,7 +379,7 @@
                 ]
             },
             "cohort": {
-                "own": ["leaderCode", "members", "template"],
+                "own": ["leaderCode", "members", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "appearance",
@@ -390,7 +396,7 @@
                 ]
             },
             "structure": {
-                "own": ["template"],
+                "own": ["templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "appearance",
@@ -407,7 +413,7 @@
                 ]
             },
             "vehicle": {
-                "own": ["occupants", "template"],
+                "own": ["occupants", "templatePriority"],
                 "inherited": [
                     "actionDefs",
                     "appearance",

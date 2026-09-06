@@ -220,6 +220,112 @@ Actor types (`being`, `vehicle`) add one more:
 subtype that extends the Foundry base directly with no templates — so `notes` is
 NA on both sides for that type, and its table says so.
 
+#### The pack a note compiles into
+
+`pack` names which configured compendium receives the note's document.
+
+```yaml
+pack: items-hm3
+```
+
+It is deliberately close to the retired `package:` and deliberately not the same
+word: `package:` said which _distribution_ owned a note — now the repository's
+`contentPackage`, and no longer authorable — while `pack:` says which
+_compendium_ receives its document.
+
+**It names the pack for the note's _own_ document.** A document derived from it
+— an item's prose compiling into a `JournalEntry` of its own — is not what the
+author was addressing, and is routed by the pass that produces it.
+
+**`<system>.pack` overrides it for one system.** A note that compiles into two
+systems can send each document to its own pack:
+
+```yaml
+pack: items-sohl
+hm3:
+  pack: items-hm3
+```
+
+**Unstated, the document goes to the pack of its type marked `default: true`.**
+Where no pack of that type is the default, the build refuses rather than
+guessing, and names the candidates.
+
+Three declarations are refused, each with the reason:
+
+| written                             | why it is refused                                                                 |
+| ----------------------------------- | --------------------------------------------------------------------------------- |
+| a **companion** pack                | A companion is written by another pack's pass, so no note may be routed into one. |
+| a pack **nothing answers to**       | The message lists the configured packs of that document type.                     |
+| a pack of **another document type** | A note's `pack:` names a pack of its own document type.                           |
+
+#### Template priority: which template wins
+
+A note can mark its document as a **starting template** the Create dialog offers
+to clone from, so a new being or item is born populated rather than blank. The
+value is a **priority**, and the priority is the whole mechanism — it decides
+which of several competing templates a player is actually offered.
+
+The shared mapping table above names it `data.templatePriority`, targeting
+`system.templatePriority` in SoHL and `flags.hm3.templatePriority` in HM3.
+
+> **What a note writes today is `archetype`.** The build still reads
+> `sohl.archetype` and SoHL's data model still declares `system.archetype`. The
+> name is now settled as `templatePriority` on all three sides — the authored
+> key, `system.templatePriority`, and `flags.hm3.templatePriority` — and the move
+> is tracked by `HeroicLands/package-build#266` here and
+> `Song-of-Heroic-Lands-FoundryVTT#1836` in the system.
+>
+> It is more than a rename, and the collision is **already live** rather than
+> pending: `archetypes` is specified above as the _sort_ a character is, and a
+> being's row declares it. So a number deciding which template wins and a list of
+> what sort of character this is are today distinguished **only by a plural
+> `s`**. Both spellings of the priority are read through the transition.
+
+```yaml
+sohl:
+  archetype: 0 # a template, at the priority SoHL's own ship at
+```
+
+```yaml
+sohl:
+  archetype: null # not a template
+```
+
+**Every note SoHL compiles into an Item or an Actor must state it.** Absent, the
+build refuses: "not a template" has to be _said_, not left out, or an omission
+and a decision look identical. The value is a number or `null`, and **`0` is a
+real priority** — the one SoHL's own templates ship at — not an absence.
+
+**Where it lands differs by system, because HM3's data model has no field for
+it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
+`flags.hm3`, and a note that is not a template writes nothing there rather than a
+`null` nothing reads. HM3's _item_ pass does not emit it yet.
+
+**How a winner is chosen.** Opening a Create dialog gathers every candidate
+across the world and every matching compendium, _including other modules'_. Those
+are filtered to the `(type, subType)` being created, deduped by **`shortcode`** —
+a template's stable identity, where the name is only presentation — and one
+winner is taken per shortcode:
+
+1. the highest priority;
+2. then the nearest source — **world**, then **system**, then **module** — so a
+   GM's own copy shadows a shipped one at equal priority;
+3. then a stable UUID, so the answer never depends on load order.
+
+**The reserved ranges make a collision predictable.** Two packages can easily
+ship a template under one shortcode, and the number says which yields:
+
+| priority   | reserved for               |
+| ---------- | -------------------------- |
+| `0`–`98`   | SoHL and HM3 themselves    |
+| `99`–`999` | other HeroicLands packages |
+| `1000`+    | everyone else              |
+
+HeroicLands reserves everything below `1000`. Since the highest priority wins,
+**anyone else's template always beats content shipped from here** — which is the
+point: a module author can override a standard template without coordinating with
+anybody, and be certain it takes effect.
+
 #### The compendium folder
 
 A note says which folder of its pack it lands in. Two spellings are read, and
@@ -684,28 +790,28 @@ The following H1 headers are treated specially:
 
 Generates a living (or undead, or spirit) being.
 
-| `data` property             | Values                                         | Description                                                                                     |
-| --------------------------- | ---------------------------------------------- | ----------------------------------------------------------------------------------------------- |
-| `portrait`                  | `string`                                       | File path to the portrait image                                                                 |
-| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                      |
-| `archetypes`                | `Archetype[]`                                  | List of archtypical behaviors                                                                   |
-| `occupation`                | `string`                                       | Name of the character's occupation                                                              |
-| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                   |
-| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under |
-| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                      |
-| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                   |
-| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                         |
-| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                          |
-| `age`                       | `number`                                       | Age of the character                                                                            |
-| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                  |
-| `height`                    | `number`                                       | Height in meters                                                                                |
-| `weight`                    | `number`                                       | Weight in kilograms                                                                             |
-| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                             |
-| `appearance.eye_color`      | `string`                                       | Eye color                                                                                       |
-| `appearance.hair_color`     | `string`                                       | Hair color                                                                                      |
-| `appearance.skin_color`     | `string`                                       | Skin color                                                                                      |
-| `appearance.complexion`     | `string`                                       | Complexion                                                                                      |
-| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                  |
+| `data` property             | Values                                         | Description                                                                                      |
+| --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| `portrait`                  | `string`                                       | File path to the portrait image                                                                  |
+| `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
+| `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
+| `occupation`                | `string`                                       | Name of the character's occupation                                                               |
+| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                    |
+| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
+| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                       |
+| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
+| `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
+| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                           |
+| `age`                       | `number`                                       | Age of the character                                                                             |
+| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                   |
+| `height`                    | `number`                                       | Height in meters                                                                                 |
+| `weight`                    | `number`                                       | Weight in kilograms                                                                              |
+| `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
+| `appearance.eye_color`      | `string`                                       | Eye color                                                                                        |
+| `appearance.hair_color`     | `string`                                       | Hair color                                                                                       |
+| `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
+| `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
+| `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
 
 If a `sohl` property is present, a SoHL actor of type "being" will be created.
 
@@ -713,13 +819,13 @@ If an `hm3` property is present, an HM3 actor is created. Its document type is *
 
 A SoHL "being" document will be created, as will an "HM3" document.
 
-| shared source           | → sohl            | → hm3                        |
-| ----------------------- | ----------------- | ---------------------------- |
-| `data.portrait`         | `system.portrait` | `system.bioImage`            |
-| `data.templatePriority` | `system.template` | `flags.hm3.templatePriority` |
-| `data.species`          | NA                | `system.species`             |
-| `data.gender`           | NA                | `system.gender`              |
-| `data.occupation`       | NA                | `system.occupation`          |
+| shared source           | → sohl                    | → hm3                        |
+| ----------------------- | ------------------------- | ---------------------------- |
+| `data.portrait`         | `system.portrait`         | `system.bioImage`            |
+| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
+| `data.species`          | NA                        | `system.species`             |
+| `data.gender`           | NA                        | `system.gender`              |
+| `data.occupation`       | NA                        | `system.occupation`          |
 
 ### type: homepage
 
@@ -740,10 +846,10 @@ Represents a conveyance able to hold goods and people moving from one place to a
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
-| shared source           | → sohl            | → hm3 |
-| ----------------------- | ----------------- | ----- |
-| `data.portrait`         | `system.portrait` | NA    |
-| `data.templatePriority` | `system.template` | NA    |
+| shared source           | → sohl                    | → hm3 |
+| ----------------------- | ------------------------- | ----- |
+| `data.portrait`         | `system.portrait`         | NA    |
+| `data.templatePriority` | `system.templatePriority` | NA    |
 
 ### type: affiliation
 
@@ -1606,9 +1712,33 @@ need an authoring convention of their own.
 The note's `img` is a content-relative path resolved the way every other note's
 is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
-### type: folder
+### type: bundle
 
-| `data` property | Values      | Description                                                                                                                                                |
-| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `parent`        | `wikilink`  | The parent folder of this folder, type `folder`                                                                                                            |
-| `color`         | `"#RRGGBB"` | The folder's colour. **Quote it.** Unquoted, the `#` opens a YAML comment and the value is `null`; drop the `#` and YAML reads `000000` as the number `0`. |
+A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
+
+| `data` property | Values       | Description                                            |
+| --------------- | ------------ | ------------------------------------------------------ |
+| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
+
+**The note's system blocks decide how many Adventures it makes**, exactly as they
+do for every other type:
+
+- With **no** system block, one Adventure is written, holding only the `contents`
+  that are themselves of system `none`.
+- With **one or more**, one Adventure is written **per system**, each holding
+  every `none` document plus that system's own. A document of neither is
+  silently left out.
+
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — except that it
+defaults to `adventures` rather than to the configured default pack.
+`<system>.pack` overrides it for that system, as it does everywhere else.
+
+An `Adventure` carries **copies** of what it holds, not references: importing one
+creates or updates each document in the world, after which they live
+independently. So a bundle is not a folder — a folder is a live grouping that
+persists in the pack.
+
+Note that an `Adventure` has no `system` field of its own. A bundle spanning two
+systems therefore cannot be one document that knows it spans them; it is one
+Adventure per system, and the pack each is written to is what carries the system.

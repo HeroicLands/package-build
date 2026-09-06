@@ -186,18 +186,52 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
  */
 export function resolveArchetype(fm, label) {
     const sohl = fm != null && typeof fm.sohl === "object" ? fm.sohl : null;
-    const inSohl = sohl != null && "archetype" in sohl;
-    const inTop = fm != null && typeof fm === "object" && "archetype" in fm;
-    if (!inSohl && !inTop) {
+    const data = fm != null && typeof fm.data === "object" && fm.data !== null ? fm.data : null;
+
+    // Three places, in the order the migration runs (#266). The specification
+    // calls this `data.templatePriority`; `sohl-thalorna` already writes it
+    // there on 941 notes, beside the `archetype` the build reads — so a tree
+    // that has authored forward is read from the key it authored, and only then
+    // does the retiring spelling answer.
+    const NEW = "templatePriority";
+    const OLD = "archetype";
+    const sources = [
+        [data, NEW],
+        [sohl, NEW],
+        [fm, NEW],
+        [sohl, OLD],
+        [fm, OLD],
+    ];
+    const found = sources.find(([where, key]) => where != null && key in where);
+
+    // A note part-way through the rename may carry both spellings, and they may
+    // *disagree*: 145 of `sohl-thalorna`'s 941 dual-spelled notes say
+    // `templatePriority: null` where `archetype: 0` says the opposite — "not a
+    // template" against "a template at priority 0". Preferring the new key
+    // silently would flip those documents, and preferring the old would ignore
+    // what an author wrote most recently. Neither is a decision this function
+    // gets to make quietly, so a contradiction is refused and named.
+    const retiring = sources
+        .slice(sources.findIndex(([, key]) => key === OLD))
+        .find(([where, key]) => where != null && key in where);
+    if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
         throw new Error(
-            `Missing required sohl.archetype for ${label} — set a number (this is an archetype) or null (it is not)`,
+            `Conflicting ${NEW} for ${label}: ` +
+                `${NEW} is ${JSON.stringify(found[0][found[1]])} and the retiring ` +
+                `${OLD} is ${JSON.stringify(retiring[0][OLD])}. Both are read and ` +
+                `${NEW} wins, so they must agree — delete ${OLD}, or correct it`,
         );
     }
-    const raw = inSohl ? sohl.archetype : fm.archetype;
+    if (!found) {
+        throw new Error(
+            `Missing required ${NEW} for ${label} — set a number (this is a template, at that priority) or null (it is not)`,
+        );
+    }
+    const raw = found[0][found[1]];
     if (raw === null) return undefined;
     if (typeof raw !== "number" || !Number.isFinite(raw)) {
         throw new Error(
-            `Invalid sohl.archetype for ${label}: expected a number or null, got ${JSON.stringify(raw)}`,
+            `Invalid ${found[1]} for ${label}: expected a number or null, got ${JSON.stringify(raw)}`,
         );
     }
     return raw;
