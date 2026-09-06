@@ -76,7 +76,17 @@ fi
 echo "pre-push: running the Build & Test workflow in a container over HEAD."
 echo "pre-push: to skip once, push with --no-verify."
 
-node "$(dirname "$0")/../ci/ci-docker.mjs"
+# The runner lives beside this hook inside the package. If it is not there,
+# this hook is being used from somewhere else — a global `core.hooksPath`, a
+# copy — in a repository that does not install the package. Nothing to run, and
+# certainly nothing to refuse a push over.
+runner="$(dirname "$0")/../ci/ci-docker.mjs"
+if [ ! -f "$runner" ]; then
+    echo "pre-push: no workflow runner alongside this hook; skipping the check."
+    exit 0
+fi
+
+node "$runner"
 status=$?
 
 # 2 means the check could not run — no Docker — which is not the same as a
