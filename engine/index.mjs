@@ -95,6 +95,9 @@ export * as subtypeRegistry from "./subtype-registry.mjs";
 /** The id a note's document is filed under: its pin, or its address (#270). */
 export * as noteIds from "./note-ids.mjs";
 
+/** The shortcodes a note declares it used to be published under (#278). */
+export * as noteRenames from "./note-renames.mjs";
+
 /** The published content index packages exchange addresses through (#239). */
 export * as metadataIndex from "./metadata-index.mjs";
 

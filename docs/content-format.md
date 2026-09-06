@@ -379,14 +379,81 @@ shortcode, so renaming a shortcode gives the document a new `_id`. Two things
 make that acceptable: a shortcode rename already breaks every wikilink to the
 note, so it is a breaking change either way; and a note that must keep its
 identity across one pins its `id`, which is what the pin is for. One diagnostic
-genuinely narrows — `content-build` tells a **rename** from a **withdrawal** by
-matching document ids across releases, and for an unpinned note both sides now
-move together, so a rename is reported as a withdrawal with no successor named.
-It never reports a _wrong_ successor, and it stays exact for a pinned note.
+narrows — `content-build` tells a **rename** from a **withdrawal** by matching
+document ids across releases, and for an unpinned note both sides now move
+together. It never reports a _wrong_ successor, and it stays exact for a pinned
+note; for the rest, the note **declares** the rename (below).
 
 **A note with no address gets no id, and no document.** `type` and `shortcode`
 are what a note is addressed by, so a note missing either cannot be filed and
 the build refuses it by that name rather than by a missing `id:`.
+
+#### Declaring a rename
+
+A note names the shortcode it used to be published under:
+
+```yaml
+type: weapongear
+shortcode: Taburi
+renamedFrom: Tabri
+```
+
+`(type, shortcode)` is a **published interface** — every satellite that declares
+`itemCatalog: true` assembles its beings out of those addresses — so renaming a
+shortcode breaks other repositories, and `content-build addresses diff` exists to
+say so before a release does. To be useful it has to name where the address
+_went_, and since ids are derived it can no longer work that out for an unpinned
+note: both sides of the match move together, and the rename reads as a
+withdrawal.
+
+**Pinning an `id` needs foresight; a declaration needs only hindsight.** A pin
+has to be written _before_ the rename, by an author who does not yet know they
+will make one. An author who has just renamed a shortcode knows exactly what the
+old one was, and that is the only moment anyone does — so this is the key to
+reach for, and `id:` stays what it is for: keeping a document's identity across
+the rename, which is a different question from explaining it.
+
+**It takes one shortcode or a list**, because renames chain: the diff runs
+against a released baseline, and a shortcode may have been renamed more than once
+since. List every name the baseline might still know it by.
+
+```yaml
+shortcode: Taburin
+renamedFrom:
+  - Tabri
+  - Taburi
+```
+
+**It is transient.** Once every baseline a build is compared against post-dates
+the rename, the declaration has nothing left to say and should be deleted. That
+is what separates it from an `id:` pin, which is permanent.
+
+**One key per note, at the top level**, however many systems the note compiles
+into: a shortcode is the note's rather than a system block's, so a note carrying
+`sohl:` and `hm3:` blocks compiles two documents that share one shortcode, and
+one declaration covers both.
+
+**What a declaration changes is what the diagnostic can say, not what it says
+about you.** A finding reports which of the two joins it had, because they are
+not equally checkable — a matched id is a fact a reader can verify in both
+artefacts, while a declaration is the author's word:
+
+```text
+since sohl@0.8.2, weapongear:Tabri is no longer published; the note now
+published as weapongear:Taburi declares it was renamed from Tabri. Every
+package that resolves weapongear:Tabri breaks when it moves past sohl@0.8.2
+```
+
+A rename that is neither pinned nor declared is still reported as a
+**withdrawal**. Nothing infers a successor from a similar-looking string: a wrong
+one sends the reader to the wrong fix, which is worse than saying nothing.
+
+`content-lint` holds a declaration to the same rules a current address is held
+to. An entry must be a well-formed shortcode, must not be the note's own, and
+must name an address the package actually **vacated** — an entry naming an
+address some note still publishes is refused, as are two notes claiming one
+predecessor, since an address had one holder and so has one successor. A repeat
+of the same entry is a warning; the declaration still works.
 
 #### The compendium folder
 

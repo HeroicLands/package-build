@@ -21,6 +21,7 @@ import { fileURLToPath } from "node:url";
 import {
     readItemAddresses,
     diffItemAddresses,
+    declaredPredecessors,
     noteFilesById,
     locateAddressFinding,
     formatAddressFinding,
@@ -123,9 +124,12 @@ describe("diffing this build's addresses against a published release (#66)", () 
     });
 
     /*
-     * The whole point. `_id` is authored in the note's frontmatter and is not
-     * derived from the shortcode, so it survives a rename — which makes this an
-     * identity match rather than a guess at a similar-looking string.
+     * The strongest of the three joins: the id is the same on both sides, so
+     * this is an identity match rather than a guess at a similar-looking
+     * string. Since #270 an id is derived from the address and moves with the
+     * shortcode, so what this now describes is a note that **pins** its `id` —
+     * still the exact case, and no longer the common one. The unpinned note is
+     * `renamedFrom:`, below.
      */
     it("calls a dropped address a rename when the same document is published elsewhere", () => {
         const current = new Map(baseline());
@@ -385,6 +389,301 @@ describe("the `addresses` command's own guards (#66)", () => {
         const { code, shown } = run("addresses", "diff");
         expect(code).not.toBe(0);
         expect(shown).toContain("--from");
+    });
+});
+
+/*
+ * #270 keyed a document's id on its canonical address, which carries the
+ * shortcode — so renaming one moves the id too, both sides of the id join move
+ * together, and an unpinned rename went back to reading as a withdrawal. A note
+ * that has just been renamed says so instead (#278).
+ */
+describe("a rename the note declares (#278)", () => {
+    /** A content note, with a `renamedFrom:` written as raw YAML. */
+    function noteFile(
+        rel: string,
+        {
+            type,
+            shortcode,
+            renamedFrom,
+        }: { type: string; shortcode?: string; renamedFrom?: string },
+    ): string {
+        return write(
+            rel,
+            [
+                "---",
+                "name:",
+                "  full: Tabûri",
+                `type: ${type}`,
+                ...(shortcode == null ? [] : [`shortcode: ${shortcode}`]),
+                ...(renamedFrom == null ? [] : [`renamedFrom: ${renamedFrom}`]),
+                "---",
+                "",
+                "Body.",
+                "",
+            ].join("\n"),
+        );
+    }
+
+    const scope = { skipDirectories: [] };
+
+    describe("reading the declarations out of the tree", () => {
+        it("indexes an old address against where the declaring note publishes now", () => {
+            const file = noteFile("content/Weapons/Taburi.md", {
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "Tabri",
+            });
+            const map = declaredPredecessors(path.join(tmp, "content"), scope);
+            expect(map.get("weapongear:Tabri")).toMatchObject({
+                to: "weapongear:Taburi",
+                file,
+                shortcode: "Tabri",
+            });
+        });
+
+        it("reads a list, because a shortcode can be renamed twice between releases", () => {
+            noteFile("content/Weapons/Taburi.md", {
+                type: "weapongear",
+                shortcode: "Taburin",
+                renamedFrom: "\n  - Tabri\n  - Taburi",
+            });
+            const map = declaredPredecessors(path.join(tmp, "content"), scope);
+            expect(map.get("weapongear:Tabri")?.to).toBe("weapongear:Taburin");
+            expect(map.get("weapongear:Taburi")?.to).toBe("weapongear:Taburin");
+        });
+
+        /*
+         * The address space is spelled in compiled documents, and `hm3`
+         * compiles a `projectilegear` note into a `missilegear` item — so that
+         * is the address a rename of it moves. Keyed by note type instead, the
+         * declaration would name an address no pack publishes.
+         */
+        it("keys a declaration by document subtype, not by note type", () => {
+            noteFile("content/Missiles/Arrow.md", {
+                type: "projectilegear",
+                shortcode: "arrowb",
+                renamedFrom: "arrow",
+            });
+            const map = declaredPredecessors(path.join(tmp, "content"), scope);
+            // `sohl` maps the type to itself; `hm3` maps it to `missilegear`.
+            expect(map.get("projectilegear:arrow")?.to).toBe("projectilegear:arrowb");
+            expect(map.get("missilegear:arrow")?.to).toBe("missilegear:arrowb");
+        });
+
+        it("ignores a note with no address, which has nowhere for a rename to have gone", () => {
+            noteFile("content/Weapons/Taburi.md", { type: "weapongear", renamedFrom: "Tabri" });
+            expect(declaredPredecessors(path.join(tmp, "content"), scope).size).toBe(0);
+        });
+
+        it("ignores a note declaring a rename from its own current address", () => {
+            noteFile("content/Weapons/Taburi.md", {
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "Taburi",
+            });
+            expect(declaredPredecessors(path.join(tmp, "content"), scope).size).toBe(0);
+        });
+
+        it("skips an entry that is not a shortcode rather than coercing it", () => {
+            noteFile("content/Weapons/Taburi.md", {
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "17",
+            });
+            expect(declaredPredecessors(path.join(tmp, "content"), scope).size).toBe(0);
+        });
+
+        it("says nothing about a tree whose notes declare nothing", () => {
+            noteFile("content/Weapons/Taburi.md", { type: "weapongear", shortcode: "Taburi" });
+            expect(declaredPredecessors(path.join(tmp, "content"), scope).size).toBe(0);
+        });
+
+        /*
+         * The scope is the caller's to state (#243), like every other walk of
+         * the tree. This read and `noteFilesById` run over one corpus in one
+         * command, so a default here would let them disagree about which files
+         * are in it — and `addresses diff` was already shipping the other half
+         * of that mistake: it called `noteFilesById` with no scope at all, so
+         * the command threw the moment it had a finding to place, and worked
+         * only when it had nothing to report.
+         */
+        it("refuses a scope the caller did not state", () => {
+            expect(() => declaredPredecessors(path.join(tmp, "content"))).toThrow(
+                /requires `skipDirectories`/,
+            );
+            expect(() => noteFilesById(path.join(tmp, "content"))).toThrow(
+                /requires `skipDirectories`/,
+            );
+        });
+    });
+
+    describe("using them in the diff", () => {
+        const baseline = () =>
+            new Map([
+                [
+                    "weapongear:Tabri",
+                    {
+                        id: "old-derived-id",
+                        name: "Tabûri",
+                        type: "weapongear",
+                        shortcode: "Tabri",
+                        file: "/cache/Taburi_old.json",
+                    },
+                ],
+            ]);
+        const current = () =>
+            new Map([
+                [
+                    "weapongear:Taburi",
+                    {
+                        id: "new-derived-id",
+                        name: "Tabûri",
+                        type: "weapongear",
+                        shortcode: "Taburi",
+                    },
+                ],
+            ]);
+
+        it("was a withdrawal with nothing declared, and that is #278", () => {
+            const [finding] = diffItemAddresses(baseline(), current(), { baseline: "sohl@0.8.2" });
+            expect(finding.kind).toBe("withdrawn");
+            expect(finding.to).toBeUndefined();
+        });
+
+        it("is a rename once the note declares it", () => {
+            const [finding] = diffItemAddresses(baseline(), current(), {
+                baseline: "sohl@0.8.2",
+                predecessors: new Map([
+                    ["weapongear:Tabri", { to: "weapongear:Taburi", file: "/tree/Taburi.md" }],
+                ]),
+            });
+            expect(finding.kind).toBe("renamed");
+            expect(finding.to).toBe("weapongear:Taburi");
+            expect(finding.declared).toBe(true);
+            expect(finding.noteFile).toBe("/tree/Taburi.md");
+        });
+
+        /*
+         * A declaration is an author's word and an id match is a fact in the
+         * artefacts, so where both are available the fact wins and the finding
+         * is not marked as declared.
+         */
+        it("prefers the id match, and does not mark that finding declared", () => {
+            const pinned = new Map(current());
+            pinned.set("weapongear:Taburi", {
+                id: "old-derived-id",
+                name: "Tabûri",
+                type: "weapongear",
+                shortcode: "Taburi",
+            });
+            const [finding] = diffItemAddresses(baseline(), pinned, {
+                baseline: "sohl@0.8.2",
+                predecessors: new Map([
+                    ["weapongear:Tabri", { to: "weapongear:Elsewhere", file: "/tree/x.md" }],
+                ]),
+            });
+            expect(finding.to).toBe("weapongear:Taburi");
+            expect(finding.declared).toBeUndefined();
+        });
+
+        /*
+         * The successor has to be real. A declaration pointing at an address
+         * this build does not publish describes a rename that did not survive
+         * to the packs, and naming it would send the reader somewhere nothing
+         * is — so it stays a withdrawal, which is the honest answer.
+         */
+        it("refuses a declared successor this build does not publish", () => {
+            const [finding] = diffItemAddresses(baseline(), current(), {
+                baseline: "sohl@0.8.2",
+                predecessors: new Map([
+                    ["weapongear:Tabri", { to: "weapongear:Nowhere", file: "/tree/x.md" }],
+                ]),
+            });
+            expect(finding.kind).toBe("withdrawn");
+            expect(finding.to).toBeUndefined();
+        });
+
+        it("says the successor was declared rather than claiming it is the same document", () => {
+            const [finding] = diffItemAddresses(baseline(), current(), {
+                baseline: "sohl@0.8.2",
+                predecessors: new Map([
+                    ["weapongear:Tabri", { to: "weapongear:Taburi", file: "/tree/Taburi.md" }],
+                ]),
+            });
+            const message = formatAddressFinding(finding, {});
+            expect(message).toContain(
+                "the note now published as weapongear:Taburi declares it was renamed from Tabri",
+            );
+            expect(message).not.toContain("the same document");
+            // The consequence is the same either way, and is what to act on.
+            expect(message).toContain("breaks when it moves past sohl@0.8.2");
+        });
+
+        /*
+         * The `renamedFrom:` line, not the `shortcode:` line: that is the line
+         * the finding is about, and the one the author deletes once the
+         * declaration has done its work.
+         */
+        it("points a declared rename at the `renamedFrom:` line of the declaring note", () => {
+            const file = noteFile("content/Weapons/Taburi.md", {
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "Tabri",
+            });
+            const at = locateAddressFinding(
+                {
+                    kind: "renamed",
+                    address: "weapongear:Tabri",
+                    to: "weapongear:Taburi",
+                    declared: true,
+                    noteFile: file,
+                    id: "old-derived-id",
+                    shortcode: "Tabri",
+                    baseline: "sohl@0.8.2",
+                },
+                new Map(),
+            );
+            expect(at.file).toBe(file);
+            // Line 6: `---`, `name:`, `  full:`, `type:`, `shortcode:`, `renamedFrom:`.
+            expect(at.line).toBe(6);
+            expect(at.column).toBeGreaterThan(0);
+        });
+    });
+
+    /*
+     * End to end on the case #278 was raised about: the same rename the module
+     * exists for, with the **derived** ids #270 gave it, joined only by the
+     * note's declaration and read off a real tree.
+     */
+    it("reports the derived-id Tabri → Taburi rename, joined only by the declaration", () => {
+        write(
+            "released/Taburi_old.json",
+            itemDoc("weapongear", "Tabri", "old-derived-id", "Tabûri"),
+        );
+        write(
+            "compiled/Taburi_new.json",
+            itemDoc("weapongear", "Taburi", "new-derived-id", "Tabûri"),
+        );
+        noteFile("content/Weapons/Taburi.md", {
+            type: "weapongear",
+            shortcode: "Taburi",
+            renamedFrom: "Tabri",
+        });
+        const findings = diffItemAddresses(
+            readItemAddresses([path.join(tmp, "released")]),
+            readItemAddresses([path.join(tmp, "compiled")]),
+            {
+                baseline: "sohl@0.8.2",
+                predecessors: declaredPredecessors(path.join(tmp, "content"), scope),
+            },
+        );
+        expect(findings).toHaveLength(1);
+        expect(findings[0].kind).toBe("renamed");
+        expect(formatAddressFinding(findings[0], {})).toContain(
+            "weapongear:Tabri is no longer published; the note now published " +
+                "as weapongear:Taburi declares it was renamed from Tabri",
+        );
     });
 });
 

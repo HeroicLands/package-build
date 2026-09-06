@@ -24,22 +24,33 @@ function tree(files: Record<string, string>): string {
     return root;
 }
 
-/** A well-formed note, with any field overridden. */
+/**
+ * A well-formed note, with any field overridden.
+ *
+ * `renamedFrom` is written as raw YAML rather than as a value, because half of
+ * what the rule has to report is a value that is not a shortcode at all — a
+ * number, a nested list, a blank string — and a typed parameter could not pose
+ * one. `shortcode: null` omits the key, for the note that declares a rename
+ * while carrying no address of its own.
+ */
 function note({
     type = "affliction",
     shortcode = "aconite",
     name = "Aconite",
+    renamedFrom,
 }: Partial<{
     type: string;
-    shortcode: string;
+    shortcode: string | null;
     name: string;
+    renamedFrom: string;
 }> = {}): string {
     return [
         "---",
         `name:`,
         `  full: ${name}`,
         `type: ${type}`,
-        `shortcode: ${shortcode}`,
+        ...(shortcode == null ? [] : [`shortcode: ${shortcode}`]),
+        ...(renamedFrom == null ? [] : [`renamedFrom: ${renamedFrom}`]),
         "---",
         "",
         "Body prose.",
@@ -260,5 +271,190 @@ describe("lintContentTree", () => {
         // Without the skip, the template would duplicate the real note.
         expect(r.findings).toEqual([]);
         expect(r.notes).toBe(2);
+    });
+});
+
+/*
+ * A note declares the shortcode it used to be published under, so that
+ * `addresses diff` can tell a rename from a withdrawal now that a document id
+ * is derived from the address and moves with it (#278). The declaration is
+ * testimony, so what it is checked against is the rest of the tree: an entry
+ * names an address this package *vacated*, which is the uniqueness rule read
+ * backwards.
+ */
+describe("`renamedFrom`, the address a note used to hold (#278)", () => {
+    const lintTree = (files: Record<string, string>) =>
+        lintContentTree(tree({ "homepage.md": homepage(), ...files }), {
+            skipDirectories: [],
+        });
+
+    it("says nothing about a well-formed declaration", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "Tabri",
+            }),
+        });
+        expect(r.findings).toEqual([]);
+    });
+
+    it("accepts a list, because renames chain between two releases", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburin",
+                renamedFrom: "\n  - Tabri\n  - Taburi",
+            }),
+        });
+        expect(r.findings).toEqual([]);
+    });
+
+    it("reports an entry that is not a shortcode, which the diff would skip", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "17",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].severity).toBe("error");
+        expect(r.findings[0].message).toContain("takes shortcodes");
+        expect(r.findings[0].message).toContain("a number");
+    });
+
+    it("reports a blank entry as blank rather than as a type", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: '""',
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].message).toContain("blank");
+    });
+
+    it("holds a past shortcode to the charset a current one is held to", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "ta-bri",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].message).toContain("not strictly alphanumeric");
+    });
+
+    it("reports a note that declares a rename from itself", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                renamedFrom: "Taburi",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].message).toContain("this note's own shortcode");
+    });
+
+    /*
+     * A warning, not an error: the reader de-duplicates, so the declaration
+     * still does its job and the tree is not wrong, only wordy.
+     */
+    it("warns about a repeated entry without failing the tree", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburin",
+                renamedFrom: "\n  - Tabri\n  - Tabri",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].severity).toBe("warning");
+        expect(r.findings[0].message).toContain("listed twice");
+    });
+
+    /*
+     * Reached before the keyless `continue` that skips folder documents: a note
+     * declaring a rename while holding no address is exactly the case this
+     * reports, so running the rule after the skip would mean it never ran where
+     * it was needed.
+     */
+    it("reports a declaration on a note that has no address of its own", () => {
+        const r = lintTree({
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: null,
+                renamedFrom: "Tabri",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].message).toContain("declares no `shortcode`");
+    });
+
+    it("refuses a claim on an address another note still publishes", () => {
+        const r = lintTree({
+            "Weapons/Tabri.md": note({ type: "weapongear", shortcode: "Tabri", name: "Tabri" }),
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                name: "Tabûri",
+                renamedFrom: "Tabri",
+            }),
+        });
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].severity).toBe("error");
+        expect(r.findings[0].message).toContain("still publishes");
+        expect(r.findings[0].message).toContain("never vacated");
+    });
+
+    /*
+     * The same address cannot have moved to two places, and
+     * `declaredPredecessors` has to pick one arbitrarily — so the contradiction
+     * is reported here, where both notes are in hand and can both be named.
+     */
+    it("refuses two notes claiming one predecessor, naming both", () => {
+        const r = lintTree({
+            "Weapons/A.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                name: "A",
+                renamedFrom: "Tabri",
+            }),
+            "Weapons/B.md": note({
+                type: "weapongear",
+                shortcode: "Taburin",
+                name: "B",
+                renamedFrom: "Tabri",
+            }),
+        });
+        expect(r.findings).toHaveLength(2);
+        for (const f of r.findings) expect(f.severity).toBe("error");
+        // Reported once per offending note, so an author who opens either one
+        // is told where the other is.
+        expect(new Set(r.findings.map((f) => f.file)).size).toBe(2);
+        expect(r.findings[0].message).toContain("claimed as a predecessor by more than one");
+        expect(r.findings.map((f) => f.message).join(" ")).toContain("Taburi");
+        expect(r.findings.map((f) => f.message).join(" ")).toContain("Taburin");
+    });
+
+    /*
+     * The predecessor space is keyed by type like the address space is, so one
+     * type's rename says nothing about another's like-spelled shortcode.
+     */
+    it("scopes a claim to the note's type", () => {
+        const r = lintTree({
+            "Skills/Tabri.md": note({ type: "skill", shortcode: "Tabri", name: "Skill" }),
+            "Weapons/Taburi.md": note({
+                type: "weapongear",
+                shortcode: "Taburi",
+                name: "Tabûri",
+                renamedFrom: "Tabri",
+            }),
+        });
+        expect(r.findings).toEqual([]);
     });
 });
