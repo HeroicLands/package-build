@@ -35,7 +35,7 @@ import {
 } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
-import { packForType } from "../engine/ids.mjs";
+import { RENAMED_TYPES, packForType } from "../engine/ids.mjs";
 import { itemTypes } from "../engine/item-registry.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -242,13 +242,31 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor")).toEqual(["being"]);
     });
 
-    it("maps every row to the identical subtype, which is why nothing moves", () => {
-        // The evidence that compiled output cannot change: today every SoHL
-        // row is the identity, so looking the subtype up returns exactly what
-        // inferring it did. A row that ever stops being the identity is a
-        // deliberate rename with a content migration behind it (#78).
+    it("maps every row to the identical subtype but the three #78 renamed", () => {
+        // The evidence that compiled output cannot change. Every SoHL row was
+        // the identity until #78 renamed three note types off the `…gear`
+        // spellings that named the document rather than the subject; those
+        // three now map back onto exactly the subtype they always emitted, and
+        // every other row still returns what inferring it did.
+        const renamed = new Map(Object.entries(RENAMED_TYPES).map(([old_, now]) => [now, old_]));
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
-            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}), type).toBe(type);
+            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}), type).toBe(
+                renamed.get(type) ?? type,
+            );
+        }
+    });
+
+    it("still answers to a renamed type's retired spelling (#78)", () => {
+        // The retirement window: a tree that has not swept its `(type,
+        // shortcode)` references compiles into the document it always did, so
+        // the packs cannot move while the sweep is outstanding.
+        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
+            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, retired, {}), retired).toBe(
+                documentSubtype(SOHL_DOCUMENT_SUBTYPES, current, {}),
+            );
+            expect(subtypeRow(SOHL_DOCUMENT_SUBTYPES, retired), retired).toBe(
+                subtypeRow(SOHL_DOCUMENT_SUBTYPES, current),
+            );
         }
     });
 

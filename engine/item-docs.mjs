@@ -44,6 +44,7 @@
 
 import { compendiumUuid, makeId, pageUuid } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { packRouter } from "./pack-router.mjs";
 
@@ -97,7 +98,12 @@ export function docEntryTypes() {
  *   false for `doc` and for actors.
  */
 export function hasDocEntry(type) {
-    return docEntryTypes().has(String(type));
+    // Through {@link currentType}, because the set is derived from the item
+    // registry's keys and those are the *current* spelling of a note type. A
+    // note still on a renamed one carries its documentation journal exactly as
+    // before — this is the one lookup between an item compiling and its prose
+    // silently compiling into nothing (#78).
+    return docEntryTypes().has(String(currentType(type)));
 }
 
 /**

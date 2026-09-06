@@ -94,7 +94,7 @@ import { assertStatedScope } from "./helpers.mjs";
 // The corpus, read from the one pass that derives it (#243). Nothing in the
 // index's import graph reaches this module — only `bin/` imports it — so this
 // is a plain static import, as in the link checker.
-import { indexRecordsFor, isNoteRecord } from "./content-index.mjs";
+import { indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { renamedFrom } from "./note-renames.mjs";
 import { referencedSubtype } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -185,7 +185,7 @@ export function readItemAddresses(dirs) {
  *
  * **A declaration is keyed by document subtype, not by note type.** The address
  * space is the one consumers resolve against, and it is spelled in compiled
- * documents: `hm3` compiles a `projectilegear` note into a `missilegear` item,
+ * documents: `hm3` compiles a `projectile` note into a `missilegear` item,
  * so that is the address a rename of it moves. {@link referencedSubtype} is the
  * function that already answers this for a being's embedded `(type, shortcode)`
  * references, so both sides read the same rule rather than a second copy of it.
@@ -257,22 +257,6 @@ function addressCorpus(contentBase, { skipDirectories, config, records, problems
     return indexRecordsFor({ contentBase, config, skipDirectories, problems });
 }
 
-/**
- * The file a record was read from, as an absolute path.
- *
- * The index records a path *relative* to the content root deliberately — an
- * absolute one is a fact about the machine that built it — and a diagnostic
- * needs the absolute form. The root is in hand, so this is the composition the
- * index's own documentation names.
- *
- * @param {string} contentBase - Root of the content tree.
- * @param {object} record - An index record.
- * @returns {string} The absolute path.
- */
-function fileOf(contentBase, record) {
-    return path.join(contentBase, ...String(record.file.path).split("/"));
-}
-
 export function declaredPredecessors(
     contentBase,
     { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS, config, records, problems } = {},
@@ -296,7 +280,7 @@ export function declaredPredecessors(
         // have gone, so it declares a rename to nothing. Reported by the lint;
         // silently skipped here rather than indexed as a rename to `type:`.
         if (!shortcode) continue;
-        const absPath = fileOf(contentBase, record);
+        const absPath = noteFile(contentBase, record);
         for (const map of maps) {
             const { subType } = referencedSubtype(map, record.type, "Item");
             if (!subType) continue;
@@ -429,7 +413,7 @@ export function noteFilesById(contentBase, { skipDirectories, config, records, p
         // First record wins, and the records are in content-path order, so
         // which note answers for a duplicated id is now a stable fact about the
         // tree rather than an artefact of directory-read order.
-        if (record.id && !byId.has(record.id)) byId.set(record.id, fileOf(contentBase, record));
+        if (record.id && !byId.has(record.id)) byId.set(record.id, noteFile(contentBase, record));
     }
     return byId;
 }

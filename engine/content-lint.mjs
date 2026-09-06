@@ -68,7 +68,7 @@ import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { assertStatedScope } from "./helpers.mjs";
 // The corpus, read from the one pass that derives it (#243).
-import { authoredFrontmatter, indexRecordsFor, isNoteRecord } from "./content-index.mjs";
+import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-renames.mjs";
 
@@ -148,7 +148,7 @@ function collectNotes(contentBase, { skipDirectories, config, records, problems 
         // A documentation journal is a document this tree emits, not a note in
         // it: it has no authored frontmatter for a lint to reason about.
         if (!isNoteRecord(record) || !record.type) continue;
-        const absPath = path.join(contentBase, ...String(record.file.path).split("/"));
+        const absPath = noteFile(contentBase, record);
         notes.push({
             fm: authoredFrontmatter(record),
             absPath,

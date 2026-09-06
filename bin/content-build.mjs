@@ -103,6 +103,7 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
+import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
 import {
@@ -110,6 +111,7 @@ import {
     emitContentIndex,
     indexRecordsFor,
     isNoteRecord,
+    noteFile,
 } from "../engine/content-index.mjs";
 import {
     buildSite,
@@ -676,7 +678,7 @@ function contentFormatNotesCommand() {
                     // not a note in it, and has no authored frontmatter to
                     // measure.
                     if (!isNoteRecord(record) || typeof record.type !== "string") continue;
-                    const absPath = path.join(root, ...String(record.file.path).split("/"));
+                    const absPath = noteFile(root, record);
                     notes.push({
                         file: absPath,
                         // What the author wrote, never the keys the index
@@ -849,6 +851,12 @@ function lintCommand() {
                     const { undeclared, unemitted } = compareFields({
                         builders: fieldSpecs,
                         artifact: schema.artifact,
+                        // A schema is keyed by document subtype and a field
+                        // declaration by note type. Those were one string until
+                        // #78 renamed three of them, and joining them by name
+                        // after that would drop `armorgear`'s findings without
+                        // saying so — the seam exists for exactly this.
+                        subtypeOf: (type) => schemaSubtypeOf(config.stats?.systemId, type),
                     });
                     for (const f of undeclared) {
                         schemaFindings.push({

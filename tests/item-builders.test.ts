@@ -20,8 +20,14 @@ import { fileURLToPath } from "node:url";
 import { ITEM_BUILDERS } from "../sohl/item-builders.mjs";
 import { itemTypes, itemBuilder } from "../engine/item-registry.mjs";
 import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
+import { documentSubtype } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { Items } from "../sohl/items.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
+
+/** The SoHL document subtype a note type compiles into — the art map's key. */
+const subtype = (type: string) =>
+    documentSubtype(SOHL_DOCUMENT_SUBTYPES as never, type, {}) ?? type;
 
 /** This package's own root — where its test fixtures live. */
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -56,8 +62,11 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
     });
 
     it("keeps the registry in step with the per-type default art", () => {
-        // The third list that could drift (#1504): default item artwork.
-        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...itemTypes()].sort());
+        // The third list that could drift (#1504): default item artwork. The
+        // registry is keyed by the note type and the art map by the document
+        // subtype since #78, so the comparison runs through SoHL's own map —
+        // which is the only statement anywhere of what an `armor` becomes.
+        expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...itemTypes()].map(subtype).sort());
     });
 
     it("pairs each type with its own entry from the one art map (#7)", () => {
@@ -68,7 +77,7 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
         // map (SoHL#932/#1510).
         const art = DEFAULT_ITEM_ART as Record<string, string>;
         for (const [type, entry] of Object.entries(BUILDERS)) {
-            expect((entry as { img: string }).img, type).toBe(art[type]);
+            expect((entry as { img: string }).img, type).toBe(art[subtype(type)]);
         }
     });
 });

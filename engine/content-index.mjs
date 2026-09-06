@@ -61,6 +61,28 @@
  * Foundry data root, so anything left there ships inside the installed system
  * to every player, and a build artifact has no business there.
  *
+ * **What it deliberately does not carry: the note's text, and positions within
+ * it.** #243 asks whether the index should record a position for every
+ * frontmatter key, so that a pass reading the index could report a field defect
+ * without opening the file. It should not, and the numbers are not close: over
+ * `sohl`'s 1,685 notes the index is 3.0 MB and holds 50,598 leaf values, so a
+ * `{line, column}` on each would add roughly 1.6 MB — **a 54% larger artifact**
+ * — to carry data that is only ever read on the *failing* path.
+ *
+ * The rule that replaces it is the one this module was already built on:
+ * **the index carries what is _about_ a note; the file carries the note's text
+ * and every position within it.** Any pass needing either opens the file whose
+ * path the record already names ({@link noteFile}). That costs nothing it was
+ * not already paying — a check reads each note once for its body, and a
+ * compiler must read the prose regardless, so while it holds the bytes a
+ * position is free. Recording positions would charge every build, and every
+ * reader of the artifact, for something the passes that want them get for
+ * nothing.
+ *
+ * The exception proves the rule: an **anchor** carries its `line`, because an
+ * anchor is a fact about the note's structure that a consumer addresses
+ * directly, not a locator for a diagnostic about a key.
+ *
  * @module
  */
 
@@ -627,6 +649,29 @@ export function collectContentIndex(
 export function serializeContentIndex(records) {
     if (records.length === 0) return "";
     return `${records.map((r) => JSON.stringify(r)).join("\n")}\n`;
+}
+
+/**
+ * The file a record was read from, as an absolute path.
+ *
+ * **The one composition, because there were four.** `file.path` is recorded
+ * *relative* to the content root deliberately — an absolute one is a fact about
+ * the machine that built the index, would differ between two checkouts of the
+ * same tree, and would put someone's home directory in a published artifact. So
+ * every pass that reads the index and then needs to open a note has to compose
+ * the absolute form, and each of the four converted readers had written its own
+ * `path.join(base, ...record.file.path.split("/"))`. Four copies of one rule is
+ * what #243 exists to remove, so here it is once.
+ *
+ * The split is on `"/"` rather than `path.sep` because the recorded path is
+ * always POSIX — that is what makes the index identical on every platform.
+ *
+ * @param {string} contentBase - Root of the content tree the index was built from.
+ * @param {object} record - An index record.
+ * @returns {string} The note's absolute path.
+ */
+export function noteFile(contentBase, record) {
+    return path.join(contentBase, ...String(record?.file?.path ?? "").split("/"));
 }
 
 /**

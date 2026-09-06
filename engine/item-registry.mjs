@@ -40,6 +40,7 @@
  * @module
  */
 
+import { currentType } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { resolveImg } from "./helpers.mjs";
 
@@ -83,6 +84,11 @@ export function itemTypes() {
  */
 function lookup(what, table, type, system) {
     const config = loadPackConfig();
+    // The registry is keyed by the current spelling of a note type, and a note
+    // still on a renamed one resolves through it unchanged. One place, because
+    // every type-keyed table this module reaches — builders, art, fields — is
+    // indexed here (#78).
+    type = currentType(type);
     if (system !== undefined) {
         const perSystem = /** @type {Record<string, Record<string, unknown>>} */ (
             config[`${table}BySystem`]
