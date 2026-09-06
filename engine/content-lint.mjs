@@ -66,7 +66,9 @@ import path from "node:path";
 
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
-import { walkMarkdownTree } from "./helpers.mjs";
+import { assertStatedScope } from "./helpers.mjs";
+// The corpus, read from the one pass that derives it (#243).
+import { authoredFrontmatter, indexRecordsFor, isNoteRecord } from "./content-index.mjs";
 import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-renames.mjs";
 
@@ -104,29 +106,57 @@ export function isValidShortcode(value) {
 }
 
 /**
- * Collect the notes a lint pass reasons about.
+ * Collect the notes a lint pass reasons about, from the content index.
  *
  * Only notes carrying a `type` are content notes. Vault scaffolding —
  * `Templates/`, a `README`, a repository's own `CLAUDE.md` — has no type, is
  * neither addressed nor addressable, and would fail rules it can never satisfy.
  *
+ * **Read from the index, not from a walk of this pass's own** (#243). The
+ * `lint` command already derives the index — its link check and its `sql`
+ * tables are built from it — and then walked the tree a second time to get
+ * here, so one command held two answers to "which files are the corpus?" and
+ * compared findings drawn from both. It now holds one: the records are derived
+ * once by the command and handed to every pass, this one included.
+ *
+ * The frontmatter is the note's own, recovered with
+ * {@link module:engine/content-index.authoredFrontmatter} — a lint of what an
+ * author wrote must not be handed the keys the index derived, or it would
+ * report `address:` and `anchors:` as fields nobody may write.
+ *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
+ * @param {readonly string[]} [opts.skipDirectories] - The corpus scope, stated
+ *   by the caller.
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {readonly object[]} [opts.records] - Records the caller derived.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, so one of them does not silence the lint.
  * @returns {Array<{fm: object, absPath: string, file: string}>} The notes, in
  *   path order so findings read top to bottom.
  */
-function collectNotes(contentBase, { skipDirectories } = {}) {
+function collectNotes(contentBase, { skipDirectories, config, records, problems } = {}) {
     const notes = [];
-    const walkOpts = skipDirectories ? { skipDirectories } : undefined;
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
-        if (!fm || !fm.type) continue;
+    const corpus =
+        records ??
+        (assertStatedScope(skipDirectories, "collectNotes"),
+        fs.existsSync(contentBase) ?
+            indexRecordsFor({ contentBase, config, skipDirectories, problems })
+        :   []);
+
+    for (const record of corpus) {
+        // A documentation journal is a document this tree emits, not a note in
+        // it: it has no authored frontmatter for a lint to reason about.
+        if (!isNoteRecord(record) || !record.type) continue;
+        const absPath = path.join(contentBase, ...String(record.file.path).split("/"));
         notes.push({
-            fm,
+            fm: authoredFrontmatter(record),
             absPath,
             file: path.relative(process.cwd(), absPath),
         });
     }
+    // The records already come in content-path order, so this only re-states
+    // the guarantee findings depend on: they read top to bottom.
     notes.sort((a, b) => (a.absPath < b.absPath ? -1 : 1));
     return notes;
 }
@@ -243,13 +273,22 @@ function checkRenamedFrom({ fm, file }, raw) {
  *   ignores. Defaults to the configured list.
  * @param {string} [opts.contentPackage] - The package this tree builds, for the
  *   homepage rule. Dropped from that finding when unknown rather than guessed.
+ * @param {object} [opts.config] - The resolved build configuration, which the
+ *   corpus is derived against.
+ * @param {readonly object[]} [opts.records] - Index records the caller already
+ *   derived, so a command reads one corpus (#243).
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, instead of letting one of them silence the lint.
  * @returns {{findings: Array<{file: string, line?: number, column?: number,
  *   severity: "error"|"warning", message: string}>, notes: number,
  *   keys: number}} The findings, and what was inspected to produce them.
  */
-export function lintContentTree(contentBase, { skipDirectories, contentPackage } = {}) {
+export function lintContentTree(
+    contentBase,
+    { skipDirectories, contentPackage, config, records, problems } = {},
+) {
     const findings = [];
-    const notes = collectNotes(contentBase, { skipDirectories });
+    const notes = collectNotes(contentBase, { skipDirectories, config, records, problems });
 
     /** @type {Map<string, Array<{file: string, absPath: string}>>} */
     const byKey = new Map();

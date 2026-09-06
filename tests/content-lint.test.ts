@@ -12,6 +12,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { isValidShortcode, lintContentTree } from "../engine/content-lint.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
 
 /** A throwaway content tree, described as `{ relPath: contents }`. */
 function tree(files: Record<string, string>): string {
@@ -456,5 +457,56 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
             }),
         });
         expect(r.findings).toEqual([]);
+    });
+});
+
+/**
+ * The address lint reads the content index (#243).
+ *
+ * `content-build lint` derives the index for its link check and its `sql`
+ * tables, and then walked the tree a second time to reach this pass — so one
+ * command held two answers to "which files are the corpus?" and reported
+ * findings drawn from both. It now holds one.
+ */
+describe("the address lint is read from the content index (#243)", () => {
+    it("lints the records it is handed, not the tree", () => {
+        const root = tree({
+            "A.md": note({ shortcode: "dup" }),
+            "B.md": note({ shortcode: "dup" }),
+        });
+        // Both notes present, the duplicate address is reported …
+        const records = indexRecordsFor({ contentBase: root, skipDirectories: [] });
+        expect(lintContentTree(root, { records }).notes).toBe(2);
+
+        // … and withheld from the records, the second note is not linted at
+        // all, so the pair no longer collides.
+        const partial = records.filter((r: any) => r.file.path !== "B.md");
+        const scoped = lintContentTree(root, { records: partial });
+        expect(scoped.notes).toBe(1);
+        expect(scoped.findings.filter((f: any) => /more than one note/i.test(f.message))).toEqual(
+            [],
+        );
+    });
+
+    it("reports a note the index cannot record, and lints the rest", () => {
+        const root = tree({
+            "Good.md": note({ shortcode: "notalphanumeric!" }),
+            "Legacy.md": note({ shortcode: "leg" }).replace("---\n\n", "package: sohl\n---\n\n"),
+        });
+        const problems: any[] = [];
+        const r = lintContentTree(root, { skipDirectories: [], problems });
+
+        expect(problems).toHaveLength(1);
+        expect(problems[0].message).toMatch(/retired frontmatter field/);
+        // The other note is still linted — the whole reason a problem is
+        // collected rather than thrown.
+        expect(r.notes).toBe(1);
+        expect(r.findings.some((f: any) => /alphanumeric/.test(f.message))).toBe(true);
+    });
+
+    it("refuses a scope the caller did not state, like every other corpus read", () => {
+        expect(() => lintContentTree(tree({ "A.md": note() }))).toThrow(
+            /requires `skipDirectories`/,
+        );
     });
 });
