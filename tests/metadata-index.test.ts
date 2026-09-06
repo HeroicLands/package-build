@@ -22,6 +22,7 @@ import {
     metadataCacheDir,
     cachedMetadataFiles,
     loadForeignIndexes,
+    newestVersionDir,
 } from "../engine/metadata-index.mjs";
 
 const LATEST = "https://github.com/HeroicLands/sohl/releases/latest/download/system.json";
@@ -146,6 +147,38 @@ describe("reading the metadata cache", () => {
         expect(
             cachedMetadataFiles({ paths: { metadataCache: root }, relationships: {} } as never),
         ).toEqual([]);
+    });
+});
+
+describe("choosing the newest of several cached versions (#272)", () => {
+    /*
+     * Shared by both version-keyed caches under `build/cache` — the content
+     * index here and the item catalogue in `foreign-catalog.mjs`. Written
+     * twice it was got wrong once: the catalogue sorted the directory names as
+     * strings, which reports nothing, because every cached version is a
+     * complete, stamped, valid artifact and the older one resolves fine.
+     */
+    const dirs = (...versions: string[]) => versions.map((v) => `/repo/build/cache/sohl@${v}`);
+
+    it("compares segments numerically, not as strings", () => {
+        // The bug: `"0.8.10" < "0.8.2"` as strings.
+        expect(newestVersionDir(dirs("0.8.2", "0.8.10"))).toBe("/repo/build/cache/sohl@0.8.10");
+        expect(newestVersionDir(dirs("0.8.10", "0.8.2"))).toBe("/repo/build/cache/sohl@0.8.10");
+    });
+
+    it("compares every segment that way, not only the last", () => {
+        expect(newestVersionDir(dirs("0.9.0", "0.10.0"))).toBe("/repo/build/cache/sohl@0.10.0");
+        expect(newestVersionDir(dirs("2.0.0", "10.0.0"))).toBe("/repo/build/cache/sohl@10.0.0");
+    });
+
+    it("orders more than two, whatever order they are listed in", () => {
+        expect(newestVersionDir(dirs("0.8.10", "0.8.9", "0.8.2", "0.8.11"))).toBe(
+            "/repo/build/cache/sohl@0.8.11",
+        );
+    });
+
+    it("returns the only one when a single version is cached", () => {
+        expect(newestVersionDir(dirs("0.8.2"))).toBe("/repo/build/cache/sohl@0.8.2");
     });
 });
 
