@@ -26,6 +26,9 @@ import {
     locateAddressFinding,
     formatAddressFinding,
 } from "../engine/address-diff.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
+import { noteDocId } from "../engine/note-ids.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 /** A compiled item document, in the shape a pack's JSON output has. */
 function itemDoc(type: string, shortcode: string, id: string, name = shortcode): object {
@@ -713,5 +716,77 @@ describe("the live Tabri → Taburi rename (#66, sohl#1239)", () => {
             "weapongear:Tabri is no longer published; the same document " +
                 "(s5D6QJbw7ZbETxdN) is now published as weapongear:Taburi",
         );
+    });
+});
+
+/**
+ * The two tree reads are one read of the content index (#243).
+ *
+ * `addresses diff` reads the tree twice — once for the declarations, once to
+ * place its findings — and those used to be independent walks that each parsed
+ * every note and each answered "which files are the corpus?" for itself.
+ */
+describe("reading the address corpus from the content index (#243)", () => {
+    /** A note with no authored `id`, so the id has to be derived. */
+    function derivedNote(rel: string, type: string, shortcode: string): string {
+        return write(
+            rel,
+            `---\nname:\n  full: Tabûri\ntype: ${type}\nshortcode: ${shortcode}\n---\n\nBody.\n`,
+        );
+    }
+
+    it("derives an id against the configuration it was handed, not the ambient one", () => {
+        const file = derivedNote("content/Weapons/Taburi.md", "weapongear", "Taburi");
+        const content = path.join(tmp, "content");
+        const fm = { type: "weapongear", shortcode: "Taburi" };
+
+        // Ambient — the suite's fixture configuration, `sohl`.
+        const ambient = noteFilesById(content, { skipDirectories: [] });
+        expect(ambient.get(noteDocId(fm) as string)).toBe(file);
+
+        // Handed a different one, the id moves with it. It has to: the ids this
+        // map is joined against come off documents the *build's* compiler
+        // produced, and a tree-side id derived from some other package's name
+        // joins nothing — so every rename would degrade to a withdrawal.
+        const config = { ...loadPackConfig(), contentPackage: "elsewhere" };
+        const handed = noteFilesById(content, { config, skipDirectories: [] });
+        const expected = noteDocId(fm, { pkg: "elsewhere" }) as string;
+        expect(expected).not.toBe(noteDocId(fm));
+        expect(handed.get(expected)).toBe(file);
+    });
+
+    it("reads both halves from one set of records, so a command reads one corpus", () => {
+        const declaring = write(
+            "content/Weapons/Taburi.md",
+            "---\nname:\n  full: Tabûri\ntype: weapongear\nshortcode: Taburi\n" +
+                "renamedFrom: Tabri\n---\n\nBody.\n",
+        );
+        derivedNote("content/Weapons/Dagger.md", "weapongear", "dgr");
+        const content = path.join(tmp, "content");
+        const records = indexRecordsFor({ contentBase: content, skipDirectories: [] });
+
+        // Handed the records, neither read walks the tree — and both see the
+        // same notes, which is the whole point of sharing them.
+        expect(declaredPredecessors(content, { records }).get("weapongear:Tabri")).toMatchObject({
+            to: "weapongear:Taburi",
+            file: declaring,
+        });
+        expect([...noteFilesById(content, { records }).values()].sort()).toEqual(
+            [declaring, path.join(content, "Weapons", "Dagger.md")].sort(),
+        );
+
+        // Withhold a note from the records and it is in neither, so the records
+        // really are the corpus rather than a hint about it.
+        const partial = records.filter((r: any) => r.file.path !== "Weapons/Taburi.md");
+        expect(declaredPredecessors(content, { records: partial }).size).toBe(0);
+        expect([...noteFilesById(content, { records: partial }).values()]).toEqual([
+            path.join(content, "Weapons", "Dagger.md"),
+        ]);
+    });
+
+    it("yields nothing for a tree that is not there, as the walk it replaces did", () => {
+        const absent = path.join(tmp, "no-such-tree");
+        expect(declaredPredecessors(absent, { skipDirectories: [] }).size).toBe(0);
+        expect(noteFilesById(absent, { skipDirectories: [] }).size).toBe(0);
     });
 });
