@@ -99,6 +99,7 @@
  * @module
  */
 
+import { currentType } from "./ids.mjs";
 import { SCHEMA_ARTIFACT_VERSION } from "./schema-check.mjs";
 import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
@@ -339,7 +340,11 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
             message,
         });
 
-    const spec = format.types.get(type);
+    // The specification's sections are headed by the current spelling of a note
+    // type, so a note still on a renamed one is measured against the section it
+    // will move to rather than reported as a type the format does not declare
+    // (#78). The rename itself is the frontmatter lint's finding.
+    const spec = format.types.get(currentType(type));
     if (!spec) {
         add(
             "unknown-type",

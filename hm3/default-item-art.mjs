@@ -42,12 +42,12 @@
  * @type {Readonly<Record<string, string>>}
  */
 export const HM3_DEFAULT_ITEM_ART = Object.freeze({
-    armorgear: "systems/hm3/images/icons/svg/armor.svg",
+    armor: "systems/hm3/images/icons/svg/armor.svg",
     armorlocation: "systems/hm3/images/icons/svg/anatomy.svg",
     containergear: "systems/hm3/images/icons/svg/sack.svg",
     miscgear: "systems/hm3/images/icons/svg/miscgear.svg",
     mysticalability: "systems/hm3/images/icons/svg/psionics.svg",
-    projectilegear: "systems/hm3/images/icons/svg/arrow.svg",
+    projectile: "systems/hm3/images/icons/svg/arrow.svg",
     skill: "systems/hm3/images/icons/svg/skills.svg",
     trauma: "systems/hm3/images/icons/svg/injury.svg",
     weapongear: "systems/hm3/images/icons/svg/sword.svg",
