@@ -52,6 +52,7 @@ import {
     resolveRelation,
     resolveSkillAptitudes,
     sohlField,
+    sohlSystemField,
 } from "../engine/frontmatter.mjs";
 
 /* --------------------------------------------------------------------- */
@@ -166,7 +167,15 @@ const STRIKE_MODES = Object.freeze({
  * @returns {number} The die size, `0` when the projectile declares none.
  */
 function impactDie(fm) {
-    return Number(sohlField(fm, "impact.die", 0)) || 0;
+    // Read the destination first, then the legacy in-block position (#126).
+    // This is a *derived* field — `numDice` is 1 when there is a die and 0 when
+    // there is not — so it resolves its input by hand rather than through a
+    // declaration, and `sohlField` cannot see inside `sohl.system`. A note that
+    // had moved to `sohl.system.impactBase.die` would have read 0 here and
+    // shipped `numDice: 0`, silently, while still carrying the die itself.
+    const moved = sohlSystemField(fm, "impactBase.die", undefined);
+    const raw = moved === undefined ? sohlField(fm, "impact.die", 0) : moved;
+    return Number(raw) || 0;
 }
 
 /** A strike mode discriminated by `type`, mandatory on a combat technique. */

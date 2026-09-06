@@ -86,11 +86,39 @@ export function sohlField(fm, key, defaultValue = undefined) {
  *   note authors none — or `null` when the value is not a map.
  */
 function readMapEntries(fm, key) {
-    const raw = sohlField(fm, key, undefined);
+    const raw = sohlSystemField(fm, key, undefined);
     if (raw == null) return [];
     if (Array.isArray(raw)) return raw.length === 0 ? [] : null;
     if (typeof raw !== "object") return null;
     return Object.entries(raw);
+}
+
+/**
+ * Read a `sohl:` field, seeing the destination position as well (#126).
+ *
+ * Four field kinds resolve their value by re-reading the note rather than by
+ * taking the one {@link resolveFieldValue} handed them — `subType`, `charges`,
+ * a mystery's skill aptitudes and an affiliation's relations — because each
+ * validates a *shape* spread over several keys rather than coercing a scalar.
+ * That was equivalent while every note authored in the block, and stopped being
+ * so once a note may author at `sohl.system.<key>` instead: `sohlField` cannot
+ * see inside `sohl.system`, so those fields read as unset and shipped their
+ * empty value.
+ *
+ * The destination wins, matching every other field's resolution order.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} key - The key, dotted for a nested one.
+ * @param {any} [defaultValue] - What an unauthored field reads as.
+ * @returns {any} The value.
+ */
+export function sohlSystemField(fm, key, defaultValue = undefined) {
+    const system = fm?.sohl?.system;
+    if (system && typeof system === "object" && !Array.isArray(system)) {
+        const found = getFrontmatter(system, key, undefined);
+        if (found !== undefined) return found;
+    }
+    return sohlField(fm, key, defaultValue);
 }
 
 /**
@@ -115,11 +143,11 @@ export function resolveCharges(fm) {
         const num = Number(raw);
         return Number.isFinite(num) ? Math.trunc(num) : null;
     };
-    const max = toCount(sohlField(fm, "charges.max", null));
+    const max = toCount(sohlSystemField(fm, "charges.max", null));
     // A blank maximum means "does not use charges" — a stray current count
     // cannot outlive it, since the logic layer disables both modifiers.
     return {
-        value: max === null ? null : toCount(sohlField(fm, "charges.value", null)),
+        value: max === null ? null : toCount(sohlSystemField(fm, "charges.value", null)),
         max,
     };
 }
@@ -186,7 +214,7 @@ export function resolveRelation(fm, ctx = "item") {
     // underneath it so a tree converts on its own schedule (SoHL#1781). The
     // current name wins wherever a note writes both, and the lint reports the
     // old one through {@link RETIRED_FIELD_ALIASES}.
-    const key = sohlField(fm, "relations", undefined) == null ? "relation" : "relations";
+    const key = sohlSystemField(fm, "relations", undefined) == null ? "relation" : "relations";
     const entries = readMapEntries(fm, key);
     if (entries === null) {
         throw new Error(`${ctx}: ${key} must be a map of shortcode → standing`);
@@ -221,7 +249,7 @@ export function resolveRelation(fm, ctx = "item") {
  * @throws {Error} When `subType` is missing or blank.
  */
 export function requireSubType(fm, ctx) {
-    const subType = sohlField(fm, "subType", undefined);
+    const subType = sohlSystemField(fm, "subType", undefined);
     if (subType == null || subType === "") {
         const label = ctx || fm?.title || fm?.name || "item";
         throw new Error(
