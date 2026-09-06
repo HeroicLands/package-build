@@ -225,12 +225,12 @@ export function unresolvedAddressMessage(target) {
  * message names the claimants so the author can choose between them without
  * going looking.
  *
- * **The correction stops at the package**, and deliberately does not offer the
- * canonical `package-system-type-shortcode` (#59). A written target is a
- * partial address and {@link readQualifier} reads three segments at most, so a
- * four-segment target does not parse — naming one here would hand an author a
- * correction that fails. This message is for the ambiguity a package segment
- * *does* settle: two packages publishing the same short address.
+ * **The correction is the canonical form**, all four segments (#59). Omission
+ * runs strictly left to right, so there is no `package-type-shortcode` to offer
+ * — naming a package means naming the system before the type. That used to be
+ * the correction here, back when a written target could state three segments at
+ * most; the grammar is positional now, and a three-segment target names a
+ * *system*, not a package.
  *
  * @param {string} target - The address as authored.
  * @param {Iterable<string>} [packages] - The packages that publish it.
@@ -241,8 +241,8 @@ export function ambiguousAddressMessage(target, packages = []) {
     return (
         `address [[${target}]] is published by ` +
         (named.length ? `${named.join(" and ")}` : `more than one package`) +
-        `, so it names neither — write the package-qualified ` +
-        `[[package-type-shortcode|Text]]`
+        `, so it names neither — write the fully qualified ` +
+        `[[package-system-type-shortcode|Text]]`
     );
 }
 
@@ -272,7 +272,9 @@ export function linkFindingMessage({ reason, target, packages, anchor }) {
         case "not-an-address":
             return (
                 `"${target}" is not an address — the "|" says one was meant, ` +
-                `so write [[type-shortcode|Text]]`
+                `so write [[type-shortcode|Text]], or ` +
+                `[[package-system-type-shortcode|Text]] for a note in another ` +
+                `package`
             );
         case "unknown-type":
             return `address [[${target}]] names no known content type`;

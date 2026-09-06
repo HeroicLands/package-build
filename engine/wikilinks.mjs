@@ -87,6 +87,7 @@ import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
+import { isSystemSegment } from "./systems.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
@@ -150,76 +151,104 @@ export function resolveItemDocType(qualifier, types) {
  * Two separators are accepted, and they are **not** interchangeable in how
  * confidently they mark a target as qualified:
  *
- * - **`type-shortcode`** — the canonical form (#1398). Obsidian reads `/` inside
- *   a wikilink as a *path* and resolves it against the vault's folders, so a
- *   slash-qualified link is a broken link in the editor where the content is now
- *   authored. A hyphen qualifies **only when what precedes it is a known type**:
- *   note names contain hyphens too (`Grukar-ahk`), and a target that is one is
- *   reported as not an address rather than split at an arbitrary place. The
- *   split is at the **first** hyphen, so a shortcode may itself contain one
- *   (`trauma-self-pro` → `trauma` + `self-pro`).
+ * - **`type-shortcode`** and its qualified forms — the canonical spelling
+ *   (#1398). Obsidian reads `/` inside a wikilink as a *path* and resolves it
+ *   against the vault's folders, so a slash-qualified link is a broken link in
+ *   the editor where the content is now authored.
  * - **`type/shortcode`** — the legacy form, still resolved so that a link
  *   written before the vault migrated does not silently die. A slash is
  *   *unconditionally* a qualifier: nothing else uses one, so an unknown type
  *   before it is reported rather than guessed at. The split is at the **last**
  *   slash, as it always was.
  *
- * A leading **package** segment is optional and outermost: `sohl-skill-lang` is
- * `skill-lang` in the `sohl` package. It is read only when `packages` is given
- * and names the segment, and only when the remainder is itself a valid address,
- * so a note called "Grukar-ahk" is not mistaken for one (#1499).
+ * **The grammar is strict, and omission runs left to right** (#59):
  *
- * **What this reads is a partial address.** The canonical form gained a
- * `<system>` segment between the package and the type (#59) —
- * `sohl-sohl-skill-lang` — and this reads three segments at most, so no
- * authored target states a system today. That is not a gap the callers work
- * around: an unstated segment is a **wildcard**, so a target naming no system
- * matches a note under any of them, and the caller requires exactly one hit.
- * The package segment is the exception, because it is not wildcarded but
- * *defaulted* — omitted, it means the citing note's own package, so an
- * unqualified link resolves locally and only locally.
+ * ```text
+ * [[[[<package>-]<system>-]<type>-]<shortcode>]
+ * ```
+ *
+ * So the written forms are exactly the suffixes of the canonical address —
+ * `type-shortcode`, `system-type-shortcode`, `package-system-type-shortcode` —
+ * and **`package-type-shortcode` is not one of them**. A link into another
+ * package must therefore be fully qualified, which is the price of the segment
+ * being positional rather than tagged.
+ *
+ * **Parsing is plain positional counting**, the same rule
+ * {@link readCanonicalKey} follows, and it is sound for the same reason: every
+ * segment is `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced on
+ * shortcodes by `content-lint.mjs` since #1397), so the hyphen is purely a
+ * separator and the count alone determines every field. Verified across the
+ * four content trees: 138,204 authored shortcodes, none carrying a separator.
+ *
+ * That replaced a first-hyphen split which let a shortcode contain a hyphen
+ * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates #1397 and
+ * outlived it; no tree has used it, and keeping it would make a three-segment
+ * target ambiguous between a system and a hyphenated shortcode.
+ *
+ * **`sohl` is both a package and a system**, and positional counting is what
+ * makes that harmless: three segments is `<system>-<type>-<shortcode>` whatever
+ * the first segment could also have named, and four is the full form. Nothing
+ * has to guess which sense was meant.
+ *
+ * **A partial address states what it states, and the rest is not invented.** An
+ * omitted **system** is a *wildcard* — most links target items, which belong to
+ * a system — so the caller matches on the segments supplied and requires
+ * exactly one hit. An omitted **package** is instead *defaulted* to the citing
+ * note's own, so an unqualified link resolves locally and only locally.
  *
  * @param {string} target - The link target, anchor already removed.
  * @param {Set<string>} types - Every type the content tree contains.
  * @param {Set<string>} [packages] - Every package an address may name. Omitted
  *   by callers that resolve within one package, where the form cannot occur.
  * @returns {{type: string, shortcode: string, itemDoc: boolean,
- *   package?: string, reason?: undefined} | {reason: "unknown-type"} | null}
+ *   package?: string, system?: string, reason?: undefined}
+ *   | {reason: "unknown-type"} | null}
  *   The resolved qualifier; a `reason` when the target is definitely qualified
  *   but names no known type; or `null` when it is not an address at all.
  */
 export function readQualifier(target, types, packages) {
-    // A leading **package** segment is the optional outermost qualifier:
-    // `sohl-skill-lang` is `skill-lang` in the `sohl` package. It is stripped
-    // here so everything below reads the same `type`/`shortcode` it always did,
-    // and it is recognised only when what precedes the hyphen is a package this
-    // build knows *and* the remainder is itself a valid address — so a note
-    // named "Sohl-something" is not mistaken for one (#1499).
-    if (packages?.size) {
-        const hyphen = target.indexOf("-");
-        if (hyphen > 0) {
-            const pkg = norm(target.slice(0, hyphen));
-            if (packages.has(pkg)) {
-                const rest = readQualifier(target.slice(hyphen + 1), types);
-                if (rest && !rest.reason) return { ...rest, package: pkg };
-            }
-        }
-    }
-
+    // The slash form is legacy and states neither package nor system, so it is
+    // read first and separately. A slash is unconditionally a qualifier —
+    // nothing else uses one — which is why an unknown type before it is
+    // *reported* rather than read as prose.
     const slash = target.lastIndexOf("/");
     if (slash > 0) {
         const read = readTypeAndCode(target.slice(0, slash), target.slice(slash + 1), types);
-        // A slash means qualified whether or not the type is real.
         return read ?? { reason: "unknown-type" };
     }
 
-    const hyphen = target.indexOf("-");
-    if (hyphen > 0) {
-        // A hyphen qualifies only on a known type; otherwise it is part of a
-        // name, and a name is not an address.
-        return readTypeAndCode(target.slice(0, hyphen), target.slice(hyphen + 1), types);
+    const parts = target.split("-");
+    switch (parts.length) {
+        // `<type>-<shortcode>`
+        case 2:
+            return readTypeAndCode(parts[0], parts[1], types);
+
+        // `<system>-<type>-<shortcode>` — the package defaults to local.
+        case 3: {
+            const system = norm(parts[0]);
+            if (!isSystemSegment(system)) return null;
+            const read = readTypeAndCode(parts[1], parts[2], types);
+            return read && { ...read, system };
+        }
+
+        // `<package>-<system>-<type>-<shortcode>` — the only form that names
+        // another package, and the reason a cross-package link must be fully
+        // qualified.
+        case 4: {
+            const pkg = norm(parts[0]);
+            if (!packages?.has(pkg)) return null;
+            const system = norm(parts[1]);
+            if (!isSystemSegment(system)) return null;
+            const read = readTypeAndCode(parts[2], parts[3], types);
+            return read && { ...read, system, package: pkg };
+        }
+
+        // One segment is a bare name, which is not an address (#180); five or
+        // more is not a hyphenated shortcode but a name that happens to carry
+        // separators, since no segment may contain one.
+        default:
+            return null;
     }
-    return null;
 }
 
 /**

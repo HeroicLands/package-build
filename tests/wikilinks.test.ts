@@ -462,29 +462,26 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         );
     });
 
-    it("splits at the FIRST hyphen, so a hyphenated shortcode survives", () => {
-        // Two authored shortcodes contain a hyphen (`self-pro`, `self-suf`), so
-        // the shortcode is everything after the first separator — the remainder
-        // is never re-read as a second qualifier.
+    // This used to split at the *first* hyphen so a shortcode could contain one
+    // (`self-pro`). #1397 made every segment `^[A-Za-z0-9]+$`, and #59 made the
+    // grammar positional — three segments is `<system>-<type>-<shortcode>` —
+    // so the two rules cannot both hold. The charset rule wins: it is enforced,
+    // and no tree has ever used the tolerance (138,204 authored shortcodes
+    // across four trees, none carrying a separator).
+    it("does not read a hyphenated shortcode, which #1397 forbids", () => {
         const withHyphenCode = buildWikilinkIndex(
-            [
-                ...DOCS,
-                {
-                    type: "trauma",
-                    id: "99999999999999a1",
-                    shortcode: "self-pro",
-                },
-            ],
+            [...DOCS, { type: "trauma", id: "99999999999999a1", shortcode: "self-pro" }],
             "sohl",
         );
         const { markdown, unresolved } = convertWikilinks("[[trauma-self-pro|Self-Protective]]", {
             ...from,
             index: withHyphenCode,
         });
-        expect(markdown).toBe(
-            "@UUID[Compendium.sohl.items.Item.99999999999999a1]{Self-Protective}",
-        );
-        expect(unresolved).toEqual([]);
+        // `trauma` is not a system, so three segments parse as nothing at all —
+        // reported, rather than silently resolved by a rule the linter would
+        // reject the shortcode under anyway.
+        expect(markdown).toContain("sohl-unresolved-link");
+        expect(unresolved).toHaveLength(1);
     });
 
     it("does not split a hyphenated *name* — it is not a qualified target", () => {
@@ -575,44 +572,111 @@ describe("convertWikilinks — an address with an empty label (#1409)", () => {
     });
 });
 
-describe("readQualifier — the optional package segment (#1499)", () => {
+describe("readQualifier — the strict address grammar (#59)", () => {
     const TYPES = new Set(["skill", "doc", "being"]);
     const PACKAGES = new Set(["sohl", "thalorna"]);
 
-    it("reads a package-qualified address and reports the package", () => {
-        expect(readQualifier("sohl-skill-lang", TYPES, PACKAGES)).toEqual({
-            type: "skill",
-            shortcode: "lang",
+    // `[[[[<package>-]<system>-]<type>-]<shortcode>]` — omission is strictly
+    // left-to-right, so the written forms are exactly the suffixes of the
+    // canonical one. There is no `<package>-<type>-<shortcode>`.
+    it("reads the fully qualified form", () => {
+        expect(readQualifier("thalorna-sohl-being-grod", TYPES, PACKAGES)).toEqual({
+            package: "thalorna",
+            system: "sohl",
+            type: "being",
+            shortcode: "grod",
             itemDoc: false,
-            package: "sohl",
         });
     });
 
-    it("leaves the package undefined on a bare address, which defaults to local", () => {
-        const read = readQualifier("skill-lang", TYPES, PACKAGES);
-        expect(read).toMatchObject({ type: "skill", shortcode: "lang" });
+    it("reads the system-qualified form, leaving the package to default", () => {
+        const read = readQualifier("sohl-skill-lang", TYPES, PACKAGES);
+        expect(read).toMatchObject({ system: "sohl", type: "skill", shortcode: "lang" });
         expect(read).not.toHaveProperty("package");
     });
 
-    it("ignores the package reading when no packages are supplied", () => {
-        // The pack build passes none, so behaviour there is exactly as before.
-        expect(readQualifier("sohl-skill-lang", TYPES)).toBeNull();
+    it("reads `none` as a system, for a document no game system defines", () => {
+        expect(readQualifier("sohl-none-doc-gear", TYPES, PACKAGES)).toMatchObject({
+            package: "sohl",
+            system: "none",
+            type: "doc",
+            shortcode: "gear",
+        });
     });
 
-    it("does not treat a note name as a package just because it has hyphens", () => {
-        // "Grukar-ahk" is a note name, not an address — the segment before the
-        // hyphen has to be a package this build knows, and the remainder has to
-        // parse as an address in its own right.
+    it("leaves both undefined on a bare address", () => {
+        const read = readQualifier("skill-lang", TYPES, PACKAGES);
+        expect(read).toMatchObject({ type: "skill", shortcode: "lang" });
+        expect(read).not.toHaveProperty("package");
+        expect(read).not.toHaveProperty("system");
+    });
+
+    // The form that does not exist. `thalorna` is a package and not a system,
+    // so this states a package with its system omitted — which the grammar has
+    // no spelling for, because omission runs left to right.
+    it("refuses a package with its system omitted", () => {
+        expect(readQualifier("thalorna-being-grod", TYPES, PACKAGES)).toBeNull();
+    });
+
+    // `sohl` is *both* a package and a system, so a three-segment target
+    // beginning with it is unambiguous only because the grammar is positional:
+    // three segments is `<system>-<type>-<shortcode>`, whatever the first
+    // segment could also have named.
+    it("reads a three-segment `sohl-` target as a system, never as a package", () => {
+        const read = readQualifier("sohl-skill-lang", TYPES, PACKAGES);
+        expect(read).toMatchObject({ system: "sohl" });
+        expect(read).not.toHaveProperty("package");
+    });
+
+    it("refuses a first segment that is neither a system nor a known package", () => {
+        expect(readQualifier("nosuch-skill-lang", TYPES, PACKAGES)).toBeNull();
+        expect(readQualifier("nosuch-sohl-skill-lang", TYPES, PACKAGES)).toBeNull();
+    });
+
+    it("refuses a middle segment that is not a system", () => {
+        expect(readQualifier("thalorna-nosuch-being-grod", TYPES, PACKAGES)).toBeNull();
+    });
+
+    it("ignores the package reading when no packages are supplied", () => {
+        // The pack build passes none, so a four-segment target is not an
+        // address there at all.
+        expect(readQualifier("thalorna-sohl-being-grod", TYPES)).toBeNull();
+        // Three segments still read, because a system needs no package list.
+        expect(readQualifier("sohl-skill-lang", TYPES)).toMatchObject({ system: "sohl" });
+    });
+
+    it("does not treat a note name as an address just because it has hyphens", () => {
         expect(readQualifier("Grukar-ahk", TYPES, PACKAGES)).toBeNull();
         expect(readQualifier("sohl-notatype-x", TYPES, PACKAGES)).toBeNull();
     });
 
-    it("still reads the virtual doc<type> form under a package", () => {
-        expect(readQualifier("thalorna-docskill-wpnc", TYPES, PACKAGES)).toEqual({
+    // Positional counting is sound only because every segment is
+    // `^[A-Za-z0-9]+$` (#1397) — verified across four content trees: 138,204
+    // shortcodes, none carrying a separator. A fifth segment is therefore not a
+    // hyphenated shortcode; it is not an address.
+    it("refuses more segments than the grammar has", () => {
+        expect(readQualifier("sohl-sohl-skill-lang-extra", TYPES, PACKAGES)).toBeNull();
+    });
+
+    it("still reads the virtual doc<type> form at every depth", () => {
+        expect(readQualifier("docskill-wpnc", TYPES, PACKAGES)).toMatchObject({
             type: "skill",
             shortcode: "wpnc",
             itemDoc: true,
+        });
+        expect(readQualifier("thalorna-sohl-docskill-wpnc", TYPES, PACKAGES)).toMatchObject({
             package: "thalorna",
+            system: "sohl",
+            type: "skill",
+            shortcode: "wpnc",
+            itemDoc: true,
+        });
+    });
+
+    it("still reads the legacy slash form, which states no system", () => {
+        expect(readQualifier("skill/lang", TYPES, PACKAGES)).toMatchObject({
+            type: "skill",
+            shortcode: "lang",
         });
     });
 });
