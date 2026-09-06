@@ -124,6 +124,7 @@ import { reportFindings } from "./report.mjs";
 import {
     readItemAddresses,
     diffItemAddresses,
+    declaredPredecessors,
     noteFilesById,
     locateAddressFinding,
     addressFindingMessage,
@@ -1561,10 +1562,21 @@ async function diffAddresses(config, argv) {
         );
     }
 
+    // Stated by the caller, like every other walk in this file (#243): the two
+    // tree reads below must agree with each other and with the compile about
+    // which files are the corpus.
+    const scope = { skipDirectories: config.skipDirectories };
+
     const findings = diffItemAddresses(
         readItemAddresses(baselineDirs),
         readItemAddresses(currentDirs),
-        { baseline: label },
+        {
+            baseline: label,
+            // Read whether or not anything departed: an id match needs no tree,
+            // but the diff decides rename-versus-withdrawal as it walks the
+            // baseline, so the declarations have to be in hand before it does.
+            predecessors: declaredPredecessors(config.paths.content, scope),
+        },
     );
     if (!findings.length) {
         log.info(`Every address ${label} published is still published.`);
@@ -1574,7 +1586,7 @@ async function diffAddresses(config, argv) {
     // A rename is fixed in the note that made it, so findings are placed
     // against the tree rather than against the compiled output they were read
     // from.
-    const noteFiles = noteFilesById(config.paths.content);
+    const noteFiles = noteFilesById(config.paths.content, scope);
     const severity = argv.strict ? "error" : "warning";
     for (const finding of findings) {
         emitDiagnostic({
