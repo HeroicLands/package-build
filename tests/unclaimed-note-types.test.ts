@@ -39,6 +39,9 @@ import { packForType } from "../engine/ids.mjs";
 import { hasDocEntry } from "../engine/item-docs.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import {
+    DERIVED_PACKED_TYPES,
+    KNOWN_DOCUMENT_SUBTYPE_MAPS,
+    UNIMPLEMENTED_TYPES,
     NEVER_PACKED_TYPES,
     claimedNoteTypes,
     noteTypeVocabulary,
@@ -46,6 +49,7 @@ import {
     unclaimedNoteFindings,
 } from "../engine/note-claims.mjs";
 import { indexRecordsFor } from "../engine/content-index.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Journals } from "../engine/journals.mjs";
@@ -521,5 +525,112 @@ describe("a type whose whole document is a journal (#241)", () => {
         for (const type of ["place", "lore", "scenario"]) {
             expect(packForType(type).docType, type).not.toBe("Item");
         }
+    });
+});
+
+/**
+ * Every declared type has a route, or a stated reason for having none (#243).
+ *
+ * This is the check #241 needed and nobody had. `place`, `lore` and `scenario`
+ * were declared, validated, and claimed by no pass — and the only thing that
+ * noticed was a downstream repository failing to compile 450 notes, because
+ * `sohl` authors none of the three. Every gate here reported success.
+ *
+ * The claim table is already cross-checked against each pass's `selects`, but
+ * that agreement holds just as well when **both** say nobody claims a type,
+ * which was exactly the broken state. So the missing property is not agreement;
+ * it is *coverage*, and it is asked statically, of the toolchain rather than of
+ * a tree, so it does not depend on some repository happening to author the type.
+ *
+ * A declared type must be one of four things, and the four are not
+ * interchangeable — each names a different reason, and a type that is none of
+ * them is the #241 trap:
+ *
+ * 1. **claimed by a pass** — the ordinary case;
+ * 2. **never packed** — it compiles to no document at all (`homepage`);
+ * 3. **derived packed** — it materialises by reference in every pack that
+ *    references it, so no one pass owns it (`folder`);
+ * 4. **another system's** — a shipped system map declares it, so a
+ *    configuration that ships that system's packs claims it (`armorlocation`,
+ *    which is HM3's); or **named in `UNIMPLEMENTED_TYPES`**, the set that states
+ *    which specified types this toolchain does not compile yet (`vehicle`).
+ */
+describe("every declared note type is routed, or excused for a stated reason (#243)", () => {
+    /** Why a type needs no pass of its own, or `null` when it needs one. */
+    function excuse(type: string): string | null {
+        if (NEVER_PACKED_TYPES.has(type)) return "never packed";
+        if (DERIVED_PACKED_TYPES.has(type)) return "derived packed";
+        // Declared by a system this toolchain ships: a configuration carrying
+        // that system's packs claims it, so being unclaimed *here* is a fact
+        // about this configuration rather than a missing route.
+        if (KNOWN_DOCUMENT_SUBTYPE_MAPS.some((map) => Object.hasOwn(map.types, type))) {
+            return "another system's map";
+        }
+        // Stated, never inferred. "Declared but absent from the configured
+        // vocabulary" reads correctly and is worthless: that vocabulary is
+        // derived from the routing, so taking a type's route away removes it
+        // from the vocabulary too and the inference excuses exactly the mistake
+        // this guard exists to catch. See `UNIMPLEMENTED_TYPES`.
+        if (UNIMPLEMENTED_TYPES.has(type)) return "specified, not implemented";
+        return null;
+    }
+
+    const claimedAnywhere = () =>
+        new Set(
+            ["Item", "Actor", "JournalEntry", "Macro", "Scene", "Adventure"].flatMap((docType) => [
+                ...noteTypesClaimedBy(docType),
+            ]),
+        );
+
+    it("leaves no declared type both unclaimed and unexplained", () => {
+        const claimed = claimedAnywhere();
+        const stranded = Object.keys(NOTE_VOCABULARY)
+            .filter((type) => type !== "state")
+            .filter((type) => !claimed.has(type) && !excuse(type));
+
+        // Named rather than counted: the whole failure this guards against is
+        // one nobody could see, so the message has to say which type.
+        expect(stranded).toEqual([]);
+    });
+
+    /*
+     * The teeth. A guard that cannot fail is not a guard, and this one is only
+     * worth its lines if it would have caught #241.
+     *
+     * `place` is the witness, because it is the type that was broken: it is in
+     * the configured vocabulary, no system map declares it (a journal type has
+     * no system row), and it is neither never-packed nor derived-packed. So
+     * **nothing excuses it** — the only thing keeping it out of the stranded
+     * list is that a pass claims it. Take the route away, as #241 found it, and
+     * the assertion above names it.
+     */
+    it("would have caught #241: only the route keeps `place` off the list", () => {
+        expect(excuse("place")).toBeNull();
+        expect(claimedAnywhere().has("place")).toBe(true);
+
+        // The same holds for the other two the issue reported, so the guard
+        // covers the whole of what went wrong rather than one example of it.
+        for (const type of ["lore", "scenario"]) {
+            expect(excuse(type), type).toBeNull();
+            expect(claimedAnywhere().has(type), type).toBe(true);
+        }
+    });
+
+    /*
+     * And the four excuses are each actually load-bearing for something, so a
+     * reader can see which case a type is in rather than inferring it.
+     */
+    it("records which reason answers for each unclaimed type", () => {
+        const claimed = claimedAnywhere();
+        const unclaimed = Object.keys(NOTE_VOCABULARY)
+            .filter((type) => type !== "state" && !claimed.has(type))
+            .sort();
+
+        expect(Object.fromEntries(unclaimed.map((t) => [t, excuse(t)]))).toEqual({
+            armorlocation: "another system's map",
+            folder: "derived packed",
+            homepage: "never packed",
+            vehicle: "specified, not implemented",
+        });
     });
 });
