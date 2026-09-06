@@ -1,0 +1,43 @@
+name: Bug
+description: Existing behavior is broken — a build that errors, a document compiled wrong, or a regression.
+type: Bug
+body:
+    - type: textarea
+      id: description
+      attributes:
+          label: Description
+          description: Describe the problem fully so it can be reproduced. Do not propose a fix here — put fix ideas in a comment. Exploitable weaknesses must be reported privately, never as a public issue.
+          value: |
+              ## Summary
+              One sentence: what's wrong.
+
+              ## Steps to reproduce
+              1. …
+              2. …
+
+              ## Expected vs. actual
+              Expected: …
+              Actual: …
+
+              ## Which consumers are affected
+              This toolchain builds five packages. Say which tree you saw it on,
+              and whether you checked another — a fault in one tree and not the
+              rest is usually that tree's content or config, not the toolchain.
+
+              - [ ] `Song-of-Heroic-Lands-FoundryVTT`
+              - [ ] `sohl-thalorna`
+              - [ ] `sohl-kethira-basic`
+              - [ ] `harn-ensemble`
+              - [ ] `HarnMaster-3-FoundryVTT`
+
+              ## Acceptance criteria
+              - [ ] Observable condition 1
+              - [ ] Observable condition 2
+
+              ## Environment
+              package-build version · Node version · the consumer's `package-build.config.yaml` if relevant
+
+              ## Notes
+              Build output, the emitted document or pack JSON, suspected cause.
+      validations:
+          required: true
