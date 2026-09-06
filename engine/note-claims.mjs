@@ -68,10 +68,9 @@ import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
-import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
-import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 
 /**
  * Note types that compile into **no compendium document, by design**.
@@ -88,27 +87,14 @@ export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
 /**
  * The note-type → document-subtype maps this toolchain ships.
  *
- * Two, since `hm3/` landed (#139) — and it joined this list rather than the
- * claim table below growing a second copy of the same fact, which is what the
- * list was for.
- *
- * The union is what makes the vocabulary wider than any one repository's
- * configuration: `armorlocation` is a real content type because HM3 maps it,
- * however a given repository is configured, so a tree full of them is a
- * repository that has not finished configuring itself rather than an author who
- * invented a word.
- *
- * `engine/` importing from `sohl/` is the arrangement `generate.mjs` already
- * has — its `COMPILERS` table names the SoHL compilers by class — and for the
- * same reason: the engine owns the *mechanism* that asks each system what it
- * compiles, and the systems own the answers.
+ * Declared in {@link module:engine/subtype-registry} and re-exported here,
+ * where it has always been read from. It moved to a leaf in #270 so that
+ * `helpers.mjs` could reach it: this module imports `walkMarkdownTree` from
+ * there, so a dependency the other way would have closed a cycle.
  *
  * @type {readonly import("./document-subtypes.mjs").DocumentSubtypeMap[]}
  */
-export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
-    SOHL_DOCUMENT_SUBTYPES,
-    HM3_DOCUMENT_SUBTYPES,
-]);
+export { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 
 /**
  * What a claim question is asked against.

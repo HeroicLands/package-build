@@ -60,8 +60,9 @@ import path from "node:path";
 
 import { canonicalKey, packageAddress } from "./content-address.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { isHomepage } from "./homepage.mjs";
@@ -104,7 +105,7 @@ export const LEAD_ANCHOR = "$lead";
 export function anchorsOf(entryUuid, entryId, body, name) {
     const anchors = {};
     splitPages(body, name).forEach((page, index) => {
-        const uuid = pageUuid(entryUuid, journalPageId(entryId, page, index));
+        const uuid = pageUuid(entryUuid, journalPageId(entryId, page));
         if (index === 0) anchors[LEAD_ANCHOR] = uuid;
         if (page.anchorSlug) anchors[page.anchorSlug] = uuid;
     });
@@ -150,7 +151,14 @@ export function entriesForNote(fm, name, address, body, ctx) {
     // a consumer resolves the UUID verbatim, and a repository may ship several
     // packs of one type (#1566).
     const uuidFor = (type, id, routeFm) =>
-        id ?
+        // A type that compiles into **no compendium document** has no UUID to
+        // publish, whatever id it derives. That used to follow from a homepage
+        // authoring no `id:`; since #270 every addressable note derives one, so
+        // the rule is stated where it belongs — beside the addresses — rather
+        // than resting on an absent field. `collectFoundryEntries` skips such a
+        // note outright; the content index calls this function directly, so the
+        // guard has to live on this side of it.
+        id && !NEVER_PACKED_TYPES.has(String(type)) ?
             compendiumUuid(
                 foundryPackageId,
                 type,
@@ -239,6 +247,10 @@ export function collectFoundryEntries(contentBase, ctx) {
         skipDirectories: ctx.skipDirectories,
     })) {
         if (!fm) continue;
+        // Its authored pin, or the id derived from its canonical address
+        // (#270). Resolved before anything reads `fm.id`, so the UUID this
+        // pass publishes is the one the pack passes compiled under.
+        resolveNoteId(fm, { pkg: ctx.contentPackage });
         const rel = path.relative(contentBase, absPath);
         assertNoDeclaredPackage(fm, {
             file: rel,

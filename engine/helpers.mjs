@@ -38,6 +38,7 @@ import { packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
@@ -522,6 +523,14 @@ export function buildContentLinkIndex(
     for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
         skipDirectories,
     })) {
+        // The id a note's document is filed under: its authored pin, or the
+        // one derived from its canonical address (#270). Resolved here rather
+        // than read, because this index and the compile pass must agree about
+        // every note's id and neither can see the other's answer.
+        resolveNoteId(fm);
+        // What is left after that is a file with **no address** — no type, or
+        // no shortcode — which is not an addressable note and has no document
+        // to link to.
         if (!fm?.id) continue;
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note

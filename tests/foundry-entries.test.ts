@@ -29,7 +29,8 @@ import {
     LEAD_ANCHOR,
 } from "../engine/foundry-entries.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
-import { packageAddress, readCanonicalKey } from "../engine/content-address.mjs";
+import { documentId, packageAddress, readCanonicalKey } from "../engine/content-address.mjs";
+import { compendiumUuid } from "../engine/ids.mjs";
 
 /** The manifest document's shape — see the note in `kb-manifest.test.ts`. */
 interface Manifest {
@@ -342,7 +343,11 @@ describe("both addresses are optional, independently (#1516)", () => {
         expect(doc.entries["demo-sohl-weapongear-dagger"].uuid).toBeDefined();
     });
 
-    it("emits no `uuid` for a note that compiles into no document", () => {
+    it("addresses a note that authors no `id`, deriving one (#270)", () => {
+        // This note used to publish an address and no UUID, because a document
+        // id was a thing an author wrote and this one had not written it. Since
+        // #270 the id *is* the address, so there is no such state: every
+        // addressable note compiles into a document and publishes its UUID.
         note(
             "Gear/Idless.md",
             `type: weapongear
@@ -353,8 +358,17 @@ name:
         const doc = emit({ ...WEB });
         const entry = doc.entries["demo-sohl-weapongear-idless"];
         expect(entry.path).toBe("weapongear-idless/");
-        expect(entry.uuid).toBeUndefined();
-        expect(doc.entries["demo-none-docweapongear-idless"].uuid).toBeUndefined();
+        expect(entry.uuid).toBe(
+            compendiumUuid(
+                "demo-module",
+                "weapongear",
+                documentId("demo", "sohl", "weapongear", "idless"),
+                "items",
+            ),
+        );
+        // And its documentation journal, which is a second document keyed off
+        // the first — so it moves with it rather than being derived twice.
+        expect(doc.entries["demo-none-docweapongear-idless"].uuid).toBeDefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Idless.md"));
     });
 });

@@ -326,6 +326,66 @@ HeroicLands reserves everything below `1000`. Since the highest priority wins,
 point: a module author can override a standard template without coordinating with
 anybody, and be certain it takes effect.
 
+#### The document id
+
+A note's Foundry `_id` is **derived from its canonical address**, and no note
+needs to write one:
+
+```yaml
+type: miscgear
+shortcode: bowlcer
+# no `id:` — the document is filed under makeId("document", "sohl-none-miscgear-bowlcer")
+```
+
+The derivation is exactly:
+
+```
+_id = makeId("document", "<package>-<system>-<type>-<shortcode>")
+```
+
+— the note's canonical address, hashed with SHA-1 and truncated to the 16 hex
+characters a Foundry id is. Nothing else feeds it. A consumer holding a
+content-index entry can therefore recompute a document's id, and so its
+compendium UUID, from the `canonical` key alone; it is not a value the index has
+to transport.
+
+**Why the address and not an authored string.** A note used to declare an
+opaque 16-character `id` — 6,343 of them across the four content trees — which
+said nothing its address did not, could not be read or reviewed, and was
+guaranteed by nothing: `content-lint` refuses a **duplicate address** across
+every pack of a document type, which is exactly the scope a primary document's
+id must be unique within, and it said nothing at all about a duplicate `id`. So
+the derived id inherits a guard that already exists, where the authored one had
+none. It is the same principle that turned `folder: ONXsqZAIZr2qzxTb` into
+`packFolder: <path>` above: an opaque derived identity does not belong in
+authored content.
+
+**An authored `id` still wins**, and that is how a document's identity is
+**pinned**:
+
+```yaml
+type: miscgear
+shortcode: bowlcer
+id: plaiQQm2T5zVK5mO # pinned: this document keeps this id
+```
+
+A blank `id:` is not a pin — it is a deleted value with the key left behind, and
+is treated as absent.
+
+**A rename moves the id, and that is the trade.** The address carries the
+shortcode, so renaming a shortcode gives the document a new `_id`. Two things
+make that acceptable: a shortcode rename already breaks every wikilink to the
+note, so it is a breaking change either way; and a note that must keep its
+identity across one pins its `id`, which is what the pin is for. One diagnostic
+genuinely narrows — `content-build` tells a **rename** from a **withdrawal** by
+matching document ids across releases, and for an unpinned note both sides now
+move together, so a rename is reported as a withdrawal with no successor named.
+It never reports a _wrong_ successor, and it stays exact for a pinned note.
+
+**A note with no address gets no id, and no document.** `type` and `shortcode`
+are what a note is addressed by, so a note missing either cannot be filed and
+the build refuses it by that name rather than by a missing `id:`.
+
 #### The compendium folder
 
 A note says which folder of its pack it lands in. Two spellings are read, and
@@ -812,6 +872,50 @@ Generates a living (or undead, or spirit) being.
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+#### Identifying a being's embedded items
+
+Each entry in `sohl.items` compiles into one embedded Item, and its `_id` is
+derived from **what the entry is**, never from where it sits in the list:
+
+```
+_id = makeId(<the actor's id>, "<subType>:<system.shortcode>")
+```
+
+An entry's identity is its **own `system.shortcode`**. The entry's _top-level_
+`shortcode` is a **selector** — it names the catalogue template the entry is
+written from and is never written to the document — so two entries may share
+one:
+
+```yaml
+sohl:
+  items:
+    - shortcode: dgr # selects the catalogue's dagger
+      type: weapongear
+      name: Dagger 1
+      system:
+        shortcode: dgr1 # this dagger's own identity
+    - shortcode: dgr
+      type: weapongear
+      name: Dagger 2
+      system:
+        shortcode: dgr2
+```
+
+**Two entries resolving to one identity are a build error naming both.** Without
+their own `system.shortcode`, both daggers above carry the catalogue's `dgr`,
+which makes them the same entity to everything that resolves by `(type,
+shortcode)` — compendium/world reconciliation, template shadowing, cohort
+membership, effect and expression references. A `name` cannot stand in: it is
+presentation, free to be localized or to diverge.
+
+**Reordering the list moves no id.** The key used to carry the entry's position,
+so inserting an item renumbered every id after it and a re-import created new
+documents beside the old ones — while nothing about those documents had changed,
+only their neighbours. The same is now true of a note's journal pages: an
+unanchored page is keyed on its heading, so inserting a heading leaves every
+other page's id where it was. Two sibling pages sharing a heading is likewise a
+build error, matching the `MD024` lint rule that already refuses it.
 
 If a `sohl` property is present, a SoHL actor of type "being" will be created.
 

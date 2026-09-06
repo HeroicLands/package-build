@@ -88,7 +88,7 @@ import { blockField, blockProperty, claimedPaths, mergeSystemData } from "./syst
 export function itemDescription(markdown, fm, name) {
     if (!String(markdown).trim()) return "";
     const [leadPage] = splitPages(markdown, name);
-    const pageId = journalPageId(itemDocEntryId(fm.id), leadPage, 0);
+    const pageId = journalPageId(itemDocEntryId(fm.id), leadPage);
     return itemDocPointer(foundryPackageId(), fm.id, name, pageId);
 }
 

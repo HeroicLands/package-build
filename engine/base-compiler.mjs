@@ -84,6 +84,7 @@ import {
     assertNoSectionField,
 } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
@@ -852,12 +853,29 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
+            // The id this note's document is filed under: its authored `id`
+            // if it pins one, otherwise the id derived from its canonical
+            // address (#270). Resolved for every note this pass claims, and
+            // through the one function every other corpus reader calls — the
+            // wikilink index, the content index and the Foundry-address pass
+            // must all compute the id this pass compiles under, and none of
+            // them can see this answer.
+            resolveNoteId(fm);
             if (!fm.id) {
+                // What is left is a note with **no address** — no `type`, or no
+                // `shortcode`. It is not addressable, so there is nothing to
+                // derive from and nothing for a link to point at; the message
+                // names the reason rather than the missing field, because the
+                // field is no longer something an author writes.
                 if (this.constructor.requiresId) {
-                    throw new Error(`${Label} missing id: ${absPath}`);
+                    throw new Error(
+                        `${Label} note has no address, so it has no document id: ` +
+                            `${absPath} — a note is addressed as ` +
+                            `"<type>-<shortcode>" and must declare both`,
+                    );
                 }
                 stats.skippedNoId++;
-                this.noteWarn(`${label} note has no id, skipping`);
+                this.noteWarn(`${label} note has no address to derive an id from, skipping`);
                 continue;
             }
             // Which pack of this type takes it. Applied after the id check —
