@@ -89,7 +89,7 @@ export const HM3_TYPE_KEY = "type";
 export const HM3_DOCUMENT_SUBTYPES = defineDocumentSubtypes({
     system: "hm3",
     types: {
-        armor: { document: "Item", subType: "armorgear" },
+        armorgear: { document: "Item", subType: "armorgear" },
         // HM3-only: SoHL resolves a hit location from a being's own body
         // structure, so it has no item of this kind and no note type for one.
         armorlocation: { document: "Item", subType: "armorlocation" },
@@ -97,7 +97,7 @@ export const HM3_DOCUMENT_SUBTYPES = defineDocumentSubtypes({
         miscgear: { document: "Item", subType: "miscgear" },
         // The one outright rename. A note calls it a projectile; HM3 calls the
         // document a missile.
-        projectile: { document: "Item", subType: "missilegear" },
+        projectilegear: { document: "Item", subType: "missilegear" },
         skill: { document: "Item", subType: "skill" },
 
         // ── the four one-to-many rows ───────────────────────────────────────

@@ -186,13 +186,22 @@ export function assertTypeNotRetired(type, where) {
  * reason: a consumer must be able to adopt the new toolchain before its content
  * moves, and there are some 31,000 references to move.
  *
- * **Why these three (#78).** `armorgear`, `concoctiongear` and `projectilegear`
- * named the *SoHL document subtype* a note happened to compile into rather than
- * the thing the note is about. A note's `type` sits outside the `sohl:` and
- * `hm3:` blocks precisely because it belongs to no system, and HM3 already
- * compiles a `projectile` into a `missilegear` — so the suffix was never a fact
- * about the note. `weapongear` keeps its name: SoHL and HM3 both call the
- * document that, and #78's table has no row for it.
+ * **Why these three, and why the other way round now.** #78 renamed
+ * `armorgear`, `concoctiongear` and `projectilegear` to `armor`, `concoction`
+ * and `projectile`, on the argument that the suffix named the *SoHL document
+ * subtype* a note compiled into rather than the thing the note is about. That
+ * rename is **reversed**: the gear-suffixed spellings are the vocabulary, and
+ * the bare ones are what retires.
+ *
+ * Nothing had adopted the bare spellings, which is what makes the reversal
+ * cheap and the direction obvious: across all five content trees, **every note
+ * still authors the suffix** — 331 `armorgear` and 18 `projectilegear` in
+ * `sohl`, 71 `concoctiongear` in `thalorna`, and not one note anywhere writes
+ * `armor`, `concoction` or `projectile`. The rename produced 349 warnings and
+ * zero adopters.
+ *
+ * `weapongear` never moved, and the reversal restores the consistency its
+ * staying put had broken: all five gear types spell the suffix again.
  *
  * **Keyed by the retired spelling**, which is the opposite of
  * `RETIRED_FIELD_ALIASES`. The direction follows the operation: a field alias
@@ -210,9 +219,9 @@ export function assertTypeNotRetired(type, where) {
  * @type {Readonly<Record<string, string>>}
  */
 export const RENAMED_TYPES = Object.freeze({
-    armorgear: "armor",
-    concoctiongear: "concoction",
-    projectilegear: "projectile",
+    armor: "armorgear",
+    concoction: "concoctiongear",
+    projectile: "projectilegear",
 });
 
 /**

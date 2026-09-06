@@ -242,17 +242,16 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor")).toEqual(["being"]);
     });
 
-    it("maps every row to the identical subtype but the three #78 renamed", () => {
-        // The evidence that compiled output cannot change. Every SoHL row was
-        // the identity until #78 renamed three note types off the `…gear`
-        // spellings that named the document rather than the subject; those
-        // three now map back onto exactly the subtype they always emitted, and
-        // every other row still returns what inferring it did.
-        const renamed = new Map(Object.entries(RENAMED_TYPES).map(([old_, now]) => [now, old_]));
+    it("maps every row to the identical subtype", () => {
+        // The evidence that compiled output cannot change: for SoHL the note
+        // type and the document subtype are the same word on every row, so the
+        // map returns what inferring it did.
+        //
+        // #78 briefly broke that for three rows by renaming them off the
+        // `…gear` spellings; reversing it restores the property for all
+        // fourteen, which is why this no longer needs an exception list.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
-            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}), type).toBe(
-                renamed.get(type) ?? type,
-            );
+            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}), type).toBe(type);
         }
     });
 

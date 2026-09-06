@@ -416,7 +416,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    armor: Object.freeze([
+    armorgear: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "material",
@@ -531,7 +531,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    concoction: Object.freeze([
+    concoctiongear: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "subType",
@@ -674,7 +674,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
     ]),
 
-    projectile: Object.freeze([
+    projectilegear: Object.freeze([
         ...GEAR_COMMON,
         {
             name: "subType",

@@ -67,7 +67,13 @@ describe("HM3_DOCUMENT_SUBTYPES — the second declaration", () => {
     });
 
     it("maps nothing for the types HM3 has no form of", () => {
-        for (const type of ["affiliation", "affliction", "attribute", "concoction", "mystery"]) {
+        for (const type of [
+            "affiliation",
+            "affliction",
+            "attribute",
+            "concoctiongear",
+            "mystery",
+        ]) {
             expect(mapsNoteType(HM3_DOCUMENT_SUBTYPES, type)).toBe(false);
             expect(mapsNoteType(SOHL_DOCUMENT_SUBTYPES, type, "Item")).toBe(true);
         }
@@ -79,8 +85,8 @@ describe("HM3_DOCUMENT_SUBTYPES — the second declaration", () => {
         );
     });
 
-    it("renames `projectile` to HM3's `missilegear` — a non-identity row", () => {
-        expect(documentSubtype(HM3_DOCUMENT_SUBTYPES, "projectile", {})).toBe("missilegear");
+    it("renames `projectilegear` to HM3's `missilegear` — a non-identity row", () => {
+        expect(documentSubtype(HM3_DOCUMENT_SUBTYPES, "projectilegear", {})).toBe("missilegear");
     });
 });
 
@@ -144,7 +150,7 @@ describe("the four one-to-many rows are authored, never inferred", () => {
 /* ---------------------------------------------------------------------- */
 
 /** The type names both systems declare, with different data models behind them. */
-const SHARED_NAMES = ["skill", "weapongear", "armor", "containergear", "miscgear"] as const;
+const SHARED_NAMES = ["skill", "weapongear", "armorgear", "containergear", "miscgear"] as const;
 
 describe("the five shared type names resolve through each system's own half", () => {
     it("both registries declare all five", () => {
@@ -158,7 +164,7 @@ describe("the five shared type names resolve through each system's own half", ()
         // One authored fact, two documents: both halves draw `weight` from the
         // same shared source and send it somewhere different.
         const fm = { weight: 7, value: 300, quality: 2, durability: 5 };
-        for (const type of ["armor", "containergear", "miscgear"] as const) {
+        for (const type of ["armorgear", "containergear", "miscgear"] as const) {
             const sohl = ITEM_BUILDERS[type].system(fm);
             const hm3 = HM3_ITEM_BUILDERS[type].system(fm);
             // SoHL stores a base value that modifiers act on; HM3 stores the
