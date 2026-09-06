@@ -90,6 +90,30 @@ import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
 
 /**
+ * Content types the specification states and this toolchain does not yet
+ * compile.
+ *
+ * **Stated, never inferred, and that distinction is the whole point.** An
+ * unimplemented type and a type somebody forgot to route look identical from
+ * the outside: both are documented, both validate, and neither reaches a pass.
+ * The only thing separating them is intent, so intent is written down here.
+ *
+ * Inferring it — "declared, but absent from the configured vocabulary" — reads
+ * correctly and is worthless, because the configured vocabulary is *derived
+ * from the routing*. Take a type's route away and it leaves the vocabulary too,
+ * so the inference excuses precisely the mistake it was meant to catch. That is
+ * not hypothetical: it is #241, where `place`, `lore` and `scenario` were
+ * declared, validated and unrouted, and every gate reported success until a
+ * downstream repository failed on 450 notes.
+ *
+ * A type leaves this set when it is implemented, the way `bundle` did in #259.
+ * The membership is asserted, so it cannot be forgotten in either direction.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const UNIMPLEMENTED_TYPES = Object.freeze(new Set(["vehicle"]));
+
+/**
  * Note types that reach a pack by a route **other than the pack router**.
  *
  * A folder is the only one, and it is not unclaimed: it compiles to a real
@@ -465,7 +489,13 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
-                vocabulary.has(current) ? configurationMessage(type, config, resolved)
+                // The unimplemented set is asked *first*: such a type is
+                // absent from the configured vocabulary precisely because
+                // nothing routes it, so the `vocabulary.has` branch would never
+                // reach it — and reading its absence as the reason is the
+                // inference {@link UNIMPLEMENTED_TYPES} exists to replace.
+                UNIMPLEMENTED_TYPES.has(current) ? specifiedMessage(type)
+                : vocabulary.has(current) ? configurationMessage(type, config, resolved)
                 : Object.hasOwn(NOTE_VOCABULARY, current) ? specifiedMessage(type)
                 : authoringMessage(type),
         });
