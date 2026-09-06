@@ -23,8 +23,8 @@
  *
  * `package:` is retired the same way and is refused from `note-package.mjs`,
  * where the concept it belonged to still lives. `draft:`, the top-level
- * `aliases:` and `section:` have no such home — there is no surviving concept
- * any of them was part of — so they are refused here.
+ * `aliases:`, `section:` and `traits:` have no such home — there is no
+ * surviving concept any of them was part of — so they are refused here.
  *
  * **What `draft:` did (#69).** It excluded a note from the compiled packs, from
  * the link manifest and from a consuming site build. Nothing reported the
@@ -55,6 +55,23 @@
  * resolves and emits exactly as if it were absent, and `tests/name-aliases-
  * reserved.test.ts` pins that equivalence so a future reader cannot be added
  * by accident.
+ *
+ * **What `traits:` did (#291).** It held a being's own description — gender,
+ * species, age, birthday, height, weight, frame and `appearance.*` — at the
+ * note's top level. The content format gives those a home: `data:`, the closed
+ * container for a subject's type-specific facts, which `being` declares every
+ * one of them in. #128 moved all 2,533 notes that carried one, across four
+ * repositories, and this is the third step of that retirement.
+ *
+ * Refusing it matters more than refusing an ordinary dead key, because top
+ * level is *deliberately open*: an unrecognised key there is passed through to
+ * Hugo, so a stray `traits:` would not be ignored loudly but would arrive on
+ * the page as a theme parameter, checked by nothing. The whole argument for
+ * `data:` being closed is the argument for refusing this.
+ *
+ * `sohl.traits` is a different field that shares the name — `projectilegear`
+ * declares one, and the theme's gear sidebar reads it — so the refusal is
+ * anchored at column 1 and never reaches inside a system block.
  *
  * **A field retired in favour of another is a third case (#142).** `draft:` and
  * `package:` were retired outright: nothing replaced them, so no value made
@@ -285,6 +302,65 @@ export function assertNoSectionField(fm, { file, absPath } = {}) {
     // the same name, and a nested `section:` inside some other block is not
     // this field — a finding about the top-level one must not open on it.
     const position = locateFrontmatterKey(absPath, "section", undefined, { topLevel: true });
+    if (position) err.position = position;
+    throw err;
+}
+
+/**
+ * What a note writing a top-level `traits:` block is told.
+ *
+ * The message states the **mapping**, not just the destination, because three
+ * of the keys reshaped as well as moved: the block nested its measurements
+ * where the format flattens them. A bare "write `data:` instead" would send an
+ * author to author `data.height: {m: 1.78}`, which is a declared key holding an
+ * undeclared shape.
+ *
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function traitsRetiredMessage(file) {
+    return (
+        "`traits:` is a retired frontmatter block — move it into `data:`" +
+        (file ? ` — ${file}` : "") +
+        ". A being's own description belongs in the closed container the " +
+        "content format declares, where `being` declares every one of its " +
+        "keys; at the top level it was passed through to the page unchecked, " +
+        "so a misspelling became a theme parameter rather than a finding. " +
+        "`gender`, `species`, `age`, `birthday` and `appearance.*` move " +
+        "unchanged; three reshape — `traits.height.m` becomes `data.height` " +
+        "(metres), `traits.weight.kg` becomes `data.weight` (kilograms), and " +
+        "`traits.build.frame` becomes `data.frame`"
+    );
+}
+
+/**
+ * Refuse a note that declares a top-level `traits:` block at all.
+ *
+ * Presence is the whole test, as it is for `draft:` and `aliases:`: an empty
+ * `traits:` is still a note claiming a block that no longer exists.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
+ *   could not be parsed.
+ * @param {object} [options] - Options.
+ * @param {string} [options.file] - The note's path, named in the message. Omit
+ *   it where the caller emits through a diagnostic, which puts the locator at
+ *   the start of the line already.
+ * @param {string} [options.absPath] - The note's file on disk, read only on the
+ *   failing path to locate the offending line and column. The position rides on
+ *   the thrown error as `position`, for a caller that emits a diagnostic.
+ * @returns {void}
+ * @throws {Error} When the note declares the block.
+ */
+export function assertNoTraitsField(fm, { file, absPath } = {}) {
+    if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "traits")) return;
+
+    const err = new Error(`${traitsRetiredMessage(file)}.`);
+    // Anchored at column 1. `sohl.traits` is a *different field that shares the
+    // name* — `projectilegear` declares one and the theme's gear sidebar reads
+    // it — so a finding about the top-level block must never open on it.
+    const position = locateFrontmatterKey(absPath, "traits", undefined, { topLevel: true });
     if (position) err.position = position;
     throw err;
 }

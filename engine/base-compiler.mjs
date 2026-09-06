@@ -82,6 +82,7 @@ import {
     assertNoAliasesField,
     assertNoDraftField,
     assertNoSectionField,
+    assertNoTraitsField,
 } from "./retired-fields.mjs";
 import { assertTypeNotRetired, packForType } from "./ids.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
@@ -897,6 +898,7 @@ export class BasePackCompiler {
                 assertNoDraftField(fm, { absPath });
                 assertNoAliasesField(fm, { absPath });
                 assertNoSectionField(fm, { absPath });
+                assertNoTraitsField(fm, { absPath });
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;
