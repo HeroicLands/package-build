@@ -45,6 +45,7 @@ import {
     noteTypesClaimedBy,
     unclaimedNoteFindings,
 } from "../engine/note-claims.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Journals } from "../engine/journals.mjs";
@@ -249,14 +250,31 @@ describe("a type one system maps and another does not", () => {
 /*  The findings themselves                                               */
 /* ---------------------------------------------------------------------- */
 
+/**
+ * The corpus for a fixture repository.
+ *
+ * `unclaimedNoteFindings` reads the records the compile derived rather than
+ * walking (#243) — it is imported *by* the content index and so cannot derive
+ * one itself — and its production caller already holds them.
+ */
+function unclaimedNoteFindingsFor(config: any, sources: any) {
+    return unclaimedNoteFindings(config, sources, corpusOf(config));
+}
+
+function corpusOf(config: any) {
+    return { records: indexRecordsFor({ contentBase: config.paths.content, config }) };
+}
+
 describe("unclaimedNoteFindings", () => {
     it("names the note, its type, and the line the `type:` key is on", () => {
         const root = repo({ "Guild.md": note("affiliation", "Guild of Arms", "guildarms") });
         roots.push(root);
-        const findings = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const config = baseConfig({ packs: ACTORS_ONLY, rootDir: root });
+        const findings = unclaimedNoteFindings(
+            config,
+            { itemTypes: new Set(), docEntryTypes: new Set() },
+            corpusOf(config),
+        );
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
         expect(findings[0].file).toMatch(/Guild\.md$/);
@@ -282,9 +300,11 @@ describe("unclaimedNoteFindings", () => {
                     "name:\n  full: Probe\n---\n\nBody.\n",
             });
             roots.push(root);
+            const config = baseConfig({ packs: ACTORS_ONLY, rootDir: root });
             const [finding] = unclaimedNoteFindings(
-                baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+                config,
                 { itemTypes: new Set(), docEntryTypes: new Set() },
+                corpusOf(config),
             );
 
             expect(finding.message).toMatch(new RegExp(`content format specifies "${type}"`));
@@ -300,7 +320,7 @@ describe("unclaimedNoteFindings", () => {
         roots.push(root);
         expect(NEVER_PACKED_TYPES.has("homepage")).toBe(true);
         expect(
-            unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
+            unclaimedNoteFindingsFor(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
                 itemTypes: new Set(),
                 docEntryTypes: new Set(),
             }),
@@ -310,10 +330,13 @@ describe("unclaimedNoteFindings", () => {
     it("says a known type is a configuration gap, and names the document it would be", () => {
         const root = repo({ "Guild.md": note("affiliation", "Guild of Arms", "guildarms") });
         roots.push(root);
-        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const [finding] = unclaimedNoteFindingsFor(
+            baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+            {
+                itemTypes: new Set(),
+                docEntryTypes: new Set(),
+            },
+        );
         expect(finding.message).toMatch(/Item/);
         expect(finding.message).toMatch(/sohl/);
         expect(finding.message).toMatch(/package-build\.config\.yaml/);
@@ -324,10 +347,13 @@ describe("unclaimedNoteFindings", () => {
     it("says an unknown type is an authoring mistake, not a configuration one", () => {
         const root = repo({ "Widget.md": note("widget", "A Widget", "widget") });
         roots.push(root);
-        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const [finding] = unclaimedNoteFindingsFor(
+            baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+            {
+                itemTypes: new Set(),
+                docEntryTypes: new Set(),
+            },
+        );
         expect(finding.message).toMatch(/not a content type/);
         expect(finding.message).toMatch(/widget/);
     });

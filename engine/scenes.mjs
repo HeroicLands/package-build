@@ -52,7 +52,7 @@ import path from "path";
 import log from "loglevel";
 
 import {
-    walkMarkdownTree,
+    parseMarkdownFile,
     sohlField,
     resolveName,
     slugify,
@@ -66,7 +66,9 @@ import { BasePackCompiler } from "./base-compiler.mjs";
 import { stripAdventureKeys } from "./bundle-notes.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
-import { resolveNoteId } from "./note-ids.mjs";
+// The record accessors only — see `engine/index-records.mjs` for why they live
+// apart from the index that builds them (#243).
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
@@ -170,21 +172,41 @@ export class Scenes extends BasePackCompiler {
      *
      * @returns {{maps: Array<object>, effectsByAddress: Map<string, object>}}
      */
+    /**
+     * The router this pass resolves pack names through.
+     *
+     * `generatePack` hands every pass the one router the compile resolved, and
+     * that is the answer whenever a real compile is running — a second router
+     * is a second answer to where a document landed, built from whichever
+     * configuration the working directory offers (#243). A compiler
+     * constructed directly, as a consumer's or a test's is, has none, and falls
+     * back exactly as `prepare` falls back to deriving its own corpus.
+     *
+     * @returns {object} The pack router.
+     */
+    get #packRouter() {
+        return this.router ?? packRouter();
+    }
+
     #collect() {
         const maps = [];
         const effectsByAddress = new Map();
-        for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(this.contentBase, {
-            skipDirectories: this.skipDirectories,
-        })) {
+        // The corpus this compile derived once, not a walk of this pass's own
+        // (#243) — and a note is opened only when this pass needs its *prose*,
+        // which for a map note means three files in `sohl` rather than 1,685.
+        for (const record of this.corpus.records) {
+            if (!isNoteRecord(record)) continue;
             // No retired-field test: this pass's own walk — the shared compile
             // loop — is where a note still declaring `package:` (#56) or
             // `draft:` (#69) is reported, once. Repeating either check here
             // would double the diagnostic or throw past it. A refused note is
             // indexed and then never compiled, so it reaches no document.
-            // As every corpus reader does, before asking for the id: a note
-            // that authors none takes the one derived from its canonical
-            // address (#270). What remains unset is a file with no address.
-            resolveNoteId(fm);
+            const fm = authoredFrontmatter(record);
+            const absPath = noteFile(this.contentBase, record);
+            // The id is the index's, derived against the configuration this
+            // build resolved (#270, #243) — it was derived here through
+            // `resolveNoteId(fm)` with no package, which falls back to the
+            // ambient one. What remains unset is a file with no address.
             if (!fm || !fm.id) continue;
             if (fm.shortcode && Array.isArray(fm.effects) && fm.effects.length) {
                 effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
@@ -193,12 +215,17 @@ export class Scenes extends BasePackCompiler {
                     // Where the owning item landed, so a region behaviour's
                     // effect reference addresses the right pack when a
                     // repository ships several of one type (#1566).
-                    pack: packRouter().resolveOrNull(fm, packForType(fm.type).docType),
+                    // This compile's router, not a freshly built one: a
+                    // second router is a second answer to where the document
+                    // landed, resolved from the working directory (#243).
+                    pack: this.#packRouter.resolveOrNull(fm, packForType(fm.type).docType),
                     effects: fm.effects,
                 });
             }
             if (!isMapType(fm.type)) continue;
-            maps.push({ fm, body, absPath });
+            // Read here, and only here: the index carries no note body, and a
+            // map's prose is what this pass compiles into its Scene.
+            maps.push({ fm, body: parseMarkdownFile(absPath).body, absPath });
         }
         return { maps, effectsByAddress };
     }
@@ -404,7 +431,8 @@ export class Scenes extends BasePackCompiler {
             // A map note's prose is a derived JournalEntry: it lands in the
             // default JournalEntry pack, not in whichever Scene pack the map
             // itself was routed to (#1566).
-            journalPack: packRouter().defaultOf("JournalEntry"),
+            // This compile's router, as everywhere else in this pass (#243).
+            journalPack: this.#packRouter.defaultOf("JournalEntry"),
             pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
             knownActions: this.knownActions,
             warnings,
