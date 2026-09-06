@@ -368,7 +368,12 @@ async function generatePack(
         // folder without its chain breaks the tree at the top rather than
         // merely leaving it incomplete.
         referencedFolders.add(folder);
-        for (const ancestor of folderNotes.ancestorsOf(folder)) referencedFolders.add(ancestor);
+        // Asked of *this* pack: a folder's hierarchy is per-pack even though
+        // its identity is not, so the chain that has to come with it is the
+        // chain it has here.
+        for (const ancestor of folderNotes.ancestorsOf(folder, name)) {
+            referencedFolders.add(ancestor);
+        }
         return folder.id;
     };
 
@@ -428,7 +433,14 @@ async function generatePack(
     // every copy carries the same `_id`, which is what files a documentation
     // journal beside the item it describes rather than in a folder that merely
     // looks alike (#257).
-    writeFolderNoteDocs(referencedFolders, folderNotes, statsForPack(system, config), dest, type);
+    writeFolderNoteDocs(
+        referencedFolders,
+        folderNotes,
+        statsForPack(system, config),
+        dest,
+        type,
+        name,
+    );
 
     return { errors: pack.errorCount, compiled: pack.compiledCount };
 }
@@ -445,13 +457,20 @@ async function generatePack(
  * @param {object} stats - The `_stats` block every emitted document carries.
  * @param {string} dest - The pack's JSON directory.
  * @param {string} documentType - The document class the pack holds.
+ * @param {string} packName - Which pack, so each folder takes the parent it has
+ *   *here* rather than the one it has by default.
  * @returns {void}
  */
-function writeFolderNoteDocs(referenced, folderNotes, stats, dest, documentType) {
+function writeFolderNoteDocs(referenced, folderNotes, stats, dest, documentType, packName) {
     if (referenced.size === 0) return;
     const ordered = [...referenced].sort((a, b) => (a.address < b.address ? -1 : 1));
     for (const folder of ordered) {
-        const doc = folderDocument(folder, folderNotes.parentOf(folder), documentType, stats);
+        const doc = folderDocument(
+            folder,
+            folderNotes.parentOf(folder, packName),
+            documentType,
+            stats,
+        );
         fs.writeFileSync(
             path.join(dest, folderFilename(folder.name, folder.id)),
             JSON.stringify(doc, null, 2),

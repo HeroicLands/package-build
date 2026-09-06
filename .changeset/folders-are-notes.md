@@ -32,6 +32,16 @@ folder that carries them. A folder is addressed `<package>-none-folder-<shortcod
 — `none`, because a `Folder` is a core Foundry document like a `JournalEntry`,
 not a system's.
 
+**`parent` may be a map keyed by pack.** A folder's identity is one thing and its
+hierarchy is another: the same folder is deliberately filed under different
+parents in different packs, and both large trees rely on it. This repository
+files its three item roots one level deeper in the journals pack (under
+`Rules/Descriptions`, beside `Rules/Combat`); `sohl-thalorna` groups the items
+pack by document kind and the journals pack by setting geography, and 46 of its
+75 shared folders differ. A scalar — the everyday spelling — is exactly
+`{ default: <value> }`, and the folder keeps one id across every pack whatever
+its parent there.
+
 **Where a folder materialises is derived from what references it** (#257). Every
 pack holding a document that names a folder gets that folder, and its ancestors
 with it; a folder nothing references materialises nowhere.

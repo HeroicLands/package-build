@@ -84,11 +84,23 @@ export const FOLDER_ID_NAMESPACE = "folder";
  * @property {string} address - The canonical `<pkg>-none-folder-<shortcode>`.
  * @property {string} name - The display name.
  * @property {string|null} color - CSS hex, or `null`.
- * @property {string|null} parent - The parent's authored address, or `null`.
+ * @property {Record<string, string|null>} parent - The parent's authored
+ *   address per pack, keyed by pack name with {@link DEFAULT_PARENT} for the
+ *   unstated case. A folder's identity is one thing; its hierarchy is per-pack.
  * @property {string} id - The Foundry id: authored, or derived from `address`.
  * @property {boolean} derivedId - Whether `id` was derived rather than authored.
  * @property {string} absPath - The file it was read from, for diagnostics.
  */
+
+/**
+ * The key a per-pack `parent` map uses for "everywhere else".
+ *
+ * Spelled out rather than left as the absence of a key, so a map that states
+ * only exceptions still reads as a complete answer.
+ *
+ * @type {string}
+ */
+export const DEFAULT_PARENT = "default";
 
 /**
  * Read one folder note's fields out of its frontmatter.
@@ -100,18 +112,44 @@ export const FOLDER_ID_NAMESPACE = "folder";
  * them and an author following the issue rather than the specification should
  * get a folder, not a silent default.
  *
+ * **`parent` may be a map keyed by pack**, because a folder's *hierarchy* is
+ * per-pack even though its identity is not. Both large trees rely on that
+ * deliberately: this repository files the three item roots one level deeper in
+ * the journals pack (under `Rules/Descriptions`, beside `Rules/Combat`), and
+ * `sohl-thalorna` groups the items pack by document kind and the journals pack
+ * by setting geography — 46 of its 75 shared folders sit under a different
+ * parent in each. A single scalar cannot express either, and flattening to one
+ * hierarchy would silently reorganise both compendiums.
+ *
+ * A scalar stays the everyday spelling, and is exactly `{ default: value }`.
+ *
  * @param {object} fm - Parsed frontmatter.
- * @returns {{parent: string|null, color: string|null}} The two fields.
+ * @returns {{parent: Record<string, string|null>, color: string|null}} The
+ *   parent by pack — always a map, with {@link DEFAULT_PARENT} for the
+ *   unstated case — and the colour.
  */
 function folderFields(fm) {
     const data = fm?.data && typeof fm.data === "object" ? fm.data : {};
-    const pick = (key) => {
-        const value = data[key] ?? fm?.[key];
+    const read = (key) => data[key] ?? fm?.[key];
+    const text = (value) => {
         if (value == null) return null;
-        const text = String(value).trim();
-        return text === "" ? null : text;
+        const trimmed = String(value).trim();
+        return trimmed === "" ? null : trimmed;
     };
-    return { parent: pick("parent"), color: pick("color") };
+
+    const authored = read("parent");
+    /** @type {Record<string, string|null>} */
+    const parent = {};
+    if (authored != null && typeof authored === "object" && !Array.isArray(authored)) {
+        // An explicit `~` under a pack key means "at the root *there*", which
+        // is a different statement from saying nothing — so the key is kept
+        // with a null value rather than dropped.
+        for (const [pack, value] of Object.entries(authored)) parent[pack] = text(value);
+    } else {
+        parent[DEFAULT_PARENT] = text(authored);
+    }
+
+    return { parent, color: text(read("color")) };
 }
 
 /**
@@ -200,7 +238,9 @@ export function collectFolderNotes(notes, pkg) {
             address,
             name: String(name),
             color,
-            parent: bareAddress(parent),
+            parent: Object.fromEntries(
+                Object.entries(parent).map(([pack, value]) => [pack, bareAddress(value)]),
+            ),
             // An authored id is kept, and a folder without one derives a
             // stable one from its address (#258). Keeping the authored id is
             // what makes this a build change rather than a world migration: a
@@ -302,52 +342,68 @@ export function buildFolderNoteIndex(folders) {
     }
 
     /**
-     * A folder's parent, or `null` at the root.
+     * The parent a folder has **in one pack**, or `null` at the root there.
+     *
+     * A folder's identity is one thing and its hierarchy is another: the same
+     * folder is filed under a different parent in the items pack and the
+     * journals pack throughout both large trees, deliberately. So every
+     * question about the chain is asked of a pack, and a folder note that
+     * states one scalar answers the same way for all of them.
      *
      * @param {FolderNote} folder - The folder.
-     * @returns {FolderNote|null} Its parent.
+     * @param {string} [pack] - The pack being compiled.
+     * @returns {FolderNote|null} Its parent there.
      */
-    function parentOf(folder) {
-        if (!folder.parent) return null;
+    function parentOf(folder, pack) {
+        const authored =
+            pack != null && Object.hasOwn(folder.parent, pack) ?
+                folder.parent[pack]
+            :   folder.parent[DEFAULT_PARENT];
+        if (!authored) return null;
         try {
-            return resolve(folder.parent);
+            return resolve(authored);
         } catch (err) {
             throw Object.assign(
-                new Error(`folder "${folder.shortcode}" names a parent that ${err.message}`),
+                new Error(
+                    `folder "${folder.shortcode}" names a parent that ${err.message}` +
+                        (pack != null ? ` (in pack "${pack}")` : ""),
+                ),
                 { absPath: folder.absPath },
             );
         }
     }
 
     /**
-     * Every ancestor of a folder, nearest first.
+     * Every ancestor of a folder in one pack, nearest first.
      *
      * A folder cannot materialise without them: a `Folder` whose parent is
      * absent from the pack is an orphan Foundry renders at the root, so the
      * tree would be broken at the top rather than merely incomplete (#257).
      *
      * @param {FolderNote} folder - The folder.
-     * @returns {FolderNote[]} Its ancestors.
+     * @param {string} [pack] - The pack being compiled.
+     * @returns {FolderNote[]} Its ancestors there.
      * @throws {Error} On a parent cycle.
      */
-    function ancestorsOf(folder) {
+    function ancestorsOf(folder, pack) {
         /** @type {FolderNote[]} */
         const chain = [];
         const seen = new Set([folder.address]);
-        let current = parentOf(folder);
+        let current = parentOf(folder, pack);
         while (current) {
             if (seen.has(current.address)) {
                 throw Object.assign(
                     new Error(
-                        `folder "${folder.shortcode}" sits in a parent cycle: ` +
-                            `${[...seen, current.address].join(" → ")}`,
+                        `folder "${folder.shortcode}" sits in a parent cycle` +
+                            (pack != null ? ` in pack "${pack}"` : "") +
+                            `: ${[...seen, current.address].join(" → ")}`,
                     ),
                     { absPath: folder.absPath },
                 );
             }
             seen.add(current.address);
             chain.push(current);
-            current = parentOf(current);
+            current = parentOf(current, pack);
         }
         return chain;
     }
@@ -356,9 +412,25 @@ export function buildFolderNoteIndex(folders) {
     // circular `parent` is reported when the index is built rather than when
     // some note happens to reference the folder that carries it. A tree whose
     // folders are all reachable but one is still a broken tree.
-    for (const folder of folders) ancestorsOf(folder);
+    //
+    // Every *declared* pack is walked, not just the default: a chain that is
+    // sound by default and circular in the journals pack is still a broken
+    // tree, and nothing else would look at it until that pack compiled.
+    const declaredPacks = new Set();
+    for (const folder of folders) {
+        for (const pack of Object.keys(folder.parent)) {
+            if (pack !== DEFAULT_PARENT) declaredPacks.add(pack);
+        }
+    }
+    for (const folder of folders) {
+        ancestorsOf(folder);
+        for (const pack of declaredPacks) ancestorsOf(folder, pack);
+    }
 
-    log.debug(`Folder notes: ${folders.length} folder(s) indexed`);
+    log.debug(
+        `Folder notes: ${folders.length} folder(s) indexed` +
+            (declaredPacks.size ? `, ${declaredPacks.size} with a per-pack parent` : ""),
+    );
     return { byKey, folders, resolve, ancestorsOf, parentOf };
 }
 

@@ -154,6 +154,24 @@ data:
 ${parent ? `  parent: ${parent}\n` : ""}${color ? `  color: "${color}"\n` : ""}---
 `;
 
+/** A folder note whose parent differs per pack. */
+const perPackFolderNote = (
+    shortcode: string,
+    name: string,
+    parents: Record<string, string | null>,
+) => `---
+name:
+  full: ${name}
+shortcode: ${shortcode}
+type: folder
+data:
+  parent:
+${Object.entries(parents)
+    .map(([pack, value]) => `    ${pack}: ${value ?? "~"}`)
+    .join("\n")}
+---
+`;
+
 /**
  * A throwaway repository with an item pack and a journals pack.
  *
@@ -348,6 +366,37 @@ describe("compiling a note that names its folder by address", () => {
 
         expect(result.errors).toBe(0);
         expect(packDocs(root, "items")["Bowl By Id"].folder).toBe("dddddddddddddddd");
+    });
+
+    it("gives one folder a different parent in each pack it materialises in", () => {
+        // The arrangement both large trees rely on: an item root sits at the
+        // root of the items compendium and one level deeper in the journals
+        // one, beside the other rules chapters. Same folder, same id, two
+        // hierarchies.
+        const root = folderRepo({
+            "folders/Rules.md": folderNote("rules", "Rules"),
+            "folders/Descriptions.md": folderNote("descriptions", "Descriptions", "rules"),
+            "folders/Gear.md": perPackFolderNote("gear", "Gear", {
+                default: null,
+                journals: "descriptions",
+            }),
+            "ByAddress.md": gear("Bowl By Address", "bowladdr", "packFolder", "gear"),
+        });
+        roots.push(root);
+        const result = compile(root);
+        const items = packDocs(root, "items");
+        const journals = packDocs(root, "journals");
+
+        expect(result.errors).toBe(0);
+        // Same folder document id in both packs...
+        expect(journals["Gear"]._id).toBe(items["Gear"]._id);
+        // ...filed at the root of one and under Rules/Descriptions in the other.
+        expect(items["Gear"].folder).toBeNull();
+        expect(journals["Gear"].folder).toBe(journals["Descriptions"]._id);
+        expect(journals["Descriptions"].folder).toBe(journals["Rules"]._id);
+        // The journals-only chain does not leak into the items pack.
+        expect(items["Descriptions"]).toBeUndefined();
+        expect(items["Rules"]).toBeUndefined();
     });
 
     it("leaves a note that names no folder at the pack root", () => {

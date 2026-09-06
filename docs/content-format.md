@@ -1797,6 +1797,25 @@ rather than a special-cased `Unknown folder id`, and a cycle is refused. Both ar
 reported when the tree is read, not when something happens to reference the
 folder that carries them.
 
+**`parent` may be a map keyed by pack**, because a folder's _identity_ is one
+thing and its _hierarchy_ is another. The same folder is deliberately filed
+under different parents in different packs: an item compendium is browsed by
+kind, a journal compendium is read by subject.
+
+```yaml
+data:
+  parent:
+    default: ~ # at the root of the items pack
+    journals: descriptions # under Rules/Descriptions in the journals pack
+```
+
+`default` is every pack that is not named; an explicit `~` under a pack key means
+_at the root there_, which is a different statement from saying nothing. A plain
+scalar — the everyday spelling, and the right one wherever the hierarchies agree
+— is exactly `{ default: <value> }`. The folder keeps **one id** across every
+pack it materialises in, which is what files a documentation journal beside the
+item it describes; only its parent differs.
+
 **A folder note carries no prose.** It is structure, not content, so it produces
 no documentation journal and takes no part in `docEntryTypes`.
 

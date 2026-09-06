@@ -62,7 +62,7 @@ describe("collectFolderNotes", () => {
         const cooking = folders[2];
         expect(cooking.name).toBe("Cooking");
         expect(cooking.color).toBe("#7a4b2a");
-        expect(cooking.parent).toBe("miscgear");
+        expect(cooking.parent).toEqual({ default: "miscgear" });
     });
 
     it("addresses a folder `<package>-none-folder-<shortcode>`", () => {
@@ -95,7 +95,7 @@ describe("collectFolderNotes", () => {
             [note({ shortcode: "cooking", parent: "miscgear", color: "#123456" })],
             "sohl",
         );
-        expect(folder.parent).toBe("miscgear");
+        expect(folder.parent).toEqual({ default: "miscgear" });
         expect(folder.color).toBe("#123456");
     });
 });
@@ -246,5 +246,82 @@ describe("bareAddress", () => {
         expect(bareAddress("  cooking  ")).toBe("cooking");
         expect(bareAddress("")).toBeNull();
         expect(bareAddress(null)).toBeNull();
+    });
+});
+
+describe("a folder's hierarchy is per-pack, its identity is not", () => {
+    // Both large trees rely on this deliberately: this repository files the
+    // three item roots one level deeper in the journals pack, and
+    // `sohl-thalorna` groups the items pack by document kind and the journals
+    // pack by setting geography — 46 of its 75 shared folders differ. A single
+    // scalar cannot express either.
+    const PER_PACK = [
+        note({ shortcode: "rules", name: { full: "Rules" } }),
+        note({
+            shortcode: "descriptions",
+            name: { full: "Descriptions" },
+            data: { parent: "rules" },
+        }),
+        note({
+            shortcode: "possessions",
+            name: { full: "Possessions" },
+            // Root in the items pack; under Rules/Descriptions in journals.
+            data: { parent: { default: null, journals: "descriptions" } },
+        }),
+    ];
+
+    const index = () => buildFolderNoteIndex(collectFolderNotes(PER_PACK, "sohl"));
+
+    it("reads a parent map, keeping an explicit null as `root here`", () => {
+        const [, , possessions] = collectFolderNotes(PER_PACK, "sohl");
+        expect(possessions.parent).toEqual({ default: null, journals: "descriptions" });
+    });
+
+    it("gives one folder a different parent in each pack", () => {
+        const idx = index();
+        const possessions = idx.resolve("possessions");
+        expect(idx.parentOf(possessions, "items")).toBeNull();
+        expect(idx.parentOf(possessions, "journals")?.shortcode).toBe("descriptions");
+    });
+
+    it("walks the chain the folder has in that pack", () => {
+        const idx = index();
+        const possessions = idx.resolve("possessions");
+        expect(idx.ancestorsOf(possessions, "items")).toEqual([]);
+        expect(idx.ancestorsOf(possessions, "journals").map((f) => f.shortcode)).toEqual([
+            "descriptions",
+            "rules",
+        ]);
+    });
+
+    it("keeps the same id in both, which is what files a doc beside its item", () => {
+        const idx = index();
+        const possessions = idx.resolve("possessions");
+        const asItem = folderDocument(possessions, idx.parentOf(possessions, "items"), "Item", {});
+        const asJournal = folderDocument(
+            possessions,
+            idx.parentOf(possessions, "journals"),
+            "JournalEntry",
+            {},
+        );
+        expect(asItem._id).toBe(asJournal._id);
+        expect(asItem.folder).toBeNull();
+        expect(asJournal.folder).toBe(idx.resolve("descriptions").id);
+    });
+
+    it("refuses a cycle that exists only in one pack", () => {
+        // Sound by default, circular in the journals pack — still a broken
+        // tree, and nothing else would look at it until that pack compiled.
+        expect(() =>
+            buildFolderNoteIndex(
+                collectFolderNotes(
+                    [
+                        note({ shortcode: "a", data: { parent: { journals: "b" } } }),
+                        note({ shortcode: "b", data: { parent: { journals: "a" } } }),
+                    ],
+                    "sohl",
+                ),
+            ),
+        ).toThrow(/parent cycle in pack "journals"/);
     });
 });
