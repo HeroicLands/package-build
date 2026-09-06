@@ -2074,10 +2074,10 @@ data:
 ---
 ```
 
-| `data` property | Values                | Description                                       |
-| --------------- | --------------------- | ------------------------------------------------- |
-| `parent`        | `WikiLink`            | The folder this one sits in. Unset at the root.   |
-| `color`         | `"#RRGGBB"`, a string | The folder's colour. Unset for Foundry's default. |
+| `data` property | Values                                     | Description                                                                    |
+| --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| `parent`        | `WikiLink`, or a map of them keyed by pack | The folder this one sits in — one address, or one per pack. Unset at the root. |
+| `color`         | `"#RRGGBB"`, a string                      | The folder's colour. Unset for Foundry's default.                              |
 
 A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
 `Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
@@ -2113,6 +2113,12 @@ scalar — the everyday spelling, and the right one wherever the hierarchies agr
 — is exactly `{ default: <value> }`. The folder keeps **one id** across every
 pack it materialises in, which is what files a documentation journal beside the
 item it describes; only its parent differs.
+
+Every key but `default` names a **pack the package declares**, and one that names
+none is a finding of its own. It cannot be a harmless surplus: the compile asks
+the map for the pack it is writing and falls back to `default` when there is no
+such key, so a mistyped `journal:` files the folder wherever the default puts it
+— exactly the hierarchy the key was written to override, and silently.
 
 **A folder note carries no prose.** It is structure, not content, so it produces
 no documentation journal and takes no part in `docEntryTypes`.
