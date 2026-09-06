@@ -22,7 +22,7 @@ A consuming repository declares one `package-build.config.yaml` at its root:
 
 ```yaml
 # The package this repository's content is published as: the first segment of
-# every canonical address, the name of the link manifest it emits, and the
+# every canonical address, the name of the content index it emits, and the
 # package a cross-package wikilink writes to reach one of its notes.
 contentPackage: thalorna
 # Where Foundry installs it: "systems" or "modules". Also decides the served
@@ -242,7 +242,7 @@ assets/content/Gear/Axe.md:12:1: error: `package: sohl` is a retired frontmatter
 ```
 
 `content-build lint` reports every such note in one pass; `content-build
-package compile` and `content-build manifest` refuse the tree.
+package compile` and `content-build content-index` refuse the tree.
 
 A generated table that scopes itself with `WHERE … and package = "<pkg>"` keeps
 working: the package is **synthesised** into what the table search sees,
@@ -772,7 +772,6 @@ npx content-build content-format notes [root] [--strict]
 npx content-build links [root] [--manifests <dir>]
 npx content-build format [paths..] [--write]
 npx content-build markdown [paths..] [--fix]
-npx content-build manifest [root] [--out <dir>]
 npx content-build content-index [root] [--out <dir>]
 npx content-build site [--out <dir>]
 npx content-build reachability <dir> [file] [--index <shortcode>]
@@ -788,7 +787,6 @@ npx content-build addresses diff --from <zip|dir> [--strict]
 | `links`          | Check that every link in the tree lands: dead anchors, dead qualified addresses, wikilinks in frontmatter, drifted manifests, and the package homepage's own addresses. |
 | `format`         | Prettier, with the shared configuration. See [Prose: formatting and markdown](#prose-formatting-and-markdown).                                                          |
 | `markdown`       | markdownlint, with the shared rule set — the structure Prettier is indifferent to.                                                                                      |
-| `manifest`       | Emit this package's cross-package link manifest. See [Publishing a link manifest](#publishing-a-link-manifest).                                                         |
 | `content-index`  | Emit this package's note index as JSON Lines. See [Publishing a content index](#publishing-a-content-index).                                                            |
 | `site`           | Publish the content tree as a website. See [Publishing a website](#publishing-a-website).                                                                               |
 | `reachability`   | Walk outward from an index note and report what no path reaches, for a tree meant to be navigable from one entry point.                                                 |
@@ -1046,10 +1044,10 @@ the Foundry document id a compendium UUID is built from, and a homepage compiles
 into **no document**.
 
 ```text
-assets/content/homepage.md:4:1: error: `id` decides nothing on a `type: homepage` note: it is the Foundry document id a compendium UUID is built from, and a homepage compiles into no document — it appears in no pack and in no link manifest. Delete it
+assets/content/homepage.md:4:1: error: `id` decides nothing on a `type: homepage` note: it is the Foundry document id a compendium UUID is built from, and a homepage compiles into no document — it appears in no pack and states no Foundry address. Delete it
 ```
 
-That is also why a homepage stays **out of the link manifest**, now that a
+That is also why a homepage states **no Foundry address**, now that a
 shortcode alone would put it in. A manifest entry is how another package
 resolves a _document_; a cross-package link to a package's front page is its
 bare `/<package>/` address, which needs no index.
@@ -1186,7 +1184,7 @@ attempted:
   documentation, hand-authored Hugo sections — so this build does not hold the
   set of published pages and would report a working link as dead. A bare
   `https://www.heroiclands.org/<package>/` is left alone for the same reason it
-  cannot be improved: a package homepage is in no link manifest, so there is no
+  cannot be improved: a package homepage compiles into no document, so there is no
   better form to write.
 
 ## The content format specification
@@ -1376,44 +1374,87 @@ rules to declare. A repository that _has_ an ESLint of its own keeps it untouche
 and unconsulted — the run sets `overrideConfigFile: true`, so no config file is
 looked for at all.
 
-## Publishing a link manifest
+## Publishing the content index
+
+Every package emits one file naming every note it publishes:
 
 ```bash
-npx content-build manifest              # the configured tree and output directory
-npx content-build manifest --out tmp/   # or somewhere else
+npx content-build content-index         # the configured tree and output directory
 ```
 
-Writes `<contentPackage>.json` naming every note this package publishes, keyed by
-the canonical `package-system-type-shortcode` address and valued with every address that
-note has: a `path` on the web, a `uuid` in Foundry, the `anchors` its named
-sections compiled to, and a `doc` pointer where an item's prose compiles into a
-JournalEntry of its own. A consuming build vendors the file into its own
-`paths.manifests` and resolves cross-package links through it — the counterpart
-of `links`, which consumes what this emits.
+`<contentPackage>-metadata.jsonl` holds one JSON record per line, keyed by the
+canonical `package-system-type-shortcode` address and carrying every address
+that note has: its `address.slug` on the web, a `foundry.<system>.uuid` in
+Foundry, the `anchors` its named sections compiled to, and a `documentation`
+pointer where an item's prose compiles into a JournalEntry of its own.
 
-It reads its whole input from configuration and takes nothing else:
+**This is the artifact other packages resolve your addresses through.** It is
+advertised in the emitted `system.json` / `module.json` as
+`flags.metadataUrl` — derived, version-pinned, and not something you write down
+— and published as a release asset beside the manifest and the `.zip`.
 
-| Setting                     | What it decides                                               |
-| --------------------------- | ------------------------------------------------------------- |
-| `contentPackage`            | The package emitted, which every note belongs to.             |
-| `foundryPackage`            | The package every emitted `uuid` names.                       |
-| `paths.content`             | The tree walked.                                              |
-| `paths.manifestOut`         | Where the file lands (`build/manifests` by default).          |
-| `publish.manifests.publish` | Whether this repository publishes one at all.                 |
-| `publish.site`              | Whether entries carry a `path` — see below.                   |
-| `publish.address`           | The address scheme those paths are derived under — see below. |
+| Setting              | What it decides                               |
+| -------------------- | --------------------------------------------- |
+| `contentPackage`     | The package emitted, and the file's name.     |
+| `foundryPackage`     | The package every emitted `uuid` names.       |
+| `paths.content`      | The tree walked.                              |
+| `paths.contentIndex` | Where the file lands (`build/content-index`). |
 
 **Both addresses are optional, independently.** A note that compiles into no
-document has no `uuid`, and a package that ships compendiums and publishes only
-a homepage (`publish.site: homepage`) has no `path` on any entry — its notes are
-not pages. Neither is an error, and neither is guessed: inventing the missing one
-asserts a target that does not exist, which is the silent dead link the manifest
-exists to prevent.
+document states no `foundry` block, and a package that ships compendiums and
+publishes only a homepage serves no page at its addresses. Neither is an error,
+and neither is guessed: inventing the missing one asserts a target that does not
+exist, which is the silent dead link this whole mechanism exists to prevent.
 
-**`publish.manifests.publish` is a declaration, not a preference.** The file is
-vendored by other repositories and read as authoritative, so emitting one is a
-statement about this package. With the switch off the command fails rather than
-writing.
+## Resolving another package's addresses
+
+Declare what you depend on, and fetch it:
+
+```bash
+npx content-build deps fetch                    # every declared dependency
+npx content-build deps fetch --from ../sohl     # from a local build, unreleased
+```
+
+```yaml
+relationships:
+  systems:
+    - id: sohl
+      type: system
+      manifest: https://github.com/HeroicLands/Song-of-Heroic-Lands-FoundryVTT/releases/latest/download/system.json
+      compatibility: { minimum: "0.8.0", verified: "0.8.2" }
+```
+
+`deps fetch` reads that manifest, takes the `flags.metadataUrl` it advertises,
+and pulls the index into `build/cache/metadata`. The whole chain is declared, so
+nothing here holds an address of its own and a dependency that moves its release
+assets does not break its consumers.
+
+**You may cite what you depend on, and nothing else.** The set is every entry in
+`relationships.systems` and `relationships.requires`; `recommends` and
+`conflicts` are declarations _about_ other packages rather than dependencies on
+them, so a link into one is a defect in the citing note. An address into a
+package you have not declared resolves nowhere and fails the build.
+
+**A build never reaches the network.** A declared dependency whose index has not
+been fetched is an error naming `deps fetch`, rather than a download nobody
+asked for — a build that downloads silently is not reproducible and fails
+strangely offline. The cache is keyed by version, so changing the pinned version
+is a miss rather than a silent overwrite.
+
+**`--from` is for two packages changing together.** It fills the cache from a
+locally built artifact — a package zip or the directory it was built from — so a
+consumer can be built against a dependency that has not shipped. Without it,
+testing a dependency change against its consumers would cost a release
+round-trip.
+
+> **This replaced a vendored link manifest**, which every repository committed a
+> copy of every other repository's file into. A copy went stale silently and one
+> did — 2,101 entries in `Song-of-Heroic-Lands-FoundryVTT` pointed at URLs the
+> `thalorna` site had stopped publishing, at the current format version, so the
+> version gate saw nothing. Mutual vendoring also deadlocked: each package had to
+> read the other's file before it could publish its own. A fetched artifact
+> cannot drift from its producer, and a consumer reads one the producer has
+> already shipped.
 
 ### A page's URL is its address
 
@@ -1648,7 +1689,7 @@ first. An entry that is not a non-empty string is dropped rather than left as a
 hole, since the array is a set of names to match and a null is not one.
 
 `address.slug` is what goes inside `[[…]]` within the package; `address.canonical`
-is the fully qualified key the link manifest files the note under, carrying the
+is the fully qualified key the content index files the note under, carrying the
 package and the system as well. The slug is the canonical key's **last two
 segments**, not its whole tail: a page has no system to name, so the two forms
 diverge by that segment rather than one trailing the other. Both are `null` for a
@@ -1794,9 +1835,12 @@ configuration to stay empty: in `homepage` mode the tree is never walked for
 pages, and `sections`, `trees`, `landing` and `backfillSections` emit nothing
 even when they are declared.
 
-That is separate from `publish.manifests.publish`, which stays off for both for
-an unrelated reason: a link manifest is the dependency edge that would stop the
-module being withdrawable, and a homepage is one row in a routing table.
+That is separate from the **dependency** edge, which such a module also
+declines: being cited by another package is what would stop it being
+withdrawable, and a homepage is one row in a routing table rather than an
+address anyone links to. A package publishes its content index regardless — the
+licensing constraint is against publishing _pages_, not against the artifact
+existing — but nothing may declare it as a dependency.
 
 The homepage's file is written at the root of `site.out` — the package's own
 site root, one level above the content mount, which is where
@@ -1806,7 +1850,7 @@ decides where it publishes, and states it relative to the site root — `site.ba
 does not reach it (#217).
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
-the same setting the link manifest reads, so a page and its manifest entry cannot
+the same setting the content index reads, so a page and its index record cannot
 disagree about where the page is. Everything under `site:` is _framing_ —
 where the tree is written, what a section is called, which extra trees are
 published beside the content:
@@ -2079,7 +2123,7 @@ form every C-family compiler, `tsc` and ESLint already use, so an editor, a CI
 annotator or a `grep` parses it with no knowledge of this build:
 
 ```text
-assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or vendor the link manifest of the package that does — in "The Capital Nome".
+assets/content/Regions/Capital_Nome.md:43:635: error: address [[place-kenbetpat]] resolves to no note — no package publishes it. Fix the shortcode, or declare the package that does as a dependency and run `content-build deps fetch` — in "The Capital Nome".
 ```
 
 `file:line:column: severity: message`. The path is relative to the working
@@ -2128,7 +2172,7 @@ authored character to point at.
 ## Layout
 
 - **`@heroiclands/package-build/engine`** — package-agnostic machinery: the
-  content walk, frontmatter, tables, wikilinks, ids, folders, the link manifest
+  content walk, frontmatter, tables, wikilinks, ids, folders, the content index
   and the web-address rule, `BasePackCompiler`, and the generic Foundry document
   compilers.
 - **`@heroiclands/package-build/sohl`** — Song of Heroic Lands data-model

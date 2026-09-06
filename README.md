@@ -7,7 +7,7 @@ It has two halves, split by **input**:
 
 | Half          | Reads                                                        | Produces                                                       |
 | ------------- | ------------------------------------------------------------ | -------------------------------------------------------------- |
-| **content**   | `assets/content/**`                                          | compendium packs, site content, link manifest                  |
+| **content**   | `assets/content/**`                                          | compendium packs, site content, content index                  |
 | **packaging** | `lang/`, `styles/`, `src/`, `assets/`, the manifest template | `system.json` / `module.json`, styles, bundle, release archive |
 
 The content half is documented separately in **[CONTENT.md](CONTENT.md)** — the

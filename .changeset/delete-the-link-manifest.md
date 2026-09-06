@@ -36,7 +36,7 @@ address. There was nothing in a manifest entry it did not hold.
 - Cross-package links resolve from that cache.
 
 **The dependency set is every declared dependency** — everything in
-`relationships.systems` and `relationships.requires` — and deliberately *not*
+`relationships.systems` and `relationships.requires` — and deliberately _not_
 only those declaring `itemCatalog: true`. Citing another package's addresses and
 embedding its items are separate edges: `harn-ensemble` cites no foreign address
 and carries 324,016 embedded item references. `recommends` and `conflicts` are
