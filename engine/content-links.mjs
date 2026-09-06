@@ -64,7 +64,7 @@ import { collectAnchors } from "./anchors.mjs";
 // derives it (#243). Nothing in the index's own import graph reaches this
 // module, so this is a plain static import rather than the deferred one
 // `sql-tables` needs to keep out of the compilers' cycle.
-import { authoredFrontmatter, indexRecordsFor, isNoteRecord } from "./content-index.mjs";
+import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -177,7 +177,7 @@ export function buildLinkIndex(
 
         const fm = authoredFrontmatter(record);
         const rel = record.file.path;
-        const absPath = path.join(contentBase, ...rel.split("/"));
+        const absPath = noteFile(contentBase, record);
         // The raw text is kept beside the parsed body: a consumer's own checks
         // may need what frontmatter carried, which the body has dropped.
         const raw = fs.readFileSync(absPath, "utf8");
