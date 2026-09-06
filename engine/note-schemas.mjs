@@ -85,6 +85,18 @@ const ARMORLOCATION_FIELDS = Object.freeze([]);
 const BUNDLE_FIELDS = Object.freeze([]);
 
 /**
+ * A `folder` note — Foundry's `Folder`, the grouping documents are filed in.
+ *
+ * Empty for the same reason a bundle's is: a folder declares no system-block
+ * fields, because a `Folder` is a core Foundry document rather than any
+ * system's. Its two properties — `parent` and `color` — are `data:` keys, held
+ * closed by `engine/note-vocabulary.mjs` (#256).
+ *
+ * @type {readonly import("./field-spec.mjs").FieldSpec[]}
+ */
+const FOLDER_FIELDS = Object.freeze([]);
+
+/**
  * Every engine-level content type, and what a note of that type may write.
  *
  * @type {Readonly<Record<string, readonly import("./field-spec.mjs").FieldSpec[]>>}
@@ -96,4 +108,5 @@ export const ENGINE_NOTE_SCHEMAS = Object.freeze({
     scenario: JOURNAL_ONLY_FIELDS,
     armorlocation: ARMORLOCATION_FIELDS,
     bundle: BUNDLE_FIELDS,
+    folder: FOLDER_FIELDS,
 });

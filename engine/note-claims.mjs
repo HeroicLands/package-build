@@ -70,6 +70,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
+import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /**
@@ -83,6 +84,20 @@ import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
  * @type {ReadonlySet<string>}
  */
 export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
+
+/**
+ * Note types that reach a pack by a route **other than the pack router**.
+ *
+ * A folder is the only one, and it is not unclaimed: it compiles to a real
+ * `Folder` document. What it has no answer to is *which* pack claims it, because
+ * that is not a property of the note — a folder materialises in every pack
+ * holding a document that references it, and its ancestors with it (#257). So
+ * it is exempt from the claim check for the opposite reason a homepage is:
+ * a homepage is in no pack, and a folder may be in several.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const DERIVED_PACKED_TYPES = Object.freeze(new Set([FOLDER_TYPE]));
 
 /**
  * The note-type → document-subtype maps this toolchain ships.
@@ -391,6 +406,7 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
         const type = typeof fm.type === "string" ? fm.type.trim() : "";
         if (!type) continue;
         if (NEVER_PACKED_TYPES.has(type)) continue;
+        if (DERIVED_PACKED_TYPES.has(type)) continue;
         if (RETIRED_TYPES[type]) continue;
         if (claimed.has(type)) continue;
 

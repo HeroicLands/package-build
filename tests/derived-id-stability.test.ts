@@ -28,6 +28,8 @@ import path from "node:path";
 
 import { Actors } from "../sohl/actors.mjs";
 import { buildPages, journalPageId, splitPages } from "../engine/journals.mjs";
+import { entriesForNote } from "../engine/foundry-entries.mjs";
+import { resolveNoteId } from "../engine/note-ids.mjs";
 
 // ---------------------------------------------------------------- embedded --
 
@@ -181,5 +183,47 @@ describe("a journal page's id does not move when a heading is inserted", () => {
             { anchorSlug: null, name: "Notes", level: 1, markdown: "b" },
         ];
         expect(() => buildPages(pages, ENTRY, "Note")).toThrow(/"Notes"/);
+    });
+});
+
+// -------------------------------------------------- no document, no address --
+
+describe("a type that compiles into no compendium document publishes no UUID", () => {
+    // Every addressable note now derives an id (#270), where before a note that
+    // compiled into nothing simply authored none. So "has an id" stopped being
+    // evidence that a compendium document exists, and the types for which it
+    // does not have to say so themselves.
+    const ctx = {
+        contentPackage: "demo",
+        foundryPackageId: "demo-module",
+        packRouter: { resolveOrNull: () => "items", defaultOf: () => "journals" },
+        docEntryTypes: new Set(["weapongear"]),
+    } as any;
+
+    const uuidsFor = (type: string) => {
+        const fm: any = { type, shortcode: "probe", name: { full: "Probe" } };
+        resolveNoteId(fm, { pkg: ctx.contentPackage });
+        expect(fm.id).toBeDefined(); // the note *is* addressable
+        return entriesForNote(fm, "Probe", `${type}-probe/`, "", ctx).map((e: any) => e.uuid);
+    };
+
+    it("emits none for a homepage, which compiles into a page", () => {
+        expect(uuidsFor("homepage")).toEqual([undefined]);
+    });
+
+    it("emits none for a folder, which is no one pack's document", () => {
+        // A folder *is* a real document, but not one this can name: it
+        // materialises in every pack holding a document that references it, so
+        // no single UUID identifies it — and its id is hashed under the
+        // `folder` namespace against its own address, never under `document`.
+        // Emitting one here would publish an `Item` UUID for a `Folder`, at an
+        // id no document carries.
+        expect(uuidsFor("folder")).toEqual([undefined]);
+    });
+
+    it("still emits one for an ordinary item, and for its documentation", () => {
+        const [own, doc] = uuidsFor("weapongear");
+        expect(own).toContain("Compendium.demo-module.items.Item.");
+        expect(doc).toContain("Compendium.demo-module.journals.JournalEntry.");
     });
 });

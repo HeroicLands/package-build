@@ -392,31 +392,98 @@ A note says which folder of its pack it lands in. Two spellings are read, and
 `packFolder` wins where both are present:
 
 ```yaml
-packFolder: Possessions/Consumables/Poisons and Toxins # a path
+packFolder: poisonsandtoxins # a folder note's address
 folder: ONXsqZAIZr2qzxTb # a Foundry id
 ```
 
-**`packFolder` is a path** through the pack's folder file, `/`-separated, using
-each folder's `name`. Sibling names are unique and no name may contain `/`, so a
-full path identifies exactly one folder. A path the pack does not declare is a
-build error naming every path it does.
+**`packFolder` is a folder note's address** — an ordinary address, resolved the
+way every other reference is, and written in any form [the grammar
+admits](#shorter-forms). The field supplies the type, so a bare shortcode is a
+complete address here; `folder-poisonsandtoxins` and the fully qualified
+`sohl-none-folder-poisonsandtoxins` name the same folder. An address no folder
+note answers to is a build error naming the folders the package does declare.
 
 **`folder` is a Foundry id**, and is unchanged: a note that names one is read,
 resolved and emitted exactly as before.
 
 **Which one a value is comes from the field it was written in, never from the
-string.** A top-level path is a bare name, and a name is as alphanumeric as an
-id, so there is nothing in `Possessions` to tell the two apart.
+string.** Both are alphanumeric, so there is nothing in the value to tell them
+apart.
 
 Note this is the _pack_ folder, not the note's directory. The directory is
 `file.path` / `file.folder`, which a content table reads separately.
 
-**A documentation journal is filed beside the document it describes**, so the
-journals pack must declare that folder too. Where it does not, the build fails
-naming the path — the folder files disagree, and that is worth catching at once.
-The id spelling never noticed: it was passed across packs verbatim and validated
-nowhere, so the journal simply carried a folder reference its pack could not
-honour.
+**Where a folder materialises is derived from what references it.** Every pack
+holding a document that names a folder gets that folder, and its ancestors with
+it — so a documentation journal is filed beside the item it describes without
+the journals pack having to declare anything. A folder nothing references
+materialises nowhere.
+
+That derivation is what makes a whole class of defect unrepresentable. The
+folder used to be declared twice, once per pack, in two files free to disagree:
+`sohl-thalorna` was missing 57 of its item folders from its journal folder file
+and `sohl-kethira-basic` had no journal folder file at all, so both emitted
+documentation journals into folders their own pack never declared — silently.
+With one folder note and one address there is no second file to disagree with
+the first.
+
+> **`packFolder` was a path** for one release (`Possessions/Misc_Gear/Cooking`).
+> A path encoded the hierarchy in the value, so reparenting a folder made every
+> note naming it wrong — a structural edit became a corpus-wide rewrite. The
+> path form is **removed**, not deprecated: nothing authored it yet, which is
+> the whole reason the change was cheap enough to make.
+
+#### The knowledgebase category
+
+`kbcat` names the group a note is listed under on the knowledgebase and the
+website. It is written in the system block:
+
+```yaml
+sohl:
+  kbcat: poisontoxin
+```
+
+**It compiles into no document.** No pack compiler reads it and no `system`
+field receives it. It reaches a published page because a note's frontmatter is
+copied onto that page, where a list layout groups by `sohl.kbcat` — so `kbcat`
+is the one key in this section that answers _where does this appear_ for the
+web rather than for Foundry. `pack` and `packFolder` place a document in a
+compendium; `kbcat` places a page in a list.
+
+That is also why it is specified here rather than in a type's table. A type's
+fields say what the **builder** compiles, and `kbcat` is never compiled — but
+what a note **may write** is broader than what any one consumer reads, and a
+check that equated the two reported thousands of correctly authored properties
+as unknown.
+
+**It is editorial, and deliberately independent of `subType`.** The two are not
+alternative spellings of one classification and neither is derived from the
+other. `kbcat` both _subdivides_ a subtype — `trauma`/`physcond` is listed as
+`physdisability`, `physfeature` or `physprivations` — and _renames_ one for
+display, as `trauma`/`fear` listed under `phobias`. Most notes that carry a
+`kbcat` declare no `subType` at all. So the two are stated separately where both
+apply, and a reviewer should not read a disagreement between them as an error.
+
+**The value is free-form, and nothing validates it.** There is no configured
+list of categories. The frontmatter check knows `kbcat` is a key every type may
+write and says nothing whatever about its value. A layout supplies display
+titles and an explicit order for the values it knows about, and appends any
+other value as its own group, titled by humanizing it.
+
+The consequence is worth stating plainly, because it is the failure mode this
+key has: **a misspelled category is not a build error and is not dropped — it
+silently becomes a group of one**, sorted in after the known ones.
+
+**A note that writes none is dropped from the list entirely.** Grouping is by
+the key, so a page carrying no value falls in no group and is absent from the
+list page — not listed last, not listed under a fallback heading, absent, with
+nothing reported at either build. Every note of a listed type in SoHL's tree
+carries one today, and nothing in this package enforces that; the content index
+is where the question _which notes carry no `kbcat`?_ is answered.
+
+**It is also what a content table sections on.** `sohl.kbcat AS _section` in a
+`sql` fence is the ordinary case of _Content tables_ below, and the same
+free-form value decides the headings there.
 
 ### WikiLinks
 
@@ -1846,3 +1913,74 @@ persists in the pack.
 Note that an `Adventure` has no `system` field of its own. A bundle spanning two
 systems therefore cannot be one document that knows it spans them; it is one
 Adventure per system, and the pack each is written to is what carries the system.
+
+### type: folder
+
+Foundry's `Folder` — the grouping documents are filed in, and the last document
+this package compiled from bespoke configuration (`*-folders.yaml`, five files
+per tree) rather than from a note.
+
+```yaml
+---
+type: folder
+shortcode: possessionscooking
+name:
+  full: Cooking
+data:
+  parent: possessionsmiscgear
+  color: "#7a4b2a"
+---
+```
+
+| `data` property | Values                | Description                                       |
+| --------------- | --------------------- | ------------------------------------------------- |
+| `parent`        | `WikiLink`            | The folder this one sits in. Unset at the root.   |
+| `color`         | `"#RRGGBB"`, a string | The folder's colour. Unset for Foundry's default. |
+
+A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
+`Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
+system's. Its shortcode is [an address segment](#the-canonical-address) like
+every other, so it is strictly alphanumeric: `possessionscooking`, never
+`possessions-cooking`, which would read as two segments and resolve to nothing.
+
+**`color` must be quoted**, and YAML gives no third option: `color: #7a4b2a`
+parses as `null` (a `#` after a space opens a comment) and `color: 000000` parses
+as the number `0`. All 639 colour values across the five trees are already
+written `"#RRGGBB"`.
+
+`parent` is an address, so a dangling one is an ordinary dead-address finding
+rather than a special-cased `Unknown folder id`, and a cycle is refused. Both are
+reported when the tree is read, not when something happens to reference the
+folder that carries them.
+
+**`parent` may be a map keyed by pack**, because a folder's _identity_ is one
+thing and its _hierarchy_ is another. The same folder is deliberately filed
+under different parents in different packs: an item compendium is browsed by
+kind, a journal compendium is read by subject.
+
+```yaml
+data:
+  parent:
+    default: ~ # at the root of the items pack
+    journals: descriptions # under Rules/Descriptions in the journals pack
+```
+
+`default` is every pack that is not named; an explicit `~` under a pack key means
+_at the root there_, which is a different statement from saying nothing. A plain
+scalar — the everyday spelling, and the right one wherever the hierarchies agree
+— is exactly `{ default: <value> }`. The folder keeps **one id** across every
+pack it materialises in, which is what files a documentation journal beside the
+item it describes; only its parent differs.
+
+**A folder note carries no prose.** It is structure, not content, so it produces
+no documentation journal and takes no part in `docEntryTypes`.
+
+**It declares no pack.** Which packs a folder materialises in is derived from
+[what references it](#the-compendium-folder), and its ancestors materialise with
+it; a folder nothing references materialises nowhere.
+
+**Its Foundry `_id` is derived from its address**, stable across runs, so a new
+folder needs no invented id. An authored `id` is kept where one is present —
+which is what lets a tree sweep its folder YAML into notes without a world that
+already holds those folders losing them. Two folders claiming one id is a build
+error.

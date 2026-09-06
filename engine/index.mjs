@@ -57,6 +57,9 @@ export * as packRouter from "./pack-router.mjs";
 /** Which note types a configuration compiles, and the notes nothing claims (#146). */
 export * as noteClaims from "./note-claims.mjs";
 
+/** Folders as notes: the address index, the parent chain, and the emitted `Folder` (#256). */
+export * as folderNotes from "./folder-notes.mjs";
+
 /** The content package a build compiles, and the Foundry package it ships in. */
 export * as contentPackage from "./content-package.mjs";
 

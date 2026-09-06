@@ -386,16 +386,19 @@ export class Journals extends BasePackCompiler {
         // against this pack's own folders.yaml — an item folder is declared in
         // the items one, a macro folder in the macros one, and a map's in the
         // scenes one.
-        const { value: authoredFolder, isPath } = folderField(fm);
-        // A path is resolved wherever it is written, including here. An id can
-        // cross packs verbatim — both declare it, or so the arrangement assumes
-        // — but a path must become an id before it is emitted, and the pack
-        // emitting it is the one that has to know it. Where the journals pack
-        // does not declare the folder, that is a defect in the folder files and
-        // the build says so, rather than filing documentation somewhere nobody
-        // asked for. `folder:` is unchanged.
+        const { value: authoredFolder, isAddress } = folderField(fm);
+        // An address is resolved wherever it is written, including here — and
+        // resolving it *here* is what cures the defect this comment used to
+        // describe. A folder note has one definition and one address, so the
+        // journals pack materialises the very folder the items pack does, by
+        // the same id (#257). There is no second folder file left to disagree
+        // with the first, and so no arrangement to assume: the mirroring
+        // failure is unrepresentable rather than merely reported.
+        //
+        // `folder:` is unchanged, and still crosses packs verbatim on the
+        // assumption both declare it — the arrangement #260 retires.
         const folder =
-            isPath ? this.folderResolver(authoredFolder, { isPath: true })
+            isAddress ? this.folderResolver(authoredFolder, { isAddress: true })
             : ownsDoc ? authoredFolder
             : this.folderResolver(authoredFolder);
 

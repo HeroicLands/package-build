@@ -90,6 +90,14 @@ being independent of the shortcode; it no longer is, so for a note that pins no
 successor named. It never reports a _wrong_ successor, and stays exact for a
 pinned note.
 
+**"Has an id" no longer means "has a compendium document."** Every addressable
+note derives one now, so the types that compile into no _single_ document say so
+themselves rather than resting on an absent `id:`. A **homepage** publishes no
+UUID because it is in no pack, and a **folder** because it may be in several —
+it materialises in every pack holding a document that references it (#276), and
+its id is hashed under the `folder` namespace against its own address. Either
+one would otherwise have published an `Item` UUID at an id no document carries.
+
 **Also:** `assertUniqueAnchors` is renamed `assertUniquePages` (the old name
 remains as a deprecated alias) and now checks page names as well as anchors;
 `journalPageId(entryId, page)` no longer takes an index.

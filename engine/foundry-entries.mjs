@@ -60,7 +60,11 @@ import path from "node:path";
 
 import { canonicalKey, packageAddress } from "./content-address.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS, NEVER_PACKED_TYPES } from "./note-claims.mjs";
+import {
+    KNOWN_DOCUMENT_SUBTYPE_MAPS,
+    NEVER_PACKED_TYPES,
+    DERIVED_PACKED_TYPES,
+} from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
@@ -151,14 +155,23 @@ export function entriesForNote(fm, name, address, body, ctx) {
     // a consumer resolves the UUID verbatim, and a repository may ship several
     // packs of one type (#1566).
     const uuidFor = (type, id, routeFm) =>
-        // A type that compiles into **no compendium document** has no UUID to
-        // publish, whatever id it derives. That used to follow from a homepage
-        // authoring no `id:`; since #270 every addressable note derives one, so
-        // the rule is stated where it belongs — beside the addresses — rather
-        // than resting on an absent field. `collectFoundryEntries` skips such a
-        // note outright; the content index calls this function directly, so the
+        // A type this cannot name a single compendium document for has no UUID
+        // to publish, whatever id it derives. That used to follow from such a
+        // note authoring no `id:`; since #270 every addressable note derives
+        // one, so "has an id" stopped being evidence a document exists and the
+        // rule is stated where it belongs — beside the addresses — rather than
+        // resting on an absent field. `collectFoundryEntries` skips such a note
+        // outright; the content index calls this function directly, so the
         // guard has to live on this side of it.
-        id && !NEVER_PACKED_TYPES.has(String(type)) ?
+        //
+        // Two sets, for opposite reasons (see `note-claims.mjs`). A **homepage**
+        // is in no pack: it compiles to a page and there is nothing to address.
+        // A **folder** may be in several — it materialises in every pack holding
+        // a document that references it (#276) — so no one UUID identifies it,
+        // and its id is hashed under the `folder` namespace against its own
+        // address rather than under `document`. Emitting one would publish an
+        // `Item` UUID for a `Folder`, at an id no document carries.
+        id && !NEVER_PACKED_TYPES.has(String(type)) && !DERIVED_PACKED_TYPES.has(String(type)) ?
             compendiumUuid(
                 foundryPackageId,
                 type,
