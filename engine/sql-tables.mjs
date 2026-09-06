@@ -380,10 +380,14 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope.
+ * @param {object[]} [opts.records] - Index records the caller already derived.
+ *   A command that also builds a link index holds them already, and deriving
+ *   them twice is the duplicated-corpus failure #243 is closing.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
-export async function prepareTreeSqlTables(contentBase, { config, skipDirectories } = {}) {
+export async function prepareTreeSqlTables(contentBase, { config, skipDirectories, records } = {}) {
     const sources = [];
     for (const { body, absPath } of walkMarkdownTree(contentBase, {
         skipDirectories: skipDirectories ?? config?.skipDirectories,
@@ -397,11 +401,11 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
-    const records = indexRecordsFor({ contentBase, config });
+    const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
-    const addresses = new Set(records.map((record) => record.address?.slug).filter(Boolean));
-    const db = await openNotesDatabase(records);
+    const addresses = new Set(indexRecords.map((record) => record.address?.slug).filter(Boolean));
+    const db = await openNotesDatabase(indexRecords);
     try {
         return await prepareSqlTables(db, sources, { linkable: (ref) => addresses.has(ref) });
     } finally {

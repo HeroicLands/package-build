@@ -565,25 +565,71 @@ export function serializeContentIndex(records) {
 }
 
 /**
+ * The note's own frontmatter, as authored, from an index record.
+ *
+ * The inverse of {@link buildIndexRecord}'s spread, and exact rather than
+ * best-effort: a record is the note's frontmatter plus {@link DERIVED_KEYS},
+ * and a note that authors one of those keys fails the walk — so removing them
+ * cannot remove anything the note wrote. That enforced pairing is what lets a
+ * pass read the corpus from the index and still lint what the *author* typed,
+ * rather than reporting `address:` and `anchors:` as unknown keys.
+ *
+ * Lives here, beside the list it is the inverse of, so the two cannot drift.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {Record<string, any>} The frontmatter, without the derived keys.
+ */
+export function authoredFrontmatter(record) {
+    const fm = {};
+    for (const [key, value] of Object.entries(record ?? {})) {
+        if (!DERIVED_KEYS.includes(key)) fm[key] = value;
+    }
+    return fm;
+}
+
+/**
+ * Whether a record is a note's, rather than a documentation journal's.
+ *
+ * An item note yields two records — itself and the JournalEntry its prose
+ * compiles into — and the second is a document, not a note: it has no file of
+ * its own to read, no frontmatter an author wrote, and its `type` is the
+ * virtual `doc<type>` that {@link module:engine/wikilinks.readQualifier}
+ * resolves rather than a type any tree declares. A reader enumerating the
+ * corpus wants the notes; one resolving an address wants both.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {boolean} True for a note's own record.
+ */
+export function isNoteRecord(record) {
+    return !record?.documents;
+}
+
+/**
  * The index records for a content tree, without writing anything.
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
- * pass that needs the corpus in memory — a SQL content table, and in time every
- * reader #243 converts — builds it the same way the artifact is built, rather
- * than by walking and parsing again with its own idea of the scope.
+ * pass that needs the corpus in memory — a SQL content table, the link check,
+ * and in time every reader #243 converts — builds it the same way the artifact
+ * is built, rather than by walking and parsing again with its own idea of the
+ * scope.
  *
  * @param {object} [opts]
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, for a
+ *   caller that resolved one of its own; defaults to the resolved
+ *   configuration's. Stated separately from `config` because a caller that was
+ *   *handed* a scope must be able to pass it on rather than have it silently
+ *   replaced by the one its configuration happens to carry (#243).
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
-export function indexRecordsFor({ contentBase, config } = {}) {
+export function indexRecordsFor({ contentBase, config, skipDirectories } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
     if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
-        skipDirectories: resolved.skipDirectories,
+        skipDirectories: skipDirectories ?? resolved.skipDirectories,
         // Only the identities a UUID is a function of — see emitContentIndex.
         manifest: foundryIdentities(resolved),
     });

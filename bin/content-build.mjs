@@ -105,7 +105,7 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import { emitContentIndex } from "../engine/content-index.mjs";
+import { emitContentIndex, indexRecordsFor } from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -723,13 +723,28 @@ function lintCommand() {
                     contentPackage: config.contentPackage,
                     skipDirectories: config.skipDirectories,
                 });
+                // The corpus, enumerated once for this command and handed to
+                // every pass that needs it, rather than derived again by each
+                // (#243). The `sql` tables select over it and the link index is
+                // built from it, so the two cannot disagree about which files
+                // the content is.
+                const records = indexRecordsFor({
+                    contentBase: root,
+                    config,
+                    skipDirectories: config.skipDirectories,
+                });
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
                 const index = buildLinkIndex(root, {
                     config,
+                    records,
                     skipDirectories: config.skipDirectories,
-                    sqlTables: await prepareTreeSqlTables(root, { config }),
+                    sqlTables: await prepareTreeSqlTables(root, {
+                        config,
+                        records,
+                        skipDirectories: config.skipDirectories,
+                    }),
                 });
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
@@ -1008,10 +1023,17 @@ function linksCommand() {
                 const contentBase = argv.root ?? config.paths.content;
 
                 const scope = { skipDirectories: config.skipDirectories };
+                // Enumerated once and shared, as in `lint` (#243).
+                const records = indexRecordsFor({ contentBase, config, ...scope });
                 const index = buildLinkIndex(contentBase, {
                     config,
+                    records,
                     ...scope,
-                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
+                    sqlTables: await prepareTreeSqlTables(contentBase, {
+                        config,
+                        records,
+                        ...scope,
+                    }),
                 });
 
                 // An unusable manifest would otherwise surface as a pile of
@@ -1352,12 +1374,23 @@ function reachabilityCommand() {
         },
         handler: async (argv) => {
             try {
-                const contentBase = argv.root ?? loadPackConfig().paths.content;
+                // Resolved once and passed on, so every pass below runs
+                // against the configuration this command resolved rather than
+                // whichever one the working directory answers with (#243).
+                const config = loadPackConfig();
+                const contentBase = argv.root ?? config.paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
-                const scope = { skipDirectories: loadPackConfig().skipDirectories };
+                const scope = { skipDirectories: config.skipDirectories };
+                const records = indexRecordsFor({ contentBase, config, ...scope });
                 const index = buildLinkIndex(contentBase, {
+                    config,
+                    records,
                     ...scope,
-                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
+                    sqlTables: await prepareTreeSqlTables(contentBase, {
+                        config,
+                        records,
+                        ...scope,
+                    }),
                 });
                 const indexes = new Set(argv.index.map(String));
 
