@@ -337,7 +337,9 @@ real priority** — the one SoHL's own templates ship at — not an absence.
 **Where it lands differs by system, because HM3's data model has no field for
 it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
 `flags.hm3`, and a note that is not a template writes nothing there rather than a
-`null` nothing reads. HM3's _item_ pass does not emit it yet.
+`null` nothing reads. Both of HM3's passes write it — an Item's flag was missing
+until `HeroicLands/package-build#283`, which made an item note's priority reach
+SoHL and stop at HM3, with nothing said on either side.
 
 **How a winner is chosen.** Opening a Create dialog gathers every candidate
 across the world and every matching compendium, _including other modules'_. Those
