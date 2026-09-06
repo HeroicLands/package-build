@@ -53,6 +53,7 @@ import fsSync from "node:fs";
 import path from "node:path";
 
 import { emitDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
+import { metadataFileName } from "./engine/metadata-index.mjs";
 
 /**
  * The two package kinds Foundry defines, as the artifact name each one's
@@ -97,7 +98,7 @@ export function normalizeRepoUrl(repository) {
 }
 
 /**
- * The four addresses a Foundry manifest advertises.
+ * The addresses a Foundry manifest advertises.
  *
  * `manifest` deliberately points at **`releases/latest`** rather than at this
  * version: it is the URL an *installed* package re-fetches to discover that a
@@ -118,6 +119,26 @@ export function releaseUrls({ repoUrl, version, artifact }) {
         manifest: `${repoUrl}/releases/latest/download/${artifact}.json`,
         download: `${repoUrl}/releases/download/v${version}/${artifact}.zip`,
     };
+}
+
+/**
+ * Where this release publishes its content index (#239).
+ *
+ * **Pinned to this version, like `download` and unlike `manifest`.** A
+ * consumer reaches this URL by reading the dependency's manifest, so the
+ * manifest it read and the index it then fetches describe the same release —
+ * which is the whole point of publishing them together. A `releases/latest`
+ * index would silently pair a pinned manifest with a moving index, and the
+ * mismatch would surface as a cross-package link that resolved yesterday.
+ *
+ * @param {object} opts
+ * @param {string} opts.repoUrl - Normalised repository URL.
+ * @param {string} opts.version - The version being built.
+ * @param {string} opts.contentPackage - The content package name.
+ * @returns {string} The version-pinned asset URL.
+ */
+export function metadataUrl({ repoUrl, version, contentPackage }) {
+    return `${repoUrl}/releases/download/v${version}/${metadataFileName(contentPackage)}`;
 }
 
 /**
@@ -455,8 +476,28 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
 
     const merged = { ...declared, ...derived };
 
+    // The index every consumer resolves this package's addresses through
+    // (#239). Written unconditionally, because a package that publishes no
+    // index is one nothing can link into — and the failure of an absent one is
+    // a dead link in somebody else's build, which is exactly the kind of
+    // silence this replaced the vendored manifest to end.
+    //
+    // A flag rather than a top-level key because Foundry's manifest schema is
+    // closed and `flags` is its declared extension point; an unknown key at the
+    // top level is dropped by some readers and rejected by others.
+    if (config.contentPackage) {
+        merged.flags = {
+            ...(declared.flags ?? {}),
+            metadataUrl: metadataUrl({
+                repoUrl,
+                version: packageJson.version,
+                contentPackage: config.contentPackage,
+            }),
+        };
+    }
+
     if (flags && Object.keys(flags).length) {
-        merged.flags = { ...(declared.flags ?? {}) };
+        merged.flags = { ...(merged.flags ?? declared.flags ?? {}) };
         for (const [namespace, values] of Object.entries(flags)) {
             merged.flags[namespace] = {
                 ...(declared.flags?.[namespace] ?? {}),

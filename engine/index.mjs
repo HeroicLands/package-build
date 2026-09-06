@@ -92,6 +92,9 @@ export * as foreignManifests from "./foreign-manifests.mjs";
 /** The cross-package link manifest: reader, writer, and canonical keys. */
 export * as kbManifest from "./kb-manifest.mjs";
 
+/** The published content index packages exchange addresses through (#239). */
+export * as metadataIndex from "./metadata-index.mjs";
+
 /** Deriving this package's own link manifest from its content tree. */
 export * as manifestEmit from "./manifest-emit.mjs";
 

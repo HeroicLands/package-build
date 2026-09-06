@@ -69,6 +69,7 @@ import path from "node:path";
 
 import unidecode from "unidecode";
 
+import { metadataFileName } from "./metadata-index.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link (#243). Re-exported because this is where callers
@@ -627,7 +628,7 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     }
 
     const text = serializeContentIndex(records);
-    const file = path.join(dir, `${contentPackage}.jsonl`);
+    const file = path.join(dir, metadataFileName(contentPackage));
     fs.mkdirSync(dir, { recursive: true });
     fs.writeFileSync(file, text);
 

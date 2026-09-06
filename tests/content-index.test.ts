@@ -476,13 +476,13 @@ describe("emitContentIndex", () => {
         skipDirectories: [],
     });
 
-    it("writes <package>.jsonl and reports what it holds", () => {
+    it("writes <package>-metadata.jsonl and reports what it holds", () => {
         note("Aurochs.md", "type: being\nid: a1\nshortcode: aurochs");
         note("Baboon.md", "type: being\nid: b1\nshortcode: baboon");
 
         const result = emitContentIndex({ config: config(tmp) as any });
 
-        expect(path.basename(result.file)).toBe("sohl.jsonl");
+        expect(path.basename(result.file)).toBe("sohl-metadata.jsonl");
         expect(result.notes).toBe(2);
         expect(result.bytes).toBeGreaterThan(0);
         expect(readIndex(result.file).map((r) => r.shortcode)).toEqual(["aurochs", "baboon"]);
@@ -512,7 +512,7 @@ describe("emitContentIndex", () => {
             config: config(tmp) as any,
         });
 
-        expect(result.file).toBe(path.join(out, "sohl.jsonl"));
+        expect(result.file).toBe(path.join(out, "sohl-metadata.jsonl"));
         expect(fs.existsSync(result.file)).toBe(true);
     });
 
