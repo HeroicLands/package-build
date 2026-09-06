@@ -105,7 +105,12 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import { emitContentIndex, indexRecordsFor } from "../engine/content-index.mjs";
+import {
+    authoredFrontmatter,
+    emitContentIndex,
+    indexRecordsFor,
+    isNoteRecord,
+} from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -130,7 +135,6 @@ import {
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
-import { walkMarkdownTree } from "../engine/helpers.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -652,14 +656,33 @@ function contentFormatNotesCommand() {
                 const root = argv.root ?? config.paths.content;
                 const format = specFrom(argv);
 
-                const notes = [];
-                for (const { frontmatter, absPath } of walkMarkdownTree(root, {
+                // The corpus from the index, like every other check (#243).
+                // A report measuring the tree against the declared vocabulary
+                // has to be looking at the same tree the compile will, or its
+                // counts describe a corpus nobody builds.
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase: root,
+                    config,
                     skipDirectories: config.skipDirectories,
-                })) {
-                    if (!frontmatter || typeof frontmatter.type !== "string") continue;
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                if (corpusProblems.length) process.exitCode = 1;
+
+                const notes = [];
+                for (const record of records) {
+                    // A documentation journal is a document this tree emits,
+                    // not a note in it, and has no authored frontmatter to
+                    // measure.
+                    if (!isNoteRecord(record) || typeof record.type !== "string") continue;
+                    const absPath = path.join(root, ...String(record.file.path).split("/"));
                     notes.push({
                         file: absPath,
-                        fm: frontmatter,
+                        // What the author wrote, never the keys the index
+                        // derived — this measures a note against a vocabulary,
+                        // and `address:` is in no vocabulary.
+                        fm: authoredFrontmatter(record),
                         raw: fs.readFileSync(absPath, "utf8"),
                     });
                 }
