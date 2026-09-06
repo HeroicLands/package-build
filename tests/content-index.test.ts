@@ -18,6 +18,7 @@ import path from "node:path";
 
 import {
     DERIVED_KEYS,
+    noteFile,
     sortKeysDeep,
     noteAddress,
     asciiName,
@@ -442,6 +443,41 @@ describe("buildIndexRecord", () => {
     });
 });
 
+/**
+ * #243 asks whether the index should record a position for every frontmatter
+ * key. It should not, and these are the terms the answer rests on: the index
+ * says what a note *is*, and the file says where anything in it sits. So the
+ * one thing a reader needs from a record in order to open the note — the
+ * absolute path — is composed in exactly one place.
+ */
+describe("noteFile", () => {
+    it("composes the absolute path the record records relatively", () => {
+        expect(noteFile(path.join("/tmp", "tree"), { file: { path: "Bestiary/Aurochs.md" } })).toBe(
+            path.join("/tmp", "tree", "Bestiary", "Aurochs.md"),
+        );
+    });
+
+    /*
+     * The recorded path is always POSIX — that is what makes the index
+     * identical on every platform — so it is split on "/" and rejoined with the
+     * host separator, never used as a path fragment directly.
+     */
+    it("rejoins with the host separator, so a nested path is not one segment", () => {
+        const file = noteFile("/tmp/tree", { file: { path: "a/b/c.md" } });
+        expect(file.split(path.sep).slice(-3)).toEqual(["a", "b", "c.md"]);
+    });
+
+    it("survives a record with no file block rather than throwing", () => {
+        expect(noteFile("/tmp/tree", {} as any)).toBe(path.join("/tmp", "tree"));
+    });
+
+    it("round-trips a record the index actually produced", () => {
+        note("Bestiary/Aurochs.md", "type: being\nid: a\nshortcode: aurochs");
+        const [record] = collectContentIndex(tmp, { contentPackage: "sohl", skipDirectories: [] });
+        expect(fs.existsSync(noteFile(tmp, record))).toBe(true);
+    });
+});
+
 describe("collectContentIndex", () => {
     it("orders records by content path, not by directory-read order", () => {
         note("Zebra.md", "type: being\nid: z\nshortcode: zebra");
@@ -596,6 +632,83 @@ describe("emitContentIndex", () => {
                 config: config(tmp) as any,
             }),
         ).toThrow(/yielded no notes/);
+    });
+});
+
+/**
+ * #243's other open question — "not everything is a note" — as it actually
+ * stands, which is not where the issue left it. `item-folders.yaml` is retired
+ * and a folder is a note (#260, #276), so folders *are* recorded; a bundle is a
+ * note too (#263, #286). What is genuinely absent from those records is a
+ * Foundry **address**, and in both cases that absence is the right answer
+ * rather than a gap:
+ *
+ * - a **homepage** compiles into no document at all (`NEVER_PACKED_TYPES`);
+ * - a **folder** materialises in *every* pack holding a document that
+ *   references it (`DERIVED_PACKED_TYPES`, #276), so no one UUID identifies it,
+ *   and emitting one would publish an `Item` UUID for a `Folder` at an id no
+ *   document carries.
+ *
+ * Pinned here, at the record, because that is the level a pass driven by the
+ * index reads — the membership of the two sets is asserted elsewhere, but that
+ * a folder record carries an address and an id and *no* `foundry` block is the
+ * fact such a pass would be built on.
+ */
+describe("a note that is in no one pack, or in none (#243)", () => {
+    const packedConfig = (root: string) =>
+        ({
+            paths: { content: root, contentIndex: path.join(root, "..", "out") },
+            contentPackage: "sohl",
+            foundryPackage: "sohl",
+            skipDirectories: [],
+            docEntryTypes: new Set<string>(),
+        }) as any;
+
+    it("records a folder with an address and an id, and no Foundry address", () => {
+        note("Folders/Actors_actors.md", "type: folder\nshortcode: actors");
+        const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
+
+        expect(record.type).toBe("folder");
+        // Addressed and identified — it is a note like any other …
+        expect(record.address.canonical).toBe("sohl-none-folder-actors");
+        expect(record.id).toBeTruthy();
+        // … but it belongs to no single pack, so it publishes no UUID.
+        expect(record.foundry).toBeNull();
+    });
+
+    it("records a homepage the same way, for the opposite reason", () => {
+        note("homepage.md", "type: homepage\nshortcode: home");
+        const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
+
+        expect(record.type).toBe("homepage");
+        expect(record.address).toBeTruthy();
+        expect(record.foundry).toBeNull();
+    });
+
+    /*
+     * The positive control, and the reason the two cases above read as
+     * decisions rather than as accidents: a note type that *does* name one
+     * document gets its UUID. A bundle is the other half of what #243 called
+     * "not everything is a note" — it was configuration when the issue was
+     * written and has been a note since #263/#286 — and it is addressed like
+     * anything else, as an `Adventure`.
+     */
+    it("records a bundle with the Adventure it compiles into", () => {
+        note("Vale.md", "name:\n  full: The Vale\ntype: bundle\nshortcode: vale");
+        const [record] = readIndex(
+            emitContentIndex({
+                config: {
+                    ...packedConfig(tmp),
+                    packs: [
+                        { name: "adventures", label: "A", type: "Adventure", default: true },
+                        { name: "items", label: "I", type: "Item", system: "sohl", default: true },
+                    ],
+                },
+            }).file,
+        );
+
+        expect(record.type).toBe("bundle");
+        expect(record.foundry.none.uuid).toMatch(/^Compendium\.sohl\.adventures\.Adventure\./);
     });
 });
 

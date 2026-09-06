@@ -110,6 +110,7 @@ import {
     emitContentIndex,
     indexRecordsFor,
     isNoteRecord,
+    noteFile,
 } from "../engine/content-index.mjs";
 import {
     buildSite,
@@ -676,7 +677,7 @@ function contentFormatNotesCommand() {
                     // not a note in it, and has no authored frontmatter to
                     // measure.
                     if (!isNoteRecord(record) || typeof record.type !== "string") continue;
-                    const absPath = path.join(root, ...String(record.file.path).split("/"));
+                    const absPath = noteFile(root, record);
                     notes.push({
                         file: absPath,
                         // What the author wrote, never the keys the index
