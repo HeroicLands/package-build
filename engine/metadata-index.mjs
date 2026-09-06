@@ -198,7 +198,7 @@ export function cachedMetadataFiles(config) {
 }
 
 /**
- * The index file of the newest cached version among several.
+ * The newest cached version among several version-keyed cache directories.
  *
  * Versions are compared **numerically per segment**, not as strings: a plain
  * sort puts `0.8.10` before `0.8.2`, so a build that had cached both would
@@ -206,10 +206,18 @@ export function cachedMetadataFiles(config) {
  * declared version, so several present at once means an earlier pin was left
  * behind rather than that a choice is genuinely open.
  *
+ * **Both version-keyed caches under `build/cache` choose this way** — the
+ * content index here and the item catalogue in
+ * {@link module:engine/foreign-catalog} — so the comparison lives in one place
+ * rather than being written once per cache. Two copies would be two chances to
+ * get it wrong, and the wrong answer is invisible: every cached version is a
+ * complete, stamped, perfectly valid artifact, so picking the older one reports
+ * nothing and simply resolves against stale data (#272).
+ *
  * @param {string[]} dirs - Complete cache directories, named `<id>@<version>`.
- * @returns {string} The newest one's index file.
+ * @returns {string} The newest one.
  */
-function newestIndex(dirs) {
+export function newestVersionDir(dirs) {
     const rank = (dir) =>
         path
             .basename(dir)
@@ -233,7 +241,17 @@ function newestIndex(dirs) {
         }
         return 0;
     });
-    const dir = sorted[sorted.length - 1];
+    return sorted[sorted.length - 1];
+}
+
+/**
+ * The index file of the newest cached version among several.
+ *
+ * @param {string[]} dirs - Complete cache directories, named `<id>@<version>`.
+ * @returns {string} The newest one's index file.
+ */
+function newestIndex(dirs) {
+    const dir = newestVersionDir(dirs);
     const entries = fs.readdirSync(dir).filter((name) => name.endsWith(".jsonl"));
     if (!entries.length) {
         throw new Error(`${dir} was fetched but holds no index file`);
