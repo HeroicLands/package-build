@@ -31,6 +31,14 @@
  * unconditional key would be a finding on every armour-location document in the
  * pack.
  *
+ * **And one flag, for the fact HM3's `system` has no field for.** The template
+ * priority is a shared statement — a note declaring `data.templatePriority` says
+ * the same thing to both systems — but HM3 declares no `system` field for it, so
+ * it lands under this system's own flag scope as `flags.hm3.templatePriority`,
+ * exactly as the Actor pass writes it. This pass wrote no such flag until #283:
+ * an item note declaring the priority compiled into a SoHL item that knew it was
+ * a template and an HM3 item that did not.
+ *
  * **There is no HM3 equivalent of `docHtml`.** SoHL points an item at the
  * JournalEntry its prose compiled into, and HM3's data model has nowhere to put
  * such a pointer; inventing one would emit a key Foundry discards at load
@@ -44,6 +52,7 @@
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
+import { templateFlags } from "./template-priority.mjs";
 
 export class Hm3Items extends SystemItemCompiler {
     /**
@@ -67,5 +76,21 @@ export class Hm3Items extends SystemItemCompiler {
     commonSystem(fm, { markdown }) {
         const description = renderSection(markdown, "appearance");
         return description ? { description } : {};
+    }
+
+    /**
+     * The `flags` HM3 writes on an item: whatever the note authors, plus the
+     * template priority.
+     *
+     * The same statement the Actor pass records, through the same
+     * {@link module:hm3/template-priority.templateFlags} — see that module for
+     * why the priority lives in flags at all, and for what its absence here
+     * cost (#283).
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {object} The flags to emit.
+     */
+    commonFlags(fm) {
+        return templateFlags(fm, this.system);
     }
 }
