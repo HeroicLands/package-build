@@ -202,8 +202,16 @@ Eight rows were identical in all sixteen tables below, so they are stated once
 here and omitted there. Each per-type table shows only what is particular to that
 type.
 
-| shared source | → sohl | → hm3 |
-| ------------- | ------ | ----- |
+| shared source           | → sohl                    | → hm3                        |
+| ----------------------- | ------------------------- | ---------------------------- |
+| `name.full`             | `name`                    | `name`                       |
+| `img`                   | `img`                     | `img`                        |
+| `id`                    | `_id`                     | `_id`                        |
+| `packFolder` / `folder` | `folder`                  | `folder`                     |
+| `shortcode`             | `system.shortcode`        | NA                           |
+| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
+| `actionDefs`            | `system.actionDefs`       | NA                           |
+| `notes`                 | `system.notes`            | `system.notes`               |
 
 **A column reads NA wherever the type produces no document in that system.** An
 `affiliation` has no HM3 form, so its whole HM3 column is NA; `armorlocation` has
@@ -213,12 +221,40 @@ that matter.
 
 Actor types (`being`, `vehicle`) add one more:
 
-| shared source | → sohl | → hm3 |
-| ------------- | ------ | ----- |
+| shared source   | → sohl            | → hm3             |
+| --------------- | ----------------- | ----------------- |
+| `data.portrait` | `system.portrait` | `system.bioImage` |
+
+An actor carries `img` (its token art) and `portrait` (its sheet portrait)
+independently, which is why this is a row of its own rather than a second
+spelling of the one above. An Item has no second image, so the row applies to
+actor types alone.
+
+**Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
+on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
+the SoHL column of both reads NA.
+
+`notes` is also the one row that is emitted rather than mapped: SoHL writes
+`system.notes` empty on every Item, and no note-level key fills it yet. The row
+states where such a key would land, which is what makes `armorlocation`'s
+exception below sayable at all.
+
+**A third SoHL Item mapping has no shared source, so it is not a row.** SoHL
+writes `system.docHtml` on every Item from the note's own prose — the UUID of the
+JournalEntry that prose compiled into, which is derived rather than authored.
+HM3's data model has nowhere to put such a pointer, so the same prose reaches an
+HM3 item only as its own journal.
 
 **One exception.** HM3's `armorlocation` declares no `notes` — it is the one
 subtype that extends the Foundry base directly with no templates — so `notes` is
 NA on both sides for that type, and its table says so.
+
+**And one divergence, tracked rather than specified away.** HM3 records a
+template priority on an Actor and not on an Item: `hm3/actors.mjs` writes
+`flags.hm3.templatePriority`, and HM3's Item pass writes no equivalent, so an HM3
+item compiled from a template note loses the fact that it is one
+(`HeroicLands/package-build#283`). The row states the mapping the format makes;
+the gap is in the pass, not in the table.
 
 #### The pack a note compiles into
 
@@ -1059,13 +1095,11 @@ If an `hm3` property is present, an HM3 actor is created. Its document type is *
 
 A SoHL "being" document will be created, as will an "HM3" document.
 
-| shared source           | → sohl                    | → hm3                        |
-| ----------------------- | ------------------------- | ---------------------------- |
-| `data.portrait`         | `system.portrait`         | `system.bioImage`            |
-| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
-| `data.species`          | NA                        | `system.species`             |
-| `data.gender`           | NA                        | `system.gender`              |
-| `data.occupation`       | NA                        | `system.occupation`          |
+| shared source     | → sohl | → hm3               |
+| ----------------- | ------ | ------------------- |
+| `data.species`    | NA     | `system.species`    |
+| `data.gender`     | NA     | `system.gender`     |
+| `data.occupation` | NA     | `system.occupation` |
 
 ### type: homepage
 
@@ -1086,10 +1120,8 @@ Represents a conveyance able to hold goods and people moving from one place to a
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
-| shared source           | → sohl                    | → hm3 |
-| ----------------------- | ------------------------- | ----- |
-| `data.portrait`         | `system.portrait`         | NA    |
-| `data.templatePriority` | `system.templatePriority` | NA    |
+It maps nothing beyond the shared rows above, actor row included: a vehicle
+carries a portrait and a template priority and no field of its own.
 
 ### type: affiliation
 

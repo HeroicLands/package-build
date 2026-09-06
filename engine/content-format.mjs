@@ -44,7 +44,15 @@
  * | the per-type mapping | `shared source` | one claim per `system.*` cell |
  *
  * A mapping table's remaining header cells name the systems (`→ sohl`,
- * `→ hm3`), so the system vocabulary comes from the document too. A cell that
+ * `→ hm3`), so the system vocabulary comes from the document too.
+ *
+ * **A mapping table before the first `### type:` heading is the shared one.**
+ * The document states the rows every type maps identically once, at the top,
+ * and omits them from all sixteen per-type tables — so a parser that only ever
+ * looked inside a type's section could not see them, and the eight rows they
+ * cover were checked by nothing (#275). Position is the whole distinction:
+ * there is no marker to read and none is wanted, since the document's own
+ * argument for stating them once is that they belong to no type in particular. A cell that
  * names no field — `NA`, `**see above**`, a `flags.*` path — is not a claim,
  * and is skipped rather than reported: the check is about `system.*` targets,
  * and a column reading NA is the document saying this type produces no document
@@ -90,7 +98,13 @@ export const CONTENT_FORMAT_PATH = path.join(
  * One `system.*` target the specification names for one note type.
  *
  * @typedef {object} MappingClaim
- * @property {string} noteType - The type whose section makes the claim.
+ * @property {string} noteType - The type whose section makes the claim, or
+ *   `the shared mappings` for a row of the shared tables — see `shared`.
+ * @property {boolean} [shared] - Whether the row came from a **shared** mapping
+ *   table, which stands before the first `### type:` heading and states what
+ *   every type maps identically (#275). Absent on a per-type row, so the two
+ *   never mix: only a per-type row has a field declaration to be checked
+ *   against.
  * @property {string} system - The system column it sits under, from the header.
  * @property {string} source - The shared source cell, stripped of its backticks.
  * @property {string} target - The dotted path, `system.` prefix included.
@@ -106,6 +120,18 @@ export const CONTENT_FORMAT_PATH = path.join(
  * @property {Map<string, TypeSpec>} types - Note type → what its section declares.
  * @property {MappingClaim[]} claims - Every `system.*` target, in document order.
  */
+
+/**
+ * What a shared row's `noteType` reads, in place of a type name.
+ *
+ * Phrased to be substituted into a diagnostic sentence — "the format maps `x`
+ * in the shared mappings to `y`" — because that is the only place it is ever
+ * read. Both shared tables use it: the second states what the actor types add,
+ * and a row of it is no more a `being`'s than a row of the first is.
+ *
+ * @type {string}
+ */
+export const SHARED_SCOPE = "the shared mappings";
 
 /** A table row's cells, or `null` when the line is not a table row. */
 function cellsOf(line) {
@@ -172,7 +198,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
     const lines = String(text ?? "").split("\n");
     /** @type {TypeSpec|undefined} */
     let current;
-    /** @type {{kind: "data"|"mapping", systems: string[]}|undefined} */
+    /** @type {{kind: "data"|"mapping", systems: string[], shared?: boolean}|undefined} */
     let table;
 
     for (let i = 0; i < lines.length; i += 1) {
@@ -210,12 +236,15 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             table = {
                 kind: "mapping",
                 systems: cells.slice(1).map((cell) => cell.replace(/^→\s*/, "").trim()),
+                // Before any type section, so the rows are every type's (#275).
+                ...(current ? {} : { shared: true }),
             };
             continue;
         }
-        if (!table || !current) continue;
+        if (!table) continue;
 
         if (table.kind === "data") {
+            if (!current) continue;
             const declared = code(cells[0]);
             if (!declared) continue;
             current.dataPaths.add(declared);
@@ -223,13 +252,16 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             continue;
         }
 
+        if (!table.shared && !current) continue;
+
         for (let c = 1; c < cells.length; c += 1) {
             const target = code(cells[c]);
             if (!target || !target.startsWith("system.")) continue;
             const system = table.systems[c - 1];
             if (!system) continue;
             claims.push({
-                noteType: current.name,
+                noteType: table.shared ? SHARED_SCOPE : /** @type {TypeSpec} */ (current).name,
+                ...(table.shared ? { shared: true } : {}),
                 system,
                 source: code(cells[0]) ?? cells[0],
                 target,
