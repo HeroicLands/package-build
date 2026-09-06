@@ -59,6 +59,28 @@ const MINI = [
     "",
 ].join("\n");
 
+/**
+ * The same miniature, with the shared mapping tables the real document opens
+ * with — two of them, one for every type and one for the actor types (#275).
+ */
+const SHARED_MINI = [
+    "## Content format",
+    "",
+    "### Mappings every type shares",
+    "",
+    "| shared source | → sohl             | → hm3 |",
+    "| ------------- | ------------------ | ----- |",
+    "| `shortcode`   | `system.shortcode` | NA    |",
+    "",
+    "Actor types add one more:",
+    "",
+    "| shared source   | → sohl            | → hm3             |",
+    "| --------------- | ----------------- | ----------------- |",
+    "| `data.portrait` | `system.portrait` | `system.bioImage` |",
+    "",
+    MINI.split("\n").slice(2).join("\n"),
+].join("\n");
+
 describe("parsing the specification (#130)", () => {
     it("reads a type's `data` vocabulary from its own table", () => {
         const format = parseContentFormat(MINI, { file: "spec.md" });
@@ -94,6 +116,26 @@ describe("parsing the specification (#130)", () => {
         expect(format.claims.some((c) => c.target === "NA")).toBe(false);
     });
 
+    it("reads the shared mapping table that stands before the first type section", () => {
+        const format = parseContentFormat(SHARED_MINI, { file: "spec.md" });
+        const shared = format.claims.filter((c) => c.shared);
+        expect(shared.map((c) => `${c.system} ${c.source} → ${c.target}`)).toEqual([
+            "sohl shortcode → system.shortcode",
+            "sohl data.portrait → system.portrait",
+            "hm3 data.portrait → system.bioImage",
+        ]);
+        // Scoped to the shared mappings rather than borrowed from whichever
+        // type happens to follow: no type has been read yet when they are made.
+        expect(new Set(shared.map((c) => c.noteType))).toEqual(new Set(["the shared mappings"]));
+    });
+
+    it("leaves a per-type claim unmarked, so the two never mix", () => {
+        const format = parseContentFormat(SHARED_MINI, { file: "spec.md" });
+        const weapon = format.claims.filter((c) => c.noteType === "weapon");
+        expect(weapon).not.toHaveLength(0);
+        expect(weapon.some((c) => c.shared)).toBe(false);
+    });
+
     it("takes the system names from the table header, never from a list of its own", () => {
         const other = MINI.replace("→ hm3", "→ elsewhere");
         const format = parseContentFormat(other, { file: "spec.md" });
@@ -109,9 +151,36 @@ describe("the shipped specification (#130)", () => {
         expect(CONTENT_FORMAT_PATH.endsWith(path.join("docs", "content-format.md"))).toBe(true);
     });
 
-    it("makes the 84 mapping claims the audit counted", () => {
-        expect(format.claims).toHaveLength(84);
+    it("makes the 86 mapping claims the audit counted", () => {
+        expect(format.claims).toHaveLength(86);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
+    });
+
+    it("states the shared rows the per-type tables are written against (#275)", () => {
+        // The section promises rows the per-type tables omit "on the stated
+        // grounds that they appear here", so an empty table specifies those
+        // fields nowhere at all — which is what it did from the first commit.
+        const shared = format.claims.filter((c) => c.shared);
+        expect(shared.length).toBeGreaterThan(0);
+        expect(shared.map((c) => `${c.system} ${c.source} → ${c.target}`)).toEqual([
+            "sohl shortcode → system.shortcode",
+            "sohl data.templatePriority → system.templatePriority",
+            "sohl actionDefs → system.actionDefs",
+            "sohl notes → system.notes",
+            "hm3 notes → system.notes",
+            // The actor table's one extra row.
+            "sohl data.portrait → system.portrait",
+            "hm3 data.portrait → system.bioImage",
+        ]);
+    });
+
+    it("omits a shared row from the per-type tables that share it (#275)", () => {
+        // `data.portrait` and `data.templatePriority` were stated in `being`'s
+        // and `vehicle`'s tables as well, which is the duplication the section
+        // exists to remove.
+        const perType = format.claims.filter((c) => !c.shared);
+        expect(perType.some((c) => c.source === "data.portrait")).toBe(false);
+        expect(perType.some((c) => c.source === "data.templatePriority")).toBe(false);
     });
 
     it("declares a `data` vocabulary for the types that have one", () => {
@@ -190,7 +259,7 @@ describe("the specification against the committed fixture schema (#130)", () => 
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(66);
+        expect(checked).toBe(67);
     });
 });
 
