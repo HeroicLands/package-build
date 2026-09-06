@@ -720,6 +720,7 @@ function lintCommand() {
                 // names the address a tree with no front page fails to serve.
                 const addresses = lintContentTree(root, {
                     contentPackage: config.contentPackage,
+                    skipDirectories: config.skipDirectories,
                 });
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
@@ -1205,7 +1206,9 @@ function siteCommand() {
         handler: async (argv) => {
             try {
                 const result = buildSite({
-                    sqlTables: await prepareTreeSqlTables(loadPackConfig().paths.content),
+                    sqlTables: await prepareTreeSqlTables(loadPackConfig().paths.content, {
+                        skipDirectories: loadPackConfig().skipDirectories,
+                    }),
                     ...(argv.out ? { outRoot: argv.out } : {}),
                 });
                 const { gates } = result;
