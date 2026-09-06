@@ -135,6 +135,56 @@ export function itemAddress(subType, shortcode) {
 }
 
 /**
+ * What identifies one embedded item on its actor.
+ *
+ * **Its own `system.shortcode`** — not the entry's top-level `shortcode`, which
+ * merely *selects* the catalogue template the entry is written from and is
+ * never written to the document. Two daggers may share a selector; they are two
+ * embodiments and each must declare its own.
+ *
+ * The name is a last resort, for a **stand-alone** entry that names no template
+ * and states no shortcode. It is a poor identity — presentation, and free to be
+ * localized or to diverge — so it is not a fallback the compiler is content
+ * with: two entries reducing to one identity is refused either way, and the
+ * message says to state a `system.shortcode`.
+ *
+ * @param {object} item - The merged embedded item.
+ * @returns {string} The identity, for {@link embeddedItemId}.
+ */
+export function embeddedIdentity(item) {
+    const own = item?.system?.shortcode;
+    if (typeof own === "string" && own.trim()) return own.trim();
+    return typeof item?.name === "string" ? item.name : "";
+}
+
+/**
+ * The `_id` of one item embedded on an actor.
+ *
+ * Seeded by the owning actor, because an embedded id must be unique within its
+ * **parent document** and nothing wider — so the namespace is already exactly
+ * the scope the uniqueness is required in, and the largest namespace in the
+ * four corpora holds 180 items, at which 64 bits collide with probability
+ * around 10⁻¹⁵.
+ *
+ * **It takes no index** (#268). Keying on a position meant reordering a being's
+ * item list renumbered every id after the change, so a re-import created new
+ * documents beside the old ones — while nothing about those documents had
+ * changed, only their neighbours. The identity always exists or must be stated;
+ * see {@link embeddedIdentity}.
+ *
+ * Keyed by the **document subtype**, so renaming a note type (#78) leaves every
+ * embedded id where it was.
+ *
+ * @param {string} actorId - The owning actor's id.
+ * @param {string} subType - The Foundry Item subtype.
+ * @param {string} identity - From {@link embeddedIdentity}.
+ * @returns {string} A 16-character Foundry id.
+ */
+export function embeddedItemId(actorId, subType, identity) {
+    return makeId(actorId, itemAddress(subType, identity));
+}
+
+/**
  * Load every JSON file under each of `itemsSourceDirs`, returning one Map keyed
  * by {@link itemAddress} — the compiled document's **subtype** and its
  * `system.shortcode`. Folder docs and entries without a shortcode are skipped.
@@ -259,6 +309,25 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
 export class SystemActorCompiler extends BasePackCompiler {
     static id = "actors";
     static label = "actor";
+
+    /**
+     * Which `(actor, subType:identity)` each resolved entry claimed, and the
+     * entry that claimed it first.
+     *
+     * The scope the check needs is **one note**, and the actor's id supplies it
+     * for free: it is unique per note, so keying the map by it scopes the claim
+     * without this having to be told where a note begins and ends. That matters
+     * because {@link SystemActorCompiler#resolveEmbedded} is called per entry
+     * and has no note lifecycle of its own.
+     *
+     * `frontmatter-lint.mjs` makes the same finding from frontmatter alone
+     * (#228), and this does not replace it — the lint is a separate command, so
+     * without a check here a colliding pair would compile to two documents with
+     * one `_id` and reach the LevelDB packer as an opaque duplicate key.
+     *
+     * @type {Map<string, string>}
+     */
+    #embeddedClaims = new Map();
 
     // An actor's embedded items are resolved against the *output* of the item
     // passes, so every Item pack compiles before this one. Declared rather than
@@ -419,7 +488,8 @@ export class SystemActorCompiler extends BasePackCompiler {
      * @param {string|null} shortcode - The referenced item's shortcode, or
      *   `null` for a stand-alone entry.
      * @param {object} [overlay] - The entry's remaining properties.
-     * @param {string} indexKey - Distinguishes two references to one item.
+     * @param {string} indexKey - Where the reference sits, for a diagnostic.
+     *   It no longer reaches the id (#268) — it names the entry in a message.
      * @param {string} ctx - Diagnostic context (the actor's label).
      * @param {object} [at] - Where to locate a finding.
      * @param {string} [at.fmKey] - The frontmatter key the reference sits
@@ -475,10 +545,30 @@ export class SystemActorCompiler extends BasePackCompiler {
         }
         const merged = overlay ? deepMerge(base, overlay) : base;
         merged.type = subType;
-        merged._id = makeId(
-            actorId,
-            `${itemAddress(/** @type {string} */ (subType), shortcode || merged.name)}:${indexKey}`,
-        );
+        const identity = embeddedIdentity(merged);
+        const claim = `${actorId}\u0000${itemAddress(/** @type {string} */ (subType), identity)}`;
+        const first = this.#embeddedClaims.get(claim);
+        if (first !== undefined) {
+            this.noteError(
+                `${ctx}: ${indexKey}: ` +
+                    `"${itemAddress(/** @type {string} */ (subType), identity)}" is ` +
+                    `already the identity of "${first}" on this actor. ` +
+                    `(type, shortcode) says *which entity* an embedded item is, ` +
+                    `so two entries sharing one denote a single thing and every ` +
+                    `lookup by it is ambiguous. Give this entry its own ` +
+                    `\`system.shortcode\`` +
+                    (shortcode ?
+                        ` — a top-level \`shortcode\` only selects the template ` +
+                        `this entry is written from and never reaches the document`
+                    :   "") +
+                    `, or delete it if it is a duplicate.`,
+                where(),
+            );
+            this.errorCount++;
+            return null;
+        }
+        this.#embeddedClaims.set(claim, indexKey);
+        merged._id = embeddedItemId(actorId, /** @type {string} */ (subType), identity);
         // Foundry's pack compiler flattens the document hierarchy into LevelDB,
         // storing each embedded document under its own `_key`. Embedded items
         // therefore need a hierarchical key, as do any effects they carry

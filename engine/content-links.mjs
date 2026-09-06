@@ -67,6 +67,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
@@ -121,8 +122,17 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
     // caller's omission, and `walkMarkdownTree` says so (#243).
     const walkOpts = { skipDirectories };
 
+    // The one package every note in this tree belongs to. Taken from the
+    // configuration, never from a note: `package:` is retired, so there is no
+    // second source an address could disagree with (#56).
+    const pkg = contentPackage();
+
     for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
         if (!fm || typeof fm.type !== "string") continue;
+        // The id this note's document is filed under — its authored pin, or
+        // the one derived from its canonical address (#270). The index and the
+        // compile pass must agree about it and neither sees the other.
+        resolveNoteId(fm, { pkg });
         // The raw text is kept beside the parsed body: a consumer's own checks
         // may need what frontmatter carried, which the body has dropped.
         const raw = fs.readFileSync(absPath, "utf8");
@@ -142,11 +152,6 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
     }
 
     const byKey = new Map();
-
-    // The one package every note in this tree belongs to. Taken from the
-    // configuration, never from a note: `package:` is retired, so there is no
-    // second source an address could disagree with (#56).
-    const pkg = contentPackage();
 
     for (const note of notes) {
         const { fm, type } = note;

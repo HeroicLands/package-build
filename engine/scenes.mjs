@@ -62,6 +62,7 @@ import {
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
+import { resolveNoteId } from "./note-ids.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
@@ -198,6 +199,10 @@ export class Scenes extends BasePackCompiler {
             // `draft:` (#69) is reported, once. Repeating either check here
             // would double the diagnostic or throw past it. A refused note is
             // indexed and then never compiled, so it reaches no document.
+            // As every corpus reader does, before asking for the id: a note
+            // that authors none takes the one derived from its canonical
+            // address (#270). What remains unset is a file with no address.
+            resolveNoteId(fm);
             if (!fm || !fm.id) continue;
             if (fm.shortcode && Array.isArray(fm.effects) && fm.effects.length) {
                 effectsByAddress.set(`${fm.type}-${fm.shortcode}`, {
@@ -350,8 +355,8 @@ export class Scenes extends BasePackCompiler {
      */
     #pageIds(markdown, entryId, name) {
         const pageIds = new Map();
-        splitPages(markdown, name).forEach((page, index) => {
-            const id = journalPageId(entryId, page, index);
+        splitPages(markdown, name).forEach((page) => {
+            const id = journalPageId(entryId, page);
             if (page.anchorSlug) pageIds.set(page.anchorSlug, id);
             const slug = slugify(page.name);
             if (slug && !pageIds.has(slug)) pageIds.set(slug, id);

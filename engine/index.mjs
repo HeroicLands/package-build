@@ -89,6 +89,12 @@ export * as contentSlug from "./content-slug.mjs";
 /** Where a content note publishes: its section, and its `type-shortcode` URL. */
 export * as contentAddress from "./content-address.mjs";
 
+/** Which note-type → document-subtype maps this toolchain ships. */
+export * as subtypeRegistry from "./subtype-registry.mjs";
+
+/** The id a note's document is filed under: its pin, or its address (#270). */
+export * as noteIds from "./note-ids.mjs";
+
 /** The published content index packages exchange addresses through (#239). */
 export * as metadataIndex from "./metadata-index.mjs";
 
