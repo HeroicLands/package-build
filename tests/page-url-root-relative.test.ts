@@ -31,7 +31,7 @@ import { defineConfig } from "../index.mjs";
 import { buildSite, collectContentPages, pageFrontmatter } from "../engine/site-build.mjs";
 import { homepageFrontmatter } from "../engine/homepage.mjs";
 import { buildSiteIndex } from "../engine/site-index.mjs";
-import { buildManifest } from "../engine/kb-manifest.mjs";
+import { packageRelative } from "../engine/content-address.mjs";
 
 let root: string;
 
@@ -92,7 +92,6 @@ function configFor(site: Record<string, unknown> = {}) {
         ],
         publish: {
             site: "content",
-            manifests: { publish: true, consume: true },
             address: { prefix: "kb/" },
         },
         site: {
@@ -160,13 +159,25 @@ describe("everything that points at a page keeps the package base", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const index = buildSiteIndex(pages);
         expect(index.index.get("weapongear/dagger")?.url).toBe("/demo/weapongear-dagger/");
-        expect(index.index.get("demo-weapongear-dagger")?.url).toBe("/demo/weapongear-dagger/");
+        // The canonical key carries the system a `weapongear` compiles into
+        // (#59); the site index derives it from the type, so the caller states
+        // nothing extra.
+        expect(index.index.get("demo-sohl-weapongear-dagger")?.url).toBe(
+            "/demo/weapongear-dagger/",
+        );
     });
 
-    it("measures a link-manifest `path` against that base, and it still strips", () => {
+    // The two quantities are one function apart, and that is the whole point:
+    // a page's URL carries the base this build serves the package at, and the
+    // address a *consumer* resolves is that URL with the base stripped. Stating
+    // them separately is how a published address came to assert a URL the site
+    // no longer served (#239).
+    it("strips that base back off to recover the package-relative address", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
-        const manifest = buildManifest("demo", pages, "/demo/");
-        expect(manifest.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
+        const page = pages.find((p) => p.url?.includes("weapongear-dagger"))!;
+
+        expect(page.url).toBe("/demo/weapongear-dagger/");
+        expect(packageRelative(page.url, "/demo/")).toBe("weapongear-dagger/");
     });
 });
 

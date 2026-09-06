@@ -28,7 +28,8 @@ import { loadPackConfig } from "./pack-config.mjs";
  * The **content** package: the distribution unit this repository's notes belong
  * to, and the **address namespace** every one of them is published under.
  *
- * It is the first segment of every canonical key (`sohl-skill-clmb`), the name
+ * It is the first segment of every canonical key
+ * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), the name
  * of the link manifest this build emits (`sohl.json`), and the package a
  * cross-package wikilink writes to reach one of these notes. So it is the
  * repository's identity in the address space, not a switch — and never dead

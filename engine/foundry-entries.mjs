@@ -14,7 +14,7 @@
 /**
  * Emitting this package's cross-package link manifest (#58).
  *
- * `engine/kb-manifest.mjs` owns the *format* — what an entry may say, how a
+ * `engine/content-address.mjs` owns the address *grammar* — how a key is
  * version is read, how a foreign file resolves. This module owns the *pass*:
  * walking a content tree and deriving, for every note it publishes, the
  * addresses that entry states. The two halves were split across the format
@@ -30,9 +30,12 @@
  * a fact it has to be told (#1465).
  *
  * **An entry's `path` is derivable from the key it is filed under** (#181).
- * `sohl-affliction-aconite` publishes at `affliction-aconite/`, because a page's
- * URL *is* its address; nothing in it comes from a display name, so a rename
- * moves no URL and no uniqueness check stands between the two. Every entry is
+ * `sohl-sohl-affliction-aconite` publishes at `affliction-aconite/` — the key
+ * with its package and system segments dropped — because a page's URL *is* its
+ * address; nothing in it comes from a display name, so a rename moves no URL and
+ * no uniqueness check stands between the two. The system segment goes with the
+ * package because a note publishes one page however many systems' documents it
+ * compiles into (#59). Every entry is
  * derivable that way since #204 retired the section landing, which was the one
  * that was not. The field is still written rather than left for a consumer to
  * compute, because an absent `path` already means something else entirely (a
@@ -55,8 +58,9 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { packageAddress } from "./content-address.mjs";
-import { canonicalKey, writeManifests } from "./kb-manifest.mjs";
+import { canonicalKey, packageAddress } from "./content-address.mjs";
+import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
@@ -128,7 +132,12 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
-    const key = canonicalKey(contentPackage, fm.type, fm.shortcode);
+    const key = canonicalKey(
+        contentPackage,
+        systemOf(fm.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+        fm.type,
+        fm.shortcode,
+    );
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the
     // honest pair is the address under a base of `"/"` — which strips straight
@@ -155,7 +164,10 @@ export function entriesForNote(fm, name, address, body, ctx) {
     const carriesDoc =
         ctx.docEntryTypes ? ctx.docEntryTypes.has(String(fm.type)) : hasDocEntry(fm.type);
     if (carriesDoc) {
-        const docKey = canonicalKey(contentPackage, `doc${fm.type}`, fm.shortcode);
+        // `NO_SYSTEM`, whatever the item is: a documentation journal is a
+        // JournalEntry, which no game system defines, and there is one of them
+        // however many system blocks the note carries.
+        const docKey = canonicalKey(contentPackage, NO_SYSTEM, `doc${fm.type}`, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
         const docUuid = uuidFor("doc", docEntryId);
         return [
@@ -216,7 +228,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * @returns {{entries: Array<object>, notes: number,
  *   skipped: Array<{file: string, reason: string}>}}
  */
-export function collectManifestEntries(contentBase, ctx) {
+export function collectFoundryEntries(contentBase, ctx) {
     const entries = [];
     const skipped = [];
     // Counted separately because they are genuinely different numbers: an item
@@ -297,7 +309,7 @@ export function foundryIdentities(config = loadPackConfig()) {
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,
  *   web: boolean, skipDirectories: readonly string[]}}
  */
-export function manifestContext(config = loadPackConfig()) {
+export function entryContext(config = loadPackConfig()) {
     return {
         ...foundryIdentities(config),
         web: publishesContentPages(config),
@@ -305,73 +317,4 @@ export function manifestContext(config = loadPackConfig()) {
         // its default, so a caller that passes a config drives every read.
         skipDirectories: config.skipDirectories,
     };
-}
-
-/**
- * Emits this package's link manifest.
- *
- * One package, because a configuration declares exactly one `contentPackage`
- * and nothing in the surface can express a second. {@link writeManifests} keeps
- * its package→entries map — it is the general writer — but there is no setting
- * here to choose with.
- *
- * @param {object} [options] - Options.
- * @param {string} [options.contentBase] - The content tree; defaults to the
- *   configured `paths.content`.
- * @param {string} [options.outDir] - Where to write; defaults to the configured
- *   `paths.manifestOut`.
- * @param {object} [options.config] - A resolved configuration; loaded when
- *   omitted.
- * @returns {{written: Array<{package: string, file: string, count: number}>,
- *   entries: number, notes: number,
- *   skipped: Array<{file: string, reason: string}>}}
- * @throws {Error} When the repository does not declare that it publishes a
- *   manifest, when the tree is absent, or when it yields no published note — a
- *   manifest claiming this package publishes nothing is worse than none, since
- *   a consumer reads it as authoritative and turns every link into this package
- *   into a reported typo.
- */
-export function emitLinkManifest({ contentBase, outDir, config } = {}) {
-    const resolved = config ?? loadPackConfig();
-    const tree = contentBase ?? resolved.paths.content;
-    const dir = outDir ?? resolved.paths.manifestOut;
-    const ctx = manifestContext(resolved);
-
-    // A repository that has not declared it publishes a manifest must not
-    // produce one: the file is vendored by consumers and read as authoritative,
-    // so emitting it is a statement about this package rather than a local
-    // convenience. Checked here rather than in the command, so a library caller
-    // cannot route around the declaration.
-    if (!resolved.publish.manifests.publish) {
-        throw new Error(
-            `this repository does not publish a link manifest — set ` +
-                `\`publish.manifests.publish: true\` in its content-build ` +
-                `configuration to change that`,
-        );
-    }
-
-    if (!fs.existsSync(tree)) {
-        throw new Error(`no content tree at ${tree}`);
-    }
-
-    const { entries, notes, skipped } = collectManifestEntries(tree, ctx);
-    if (entries.length === 0) {
-        throw new Error(
-            `${tree} yielded no published notes, so the manifest would ` +
-                `claim this package publishes nothing`,
-        );
-    }
-
-    const written = writeManifests(
-        new Map([[ctx.contentPackage, entries]]),
-        dir,
-        // The one surviving role of a base: `undefined` is the statement "this
-        // build publishes no pages", and no entry then carries a `path`
-        // (#1516). The value itself cancels — every address above is already
-        // package-relative — so it is a sentinel, not a location.
-        ctx.web ? { [ctx.contentPackage]: "/" } : undefined,
-        { [ctx.contentPackage]: ctx.foundryPackageId },
-    );
-
-    return { written, entries: entries.length, notes, skipped };
 }

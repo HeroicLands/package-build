@@ -136,7 +136,7 @@ describe("the five failure classes (#19)", () => {
             schemas,
             index: indexOf("skill-swrd"),
         });
-        expect(messages(dead)).toContain("no note or vendored manifest");
+        expect(messages(dead)).toContain("no note or fetched index");
     });
 
     it("asks the resolver for the field's full `type-shortcode` address", () => {

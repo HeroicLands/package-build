@@ -66,6 +66,61 @@ describe("packRelease", () => {
         expect(JSON.parse(fs.readFileSync(result.manifest, "utf8")).id).toBe("sohl");
     });
 
+    // #239: a consumer resolves this package's addresses by fetching the index
+    // the manifest advertises, so a release that ships the manifest without it
+    // publishes a promise it does not keep.
+    it("publishes the content index the manifest advertises", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({
+                id: "sohl",
+                version: "0.8.2",
+                flags: {
+                    metadataUrl:
+                        "https://github.com/HeroicLands/x/releases/download/v0.8.2/sohl-metadata.jsonl",
+                },
+            }),
+            "sohl-metadata.jsonl": '{"address":{"canonical":"sohl-none-doc-gear"}}\n',
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "system" });
+
+        expect(path.basename(result.metadata!)).toBe("sohl-metadata.jsonl");
+        expect(fs.readFileSync(result.metadata!, "utf8")).toContain("sohl-none-doc-gear");
+    });
+
+    // The asset name is the manifest's own, so the two cannot disagree about
+    // what was published — and an absent file is a build error rather than a
+    // dead link in somebody else's build months later.
+    it("fails when the advertised index is nowhere to be found", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({
+                id: "sohl",
+                version: "0.8.2",
+                flags: {
+                    metadataUrl:
+                        "https://github.com/HeroicLands/x/releases/download/v0.8.2/sohl-metadata.jsonl",
+                },
+            }),
+        });
+
+        await expect(packRelease({ stageDir, outDir })).rejects.toThrow(
+            /advertises sohl-metadata\.jsonl/,
+        );
+    });
+
+    // A package with no content tree advertises no index, and must still be
+    // releasable — the artifact is conditional on there being content, not on
+    // the package being of a particular kind.
+    it("releases a package that advertises no index", async () => {
+        const { stageDir, outDir } = stage({
+            "module.json": JSON.stringify({ id: "x", version: "1.0.0" }),
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "module" });
+
+        expect(result.metadata).toBeUndefined();
+    });
+
     // Foundry unpacks the archive *into* the package directory, so an extra
     // top-level directory would nest the manifest deeper than it looks for it.
     it("archives the stage's contents with no wrapping directory", async () => {

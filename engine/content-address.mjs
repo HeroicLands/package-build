@@ -19,7 +19,12 @@
  * address other packages link to. Stating it twice is how a manifest comes to
  * assert a URL that resolves at build time and 404s for the reader.
  *
- * **A page's URL is its address** — `<package>/<type>-<shortcode>/` (#181). It
+ * **A page's URL is its address** — `<package>/<type>-<shortcode>/` (#181), and
+ * it carries **no `<system>` segment** even though the canonical address does
+ * (#59). That is not an omission: a note publishes one page however many
+ * systems' documents it compiles into, so there is nothing for the segment to
+ * distinguish, and adding it would split one page's URL in two. The canonical
+ * address names a *document*; this names a *page*. It
  * used to be derived from `name.full`, which made a display string load-bearing
  * in three separate ways: a rename moved the URL and nothing redirected, two
  * notes in one section could derive the same URL so a uniqueness check had to
@@ -37,7 +42,19 @@
 // so the direction cannot close a cycle (see `engine/pack-config.mjs`).
 import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 
+// The system vocabulary is the `<system>` segment's own registry, and
+// `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so
+// the direction is toward the leaf and cannot close a cycle.
+import { NO_SYSTEM, assertSystemSegment } from "./systems.mjs";
+
 export { DEFAULT_ADDRESS_SCHEME };
+
+/**
+ * Re-exported so the address grammar and the system vocabulary are one fact:
+ * {@link canonicalKey} writes this segment, and `engine/systems.mjs` decides
+ * what may appear in it.
+ */
+export { NO_SYSTEM };
 
 /** The knowledgebase's mount within this package's site (#1470). */
 export const KB_PREFIX = "kb/";
@@ -45,10 +62,18 @@ export const KB_PREFIX = "kb/";
 /**
  * The single path segment a note is addressed by: `type-shortcode`.
  *
- * Lowercased, so it is exactly the tail of the note's canonical key
- * (`canonicalKey` in `engine/kb-manifest.mjs` lowercases too) — which is what
- * makes a manifest entry's `path` derivable from the key it is filed under
- * rather than transported beside it.
+ * Lowercased and hyphen-joined by the same rule as the note's canonical key
+ * ({@link canonicalKey}, below, lowercases too), so it is that
+ * key's **last two segments** — which is what makes a manifest entry's `path`
+ * derivable from the key it is filed under rather than transported beside it.
+ *
+ * It was once the key's whole tail, and #59 ended that: the key gained a
+ * `<system>` segment, so its tail is now `system-type-shortcode` and a slug is
+ * the tail with that segment dropped. The behaviour here is unchanged, and
+ * deliberately — a page has no system to name (see the module note above), so
+ * the two forms diverge rather than one having fallen behind the other. A
+ * consumer deriving a `path` from a key drops the *package and the system*, not
+ * the package alone.
  *
  * The hyphen is a separator and never occurs inside a segment: a shortcode is
  * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced by `content-lint.mjs`)
@@ -115,4 +140,191 @@ export function addressSlug(fm) {
  */
 export function packageAddress(fm) {
     return `${addressSlug(fm)}/`;
+}
+
+/**
+ * The **canonical** address of a note: fully qualified, one spelling per
+ * document, and globally unique.
+ *
+ * The written form of a link is a **partial** address: it may omit leading
+ * segments, and each one it omits is filled in by rule rather than left
+ * unconstrained. An omitted package (`[[skill-lang]]`) defaults to the citing
+ * note's own, so an unqualified link resolves locally and only locally, and a
+ * link into another package must name it. An omitted **system** is a
+ * *wildcard*, not a default — most links target items, which belong to a
+ * system — and the resolver requires exactly one match: none is a dead link,
+ * more than one is an ambiguity reported with every candidate named.
+ * Everything internal — index keys, cache keys, every lookup — uses this fully
+ * qualified form instead, so no consumer has to know what a short form
+ * defaulted to or matched.
+ *
+ * Global uniqueness is what lets a dependency's index merge straight into a
+ * local one: the keys cannot collide by accident, so a key already present on
+ * merge is a real conflict rather than an artefact of two packages sharing a
+ * namespace. `(type, shortcode)` alone is unique only *within* a package, and
+ * two independently authored packages reaching for the same short string is a
+ * matter of time (#1499).
+ *
+ * **The system segment (#59).** A package may ship content for more than one
+ * system, and one note then compiles into a document per system — an actor in
+ * `actors-sohl` *and* an actor in `actors-hm3`. Without a system segment both
+ * land on one key, so the address cannot name either of them. `harn-ensemble`
+ * carries 2,497 such notes.
+ *
+ * The value is a system id, or the literal **`none`** for a document no game
+ * system defines: a journal, a macro, a scene, and an item's documentation
+ * journal — which is `none` however many systems the item itself declares,
+ * because it is one journal.
+ *
+ * `none` rather than `any`: every segment of an address is an exact literal,
+ * and `any` reads as a wildcard — "matches under any system" — which is not
+ * what it does. A resolver written to that misreading would fail silently,
+ * since a lookup miss already returns nothing rather than erroring. And not
+ * `null` or `~`, both of which are YAML nulls that parse to an absent value and
+ * drop the segment entirely.
+ *
+ * @param {string} pkg - The owning **content** package (`sohl`, `thalorna`) —
+ *   not the Foundry package, which varies per compilation target.
+ * @param {string} system - The system whose document this addresses, or `none`.
+ * @param {string} type - The note's `type`.
+ * @param {string} shortcode - The note's `shortcode`.
+ * @returns {string} `package-system-type-shortcode`, lowercased.
+ */
+export function canonicalKey(pkg, system, type, shortcode) {
+    // Checked where an address is *written*, not where one is read: a fetched
+    // index naming a system this build has never heard of is data to report,
+    // while emitting one is a defect in this build. The registry is closed, so
+    // an unknown value here can only be a typo or a system nobody declared.
+    assertSystemSegment(system, `the address of ${type}-${shortcode}`);
+    return `${pkg}-${system}-${type}-${shortcode}`.toLowerCase();
+}
+
+/**
+ * How many segments a canonical key has, and therefore how many the reader
+ * below counts.
+ *
+ * Named rather than written as a literal because it is the *grammar*, not an
+ * implementation detail of one function: it is the number a change to the
+ * address form would move, and the thing a reader of that change has to find.
+ *
+ * @type {number}
+ */
+export const CANONICAL_KEY_SEGMENTS = 4;
+
+/**
+ * Reads a canonical key back into its parts.
+ *
+ * Parsing is plain positional counting: split on the separator, require
+ * {@link CANONICAL_KEY_SEGMENTS} of them, and assign each position its field.
+ * **The charset rule is what makes that sound** — every segment is
+ * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN` in `engine/address-charset.mjs`),
+ * so the hyphen is purely a separator and the count alone determines every
+ * field. That is enforced at each of the three sources rather than assumed of
+ * the data: shortcodes by `content-lint.mjs` (#1397), `contentPackage` by
+ * `defineConfig` (#59), and types are bare words. Were any of them free to
+ * carry a hyphen, no amount of counting would recover the fields and the reader
+ * would need a vocabulary to match against instead.
+ *
+ * **Nothing to read and nothing readable are different answers.** A key that
+ * cannot be canonical — `harn-adventures-sohl-skill-melee`, five segments,
+ * because the package name carries the separator — yields `null`, while an
+ * absent or blank input yields `undefined`. Both are falsy, so
+ * every call site (all of which test the result for truthiness) is unaffected;
+ * the distinction is there so a caller reporting "this key is unreadable" can
+ * tell that it has a key to report about.
+ *
+ * @param {unknown} key - A canonical key, or nothing.
+ * @returns {{package: string, system: string, type: string, shortcode: string}
+ *   |null|undefined}
+ *   The parts; `null` when there is a string that is not in canonical form;
+ *   `undefined` when there is no key at all.
+ */
+export function readCanonicalKey(key) {
+    if (key == null || key === "") return undefined;
+    const parts = String(key).split("-");
+    if (parts.length !== CANONICAL_KEY_SEGMENTS) return null;
+    const [pkg, system, type, shortcode] = parts;
+    if (!pkg || !system || !type || !shortcode) return null;
+    return { package: pkg, system, type, shortcode };
+}
+
+/**
+ * Where this build serves each package, keyed by package name.
+ *
+ * One line per package, and the only edit a relocation requires: point a
+ * package at another path (`"/setting/thalorna/"`) or another origin
+ * (`"https://thalorna.example.org/"`) and every inbound link into it follows.
+ * A base is a prefix, so it must end in `/`.
+ *
+ * Only *foreign* packages are consulted — a package this build publishes is
+ * authoritative in its own entries and never resolves through a fetched
+ * index — but every linkable package is listed, because which are foreign
+ * depends on the consuming repository.
+ */
+export const PACKAGE_BASE = Object.freeze({
+    sohl: "/sohl/",
+    thalorna: "/thalorna/",
+});
+
+/**
+ * Asserts a base is usable as a prefix and returns it.
+ *
+ * Exported for the URL helpers' own callers: a build that composes a base
+ * before resolving against it should reject a malformed one at the point it
+ * is chosen, not at the point a link is emitted.
+ *
+ * @param {string} base - The package base.
+ * @param {string} what - What is being resolved, for the error message.
+ * @returns {string} The base.
+ */
+export function checkBase(base, what) {
+    if (typeof base !== "string" || !base.endsWith("/")) {
+        throw new Error(`${what}: package base ${JSON.stringify(base)} must end in a slash`);
+    }
+    return base;
+}
+
+/**
+ * The package-relative address a site-absolute URL records as.
+ *
+ * Strips the emitting package's own base, so what is recorded says *where in
+ * the package* a page is and nothing about where the package itself is
+ * mounted. A URL outside the base is an error rather than a best effort: it
+ * would record an address that silently resolves to the wrong place once a
+ * consumer prefixes its own base.
+ *
+ * @param {string} url - The site-absolute URL the emitting build publishes at.
+ * @param {string} base - That build's base for the package, e.g. `"/thalorna/"`.
+ * @returns {string} The address relative to `base`, with no leading slash.
+ */
+export function packageRelative(url, base) {
+    checkBase(base, "packageRelative");
+    if (typeof url !== "string" || !url.startsWith(base)) {
+        throw new Error(
+            `packageRelative: ${JSON.stringify(url)} does not sit under base ` +
+                `${JSON.stringify(base)}`,
+        );
+    }
+    return url.slice(base.length);
+}
+
+/**
+ * The URL a package-relative address resolves to in this build.
+ *
+ * Plain concatenation, which is what makes an absolute-origin base work: a base
+ * of `"https://thalorna.example.org/"` yields an absolute link, and one of
+ * `"/thalorna/"` a root-relative one, with no other rule to keep in step.
+ *
+ * @param {string} rel - The package-relative address from a fetched index.
+ * @param {string} base - This build's base for that package.
+ * @returns {string} The resolved URL.
+ */
+export function resolvePackageUrl(rel, base) {
+    checkBase(base, "resolvePackageUrl");
+    if (typeof rel !== "string" || !rel || rel.startsWith("/")) {
+        throw new Error(
+            `resolvePackageUrl: ${JSON.stringify(rel)} is not a package-` + `relative address`,
+        );
+    }
+    return `${base}${rel}`;
 }

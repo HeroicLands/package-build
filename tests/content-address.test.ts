@@ -14,13 +14,21 @@
  * takes **nothing from a display name**, so a rename moves no URL; and it is
  * **derivable from the canonical key**, so the link manifest transports an
  * address rather than inventing one.
+ *
+ * That last property is derivable from the key's *parsed parts* (#59), not
+ * from its text: the key gained a system segment between the package and the
+ * type, so the address is no longer a suffix of it.
  */
 
 import { describe, it, expect } from "vitest";
 
 import * as contentAddressModule from "../engine/content-address.mjs";
-import { addressSlug, packageAddress } from "../engine/content-address.mjs";
-import { canonicalKey } from "../engine/kb-manifest.mjs";
+import {
+    addressSlug,
+    canonicalKey,
+    packageAddress,
+    readCanonicalKey,
+} from "../engine/content-address.mjs";
 
 describe("addressSlug", () => {
     it("is the note's type and shortcode, hyphen-separated", () => {
@@ -28,12 +36,24 @@ describe("addressSlug", () => {
         expect(addressSlug({ type: "doc", shortcode: "combat" })).toBe("doc-combat");
     });
 
-    it("lowercases, so it is the tail of the canonical key", () => {
+    it("lowercases, and is the canonical key's `type` and `shortcode` segments", () => {
         // `canonicalKey` lowercases too, which is what lets a consumer derive
         // the address from the key it looked the entry up by.
+        //
+        // It derives from the key's *parts*, not from a suffix of the key
+        // (#59). The system segment sits between the package and the type
+        // (`sohl-sohl-weapongear-taburi`), so the slug is no longer the tail
+        // of the key and a consumer that stripped a package prefix would now
+        // carry the system into the URL. `readCanonicalKey` is the seam that
+        // keeps the two in step: the address is its last two segments,
+        // whatever the grammar puts in front of them.
         const fm = { type: "weapongear", shortcode: "Taburi" };
-        const key = canonicalKey("sohl", fm.type, fm.shortcode);
-        expect(key).toBe(`sohl-${addressSlug(fm)}`);
+        const key = canonicalKey("sohl", "sohl", fm.type, fm.shortcode);
+        const parts = readCanonicalKey(key)!;
+        expect(`${parts.type}-${parts.shortcode}`).toBe(addressSlug(fm));
+        // Stated the other way round, so the regression is unmissable: the
+        // slug is *not* what remains once the package segment is removed.
+        expect(key).not.toBe(`sohl-${addressSlug(fm)}`);
     });
 
     it("refuses a note with no shortcode, naming what an address looks like", () => {

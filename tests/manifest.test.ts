@@ -227,6 +227,54 @@ describe("buildManifest", () => {
             flags,
         });
 
+    // #239: this URL is how every consumer finds the index it resolves this
+    // package's addresses through, so it is derived, version-pinned, and not
+    // something a repository is asked to write down.
+    it("advertises the content index, pinned to this version", () => {
+        const manifest = build({ contentPackage: "sohl" }) as Record<string, never>;
+
+        expect((manifest.flags as Record<string, string>).metadataUrl).toBe(
+            "https://github.com/HeroicLands/sohl/releases/download/v1.2.3/sohl-metadata.jsonl",
+        );
+    });
+
+    // Pinned where `manifest` deliberately floats: a consumer reads the
+    // manifest and then fetches the index it names, so the two must describe
+    // one release or a pinned build would pair with a moving index.
+    it("pins the index where the manifest URL floats", () => {
+        const manifest = build({ contentPackage: "sohl" }) as Record<string, string>;
+
+        expect(manifest.manifest).toContain("/releases/latest/download/");
+        expect((manifest.flags as unknown as Record<string, string>).metadataUrl).toContain(
+            "/releases/download/v1.2.3/",
+        );
+    });
+
+    // `contentPackage` is required of a resolved configuration, so in a real
+    // build the URL is always written — which is what #239 asks for. The guard
+    // is for a caller holding a partial config, and is asserted so that a later
+    // change making the flag unconditional is a deliberate one.
+    it("advertises no index when the config names no content package", () => {
+        const manifest = build() as Record<string, unknown>;
+
+        expect(
+            (manifest.flags as Record<string, unknown> | undefined)?.metadataUrl,
+        ).toBeUndefined();
+    });
+
+    // Namespaced flags and this one share the object, so adding a namespace
+    // must not drop the URL — they are merged, not written in turn.
+    it("keeps the index URL beside namespaced flags", () => {
+        const manifest = build({ contentPackage: "sohl" }, { hm3: { archetype: 0 } }) as Record<
+            string,
+            never
+        >;
+        const flags = manifest.flags as unknown as Record<string, unknown>;
+
+        expect(flags.metadataUrl).toContain("sohl-metadata.jsonl");
+        expect(flags.hm3).toEqual({ archetype: 0 });
+    });
+
     it("emits what the repository declared, unchanged", () => {
         // Pass-through is the point: a key Foundry adds in a later version can
         // be declared without waiting for a release of this package.

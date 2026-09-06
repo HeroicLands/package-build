@@ -23,14 +23,13 @@ import path from "node:path";
 
 import { defineConfig } from "../index.mjs";
 import {
-    collectManifestEntries,
-    emitLinkManifest,
-    manifestContext,
+    collectFoundryEntries,
+    entryContext,
     anchorsOf,
     LEAD_ANCHOR,
-} from "../engine/manifest-emit.mjs";
-import { packageAddress } from "../engine/content-address.mjs";
-import { readCanonicalKey } from "../engine/kb-manifest.mjs";
+} from "../engine/foundry-entries.mjs";
+import { emitContentIndex } from "../engine/content-index.mjs";
+import { packageAddress, readCanonicalKey } from "../engine/content-address.mjs";
 
 /** The manifest document's shape — see the note in `kb-manifest.test.ts`. */
 interface Manifest {
@@ -150,17 +149,33 @@ function configFor(publish: Record<string, unknown>) {
     });
 }
 
+/**
+ * The entries a tree yields, keyed by canonical address.
+ *
+ * These are the entries the link manifest used to be written from, so every
+ * case below still asserts the same derivation — only the artifact they were
+ * once read back out of is gone (#239). `path` is derived here rather than
+ * carried, because that is what the manifest did: an entry's page address is
+ * its slug, and the slug is the address minus its package and system.
+ */
 function emit(publish: Record<string, unknown>): Manifest {
     const config = configFor(publish);
-    const out = path.join(root, "out", String(Math.random()).slice(2));
-    emitLinkManifest({ config, outDir: out });
-    return JSON.parse(fs.readFileSync(path.join(out, "demo.json"), "utf8")) as Manifest;
+    const { entries } = collectFoundryEntries(config.paths.content, entryContext(config));
+    const out: Manifest = { entries: {} } as Manifest;
+    for (const e of entries) {
+        const key = e.key;
+        out.entries[key] = {
+            ...(e.url ? { path: e.url.replace(/^\//, "") } : {}),
+            name: e.name,
+            ...(e.uuid ? { uuid: e.uuid } : {}),
+            ...(e.doc ? { doc: e.doc } : {}),
+            ...(e.anchors && Object.keys(e.anchors).length ? { anchors: e.anchors } : {}),
+        };
+    }
+    return out;
 }
 
-const WEB = {
-    site: "content",
-    manifests: { publish: true, consume: false },
-};
+const WEB = { site: "content" };
 
 describe("the address scheme is configuration, and a prefix is all of it", () => {
     it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
@@ -168,21 +183,21 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
         // it addresses the section landings; an ordinary page is addressed by a
         // package-wide identity and takes no mount at all (#181).
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
-        expect(doc.entries["demo-doc-combat"].path).toBe("doc-combat/");
+        expect(doc.entries["demo-sohl-weapongear-dagger"].path).toBe("weapongear-dagger/");
+        expect(doc.entries["demo-none-doc-combat"].path).toBe("doc-combat/");
     });
 
     it("addresses it identically when there is no prefix", () => {
         const doc = emit({ ...WEB });
-        expect(doc.entries["demo-weapongear-dagger"].path).toBe("weapongear-dagger/");
+        expect(doc.entries["demo-sohl-weapongear-dagger"].path).toBe("weapongear-dagger/");
     });
 
     it("addresses a `README.md` as an ordinary page (#204)", () => {
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         // It used to be its section's landing, recorded at `kb/rules/`. There
         // is no section, so there is no landing and no second rule.
-        expect(doc.entries["demo-doc-rulesidx"].path).toBe("doc-rulesidx/");
-        expect(doc.entries["demo-doc-creatures"].path).toBe("doc-creatures/");
+        expect(doc.entries["demo-none-doc-rulesidx"].path).toBe("doc-rulesidx/");
+        expect(doc.entries["demo-none-doc-creatures"].path).toBe("doc-creatures/");
     });
 });
 
@@ -191,7 +206,7 @@ describe("what is published, and what is not", () => {
         // It was skipped for having no section to be filed under; a page is
         // filed nowhere now, so nothing is missing (#204).
         const doc = emit({ ...WEB });
-        expect(doc.entries["demo-doc-homeless"].path).toBe("doc-homeless/");
+        expect(doc.entries["demo-none-doc-homeless"].path).toBe("doc-homeless/");
     });
 
     it("refuses a note declaring `package:`, rather than skipping it", () => {
@@ -250,8 +265,8 @@ name:
     full: Anonymous`,
         );
         try {
-            const ctx = manifestContext(configFor(WEB));
-            const { skipped } = collectManifestEntries(path.join(root, "assets/content"), ctx);
+            const ctx = entryContext(configFor(WEB));
+            const { skipped } = collectFoundryEntries(path.join(root, "assets/content"), ctx);
             const hit = skipped.find((s) => s.file === path.join("Rules", "Anonymous.md"));
             expect(hit?.reason).toMatch(/no shortcode/);
         } finally {
@@ -260,13 +275,20 @@ name:
     });
 
     it("gives an item note two entries, the item pointing at its docs", () => {
+        // The two entries carry two *different* system segments (#59), which
+        // is the segment doing real work here. The item is a document `sohl`
+        // defines, so it is keyed under `sohl`; its documentation is a
+        // JournalEntry, which no game system defines, so it is keyed under
+        // `none` — and would stay `none` if the note grew a second system
+        // block, because one note has one documentation journal however many
+        // systems it compiles items for.
         const doc = emit({ ...WEB });
-        const item = doc.entries["demo-weapongear-dagger"];
-        expect(item.doc).toBe("demo-docweapongear-dagger");
+        const item = doc.entries["demo-sohl-weapongear-dagger"];
+        expect(item.doc).toBe("demo-none-docweapongear-dagger");
         // The doc entry owns the documentation UUID; the item does not repeat
         // it (#1499).
         expect(item.uuid).toBe("Compendium.demo-module.items.Item.aaaaaaaaaaaaaaaa");
-        expect(doc.entries["demo-docweapongear-dagger"].uuid).toMatch(
+        expect(doc.entries["demo-none-docweapongear-dagger"].uuid).toMatch(
             /^Compendium\.demo-module\.journals\.JournalEntry\./,
         );
     });
@@ -275,7 +297,7 @@ name:
 describe("anchors are computed, never approximated", () => {
     it("maps every named section to a whole page UUID", () => {
         const doc = emit({ ...WEB });
-        const anchors = doc.entries["demo-docweapongear-dagger"].anchors!;
+        const anchors = doc.entries["demo-none-docweapongear-dagger"].anchors!;
         expect(Object.keys(anchors).sort()).toEqual([LEAD_ANCHOR, "crafting"]);
         // Whole UUIDs, so a consumer resolves a section link by lookup rather
         // than by reimplementing the page-id hash.
@@ -287,7 +309,7 @@ describe("anchors are computed, never approximated", () => {
 
     it("puts a `doc` note's anchors on its own entry", () => {
         const doc = emit({ ...WEB });
-        expect(Object.keys(doc.entries["demo-doc-combat"].anchors!)).toContain("melee");
+        expect(Object.keys(doc.entries["demo-none-doc-combat"].anchors!)).toContain("melee");
     });
 
     it("names the lead page, which carries no authored slug of its own", () => {
@@ -308,14 +330,16 @@ describe("anchors are computed, never approximated", () => {
 });
 
 describe("both addresses are optional, independently (#1516)", () => {
-    it("emits no `path` when the build publishes only a homepage", () => {
-        const doc = emit({ site: "homepage", manifests: { publish: true } });
-        for (const entry of Object.values(doc.entries)) {
-            expect(entry.path).toBeUndefined();
-        }
-        // …but the Foundry addresses are still there, which is the whole point
-        // of a pack-only manifest.
-        expect(doc.entries["demo-weapongear-dagger"].uuid).toBeDefined();
+    // A homepage-only package still *addresses* its notes — the address is a
+    // package-wide identity, not a statement that a page is served at it. What
+    // used to suppress the web half here has moved to the consuming side
+    // (#239): a URL is produced only where that consumer has a `PACKAGE_BASE`
+    // for the package, which is the side that actually knows where it serves
+    // things. See `metadata-index.test.ts`, "still resolves a package it has no
+    // base for, without a URL".
+    it("addresses its notes even when the build publishes only a homepage", () => {
+        const doc = emit({ site: "homepage" });
+        expect(doc.entries["demo-sohl-weapongear-dagger"].uuid).toBeDefined();
     });
 
     it("emits no `uuid` for a note that compiles into no document", () => {
@@ -327,55 +351,33 @@ name:
     full: Idless Blade`,
         );
         const doc = emit({ ...WEB });
-        const entry = doc.entries["demo-weapongear-idless"];
+        const entry = doc.entries["demo-sohl-weapongear-idless"];
         expect(entry.path).toBe("weapongear-idless/");
         expect(entry.uuid).toBeUndefined();
-        expect(doc.entries["demo-docweapongear-idless"].uuid).toBeUndefined();
+        expect(doc.entries["demo-none-docweapongear-idless"].uuid).toBeUndefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Idless.md"));
     });
 });
 
-describe("the manifest names the package the configuration declares", () => {
-    it("emits exactly one, for `contentPackage`", () => {
-        const config = configFor(WEB);
-        const out = path.join(root, "out-one");
-        const { written } = emitLinkManifest({ config, outDir: out });
-        expect(written.map((w) => w.package)).toEqual(["demo"]);
-        expect(fs.readdirSync(out)).toEqual(["demo.json"]);
-    });
-
-    it("records the Foundry package the documents ship in", () => {
-        expect(emit(WEB).foundryPackage).toBe("demo-module");
-    });
-
+describe("what a tree yields, and what it refuses", () => {
+    // An empty index is indistinguishable from a mis-pointed tree, and a
+    // consumer would read it as the authoritative claim that this package has
+    // no content at all.
     it("refuses to claim a package publishes nothing", () => {
         const empty = fs.mkdtempSync(path.join(os.tmpdir(), "cb-empty-"));
         expect(() =>
-            emitLinkManifest({
+            emitContentIndex({
                 config: configFor(WEB),
                 contentBase: empty,
                 outDir: path.join(root, "out-empty"),
             }),
-        ).toThrow(/publishes nothing/);
+        ).toThrow(/no notes/);
         fs.rmSync(empty, { recursive: true, force: true });
-    });
-
-    it("refuses to emit one the repository has not declared it publishes", () => {
-        // The switch is a declaration, not a preference: the file is vendored
-        // by consumers and read as authoritative. Enforced in the library, so a
-        // caller that bypasses the command cannot bypass the declaration.
-        expect(() =>
-            emitLinkManifest({
-                config: configFor({ site: "content" }),
-                outDir: path.join(root, "out-undeclared"),
-            }),
-        ).toThrow(/does not publish a link manifest/);
-        expect(fs.existsSync(path.join(root, "out-undeclared"))).toBe(false);
     });
 
     it("refuses a content tree that is not there", () => {
         expect(() =>
-            emitLinkManifest({
+            emitContentIndex({
                 config: configFor(WEB),
                 contentBase: path.join(root, "absent"),
                 outDir: path.join(root, "out-absent"),
@@ -391,7 +393,8 @@ describe("the emitted address is the one the site publishes", () => {
         // the manifest records, character for character.
         const fm = { type: "weapongear", shortcode: "dagger" };
         expect(packageAddress(fm)).toBe(
-            emit({ ...WEB, address: { prefix: "kb/" } }).entries["demo-weapongear-dagger"].path,
+            emit({ ...WEB, address: { prefix: "kb/" } }).entries["demo-sohl-weapongear-dagger"]
+                .path,
         );
     });
 
@@ -399,6 +402,15 @@ describe("the emitted address is the one the site publishes", () => {
         // The manifest still writes `path` — an absent one already means
         // something else — but a consumer can compute it from the key alone,
         // with no knowledge of the emitting repository's scheme.
+        //
+        // Computed from the key's *parsed parts*, never by stripping a prefix
+        // off the key's text. It used to amount to the same thing — the
+        // address was the key minus its package segment — and since #59 it
+        // does not: the key carries a `<system>` segment between the package
+        // and the type, which the address does not, so a consumer that
+        // stripped one segment would put `sohl-weapongear-dagger/` in an href.
+        // `readCanonicalKey` is what keeps the derivation honest as the
+        // grammar grows segments.
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         for (const [key, entry] of Object.entries(doc.entries)) {
             const parts = readCanonicalKey(key)!;
@@ -408,16 +420,20 @@ describe("the emitted address is the one the site publishes", () => {
             // onto one page, not an exception to the rule.
             const type = parts.type.replace(/^doc(?=.)/, "");
             expect(entry.path, key).toBe(`${type}-${parts.shortcode}/`);
+            // And the identity that used to make the derivation look like
+            // string surgery is now false, stated so a regression to it fails
+            // here rather than in a consumer's 404 log.
+            expect(key, key).not.toBe(`${parts.package}-${entry.path!.replace(/\/$/, "")}`);
         }
     });
 
     it("is stable across a rename, because no part of it is a name", () => {
-        const before = emit({ ...WEB }).entries["demo-weapongear-dagger"].path;
+        const before = emit({ ...WEB }).entries["demo-sohl-weapongear-dagger"].path;
         const file = path.join(root, "assets/content/Gear/Dagger.md");
         const original = fs.readFileSync(file, "utf8");
         try {
             fs.writeFileSync(file, original.replace("full: Dagger", "full: A Very Fine Dagger"));
-            const after = emit({ ...WEB }).entries["demo-weapongear-dagger"];
+            const after = emit({ ...WEB }).entries["demo-sohl-weapongear-dagger"];
             expect(after.path).toBe(before);
             // The name moved, which is the only thing a rename is allowed to
             // move: it labels an inbound link and titles the page.

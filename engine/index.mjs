@@ -75,6 +75,9 @@ export * as noteSchemas from "./note-schemas.mjs";
 /** The closed frontmatter regions: the `data:` container and each type's `subType`. */
 export * as noteVocabulary from "./note-vocabulary.mjs";
 
+/** The closed registry of system ids, and the `none` that stands for no system. */
+export * as systems from "./systems.mjs";
+
 /** The shipped Foundry manifest: locating it, reading it, guarding its id. */
 
 /** The one normalisation this build makes: prose to a URL-safe token. */
@@ -83,14 +86,11 @@ export * as contentSlug from "./content-slug.mjs";
 /** Where a content note publishes: its section, and its `type-shortcode` URL. */
 export * as contentAddress from "./content-address.mjs";
 
-/** Whether a vendored manifest can still be addressed, not merely read. */
-export * as foreignManifests from "./foreign-manifests.mjs";
-
-/** The cross-package link manifest: reader, writer, and canonical keys. */
-export * as kbManifest from "./kb-manifest.mjs";
+/** The published content index packages exchange addresses through (#239). */
+export * as metadataIndex from "./metadata-index.mjs";
 
 /** Deriving this package's own link manifest from its content tree. */
-export * as manifestEmit from "./manifest-emit.mjs";
+export * as foundryEntries from "./foundry-entries.mjs";
 
 /** Publishing the note tree as a queryable JSON Lines index. */
 export * as contentIndex from "./content-index.mjs";

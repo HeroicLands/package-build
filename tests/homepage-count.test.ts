@@ -250,7 +250,6 @@ describe("the site build enforces it, in both publishing modes (#52)", () => {
             site: { out: "out" },
             publish: {
                 site,
-                manifests: { publish: true, consume: true },
                 address: { prefix: "kb/" },
             },
         } as ContentBuildConfigInput);

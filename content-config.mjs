@@ -34,7 +34,6 @@
  *         - { from: assets/icons, to: assets/icons }
  * publish:
  *     site: content
- *     manifests: { publish: true, consume: true }
  * ```
  *
  * `defineConfig` is the whole of the contract: it validates the object, fills
@@ -70,6 +69,7 @@ import path from "node:path";
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
+import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
 
 /**
  * The two kinds of Foundry package a content module can be built into. The
@@ -88,8 +88,6 @@ export const PACKAGE_KINDS = /** @type {const} */ (["systems", "modules"]);
  */
 export const DEFAULT_PATHS = /** @type {const} */ ({
     content: "assets/content",
-    manifests: "assets/manifests",
-    manifestOut: "build/manifests",
     // Where `content-index` writes this package's note index. Under `build/`
     // because it is derived and disposable — regenerating it costs a
     // frontmatter parse — and emphatically not under `stage`, which is mirrored
@@ -101,6 +99,13 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     // Where a dependency declaring `itemCatalog: true` is unpacked. Under
     // `build/` because it is derived, disposable, and version-keyed.
     foreignCache: "build/cache/foreign",
+    // Where a dependency's published content index is fetched to (#239). A
+    // sibling of the item catalogue rather than a subdirectory of it: the two
+    // are fetched for different dependency sets — a catalogue only where
+    // `itemCatalog: true` is declared, an index for *every* declared
+    // dependency — so nesting one under the other would imply a containment
+    // that does not hold.
+    metadataCache: "build/cache/metadata",
 });
 
 /**
@@ -161,7 +166,7 @@ export const RETIRED_ADDRESS_KEYS = Object.freeze({
  * `sohl`, whose knowledgebase is one surface among several, and empty for
  * `thalorna`, whose site is nothing but its content. It is not the package's
  * own mount point: where the package itself is served is the consuming build's
- * knowledge, held in `PACKAGE_BASE` (`engine/kb-manifest.mjs`) and prefixed at
+ * knowledge, held in `PACKAGE_BASE` (`engine/content-address.mjs`) and prefixed at
  * resolve time, so it is never recorded here (#1465).
  *
  * It is the whole scheme: `landing`, the key that named which note addressed a
@@ -183,7 +188,7 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *
  * - `homepage` — the authored homepage, and **no other page**. The content tree
  *   is not walked for pages, `site.sections` / `site.trees` / `site.landing`
- *   emit nothing, and link-manifest entries carry no web `path`.
+ *   emit nothing, and nothing serves a page for its addresses.
  * - `content` — the homepage *plus* every page the content tree publishes: the
  *   knowledgebase, the extra trees, the section landings.
  *
@@ -217,7 +222,7 @@ export const SITE_MODES = /** @type {const} */ (["homepage", "content"]);
  * Whether this package publishes the pages its content tree compiles to.
  *
  * The one question every reader of the mode actually asks — the site build, to
- * decide whether to walk the tree at all, and the link-manifest emitter, to
+ * decide whether to walk the tree at all, and the content index, to
  * decide whether an entry carries a web `path`. Written once here so the two
  * cannot come to disagree about what a mode means.
  *
@@ -303,13 +308,6 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} PathsInput
  * @property {string} [content]          Content tree root.
- * @property {string} [manifests]        Vendored cross-package link manifests,
- *                                       read by `links`. Inbound.
- * @property {string} [manifestOut]      Where `manifest` writes this package's
- *                                       own link manifest. Outbound, and a
- *                                       build artifact — the published copy is
- *                                       the one a consumer vendors into its
- *                                       `manifests` directory.
  * @property {string} [contentIndex]     Where `content-index` writes this
  *                                       package's note index. Outbound, and a
  *                                       derived artifact — never a source, and
@@ -317,6 +315,14 @@ export function publishesContentPages(config) {
  * @property {string} [packJson]         Build-only per-entry JSON intermediate.
  * @property {string} [stage]            Compiled LevelDB packs.
  * @property {string} [unpack]           Where `unpack` extracts JSON back to.
+ * @property {string} [foreignCache]     Where a dependency declaring
+ *                                       `itemCatalog: true` is unpacked.
+ *                                       Inbound, and fetched rather than
+ *                                       committed.
+ * @property {string} [metadataCache]    Where a dependency's published content
+ *                                       index is fetched to (#239). Inbound,
+ *                                       for *every* declared dependency, not
+ *                                       only those supplying a catalogue.
  */
 
 /**
@@ -324,12 +330,12 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} ResolvedPaths
  * @property {string} content
- * @property {string} manifests
- * @property {string} manifestOut
  * @property {string} contentIndex
  * @property {string} packJson
  * @property {string} stage
  * @property {string} unpack
+ * @property {string} foreignCache
+ * @property {string} metadataCache
  */
 
 /**
@@ -369,26 +375,9 @@ export function publishesContentPages(config) {
  */
 
 /**
- * The two manifest switches. A package may publish a link manifest, consume
- * other packages' manifests, both, or neither — the four combinations are all
- * real (see #1385/#1446: `kethira` consumes but never publishes).
- *
- * @typedef {object} ManifestSwitches
- * @property {boolean} publish  Emit this package's link manifest.
- * @property {boolean} consume  Resolve cross-package links through vendored manifests.
- */
-
-/**
  * @typedef {object} PublishSwitches
  * @property {SiteMode} site          How much of this package reaches the web.
  *                                    See {@link SITE_MODES}.
- * @property {ManifestSwitches} manifests
- */
-
-/**
- * @typedef {object} ManifestSwitchesInput
- * @property {boolean} [publish]
- * @property {boolean} [consume]
  */
 
 /**
@@ -469,7 +458,6 @@ export function publishesContentPages(config) {
 /**
  * @typedef {object} PublishSwitchesInput
  * @property {SiteMode} [site]
- * @property {ManifestSwitchesInput} [manifests]
  * @property {AddressSchemeInput} [address]
  */
 
@@ -694,8 +682,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  * @type {symbol}
  */
 export const DERIVED_SYSTEM_VERSION = Symbol.for("package-build.derivedSystemVersion");
-const PUBLISH_KEYS = ["site", "manifests", "address"];
-const MANIFEST_KEYS = ["publish", "consume"];
+const PUBLISH_KEYS = ["site", "address"];
 const ADDRESS_KEYS = ["prefix"];
 
 /** @param {unknown} value */
@@ -754,28 +741,37 @@ function requireNonEmptyString(value, field) {
  * The `contentPackage`, checked against the two rules an address puts on it.
  *
  * It is the first segment of every canonical address this repository publishes
- * (`sohl-skill-clmb`), and an address is read by counting hyphen-separated
- * segments. So the value carries two obligations that the rest of the
- * configuration does not, and #59 asks for both to be **enforced rather than
- * assumed** — the alternative is a package whose addresses are simply
- * unreadable, reported nowhere and discovered as links that resolve to nothing.
+ * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), and an address is
+ * read by counting hyphen-separated segments. So the value carries two
+ * obligations that the rest of the configuration does not, and #59 asks for
+ * both to be **enforced rather than assumed** — the alternative is a package
+ * whose addresses are simply unreadable, reported nowhere and discovered as
+ * links that resolve to nothing.
  *
  * 1. _Alphanumeric_, so the hyphen stays purely a separator. `harn-adventures`
- *    was the one violator, and its keys read as four segments and failed as a
- *    `null` return from `readCanonicalKey` — a silence, not an error.
- * 2. _Not a note type_, because the package and the type are adjacent segments
- *    drawn from two vocabularies. Keeping them disjoint is what lets a reader
- *    take a name at face value instead of deciding which slot it is filling.
+ *    was the one violator, and its keys read as one segment too many and failed
+ *    as a `null` return from `readCanonicalKey` — a silence, not an error.
+ * 2. _Not a note type_, because a written address is a **partial** one: the
+ *    shorter forms drop segments from the left, so `skill-clmb` and
+ *    `sohl-skill-clmb` are both addresses and position alone no longer says
+ *    which vocabulary a leading segment is drawn from. The reader decides that
+ *    by asking whether the name is a known package, and a name in both
+ *    vocabularies makes one target readable two ways with no defensible pick.
+ *    Keeping the two disjoint is what lets a name be taken at face value; that
+ *    the package and the type are no longer *adjacent* segments (#59 put the
+ *    system between them) changes nothing, because the hazard was never
+ *    adjacency — it is that a short form omits the slots in between.
  *    One such collision is structural and cannot be fixed — `sohl` is both a
  *    content package and a system id, because Foundry requires a system
- *    package's id to *be* its system id — which is the reason to prevent the
- *    ones that are avoidable.
+ *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
+ *    honest address that results — which is the reason to prevent the ones that
+ *    are avoidable.
  *
  * @param {unknown} value - The configured `contentPackage`.
  * @param {ReadonlySet<string>} docEntryTypes - Every type whose prose compiles
  *   to a documentation entry: the item types plus `macro` and the map types.
- *   With {@link PACK_BY_TYPE} and the `doc`-prefixed forms, this is the whole
- *   type vocabulary an address may write.
+ *   With {@link PACK_BY_TYPE}, {@link NOTE_VOCABULARY} and the `doc`-prefixed
+ *   forms, this is the whole type vocabulary an address may write.
  * @returns {string} The value, unchanged.
  */
 function requireContentPackage(value, docEntryTypes) {
@@ -785,14 +781,25 @@ function requireContentPackage(value, docEntryTypes) {
             "contentPackage",
             `is \`${pkg}\`, which is not alphanumeric. It is the first ` +
                 `segment of every address this package publishes ` +
-                `(\`${pkg}-<type>-<shortcode>\`), and an address is read by ` +
+                `(\`${pkg}-<system>-<type>-<shortcode>\`), and an address is read by ` +
                 `counting hyphen-separated segments — so anything outside ` +
                 "`[A-Za-z0-9]` here makes those addresses unreadable rather " +
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
+    // The closed vocabulary is read alongside the configured registries, not
+    // instead of them, because neither is a superset of the other. The format's
+    // vocabulary holds every type a note may declare *however this repository
+    // is configured* — the reasoning `KNOWN_DOCUMENT_SUBTYPE_MAPS` already
+    // states — so `skill` and `bundle` are type names in a repository that
+    // declares no `itemBuilders`, where `docEntryTypes` alone would have let
+    // either through. The registries hold whatever a consumer declares beyond
+    // it. The `doc`-prefixed forms follow the registry, since a type that
+    // compiles no documentation entry has no `doc`-prefixed address to collide
+    // with.
     const typeNames = new Set([
         ...Object.keys(PACK_BY_TYPE),
+        ...Object.keys(NOTE_VOCABULARY),
         ...docEntryTypes,
         ...[...docEntryTypes].map((type) => `doc${type}`),
     ]);
@@ -800,10 +807,10 @@ function requireContentPackage(value, docEntryTypes) {
         fail(
             "contentPackage",
             `is \`${pkg}\`, which is also a note type — \`${pkg}-<shortcode>\` ` +
-                "already addresses one. The package and the type are adjacent " +
-                "segments of an address, and the two vocabularies are kept " +
-                "disjoint so a reader never has to decide which slot a name " +
-                "is filling. Rename the package",
+                "already addresses one. A written address may omit its leading " +
+                `segments, so \`${pkg}-<shortcode>\` reads as a type and a ` +
+                "shortcode and nothing but the two vocabularies being disjoint " +
+                "says which slot the name is filling. Rename the package",
         );
     }
     return pkg;
@@ -1765,20 +1772,12 @@ function normalizePublish(value) {
     if (value === undefined) {
         return Object.freeze({
             site: "homepage",
-            manifests: Object.freeze({ publish: false, consume: false }),
             address: Object.freeze({ ...DEFAULT_ADDRESS_SCHEME }),
         });
     }
     if (!isPlainObject(value)) fail("publish", "must be an object");
     const publish = /** @type {Record<string, unknown>} */ (value);
     rejectUnknownKeys(publish, PUBLISH_KEYS, "publish.");
-
-    const manifestsInput = publish.manifests;
-    if (manifestsInput !== undefined && !isPlainObject(manifestsInput)) {
-        fail("publish.manifests", "must be an object");
-    }
-    const manifests = /** @type {Record<string, unknown>} */ (manifestsInput ?? {});
-    rejectUnknownKeys(manifests, MANIFEST_KEYS, "publish.manifests.");
 
     const addressInput = publish.address;
     if (addressInput !== undefined && !isPlainObject(addressInput)) {
@@ -1815,10 +1814,6 @@ function normalizePublish(value) {
     return Object.freeze({
         site: normalizeSiteMode(publish.site),
         address: Object.freeze({ prefix }),
-        manifests: Object.freeze({
-            publish: optionalBoolean(manifests.publish, "publish.manifests.publish", false),
-            consume: optionalBoolean(manifests.consume, "publish.manifests.consume", false),
-        }),
     });
 }
 

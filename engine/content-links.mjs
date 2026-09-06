@@ -23,7 +23,11 @@
  *    link to an anchor nobody declares compiles cleanly, emits an enricher, and
  *    dead-ends for the reader.
  * 2. **A dead address.** Every link is an address, and one resolving to no note
- *    is a typo. So is a target that does not parse as an address at all.
+ *    is a typo. So is a target that does not parse as an address at all. A
+ *    written target is a *partial* address — the segments it omits are
+ *    wildcards, and the package it omits is this one — so a target resolving to
+ *    *several* notes is an ambiguity rather than a first match, and is reported
+ *    naming every candidate (#59).
  * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
  *    used to name is retired (#180), and a shortcode is an address rather than
  *    prose, so the link has neither a resolvable target nor text to show. The
@@ -58,15 +62,12 @@ import { expandContentTables } from "./content-tables.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { collectAnchors } from "./anchors.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
+import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-import {
-    canonicalKey,
-    loadForeignManifests,
-    manifestsComplete,
-    PACKAGE_BASE,
-    readCanonicalKey,
-} from "./kb-manifest.mjs";
+import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
+import { loadForeignIndexes } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
@@ -107,12 +108,13 @@ export function anchorsOf(body) {
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
- * @param {string} [opts.manifestDir] - Where vendored foreign manifests live.
+ * @param {object} [opts.config] - The resolved build configuration, whose
+ *   fetched dependency indexes foreign addresses resolve through (#239).
  *   Omitted, no cross-package address resolves.
  * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlTables } = {}) {
+export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables } = {}) {
     const notes = [];
     const frontmatterLinks = [];
     // Passed through rather than defaulted away: an absent scope is the
@@ -152,10 +154,16 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
             byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
             // The canonical, fully qualified address alongside the short one,
             // so a package-qualified link checks the same way a bare one does.
-            byKey.set(canonicalKey(pkg, type, fm.shortcode), note);
+            byKey.set(
+                canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode),
+                note,
+            );
             if (hasDocEntry(type)) {
                 byKey.set(`doc${type}/${fm.shortcode}`.toLowerCase(), note);
-                byKey.set(canonicalKey(pkg, `doc${type}`, fm.shortcode), note);
+                // A documentation journal is `none`: no game system defines a
+                // JournalEntry, and one note has one of them however many
+                // system blocks it carries.
+                byKey.set(canonicalKey(pkg, NO_SYSTEM, `doc${type}`, fm.shortcode), note);
             }
         }
     }
@@ -167,8 +175,8 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
     // is never checked at all.
     const localPackages = new Set([pkg]);
     const foreign =
-        manifestDir ?
-            loadForeignManifests(manifestDir, localPackages)
+        config ?
+            loadForeignIndexes(config, localPackages)
         :   { index: new Map(), packages: new Set(), stale: [] };
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
@@ -246,25 +254,72 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
      * @param {string} target - The link target, anchor already removed.
      * @returns {object|undefined} The note it addresses.
      */
+    /**
+     * Every indexed entry an address names, matching only the segments it
+     * supplies.
+     *
+     * This is the whole of #59's resolution rule in one place: a written
+     * address is a *partial* one, unsupplied segments are wildcards, and the
+     * caller requires exactly one hit. Nothing here decides an ambiguity — zero
+     * and many are different findings with different fixes, so the count is
+     * returned rather than collapsed.
+     *
+     * The **system** is wildcarded unless stated. Defaulting it to `none` would
+     * exclude every link to an item, which is most of them.
+     *
+     * @param {Array<[string, any]>} pairs - Indexed `[canonicalKey, value]`.
+     * @param {object} q - The parsed qualifier.
+     * @returns {Array<[string, any]>} The matching pairs.
+     */
+    function matchAddress(pairs, q) {
+        const type = String(q.type).toLowerCase();
+        const shortcode = String(q.shortcode).toLowerCase();
+        return pairs.filter(([k]) => {
+            const parts = readCanonicalKey(k);
+            if (!parts) return false;
+            if (q.package && parts.package !== String(q.package).toLowerCase()) return false;
+            if (q.system && parts.system !== String(q.system).toLowerCase()) return false;
+            return parts.type === type && parts.shortcode === shortcode;
+        });
+    }
+
+    /**
+     * The local notes an address names, by the same rule.
+     *
+     * @param {object} q - The parsed qualifier.
+     * @returns {object[]} The notes.
+     */
+    function matchLocal(q) {
+        return matchAddress([...byKey], q).map(([, v]) => v);
+    }
+
     function resolveAddress(target) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
-        return byKey.get(
-            qualified.package ?
-                canonicalKey(qualified.package, qualified.type, qualified.shortcode)
-            :   `${qualified.type}/${qualified.shortcode}`.toLowerCase(),
-        );
+        // Unqualified stays the system-blind short key, which is already the
+        // wildcard an author writing `[[skill-melee]]` means. A package-
+        // qualified target names no system either, so it is matched by the
+        // segments it *did* supply rather than by an exact key (#59) — and one
+        // hit is required, since two systems' documents legitimately share a
+        // `(package, type, shortcode)`.
+        if (!qualified.package) {
+            return byKey.get(`${qualified.type}/${qualified.shortcode}`.toLowerCase());
+        }
+        const hits = matchLocal(qualified);
+        return hits.length === 1 ? hits[0] : undefined;
     }
 
     /**
      * Every foreign manifest entry an address names, in package order.
      *
-     * A **package-qualified** address names at most one, by construction. An
-     * unqualified one names no package, so it resolves against any foreign one
-     * that publishes it — and only when exactly one does. Two claimants make it
-     * ambiguous, which is a different finding from resolving nowhere and has a
-     * different fix, so the count is returned rather than collapsed here
-     * (#184).
+     * A written target is a **partial** address, so this matches on the
+     * segments it supplies and wildcards the rest (#59). A package-qualified
+     * target still names no system, so it may match one entry per system; an
+     * unqualified one names no package either, so it resolves against any
+     * foreign package that publishes it. Either way only exactly one hit
+     * resolves. Two claimants make it ambiguous, which is a different finding
+     * from resolving nowhere and has a different fix, so the count is returned
+     * rather than collapsed here (#184).
      *
      * @param {string} target - The link target.
      * @returns {object[]} The foreign entries, each carrying its `package`.
@@ -272,18 +327,7 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
     function foreignHits(target) {
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return [];
-        if (q.package) {
-            const one = foreign.index.get(canonicalKey(q.package, q.type, q.shortcode));
-            return one ? [one] : [];
-        }
-        const type = String(q.type).toLowerCase();
-        const shortcode = String(q.shortcode).toLowerCase();
-        return [...foreign.index]
-            .filter(([k]) => {
-                const parts = readCanonicalKey(k);
-                return parts?.type === type && parts.shortcode === shortcode;
-            })
-            .map(([, v]) => v);
+        return matchAddress([...foreign.index], q).map(([, v]) => v);
     }
 
     /**
@@ -313,7 +357,6 @@ export function buildLinkIndex(contentBase, { manifestDir, skipDirectories, sqlT
          */
         contentPackage: pkg,
         foreign,
-        manifests: manifestsComplete(localPackages, foreign.packages),
         linksOf,
         /**
          * Resolve a link target the way both builds do, or `undefined`. Every
@@ -352,17 +395,17 @@ const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
  * is that a landing therefore cannot be addressed. It does not follow: a
  * landing's address is not a *note's* address but the **package's**, and
  * {@link PACKAGE_BASE} already records where each package is served. That is a
- * frozen constant vendored into every repository, so consulting it walks no
+ * frozen constant compiled into every build, so consulting it walks no
  * tree, reads no manifest and builds no index — which is precisely why the
  * mechanism survives `homepage` mode, where the licensing fence means none of
  * those exist.
  *
  * The roster is consulted **for landings only**. Widening the package set the
  * other rules read would make them offer manifest-based advice about packages
- * no manifest is vendored for.
+ * no index has been fetched for.
  *
  * @param {string} ownPackage - The package this build publishes.
- * @param {Iterable<string>} manifestPackages - Packages a vendored manifest
+ * @param {Iterable<string>} manifestPackages - Packages a fetched index
  *   names, which are addressable whether or not the roster lists them.
  * @returns {Map<string, string>} Package to base, each base slash-terminated.
  */
@@ -472,7 +515,7 @@ function readAddress(url, packages) {
  *   and what replaced it, so this is a fact rather than a guess — and it is
  *   exactly the SoHL defect.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
- *   vendored manifest names. Every one of them has a better form to write, which
+ *   a fetched index names. Every one of them has a better form to write, which
  *   is why every one is reported — including a bare `/<package>/`, which names
  *   another package's landing (#87).
  *
@@ -547,7 +590,7 @@ export function auditHomepageLinks(index) {
 
             // Landings first, and by the roster rather than by the manifest
             // package set: a landing is addressable in a repository that
-            // vendors no manifest at all, which is the case the fence creates
+            // has fetched no index at all, which is the case the fence creates
             // and the case this rule exists for (#87).
             const landing = landingTarget(url, bases);
             if (landing) {

@@ -28,8 +28,9 @@ import {
     serializeContentIndex,
     emitContentIndex,
 } from "../engine/content-index.mjs";
-import { addressSlug } from "../engine/content-address.mjs";
-import { canonicalKey } from "../engine/kb-manifest.mjs";
+import { addressSlug, canonicalKey } from "../engine/content-address.mjs";
+import { systemOf } from "../engine/document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { splitPages } from "../engine/journals.mjs";
 
 let tmp: string;
@@ -88,7 +89,7 @@ describe("noteAddress", () => {
     it("states both the local wikilink target and the canonical key", () => {
         expect(noteAddress({ type: "being", shortcode: "aurochs" }, "sohl")).toEqual({
             slug: "being-aurochs",
-            canonical: "sohl-being-aurochs",
+            canonical: "sohl-sohl-being-aurochs",
         });
     });
 
@@ -98,13 +99,23 @@ describe("noteAddress", () => {
         const fm = { type: "weapongear", shortcode: "Dgr" };
         const address = noteAddress(fm, "sohl");
         expect(address?.slug).toBe(addressSlug(fm));
-        expect(address?.canonical).toBe(canonicalKey("sohl", fm.type, fm.shortcode));
+        // The system segment is derived, not passed in: `systemOf` answers it
+        // from the type, so the index and the manifest agree about which
+        // system's document a note addresses without either being told (#59).
+        expect(address?.canonical).toBe(
+            canonicalKey(
+                "sohl",
+                systemOf(fm.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+                fm.type,
+                fm.shortcode,
+            ),
+        );
     });
 
     it("lowercases, so a lookup does not depend on how a shortcode was cased", () => {
         expect(noteAddress({ type: "weapongear", shortcode: "BstdSwd" }, "sohl")).toEqual({
             slug: "weapongear-bstdswd",
-            canonical: "sohl-weapongear-bstdswd",
+            canonical: "sohl-sohl-weapongear-bstdswd",
         });
     });
 
@@ -299,7 +310,7 @@ describe("buildIndexRecord", () => {
         });
         expect(record.address).toEqual({
             slug: "being-aurochs",
-            canonical: "sohl-being-aurochs",
+            canonical: "sohl-sohl-being-aurochs",
         });
     });
 
@@ -465,13 +476,13 @@ describe("emitContentIndex", () => {
         skipDirectories: [],
     });
 
-    it("writes <package>.jsonl and reports what it holds", () => {
+    it("writes <package>-metadata.jsonl and reports what it holds", () => {
         note("Aurochs.md", "type: being\nid: a1\nshortcode: aurochs");
         note("Baboon.md", "type: being\nid: b1\nshortcode: baboon");
 
         const result = emitContentIndex({ config: config(tmp) as any });
 
-        expect(path.basename(result.file)).toBe("sohl.jsonl");
+        expect(path.basename(result.file)).toBe("sohl-metadata.jsonl");
         expect(result.notes).toBe(2);
         expect(result.bytes).toBeGreaterThan(0);
         expect(readIndex(result.file).map((r) => r.shortcode)).toEqual(["aurochs", "baboon"]);
@@ -501,7 +512,7 @@ describe("emitContentIndex", () => {
             config: config(tmp) as any,
         });
 
-        expect(result.file).toBe(path.join(out, "sohl.jsonl"));
+        expect(result.file).toBe(path.join(out, "sohl-metadata.jsonl"));
         expect(fs.existsSync(result.file)).toBe(true);
     });
 
@@ -541,13 +552,36 @@ describe("an item note is two records: the item, and its documentation (#239)", 
             docEntryTypes: new Set(["affliction"]),
         }) as any;
 
+    /**
+     * The two records a `Black_Death.md` compiles into, named rather than
+     * unpacked positionally.
+     *
+     * The file is ordered by canonical address, and #59 moved which of the two
+     * sorts first: the item is now keyed under `sohl` and its documentation
+     * under `none`, so `none` sorts ahead of `sohl` and the journal leads. The
+     * order is asserted deliberately in its own case below; every other case
+     * is about what each record *says*, so it asks for the record it means.
+     */
+    const pair = (file: string) => {
+        const records = readIndex(file);
+        expect(records).toHaveLength(2);
+        return {
+            item: records.find((r: any) => r.type === "affliction"),
+            doc: records.find((r: any) => r.type === "docaffliction"),
+        };
+    };
+
     it("emits a second record for the documentation journal", () => {
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
 
         const result = emitContentIndex({ config: foundryConfig(tmp) });
         const records = readIndex(result.file);
 
-        expect(records.map((r) => r.type)).toEqual(["affliction", "docaffliction"]);
+        // Ordered by canonical address, which is the only key the two records
+        // do not share — and since #59 the journal's `none` sorts ahead of the
+        // item's `sohl`. The order is arbitrary but it must be *stable*, which
+        // is what the determinism case below is really about.
+        expect(records.map((r) => r.type)).toEqual(["docaffliction", "affliction"]);
         // The counts are different numbers and are reported as such: an item
         // note is one note and two records.
         expect(result.notes).toBe(1);
@@ -556,17 +590,20 @@ describe("an item note is two records: the item, and its documentation (#239)", 
 
     it("addresses the journal in its own right, sharing the page", () => {
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
-        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+        const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
-        expect(item.address.canonical).toBe("sohl-affliction-blkdth");
-        expect(doc.address.canonical).toBe("sohl-docaffliction-blkdth");
+        // The item is the `sohl` system's document; the journal is nobody's,
+        // so it is keyed `none` — and stays `none` however many system blocks
+        // the note grows, because there is only ever one of it (#59).
+        expect(item.address.canonical).toBe("sohl-sohl-affliction-blkdth");
+        expect(doc.address.canonical).toBe("sohl-none-docaffliction-blkdth");
         // On the web the note renders as one page which *is* its documentation.
         expect(doc.address.slug).toBe(item.address.slug);
     });
 
     it("links the two records in both directions", () => {
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
-        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+        const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         expect(item.documentation).toBe(doc.address.canonical);
         expect(doc.documents).toBe(item.address.canonical);
@@ -574,7 +611,7 @@ describe("an item note is two records: the item, and its documentation (#239)", 
 
     it("gives each record its own Foundry address", () => {
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
-        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+        const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         // The item is a *system's* document, so its address is keyed by the
         // system that compiles it — a note may declare more than one. The
@@ -593,7 +630,7 @@ describe("an item note is two records: the item, and its documentation (#239)", 
             "Black_Death.md",
             "type: affliction\nid: bd1\nshortcode: blkdth\nsohl:\n  contagion: 5",
         );
-        const [item, doc] = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
+        const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         expect(item.sohl).toEqual({ contagion: 5 });
         expect(doc.sohl).toBeUndefined();
@@ -637,7 +674,12 @@ describe("a note may declare more than one system", () => {
         // block, and each compiles into its own document of that system's type.
         // One `uuid` on the record cannot name two, so the address is keyed.
         note("Plague.md", "type: affliction\nid: p1\nshortcode: plague");
-        const [item] = readIndex(emitContentIndex({ config: cfg(tmp) }).file);
+        // Asked for by type, not by position: an item note is two records and
+        // the file is ordered by canonical address, where the journal's `none`
+        // now sorts ahead of the item's `sohl` (#59).
+        const item = readIndex(emitContentIndex({ config: cfg(tmp) }).file).find(
+            (r: any) => r.type === "affliction",
+        )!;
         expect(Object.keys(item.foundry)).toEqual(["sohl"]);
         expect(item.foundry.sohl.uuid).toContain(".Item.");
     });

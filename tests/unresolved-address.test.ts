@@ -82,39 +82,70 @@ function note(fm: Record<string, unknown>, body = ""): string {
 }
 
 /**
- * Audit a corpus, optionally against vendored manifests.
+ * Audit a corpus, optionally against fetched dependency indexes.
  *
  * `skipDirectories: []` because the default skips the vault scaffolding a real
  * tree carries and a fixture has none.
  */
-function audit(files: Record<string, string>, manifests?: Record<string, unknown>) {
-    const manifestDir = manifests ? tree(mapValues(manifests), "unresolved-manifests-") : undefined;
+function audit(files: Record<string, string>, foreign?: Record<string, unknown[]>) {
+    const config = foreign ? cachedIndexes(foreign) : undefined;
     const index = buildLinkIndex(tree(files), {
         skipDirectories: [],
-        skipDirectories: [],
-        ...(manifestDir ? { manifestDir } : {}),
+        ...(config ? { config } : {}),
     });
     return { index, ...auditLinks(index) };
 }
 
-/** `{ "thalorna.json": {...} }` → the same keys with JSON text. */
-function mapValues(docs: Record<string, unknown>): Record<string, string> {
-    return Object.fromEntries(
-        Object.entries(docs).map(([k, v]) => [k, `${JSON.stringify(v, null, 2)}\n`]),
-    );
+/**
+ * A metadata cache holding one fetched index per named package, plus the config
+ * that declares them as dependencies — the two facts `loadForeignIndexes`
+ * needs, since a package resolves only through what it declared it depends on.
+ */
+function cachedIndexes(byPackage: Record<string, unknown[]>) {
+    const root = fs.mkdtempSync(path.join(os.tmpdir(), "unresolved-cache-"));
+    for (const [pkg, records] of Object.entries(byPackage)) {
+        const dir = path.join(root, `${pkg}@0.1.0`);
+        fs.mkdirSync(dir, { recursive: true });
+        fs.writeFileSync(
+            path.join(dir, `${pkg}-metadata.jsonl`),
+            records.map((r) => JSON.stringify(r)).join("\n") + "\n",
+        );
+        fs.writeFileSync(path.join(dir, ".complete"), "");
+    }
+    return {
+        paths: { metadataCache: root },
+        relationships: {
+            requires: Object.keys(byPackage).map((id) => ({ id, manifest: "https://x/y.json" })),
+        },
+    };
 }
 
-/** A pack-only manifest: Foundry addresses and no pages, so it needs no base. */
-function packOnlyManifest(pkg: string, type: string, shortcode: string, name: string) {
+/**
+ * One record of a pack-only dependency's index: a Foundry address and no page.
+ *
+ * Such a package has no configured base, so nothing resolves a URL for it —
+ * and it must still be citable, by UUID. The record is an Item the `sohl`
+ * system defines, so `sohl` is what its address says.
+ */
+function packOnlyRecord(
+    pkg: string,
+    type: string,
+    shortcode: string,
+    name: string,
+    system = "sohl",
+) {
     return {
-        version: 5,
         package: pkg,
-        entries: {
-            [`${pkg}-${type}-${shortcode}`]: {
-                name,
-                uuid: `Compendium.sohl-${pkg}.items.Item.aaaaaaaaaaaaaaa1`,
-            },
+        type,
+        shortcode,
+        name: { full: name },
+        address: {
+            slug: `${type}-${shortcode}`,
+            canonical: `${pkg}-${system}-${type}-${shortcode}`,
         },
+        anchors: [],
+        foundry: { [system]: { uuid: `Compendium.sohl-${pkg}.items.Item.aaaaaaaaaaaaaaa1` } },
+        documentation: null,
     };
 }
 
@@ -159,7 +190,7 @@ describe("one vocabulary of link findings", () => {
         const message = unresolvedAddressMessage("thalorna-creature-grkrahk");
         expect(message).toContain("thalorna-creature-grkrahk");
         expect(message).toMatch(/shortcode/);
-        expect(message).toMatch(/manifest/);
+        expect(message).toMatch(/deps fetch/);
     });
 
     it("names the claiming packages for an ambiguous address", () => {
@@ -204,9 +235,9 @@ describe("the checker fails an address that resolves to no note", () => {
         expect(r.deadAddresses[0]).toMatchObject({ reason: "not-an-address" });
     });
 
-    it("resolves an address one foreign manifest publishes", () => {
+    it("resolves an address one dependency's index publishes", () => {
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
-            "thalorna.json": packOnlyManifest("thalorna", "creature", "wolf", "Dire Wolf"),
+            thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
         });
         expect(r.deadAddresses).toEqual([]);
         expect([...r.usedManifest]).toEqual(["creature-wolf"]);
@@ -216,8 +247,8 @@ describe("the checker fails an address that resolves to no note", () => {
         // Not "no document has that identity" — two do, which is a different
         // mistake with a different fix: write the package-qualified form.
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
-            "thalorna.json": packOnlyManifest("thalorna", "creature", "wolf", "Dire Wolf"),
-            "kethira.json": packOnlyManifest("kethira", "creature", "wolf", "Grey Wolf"),
+            thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
+            kethira: [packOnlyRecord("kethira", "creature", "wolf", "Grey Wolf")],
         });
         expect(r.deadAddresses).toHaveLength(1);
         expect(r.deadAddresses[0]).toMatchObject({ reason: "ambiguous" });
@@ -226,8 +257,8 @@ describe("the checker fails an address that resolves to no note", () => {
 
     it("resolves the package-qualified form the ambiguity message asks for", () => {
         const r = audit(corpus("See [[thalorna-creature-wolf|a wolf]]."), {
-            "thalorna.json": packOnlyManifest("thalorna", "creature", "wolf", "Dire Wolf"),
-            "kethira.json": packOnlyManifest("kethira", "creature", "wolf", "Grey Wolf"),
+            thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
+            kethira: [packOnlyRecord("kethira", "creature", "wolf", "Grey Wolf")],
         });
         expect(r.deadAddresses).toEqual([]);
     });
@@ -257,11 +288,11 @@ describe("the pack build fails an address that resolves to no note", () => {
     it("reports an address two foreign packages both publish as ambiguous", () => {
         const foreign = new Map<string, object>([
             [
-                "thalorna-creature-wolf",
+                "thalorna-sohl-creature-wolf",
                 { name: "Dire Wolf", type: "creature", package: "thalorna", uuid: "C.a.b.Item.c" },
             ],
             [
-                "kethira-creature-wolf",
+                "kethira-sohl-creature-wolf",
                 { name: "Grey Wolf", type: "creature", package: "kethira", uuid: "C.a.b.Item.d" },
             ],
         ]);

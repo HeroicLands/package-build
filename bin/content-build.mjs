@@ -67,8 +67,16 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 import {
     fetchAllCatalogs,
     fetchCatalogFromPath,
+    fetchAllMetadata,
+    fetchMetadataFromPath,
     itemCatalogRelationships,
 } from "../engine/foreign-catalog.mjs";
+import {
+    metadataRelationships,
+    cachedIndexPath,
+    unaddressableForeignPackages,
+    formatUnaddressableFinding,
+} from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -97,7 +105,6 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import { emitLinkManifest } from "../engine/manifest-emit.mjs";
 import { emitContentIndex } from "../engine/content-index.mjs";
 import {
     buildSite,
@@ -123,10 +130,6 @@ import {
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
 import { walkMarkdownTree } from "../engine/helpers.mjs";
-import {
-    formatUnaddressableFinding,
-    unaddressableForeignPackages,
-} from "../engine/foreign-manifests.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -230,7 +233,6 @@ const argv = yargs(hideBin(process.argv))
     .command(linksCommand())
     .command(formatCommand())
     .command(markdownCommand())
-    .command(manifestCommand())
     .command(contentIndexCommand())
     .command(siteCommand())
     .command(reachabilityCommand())
@@ -708,17 +710,11 @@ function lintCommand() {
                 type: "boolean",
                 default: true,
             });
-            yargs.option("manifests", {
-                describe:
-                    "Directory of vendored foreign link manifests, for the reference check. Defaults to the configured `paths.manifests`.",
-                type: "string",
-            });
         },
         handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const root = argv.root ?? config.paths.content;
-                const manifestDir = argv.manifests ?? config.paths.manifests;
 
                 // The package is passed for the homepage rule (#52), which
                 // names the address a tree with no front page fails to serve.
@@ -730,7 +726,7 @@ function lintCommand() {
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
                 const index = buildLinkIndex(root, {
-                    manifestDir,
+                    config,
                     skipDirectories: config.skipDirectories,
                     sqlTables: await prepareTreeSqlTables(root, { config }),
                 });
@@ -1004,22 +1000,15 @@ function linksCommand() {
                 describe: "Content tree to check. Defaults to the configured contentBase.",
                 type: "string",
             });
-            yargs.option("manifests", {
-                describe:
-                    "Directory of vendored foreign link manifests. Defaults " +
-                    "to the configured `paths.manifests`.",
-                type: "string",
-            });
         },
         handler: async (argv) => {
             try {
                 const config = loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
-                const manifestDir = argv.manifests ?? config.paths.manifests;
 
                 const scope = { skipDirectories: config.skipDirectories };
                 const index = buildLinkIndex(contentBase, {
-                    manifestDir,
+                    config,
                     ...scope,
                     sqlTables: await prepareTreeSqlTables(contentBase, scope),
                 });
@@ -1030,12 +1019,12 @@ function linksCommand() {
                 if (index.foreign.stale.length) {
                     for (const s of index.foreign.stale) {
                         emitDiagnostic({
-                            file: path.join(manifestDir, `${s.package}.json`),
+                            file: cachedIndexPath(config, s.package),
                             severity: "error",
-                            message: `unusable link manifest: ${s.reason}`,
+                            message: `unusable content index: ${s.reason}`,
                         });
                     }
-                    log.error("Refresh the vendored copy from that package's own build.");
+                    log.error("Re-run `content-build deps fetch`.");
                     process.exitCode = 1;
                     return;
                 }
@@ -1046,7 +1035,7 @@ function linksCommand() {
                 const drifted = unaddressableForeignPackages(index.foreign.index);
                 if (drifted.length) {
                     for (const f of drifted) {
-                        console.error(formatUnaddressableFinding(f, manifestDir));
+                        console.error(formatUnaddressableFinding(f, config));
                     }
                     process.exitCode = 1;
                     return;
@@ -1126,77 +1115,6 @@ function linksCommand() {
                             `wikilink in frontmatter, every homepage address ` +
                             `resolvable.`,
                     );
-                }
-            } catch (err) {
-                reportFailure(err);
-                process.exitCode = 1;
-            }
-        },
-    };
-}
-
-/**
- * `content-build manifest` — emit this package's cross-package link manifest.
- *
- * The last capability the library exposed without a command (#58). Every
- * consumer that publishes a manifest had to write the walk, the address
- * derivation, the anchor pass and the entry assembly for itself, and the two
- * that did drifted apart: one routed its UUIDs through the pack router and one
- * did not, so a repository shipping several packs of a type published UUIDs
- * naming the wrong one.
- *
- * Takes no paths. The content tree, the output directory, the content and
- * Foundry package identities and the address scheme all come from
- * `package-build.config.yaml`; `[root]` and `--out` exist to point the same
- * derivation at a scratch tree, not because a build needs to name them.
- *
- * @returns {object} The yargs command module.
- */
-// eslint-disable-next-line
-function manifestCommand() {
-    return {
-        command: "manifest [root]",
-        describe: "Emit this package's cross-package link manifest",
-        builder: (yargs) => {
-            yargs.positional("root", {
-                describe: "Content tree to read. Defaults to the configured contentBase.",
-                type: "string",
-            });
-            yargs.option("out", {
-                describe:
-                    "Directory to write into. Defaults to the configured " + "`paths.manifestOut`.",
-                type: "string",
-            });
-        },
-        handler: (argv) => {
-            try {
-                const config = loadPackConfig();
-                const { written, notes, skipped } = emitLinkManifest({
-                    config,
-                    ...(argv.root ? { contentBase: argv.root } : {}),
-                    ...(argv.out ? { outDir: argv.out } : {}),
-                });
-
-                for (const { package: pkg, file, count } of written) {
-                    log.info(
-                        `${pkg} → ${path.relative(process.cwd(), file)} ` +
-                            `(${count} entries, from ${notes} addressable ` +
-                            `note(s))`,
-                    );
-                }
-
-                // Reported rather than fatal: a note with no address is
-                // ordinary — a template, a stub, a `doc` with no category —
-                // and failing the build on one would make the manifest
-                // unemittable for a reason that is not about the manifest.
-                // Silence is the thing to avoid, since a note that quietly
-                // lost its address becomes a dead link in every consumer.
-                for (const s of skipped) {
-                    emitDiagnostic({
-                        file: path.join(argv.root ?? config.paths.content, s.file),
-                        severity: "warning",
-                        message: `no address, so it is absent from the manifest: ${s.reason}`,
-                    });
                 }
             } catch (err) {
                 reportFailure(err);
@@ -1319,13 +1237,13 @@ function siteCommand() {
                 }
                 for (const s of gates.staleManifests) {
                     emitDiagnostic({
-                        file: path.join(loadPackConfig().paths.manifests, `${s.package}.json`),
+                        file: cachedIndexPath(loadPackConfig(), s.package),
                         severity: "error",
-                        message: `unusable link manifest: ${s.reason}`,
+                        message: `unusable content index: ${s.reason}`,
                     });
                 }
                 for (const f of gates.unaddressable) {
-                    console.error(formatUnaddressable(f, loadPackConfig().paths.manifests));
+                    console.error(formatUnaddressable(f, loadPackConfig()));
                 }
                 for (const c of gates.conflicts) {
                     log.error(`address ${c.key} is also published by ${c.package}`);
@@ -1373,20 +1291,6 @@ function siteCommand() {
                 if (result.tableErrors.length || result.wikiErrors.length) {
                     process.exitCode = 1;
                     return;
-                }
-
-                if (result.manifests && !result.manifests.complete) {
-                    // Not a softening any more (#184): an address into one of
-                    // these packages fails like any other that resolves
-                    // nowhere. The warning names them so an author meeting that
-                    // failure knows the fix may be to vendor a manifest rather
-                    // than to correct a shortcode.
-                    log.warn(
-                        `no link manifest vendored for ` +
-                            `${result.manifests.missing.join(", ")} — an ` +
-                            `address into one of those packages resolves ` +
-                            `nowhere and fails the build.`,
-                    );
                 }
 
                 const s = result.stats;
@@ -1499,8 +1403,14 @@ function reachabilityCommand() {
 
 // eslint-disable-next-line
 /**
- * `deps fetch` — fill the item-catalogue cache for every dependency that
- * declares `itemCatalog: true`.
+ * `deps fetch` — fill the caches this build resolves other packages through:
+ * the **content index** of every declared dependency (#239), and the **item
+ * catalogue** of those additionally declaring `itemCatalog: true`.
+ *
+ * The two sets differ deliberately. Citing another package's *addresses* and
+ * embedding its *items* are separate edges, and a package may have either
+ * without the other — `harn-ensemble` cites no foreign address and embeds
+ * 324,016 item references.
  *
  * Its own command rather than a step of `package compile`, so that a compile
  * never reaches the network. A build that downloads silently is not
@@ -1524,7 +1434,11 @@ function reachabilityCommand() {
  * @returns {Promise<void>}
  */
 async function fetchFromLocalArtifact(config, argv) {
-    const rels = itemCatalogRelationships(config);
+    // Two caches, two dependency sets: an index is fetched for every declared
+    // dependency, a catalogue only for those declaring `itemCatalog: true`
+    // (#239). `--from` fills whichever of them this dependency belongs to, so
+    // that testing against an unreleased build behaves like a release would.
+    const rels = metadataRelationships(config);
     const named = rels.map((r) => r.id).join(", ") || "none";
     const rel =
         argv.id ? rels.find((r) => r.id === argv.id)
@@ -1535,11 +1449,14 @@ async function fetchFromLocalArtifact(config, argv) {
         // config is the only place that says which those are.
         throw new Error(
             argv.id ?
-                `no dependency "${argv.id}" declares \`itemCatalog: true\` (declared: ${named})`
-            :   `--from needs --id when several dependencies declare \`itemCatalog: true\` (declared: ${named})`,
+                `no declared dependency "${argv.id}" (declared: ${named})`
+            :   `--from needs --id when a package declares several dependencies (declared: ${named})`,
         );
     }
-    await fetchCatalogFromPath(config, rel, argv.from);
+    await fetchMetadataFromPath(config, rel, argv.from);
+    if (itemCatalogRelationships(config).some((r) => r.id === rel.id)) {
+        await fetchCatalogFromPath(config, rel, argv.from);
+    }
 }
 
 function depsCommand() {
@@ -1565,7 +1482,7 @@ function depsCommand() {
             yargs.option("id", {
                 describe:
                     "Which declared dependency `--from` supplies. Only needed " +
-                    "when more than one declares `itemCatalog: true`.",
+                    "when a package declares more than one.",
                 type: "string",
             });
         },
@@ -1576,8 +1493,11 @@ function depsCommand() {
                     await fetchFromLocalArtifact(config, argv);
                     return;
                 }
+                const indexes = await fetchAllMetadata(config);
+                if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);
                 if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
+                if (!indexes && !count) log.info("This package declares no dependencies.");
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

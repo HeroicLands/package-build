@@ -16,10 +16,12 @@
  * carries.
  *
  * Foundry installs a package by fetching the `download` URL its manifest
- * advertises, so a release publishes exactly two assets: `<artifact>.zip`, the
- * whole staged tree, and `<artifact>.json` beside it, which is what an already
- * installed package re-fetches to notice a new version. Both names are fixed by
- * what the manifest says, not chosen here — see `manifest.mjs`.
+ * advertises, so a release publishes `<artifact>.zip`, the whole staged tree,
+ * and `<artifact>.json` beside it, which is what an already installed package
+ * re-fetches to notice a new version. A package that ships content publishes a
+ * third: the content index other packages resolve its addresses through (#239),
+ * named by the `flags.metadataUrl` the manifest advertises. Every name is fixed
+ * by what the manifest says, not chosen here — see `manifest.mjs`.
  *
  * Kept apart from `stage.mjs` because this is the only part of assembling a
  * package that needs a dependency. A repository that never cuts a release from
@@ -53,9 +55,12 @@ import { ZipArchive } from "archiver";
  * @param {string} [opts.outDir] - Where the release assets are written.
  * @param {"system"|"module"} [opts.artifact] - Which artifact is shipped.
  *   Determines both asset names.
- * @returns {Promise<{zip: string, manifest: string, bytes: number,
- *   version: string}>} The two paths written, the archive's size, and the
- *   version the manifest declares.
+ * @param {string} [opts.metadataDir] - Where the build writes its content
+ *   index, consulted when the advertised file was not staged.
+ * @returns {Promise<{zip: string, manifest: string, metadata?: string,
+ *   bytes: number, version: string}>} The paths written, the archive's size,
+ *   and the version the manifest declares. `metadata` is absent when the
+ *   manifest advertises no content index.
  * @throws {Error} When the stage has no manifest — there is nothing to release,
  *   and an archive without one installs as nothing.
  */
@@ -63,6 +68,7 @@ export async function packRelease({
     stageDir = "build/stage",
     outDir = "build/dist",
     artifact = "system",
+    metadataDir = "build/content-index",
 } = {}) {
     const stage = path.resolve(stageDir);
     const out = path.resolve(outDir);
@@ -104,10 +110,59 @@ export async function packRelease({
 
     await fsp.copyFile(stagedManifest, path.join(out, manifestName));
 
+    const metadata = await publishMetadataIndex({ manifest, stage, out, metadataDir });
+
     return {
         zip: zipPath,
         manifest: path.join(out, manifestName),
+        ...(metadata ? { metadata } : {}),
         bytes: archive.pointer(),
         version: manifest.version,
     };
+}
+
+/**
+ * Place the content index the manifest advertises beside the archive (#239).
+ *
+ * **The asset's name comes from the manifest, not from here.** `flags.metadataUrl`
+ * is the URL every consumer fetches, so its basename is by definition the name
+ * the file has to be published under — deriving it a second time would let the
+ * two disagree, and a release whose asset is named differently from its
+ * advertised URL fails at the consumer, not here.
+ *
+ * A manifest that advertises no index publishes none: a package with no content
+ * tree has nothing to index, and is perfectly releasable. But a manifest that
+ * *does* advertise one and cannot produce it is a build error. The alternative
+ * is a release that promises an index it does not carry, whose symptom is a
+ * dead cross-package link in somebody else's build weeks later — the silent
+ * failure the vendored manifest was replaced to end.
+ *
+ * @param {object} opts
+ * @param {object} opts.manifest - The parsed staged manifest.
+ * @param {string} opts.stage - The staged tree.
+ * @param {string} opts.out - Where release assets are written.
+ * @param {string} opts.metadataDir - Where the build writes its index, tried
+ *   when the file was not staged.
+ * @returns {Promise<string|undefined>} The published path, or nothing when the
+ *   manifest advertises no index.
+ * @throws {Error} When one is advertised and no file backs it.
+ */
+async function publishMetadataIndex({ manifest, stage, out, metadataDir }) {
+    const url = manifest.flags?.metadataUrl;
+    if (!url) return undefined;
+
+    const name = path.basename(new URL(url, "https://example.invalid").pathname);
+    const candidates = [path.join(stage, name), path.resolve(metadataDir, name)];
+    const found = candidates.find((c) => fs.existsSync(c));
+    if (!found) {
+        throw new Error(
+            `the manifest advertises ${name} as \`flags.metadataUrl\` but no such ` +
+                `file exists — looked in ${candidates.join(" and ")}. Build the ` +
+                `content index before packing the release.`,
+        );
+    }
+
+    const dest = path.join(out, name);
+    await fsp.copyFile(found, dest);
+    return dest;
 }

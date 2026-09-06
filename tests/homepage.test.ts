@@ -36,7 +36,8 @@ import {
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { buildSite, collectContentPages } from "../engine/site-build.mjs";
-import { manifestContext, emitLinkManifest } from "../engine/manifest-emit.mjs";
+import { entryContext } from "../engine/foundry-entries.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
 
 let root: string;
 
@@ -117,7 +118,6 @@ function configFor(
         site: { out: "out" },
         publish: {
             site: "content",
-            manifests: { publish: true, consume: true },
             address: { prefix: "kb/" },
         },
         ...overrides,
@@ -227,14 +227,15 @@ name:
         expect(page).toContain("the module's front page");
     });
 
-    it("compiles into no compendium document, so it is absent from the manifest", () => {
-        const config = configFor();
-        const outDir = path.join(root, "manifest-out");
-        const { entries } = emitLinkManifest({ config, outDir });
-        expect(entries).toBeGreaterThan(0);
-        const written = JSON.parse(fs.readFileSync(path.join(outDir, "demo.json"), "utf8"));
-        const keys = Object.keys(written.entries ?? written);
-        expect(keys.some((k) => k.includes(HOMEPAGE_TYPE))).toBe(false);
+    it("compiles into no compendium document, so it carries no Foundry address", () => {
+        const records = indexRecordsFor({ config: configFor() });
+        expect(records.length).toBeGreaterThan(0);
+
+        const homepage = records.find((r: any) => r.type === HOMEPAGE_TYPE);
+        // It is indexed — it publishes a page, and a page is citable — but it
+        // states no `foundry` block, because there is no document to address.
+        expect(homepage).toBeDefined();
+        expect(homepage.foundry).toBeNull();
     });
 });
 
@@ -294,8 +295,8 @@ describe("`publish.site` distinguishes homepage-only from content (#55)", () => 
     });
 
     it("records a web address on manifest entries only in content mode", () => {
-        expect(manifestContext(configFor()).web).toBe(true);
-        expect(manifestContext(configFor({ publish: { site: "homepage" } })).web).toBe(false);
+        expect(entryContext(configFor()).web).toBe(true);
+        expect(entryContext(configFor({ publish: { site: "homepage" } })).web).toBe(false);
     });
 });
 
@@ -306,7 +307,6 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             site: { out: "out-homepage-only" },
             publish: {
                 site: "homepage",
-                manifests: { publish: false, consume: true },
                 address: { prefix: "kb/" },
             },
         });
@@ -335,7 +335,6 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             },
             publish: {
                 site: "homepage",
-                manifests: { publish: false, consume: true },
                 address: { prefix: "kb/" },
             },
         });
