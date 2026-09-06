@@ -182,16 +182,21 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
  * @throws {Error} When the map is malformed or names an unknown standing.
  */
 export function resolveRelation(fm, ctx = "item") {
-    const entries = readMapEntries(fm, "relation");
+    // `relations` is the field's name; `relation` is the retired spelling, read
+    // underneath it so a tree converts on its own schedule (SoHL#1781). The
+    // current name wins wherever a note writes both, and the lint reports the
+    // old one through {@link RETIRED_FIELD_ALIASES}.
+    const key = sohlField(fm, "relations", undefined) == null ? "relation" : "relations";
+    const entries = readMapEntries(fm, key);
     if (entries === null) {
-        throw new Error(`${ctx}: relation must be a map of shortcode → standing`);
+        throw new Error(`${ctx}: ${key} must be a map of shortcode → standing`);
     }
     const out = {};
     for (const [code, value] of entries) {
         const standing = String(value);
         if (!AFFILIATION_STANDINGS.includes(standing)) {
             throw new Error(
-                `${ctx}: relation["${code}"] must be one of ${AFFILIATION_STANDINGS.join(", ")}, got "${value}"`,
+                `${ctx}: ${key}["${code}"] must be one of ${AFFILIATION_STANDINGS.join(", ")}, got "${value}"`,
             );
         }
         out[code] = standing;

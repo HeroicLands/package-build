@@ -64,3 +64,39 @@ describe("resolveRelation (pack builder — affiliation standing map, #1404)", (
         expect(() => resolveRelation({ relation: "peoni" }, "Agrik")).toThrow(/map of shortcode/);
     });
 });
+
+describe("resolveRelation — `relation` is the retired spelling of `relations` (SoHL#1781)", () => {
+    it("reads the current name", () => {
+        expect(resolveRelation({ sohl: { relations: { peoni: "nemesis" } } })).toEqual({
+            peoni: "nemesis",
+        });
+    });
+
+    it("still reads the retired one, so a tree converts on its own schedule", () => {
+        expect(resolveRelation({ sohl: { relation: { peoni: "nemesis" } } })).toEqual({
+            peoni: "nemesis",
+        });
+    });
+
+    it("lets the current name win where a note writes both", () => {
+        expect(
+            resolveRelation({
+                sohl: { relations: { peoni: "aligned" }, relation: { peoni: "nemesis" } },
+            }),
+        ).toEqual({ peoni: "aligned" });
+    });
+
+    it("names the spelling the note actually used when the map is malformed", () => {
+        expect(() => resolveRelation({ sohl: { relation: "nonsense" } }, "affiliation")).toThrow(
+            /relation must be a map/,
+        );
+        expect(() => resolveRelation({ sohl: { relations: "nonsense" } }, "affiliation")).toThrow(
+            /relations must be a map/,
+        );
+    });
+
+    it("reads the empty list Obsidian writes for a cleared map under either spelling", () => {
+        expect(resolveRelation({ sohl: { relations: [] } })).toEqual({});
+        expect(resolveRelation({ sohl: { relation: [] } })).toEqual({});
+    });
+});
