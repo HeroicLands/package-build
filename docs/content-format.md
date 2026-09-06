@@ -358,6 +358,58 @@ The id spelling never noticed: it was passed across packs verbatim and validated
 nowhere, so the journal simply carried a folder reference its pack could not
 honour.
 
+#### The knowledgebase category
+
+`kbcat` names the group a note is listed under on the knowledgebase and the
+website. It is written in the system block:
+
+```yaml
+sohl:
+  kbcat: poisontoxin
+```
+
+**It compiles into no document.** No pack compiler reads it and no `system`
+field receives it. It reaches a published page because a note's frontmatter is
+copied onto that page, where a list layout groups by `sohl.kbcat` — so `kbcat`
+is the one key in this section that answers _where does this appear_ for the
+web rather than for Foundry. `pack` and `packFolder` place a document in a
+compendium; `kbcat` places a page in a list.
+
+That is also why it is specified here rather than in a type's table. A type's
+fields say what the **builder** compiles, and `kbcat` is never compiled — but
+what a note **may write** is broader than what any one consumer reads, and a
+check that equated the two reported thousands of correctly authored properties
+as unknown.
+
+**It is editorial, and deliberately independent of `subType`.** The two are not
+alternative spellings of one classification and neither is derived from the
+other. `kbcat` both _subdivides_ a subtype — `trauma`/`physcond` is listed as
+`physdisability`, `physfeature` or `physprivations` — and _renames_ one for
+display, as `trauma`/`fear` listed under `phobias`. Most notes that carry a
+`kbcat` declare no `subType` at all. So the two are stated separately where both
+apply, and a reviewer should not read a disagreement between them as an error.
+
+**The value is free-form, and nothing validates it.** There is no configured
+list of categories. The frontmatter check knows `kbcat` is a key every type may
+write and says nothing whatever about its value. A layout supplies display
+titles and an explicit order for the values it knows about, and appends any
+other value as its own group, titled by humanizing it.
+
+The consequence is worth stating plainly, because it is the failure mode this
+key has: **a misspelled category is not a build error and is not dropped — it
+silently becomes a group of one**, sorted in after the known ones.
+
+**A note that writes none is dropped from the list entirely.** Grouping is by
+the key, so a page carrying no value falls in no group and is absent from the
+list page — not listed last, not listed under a fallback heading, absent, with
+nothing reported at either build. Every note of a listed type in SoHL's tree
+carries one today, and nothing in this package enforces that; the content index
+is where the question _which notes carry no `kbcat`?_ is answered.
+
+**It is also what a content table sections on.** `sohl.kbcat AS _section` in a
+`sql` fence is the ordinary case of _Content tables_ below, and the same
+free-form value decides the headings there.
+
 ### WikiLinks
 
 Twenty-seven fields in the tables below take a `WikiLink`, and a link is written
