@@ -1,0 +1,109 @@
+#!/usr/bin/env sh
+#
+# Before pushing, run exactly what the Build & Test workflow runs — in a
+# container, over a clean export of HEAD — so a red GitHub check is something
+# you chose rather than something you discover.
+#
+# The steps are not listed here. `utils/ci-steps.mjs` reads them out of
+# `.github/workflows/build.yml`, because a hook holding its own copy of the
+# command list is a second statement of one thing, and the copy is the one that
+# goes stale — silently, since running four of five steps still exits 0.
+#
+# **On push rather than at `gh pr create`**, because a push is where this
+# repository's work reaches GitHub: normally one, just before the pull request.
+# Nothing to remember, no wrapper command, and no entry in package.json — the
+# hook is the whole mechanism.
+#
+# **In a container rather than on this machine**, which is not the obvious
+# choice until you time it. The workflow's first step is `npm ci`, so a local
+# run costs very nearly what the container costs (134s measured, cold) — and it
+# pays that by deleting and reinstalling your working tree's `node_modules`
+# every time. The container runs a `git archive` of HEAD instead: same price,
+# nothing of yours touched, plus the three classes this machine cannot catch —
+# a dirty environment, a case-sensitive filesystem, and the runner's own
+# architecture. It runs `linux/amd64` to match the runner, which costs nothing
+# measurable because Docker Desktop translates it with Rosetta rather than
+# QEMU; `ci/ci-docker.mjs` carries the timings and the `--native` opt-out.
+#
+# This hook ships in `@heroiclands/package-build`. A consuming repository points
+# git at it once, in its package.json "prepare" script:
+#
+#     git config core.hooksPath node_modules/@heroiclands/package-build/githooks
+#
+# so the hooks are the package's, not a copy per repository — there were twenty
+# copies of four identical files before this moved.
+#
+# **Off by default.** Turn it on where you want it:
+#
+#     git config hooks.prePushCi true            this clone
+#     git config --global hooks.prePushCi true   every repository on this machine
+#
+# **Docker is not required even then.** Without it the check reports that it
+# could not run, says so loudly, and lets the push through — the workflow itself
+# is what enforces this, and a contributor without Docker is still entitled to
+# open a pull request. First run pulls the image (~400MB), once.
+#
+# Skipping it once, when enabled: git push --no-verify
+#
+# Deleting a remote branch pushes no commits, so there is nothing to check and
+# the hook stands aside.
+
+# **Off unless asked for.** This runs a container for a couple of minutes, and
+# it ships to every repository that installs this package — so it cannot be
+# something a contributor discovers by having their push get slow. Opting in is
+# a deliberate act by whoever wants the check.
+#
+# Read with git's normal precedence, so `--global` opts a machine in and a plain
+# `git config` opts in one clone (and every worktree of it).
+#
+# Silent when off: a message on every push, to everyone who never asked for
+# this, is noise.
+. "$(dirname "$0")/hook-enabled.sh"
+
+hook_enabled prePushCi false || exit 0
+
+# Read the ref list on stdin; a delete has an all-zero local sha.
+has_commits=""
+while read -r _local_ref local_sha _remote_ref _remote_sha; do
+    case "$local_sha" in
+        *[!0]*) has_commits="yes" ;;
+    esac
+done
+if [ -z "$has_commits" ]; then
+    exit 0
+fi
+
+echo "pre-push: running the Build & Test workflow in a container over HEAD."
+echo "pre-push: to skip once, push with --no-verify."
+
+# The runner lives beside this hook inside the package. If it is not there,
+# this hook is being used from somewhere else — a global `core.hooksPath`, a
+# copy — in a repository that does not install the package. Nothing to run, and
+# certainly nothing to refuse a push over.
+runner="$(dirname "$0")/../ci/ci-docker.mjs"
+if [ ! -f "$runner" ]; then
+    echo "pre-push: no workflow runner alongside this hook; skipping the check."
+    exit 0
+fi
+
+node "$runner"
+status=$?
+
+# 2 means the check could not run — no Docker — which is not the same as a
+# failure and must not stop the push. Whoever is pushing may not be the
+# maintainer, may be on a machine without Docker, and is entitled to open a
+# pull request; GitHub is what enforces the workflow. Said loudly, though: a
+# skipped check that reads like a passed one is how a guard loses its meaning.
+# 127 is "could not execute it at all" — no node on PATH, package not
+# installed. Infrastructure, not a verdict, so it is handled the same way.
+if [ "$status" -eq 2 ] || [ "$status" -eq 127 ]; then
+    echo ""
+    echo "pre-push: pushing WITHOUT having checked the workflow locally."
+    exit 0
+fi
+
+if [ "$status" -ne 0 ]; then
+    echo ""
+    echo "pre-push: refusing to push — GitHub would report the same failure."
+    exit 1
+fi

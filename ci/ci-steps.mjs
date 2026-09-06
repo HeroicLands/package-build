@@ -1,0 +1,249 @@
+/*
+ * This file is part of the Song of Heroic Lands (SoHL) system for Foundry VTT.
+ * Copyright (c) 2024-2026 Tom Rodriguez ("Toasty") — <toasty@heroiclands.org>
+ *
+ * This work is licensed under the GNU General Public License v3.0 (GPLv3).
+ * You may copy, modify, and distribute it under the terms of that license.
+ *
+ * For full terms, see the LICENSE.md file in the project root or visit:
+ * https://www.gnu.org/licenses/gpl-3.0.html
+ *
+ * SPDX-License-Identifier: GPL-3.0-or-later
+ */
+
+/**
+ * Run, locally, exactly what the Build & Test workflow runs.
+ *
+ * **The workflow is the statement; this reads it.** A hook holding its own copy
+ * of the command list is a second statement of one thing, and the copy is the
+ * one that goes stale — silently, because a pre-push check that runs four of
+ * five steps still exits 0. So the steps are parsed out of
+ * `.github/workflows/build.yml` at run time and there is nothing to keep in
+ * step.
+ *
+ * **It refuses rather than assumes.** If the workflow's shape changes so that
+ * no `run:` steps are found, this fails loudly instead of passing having done
+ * nothing. A guard that quietly covers nothing is worse than no guard, because
+ * it is trusted.
+ *
+ * **What it cannot run**, and says so: a `uses:` step is a published action, not
+ * a command — the forbidden-marker check, the coverage upload. Those stay
+ * GitHub's to run, and the summary names them so the gap is visible rather than
+ * assumed away.
+ *
+ * **It parses the workflow itself rather than importing a YAML library**, for a
+ * reason that is easy to miss: the *first* step it has to run is `npm ci`, so
+ * anything this script imports from `node_modules` is unavailable exactly when
+ * it is needed — on a fresh clone, or in a worktree that has never been
+ * installed. The parser is therefore deliberately small, and strict: it reads
+ * `run:` scalars and `run: |` blocks by indentation and refuses when it
+ * recognises nothing.
+ *
+ * @module
+ */
+
+import fs from "node:fs";
+import path from "node:path";
+import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
+
+/**
+ * The repository whose workflow is being run — the working directory, not this
+ * file's package.
+ *
+ * This ships in `@heroiclands/package-build` and runs against whichever
+ * repository invoked it: from a hook, git sets the working directory to the
+ * repository root; in the container, it is the mounted export. Resolving
+ * relative to `import.meta.url` would find the *package's* own tree, which is
+ * never the one under test.
+ */
+const ROOT = process.cwd();
+
+/**
+ * Exit status meaning *there was nothing to check*, as distinct from *the check
+ * failed*. Mirrors the same constant in `ci-docker.mjs`.
+ */
+export const UNAVAILABLE = 2;
+const WORKFLOW_DIR = path.join(ROOT, ".github/workflows");
+
+/**
+ * The workflow's steps, split into what can be run here and what cannot.
+ *
+ * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} The
+ *   `run:` steps in workflow order, and the names of the `uses:` steps.
+ * @throws {Error} When the workflow cannot be read or declares no `run:` step.
+ */
+export function ciSteps() {
+    const files = prTriggeredWorkflows();
+    if (!files.length) {
+        throw new NoWorkflow(
+            `no workflow under .github/workflows is triggered by \`pull_request\`, ` +
+                `so there is nothing here that a pull request would run.`,
+        );
+    }
+    const run = [];
+    const skipped = [];
+    for (const file of files) {
+        const found = stepsIn(file);
+        run.push(...found.run);
+        skipped.push(...found.skipped);
+    }
+    if (!run.length) {
+        throw new Error(
+            `${files.map((f) => path.relative(ROOT, f)).join(", ")} declare no ` +
+                `\`run:\` steps — either their shape changed or they are entirely ` +
+                `composed of actions. Refusing to report success having run nothing.`,
+        );
+    }
+    return { run, skipped, files };
+}
+
+/**
+ * Raised when the repository has no workflow a pull request would run.
+ *
+ * Distinguished from a parse failure because the two deserve opposite answers:
+ * a repository that simply has no such workflow is not broken and its pushes
+ * must not be refused, while one whose workflow stopped parsing is a defect in
+ * this parser that should be loud.
+ */
+export class NoWorkflow extends Error {}
+
+/**
+ * Every workflow a pull request would run.
+ *
+ * `pull_request` appearing before the first `jobs:` key is the test — it is the
+ * trigger block, and these files put it there. Deliberately not a YAML parse:
+ * see the module note on why this cannot import a library.
+ *
+ * @returns {string[]} Absolute paths, in directory order.
+ */
+function prTriggeredWorkflows() {
+    let names;
+    try {
+        names = fs.readdirSync(WORKFLOW_DIR).filter((n) => /\.ya?ml$/i.test(n));
+    } catch {
+        return [];
+    }
+    return names
+        .map((name) => path.join(WORKFLOW_DIR, name))
+        .filter((file) => {
+            const text = fs.readFileSync(file, "utf8");
+            const head = text.split(/^jobs:/m)[0];
+            return /^\s*pull_request:?\s*$/m.test(head) || /^on:.*pull_request/m.test(head);
+        });
+}
+
+/**
+ * The `run:` and `uses:` steps of one workflow.
+ *
+ * @param {string} file - The workflow.
+ * @returns {{run: Array<{name: string, run: string}>, skipped: string[]}} Its steps.
+ */
+function stepsIn(file) {
+    const lines = fs.readFileSync(file, "utf8").split("\n");
+    const run = [];
+    const skipped = [];
+    /** The most recent `- name:` seen, which labels whatever step follows. */
+    let name = null;
+
+    const indentOf = (line) => line.length - line.trimStart().length;
+
+    for (let i = 0; i < lines.length; i += 1) {
+        const line = lines[i];
+        const text = line.trim();
+        if (text.startsWith("#") || text === "") continue;
+
+        const named = /^-?\s*name:\s*(.+)$/.exec(text);
+        if (named) {
+            name = named[1].replace(/^["']|["']$/g, "");
+            continue;
+        }
+        if (/^-?\s*uses:\s*\S/.test(text)) {
+            skipped.push(name ?? text.replace(/^-?\s*uses:\s*/, ""));
+            name = null;
+            continue;
+        }
+
+        const inline = /^-?\s*run:\s*(?!\|)(.+)$/.exec(text);
+        if (inline) {
+            run.push({ name: name ?? inline[1], run: inline[1].trim() });
+            name = null;
+            continue;
+        }
+        // A `run: |` block scalar: every following line indented deeper.
+        if (/^-?\s*run:\s*\|\s*$/.test(text)) {
+            const base = indentOf(line);
+            const body = [];
+            while (i + 1 < lines.length) {
+                const next = lines[i + 1];
+                if (next.trim() !== "" && indentOf(next) <= base) break;
+                body.push(next.trim());
+                i += 1;
+            }
+            const command = body.filter(Boolean).join(" && ");
+            if (command) run.push({ name: name ?? command, run: command });
+            name = null;
+        }
+    }
+    return { run, skipped };
+}
+
+/**
+ * Run every step, stopping at the first failure.
+ *
+ * Stopping is deliberate and mirrors the runner: a later step routinely depends
+ * on an earlier one having produced something.
+ *
+ * @returns {number} The exit code to leave with.
+ */
+function main() {
+    let steps;
+    try {
+        steps = ciSteps();
+    } catch (err) {
+        // A repository with no pull-request workflow is not broken, and its
+        // pushes must not be refused — it simply has nothing for this to check.
+        // Distinguished from a parse failure, which is a defect here and stays
+        // loud.
+        if (err instanceof NoWorkflow) {
+            console.error(`ci-steps: ${err.message}`);
+            return UNAVAILABLE;
+        }
+        console.error(`ci-steps: ${err.message}`);
+        return 1;
+    }
+
+    const { run, skipped } = steps;
+    console.log(`ci-steps: running ${run.length} step(s) from .github/workflows/build.yml`);
+    if (skipped.length) {
+        console.log(`ci-steps: not runnable here (published actions): ${skipped.join(", ")}`);
+    }
+
+    for (const [i, step] of run.entries()) {
+        console.log(`\nci-steps: [${i + 1}/${run.length}] ${step.name}\n  $ ${step.run}`);
+        const result = spawnSync(step.run, { cwd: ROOT, shell: true, stdio: "inherit" });
+        if (result.status !== 0) {
+            console.error(
+                `\nci-steps: FAILED at "${step.name}" — this is what GitHub would report.\n` +
+                    `  Fix it, or push with --no-verify if you mean to.`,
+            );
+            return result.status ?? 1;
+        }
+    }
+    console.log(`\nci-steps: all ${run.length} step(s) passed.`);
+    return 0;
+}
+
+// Compared as *real* paths: a consumer reaches this through
+// `node_modules/@heroiclands/package-build`, which npm may make a symlink, and
+// `import.meta.url` is symlink-resolved while `process.argv[1]` is not. Comparing
+// them raw makes the module exit 0 having done nothing — silently, which is the
+// worst way for a check to fail.
+const invokedDirectly = (() => {
+    try {
+        return fs.realpathSync(process.argv[1]) === fs.realpathSync(fileURLToPath(import.meta.url));
+    } catch {
+        return false;
+    }
+})();
+if (invokedDirectly) process.exit(main());
