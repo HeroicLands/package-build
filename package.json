@@ -1,6 +1,6 @@
 {
     "name": "@heroiclands/package-build",
-    "version": "17.2.0",
+    "version": "18.0.0",
     "description": "Shared toolchain for building and shipping a HeroicLands Foundry VTT package — content compilation, manifest, localization, staging, bundle, release and deployment.",
     "license": "GPL-3.0-or-later",
     "type": "module",
