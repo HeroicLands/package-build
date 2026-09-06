@@ -1992,28 +1992,67 @@ A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT
 | --------------- | ------------ | ------------------------------------------------------ |
 | `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
 
-**The note's system blocks decide how many Adventures it makes**, exactly as they
-do for every other type:
-
-- With **no** system block, one Adventure is written, holding only the `contents`
-  that are themselves of system `none`.
-- With **one or more**, one Adventure is written **per system**, each holding
-  every `none` document plus that system's own. A document of neither is
-  silently left out.
-
-Each Adventure is written to the pack the note's `pack` names — the shared
-routing field every type uses, not one of the bundle's own — except that it
-defaults to `adventures` rather than to the configured default pack.
-`<system>.pack` overrides it for that system, as it does everywhere else.
+```yaml
+---
+type: bundle
+shortcode: hegovynvale
+name:
+  full: The Hegóvyn Vale
+data:
+  contents:
+    - map-hegovynvale
+    - miscgear-bowlcer
+    - being-aurochs
+---
+Prose describing what the bundle is for.
+```
 
 An `Adventure` carries **copies** of what it holds, not references: importing one
 creates or updates each document in the world, after which they live
 independently. So a bundle is not a folder — a folder is a live grouping that
 persists in the pack.
 
-Note that an `Adventure` has no `system` field of its own. A bundle spanning two
-systems therefore cannot be one document that knows it spans them; it is one
-Adventure per system, and the pack each is written to is what carries the system.
+**Each address names the note's own document.** That is the same rule `pack:`
+follows, so there is one answer and not two. A note that compiles into _two_
+documents — an item and the JournalEntry its prose became — puts the second in a
+bundle only when the bundle names it by its own `doc…` address:
+`miscgear-bowlcer` is the item, `docmiscgear-bowlcer` its description page.
+
+**An address that resolves to nothing fails the build.** A `folder` address is
+refused with a message of its own: a folder materialises in every pack holding
+something filed in it, so it belongs to no one pack and there is no single copy
+to take.
+
+**The note's prose becomes the Adventure's `description`**, which is what
+Foundry renders on the import card. A bundle is something you hand someone, so
+its prose belongs on the document itself — which is why, unlike an item, a
+bundle earns no separate documentation journal.
+
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — defaulting to the
+configured `Adventure` pack, conventionally `adventures`. `<system>.pack`
+overrides it for that system, as it does everywhere else.
+
+**It cannot be the `adventures` companion**, though, where a repository also
+compiles map notes: that pack is written by the scenes pass, and a companion is
+written by its parent pass rather than routed to. A repository that authors
+bundles declares an Adventure pack of its own, and one that declares none is
+told so by name.
+
+**A pack's `system:` constrains what its Adventures may hold.** An `Adventure`
+has no `system` field, so a bundle spanning two systems cannot be one document
+that knows it spans them: it is one Adventure per system, and the pack each is
+written to is what carries the system. A pack declaring `system: hm3` sees the
+HM3 packs and the system-neutral ones, so a member that publishes no HM3
+document is **left out rather than failing** — and named, because an installer
+that quietly ships half its contents is worse than one that fails. A pack
+declaring no system scopes nothing away, and a member it cannot find is a dead
+address.
+
+**The bundles pass runs last**, after every pass producing what a bundle can
+hold — Item, Actor, JournalEntry, Macro and Scene. That ordering is derived from
+what the pass declares it reads, not from the order `packs:` happens to list, so
+an Adventure pack declared first still compiles last.
 
 ### type: folder
 

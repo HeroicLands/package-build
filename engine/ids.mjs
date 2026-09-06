@@ -105,6 +105,12 @@ export const PACK_BY_TYPE = Object.freeze({
     ),
     macro: { pack: "macros", docType: "Macro" },
     being: { pack: "actors", docType: "Actor" },
+    // A bundle is Foundry's `Adventure` — a set of document *copies* packaged
+    // for one-shot import (#259). The conventional name is `adventures`, which
+    // is also what the scenes pass calls its **companion**; the two are
+    // different packs and a repository shipping both names them apart, since
+    // the router refuses a note that addresses a companion.
+    bundle: { pack: "adventures", docType: "Adventure" },
     ...Object.fromEntries(
         [...MAP_TYPES].map((type) => [type, { pack: "scenes", docType: "Scene" }]),
     ),

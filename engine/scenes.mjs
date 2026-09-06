@@ -60,6 +60,10 @@ import {
     folderField,
 } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
+// What an Adventure member may carry is one rule, and the module that owns the
+// Adventure states it: the scenes pass bundles its pinned places, and the
+// bundles pass compiles a note into one (#259).
+import { stripAdventureKeys } from "./bundle-notes.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
@@ -115,28 +119,6 @@ export function collectKnownActionNames(repoRoot) {
     };
     if (fs.existsSync(srcRoot)) walk(srcRoot);
     return names;
-}
-
-/**
- * Strip the LevelDB keys from a document tree.
- *
- * An Adventure's members are inline source data in a `SetField`, not sublevel
- * documents, so they carry no `_key` — the CLI's hierarchy does not recurse
- * into an adventure, and Foundry's schema has no such field to hold it.
- *
- * @param {*} value - A document, array, or scalar.
- * @returns {*} The same shape with every `_key` removed.
- */
-function stripKeys(value) {
-    if (Array.isArray(value)) return value.map(stripKeys);
-    if (value && typeof value === "object") {
-        return Object.fromEntries(
-            Object.entries(value)
-                .filter(([k]) => k !== "_key")
-                .map(([k, v]) => [k, stripKeys(v)]),
-        );
-    }
-    return value;
 }
 
 export class Scenes extends BasePackCompiler {
@@ -470,8 +452,8 @@ export class Scenes extends BasePackCompiler {
             });
         }
         const place = this.places.get(placeKey);
-        place.scenes.push(stripKeys(scene));
-        if (journal) place.journal.push(stripKeys(journal));
+        place.scenes.push(stripAdventureKeys(scene));
+        if (journal) place.journal.push(stripAdventureKeys(journal));
         if (Object.keys(fm.sohl?.locations ?? {}).length) {
             place.pinned = true;
         }

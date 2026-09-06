@@ -139,9 +139,37 @@ describe("claimedNoteTypes — what some configured pack would compile", () => {
     });
 
     it("claims nothing for a document type this toolchain has no compiler for", () => {
-        // `harn-adventures` ships a prebuilt `Adventure` pack; no note compiles
-        // into one, and the pack list saying so must not claim any type.
-        expect(noteTypesClaimedBy("Adventure").size).toBe(0);
+        // `Cards` and `RollTable` are Foundry documents an Adventure can hold
+        // and no note compiles into; a pack list naming one must claim nothing.
+        expect(noteTypesClaimedBy("Cards").size).toBe(0);
+        expect(noteTypesClaimedBy("RollTable").size).toBe(0);
+    });
+
+    it("claims a bundle for an Adventure pack (#259)", () => {
+        expect([...noteTypesClaimedBy("Adventure")]).toEqual(["bundle"]);
+        const config = baseConfig({ packs: [{ name: "bundles", type: "Adventure" }] });
+        expect(
+            claimedNoteTypes(config, { itemTypes: new Set(), docEntryTypes: new Set() }).has(
+                "bundle",
+            ),
+        ).toBe(true);
+    });
+
+    it("claims nothing for a prebuilt pack, whose JSON no pass writes", () => {
+        // `harn-adventures` ships a prebuilt `Adventure` pack: its per-document
+        // JSON is checked in rather than compiled, so it has no pass and no
+        // note is routed into it — `content-config.mjs` says as much by
+        // refusing `default: true` beside `prebuilt`. Before #259 the row could
+        // not be wrong, because no compiler was registered for the document
+        // type at all; now one is, so the exemption has to be stated.
+        const config = baseConfig({
+            packs: [{ name: "adventures", type: "Adventure", prebuilt: "packs/adventures" }],
+        });
+        expect(
+            claimedNoteTypes(config, { itemTypes: new Set(), docEntryTypes: new Set() }).has(
+                "bundle",
+            ),
+        ).toBe(false);
     });
 });
 
@@ -237,14 +265,17 @@ describe("unclaimedNoteFindings", () => {
         expect(findings[0].line).toBe(6);
     });
 
-    it.each(["bundle"])(
+    it.each(["vehicle"])(
         "says a specified-but-unimplemented %s is this toolchain's gap, not the note's",
         (type) => {
-            // `bundle` is documented in `docs/content-format.md` and declared
-            // in the vocabulary, and nothing compiles it yet (#259). The
+            // `vehicle` is documented in `docs/content-format.md` and declared
+            // in the vocabulary, and nothing here compiles it: no shipped
+            // system map names it and — with the registries this fixture
+            // supplies — no `itemBuilders` entry declares it either. The
             // message is chosen from the vocabulary rather than from a list of
-            // types, so a second specified type is covered without an edit
-            // here — which is the property this parameterisation asserts.
+            // types, which is the property this parameterisation asserts: it
+            // covered `bundle` with no edit until #259 implemented the type,
+            // and moving off it cost one word here.
             const root = repo({
                 "Note.md":
                     `---\ntype: ${type}\nid: probeid000000001\nshortcode: probe\n` +
