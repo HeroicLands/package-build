@@ -22,6 +22,7 @@ import { describe, it, expect } from "vitest";
 
 import { formatDiagnostic } from "../engine/diagnostics.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
+import { resolveNoteId } from "../engine/note-ids.mjs";
 import {
     HOMEPAGE_REFUSED_FIELDS,
     HOMEPAGE_SHORTCODE,
@@ -207,5 +208,60 @@ describe("what a homepage may still write", () => {
                 },
             ),
         ).toEqual([]);
+    });
+});
+
+/* --------------------------------------------------------------------- */
+/*  A derived id is not an authored one (#319)                            */
+/* --------------------------------------------------------------------- */
+
+describe("the refusal tests what the note wrote, not what the pipeline added", () => {
+    /** A homepage note authoring no `id`, as every homepage in the corpus does. */
+    const NOTE = [
+        "---",
+        "type: homepage",
+        "shortcode: sohl",
+        "title: Song of Heroic Lands",
+        "---",
+        "",
+        "The landing page.",
+        "",
+    ].join("\n");
+
+    const lint = (raw: string, fm: object) =>
+        lintNote({ file: "/tree/homepage.md", type: "homepage", raw, fm }, {
+            schemas: {} as any,
+            references: false,
+        } as any).filter((f: any) => /`id` decides nothing/.test(f.message));
+
+    it("says nothing when the id was derived rather than authored", () => {
+        // `resolveNoteId` fills `fm.id` **in place** so every downstream reader
+        // sees one value — deliberately, and documented as such. The refusal
+        // iterated the same object, so it reported a field the author never
+        // wrote and told them to delete something that is not there.
+        const fm = { type: "homepage", shortcode: "sohl", title: "Song of Heroic Lands" };
+        resolveNoteId(fm as any, { pkg: "sohl" });
+        expect(lint(NOTE, fm)).toEqual([]);
+    });
+
+    it("still refuses an id the note actually authored", () => {
+        const raw = NOTE.replace("shortcode: sohl", "shortcode: sohl\nid: AAAAAAAAAAAAAAAA");
+        const fm = {
+            type: "homepage",
+            shortcode: "sohl",
+            id: "AAAAAAAAAAAAAAAA",
+            title: "Song of Heroic Lands",
+        };
+        const findings = lint(raw, fm);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("error");
+    });
+
+    it("does not mistake a nested `id:` for a top-level one", () => {
+        // `name: { id: … }` is a different key; only column 1 is the note's own.
+        const raw = NOTE.replace("title: Song of Heroic Lands", "name:\n  id: nested");
+        const fm = { type: "homepage", shortcode: "sohl", name: { id: "nested" } };
+        resolveNoteId(fm as any, { pkg: "sohl" });
+        expect(lint(raw, fm)).toEqual([]);
     });
 });

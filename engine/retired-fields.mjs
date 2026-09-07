@@ -23,8 +23,8 @@
  *
  * `package:` is retired the same way and is refused from `note-package.mjs`,
  * where the concept it belonged to still lives. `draft:`, the top-level
- * `aliases:` and `section:` have no such home — there is no surviving concept
- * any of them was part of — so they are refused here.
+ * `aliases:`, `section:` and `traits:` have no such home — there is no
+ * surviving concept any of them was part of — so they are refused here.
  *
  * **What `draft:` did (#69).** It excluded a note from the compiled packs, from
  * the link manifest and from a consuming site build. Nothing reported the
@@ -56,6 +56,23 @@
  * reserved.test.ts` pins that equivalence so a future reader cannot be added
  * by accident.
  *
+ * **What `traits:` did (#291).** It held a being's own description — gender,
+ * species, age, birthday, height, weight, frame and `appearance.*` — at the
+ * note's top level. The content format gives those a home: `data:`, the closed
+ * container for a subject's type-specific facts, which `being` declares every
+ * one of them in. #128 moved all 2,533 notes that carried one, across four
+ * repositories, and this is the third step of that retirement.
+ *
+ * Refusing it matters more than refusing an ordinary dead key, because top
+ * level is *deliberately open*: an unrecognised key there is passed through to
+ * Hugo, so a stray `traits:` would not be ignored loudly but would arrive on
+ * the page as a theme parameter, checked by nothing. The whole argument for
+ * `data:` being closed is the argument for refusing this.
+ *
+ * `sohl.traits` is a different field that shares the name — `projectilegear`
+ * declares one, and the theme's gear sidebar reads it — so the refusal is
+ * anchored at column 1 and never reaches inside a system block.
+ *
  * **A field retired in favour of another is a third case (#142).** `draft:` and
  * `package:` were retired outright: nothing replaced them, so no value made
  * writing one right and refusal was the only honest answer. A *renamed* field
@@ -66,6 +83,15 @@
  * wins, and the retired one is *reported* rather than refused. The sweep and
  * the refusal come later, once no tree writes it. See
  * {@link RETIRED_FIELD_ALIASES}.
+ *
+ * **A retired *position* is the same case, and reads the same (#305).** A field
+ * whose shared source moved under `data:` is not renamed — `data.species` and
+ * `hm3.species` are one field written in two places — but the retirement has
+ * the identical shape: both are read, the one the note carries wins, and the
+ * legacy in-block key is reported by {@link legacyKeyMessage} so the sweep has
+ * something to count down. Which position a value came from is
+ * {@link module:engine/system-block.resolveFieldValue}'s answer; this module
+ * only says what an author is told about it.
  *
  * @module
  */
@@ -290,6 +316,65 @@ export function assertNoSectionField(fm, { file, absPath } = {}) {
 }
 
 /**
+ * What a note writing a top-level `traits:` block is told.
+ *
+ * The message states the **mapping**, not just the destination, because three
+ * of the keys reshaped as well as moved: the block nested its measurements
+ * where the format flattens them. A bare "write `data:` instead" would send an
+ * author to author `data.height: {m: 1.78}`, which is a declared key holding an
+ * undeclared shape.
+ *
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function traitsRetiredMessage(file) {
+    return (
+        "`traits:` is a retired frontmatter block — move it into `data:`" +
+        (file ? ` — ${file}` : "") +
+        ". A being's own description belongs in the closed container the " +
+        "content format declares, where `being` declares every one of its " +
+        "keys; at the top level it was passed through to the page unchecked, " +
+        "so a misspelling became a theme parameter rather than a finding. " +
+        "`gender`, `species`, `age`, `birthday` and `appearance.*` move " +
+        "unchanged; three reshape — `traits.height.m` becomes `data.height` " +
+        "(metres), `traits.weight.kg` becomes `data.weight` (kilograms), and " +
+        "`traits.build.frame` becomes `data.frame`"
+    );
+}
+
+/**
+ * Refuse a note that declares a top-level `traits:` block at all.
+ *
+ * Presence is the whole test, as it is for `draft:` and `aliases:`: an empty
+ * `traits:` is still a note claiming a block that no longer exists.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter, or nothing when it
+ *   could not be parsed.
+ * @param {object} [options] - Options.
+ * @param {string} [options.file] - The note's path, named in the message. Omit
+ *   it where the caller emits through a diagnostic, which puts the locator at
+ *   the start of the line already.
+ * @param {string} [options.absPath] - The note's file on disk, read only on the
+ *   failing path to locate the offending line and column. The position rides on
+ *   the thrown error as `position`, for a caller that emits a diagnostic.
+ * @returns {void}
+ * @throws {Error} When the note declares the block.
+ */
+export function assertNoTraitsField(fm, { file, absPath } = {}) {
+    if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "traits")) return;
+
+    const err = new Error(`${traitsRetiredMessage(file)}.`);
+    // Anchored at column 1. `sohl.traits` is a *different field that shares the
+    // name* — `projectilegear` declares one and the theme's gear sidebar reads
+    // it — so a finding about the top-level block must never open on it.
+    const position = locateFrontmatterKey(absPath, "traits", undefined, { topLevel: true });
+    if (position) err.position = position;
+    throw err;
+}
+
+/**
  * A frontmatter key's position in a note's file, or nothing.
  *
  * {@link positionInFrontmatter} answers the same question from the file's
@@ -342,6 +427,12 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * priority takes the name that says what it is. The specification already
  * called it `templatePriority` on two of its three sides.
  *
+ * **`relations` (SoHL#1781).** The field holds a *map* of standings, one per
+ * affiliation — its own description says so, and `resolveRelation` has always
+ * read it that way. `relation` named the many as one, which every author had to
+ * read past. Only `affiliation` declares the field, so the alias is reported
+ * there and the old spelling stays an ordinary unknown key everywhere else.
+ *
  * **`img` (#142).** Every note type names its artwork `img`, at the note's top
  * level, and resolves it the same way. A map alone named its background art
  * `image` and read it out of the `sohl:` block — two spellings for one idea,
@@ -355,6 +446,7 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
 export const RETIRED_FIELD_ALIASES = Object.freeze({
     img: "image",
     templatePriority: "archetype",
+    relations: "relation",
 });
 
 /**
@@ -380,6 +472,38 @@ export function retiredAliasMessage(retired, current, file) {
         (file ? ` — ${file}` : "") +
         `. Both are read and \`${current}\` wins, so the note compiles ` +
         `identically either way; \`${retired}\` is removed in a later release`
+    );
+}
+
+/**
+ * What a note writing a field at its **legacy in-block position** is told.
+ *
+ * The same three-step retirement `retiredAliasMessage` announces, applied to a
+ * *position* rather than a spelling (#305). A field whose shared source moved
+ * under `data:` keeps reading the key its block still carries, that read wins,
+ * and it is reported here so a sweep has something to count down — without it,
+ * moving a field into `data:` would be a flag day across every repository that
+ * authors it.
+ *
+ * It names the block, because the key is `hm3.species` and not `species`: an
+ * author told to move "`species`" has two regions to guess between.
+ *
+ * @param {string} block - The system block the key was written in.
+ * @param {{name?: string, legacyKey?: string}} field - The declaration, which
+ *   names both positions.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function legacyKeyMessage(block, field, file) {
+    const legacy = `${block}.${field.legacyKey}`;
+    return (
+        `\`${legacy}:\` is the legacy position of the shared \`${field.name}:\` ` +
+        `— write it under \`data:\` instead` +
+        (file ? ` — ${file}` : "") +
+        `. Both are read and \`${legacy}\` wins, so the note compiles ` +
+        `identically either way; the in-block key is removed in a later release`
     );
 }
 

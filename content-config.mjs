@@ -1598,7 +1598,7 @@ function normalizeOneRegistry(value, at) {
  * builder behind it (#1504) — and, with one registry, impossible to accept a
  * type a *second* system declares. A tree feeding two systems has both:
  * `spell`, `invocation` and `psionic` are HM3's, `mysticalability` and
- * `projectilegear` are SoHL's, and `skill` is both systems' under one name and
+ * `projectile` are SoHL's, and `skill` is both systems' under one name and
  * two data models.
  *
  * So `itemBuilders` accepts either form:

@@ -25,6 +25,7 @@
  * | --- | --- |
  * | `static documentSubtypes` | the block its notes write, the types it claims, the subtype each becomes |
  * | `commonSystem()` | the `system` keys this system's compiler writes on every item |
+ * | `commonFlags()` | the `flags` it writes on every item, beside the authored ones |
  *
  * Everything else — claiming a note, looking the subtype up, resolving the art,
  * merging the authored `<system>.system` block, checking what was emitted
@@ -57,6 +58,7 @@ import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // them with are one table — the consuming repository's, not this package's
 // (#1504/#1563).
 import { itemTypes, itemBuilder, itemArt, itemFields } from "./item-registry.mjs";
+import { currentType } from "./ids.mjs";
 // Which Foundry Item subtype a note's `type` compiles into. Looked up in the
 // system's declared map, never inferred from the type itself (#79).
 import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
@@ -163,7 +165,10 @@ export class SystemItemCompiler extends BasePackCompiler {
      * @returns {boolean} True for a whitelisted item type.
      */
     selects(fm) {
-        if (!fm.type || !itemTypes().has(fm.type)) return false;
+        // Through {@link currentType}: the registry is keyed by the current
+        // spelling, and a note still on a renamed one compiles unchanged
+        // during the retirement window (#78).
+        if (!fm.type || !itemTypes().has(currentType(fm.type))) return false;
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
         const row = subtypeRow(/** @type {never} */ (map), fm.type);
         return !row || row.document === "Item";
@@ -223,6 +228,30 @@ export class SystemItemCompiler extends BasePackCompiler {
     // eslint-disable-next-line no-unused-vars
     commonSystem(fm, { description, markdown, label }) {
         return {};
+    }
+
+    /**
+     * The document's `flags` — whatever the note authors, and whatever this
+     * system writes there of its own accord.
+     *
+     * The authored flags alone by default, which is the honest position for a
+     * system that has not said otherwise. A system whose data model has nowhere
+     * to record a shared fact keeps it here instead: HM3 writes the template
+     * priority as `flags.hm3.templatePriority`, because it declares no `system`
+     * field for it and an undeclared `system` key is discarded at load without
+     * a word.
+     *
+     * **This is the one emitted key nothing else can check** (#283). A `system`
+     * key this pass invents is caught by the emitted-`system` check against the
+     * receiving schema, but a flag is declared by no schema — so an omission
+     * here is silent, and was: the Actor pass wrote the priority and this one
+     * did not, for as long as there had been two passes.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {object} The flags to emit.
+     */
+    commonFlags(fm) {
+        return blockProperty(fm, this.system, "flags", {});
     }
 
     /**
@@ -288,8 +317,9 @@ export class SystemItemCompiler extends BasePackCompiler {
             _id: id,
             system: built,
             effects: Array.isArray(effects) ? [...effects] : [],
-            // Whatever the note authors, and nothing else.
-            flags: blockProperty(fm, system, "flags", {}),
+            // Whatever the note authors, plus whatever this system records in
+            // flags because its data model has nowhere else for it (#283).
+            flags: this.commonFlags(fm),
             _stats: this.stats,
             ownership: { default: 0 },
             folder,
@@ -299,7 +329,7 @@ export class SystemItemCompiler extends BasePackCompiler {
 
     /** @inheritdoc */
     onCompiled(fm) {
-        this.counts[fm.type]++;
+        this.counts[currentType(fm.type)]++;
     }
 
     /** @inheritdoc */

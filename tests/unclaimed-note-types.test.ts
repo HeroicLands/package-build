@@ -39,12 +39,17 @@ import { packForType } from "../engine/ids.mjs";
 import { hasDocEntry } from "../engine/item-docs.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import {
+    DERIVED_PACKED_TYPES,
+    KNOWN_DOCUMENT_SUBTYPE_MAPS,
+    UNIMPLEMENTED_TYPES,
     NEVER_PACKED_TYPES,
     claimedNoteTypes,
     noteTypeVocabulary,
     noteTypesClaimedBy,
     unclaimedNoteFindings,
 } from "../engine/note-claims.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
+import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { Items } from "../sohl/items.mjs";
 import { Actors } from "../sohl/actors.mjs";
 import { Journals } from "../engine/journals.mjs";
@@ -139,9 +144,37 @@ describe("claimedNoteTypes — what some configured pack would compile", () => {
     });
 
     it("claims nothing for a document type this toolchain has no compiler for", () => {
-        // `harn-adventures` ships a prebuilt `Adventure` pack; no note compiles
-        // into one, and the pack list saying so must not claim any type.
-        expect(noteTypesClaimedBy("Adventure").size).toBe(0);
+        // `Cards` and `RollTable` are Foundry documents an Adventure can hold
+        // and no note compiles into; a pack list naming one must claim nothing.
+        expect(noteTypesClaimedBy("Cards").size).toBe(0);
+        expect(noteTypesClaimedBy("RollTable").size).toBe(0);
+    });
+
+    it("claims a bundle for an Adventure pack (#259)", () => {
+        expect([...noteTypesClaimedBy("Adventure")]).toEqual(["bundle"]);
+        const config = baseConfig({ packs: [{ name: "bundles", type: "Adventure" }] });
+        expect(
+            claimedNoteTypes(config, { itemTypes: new Set(), docEntryTypes: new Set() }).has(
+                "bundle",
+            ),
+        ).toBe(true);
+    });
+
+    it("claims nothing for a prebuilt pack, whose JSON no pass writes", () => {
+        // `harn-adventures` ships a prebuilt `Adventure` pack: its per-document
+        // JSON is checked in rather than compiled, so it has no pass and no
+        // note is routed into it — `content-config.mjs` says as much by
+        // refusing `default: true` beside `prebuilt`. Before #259 the row could
+        // not be wrong, because no compiler was registered for the document
+        // type at all; now one is, so the exemption has to be stated.
+        const config = baseConfig({
+            packs: [{ name: "adventures", type: "Adventure", prebuilt: "packs/adventures" }],
+        });
+        expect(
+            claimedNoteTypes(config, { itemTypes: new Set(), docEntryTypes: new Set() }).has(
+                "bundle",
+            ),
+        ).toBe(false);
     });
 });
 
@@ -221,14 +254,31 @@ describe("a type one system maps and another does not", () => {
 /*  The findings themselves                                               */
 /* ---------------------------------------------------------------------- */
 
+/**
+ * The corpus for a fixture repository.
+ *
+ * `unclaimedNoteFindings` reads the records the compile derived rather than
+ * walking (#243) — it is imported *by* the content index and so cannot derive
+ * one itself — and its production caller already holds them.
+ */
+function unclaimedNoteFindingsFor(config: any, sources: any) {
+    return unclaimedNoteFindings(config, sources, corpusOf(config));
+}
+
+function corpusOf(config: any) {
+    return { records: indexRecordsFor({ contentBase: config.paths.content, config }) };
+}
+
 describe("unclaimedNoteFindings", () => {
     it("names the note, its type, and the line the `type:` key is on", () => {
         const root = repo({ "Guild.md": note("affiliation", "Guild of Arms", "guildarms") });
         roots.push(root);
-        const findings = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const config = baseConfig({ packs: ACTORS_ONLY, rootDir: root });
+        const findings = unclaimedNoteFindings(
+            config,
+            { itemTypes: new Set(), docEntryTypes: new Set() },
+            corpusOf(config),
+        );
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
         expect(findings[0].file).toMatch(/Guild\.md$/);
@@ -237,23 +287,28 @@ describe("unclaimedNoteFindings", () => {
         expect(findings[0].line).toBe(6);
     });
 
-    it.each(["bundle"])(
+    it.each(["vehicle"])(
         "says a specified-but-unimplemented %s is this toolchain's gap, not the note's",
         (type) => {
-            // `bundle` is documented in `docs/content-format.md` and declared
-            // in the vocabulary, and nothing compiles it yet (#259). The
+            // `vehicle` is documented in `docs/content-format.md` and declared
+            // in the vocabulary, and nothing here compiles it: no shipped
+            // system map names it and — with the registries this fixture
+            // supplies — no `itemBuilders` entry declares it either. The
             // message is chosen from the vocabulary rather than from a list of
-            // types, so a second specified type is covered without an edit
-            // here — which is the property this parameterisation asserts.
+            // types, which is the property this parameterisation asserts: it
+            // covered `bundle` with no edit until #259 implemented the type,
+            // and moving off it cost one word here.
             const root = repo({
                 "Note.md":
                     `---\ntype: ${type}\nid: probeid000000001\nshortcode: probe\n` +
                     "name:\n  full: Probe\n---\n\nBody.\n",
             });
             roots.push(root);
+            const config = baseConfig({ packs: ACTORS_ONLY, rootDir: root });
             const [finding] = unclaimedNoteFindings(
-                baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+                config,
                 { itemTypes: new Set(), docEntryTypes: new Set() },
+                corpusOf(config),
             );
 
             expect(finding.message).toMatch(new RegExp(`content format specifies "${type}"`));
@@ -269,7 +324,7 @@ describe("unclaimedNoteFindings", () => {
         roots.push(root);
         expect(NEVER_PACKED_TYPES.has("homepage")).toBe(true);
         expect(
-            unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
+            unclaimedNoteFindingsFor(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
                 itemTypes: new Set(),
                 docEntryTypes: new Set(),
             }),
@@ -279,10 +334,13 @@ describe("unclaimedNoteFindings", () => {
     it("says a known type is a configuration gap, and names the document it would be", () => {
         const root = repo({ "Guild.md": note("affiliation", "Guild of Arms", "guildarms") });
         roots.push(root);
-        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const [finding] = unclaimedNoteFindingsFor(
+            baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+            {
+                itemTypes: new Set(),
+                docEntryTypes: new Set(),
+            },
+        );
         expect(finding.message).toMatch(/Item/);
         expect(finding.message).toMatch(/sohl/);
         expect(finding.message).toMatch(/package-build\.config\.yaml/);
@@ -293,10 +351,13 @@ describe("unclaimedNoteFindings", () => {
     it("says an unknown type is an authoring mistake, not a configuration one", () => {
         const root = repo({ "Widget.md": note("widget", "A Widget", "widget") });
         roots.push(root);
-        const [finding] = unclaimedNoteFindings(baseConfig({ packs: ACTORS_ONLY, rootDir: root }), {
-            itemTypes: new Set(),
-            docEntryTypes: new Set(),
-        });
+        const [finding] = unclaimedNoteFindingsFor(
+            baseConfig({ packs: ACTORS_ONLY, rootDir: root }),
+            {
+                itemTypes: new Set(),
+                docEntryTypes: new Set(),
+            },
+        );
         expect(finding.message).toMatch(/not a content type/);
         expect(finding.message).toMatch(/widget/);
     });
@@ -398,6 +459,39 @@ describe("the claim table and the compilers agree", () => {
     });
 });
 
+/*
+ * #241's closing note: "worth checking `vehicle` and `armorlocation` at the
+ * same time — #233 declared those two as well, and neither has been exercised
+ * by a tree that authors one." Checked, and neither is a second instance of
+ * that issue. They are not even the same case as each other.
+ *
+ * `armorlocation` is **HM3's**: the specification says "HM3 only", it has no
+ * SoHL form, and `hm3/document-subtypes.mjs` maps it. A SoHL configuration
+ * claiming it would be wrong, so its absence from this map is the answer rather
+ * than a gap — which is what the rows below pin, since nothing else did.
+ *
+ * `vehicle` is **specified but not yet implemented**, and says so: a note of
+ * that type is reported as "the content format specifies `vehicle`, so the note
+ * is not wrong — this toolchain has not implemented the type yet … do not
+ * author the type until a release compiles it". That is the opposite of #241,
+ * where the failure was silent and misattributed. It is asserted by the
+ * `it.each` case above, which is deliberately parameterised so that a type
+ * moves off it when implemented — as `bundle` did in #259.
+ */
+describe("the two types #241 left to check", () => {
+    it("leaves armorlocation to HM3, which maps it", () => {
+        expect(Object.keys(SOHL_DOCUMENT_SUBTYPES.types)).not.toContain("armorlocation");
+        expect(noteTypesClaimedBy("Item").has("armorlocation")).toBe(false);
+    });
+
+    it("claims neither for a SoHL pass, which is why each is reported rather than compiled", () => {
+        for (const docType of ["Actor", "Item", "JournalEntry"]) {
+            expect(noteTypesClaimedBy(docType).has("vehicle"), docType).toBe(false);
+            expect(noteTypesClaimedBy(docType).has("armorlocation"), docType).toBe(false);
+        }
+    });
+});
+
 describe("a type whose whole document is a journal (#241)", () => {
     it("routes place, lore and scenario to the journals pack", () => {
         for (const type of ["place", "lore", "scenario"]) {
@@ -431,5 +525,112 @@ describe("a type whose whole document is a journal (#241)", () => {
         for (const type of ["place", "lore", "scenario"]) {
             expect(packForType(type).docType, type).not.toBe("Item");
         }
+    });
+});
+
+/**
+ * Every declared type has a route, or a stated reason for having none (#243).
+ *
+ * This is the check #241 needed and nobody had. `place`, `lore` and `scenario`
+ * were declared, validated, and claimed by no pass — and the only thing that
+ * noticed was a downstream repository failing to compile 450 notes, because
+ * `sohl` authors none of the three. Every gate here reported success.
+ *
+ * The claim table is already cross-checked against each pass's `selects`, but
+ * that agreement holds just as well when **both** say nobody claims a type,
+ * which was exactly the broken state. So the missing property is not agreement;
+ * it is *coverage*, and it is asked statically, of the toolchain rather than of
+ * a tree, so it does not depend on some repository happening to author the type.
+ *
+ * A declared type must be one of four things, and the four are not
+ * interchangeable — each names a different reason, and a type that is none of
+ * them is the #241 trap:
+ *
+ * 1. **claimed by a pass** — the ordinary case;
+ * 2. **never packed** — it compiles to no document at all (`homepage`);
+ * 3. **derived packed** — it materialises by reference in every pack that
+ *    references it, so no one pass owns it (`folder`);
+ * 4. **another system's** — a shipped system map declares it, so a
+ *    configuration that ships that system's packs claims it (`armorlocation`,
+ *    which is HM3's); or **named in `UNIMPLEMENTED_TYPES`**, the set that states
+ *    which specified types this toolchain does not compile yet (`vehicle`).
+ */
+describe("every declared note type is routed, or excused for a stated reason (#243)", () => {
+    /** Why a type needs no pass of its own, or `null` when it needs one. */
+    function excuse(type: string): string | null {
+        if (NEVER_PACKED_TYPES.has(type)) return "never packed";
+        if (DERIVED_PACKED_TYPES.has(type)) return "derived packed";
+        // Declared by a system this toolchain ships: a configuration carrying
+        // that system's packs claims it, so being unclaimed *here* is a fact
+        // about this configuration rather than a missing route.
+        if (KNOWN_DOCUMENT_SUBTYPE_MAPS.some((map) => Object.hasOwn(map.types, type))) {
+            return "another system's map";
+        }
+        // Stated, never inferred. "Declared but absent from the configured
+        // vocabulary" reads correctly and is worthless: that vocabulary is
+        // derived from the routing, so taking a type's route away removes it
+        // from the vocabulary too and the inference excuses exactly the mistake
+        // this guard exists to catch. See `UNIMPLEMENTED_TYPES`.
+        if (UNIMPLEMENTED_TYPES.has(type)) return "specified, not implemented";
+        return null;
+    }
+
+    const claimedAnywhere = () =>
+        new Set(
+            ["Item", "Actor", "JournalEntry", "Macro", "Scene", "Adventure"].flatMap((docType) => [
+                ...noteTypesClaimedBy(docType),
+            ]),
+        );
+
+    it("leaves no declared type both unclaimed and unexplained", () => {
+        const claimed = claimedAnywhere();
+        const stranded = Object.keys(NOTE_VOCABULARY)
+            .filter((type) => type !== "state")
+            .filter((type) => !claimed.has(type) && !excuse(type));
+
+        // Named rather than counted: the whole failure this guards against is
+        // one nobody could see, so the message has to say which type.
+        expect(stranded).toEqual([]);
+    });
+
+    /*
+     * The teeth. A guard that cannot fail is not a guard, and this one is only
+     * worth its lines if it would have caught #241.
+     *
+     * `place` is the witness, because it is the type that was broken: it is in
+     * the configured vocabulary, no system map declares it (a journal type has
+     * no system row), and it is neither never-packed nor derived-packed. So
+     * **nothing excuses it** — the only thing keeping it out of the stranded
+     * list is that a pass claims it. Take the route away, as #241 found it, and
+     * the assertion above names it.
+     */
+    it("would have caught #241: only the route keeps `place` off the list", () => {
+        expect(excuse("place")).toBeNull();
+        expect(claimedAnywhere().has("place")).toBe(true);
+
+        // The same holds for the other two the issue reported, so the guard
+        // covers the whole of what went wrong rather than one example of it.
+        for (const type of ["lore", "scenario"]) {
+            expect(excuse(type), type).toBeNull();
+            expect(claimedAnywhere().has(type), type).toBe(true);
+        }
+    });
+
+    /*
+     * And the four excuses are each actually load-bearing for something, so a
+     * reader can see which case a type is in rather than inferring it.
+     */
+    it("records which reason answers for each unclaimed type", () => {
+        const claimed = claimedAnywhere();
+        const unclaimed = Object.keys(NOTE_VOCABULARY)
+            .filter((type) => type !== "state" && !claimed.has(type))
+            .sort();
+
+        expect(Object.fromEntries(unclaimed.map((t) => [t, excuse(t)]))).toEqual({
+            armorlocation: "another system's map",
+            folder: "derived packed",
+            homepage: "never packed",
+            vehicle: "specified, not implemented",
+        });
     });
 });

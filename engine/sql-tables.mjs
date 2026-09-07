@@ -37,11 +37,10 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-import { FENCE_LINE } from "./code-fences.mjs";
-import { walkMarkdownTree } from "./helpers.mjs";
-
-/** The fence info string that marks a SQL content table. */
-const SQL_INFO = /^sql\b/i;
+import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
+import { parseMarkdownFile } from "./helpers.mjs";
+// The record accessors only — see `engine/index-records.mjs` (#243).
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 
 /** Rendered in a cell whose value is absent. */
 const EMPTY_CELL = "—";
@@ -83,24 +82,29 @@ export function findSqlBlocks(markdown) {
         const closer = new RegExp(`^[ \\t]*${marker[0]}{${marker.length},}[ \\t]*$`);
         let close = i + 1;
         while (close < lines.length && !closer.test(lines[close])) close += 1;
-        if (!SQL_INFO.test(info.trim())) {
+        const { language, args } = parseHeaderArgs(info);
+        if (language !== "sql") {
             // Not ours, but still a fence: skip its body so a `sql` line inside
             // some other block is never read as a directive.
             i = close;
             continue;
         }
         if (close >= lines.length) continue;
-        const level = /\bsection-level=(\d)\b/.exec(info);
+        const level = Number(args["section-level"]);
         blocks.push({
             line: i,
             close,
             indent,
             query: lines.slice(i + 1, close).join("\n"),
-            // `sql allow-empty` says a table selecting nothing is intended.
+            // `:allow-empty` says a table selecting nothing is intended.
             // Spelled on the fence rather than in the query because it is a
             // statement about this directive and not part of SQL (#223).
-            allowEmpty: /\ballow-empty\b/i.test(info),
-            sectionLevel: level ? Number(level[1]) : 2,
+            allowEmpty: args["allow-empty"] === true,
+            sectionLevel: Number.isInteger(level) && level >= 1 && level <= 6 ? level : 2,
+            // Every header argument, so a caller can read one this module makes
+            // no use of — the point of taking a real grammar rather than a
+            // regex per property (#246).
+            args,
             block: lines.slice(i, close + 1).join("\n"),
         });
         i = close;
@@ -126,14 +130,33 @@ export function findSqlBlocks(markdown) {
  * authored `ORDER BY` then fall back to the index's own order, which is itself
  * deterministic — the index is emitted sorted and byte-stable.
  *
+ * ## A dependency is a schema
+ *
+ * A package that depends on another can tabulate what it depends on —
+ * `FROM sohl.notes` — because each declared dependency's published index is
+ * attached as a **schema** named after the package, with this package's own
+ * notes staying at the unqualified `notes`.
+ *
+ * It is `FROM` rather than a fence property naming a file, for two reasons. A
+ * path in authored content is a build artifact's name written into the corpus,
+ * so renaming the artifact means sweeping every note that cites it — the
+ * coupling #126 exists to undo. And *which dataset a query reads* is what
+ * `FROM` is for: the same rule that keeps `_ref` and `_section` ordinary SQL,
+ * visible where an author is already looking, rather than fence options.
+ *
+ * It costs no fetch. Every dependency's JSONL is already in the metadata cache
+ * when a compile starts, because resolving addresses across packages needs it.
+ *
  * @param {object[]} records - Content-index records, as
  *   {@link module:engine/content-index.collectContentIndex} returns them.
  * @param {object} [opts]
  * @param {string} [opts.dir] - Directory for the temporary file.
+ * @param {Array<{id: string, file: string}>} [opts.dependencies] - Each
+ *   declared dependency's cached index, attached as a schema named `id`.
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
-export async function openNotesDatabase(records, { dir } = {}) {
+export async function openNotesDatabase(records, { dir, dependencies = [] } = {}) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
@@ -143,11 +166,17 @@ export async function openNotesDatabase(records, { dir } = {}) {
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await connection.run(
-        `CREATE VIEW notes AS SELECT * FROM read_json_auto(` +
-            `'${jsonl.replace(/'/g, "''")}', format='newline_delimited', ` +
-            `union_by_name=true, maximum_object_size=20000000)`,
-    );
+    await connection.run(`CREATE VIEW notes AS ${readJsonAuto(jsonl)}`);
+
+    // One schema per declared dependency, so `FROM sohl.notes` reads the notes
+    // that package published. Quoted, because a package id may carry a hyphen
+    // (`sohl-thalorna`) and an unquoted identifier may not.
+    for (const dep of dependencies) {
+        if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
+        const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
+        await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
+        await connection.run(`CREATE VIEW ${schema}.notes AS ${readJsonAuto(dep.file)}`);
+    }
 
     return {
         async query(sql) {
@@ -170,6 +199,25 @@ export async function openNotesDatabase(records, { dir } = {}) {
             if (!dir) fs.rmSync(base, { recursive: true, force: true });
         },
     };
+}
+
+/**
+ * The `read_json_auto` clause both the own-notes view and a dependency's use.
+ *
+ * Written once because the options are the load-bearing part, not the file:
+ * `union_by_name` is what makes a heterogeneous corpus one relation — a `sohl:`
+ * block differs by note type, and the inferred struct is the union of every
+ * type's fields with `NULL` where a record lacks one. A dependency's index has
+ * exactly the same shape and needs exactly the same reading.
+ *
+ * @param {string} file - The JSONL to read.
+ * @returns {string} The `SELECT … FROM read_json_auto(…)` clause.
+ */
+function readJsonAuto(file) {
+    return (
+        `SELECT * FROM read_json_auto('${file.replace(/'/g, "''")}', ` +
+        `format='newline_delimited', union_by_name=true, maximum_object_size=20000000)`
+    );
 }
 
 /**
@@ -380,28 +428,55 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope.
+ * @param {object[]} [opts.records] - Index records the caller already derived.
+ *   A command that also builds a link index holds them already, and deriving
+ *   them twice is the duplicated-corpus failure #243 is closing.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
-export async function prepareTreeSqlTables(contentBase, { config, skipDirectories } = {}) {
-    const sources = [];
-    for (const { body, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories: skipDirectories ?? config?.skipDirectories,
-    })) {
-        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
-    }
-    if (!sources.length) return undefined;
-
+export async function prepareTreeSqlTables(contentBase, { config, skipDirectories, records } = {}) {
     // Imported here rather than at module scope: the index reaches the pack
     // compilers through `manifest-emit` → `journals`, so a static import from a
     // module they load would close a cycle and leave `BasePackCompiler`
     // uninitialised for whichever module the runtime happened to load first.
     const { indexRecordsFor } = await import("./content-index.mjs");
-    const records = indexRecordsFor({ contentBase, config });
+    const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
+
+    // Which notes carry a directive, discovered over the same corpus every
+    // other pass reads rather than over a walk of this one's own (#243). The
+    // body has to be read to find a fence — the index carries no note text —
+    // but *which files* to read is no longer a second answer.
+    //
+    // `parseMarkdownFile` yields the body `walkMarkdownTree` yielded, trimmed
+    // the same way, which matters: results are keyed by note and looked up by
+    // the ordinal of the directive within it, so the two readings have to agree
+    // about what a body is.
+    const sources = [];
+    for (const record of indexRecords) {
+        if (!isNoteRecord(record)) continue;
+        const absPath = noteFile(contentBase, record);
+        const { body } = parseMarkdownFile(absPath);
+        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
+    }
+    if (!sources.length) return undefined;
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
-    const addresses = new Set(records.map((record) => record.address?.slug).filter(Boolean));
-    const db = await openNotesDatabase(records);
+    const addresses = new Set(indexRecords.map((record) => record.address?.slug).filter(Boolean));
+    // Each declared dependency's published index, attached as its own schema so
+    // a table can read `FROM <package>.notes` (#246). Imported here for the
+    // same cycle reason the index is, and tolerated when absent: a tree with no
+    // `sql` directive never reaches this line, and one whose dependency has not
+    // been fetched already fails earlier with a message naming the fetch.
+    let dependencies = [];
+    try {
+        const { cachedMetadataIndexes } = await import("./metadata-index.mjs");
+        const { loadPackConfig } = await import("./pack-config.mjs");
+        dependencies = cachedMetadataIndexes(config ?? loadPackConfig());
+    } catch {
+        dependencies = [];
+    }
+    const db = await openNotesDatabase(indexRecords, { dependencies });
     try {
         return await prepareSqlTables(db, sources, { linkable: (ref) => addresses.has(ref) });
     } finally {

@@ -28,13 +28,19 @@
  * silently. Sixteen lines of data are the price of the two vocabularies being
  * separately stated.
  *
- * **Today every row is the identity, and that is a fact about SoHL rather than
- * a rule.** The renames the format calls for (`armorgear` → `armor`, and its
- * three siblings) are #78, deliberately deferred: they cost 30,741 embedded
- * `(type, shortcode)` references across four content repositories, and until
- * they land the compiled packs must not move by a byte. When one does land it
- * changes one row here and the notes that address it — a data change, not a
- * mechanism change, which is the whole point of having the map first.
+ * **Three rows are no longer the identity, and that is what the map was for.**
+ * `armor`, `concoction` and `projectile` were renamed from the `…gear`
+ * spellings that named SoHL's *document* subtype rather than the thing the note
+ * is about (#78); the subtypes themselves did not move, so those three rows now
+ * say two different words where they used to say one twice. Landing the rename
+ * cost exactly what having the map first promised it would: a data change on
+ * three lines here, and no mechanism change anywhere.
+ *
+ * The old spellings are still read — {@link RENAMED_TYPES} normalises them
+ * before this map is consulted — so a tree that has not swept its 30,741
+ * embedded `(type, shortcode)` references compiles byte-identically. `weapon`
+ * is deliberately **not** among them: both systems call that document a
+ * `weapongear`, so the name says nothing SoHL-specific and #78 left it alone.
  *
  * **What this map is not.** It says which document a note becomes, never what
  * that document contains: the `system` block comes from the item registry's

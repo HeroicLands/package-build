@@ -24,11 +24,11 @@ note.** A type that both systems support always shows both system boxes, and a
 box whose system this particular note produces no document for reads
 **"Not available"**.
 
-| note type                                                         | system boxes shown                                 |
-| ----------------------------------------------------------------- | -------------------------------------------------- |
-| `weapon`, `skill`, `being`, `armor`, `containergear`, `miscgear`… | SoHL **and** HM3 — either may read _Not available_ |
-| `affiliation`, `affliction`, `attribute`, `concoction`, `mystery` | SoHL only                                          |
-| `armorlocation`                                                   | HM3 only                                           |
+| note type                                                             | system boxes shown                                 |
+| --------------------------------------------------------------------- | -------------------------------------------------- |
+| `weapon`, `skill`, `being`, `armorgear`, `containergear`, `miscgear`… | SoHL **and** HM3 — either may read _Not available_ |
+| `affiliation`, `affliction`, `attribute`, `concoctiongear`, `mystery` | SoHL only                                          |
+| `armorlocation`                                                       | HM3 only                                           |
 
 This is stated rather than inferred from an empty block, because an absence is a
 poor signal: noticing that something is missing requires already knowing it
@@ -138,6 +138,18 @@ it _there_, and a system that disagrees is not in error. A weapon weighs what
 This is the same rule as `hm3.type` overriding a derived document type, applied
 to fields: derive from the shared source, and let the system state the exception.
 
+**A shared source and the key a system block still carries are two
+declarations.** The mapping tables name the shared source — `data.species` — and
+the corpus writes the same fact inside the block it has always written it in —
+`hm3.species`. Those are two positions for one field, and both are read while
+the corpus moves, with the block winning. A field says so by naming each: its
+shared source, and the legacy in-block key it is being swept off. Reading it
+from the legacy position is _reported_, so the sweep has a progress signal, and
+the note compiles to the identical document either way — the same read-both,
+report-one shape every other retirement in this format uses. Until #305 the two
+were one declaration, so a field could name only one of them, and a row this
+table stated was reachable only by a note that had already moved.
+
 **A field whose spelling means something else at the note level has no shared
 source.** The fallback assumes the two vocabularies agree about what a name
 means, and they do not always: a note's top-level `title` is the heading its page
@@ -202,8 +214,16 @@ Eight rows were identical in all sixteen tables below, so they are stated once
 here and omitted there. Each per-type table shows only what is particular to that
 type.
 
-| shared source | → sohl | → hm3 |
-| ------------- | ------ | ----- |
+| shared source           | → sohl                    | → hm3                        |
+| ----------------------- | ------------------------- | ---------------------------- |
+| `name.full`             | `name`                    | `name`                       |
+| `img`                   | `img`                     | `img`                        |
+| `id`                    | `_id`                     | `_id`                        |
+| `packFolder` / `folder` | `folder`                  | `folder`                     |
+| `shortcode`             | `system.shortcode`        | NA                           |
+| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
+| `actionDefs`            | `system.actionDefs`       | NA                           |
+| `notes`                 | `system.notes`            | `system.notes`               |
 
 **A column reads NA wherever the type produces no document in that system.** An
 `affiliation` has no HM3 form, so its whole HM3 column is NA; `armorlocation` has
@@ -213,12 +233,40 @@ that matter.
 
 Actor types (`being`, `vehicle`) add one more:
 
-| shared source | → sohl | → hm3 |
-| ------------- | ------ | ----- |
+| shared source   | → sohl            | → hm3             |
+| --------------- | ----------------- | ----------------- |
+| `data.portrait` | `system.portrait` | `system.bioImage` |
+
+An actor carries `img` (its token art) and `portrait` (its sheet portrait)
+independently, which is why this is a row of its own rather than a second
+spelling of the one above. An Item has no second image, so the row applies to
+actor types alone.
+
+**Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
+on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
+the SoHL column of both reads NA.
+
+`notes` is also the one row that is emitted rather than mapped: SoHL writes
+`system.notes` empty on every Item, and no note-level key fills it yet. The row
+states where such a key would land, which is what makes `armorlocation`'s
+exception below sayable at all.
+
+**A third SoHL Item mapping has no shared source, so it is not a row.** SoHL
+writes `system.docHtml` on every Item from the note's own prose — the UUID of the
+JournalEntry that prose compiled into, which is derived rather than authored.
+HM3's data model has nowhere to put such a pointer, so the same prose reaches an
+HM3 item only as its own journal.
 
 **One exception.** HM3's `armorlocation` declares no `notes` — it is the one
 subtype that extends the Foundry base directly with no templates — so `notes` is
 NA on both sides for that type, and its table says so.
+
+**And one divergence, tracked rather than specified away.** HM3 records a
+template priority on an Actor and not on an Item: `hm3/actors.mjs` writes
+`flags.hm3.templatePriority`, and HM3's Item pass writes no equivalent, so an HM3
+item compiled from a template note loses the fact that it is one
+(`HeroicLands/package-build#283`). The row states the mapping the format makes;
+the gap is in the pass, not in the table.
 
 #### The pack a note compiles into
 
@@ -301,7 +349,9 @@ real priority** — the one SoHL's own templates ship at — not an absence.
 **Where it lands differs by system, because HM3's data model has no field for
 it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
 `flags.hm3`, and a note that is not a template writes nothing there rather than a
-`null` nothing reads. HM3's _item_ pass does not emit it yet.
+`null` nothing reads. Both of HM3's passes write it — an Item's flag was missing
+until `HeroicLands/package-build#283`, which made an item note's priority reach
+SoHL and stop at HM3, with nothing said on either side.
 
 **How a winner is chosen.** Opening a Create dialog gathers every candidate
 across the world and every matching compendium, _including other modules'_. Those
@@ -909,15 +959,68 @@ relational operations:
 | `_section` | Emits a headed table per distinct value, in the order the rows arrive. |
 
 `_section` is why one query replaces the forty near-identical blocks a grouped
-table used to need: the authored `ORDER BY` decides the section order too. The
-heading level is `##`, or whatever `sql section-level=3` says.
-
-`sql allow-empty` works exactly as its `dataview` counterpart does, and for the
-same reason.
+table used to need: the authored `ORDER BY` decides the section order too.
 
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`. (The `folder` field it replaced is retired; a query
 naming it matches nothing.)
+
+###### Reading another package's notes
+
+Each package this one **depends on** is attached as a schema named after it, so
+a satellite can tabulate what it builds on:
+
+````markdown
+```sql
+SELECT name.full AS "Name", sohl.skillBase AS "Base"
+FROM sohl.notes
+WHERE type = 'skill'
+ORDER BY name.full
+```
+````
+
+This package's own notes stay at the unqualified `notes`, and a query may read
+both at once — joining your beings against the skills they cite is one `FROM`
+clause. It needs no fetch and no configuration: a dependency's published index
+is already cached when a compile starts, because resolving addresses across
+packages needs it.
+
+Which dataset a query reads is `FROM`'s job rather than a fence property. A
+fence naming a file would write a build artifact's path into the corpus, so
+renaming the artifact would mean sweeping every note that cited it.
+
+###### Header arguments
+
+Statements _about the directive_ — as opposed to the query — are written after
+the language as **org-babel header arguments**:
+
+````markdown
+```sql :section-level 3 :allow-empty
+SELECT name.full AS "Name", sohl.kbcat AS _section
+FROM notes WHERE type = 'affliction'
+```
+````
+
+The language word stays first and stays plain, so GitHub, Prettier and every
+other markdown reader still highlight the block as SQL and simply ignore what
+follows.
+
+| Argument               | What it does                                                                             |
+| ---------------------- | ---------------------------------------------------------------------------------------- |
+| `:allow-empty`         | A table selecting nothing is intended, not a stale query. Without it, empty is an error. |
+| `:section-level <1-6>` | The heading level `_section` emits. Default `2`.                                         |
+
+The grammar is org's, so it extends without inventing a spelling per property:
+
+- a key is `:name` **starting a word**, so a colon inside or ending one is text
+  — `:caption Gear: the tables` is a single argument;
+- a value runs to the next key or the end of the line, spaces included;
+- a key with no value means `true`, which is what `:allow-empty` is;
+- a value may be `"quoted"` to hold a word that would otherwise read as a key;
+- a repeated key takes its last value.
+
+`dataview` keeps its own bare `allow-empty`; it is the retiring language and its
+grammar is frozen.
 
 ```
 :::secret
@@ -1059,13 +1162,11 @@ If an `hm3` property is present, an HM3 actor is created. Its document type is *
 
 A SoHL "being" document will be created, as will an "HM3" document.
 
-| shared source           | → sohl                    | → hm3                        |
-| ----------------------- | ------------------------- | ---------------------------- |
-| `data.portrait`         | `system.portrait`         | `system.bioImage`            |
-| `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
-| `data.species`          | NA                        | `system.species`             |
-| `data.gender`           | NA                        | `system.gender`              |
-| `data.occupation`       | NA                        | `system.occupation`          |
+| shared source     | → sohl | → hm3               |
+| ----------------- | ------ | ------------------- |
+| `data.species`    | NA     | `system.species`    |
+| `data.gender`     | NA     | `system.gender`     |
+| `data.occupation` | NA     | `system.occupation` |
 
 ### type: homepage
 
@@ -1086,10 +1187,8 @@ Represents a conveyance able to hold goods and people moving from one place to a
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
-| shared source           | → sohl                    | → hm3 |
-| ----------------------- | ------------------------- | ----- |
-| `data.portrait`         | `system.portrait`         | NA    |
-| `data.templatePriority` | `system.templatePriority` | NA    |
+It maps nothing beyond the shared rows above, actor row included: a vehicle
+carries a portrait and a template priority and no field of its own.
 
 ### type: affiliation
 
@@ -1338,7 +1437,7 @@ Note: `data.quantity` may not be specified. Quantity is always 1.
 
 If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
 
-if a `hm3` property is present, an HM3 item of type "armorgear" will be created.
+The note type is `armorgear` in both cases. The `gear` suffix was briefly renamed away on the argument that it named a SoHL document subtype rather than the thing the note is about; that rename is reversed. Nothing had adopted the bare spelling — every note in every tree still writes the suffix — and dropping it from three of the five gear types while `weapongear` and `containergear` kept theirs cost more consistency than the argument bought.
 
 | shared source     | → sohl                  | → hm3           |
 | ----------------- | ----------------------- | --------------- |
@@ -1548,7 +1647,7 @@ if a `sohl` property is present, a SoHL item of type "projectilegear" will be cr
 If an `hm3` property is present, then an HM3 item of type "missilegear" will be created.
 
 Note that `weapon` can also produce an HM3 `missilegear`. Since `(type, shortcode)` is a
-flat namespace, a `projectile` and a `weapon` sharing a shortcode would collide on the
+flat namespace, a `projectilegear` and a `weapon` sharing a shortcode would collide on the
 HM3 side while remaining distinct on the SoHL side.
 
 | shared source     | → sohl                  | → hm3             |
@@ -1772,8 +1871,8 @@ Foundry, so the build refuses rather than resolving.
 > system-specific, and HM3 would want the identical Scene. Authoring it under
 > `sohl:` means a map produces nothing for a system-agnostic build and carries a
 > SoHL infobox implying a specificity it does not have. It is the same class of
-> mistake as storing `archetype` in flags: the data went where the only available
-> container was, rather than where it belongs. Three notes carry it today.
+> mistake as storing the template priority in flags: the data went where the only
+> available container was, rather than where it belongs. Three notes carry it today.
 
 **A map is always a leaf.** Its frontmatter references nothing outside itself.
 `notes:` is a list of `[anchor, GridLocation]`, and each anchor names a heading in
@@ -1960,28 +2059,67 @@ A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT
 | --------------- | ------------ | ------------------------------------------------------ |
 | `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
 
-**The note's system blocks decide how many Adventures it makes**, exactly as they
-do for every other type:
-
-- With **no** system block, one Adventure is written, holding only the `contents`
-  that are themselves of system `none`.
-- With **one or more**, one Adventure is written **per system**, each holding
-  every `none` document plus that system's own. A document of neither is
-  silently left out.
-
-Each Adventure is written to the pack the note's `pack` names — the shared
-routing field every type uses, not one of the bundle's own — except that it
-defaults to `adventures` rather than to the configured default pack.
-`<system>.pack` overrides it for that system, as it does everywhere else.
+```yaml
+---
+type: bundle
+shortcode: hegovynvale
+name:
+  full: The Hegóvyn Vale
+data:
+  contents:
+    - map-hegovynvale
+    - miscgear-bowlcer
+    - being-aurochs
+---
+Prose describing what the bundle is for.
+```
 
 An `Adventure` carries **copies** of what it holds, not references: importing one
 creates or updates each document in the world, after which they live
 independently. So a bundle is not a folder — a folder is a live grouping that
 persists in the pack.
 
-Note that an `Adventure` has no `system` field of its own. A bundle spanning two
-systems therefore cannot be one document that knows it spans them; it is one
-Adventure per system, and the pack each is written to is what carries the system.
+**Each address names the note's own document.** That is the same rule `pack:`
+follows, so there is one answer and not two. A note that compiles into _two_
+documents — an item and the JournalEntry its prose became — puts the second in a
+bundle only when the bundle names it by its own `doc…` address:
+`miscgear-bowlcer` is the item, `docmiscgear-bowlcer` its description page.
+
+**An address that resolves to nothing fails the build.** A `folder` address is
+refused with a message of its own: a folder materialises in every pack holding
+something filed in it, so it belongs to no one pack and there is no single copy
+to take.
+
+**The note's prose becomes the Adventure's `description`**, which is what
+Foundry renders on the import card. A bundle is something you hand someone, so
+its prose belongs on the document itself — which is why, unlike an item, a
+bundle earns no separate documentation journal.
+
+Each Adventure is written to the pack the note's `pack` names — the shared
+routing field every type uses, not one of the bundle's own — defaulting to the
+configured `Adventure` pack, conventionally `adventures`. `<system>.pack`
+overrides it for that system, as it does everywhere else.
+
+**It cannot be the `adventures` companion**, though, where a repository also
+compiles map notes: that pack is written by the scenes pass, and a companion is
+written by its parent pass rather than routed to. A repository that authors
+bundles declares an Adventure pack of its own, and one that declares none is
+told so by name.
+
+**A pack's `system:` constrains what its Adventures may hold.** An `Adventure`
+has no `system` field, so a bundle spanning two systems cannot be one document
+that knows it spans them: it is one Adventure per system, and the pack each is
+written to is what carries the system. A pack declaring `system: hm3` sees the
+HM3 packs and the system-neutral ones, so a member that publishes no HM3
+document is **left out rather than failing** — and named, because an installer
+that quietly ships half its contents is worse than one that fails. A pack
+declaring no system scopes nothing away, and a member it cannot find is a dead
+address.
+
+**The bundles pass runs last**, after every pass producing what a bundle can
+hold — Item, Actor, JournalEntry, Macro and Scene. That ordering is derived from
+what the pass declares it reads, not from the order `packs:` happens to list, so
+an Adventure pack declared first still compiles last.
 
 ### type: folder
 
@@ -2002,10 +2140,10 @@ data:
 ---
 ```
 
-| `data` property | Values                | Description                                       |
-| --------------- | --------------------- | ------------------------------------------------- |
-| `parent`        | `WikiLink`            | The folder this one sits in. Unset at the root.   |
-| `color`         | `"#RRGGBB"`, a string | The folder's colour. Unset for Foundry's default. |
+| `data` property | Values                                     | Description                                                                    |
+| --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
+| `parent`        | `WikiLink`, or a map of them keyed by pack | The folder this one sits in — one address, or one per pack. Unset at the root. |
+| `color`         | `"#RRGGBB"`, a string                      | The folder's colour. Unset for Foundry's default.                              |
 
 A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
 `Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
@@ -2041,6 +2179,12 @@ scalar — the everyday spelling, and the right one wherever the hierarchies agr
 — is exactly `{ default: <value> }`. The folder keeps **one id** across every
 pack it materialises in, which is what files a documentation journal beside the
 item it describes; only its parent differs.
+
+Every key but `default` names a **pack the package declares**, and one that names
+none is a finding of its own. It cannot be a harmless surplus: the compile asks
+the map for the pack it is writing and falls back to `default` when there is no
+such key, so a mistyped `journal:` files the folder wherever the default puts it
+— exactly the hierarchy the key was written to override, and silently.
 
 **A folder note carries no prose.** It is structure, not content, so it produces
 no documentation journal and takes no part in `docEntryTypes`.

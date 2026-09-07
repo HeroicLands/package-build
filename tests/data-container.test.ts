@@ -11,6 +11,7 @@ import { lintNote, lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY, dataFields, subTypes } from "../engine/note-vocabulary.mjs";
 import { positionOfFrontmatterPath } from "../engine/diagnostics.mjs";
 import { pageFrontmatter } from "../engine/site-build.mjs";
+import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 /**
@@ -259,5 +260,87 @@ describe("lintFrontmatter carries the vocabulary through", () => {
         } as any;
         const r = lintFrontmatter(index, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
         expect(messages(r.findings)).toContain('Did you mean "weight"?');
+    });
+});
+
+/**
+ * A folder's `parent` is a scalar **or** a map keyed by pack (#288).
+ *
+ * The compiler has read both since #276 — a folder's identity is one thing and
+ * its hierarchy another, and both large trees file the same folder under a
+ * different parent in the items pack and the journals pack. The vocabulary
+ * typed the field as a bare wikilink, so `content-build lint` rejected every
+ * note using the form the compiler is specified to accept: 46 findings against
+ * `sohl-thalorna` and 3 here, none of them a content defect.
+ */
+describe("a folder's `parent` is a scalar or a map keyed by pack (#288)", () => {
+    const folderOpts = {
+        schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as any,
+        vocabulary: NOTE_VOCABULARY,
+    };
+    const folder = (parent: unknown) =>
+        note("folder", { shortcode: "characteristics", data: { parent } });
+
+    it("accepts the everyday scalar", () => {
+        expect(lintNote(folder("possessions"), folderOpts)).toEqual([]);
+    });
+
+    it("accepts a map keyed by pack", () => {
+        expect(lintNote(folder({ default: null, journals: "descriptions" }), folderOpts)).toEqual(
+            [],
+        );
+    });
+
+    it("accepts an explicit `~` under a pack key, which means at the root there", () => {
+        expect(lintNote(folder({ default: "possessions", journals: null }), folderOpts)).toEqual(
+            [],
+        );
+    });
+
+    it("reports a non-address entry per pack key, not the whole map", () => {
+        const findings = lintNote(
+            folder({ default: "possessions", journals: { full: "Descriptions" } }),
+            folderOpts,
+        );
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`data.parent.journals` should be a wikilink");
+        // The whole map is no longer quoted back at the author: the one entry
+        // at fault is, which is the string they have to correct.
+        expect(findings[0].message).not.toContain("possessions");
+    });
+
+    it("locates that finding at the offending pack key's own line", () => {
+        const subject = folder({ default: "possessions", journals: { full: "Descriptions" } });
+        // `---`, `type:`, `shortcode:`, `data:`, `parent:`, `default:`, then
+        // `journals:` — file line 7, indented eight.
+        expect(lintNote(subject, folderOpts)[0]).toMatchObject({ line: 7, column: 9 });
+    });
+
+    it("still reports a list, which is neither an address nor a map of them", () => {
+        const findings = lintNote(folder(["possessions", "descriptions"]), folderOpts);
+        expect(findings).toHaveLength(1);
+        expect(messages(findings)).toContain("`data.parent` should be");
+    });
+
+    it("reports a pack key naming no declared pack, when the packs are known", () => {
+        const findings = lintNote(folder({ default: "possessions", journal: "descriptions" }), {
+            ...folderOpts,
+            packs: ["items", "journals", "actors"],
+        });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain('"journal" is not a pack');
+        expect(findings[0].message).toContain('Did you mean "journals"?');
+    });
+
+    it("makes no claim about a pack key when the caller declares no packs", () => {
+        expect(lintNote(folder({ default: "possessions", journal: "x" }), folderOpts)).toEqual([]);
+    });
+
+    it("takes `default` for a pack name nowhere, since it is the map's own key", () => {
+        const findings = lintNote(folder({ default: "possessions" }), {
+            ...folderOpts,
+            packs: ["items", "journals"],
+        });
+        expect(findings).toEqual([]);
     });
 });

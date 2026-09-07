@@ -17,7 +17,8 @@ import {
     buildLinkIndex,
     walkReachability,
 } from "../engine/content-links.mjs";
-import { collectAnchors } from "../engine/content-index.mjs";
+import { collectAnchors, DERIVED_KEYS, indexRecordsFor } from "../engine/content-index.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 /** A throwaway content tree, described as `{ relPath: contents }`. */
 function tree(files: Record<string, string>): string {
@@ -338,5 +339,134 @@ describe("one anchor reader, not two (#243)", () => {
         );
         // And the fenced and non-heading cases stay excluded by both.
         expect([...anchorsOf(body)].sort()).toEqual(["MixedCase", "a1b2", "lower-case"]);
+    });
+});
+
+/**
+ * The link check no longer answers "which files are the content?" for itself.
+ *
+ * It reads the content index, which is the same derivation the published
+ * artifact, the `sql` tables and the compilers run on — so the corpus, the
+ * addresses and the anchors it resolves against are one answer rather than
+ * N that agree only by inspection (#243).
+ */
+describe("the link index is read from the content index", () => {
+    it("enumerates the corpus from the records it is handed, not from the tree", () => {
+        const root = tree({
+            "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
+            "Skills/Jumping.md": note({ type: "skill", shortcode: "jmp" }),
+        });
+        const records = indexRecordsFor({ contentBase: root, skipDirectories: [] }).filter(
+            (record: any) => record.file.path !== "Skills/Jumping.md",
+        );
+        const index = buildLinkIndex(root, { records, skipDirectories: [] });
+
+        expect(index.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
+        // And the withheld note is not resolvable either, so the records are
+        // the corpus rather than a hint about it.
+        expect(index.resolve("skill-jmp")).toBeUndefined();
+    });
+
+    it("exposes the frontmatter the note authored, not the record's derived keys", () => {
+        const { index } = audit({
+            "Skills/Climbing.md": note(
+                { type: "skill", shortcode: "clmb", name: { full: "Climbing" } },
+                "## Bit {#bit}\n",
+            ),
+        });
+        const { fm } = index.notes[0];
+        // What the author wrote survives …
+        expect(fm.type).toBe("skill");
+        expect(fm.shortcode).toBe("clmb");
+        // … and what the index derives does not, or the frontmatter linter
+        // would report `address:` and `anchors:` as keys nobody may write.
+        for (const derived of DERIVED_KEYS) {
+            expect(fm).not.toHaveProperty(derived);
+        }
+    });
+
+    it("resolves an anchor from the index's record rather than a second reading", () => {
+        const { index } = audit({
+            "Rules/A.md": note({ type: "doc", shortcode: "a" }, "See [[skill-clmb#bit|the bit]]."),
+            "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }, "## Bit {#bit}\n"),
+        });
+        const climbing = index.notes.find((n: any) => n.fm.shortcode === "clmb");
+        expect([...index.anchors.get(climbing)]).toEqual(["bit"]);
+    });
+
+    it("honours the scope it was handed rather than the configuration's", () => {
+        const files = {
+            "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
+            "Templates/Skeleton.md": note({ type: "skill", shortcode: "skel" }),
+        };
+        // The suite's configuration skips `Templates`; a caller stating an
+        // empty scope reads it, and one stating the same directory does not.
+        const open = buildLinkIndex(tree(files), { skipDirectories: [] });
+        expect(open.notes.map((n: any) => n.rel).sort()).toEqual([
+            "Skills/Climbing.md",
+            "Templates/Skeleton.md",
+        ]);
+        const scoped = buildLinkIndex(tree(files), { skipDirectories: ["Templates"] });
+        expect(scoped.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
+    });
+
+    // The package a local address carries used to come from `contentPackage()`,
+    // which reads whichever configuration the working directory resolves —
+    // not the one the caller passed. The two are the same object in an ordinary
+    // build and different ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or
+    // in a test, which is exactly where a link check runs.
+    it("builds local addresses from the configuration it was handed", () => {
+        const config = { ...loadPackConfig(), contentPackage: "elsewhere" };
+        const root = tree({
+            "Rules/A.md": note(
+                { type: "doc", shortcode: "a" },
+                "See [[elsewhere-sohl-skill-clmb|Climbing]].",
+            ),
+            "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
+        });
+        const index = buildLinkIndex(root, { config, skipDirectories: [] });
+
+        expect(index.contentPackage).toBe("elsewhere");
+        expect(index.resolve("elsewhere-sohl-skill-clmb")?.fm.shortcode).toBe("clmb");
+        expect(auditLinks(index).deadAddresses).toEqual([]);
+    });
+});
+
+/*
+ * A note the index cannot record must not silence the check. Before #243 the
+ * link check walked the tree itself, so such a note was simply an ordinary note
+ * to it; after the conversion it aborted the whole pass, losing every finding
+ * in the tree to one malformed file.
+ */
+describe("a note the content index cannot record (#243)", () => {
+    it("is reported, and every other note is still checked", () => {
+        const root = tree({
+            "Skills/Climbing.md": note(
+                { type: "skill", shortcode: "clmb" },
+                "See [[skill-nosuch|missing]].",
+            ),
+            "Skills/Legacy.md": note({ type: "skill", shortcode: "leg", package: "sohl" }),
+        });
+        const problems: any[] = [];
+        const index = buildLinkIndex(root, { skipDirectories: [], problems });
+
+        expect(problems).toHaveLength(1);
+        expect(problems[0].message).toMatch(/retired frontmatter field/);
+        expect(problems[0].file).toBe(path.join(root, "Skills", "Legacy.md"));
+
+        // The dead link in the *other* note is still found, which is the whole
+        // reason the problem is collected rather than thrown.
+        const { deadAddresses } = auditLinks(index);
+        expect(deadAddresses).toHaveLength(1);
+        expect(index.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
+    });
+
+    it("throws when the caller offers no collector, so nothing is skipped in silence", () => {
+        const root = tree({
+            "Skills/Legacy.md": note({ type: "skill", shortcode: "leg", package: "sohl" }),
+        });
+        expect(() => buildLinkIndex(root, { skipDirectories: [] })).toThrow(
+            /retired frontmatter field/,
+        );
     });
 });

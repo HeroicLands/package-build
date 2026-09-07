@@ -59,15 +59,18 @@ import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { walkMarkdownTree } from "./helpers.mjs";
 import { collectAnchors } from "./anchors.mjs";
+// The corpus, and everything derived from it, read from the one place that
+// derives it (#243). Nothing in the index's own import graph reaches this
+// module, so this is a plain static import rather than the deferred one
+// `sql-tables` needs to keep out of the compilers' cycle.
+import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
-import { contentPackage } from "./content-package.mjs";
+import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
-import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
@@ -98,7 +101,26 @@ export function anchorsOf(body) {
 }
 
 /**
- * Load a content tree and build the index a link resolves against.
+ * Read a content tree into the index a link resolves against.
+ *
+ * **The corpus comes from the content index, not from a walk of this module's
+ * own** (#243). Every pass used to answer "which files are the content?" for
+ * itself and throw the answer away; this one now reads
+ * {@link module:engine/content-index.indexRecordsFor}, which is the same
+ * derivation the published artifact and the compilers are driven from. So a
+ * note the index records is a note the link check sees, and the addresses and
+ * anchors it resolves against are the ones every other pass will emit — rather
+ * than a second derivation that agrees with them only by inspection. That was
+ * not hypothetical: this module carried its own anchor reader until the anchor
+ * half of #243, and the two disagreed about which anchors existed.
+ *
+ * **The file is opened for its bytes and nothing else.** The index deliberately
+ * carries no note *body*, and a link lives in the body — so each note is read
+ * once, here, for the prose. Everything *about* the note — its frontmatter, its
+ * addresses, its anchors — is already in the record, and none of it is derived
+ * a second time. That is one read per note rather than the two this module did
+ * before, since the walk read the file and it then read it again for the raw
+ * text.
  *
  * The index mirrors what both builds construct, including the two addresses a
  * doc-carrying note answers to: `type/shortcode` for the document, and
@@ -110,59 +132,78 @@ export function anchorsOf(body) {
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {object} [opts.config] - The resolved build configuration, whose
- *   fetched dependency indexes foreign addresses resolve through (#239).
- *   Omitted, no cross-package address resolves.
- * @param {readonly string[]} [opts.skipDirectories] - Passed to the walk.
+ *   fetched dependency indexes foreign addresses resolve through (#239), and
+ *   whose `contentPackage` every local address is built from. Omitted, the
+ *   ambient configuration is resolved and no cross-package address resolves.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, passed
+ *   on to the index rather than defaulted away.
+ * @param {Map<string, object[]>} [opts.sqlTables] - Prepared `sql` results, by
+ *   note path.
+ * @param {object[]} [opts.records] - Index records the caller already derived,
+ *   so a command that also needs them — every one of them does, to answer its
+ *   `sql` tables — enumerates the corpus once rather than twice.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, as diagnostics, instead of letting one of them abort the check
+ *   before it has reported anything else.
  * @returns {object} The notes, the index, and the resolvers built over it.
  */
-export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables } = {}) {
+export function buildLinkIndex(
+    contentBase,
+    { config, skipDirectories, sqlTables, records, problems } = {},
+) {
     const notes = [];
     const frontmatterLinks = [];
-    // Passed through rather than defaulted away: an absent scope is the
-    // caller's omission, and `walkMarkdownTree` says so (#243).
-    const walkOpts = { skipDirectories };
 
     // The one package every note in this tree belongs to. Taken from the
-    // configuration, never from a note: `package:` is retired, so there is no
-    // second source an address could disagree with (#56).
-    const pkg = contentPackage();
+    // configuration this build resolved — never from a note (`package:` is
+    // retired, so there is no second source an address could disagree with,
+    // #56) and never from the ambient one, which is a different configuration
+    // whenever a test injects one, `PACKAGE_BUILD_CONFIG` names one, or the
+    // command runs from a worktree (#243).
+    const resolved = config ?? loadPackConfig();
+    const pkg = resolved.contentPackage;
 
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, walkOpts)) {
-        if (!fm || typeof fm.type !== "string") continue;
-        // The id this note's document is filed under — its authored pin, or
-        // the one derived from its canonical address (#270). The index and the
-        // compile pass must agree about it and neither sees the other.
-        resolveNoteId(fm, { pkg });
+    const indexRecords =
+        records ?? indexRecordsFor({ contentBase, config: resolved, skipDirectories, problems });
+
+    const byKey = new Map();
+    const anchors = new Map();
+
+    for (const record of indexRecords) {
+        // A documentation journal has a record of its own but no file and no
+        // authored frontmatter — it is a document this tree emits, not a note
+        // in it. Its addresses are keyed below, from the note it documents.
+        if (!isNoteRecord(record) || typeof record.type !== "string") continue;
+
+        const fm = authoredFrontmatter(record);
+        const rel = record.file.path;
+        const absPath = noteFile(contentBase, record);
         // The raw text is kept beside the parsed body: a consumer's own checks
         // may need what frontmatter carried, which the body has dropped.
         const raw = fs.readFileSync(absPath, "utf8");
         const body = raw.replace(/^---\n[\s\S]*?\n---\n?/, "");
-        const note = {
-            file: absPath,
-            rel: path.relative(contentBase, absPath).split(path.sep).join("/"),
-            fm,
-            body,
-            raw,
-            type: fm.type.toLowerCase(),
-        };
+        const type = record.type.toLowerCase();
+        const note = { file: absPath, rel, fm, body, raw, type };
+
         for (const hit of frontmatterWikilinks(fm)) {
             frontmatterLinks.push({ note, ...hit });
         }
         notes.push(note);
-    }
 
-    const byKey = new Map();
+        // The anchors the index recorded, rather than a second reading of the
+        // same headings — the disagreement #243's anchor half removed.
+        anchors.set(note, new Set((record.anchors ?? []).map((a) => a.slug)));
 
-    for (const note of notes) {
-        const { fm, type } = note;
         if (typeof fm.shortcode === "string" && fm.shortcode) {
             byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
             // The canonical, fully qualified address alongside the short one,
             // so a package-qualified link checks the same way a bare one does.
-            byKey.set(
-                canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode),
-                note,
-            );
+            // Taken from the record, which is where the address rule is applied
+            // once for the whole build.
+            const canonical =
+                record.address?.canonical ??
+                canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode);
+            byKey.set(canonical, note);
             if (hasDocEntry(type)) {
                 byKey.set(`doc${type}/${fm.shortcode}`.toLowerCase(), note);
                 // A documentation journal is `none`: no game system defines a
@@ -173,6 +214,10 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
         }
     }
 
+    // The types a link may name, which are the ones notes declare. A
+    // documentation journal's `doc<type>` is deliberately not among them: it is
+    // virtual, and `readQualifier` resolves it from the base type rather than
+    // from a type any tree declares.
     const types = new Set(notes.map((n) => n.type));
 
     // A foreign package may use a type this tree has never seen, so its types
@@ -196,8 +241,6 @@ export function buildLinkIndex(contentBase, { config, skipDirectories, sqlTables
         tld: n.rel.split("/")[0],
         folder: path.dirname(n.rel).split("/").pop(),
     }));
-
-    const anchors = new Map(notes.map((n) => [n, anchorsOf(n.body)]));
 
     /**
      * Every wikilink in a note body, with its `dataview` tables expanded.

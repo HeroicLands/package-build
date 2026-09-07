@@ -29,6 +29,7 @@ import { configFromData } from "../engine/pack-config.mjs";
 import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { compilerFor } from "../engine/generate.mjs";
+import { Bundles } from "../engine/bundles.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { HM3_ITEM_BUILDERS } from "../hm3/item-builders.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
@@ -259,8 +260,18 @@ describe("compilerFor — the pass a pack of one system gets", () => {
         expect(compilerFor("JournalEntry", "hm3")).toBe(compilerFor("JournalEntry", null));
     });
 
+    it("gives an Adventure pack the bundles pass, whichever system it declares", () => {
+        // An `Adventure` has no `system` field, so a bundle is not a system's
+        // data and there is nothing for a per-system compiler to differ about:
+        // a bundle spanning two systems is two documents, and the pack each is
+        // written to is what carries the system (#259).
+        expect(compilerFor("Adventure", "hm3")).toBe(Bundles);
+        expect(compilerFor("Adventure", null)).toBe(Bundles);
+    });
+
     it("has no compiler for a document type nothing compiles", () => {
-        expect(compilerFor("Adventure", "hm3")).toBeUndefined();
+        expect(compilerFor("Cards", "hm3")).toBeUndefined();
+        expect(compilerFor("RollTable", null)).toBeUndefined();
     });
 });
 
@@ -482,9 +493,10 @@ name:
 id: BBBBBBBBBBBBBBBB
 shortcode: aldric
 type: being
-species: human
-gender: male
-occupation: Knight
+data:
+  species: human
+  gender: male
+  occupation: Knight
 sohl:
   pack: actors-sohl
   archetype: null
@@ -500,6 +512,31 @@ hm3:
 Tall and scarred.
 `;
 
+/**
+ * A note that *is* a starting template, stating the priority at the specified
+ * home. Both systems record the same statement — SoHL in `system`, HM3 in flags
+ * (#283) — so one note proves the whole row.
+ */
+const TEMPLATE_SWORD = `---
+name:
+  full: Training Sword
+id: CCCCCCCCCCCCCCCC
+shortcode: trainingsword
+type: weapongear
+weight: 4
+value: 20
+data:
+  templatePriority: 0
+sohl:
+  pack: items-sohl
+hm3:
+  pack: items-hm3
+  type: weapongear
+---
+
+A blunted blade.
+`;
+
 const roots: string[] = [];
 beforeAll(() => log.setLevel("silent"));
 afterAll(() => {
@@ -512,7 +549,11 @@ describe("one note carrying both blocks compiles a document in each system", () 
     let result: { errors: number; output: string };
 
     beforeAll(() => {
-        root = dualRepo({ "Broadsword.md": SWORD, "Aldric.md": KNIGHT });
+        root = dualRepo({
+            "Broadsword.md": SWORD,
+            "Aldric.md": KNIGHT,
+            "Training_Sword.md": TEMPLATE_SWORD,
+        });
         roots.push(root);
         result = compile(root);
     });
@@ -562,6 +603,12 @@ describe("one note carrying both blocks compiles a document in each system", () 
     });
 
     it("writes each actor's shared facts at its own system's paths", () => {
+        // Authored under `data:`, which is where the specification's
+        // `data.species` → `system.species` row says they live, and reached
+        // through the shared source the declaration names (#305). Before that
+        // the row was unreachable: the field named the bare key, so it read a
+        // top-level `species:` by coincidence of spelling and could not see the
+        // container the format actually maps from.
         const hm3 = packDocs(root, "actors-hm3")["Sir Aldric"].system;
         expect(hm3.species).toBe("human");
         expect(hm3.gender).toBe("male");
@@ -575,11 +622,78 @@ describe("one note carrying both blocks compiles a document in each system", () 
         expect(hm3.sunsign).toBe("ulandus");
     });
 
+    /**
+     * The row the shared-mappings table states for every type:
+     * `data.templatePriority` → `system.templatePriority` in SoHL and
+     * `flags.hm3.templatePriority` here. The HM3 *item* pass did not make it,
+     * so an item note declaring the priority compiled into a SoHL template and
+     * an HM3 non-template, with nothing said (#283).
+     */
+    it("records an item's template priority in both systems", () => {
+        expect(packDocs(root, "items-sohl")["Training Sword"].system.templatePriority).toBe(0);
+        expect(packDocs(root, "items-hm3")["Training Sword"].flags).toEqual({
+            hm3: { templatePriority: 0 },
+        });
+    });
+
+    it("writes no template flag on an item that is not a template", () => {
+        expect(packDocs(root, "items-sohl").Broadsword.system.templatePriority).toBeNull();
+        expect(packDocs(root, "items-hm3").Broadsword.flags).toEqual({});
+    });
+
     it("still compiles the item note's prose into the one JournalEntry pack", () => {
         // A being's prose is rendered into the actor itself — `{#appearance}`
         // and `{#dossier}` are actor fields — so a `being` carries no item doc
         // and the journals pass claims only the item note.
-        expect(Object.keys(packDocs(root, "journals"))).toEqual(["Broadsword"]);
+        expect(Object.keys(packDocs(root, "journals")).sort()).toEqual([
+            "Broadsword",
+            "Training Sword",
+        ]);
+    });
+});
+
+/**
+ * A `being` written the way the corpus writes it today: the shared facts inside
+ * the `hm3:` block, where every one of the 2,512 `harn-ensemble` beings carries
+ * them.
+ */
+const LEGACY_KNIGHT = KNIGHT.replace(
+    "data:\n  species: human\n  gender: male\n  occupation: Knight\n",
+    "",
+).replace("  type: character\n", "  type: character\n  species: human\n  gender: male\n");
+
+describe("a field mid-sweep reads either position, and says which (#305)", () => {
+    let root: string;
+    let result: { errors: number; output: string };
+
+    beforeAll(() => {
+        // The sword rides along so the item and journal packs are not empty —
+        // an empty pack is its own error, and this test is about the being.
+        root = dualRepo({ "Aldric.md": LEGACY_KNIGHT, "Broadsword.md": SWORD });
+        roots.push(root);
+        result = compile(root);
+    });
+
+    it("still compiles a note that writes the legacy in-block key", () => {
+        // The whole reason the two positions are declared separately. A field
+        // named only `data.species` would ship `""` here — silently, with the
+        // note compiling and the value gone — which is what made moving any
+        // field into `data:` a flag day across four repositories.
+        expect(result.errors).toBe(0);
+        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.species).toBe("human");
+        expect(packDocs(root, "actors-hm3")["Sir Aldric"].system.gender).toBe("male");
+    });
+
+    it("reports the legacy position, so the sweep has something to count down", () => {
+        expect(result.output).toContain("`hm3.species:` is the legacy position");
+        expect(result.output).toContain("`data.species:`");
+    });
+
+    it("reports it as a warning, not an error", () => {
+        // The note compiles to the correct document; failing a build over it
+        // would red a tree that has done nothing wrong yet.
+        expect(result.output).toMatch(/warning: `hm3\.species:`/);
+        expect(result.errors).toBe(0);
     });
 });
 
@@ -748,3 +862,84 @@ describe("the hm3 half stays a half", () => {
         expect(typeof contentPackage()).toBe("string");
     });
 });
+
+/**
+ * The template priority is a *shared* statement — one note-level fact both
+ * systems record, SoHL as `system.templatePriority` and HM3 as
+ * `flags.hm3.templatePriority` (#266).
+ *
+ * It was resolved here as an ordinary declared field, whose shared source is a
+ * single position, so only a bare top-level `templatePriority` ever answered.
+ * A note authoring it at the *specified* home (`data:`), or at the retiring
+ * `archetype` spelling every unswept tree still uses, wrote no flag at all —
+ * silently, since HM3 omits the flag for a note that is not a template, making
+ * "lost" and "not a template" the same output. `harn-ensemble` authors
+ * `archetype:` on 2,502 notes and `templatePriority` on none.
+ */
+describe.each([
+    [
+        "Actor",
+        // `actorFlags` reads only its arguments, so it is exercised off the
+        // prototype rather than through a constructed compiler, which would
+        // want a content tree on disk to say nothing about this.
+        (fm: Record<string, unknown>) =>
+            Hm3Actors.prototype.actorFlags.call({}, fm, "hm3") as Record<string, any>,
+    ],
+    [
+        "Item",
+        // Same, except that an Item pass reads its block off its own map rather
+        // than being handed it, so the receiver is a bare instance.
+        (fm: Record<string, unknown>) =>
+            Hm3Items.prototype.commonFlags.call(Object.create(Hm3Items.prototype), fm) as Record<
+                string,
+                any
+            >,
+    ],
+] as const)(
+    "the HM3 %s template flag reads every position the priority is stated at",
+    (_pass, flagsFor) => {
+        it.each([
+            ["the specified home, `data:`", { data: { templatePriority: 3 } }, 3],
+            ["the top level", { templatePriority: 4 }, 4],
+            ["this system's own block", { hm3: { templatePriority: 5 } }, 5],
+            ["the retiring spelling, top level", { archetype: 7 }, 7],
+            ["the retiring spelling, in block", { hm3: { archetype: 8 } }, 8],
+            ["a priority of 0, which is a real one", { data: { templatePriority: 0 } }, 0],
+        ])("writes the flag from %s", (_where, fm, expected) => {
+            expect(flagsFor(fm as Record<string, unknown>).hm3.templatePriority).toBe(expected);
+        });
+
+        it.each([
+            ["states nothing", {}],
+            ["states null — it is not a template", { data: { templatePriority: null } }],
+        ])("writes no flag when the note %s", (_case, fm) => {
+            expect(flagsFor(fm as Record<string, unknown>).hm3).toBeUndefined();
+        });
+
+        it("keeps the flags the note itself authored", () => {
+            const flags = flagsFor({
+                data: { templatePriority: 1 },
+                hm3: { flags: { core: { x: 1 } } },
+            });
+            expect(flags.core).toEqual({ x: 1 });
+            expect(flags.hm3.templatePriority).toBe(1);
+        });
+
+        /**
+         * Deliberate, and the reason `harn-ensemble` is not fixed by this read
+         * alone: it states the priority at `sohl.archetype` on 2,502 notes, and
+         * those notes get their HM3 flag when the tree sweeps to `data:` (step 2 of
+         * #266's migration), not by this pass reaching into another system's block.
+         */
+        it("does not read the other system's block", () => {
+            expect(flagsFor({ sohl: { archetype: 1 } }).hm3).toBeUndefined();
+            expect(flagsFor({ sohl: { templatePriority: 1 } }).hm3).toBeUndefined();
+        });
+
+        it("refuses a note whose two spellings disagree, rather than picking one", () => {
+            expect(() => flagsFor({ data: { templatePriority: null }, archetype: 0 })).toThrow(
+                /Conflicting templatePriority/,
+            );
+        });
+    },
+);

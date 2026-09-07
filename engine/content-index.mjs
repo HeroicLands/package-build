@@ -61,6 +61,28 @@
  * Foundry data root, so anything left there ships inside the installed system
  * to every player, and a build artifact has no business there.
  *
+ * **What it deliberately does not carry: the note's text, and positions within
+ * it.** #243 asks whether the index should record a position for every
+ * frontmatter key, so that a pass reading the index could report a field defect
+ * without opening the file. It should not, and the numbers are not close: over
+ * `sohl`'s 1,685 notes the index is 3.0 MB and holds 50,598 leaf values, so a
+ * `{line, column}` on each would add roughly 1.6 MB — **a 54% larger artifact**
+ * — to carry data that is only ever read on the *failing* path.
+ *
+ * The rule that replaces it is the one this module was already built on:
+ * **the index carries what is _about_ a note; the file carries the note's text
+ * and every position within it.** Any pass needing either opens the file whose
+ * path the record already names ({@link noteFile}). That costs nothing it was
+ * not already paying — a check reads each note once for its body, and a
+ * compiler must read the prose regardless, so while it holds the bytes a
+ * position is free. Recording positions would charge every build, and every
+ * reader of the artifact, for something the passes that want them get for
+ * nothing.
+ *
+ * The exception proves the rule: an **anchor** carries its `line`, because an
+ * anchor is a fact about the note's structure that a consumer addresses
+ * directly, not a locator for a diagnostic about a key.
+ *
  * @module
  */
 
@@ -92,35 +114,17 @@ export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
+// The retired-field refusal and the key locator, so a note authoring a derived
+// key is reported where it is rather than as a bare abort (#243).
+import { assertNoDeclaredPackage } from "./note-package.mjs";
+import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+// The record accessors, which live apart so that a module the compilers load
+// can read a record without importing this one and closing a cycle (#243).
+// Re-exported because this is where callers have always addressed them.
+import { authoredFrontmatter, DERIVED_KEYS, isNoteRecord, noteFile } from "./index-records.mjs";
 
-/**
- * The keys this module adds to a record, which a note therefore may not carry
- * itself.
- *
- * `package` is the note's distribution unit — the configured `contentPackage`,
- * since a note declaring its own is a hard error (package-build#56) — and it
- * matches what the content-table expander puts on the same field, so a query
- * reads the same value from either. `file` namespaces the note's place in the
- * tree, again matching the expander's `file.*`.
- *
- * Both are checked rather than assumed: `folder` is real frontmatter on most
- * notes, so the neighbouring names are close enough to a real key that a silent
- * overwrite is a plausible future rather than a hypothetical one.
- *
- * @type {ReadonlyArray<string>}
- */
-export const DERIVED_KEYS = Object.freeze([
-    "package",
-    "file",
-    "address",
-    "anchors",
-    "nameAscii",
-    "aliasesAscii",
-    "foundry",
-    "documentation",
-    "documents",
-]);
+export { authoredFrontmatter, DERIVED_KEYS, isNoteRecord, noteFile };
 
 /**
  * The address a wikilink writes to reach a note, or `null` when it has none.
@@ -361,22 +365,61 @@ function foundryBlock(entry, system) {
     return { [system || NO_SYSTEM]: block };
 }
 
+/**
+ * Refuse a note that authors a key the index derives, and say where.
+ *
+ * **Located, because every reader of the index is now a reporter of this.**
+ * Until #243 the only pass that built a record was the emitter, so aborting
+ * with a bare message was the whole story. Now the link check and the address
+ * diff read the index too, and a bare abort in one of them reports *nothing*
+ * about the tree — the one malformed note takes every other finding with it,
+ * and the reader is handed a stack instead of a line to open. So the error
+ * carries `file` and a `position`, and a pass that collects rather than throws
+ * can emit `file:line:column: error: …` like any other finding.
+ *
+ * **`package:` keeps its own words.** It is not a name collision but a *retired
+ * field* (#56), and the correction is to delete it, not to rename it — which is
+ * what {@link module:engine/note-package.assertNoDeclaredPackage} has always
+ * said, and had no caller to say it to. Deferring to it means one message for
+ * one mistake rather than two that contradict each other about the fix.
+ *
+ * @param {object} frontmatter - The note's parsed frontmatter.
+ * @param {string} relPath - The note's path within the tree, for the message.
+ * @param {string} [absPath] - The file, read only on the failing path to locate
+ *   the offending key.
+ * @param {string} [contentPackage] - The package this tree compiles as.
+ * @returns {void}
+ * @throws {Error} When the note authors a derived key. `file` and `position`
+ *   ride on the error.
+ */
+function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
+    for (const key of DERIVED_KEYS) {
+        if (!Object.hasOwn(frontmatter ?? {}, key)) continue;
+        if (key === "package") {
+            // Throws with its own wording, and its own position.
+            assertNoDeclaredPackage(frontmatter, { absPath, configured: contentPackage });
+        }
+        const err = new Error(
+            `\`${key}:\` is derived by the content index and cannot be ` +
+                `authored — rename the frontmatter field`,
+        );
+        err.file = relPath;
+        const position = absPath ? locateFrontmatterKey(absPath, key) : undefined;
+        if (position) err.position = position;
+        throw err;
+    }
+}
+
 export function buildIndexRecord({
     frontmatter,
     relPath,
+    absPath,
     contentPackage,
     body,
     bodyLine,
     manifest,
 }) {
-    for (const key of DERIVED_KEYS) {
-        if (Object.hasOwn(frontmatter ?? {}, key)) {
-            throw new Error(
-                `${relPath}: \`${key}:\` is derived by the content index and ` +
-                    `cannot be authored — rename the frontmatter field`,
-            );
-        }
-    }
+    assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
 
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
@@ -483,7 +526,10 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     );
 }
 
-export function collectContentIndex(contentBase, { contentPackage, skipDirectories, manifest }) {
+export function collectContentIndex(
+    contentBase,
+    { contentPackage, skipDirectories, manifest, problems },
+) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
     // caller's omission, and `walkMarkdownTree` says so (#243).
@@ -499,14 +545,33 @@ export function collectContentIndex(contentBase, { contentPackage, skipDirectori
         // that address derives.
         resolveNoteId(fm, { pkg: contentPackage });
         const relPath = path.relative(contentBase, absPath);
-        const record = buildIndexRecord({
-            frontmatter: fm,
-            relPath,
-            contentPackage,
-            body,
-            bodyLine,
-            manifest,
-        });
+        let record;
+        try {
+            record = buildIndexRecord({
+                frontmatter: fm,
+                relPath,
+                absPath,
+                contentPackage,
+                body,
+                bodyLine,
+                manifest,
+            });
+        } catch (err) {
+            // No `problems` array means the caller wants the old contract: a
+            // note that cannot be recorded fails the derivation outright, which
+            // is right for the *emitter* — an index quietly missing a note
+            // would state that the note does not exist.
+            if (!problems) throw err;
+            // A reader, by contrast, reports it and carries on: one malformed
+            // note must not take every other finding in the tree with it.
+            problems.push({
+                file: absPath,
+                ...(err.position ?? {}),
+                severity: "error",
+                message: String(err.message),
+            });
+            continue;
+        }
         records.push(record);
 
         // An item note is two documents, so it is two records (#239).
@@ -568,24 +633,36 @@ export function serializeContentIndex(records) {
  * The index records for a content tree, without writing anything.
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
- * pass that needs the corpus in memory — a SQL content table, and in time every
- * reader #243 converts — builds it the same way the artifact is built, rather
- * than by walking and parsing again with its own idea of the scope.
+ * pass that needs the corpus in memory — a SQL content table, the link check,
+ * and in time every reader #243 converts — builds it the same way the artifact
+ * is built, rather than by walking and parsing again with its own idea of the
+ * scope.
  *
  * @param {object} [opts]
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
+ * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, for a
+ *   caller that resolved one of its own; defaults to the resolved
+ *   configuration's. Stated separately from `config` because a caller that was
+ *   *handed* a scope must be able to pass it on rather than have it silently
+ *   replaced by the one its configuration happens to carry (#243).
+ * @param {object[]} [opts.problems] - Supplied by a **reader**: a note that
+ *   cannot be recorded is pushed here as a diagnostic and skipped, instead of
+ *   aborting the derivation. Omitted, the note throws — which is the contract
+ *   the emitter needs, since an index missing a note asserts that it does not
+ *   exist.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
-export function indexRecordsFor({ contentBase, config } = {}) {
+export function indexRecordsFor({ contentBase, config, skipDirectories, problems } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
     if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
-        skipDirectories: resolved.skipDirectories,
+        skipDirectories: skipDirectories ?? resolved.skipDirectories,
         // Only the identities a UUID is a function of — see emitContentIndex.
         manifest: foundryIdentities(resolved),
+        problems,
     });
 }
 

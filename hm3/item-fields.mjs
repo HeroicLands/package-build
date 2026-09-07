@@ -97,7 +97,7 @@ const GEAR_COMMON = Object.freeze([
  * The stack count, for the gear types whose content-format table gives it an
  * HM3 destination.
  *
- * `armorgear`, `containergear` and `weapongear` are excluded on purpose: their
+ * `armor`, `containergear` and `weapongear` are excluded on purpose: their
  * tables state that quantity is always 1 and may not be authored, so the note
  * has nothing to say and HM3's own `initial` is the right value to ship.
  *
@@ -119,7 +119,7 @@ const QUANTITY = Object.freeze({
  * Every HM3 item type's frontmatter vocabulary, in the order the `system` block
  * emits it.
  *
- * The keys are **note** types, not HM3 document subtypes — `projectilegear`
+ * The keys are **note** types, not HM3 document subtypes — `projectile`
  * rather than `missilegear`, `mysticalability` rather than `psionic` — because
  * a registry is addressed by what a note calls itself. What the document is
  * called is the map's answer, and only the map's.
@@ -149,7 +149,7 @@ export const HM3_ITEM_FIELDS = Object.freeze({
 
     miscgear: Object.freeze([...GEAR_COMMON, QUANTITY]),
 
-    // A note's `projectilegear` is HM3's `missilegear`; the fields are the gear
+    // A note's `projectile` is HM3's `missilegear`; the fields are the gear
     // template's, and the aspect, impact and range that make it a missile are
     // authored under `hm3.system`.
     projectilegear: Object.freeze([...GEAR_COMMON, QUANTITY]),

@@ -61,8 +61,11 @@
  * @module
  */
 
-import { walkMarkdownTree } from "./helpers.mjs";
-import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "./ids.mjs";
+import { assertSuppliedCorpus } from "./helpers.mjs";
+// The record accessors only: this module is imported by the content index, so
+// importing the index back would close a cycle (#243).
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
+import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -71,6 +74,7 @@ import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
+import { BUNDLE_TYPE } from "./bundle-notes.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 
 /**
@@ -84,6 +88,30 @@ import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
  * @type {ReadonlySet<string>}
  */
 export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
+
+/**
+ * Content types the specification states and this toolchain does not yet
+ * compile.
+ *
+ * **Stated, never inferred, and that distinction is the whole point.** An
+ * unimplemented type and a type somebody forgot to route look identical from
+ * the outside: both are documented, both validate, and neither reaches a pass.
+ * The only thing separating them is intent, so intent is written down here.
+ *
+ * Inferring it — "declared, but absent from the configured vocabulary" — reads
+ * correctly and is worthless, because the configured vocabulary is *derived
+ * from the routing*. Take a type's route away and it leaves the vocabulary too,
+ * so the inference excuses precisely the mistake it was meant to catch. That is
+ * not hypothetical: it is #241, where `place`, `lore` and `scenario` were
+ * declared, validated and unrouted, and every gate reported success until a
+ * downstream repository failed on 450 notes.
+ *
+ * A type leaves this set when it is implemented, the way `bundle` did in #259.
+ * The membership is asserted, so it cannot be forgotten in either direction.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const UNIMPLEMENTED_TYPES = Object.freeze(new Set(["vehicle"]));
 
 /**
  * Note types that reach a pack by a route **other than the pack router**.
@@ -179,7 +207,10 @@ function mappingSystems(maps, type) {
  * pack from appearing to answer for any note.
  *
  * @param {string} docType - The Foundry document type a pack holds.
- * @param {ClaimSources} [sources] - What to answer from. Defaults to the
+ * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243). Defaults to the
  *   configured registries and the systems this toolchain ships.
  * @returns {ReadonlySet<string>} The note types such a pass would claim.
  */
@@ -210,6 +241,12 @@ export function noteTypesClaimedBy(docType, sources) {
             return Object.freeze(new Set(["macro"]));
         case "Scene":
             return Object.freeze(new Set(MAP_TYPES));
+        // The bundles pass: an Adventure is what a `bundle` note compiles into
+        // (#259). A **prebuilt** Adventure pack still claims nothing —
+        // {@link claimedNoteTypes} passes over it, because no note is routed
+        // into a pack whose JSON is checked in rather than compiled.
+        case "Adventure":
+            return Object.freeze(new Set([BUNDLE_TYPE]));
         default:
             return Object.freeze(new Set());
     }
@@ -222,14 +259,27 @@ export function noteTypesClaimedBy(docType, sources) {
  * is claimed — which is what keeps a type deliberately unmapped for one system,
  * and claimed for another, silent (#79).
  *
+ * **A prebuilt pack claims nothing.** Its per-document JSON is checked in
+ * rather than compiled, so it has no pass and no note is routed into one —
+ * which `content-config.mjs` already states by refusing `default: true`
+ * alongside `prebuilt`. Counting it would tell an author their note is claimed
+ * by a pack that will never look at it. Before #259 the point could not arise:
+ * the only prebuilt pack in the wild is `harn-adventures`'s Adventure pack, and
+ * no compiler was registered for that document type, so the row answered for
+ * nothing whatever it was asked. Now one is.
+ *
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {ReadonlySet<string>} The claimed note types.
  */
 export function claimedNoteTypes(config = loadPackConfig(), sources) {
     const claimed = new Set();
     for (const pack of config.packs ?? []) {
+        if (pack.prebuilt) continue;
         for (const type of noteTypesClaimedBy(pack.type, sources)) claimed.add(type);
     }
     return Object.freeze(claimed);
@@ -245,6 +295,9 @@ export function claimedNoteTypes(config = loadPackConfig(), sources) {
  * declare on top.
  *
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {ReadonlySet<string>} The vocabulary.
  */
 export function noteTypeVocabulary(sources) {
@@ -297,14 +350,18 @@ function article(word) {
  * @returns {string} The message.
  */
 function configurationMessage(type, config, sources) {
+    // Every table below is keyed by the current spelling of a note type; the
+    // message quotes the authored one, which is what the reader has in front of
+    // them (#78).
+    const current = currentType(type);
     const documents = mappedDocuments(sources.maps, type);
-    if (!documents.length && sources.itemTypes.has(type)) documents.push("Item");
-    if (!documents.length && PACK_BY_TYPE[type]) documents.push(PACK_BY_TYPE[type].docType);
+    if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
+    if (!documents.length && PACK_BY_TYPE[current]) documents.push(PACK_BY_TYPE[current].docType);
 
     const systems = mappingSystems(sources.maps, type);
     const configured = new Set((config.packs ?? []).map((pack) => pack.type));
     const packless = documents.filter((document) => !configured.has(document));
-    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(type);
+    const needsBuilder = documents.includes("Item") && !sources.itemTypes.has(current);
 
     const into = documents.map((document) => `${article(document)} ${document}`).join(" or ");
     const becomes =
@@ -390,25 +447,41 @@ function authoringMessage(type) {
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in — required, for the reason above (#243).
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per note.
  */
-export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
+export function unclaimedNoteFindings(config = loadPackConfig(), sources, { records } = {}) {
     const resolved = resolveSources(sources);
     const claimed = claimedNoteTypes(config, resolved);
     const vocabulary = noteTypeVocabulary(resolved);
     const findings = [];
 
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(config.paths.content, {
-        skipDirectories: config.skipDirectories,
-    })) {
+    // The corpus this compile derived once (#243), required rather than
+    // derived here: this module is imported *by* the content index, so it
+    // could not derive one without closing a cycle — and the caller that wants
+    // this answer is running a compile and already holds it.
+    assertSuppliedCorpus(records, "unclaimedNoteFindings");
+
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(config.paths.content, record);
         if (!fm) continue;
         const type = typeof fm.type === "string" ? fm.type.trim() : "";
         if (!type) continue;
         if (NEVER_PACKED_TYPES.has(type)) continue;
         if (DERIVED_PACKED_TYPES.has(type)) continue;
         if (RETIRED_TYPES[type]) continue;
-        if (claimed.has(type)) continue;
+        // A **renamed** spelling is a live type, not an unknown one: it resolves
+        // to the same row, the same registry entry and the same pack. So the
+        // claim is asked of the current spelling while the finding quotes the
+        // authored one (#78). The rename itself is reported by the frontmatter
+        // lint, which can say what to write instead.
+        const current = currentType(type);
+        if (claimed.has(current)) continue;
 
         findings.push({
             file: absPath,
@@ -416,8 +489,14 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources) {
             severity: /** @type {"error"} */ ("error"),
             type,
             message:
-                vocabulary.has(type) ? configurationMessage(type, config, resolved)
-                : Object.hasOwn(NOTE_VOCABULARY, type) ? specifiedMessage(type)
+                // The unimplemented set is asked *first*: such a type is
+                // absent from the configured vocabulary precisely because
+                // nothing routes it, so the `vocabulary.has` branch would never
+                // reach it — and reading its absence as the reason is the
+                // inference {@link UNIMPLEMENTED_TYPES} exists to replace.
+                UNIMPLEMENTED_TYPES.has(current) ? specifiedMessage(type)
+                : vocabulary.has(current) ? configurationMessage(type, config, resolved)
+                : Object.hasOwn(NOTE_VOCABULARY, current) ? specifiedMessage(type)
                 : authoringMessage(type),
         });
     }

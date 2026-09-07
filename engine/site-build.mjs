@@ -60,6 +60,9 @@ import { formatUnaddressableFinding, unaddressableForeignPackages } from "./meta
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
+// The corpus, from the one pass that derives it (#243).
+import { indexRecordsFor } from "./content-index.mjs";
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 import {
     checkHomepageCount,
     homepageDestination,
@@ -100,6 +103,50 @@ export function walkSiteTree(dir, skip = []) {
         }
     }
     return out;
+}
+
+/**
+ * The content-tree files this build publishes from, in the order it emits them.
+ *
+ * **The corpus comes from the content index** (#243) — the same derivation the
+ * packs are compiled from — so the site and the packs cannot disagree about
+ * which files are the content. The note is still read for its `{fm, body}`: the
+ * index carries no note text, and a page *is* its text.
+ *
+ * **The order changes, and that is the point of stating it here.** The walk this
+ * replaces yielded directory order, and this module kept it deliberately —
+ * "a site's emitted pages should not reorder for no reason". Records are in
+ * content-path order, which is the same set in a different sequence. Nothing
+ * downstream depends on it any more: the first-writer-wins fallbacks that made
+ * order load-bearing went with the bare `[[Name]]` form (#180), each page is
+ * emitted to its own file at an address derived from its frontmatter, and the
+ * one place order could still show — a section's page list — is sorted by the
+ * theme. Verified rather than argued: over `sohl`'s tree the emitted mount is
+ * byte-identical, all 1,749 files.
+ *
+ * A **content-path** order is also the better of the two. Directory-read order
+ * is a fact about the filesystem, not about the content, so it can differ
+ * between two checkouts of one tree; this order cannot.
+ *
+ * `collectTreePages` is deliberately **not** converted: it walks an auxiliary
+ * tree (`site.trees`, the developer docs), which is not the content tree and
+ * appears in no record.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} ctx - The build context. `ctx.records` is the corpus when the
+ *   caller already derived it — the site build derives one and hands it to both
+ *   collectors, so the two cannot disagree.
+ * @returns {string[]} Absolute paths, in emission order.
+ */
+function siteCorpusFiles(contentBase, ctx) {
+    const records =
+        ctx.records ??
+        indexRecordsFor({
+            contentBase,
+            config: ctx.config,
+            skipDirectories: ctx.skipDirectories,
+        });
+    return records.filter(isNoteRecord).map((record) => noteFile(contentBase, record));
 }
 
 /**
@@ -145,7 +192,7 @@ export function collectContentPages(contentBase, ctx) {
     const addressFindings = [];
     const fmLinkFindings = [];
 
-    for (const file of walkSiteTree(contentBase, ctx.skipDirectories)) {
+    for (const file of siteCorpusFiles(contentBase, ctx)) {
         const note = readNote(file);
         if (!note) continue;
         const { fm, body } = note;
@@ -304,7 +351,7 @@ export function collectTreePages(tree, ctx) {
 export function collectHomepages(contentBase, ctx) {
     const pages = [];
     const addressFindings = [];
-    for (const file of walkSiteTree(contentBase, ctx.skipDirectories)) {
+    for (const file of siteCorpusFiles(contentBase, ctx)) {
         const note = readNote(file);
         if (!note || !isHomepage(note.fm)) continue;
         try {
@@ -944,6 +991,15 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
         // retired, so this is the only source of it (#56).
         contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
+        config: resolved,
+        // The corpus, derived once for this build and handed to both
+        // collectors — the homepage pass and the content pass read one answer
+        // about which files the content is, rather than walking twice (#243).
+        records: indexRecordsFor({
+            contentBase: resolved.paths.content,
+            config: resolved,
+            skipDirectories: resolved.skipDirectories,
+        }),
         // Where the package is served, which is where an addressed page
         // publishes: an address is `(type, shortcode)`, a package-wide
         // identity that takes no content mount (#181).

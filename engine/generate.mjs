@@ -50,10 +50,20 @@ import { Hm3Items } from "../hm3/items.mjs";
 import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
-import { statsForPack, walkMarkdownTree, folderFilename } from "./helpers.mjs";
-import { buildFolderNoteIndex, collectFolderNotes, folderDocument } from "./folder-notes.mjs";
+import { Bundles } from "./bundles.mjs";
+import { statsForPack, parseMarkdownFile, folderFilename } from "./helpers.mjs";
+import {
+    buildFolderNoteIndex,
+    collectFolderNotes,
+    FOLDER_TYPE,
+    folderDocument,
+} from "./folder-notes.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
+// The corpus every pass runs over, derived once (#243).
+import { buildCompileCorpus } from "./compile-corpus.mjs";
+// The record accessors only — see `engine/index-records.mjs` (#243).
+import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { unclaimedNoteFindings } from "./note-claims.mjs";
@@ -68,12 +78,14 @@ import { contentPackage } from "./content-package.mjs";
  * declaring a type nothing can compile is loud at the first pass instead of
  * shipping empty.
  *
- * **Two of the five are a system's, and the SoHL pair is not a default.** An
+ * **Two of the six are a system's, and the SoHL pair is not a default.** An
  * Item or an Actor *is* a system's data — both passes declare
  * `requiresSystemBlock` — so which compiler a pack gets is decided together
- * with which system it declares; see {@link SYSTEM_COMPILERS}. The three
- * system-neutral passes have one implementation because a JournalEntry, a Macro
- * and a Scene are Foundry's documents rather than any system's.
+ * with which system it declares; see {@link SYSTEM_COMPILERS}. The four
+ * system-neutral passes have one implementation because a JournalEntry, a
+ * Macro, a Scene and an Adventure are Foundry's documents rather than any
+ * system's — an `Adventure` does not even have a `system` field, which is why a
+ * bundle spanning two systems is two documents (#259).
  */
 const COMPILERS = {
     Item: Items,
@@ -81,6 +93,7 @@ const COMPILERS = {
     Actor: Actors,
     Macro: Macros,
     Scene: Scenes,
+    Adventure: Bundles,
 };
 
 /**
@@ -166,6 +179,45 @@ export function itemPackJsonDirs(config = loadPackConfig(), system = null) {
         .filter((pack) => pack.type === "Item")
         .filter((pack) => system == null || !pack.system || pack.system === system)
         .map((pack) => packJsonDir(pack.name, config));
+}
+
+/**
+ * The compiled JSON a bundle may hold copies of, by document type.
+ *
+ * An `Adventure` carries **copies**, not references, so a bundle resolves its
+ * `contents` against compiled output rather than against the content tree — the
+ * same arrangement the actors pass has for `itemsSourceDirs`, generalised to
+ * every document class an Adventure can hold (#259).
+ *
+ * Two kinds of pack are left out, each because it holds nothing a note
+ * addresses. A **prebuilt** pack's JSON is checked in rather than compiled, so
+ * no note is routed into it and nothing in it answers to an address. An
+ * **Adventure** pack holds Adventures, and Foundry's `contentFields` has no
+ * field for one — a bundle of bundles is not a shape the document admits.
+ *
+ * **Scoped to one system when the pack has one**, exactly as
+ * {@link itemPackJsonDirs} is: a pack declaring `system: sohl` reads that
+ * system's packs and the system-neutral ones, so a `(type, shortcode)` that
+ * exists in two systems is read out of the right catalogue. Asking for no
+ * system reads them all, which is every single-system build.
+ *
+ * @param {object} [config] - The resolved build configuration. Defaults to this
+ *   repository's.
+ * @param {string|null} [system] - The system whose documents are wanted.
+ *   Omitted or `null`, every pack is read.
+ * @returns {Record<string, string[]>} Each readable pack's JSON directory, by
+ *   the Foundry document type it holds.
+ */
+export function bundleSourceJsonDirs(config = loadPackConfig(), system = null) {
+    /** @type {Record<string, string[]>} */
+    const dirs = {};
+    for (const pack of config.packs) {
+        if (pack.prebuilt) continue;
+        if (pack.type === "Adventure") continue;
+        if (system != null && pack.system && pack.system !== system) continue;
+        (dirs[pack.type] ??= []).push(packJsonDir(pack.name, config));
+    }
+    return dirs;
 }
 
 /**
@@ -305,6 +357,7 @@ async function generatePack(
     router,
     routingReporter,
     folderNotes,
+    corpus,
 ) {
     const contentBase = config.paths.content;
     const dest = packJsonDir(name, config);
@@ -373,6 +426,8 @@ async function generatePack(
     const pack = new packClass({
         contentBase,
         dest,
+        // The corpus this compile derived once, shared by every pass (#243).
+        corpus,
         companionDests,
         // The actors pass resolves each being's embedded items against the items
         // passes' output. That used to be an unwritten sibling-directory contract
@@ -389,6 +444,11 @@ async function generatePack(
         // cache throws naming `content-build deps fetch` rather than
         // downloading inside a compile.
         foreignSourceDirs: foreignItemCatalogDirs(config),
+        // The bundles pass resolves each Adventure's members against the output
+        // of every pass that produces one. Stated from the configured pack list
+        // for the same reason `itemsSourceDirs` is (#1508), and scoped to this
+        // pack's system so a bundle holds the catalogue it is compiled for.
+        bundleSourceDirs: bundleSourceJsonDirs(config, system ?? null),
         folderResolver: resolver,
         // One answer to "which files are the corpus?", from the configuration
         // this build resolved rather than from the working directory (#243).
@@ -522,6 +582,33 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     }
     log.info(`Content tree: ${noteCount} note(s) at ${contentBase}`);
 
+    // One router per configuration, so every pass agrees about where a note
+    // goes, and the first pack of each document type owns the error message for
+    // a note of that type that goes nowhere. Resolved here because the corpus
+    // below is derived against it, and the corpus is what every reader from
+    // this point on reads (#243).
+    const router = routerFor(config);
+
+    // The corpus every pass runs over, and the three whole-tree indexes built
+    // over it, derived **once** for the whole compile (#243). Each is a pure
+    // function of (tree, scope, router), none of which varies between passes —
+    // `router` is one object, handed to all of them — so the passes were
+    // deriving the same answers over and over. Compiling `sohl` read every note
+    // twenty times before this: four per pass, five passes.
+    //
+    // Derived here, before the first reader: the unclaimed-type check below is
+    // one, and a check that walked the tree itself would be answering about a
+    // different corpus from the one the passes then compile.
+    const corpusProblems = [];
+    const corpus = await buildCompileCorpus({
+        contentBase,
+        skipDirectories: config.skipDirectories,
+        router,
+        config,
+        problems: corpusProblems,
+    });
+    for (const problem of corpusProblems) emitDiagnostic(problem);
+
     // A note whose `type:` no configured pack claims compiles into nothing, and
     // used to say nothing (#146) — no pass got far enough to reject it, so the
     // silence had no owner. Asked once, of the whole configuration, because
@@ -529,24 +616,28 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // every type a system deliberately does not map, which is exactly the
     // silence #79 requires. Independent of `only`, since it is a fact about the
     // configured pack list rather than about which passes this run executes.
-    const unclaimed = unclaimedNoteFindings(config);
+    const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
     for (const finding of unclaimed) emitDiagnostic(finding);
 
     fs.mkdirSync(config.paths.packJson, { recursive: true });
 
     // A companion pack has no pass of its own — naming it selects the pass that
     // writes it, so `compile adventures` is not a silent no-op.
+    //
+    // A **prebuilt** pack has no pass either, and for a plainer reason: its
+    // per-document JSON is checked in. Passed over rather than compiled — which
+    // it could not be before #259, since the only prebuilt pack in the wild
+    // holds Adventures and no compiler was registered for that document type,
+    // so the pack failed the build with "no compiler for document type". Now
+    // one is registered, and running it would wipe `build/packs-json/<name>/`
+    // and write nothing into it — then report the empty pass as an error.
     const packs = config.packs.filter(
         (pack) =>
-            !only ||
-            pack.name === only ||
-            pack.companions.some((companion) => companion.name === only),
+            !pack.prebuilt &&
+            (!only ||
+                pack.name === only ||
+                pack.companions.some((companion) => companion.name === only)),
     );
-    // One router per configuration, so every pass agrees about where a note
-    // goes, and the first pack of each document type owns the error message for
-    // a note of that type that goes nowhere.
-    const router = routerFor(config);
-
     // Built once for the whole build, not once per pack: a folder note is one
     // definition with one address, and every pass resolves against the same
     // index. A dangling `parent` or a parent cycle is therefore reported once,
@@ -556,8 +647,35 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     try {
         folderNotes = buildFolderNoteIndex(
             collectFolderNotes(
-                walkMarkdownTree(contentBase, { skipDirectories: config.skipDirectories }),
-                contentPackage(),
+                // The corpus this compile derived picks the notes (#243); the
+                // file supplies their frontmatter, and this is one of the few
+                // places where that distinction is load-bearing rather than
+                // incidental.
+                //
+                // `collectFolderNotes` treats `fm.id` as an **authored pin**,
+                // which wins over the id it derives under the folder namespace.
+                // A record's `id` is not that: the index fills it in for every
+                // addressable note (#270), so handing records straight over
+                // would make every folder look pinned and file each one under a
+                // different id than the packs address it by. The index cannot
+                // tell a pin from a derivation, so the note is read — and only
+                // folder notes are, 79 of `sohl`'s 1,685 rather than all of
+                // them.
+                corpus.records
+                    .filter(
+                        (record) =>
+                            isNoteRecord(record) &&
+                            String(record.type ?? "").toLowerCase() === FOLDER_TYPE,
+                    )
+                    .map((record) => {
+                        const absPath = noteFile(contentBase, record);
+                        return { frontmatter: parseMarkdownFile(absPath).frontmatter, absPath };
+                    }),
+                // The package this build resolved, not the ambient accessor:
+                // they are the same value in a real repository and different
+                // ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or in a
+                // test (#243).
+                config.contentPackage,
             ),
         );
     } catch (err) {
@@ -596,7 +714,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         return unsatisfied.length + unclaimed.length;
     }
 
-    let totalErrors = unclaimed.length;
+    let totalErrors = unclaimed.length + corpusProblems.length;
     const passes = [];
     for (const pack of ordered) {
         const { errors, compiled } = await generatePack(
@@ -605,6 +723,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
             router,
             firstOfType.get(pack.type) === pack.name,
             folderNotes,
+            corpus,
         );
         totalErrors += errors;
         passes.push({

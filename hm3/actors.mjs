@@ -29,8 +29,10 @@
  * **What is emitted, and what is deliberately not.** Four rows of the content
  * format's `being` mapping table give HM3 a destination — `data.portrait` →
  * `system.bioImage`, `data.species`, `data.gender`, `data.occupation`, and
- * `data.templatePriority` → `flags.hm3.templatePriority` — plus the two anchored
- * prose sections: `{#appearance}` is HM3's `description` and `{#dossier}` its
+ * `data.templatePriority` → `flags.hm3.templatePriority` — and, since #305,
+ * three of them are *declared as those sources* rather than as the bare key the
+ * corpus writes, so the specification's mapping is executable rather than
+ * aspirational. Plus the two anchored prose sections: `{#appearance}` is HM3's `description` and `{#dossier}` its
  * `biography`. Everything else an HM3 actor carries — the thirteen abilities,
  * the sunsign, `move`, `fatigue`, `shockIndex`, a creature's `loadRating` — has
  * no shared source stated anywhere, so it is authored at its own path under
@@ -46,14 +48,16 @@
  * @module
  */
 
-import log from "loglevel";
-
 import { resolveName, resolveImg } from "../engine/helpers.mjs";
-import { buildFromFields, readField, STRING } from "../engine/field-spec.mjs";
+import { buildFromFields, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
+import { templateFlags } from "./template-priority.mjs";
+// The retirement window's report, shared with the frontmatter lint so the
+// two cannot say different things about the same key (#305).
+import { legacyKeyMessage, locateFrontmatterKey } from "../engine/retired-fields.mjs";
 // The note-level `hm3:` block: `hm3.system` onto the document's `system`
 // verbatim, and `hm3.img` / `hm3.items` / `hm3.effects` / `hm3.flags`
 // overriding their shared top-level forms for this system alone (#58).
@@ -68,11 +72,21 @@ import { blockField, blockProperty, mergeSystemData } from "../engine/system-blo
  * author-facing reference can be generated from the same statement the compiler
  * obeys (#22).
  *
+ * **Both positions, named separately (#305).** The specification maps
+ * `data.species` onto `system.species`, and every HM3 note in the corpus writes
+ * `hm3.species`. Until #126 sweeps them those are two live positions for one
+ * field, so the declaration names both: `name` is the shared source, `legacyKey`
+ * the key the block still carries, and the block wins while it is there. Naming
+ * only one of them is what made the row unreadable — a plain `species` could
+ * not see `data.species`, and a dotted `data.species` could not see the 2,512
+ * notes that carry `hm3.species`, each yielding `""` in silence.
+ *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const ACTOR_FIELDS = Object.freeze([
     {
-        name: "species",
+        name: "data.species",
+        legacyKey: "species",
         to: "species",
         ...STRING,
         default: "",
@@ -83,39 +97,29 @@ const ACTOR_FIELDS = Object.freeze([
 /**
  * The two `data:` facts HM3 declares on a `character` and not on a `creature`.
  *
+ * Both name their shared source and their legacy in-block key, for the reason
+ * {@link ACTOR_FIELDS} does.
+ *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const CHARACTER_FIELDS = Object.freeze([
     {
-        name: "gender",
+        name: "data.gender",
+        legacyKey: "gender",
         to: "gender",
         ...STRING,
         default: "",
         describe: "The character's gender.",
     },
     {
-        name: "occupation",
+        name: "data.occupation",
+        legacyKey: "occupation",
         to: "occupation",
         ...STRING,
         default: "",
         describe: "What the character does for a living.",
     },
 ]);
-
-/**
- * The template priority a note declares, which HM3 keeps in flags.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-const TEMPLATE_PRIORITY = Object.freeze({
-    name: "templatePriority",
-    to: "templatePriority",
-    shape: "number or unset",
-    kind: "number",
-    read: (raw) => (raw == null || raw === "" ? null : Number(raw)),
-    default: null,
-    describe: "Template priority; unset for an actor that is not a template.",
-});
 
 /**
  * Default art per HM3 actor **subtype**, applied when the note supplies no
@@ -245,6 +249,16 @@ export class Hm3Actors extends SystemActorCompiler {
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
+        // The sweep's progress signal, reported where an author meets it
+        // soonest — every consumer runs the compile, and not every one runs the
+        // lint (#142). A warning: the note compiles to the correct document
+        // either way, and refusing the position comes once no tree writes it.
+        const onLegacyKey = (field) =>
+            this.noteWarn(
+                legacyKeyMessage(block, field),
+                locateFrontmatterKey(this.currentNote?.absPath, field.legacyKey),
+            );
+
         // One spelling, as everywhere else: `packFolder` names a folder note
         // by its address. This pass once read only the Foundry id, so an HM3
         // tree could not file an actor by address at all — which its own sweep
@@ -259,10 +273,12 @@ export class Hm3Actors extends SystemActorCompiler {
             bioImage: resolveImg(blockProperty(fm, block, "portrait")) ?? defaultImg,
             description: renderSection(body || "", "appearance"),
             biography: renderSection(body || "", "dossier"),
-            ...buildFromFields(ACTOR_FIELDS, { block })(fm),
+            ...buildFromFields(ACTOR_FIELDS, { block, onLegacyKey })(fm),
             // Declared on `character` alone, so written there alone — see the
             // module note.
-            ...(subType === "character" ? buildFromFields(CHARACTER_FIELDS, { block })(fm) : {}),
+            ...(subType === "character" ?
+                buildFromFields(CHARACTER_FIELDS, { block, onLegacyKey })(fm)
+            :   {}),
         };
 
         // Whatever the note authors under `hm3.system`, at the DataModel's own
@@ -318,33 +334,16 @@ export class Hm3Actors extends SystemActorCompiler {
      * The document's `flags`: whatever the note authors, plus this system's
      * template priority.
      *
-     * `data.templatePriority` is the shared statement that a note is a
-     * *template* — SoHL records the same fact as `system.templatePriority` — and HM3's
-     * data model declares no field for it, so it lands under this system's own
-     * flag scope. A note that is not a template writes nothing, rather than a
-     * `null` nothing reads.
+     * The rule itself is {@link module:hm3/template-priority.templateFlags},
+     * because the Item pass writes the same flag from the same statement (#283)
+     * and two copies of it were one copy too many — this pass had the only one,
+     * and the Item pass had none.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} block - This pass's system block.
      * @returns {object} The flags to emit.
      */
     actorFlags(fm, block) {
-        const authored = blockProperty(fm, block, "flags", {});
-        const value = readField(TEMPLATE_PRIORITY, fm, { block });
-        if (value == null) return authored;
-        if (!Number.isFinite(value)) {
-            log.warn(
-                `${resolveName(fm)}: \`data.templatePriority\` is not a ` +
-                    `number; no template flag written.`,
-            );
-            return authored;
-        }
-        return {
-            ...authored,
-            [block]: {
-                .../** @type {Record<string, unknown>} */ (authored)[block],
-                templatePriority: value,
-            },
-        };
+        return templateFlags(fm, block);
     }
 }

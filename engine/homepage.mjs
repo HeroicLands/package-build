@@ -192,12 +192,24 @@ export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
  * belong to the caller. This mirrors {@link module:engine/retired-fields},
  * whose retired-field messages are likewise positioned by whoever reports them.
  *
+ * **A refused field must be one the note *wrote*.** `resolveNoteId` fills
+ * `fm.id` **in place** so every downstream reader sees one derived value —
+ * deliberately, and documented as such — and this ran over the same object, so
+ * a homepage that authors no `id` was told to delete one that is not there
+ * (#319). Since the caller already owns the raw note text, it also answers
+ * which keys the note actually declared; without an answer every key in `fm`
+ * counts, which is the old behaviour and right for a caller holding authored
+ * frontmatter only.
+ *
  * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @param {object} [options] - Options.
+ * @param {(key: string) => boolean} [options.isAuthored] - Whether the note
+ *   declares this key at its own top level. Defaults to "every key in `fm`".
  * @returns {Array<{field: string, locator: {key: string, literal?: string},
  *   message: string}>} One entry per finding, empty for any note that is not a
  *   homepage and declares nothing wrong.
  */
-export function checkHomepageAddressFields(fm) {
+export function checkHomepageAddressFields(fm, { isAuthored } = {}) {
     if (!isHomepage(fm)) return [];
     const out = [];
 
@@ -218,7 +230,9 @@ export function checkHomepageAddressFields(fm) {
 
     for (const key of Object.keys(fm)) {
         const message = HOMEPAGE_REFUSED_FIELDS.get(key);
-        if (message) out.push({ field: key, locator: { key }, message });
+        if (!message) continue;
+        if (isAuthored && !isAuthored(key)) continue;
+        out.push({ field: key, locator: { key }, message });
     }
     return out;
 }

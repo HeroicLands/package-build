@@ -40,6 +40,10 @@ import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
+// The record accessors only — deriving records reaches the pack router and the
+// manifest emitter, which reach the compilers, which load this module. Reading
+// a record needs none of that (#243).
+import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently (#184).
@@ -123,6 +127,61 @@ export function parseMarkdownFile(filePath) {
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
  *   Defaults to the configured list.
  */
+/**
+ * Refuse a corpus read whose scope its caller did not state.
+ *
+ * The rule of #243 in one place, so every reader of the tree refuses the same
+ * way and says so in the same words. It is shared rather than repeated because
+ * the corpus is no longer read only by {@link walkMarkdownTree}: a pass that
+ * reads the content index instead is making the identical claim about which
+ * files it is looking at, and must be held to the identical requirement — a
+ * scope that quietly defaulted there would reintroduce exactly the second
+ * answer the walk's requirement removed.
+ *
+ * @param {readonly string[]|undefined} skipDirectories - The stated scope.
+ * @param {string} who - The reader, named in the message.
+ * @throws {Error} When no scope was stated.
+ * @returns {void}
+ */
+export function assertStatedScope(skipDirectories, who) {
+    if (skipDirectories === undefined) {
+        throw new Error(
+            `${who} requires \`skipDirectories\`: the scope is the ` +
+                "caller's to state, so two passes cannot disagree about which " +
+                "files are the corpus",
+        );
+    }
+}
+
+/**
+ * Refuse a corpus read whose records its caller did not supply.
+ *
+ * The sibling of {@link assertStatedScope}, and required for the same reason
+ * one step further on. These two readers cannot derive the corpus themselves:
+ * deriving it reaches the pack router and the manifest emitter, which reach the
+ * compilers, which load this module — so importing the index here closes a
+ * cycle. They take the records their caller already holds.
+ *
+ * That is not a workaround dressed up as a rule. A compile runs several passes
+ * over one tree, and the whole of #243 is that they must not each answer "which
+ * files are the corpus?" for themselves. Requiring the answer to be handed in
+ * makes the sharing structural rather than remembered.
+ *
+ * @param {readonly object[]|undefined} records - The supplied corpus.
+ * @param {string} who - The reader, named in the message.
+ * @throws {Error} When no corpus was supplied.
+ * @returns {void}
+ */
+export function assertSuppliedCorpus(records, who) {
+    if (!records) {
+        throw new Error(
+            `${who} requires \`records\`: the corpus is derived once per ` +
+                "compile and handed to every pass, so no two passes can " +
+                "disagree about which files it holds",
+        );
+    }
+}
+
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // Stated by the caller, never resolved here. The default this used to carry
     // — `loadPackConfig().skipDirectories` — read whichever configuration
@@ -135,13 +194,7 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // (#243) — the same defect class as `entriesForNote` reading
     // `docEntryTypes` from the ambient config, fixed in #240 after a fixture
     // had been passing on the leak for as long as it existed.
-    if (skipDirectories === undefined) {
-        throw new Error(
-            "walkMarkdownTree requires `skipDirectories`: the scope is the " +
-                "caller's to state, so two passes cannot disagree about which " +
-                "files are the corpus",
-        );
-    }
+    assertStatedScope(skipDirectories, "walkMarkdownTree");
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
     while (stack.length > 0) {
@@ -170,44 +223,44 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
 }
 
 /**
- * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
- * (the archetype contract, #604). The property is a nullable number that
- * authors must state explicitly:
- *   - a number → the document is a template of that priority.
- *   - `null`   → the document is not a template.
- *   - absent   → an authoring error (throws), so "not a template" is never
- *                silently assumed.
+ * Every position a note may state its template priority at, for one system
+ * block, in the order they answer — and whichever of them the note actually
+ * wrote (#266).
  *
- * Reads `data.templatePriority` first — the specified home — then the `sohl:`
- * block and the top level, and finally the retiring `archetype` spelling in the
- * same two places (#266).
+ * Three places, in the order the migration runs. The specification calls this
+ * `data.templatePriority`; `sohl-thalorna` already writes it there on 941
+ * notes, beside the `archetype` the build reads — so a tree that has authored
+ * forward is read from the key it authored, and only then does the retiring
+ * spelling answer.
  *
- * @param {object} fm      Parsed frontmatter.
- * @param {string} label   Human-readable context for error messages.
- * @returns {number|undefined}  The template priority, or `undefined` when null.
- * @throws {Error} When the property is absent, is not a number/null, or both
- *   spellings are present and disagree.
+ * **The block is a parameter because the value is shared, not per-system.** One
+ * `data.templatePriority` is the note's statement that it is a template; SoHL
+ * records it as `system.templatePriority` and HM3 as `flags.hm3.templatePriority`.
+ * The legacy in-block position is therefore read from *the block being compiled*
+ * rather than always from `sohl:`, so an HM3-only note is not asked to author a
+ * SoHL block to be read.
+ *
+ * @param {object} fm     Parsed frontmatter.
+ * @param {string} block  The system block being compiled.
+ * @returns {{found: [object, string]|undefined, retiring: [object, string]|undefined,
+ *   NEW: string, OLD: string}} The answering position, the retiring spelling's
+ *   position if the note also carries it, and the two key names.
  */
-export function resolveTemplatePriority(fm, label) {
-    const sohl = fm != null && typeof fm.sohl === "object" ? fm.sohl : null;
+function findTemplatePriority(fm, block) {
+    const inBlock =
+        fm != null && typeof fm[block] === "object" && fm[block] !== null ? fm[block] : null;
     const data = fm != null && typeof fm.data === "object" && fm.data !== null ? fm.data : null;
 
-    // Three places, in the order the migration runs (#266). The specification
-    // calls this `data.templatePriority`; `sohl-thalorna` already writes it
-    // there on 941 notes, beside the `archetype` the build reads — so a tree
-    // that has authored forward is read from the key it authored, and only then
-    // does the retiring spelling answer.
     const NEW = "templatePriority";
     const OLD = "archetype";
-    const sources = [
+    const sources = /** @type {[object|null, string][]} */ ([
         [data, NEW],
-        [sohl, NEW],
+        [inBlock, NEW],
         [fm, NEW],
-        [sohl, OLD],
+        [inBlock, OLD],
         [fm, OLD],
-    ];
+    ]);
     const found = sources.find(([where, key]) => where != null && key in where);
-
     // A note part-way through the rename may carry both spellings, and they may
     // *disagree*: 145 of `sohl-thalorna`'s 941 dual-spelled notes say
     // `templatePriority: null` where `archetype: 0` says the opposite — "not a
@@ -218,6 +271,72 @@ export function resolveTemplatePriority(fm, label) {
     const retiring = sources
         .slice(sources.findIndex(([, key]) => key === OLD))
         .find(([where, key]) => where != null && key in where);
+    return {
+        found: /** @type {[object, string]|undefined} */ (found),
+        retiring: /** @type {[object, string]|undefined} */ (retiring),
+        NEW,
+        OLD,
+    };
+}
+
+/**
+ * The template priority a note states, for a system that treats an unstated one
+ * as "not a template" rather than as an authoring error (#266).
+ *
+ * Reads exactly the positions {@link resolveTemplatePriority} reads, including
+ * the retiring `archetype` spelling, and refuses the same contradiction — so
+ * the two systems cannot disagree about what a note said. It differs only in
+ * what silence means: SoHL requires the statement, while HM3 keeps the value in
+ * a flag it simply omits, so there is no tri-state for an absent value to
+ * corrupt and nothing to demand.
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @param {object} [options] Options.
+ * @param {string} [options.block="sohl"] The system block being compiled.
+ * @returns {number|null}  The priority, or `null` when the note is not a
+ *   template or states nothing.
+ * @throws {Error} When both spellings are present and disagree.
+ */
+export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
+    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
+    if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
+        throw new Error(
+            `Conflicting ${NEW} for ${label}: ` +
+                `${NEW} is ${JSON.stringify(found[0][found[1]])} and the retiring ` +
+                `${OLD} is ${JSON.stringify(retiring[0][OLD])}. Both are read and ` +
+                `${NEW} wins, so they must agree — delete ${OLD}, or correct it`,
+        );
+    }
+    if (!found) return null;
+    const raw = found[0][found[1]];
+    return raw === null || raw === "" || raw === undefined ? null : raw;
+}
+
+/**
+ * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
+ * (the archetype contract, #604). The property is a nullable number that
+ * authors must state explicitly:
+ *   - a number → the document is a template of that priority.
+ *   - `null`   → the document is not a template.
+ *   - absent   → an authoring error (throws), so "not a template" is never
+ *                silently assumed.
+ *
+ * Reads the positions {@link findTemplatePriority} lists: `data.templatePriority`
+ * first — the specified home — then the system block and the top level, and
+ * finally the retiring `archetype` spelling in the same two places (#266).
+ *
+ * @param {object} fm      Parsed frontmatter.
+ * @param {string} label   Human-readable context for error messages.
+ * @param {object} [options] Options.
+ * @param {string} [options.block="sohl"] The system block being compiled.
+ * @returns {number|undefined}  The template priority, or `undefined` when null.
+ * @throws {Error} When the property is absent, is not a number/null, or both
+ *   spellings are present and disagree.
+ */
+export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
+    const { found, retiring, NEW, OLD } = findTemplatePriority(fm, block);
+
     if (found && retiring && found[1] !== OLD && found[0][found[1]] !== retiring[0][OLD]) {
         throw new Error(
             `Conflicting ${NEW} for ${label}: ` +
@@ -520,17 +639,26 @@ import { collectAnchors } from "./anchors.mjs";
 export function buildContentLinkIndex(
     contentBase,
     router = packRouter(),
-    { skipDirectories } = {},
+    { skipDirectories, config, records, problems } = {},
 ) {
     const docs = [];
-    for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories,
-    })) {
+    const resolved = config ?? loadPackConfig();
+    assertSuppliedCorpus(records, "buildContentLinkIndex");
+    for (const record of records) {
+        // A documentation journal is a document this tree emits, not a note in
+        // it; the note it documents is indexed here and carries its address.
+        if (!isNoteRecord(record)) continue;
+        // The note as its author wrote it — the router, the draft tag and the
+        // retired-type check all read authored fields, and none of them may be
+        // handed the keys the index derived.
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(contentBase, record);
         // The id a note's document is filed under: its authored pin, or the
-        // one derived from its canonical address (#270). Resolved here rather
-        // than read, because this index and the compile pass must agree about
-        // every note's id and neither can see the other's answer.
-        resolveNoteId(fm);
+        // one derived from its canonical address (#270). Derived by the index
+        // against the configuration this build resolved — it used to be
+        // derived here through `resolveNoteId(fm)` with no package, which falls
+        // back to the ambient `contentPackage()` and so to whichever
+        // configuration the working directory answers with (#243).
         // What is left after that is a file with **no address** — no type, or
         // no shortcode — which is not an addressable note and has no document
         // to link to.
@@ -540,7 +668,7 @@ export function buildContentLinkIndex(
         // left on a retired type is reported here, by name, rather than
         // several frames deeper with nothing to go on (SoHL#1580).
         assertTypeNotRetired(fm.type, absPath);
-        const base = path.basename(absPath, ".md").replace(/_/g, " ");
+        const base = String(record.file.name).replace(/_/g, " ");
         docs.push({
             type: fm.type,
             id: fm.id,
@@ -560,7 +688,9 @@ export function buildContentLinkIndex(
             // anchor has always been checked, because a fetched index
             // publishes the map; a local one was not, because the set was
             // discarded here — the walk yields the body and nothing read it.
-            anchors: new Set(collectAnchors(body ?? "").map((anchor) => anchor.slug)),
+            // Read from the record rather than from a second reading of the
+            // note's headings — the one-anchor-reader rule (#243).
+            anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
         });
     }
     // Packages this build links *into* but does not publish. Each publishes
@@ -569,8 +699,8 @@ export function buildContentLinkIndex(
     // links CI does — from an artifact the producer shipped rather than a copy
     // this repository committed (#239).
     const { index: foreign, stale } = loadForeignIndexes(
-        loadPackConfig(),
-        [contentPackage()],
+        resolved,
+        [resolved.contentPackage],
         PACKAGE_BASE,
     );
     if (stale.length) {
@@ -586,7 +716,7 @@ export function buildContentLinkIndex(
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
-    return buildWikilinkIndex(docs, foundryPackageId(), foreign, contentPackage());
+    return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage);
 }
 
 /**
@@ -685,18 +815,25 @@ export function convertNoteWikilinks(
  * @returns {Array<{fm: object, path: string, tld: string, folder: string,
  *   absPath: string}>}
  */
-export function collectContentDocs(contentBase, { skipDirectories } = {}) {
+export function collectContentDocs(
+    contentBase,
+    { skipDirectories, config, records, problems } = {},
+) {
     const docs = [];
-    for (const { frontmatter: fm, absPath } of walkMarkdownTree(contentBase, {
-        skipDirectories,
-    })) {
-        if (!fm) continue;
-        const segments = path.relative(contentBase, absPath).split(path.sep);
+    const resolved = config ?? loadPackConfig();
+    assertSuppliedCorpus(records, "collectContentDocs");
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const fm = authoredFrontmatter(record);
+        const absPath = noteFile(contentBase, record);
+        const segments = String(record.file.path).split("/");
         docs.push({
             // With its package supplied for a `WHERE … package = "…"` query —
-            // synthesised from the configuration, since no note declares it
-            // (#56).
-            fm: searchableFrontmatter(fm),
+            // synthesised from the configuration this build resolved, since no
+            // note declares it (#56) and the ambient one is a different
+            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`
+            // (#243).
+            fm: searchableFrontmatter(fm, resolved.contentPackage),
             // POSIX-separated and relative to the content root — what a
             // `path:` search term globs, on every platform.
             path: segments.join("/"),

@@ -35,7 +35,7 @@ import {
 } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
-import { packForType } from "../engine/ids.mjs";
+import { RENAMED_TYPES, packForType } from "../engine/ids.mjs";
 import { itemTypes } from "../engine/item-registry.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -242,13 +242,30 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         expect(noteTypesFor(SOHL_DOCUMENT_SUBTYPES, "Actor")).toEqual(["being"]);
     });
 
-    it("maps every row to the identical subtype, which is why nothing moves", () => {
-        // The evidence that compiled output cannot change: today every SoHL
-        // row is the identity, so looking the subtype up returns exactly what
-        // inferring it did. A row that ever stops being the identity is a
-        // deliberate rename with a content migration behind it (#78).
+    it("maps every row to the identical subtype", () => {
+        // The evidence that compiled output cannot change: for SoHL the note
+        // type and the document subtype are the same word on every row, so the
+        // map returns what inferring it did.
+        //
+        // #78 briefly broke that for three rows by renaming them off the
+        // `…gear` spellings; reversing it restores the property for all
+        // fourteen, which is why this no longer needs an exception list.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
             expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}), type).toBe(type);
+        }
+    });
+
+    it("still answers to a renamed type's retired spelling (#78)", () => {
+        // The retirement window: a tree that has not swept its `(type,
+        // shortcode)` references compiles into the document it always did, so
+        // the packs cannot move while the sweep is outstanding.
+        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
+            expect(documentSubtype(SOHL_DOCUMENT_SUBTYPES, retired, {}), retired).toBe(
+                documentSubtype(SOHL_DOCUMENT_SUBTYPES, current, {}),
+            );
+            expect(subtypeRow(SOHL_DOCUMENT_SUBTYPES, retired), retired).toBe(
+                subtypeRow(SOHL_DOCUMENT_SUBTYPES, current),
+            );
         }
     });
 

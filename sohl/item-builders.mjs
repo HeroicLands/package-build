@@ -47,6 +47,8 @@
  */
 
 import { defaultItemArt } from "./default-item-art.mjs";
+import { documentSubtype } from "../engine/document-subtypes.mjs";
+import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { buildFromFields, readField } from "../engine/field-spec.mjs";
 import { COMBAT_TECHNIQUE_STRIKE_MODE, ITEM_FIELDS } from "./item-fields.mjs";
 
@@ -82,11 +84,18 @@ const FINALIZERS = Object.freeze({
  * throws and this module evaluates at import. A drift that a test used to catch
  * is unrepresentable.
  *
- * Importing the art map keeps this module a leaf — it is plain data, not the
- * resolved configuration, and the cycle the module note above warns about is
- * only ever closed by reading configuration back out.
+ * **The art map is keyed by the document subtype**, which the runtime reads
+ * with a Foundry `Item`'s own `type`, so this asks SoHL's map what an `armor`
+ * note becomes before looking art up (#78). Translating on the build side is
+ * the only place it can happen: the runtime has no note in hand. Every SoHL
+ * Item row is one-to-one, so `documentSubtype` needs no frontmatter and cannot
+ * throw for a discriminator.
  *
- * @param {string} type - The item type, and the art map's key.
+ * Importing the art map and SoHL's own subtype map keeps this module a leaf —
+ * both are plain data, not the resolved configuration, and the cycle the module
+ * note above warns about is only ever closed by reading configuration back out.
+ *
+ * @param {string} type - The note type, and {@link ITEM_FIELDS}'s key.
  * @returns {Readonly<{system: (fm: object) => object, img: string, fields: readonly object[]}>}
  *   The registry entry.
  */
@@ -96,7 +105,7 @@ function entryFor(type) {
     const finalize = FINALIZERS[type];
     return Object.freeze({
         system: finalize ? (fm) => finalize(fm, build(fm)) : build,
-        img: defaultItemArt(type),
+        img: defaultItemArt(documentSubtype(SOHL_DOCUMENT_SUBTYPES, type, {}) ?? type),
         fields,
     });
 }

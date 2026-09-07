@@ -67,7 +67,7 @@ import {
 } from "./note-claims.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
-import { compendiumUuid, packForType, pageUuid } from "./ids.mjs";
+import { compendiumUuid, currentType, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { isHomepage } from "./homepage.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
@@ -76,6 +76,7 @@ import {
     assertNoAliasesField,
     assertNoDraftField,
     assertNoSectionField,
+    assertNoTraitsField,
 } from "./retired-fields.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { routerFor } from "./pack-router.mjs";
@@ -184,7 +185,9 @@ export function entriesForNote(fm, name, address, body, ctx) {
         :   undefined;
 
     const carriesDoc =
-        ctx.docEntryTypes ? ctx.docEntryTypes.has(String(fm.type)) : hasDocEntry(fm.type);
+        ctx.docEntryTypes ?
+            ctx.docEntryTypes.has(String(currentType(fm.type)))
+        :   hasDocEntry(fm.type);
     if (carriesDoc) {
         // `NO_SYSTEM`, whatever the item is: a documentation journal is a
         // JournalEntry, which no game system defines, and there is one of them
@@ -275,6 +278,7 @@ export function collectFoundryEntries(contentBase, ctx) {
         assertNoDraftField(fm, { file: rel, absPath });
         assertNoAliasesField(fm, { file: rel, absPath });
         assertNoSectionField(fm, { file: rel, absPath });
+        assertNoTraitsField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
         // A homepage is addressed like every other note since #182, and a
         // shortcode alone would now put it here. It stays out for the reason it

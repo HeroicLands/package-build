@@ -55,8 +55,9 @@
  * @module
  */
 
-import { authoredFields } from "./field-spec.mjs";
+import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
+    legacyKeyOf,
     resolveFieldValue,
     systemBlock,
     SYSTEM_BLOCK_KEYS,
@@ -64,8 +65,12 @@ import {
 } from "./system-block.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
-import { RETIRED_TYPES } from "./ids.mjs";
+import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
+// The one place the "every pack not named" key is spelled. Imported rather
+// than repeated, because a linter holding its own copy of what the compiler
+// reads is exactly the disagreement #288 was.
+import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
@@ -73,9 +78,11 @@ import {
     aliasesRetiredMessage,
     declaresRetiredAliasesField,
     draftRetiredMessage,
+    legacyKeyMessage,
     readAliasedField,
     retiredAliasMessage,
     sectionRetiredMessage,
+    traitsRetiredMessage,
 } from "./retired-fields.mjs";
 
 /**
@@ -217,9 +224,31 @@ export function matchesKind(value, kind) {
                 (typeof value === "object" && value !== null && !Array.isArray(value)) ||
                 (Array.isArray(value) && value.length === 0)
             );
+        case "scalar-or-map":
+            // A scalar, or a map of them. The map's *entries* are checked
+            // separately, by the caller that can name the key at fault; all
+            // this answers is whether the value has one of the two shapes the
+            // field admits. A list has neither.
+            return matchesKind(value, "string") || matchesKind(value, "map");
         default:
             return true;
     }
+}
+
+/**
+ * The entries of a `scalar-or-map` value written in its map form, or `null`
+ * where it was written as the scalar.
+ *
+ * The empty-list spelling of an emptied map ({@link matchesKind}) has no
+ * entries, so it reads the same as `{}` here too.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {Record<string, unknown>|null} Its entries, or `null` for a scalar.
+ */
+function mapEntries(value) {
+    if (Array.isArray(value)) return value.length === 0 ? {} : null;
+    if (typeof value !== "object" || value === null) return null;
+    return /** @type {Record<string, unknown>} */ (value);
 }
 
 /**
@@ -262,9 +291,14 @@ function dataBlock(fm) {
  * @param {object} opts
  * @param {string} opts.type - The note's type, for the message.
  * @param {readonly object[]} opts.fields - The type's `data:` declaration.
+ * @param {readonly string[]} [opts.packs] - The pack names this package
+ *   declares, against which a `keys: "pack"` map's keys are checked. Absent,
+ *   no claim is made about them: a caller that cannot see the configuration
+ *   knows no pack names, and reporting every key as unknown because nothing
+ *   was loaded to recognise it would be worse than not checking.
  * @returns {object[]} Findings.
  */
-function checkDataContainer(note, { type, fields }) {
+function checkDataContainer(note, { type, fields, packs }) {
     const findings = [];
     const { present, entries, malformed } = dataBlock(note.fm ?? {});
     if (!present) return findings;
@@ -308,13 +342,91 @@ function checkDataContainer(note, { type, fields }) {
             value = value && typeof value === "object" ? value[segment] : undefined;
         }
         if (value === undefined || value === null) continue;
-        if (matchesKind(value, field.kind)) continue;
+        if (!matchesKind(value, field.kind)) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+                severity: "error",
+                message:
+                    `\`data.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                    `but reads ${JSON.stringify(value)}`,
+            });
+            continue;
+        }
+        // A `scalar-or-map` written in its map form is checked entry by entry,
+        // because that is the correction an author has to make: one key's
+        // value, not the whole map. Quoting the map back would name every
+        // entry that is right alongside the one that is not.
+        const written = field.kind === "scalar-or-map" ? mapEntries(value) : null;
+        if (written) {
+            findings.push(
+                ...checkKeyedMap(note, { field, segments, entries: written, raw, packs }),
+            );
+        }
+    }
+
+    return findings;
+}
+
+/**
+ * Check one `scalar-or-map` field written in its map form, entry by entry.
+ *
+ * Two separate statements are checked, and they fail independently: whether a
+ * key names something — a pack, for `keys: "pack"` — and whether the value
+ * under it has the shape one entry is declared to have. A key nobody declares
+ * is not a harmless surplus: the compiler asks the map for the pack it is
+ * compiling and takes `default` when there is no such key, so a mistyped
+ * `journal:` silently files the folder wherever the default puts it, which is
+ * exactly the hierarchy the author wrote the key to override.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {object} opts.field - The field's declaration.
+ * @param {readonly string[]} opts.segments - Its path under `data:`.
+ * @param {Record<string, unknown>} opts.entries - The map's entries.
+ * @param {string} opts.raw - The note's raw text, for positions.
+ * @param {readonly string[]} [opts.packs] - The declared pack names, if known.
+ * @returns {object[]} Findings, one per offending entry.
+ */
+function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
+    const findings = [];
+    const known = field.keys === "pack" && packs?.length ? new Set(packs) : undefined;
+
+    for (const [key, value] of Object.entries(entries)) {
+        const path = ["data", ...segments, key];
+        const named = `data.${field.name}.${key}`;
+
+        // `default` is the map's own key for "every pack not named", not a
+        // pack — spelled out rather than left as an absent key, so a map
+        // stating only exceptions still reads as a complete answer (#276).
+        if (known && key !== DEFAULT_PARENT && !known.has(key)) {
+            const guess = nearest(key, known);
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, path, { key: true }),
+                severity: "error",
+                message:
+                    `"${key}" is not a pack this package declares, so ` +
+                    `\`${named}\` states a hierarchy nothing reads` +
+                    (guess ? `. Did you mean "${guess}"?` : ""),
+            });
+            continue;
+        }
+
+        // An explicit `~` under a key is a statement, not an omission: it says
+        // "at the root there", which is different from saying nothing.
+        if (value === undefined || value === null) continue;
+        if (matchesKind(value, "string")) continue;
         findings.push({
             file: note.file,
-            ...positionOfFrontmatterPath(raw, ["data", ...segments]),
+            // On the key, not the value: an entry whose value is itself a map
+            // begins on the *next* line, so pointing at the value lands a
+            // reader inside the thing that is wrong rather than on the entry
+            // the message names.
+            ...positionOfFrontmatterPath(raw, path, { key: true }),
             severity: "error",
             message:
-                `\`data.${field.name}\` should be ${field.shape ?? field.kind}, ` +
+                `\`${named}\` should be ${field.entryShape ?? "a scalar"}, ` +
                 `but reads ${JSON.stringify(value)}`,
         });
     }
@@ -600,9 +712,16 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check, and what each accepts. See
  *   {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {readonly string[]} [opts.packs] - The pack names this package
+ *   declares, for a `data:` field whose map is keyed by pack. Supplied by the
+ *   caller like `schemas` and `vocabulary`, and absent it no claim is made
+ *   about those keys.
  * @returns {object[]} Findings, each with a locator where one is obtainable.
  */
-export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_SYSTEM_BLOCKS }) {
+export function lintNote(
+    note,
+    { schemas, index, vocabulary, packs, systems = DEFAULT_SYSTEM_BLOCKS },
+) {
     const findings = [];
     const fm = note.fm ?? {};
     const type = String(fm.type ?? "");
@@ -765,6 +884,18 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
             message: sectionRetiredMessage(),
         });
     }
+    // Anchored at column 1 for the same reason `section` is, and with more at
+    // stake: `sohl.traits` is a *different field that shares the name* —
+    // `projectilegear` declares one and the theme's gear sidebar reads it — so
+    // a finding about the retired top-level block must never open on it (#291).
+    if (Object.hasOwn(fm, "traits")) {
+        findings.push({
+            file: note.file,
+            ...positionInFrontmatter(raw(), "traits", undefined, { topLevel: true }),
+            severity: "error",
+            message: traitsRetiredMessage(),
+        });
+    }
     // Only the top-level `aliases` is retired. `name.aliases` writes the same
     // key indented under `name:` and is **permitted** — reserved and unread —
     // so both the test and the locator are anchored at column 1 (#180).
@@ -787,7 +918,18 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
 
-    for (const { locator, message } of checkHomepageAddressFields(fm)) {
+    // A refused field must be one the note *wrote*: `resolveNoteId` fills
+    // `fm.id` in place, so the parsed frontmatter carries a derived id the
+    // author never typed (#319). The raw text is the only place that
+    // distinguishes them, and `positionInFrontmatter` already answers it —
+    // `topLevel` so a nested `id:` under some other key is not mistaken for the
+    // note's own.
+    const authoredAtTopLevel = (key) =>
+        positionInFrontmatter(note.raw ?? "", key, undefined, { topLevel: true }).line !==
+        undefined;
+    for (const { locator, message } of checkHomepageAddressFields(fm, {
+        isAuthored: authoredAtTopLevel,
+    })) {
         findings.push({
             file: note.file,
             ...at(locator.key, locator.literal),
@@ -829,7 +971,27 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
         return findings;
     }
 
-    const schema = schemas[type];
+    // A **renamed** type is the opposite case, and the opposite answer: the
+    // note compiles into exactly the document it always did, so refusing it
+    // would fail a build over a note that is not wrong. It is reported, and
+    // every lookup below reads the current spelling (#78).
+    const renamedTo = RENAMED_TYPES[type];
+    if (renamedTo) {
+        findings.push({
+            file: note.file,
+            ...at("type", type),
+            // A warning, for the reason the retired *field* alias below is one:
+            // the sweep is the content trees' work and the refusal comes after
+            // it, as `package:`'s did (#56).
+            severity: "warning",
+            message: renamedTypeMessage(type, renamedTo),
+        });
+    }
+    // What every type-keyed table is keyed by. The authored spelling is still
+    // what a message quotes — it is what the reader has in front of them.
+    const current = currentType(type);
+
+    const schema = schemas[current];
     if (!schema) {
         findings.push({
             file: note.file,
@@ -847,15 +1009,22 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
     // one this type may write. Skipped entirely when the caller declares no
     // vocabulary — reporting every key as unknown because nothing was loaded
     // to recognise it would be worse than not checking.
-    const entry = vocabulary?.[type];
+    const entry = vocabulary?.[current];
     if (entry) {
-        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [] }));
+        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [], packs }));
         findings.push(...checkSubType(note, { type, entry }));
     }
 
     const fields = authoredFields(schema);
-    /** First segment of each declared name — `impact.die` is authored as `impact`. */
-    const declared = new Set(fields.map((f) => f.name.split(".")[0]));
+    /**
+     * First segment of the key each field is authored at **inside the block** —
+     * `impact.die` is authored as `impact`, and a field whose shared source
+     * moved under `data:` is authored at the `legacyKey` it declares rather
+     * than at its dotted name (#305). Keying this on the name would report
+     * `sohl.species` as a property no `being` has, against exactly the notes
+     * the sweep has not reached yet.
+     */
+    const declared = new Set(fields.map((f) => legacyKeyOf(f).split(".")[0]));
 
     // The retired spelling of a field this type declares → what to write now.
     // Built from the type's own vocabulary, so a renamed field is retired
@@ -941,11 +1110,28 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
                 from = "block";
             }
         }
+        // The sweep's progress signal (#305). A **warning**, for the reason a
+        // retired spelling is one: the note compiles to the correct document,
+        // so failing a build over it would red a tree that has done nothing
+        // wrong yet. The refusal comes once no tree writes the position.
+        if (readsLegacyKey(field, from)) {
+            findings.push({
+                file: note.file,
+                ...at(legacyKeyOf(field)),
+                severity: "warning",
+                message: legacyKeyMessage("sohl", field),
+            });
+        }
         const absent = from === "default" || value === undefined || value === null;
         // Where the field belongs, as a message names it: a shared field is not
         // under `sohl:`, so telling an author to write `sohl.img` would send
-        // them to the wrong region.
-        const label = field.shared ? `\`${field.name}\`` : `\`sohl.${field.name}\``;
+        // them to the wrong region. Nor is a field whose shared source is a
+        // path into `data:` — `sohl.data.species` is a region that does not
+        // exist, and the home of that field is the container it names (#305).
+        const label =
+            field.shared || (field.name.includes(".") && field.legacyKey !== undefined) ?
+                `\`${field.name}\``
+            :   `\`sohl.${field.name}\``;
 
         if (field.required && absent) {
             findings.push({
@@ -1010,10 +1196,12 @@ export function lintNote(note, { schemas, index, vocabulary, systems = DEFAULT_S
  * @param {boolean} [opts.references=true] - Whether to check references.
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {readonly string[]} [opts.packs] - The declared pack names; see
+ *   {@link lintNote}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(index, { schemas, vocabulary, references = true, systems }) {
+export function lintFrontmatter(index, { schemas, vocabulary, packs, references = true, systems }) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -1025,6 +1213,7 @@ export function lintFrontmatter(index, { schemas, vocabulary, references = true,
             ...lintNote(note, {
                 schemas,
                 vocabulary,
+                packs,
                 index: references ? index : undefined,
                 ...(systems ? { systems } : {}),
             }),

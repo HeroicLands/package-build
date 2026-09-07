@@ -22,6 +22,7 @@ import path from "node:path";
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 
 import { walkMarkdownTree, collectContentDocs } from "../engine/helpers.mjs";
+import { indexRecordsFor } from "../engine/content-index.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
 
 let root: string;
@@ -72,11 +73,25 @@ describe("the walk's scope is the caller's to state", () => {
         expect(walked({ skipDirectories: [] })).toContain("Templates/Skill.md");
     });
 
-    it("passes it on to the table corpus, which had its own default", () => {
-        expect(
-            collectContentDocs(root, { skipDirectories: ["Templates"] }).map((d) => d.path),
-        ).toEqual(["Skills/Climbing.md"]);
-        expect(() => collectContentDocs(root)).toThrow(/requires `skipDirectories`/);
+    /*
+     * The table corpus no longer walks at all: it reads the records the compile
+     * derived, so the scope reaches it one level up — whatever the index was
+     * built over is what the corpus holds, and there is no second answer for it
+     * to disagree with (#243). Supplying the corpus is required for the same
+     * reason stating the scope is.
+     */
+    it("passes it on to the table corpus, through the records", () => {
+        const scoped = indexRecordsFor({ contentBase: root, skipDirectories: ["Templates"] });
+        expect(collectContentDocs(root, { records: scoped }).map((d) => d.path)).toEqual([
+            "Skills/Climbing.md",
+        ]);
+
+        const open = indexRecordsFor({ contentBase: root, skipDirectories: [] });
+        expect(collectContentDocs(root, { records: open }).map((d) => d.path)).toContain(
+            "Templates/Skill.md",
+        );
+
+        expect(() => collectContentDocs(root)).toThrow(/requires `records`/);
     });
 });
 

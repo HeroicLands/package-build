@@ -158,6 +158,12 @@ export * as mapNotes from "./map-notes.mjs";
 /** The Scene and Adventure compiler. */
 export * as scenes from "./scenes.mjs";
 
+/** What a bundle note says, and how compiled documents become an Adventure. */
+export * as bundleNotes from "./bundle-notes.mjs";
+
+/** The Adventure compiler — the pass a `type: bundle` note compiles through. */
+export * as bundles from "./bundles.mjs";
+
 /** The compiled-pack Scene/Level integrity guard. */
 export * as sceneLevels from "./scene-levels.mjs";
 

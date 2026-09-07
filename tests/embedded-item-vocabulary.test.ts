@@ -17,9 +17,10 @@
  * the identity.
  *
  * These tests hold the translation in place. They run against a **fixture
- * system**, not SoHL: the non-identity rows the mechanism exists for are #78's
- * to introduce into SoHL's own map, and until they land the compiled packs may
- * not move by a byte.
+ * system**, not SoHL: every SoHL row is the identity — #78 briefly made three
+ * of them otherwise and that rename is reversed — so SoHL alone cannot exercise
+ * the translation. HM3's `projectilegear` → `missilegear` is the real
+ * non-identity row, and the fixture stands in for that shape.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -29,6 +30,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { defineDocumentSubtypes, referencedSubtype } from "../engine/document-subtypes.mjs";
+import { RENAMED_TYPES } from "../engine/ids.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Actors } from "../sohl/actors.mjs";
@@ -39,7 +41,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /**
  * A **fixture system** whose item rows are deliberately not the identity.
  *
- * `armor` → `armorgear` is the row #78 will add to SoHL; declaring it here
+ * `armorgear` → `armorgear` is the row #78 will add to SoHL; declaring it here
  * exercises the mechanism without moving a single compiled byte. It reads the
  * `sohl:` block so the frontmatter readers (`sohlField`) still find a being's
  * `items:` — the block a system writes and the vocabulary its types speak are
@@ -49,7 +51,7 @@ const DEMO = defineDocumentSubtypes({
     system: "demo",
     block: "sohl",
     types: {
-        armor: { document: "Item", subType: "armorgear" },
+        armorgear: { document: "Item", subType: "armorgear" },
         attribute: { document: "Item", subType: "attribute" },
         skill: { document: "Item", subType: "skill" },
         weapon: {
@@ -63,9 +65,9 @@ const DEMO = defineDocumentSubtypes({
 
 describe("referencedSubtype (the note vocabulary → the document vocabulary)", () => {
     it("translates a reference's note type into the subtype the document carries", () => {
-        // The whole defect in one assertion: an author writes `armor`, the
+        // The whole defect in one assertion: an author writes `armorgear`, the
         // compiled document is an `armorgear`, and the address is the latter.
-        expect(referencedSubtype(DEMO, "armor", "Item")).toEqual({ subType: "armorgear" });
+        expect(referencedSubtype(DEMO, "armorgear", "Item")).toEqual({ subType: "armorgear" });
     });
 
     it("leaves an identity row exactly where it was", () => {
@@ -108,7 +110,9 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
         expect(referencedSubtype(DEMO, undefined, "Item").problem).toBeTruthy();
     });
 
-    it("is the identity for every row SoHL ships, which is why nothing moves", () => {
+    it("is the identity for every SoHL row", () => {
+        // #78 briefly broke this for three rows; reversing that rename restores
+        // it for all of them, so there is no exception list to carry.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
             const row = SOHL_DOCUMENT_SUBTYPES.types[type];
             if (row.document !== "Item") continue;
@@ -116,6 +120,21 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
                 subType: type,
             });
         }
+    });
+
+    it("resolves a reference still on a renamed type's retired spelling (#78)", () => {
+        // The half of the window that matters most: the old names occur ~1,000
+        // times as often inside a being's `(type, shortcode)` items list as
+        // they do as a note's own `type:`. A window that resolved notes but not
+        // references would silently drop 30,000 embedded items.
+        for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
+            expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, retired, "Item"), retired).toEqual(
+                referencedSubtype(SOHL_DOCUMENT_SUBTYPES, current, "Item"),
+            );
+        }
+        expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, "armorgear", "Item")).toEqual({
+            subType: "armorgear",
+        });
     });
 });
 
@@ -206,7 +225,7 @@ function beingNote(entry: string): string {
     ].join("\n");
 }
 
-describe("a being's embedded items, end to end over a non-identity row", () => {
+describe("a being's embedded items, end to end through the translation", () => {
     it("resolves a reference written in the note vocabulary", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
@@ -224,7 +243,7 @@ describe("a being's embedded items, end to end over a non-identity row", () => {
                         name: { full: "Ancient Warrior" },
                         sohl: {
                             archetype: null,
-                            items: [{ type: "armor", shortcode: "hlmt" }],
+                            items: [{ type: "armorgear", shortcode: "hlmt" }],
                         },
                     },
                     "",
@@ -253,7 +272,9 @@ describe("a being's embedded items, end to end over a non-identity row", () => {
                     name: { full: "Ancient Warrior" },
                     sohl: {
                         archetype: null,
-                        items: [{ type: "armor", name: "Scavenged Helm", system: { quality: 1 } }],
+                        items: [
+                            { type: "armorgear", name: "Scavenged Helm", system: { quality: 1 } },
+                        ],
                     },
                 },
                 "",
@@ -277,7 +298,7 @@ describe("a being's embedded items, end to end over a non-identity row", () => {
                         name: { full: "Ancient Warrior" },
                         sohl: {
                             archetype: null,
-                            items: [{ type: "armor", shortcode: "brst" }],
+                            items: [{ type: "armorgear", shortcode: "brst" }],
                         },
                     },
                     "",
@@ -291,10 +312,12 @@ describe("a being's embedded items, end to end over a non-identity row", () => {
                 ).toBe(true);
                 expect(finding).toMatch(/error:/);
                 expect(finding).toContain("Ancient Warrior");
-                // Both vocabularies, so the author can see why the address did
-                // not land where they expected.
-                expect(finding).toContain("armor:brst");
-                expect(finding).toContain("armorgear");
+                // The reference as authored. SoHL's note and document
+                // vocabularies spell every row the same word again now that
+                // #78's rename is reversed, so there is no second spelling to
+                // show here; HM3's `projectilegear` → `missilegear` is where
+                // the two still differ.
+                expect(finding).toContain("armorgear:brst");
                 // Located at the reference, not merely at the note.
                 expect(finding).toMatch(/Ancient_Warrior\.md:\d+/);
             },

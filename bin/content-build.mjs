@@ -103,9 +103,16 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
 // in a package that configures no `itemBuilders` at all (#51).
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
+import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
-import { emitContentIndex } from "../engine/content-index.mjs";
+import {
+    authoredFrontmatter,
+    emitContentIndex,
+    indexRecordsFor,
+    isNoteRecord,
+    noteFile,
+} from "../engine/content-index.mjs";
 import {
     buildSite,
     gatesFailed,
@@ -130,7 +137,6 @@ import {
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
 import { itemPackJsonDirs } from "../engine/generate.mjs";
-import { walkMarkdownTree } from "../engine/helpers.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -652,14 +658,33 @@ function contentFormatNotesCommand() {
                 const root = argv.root ?? config.paths.content;
                 const format = specFrom(argv);
 
-                const notes = [];
-                for (const { frontmatter, absPath } of walkMarkdownTree(root, {
+                // The corpus from the index, like every other check (#243).
+                // A report measuring the tree against the declared vocabulary
+                // has to be looking at the same tree the compile will, or its
+                // counts describe a corpus nobody builds.
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase: root,
+                    config,
                     skipDirectories: config.skipDirectories,
-                })) {
-                    if (!frontmatter || typeof frontmatter.type !== "string") continue;
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                if (corpusProblems.length) process.exitCode = 1;
+
+                const notes = [];
+                for (const record of records) {
+                    // A documentation journal is a document this tree emits,
+                    // not a note in it, and has no authored frontmatter to
+                    // measure.
+                    if (!isNoteRecord(record) || typeof record.type !== "string") continue;
+                    const absPath = noteFile(root, record);
                     notes.push({
                         file: absPath,
-                        fm: frontmatter,
+                        // What the author wrote, never the keys the index
+                        // derived — this measures a note against a vocabulary,
+                        // and `address:` is in no vocabulary.
+                        fm: authoredFrontmatter(record),
                         raw: fs.readFileSync(absPath, "utf8"),
                     });
                 }
@@ -717,19 +742,50 @@ function lintCommand() {
                 const config = loadPackConfig();
                 const root = argv.root ?? config.paths.content;
 
+                // The corpus, enumerated once for this command and handed to
+                // every pass below, rather than derived again by each (#243).
+                // The address lint reads it, the `sql` tables select over it
+                // and the link index is built from it, so no two findings this
+                // command reports can be drawn from different ideas of which
+                // files the content is.
+                //
+                // A note the index cannot record is reported like any other
+                // finding rather than thrown (#243): one malformed note must
+                // not take every other finding in the tree with it, and the
+                // reader needs a line to open, not a stack.
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase: root,
+                    config,
+                    skipDirectories: config.skipDirectories,
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
+
                 // The package is passed for the homepage rule (#52), which
                 // names the address a tree with no front page fails to serve.
                 const addresses = lintContentTree(root, {
                     contentPackage: config.contentPackage,
                     skipDirectories: config.skipDirectories,
+                    config,
+                    records,
                 });
                 // One index, built once, for the reference check. It is the
                 // same resolver the wikilink audit uses, so a frontmatter
                 // reference and a body link answer the same way.
                 const index = buildLinkIndex(root, {
                     config,
+                    records,
                     skipDirectories: config.skipDirectories,
-                    sqlTables: await prepareTreeSqlTables(root, { config }),
+                    sqlTables: await prepareTreeSqlTables(root, {
+                        config,
+                        records,
+                        skipDirectories: config.skipDirectories,
+                    }),
                 });
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
@@ -738,6 +794,11 @@ function lintCommand() {
                     // whatever it is handed and this stays the one place that
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
+                    // The pack names, for a `data:` field keyed by pack — a
+                    // folder's `parent` is one (#288). Companions included:
+                    // the compile asks the map for whichever pack it is
+                    // writing, and a companion is a pack it writes.
+                    packs: config.packDirectories,
                     references: argv.references,
                 });
 
@@ -790,6 +851,12 @@ function lintCommand() {
                     const { undeclared, unemitted } = compareFields({
                         builders: fieldSpecs,
                         artifact: schema.artifact,
+                        // A schema is keyed by document subtype and a field
+                        // declaration by note type. Those were one string until
+                        // #78 renamed three of them, and joining them by name
+                        // after that would drop `armorgear`'s findings without
+                        // saying so — the seam exists for exactly this.
+                        subtypeOf: (type) => schemaSubtypeOf(config.stats?.systemId, type),
                     });
                     for (const f of undeclared) {
                         schemaFindings.push({
@@ -1008,10 +1075,29 @@ function linksCommand() {
                 const contentBase = argv.root ?? config.paths.content;
 
                 const scope = { skipDirectories: config.skipDirectories };
-                const index = buildLinkIndex(contentBase, {
+                // Enumerated once and shared, as in `lint` (#243), and a note
+                // it cannot record is reported rather than thrown.
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase,
                     config,
                     ...scope,
-                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
+                const index = buildLinkIndex(contentBase, {
+                    config,
+                    records,
+                    ...scope,
+                    sqlTables: await prepareTreeSqlTables(contentBase, {
+                        config,
+                        records,
+                        ...scope,
+                    }),
                 });
 
                 // An unusable manifest would otherwise surface as a pile of
@@ -1352,12 +1438,34 @@ function reachabilityCommand() {
         },
         handler: async (argv) => {
             try {
-                const contentBase = argv.root ?? loadPackConfig().paths.content;
+                // Resolved once and passed on, so every pass below runs
+                // against the configuration this command resolved rather than
+                // whichever one the working directory answers with (#243).
+                const config = loadPackConfig();
+                const contentBase = argv.root ?? config.paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
-                const scope = { skipDirectories: loadPackConfig().skipDirectories };
-                const index = buildLinkIndex(contentBase, {
+                const scope = { skipDirectories: config.skipDirectories };
+                const corpusProblems = [];
+                const records = indexRecordsFor({
+                    contentBase,
+                    config,
                     ...scope,
-                    sqlTables: await prepareTreeSqlTables(contentBase, scope),
+                    problems: corpusProblems,
+                });
+                for (const problem of corpusProblems) emitDiagnostic(problem);
+                // An error whatever the command's own strictness: the note is
+                // absent from every answer below, so reporting it and exiting 0
+                // would call the tree clean while silently omitting a note.
+                if (corpusProblems.length) process.exitCode = 1;
+                const index = buildLinkIndex(contentBase, {
+                    config,
+                    records,
+                    ...scope,
+                    sqlTables: await prepareTreeSqlTables(contentBase, {
+                        config,
+                        records,
+                        ...scope,
+                    }),
                 });
                 const indexes = new Set(argv.index.map(String));
 
@@ -1562,10 +1670,23 @@ async function diffAddresses(config, argv) {
         );
     }
 
-    // Stated by the caller, like every other walk in this file (#243): the two
-    // tree reads below must agree with each other and with the compile about
-    // which files are the corpus.
+    // Stated by the caller, like every other corpus read in this file (#243):
+    // the two tree reads below must agree with each other and with the compile
+    // about which files are the corpus. They now do so by construction — the
+    // corpus is derived once, here, and handed to both.
     const scope = { skipDirectories: config.skipDirectories };
+    const corpusProblems = [];
+    const records = indexRecordsFor({
+        contentBase: config.paths.content,
+        config,
+        ...scope,
+        problems: corpusProblems,
+    });
+    for (const problem of corpusProblems) emitDiagnostic(problem);
+    // An error whatever `--strict` says: the note is in none of the answers
+    // below, so exiting 0 would call the tree clean while omitting a note.
+    if (corpusProblems.length) process.exitCode = 1;
+    const corpus = { config, records, ...scope };
 
     const findings = diffItemAddresses(
         readItemAddresses(baselineDirs),
@@ -1575,7 +1696,7 @@ async function diffAddresses(config, argv) {
             // Read whether or not anything departed: an id match needs no tree,
             // but the diff decides rename-versus-withdrawal as it walks the
             // baseline, so the declarations have to be in hand before it does.
-            predecessors: declaredPredecessors(config.paths.content, scope),
+            predecessors: declaredPredecessors(config.paths.content, corpus),
         },
     );
     if (!findings.length) {
@@ -1586,7 +1707,7 @@ async function diffAddresses(config, argv) {
     // A rename is fixed in the note that made it, so findings are placed
     // against the tree rather than against the compiled output they were read
     // from.
-    const noteFiles = noteFilesById(config.paths.content, scope);
+    const noteFiles = noteFilesById(config.paths.content, corpus);
     const severity = argv.strict ? "error" : "warning";
     for (const finding of findings) {
         emitDiagnostic({

@@ -46,11 +46,34 @@
  * order for a system `S` is:
  *
  * 1. `S.system.<to>` — authored directly, wins outright;
- * 2. `S.<name>` — the legacy in-block position the corpus still writes, kept
- *    until #126 moves it;
+ * 2. `S.<legacyKey>` — the legacy in-block position the corpus still writes,
+ *    kept until #126 moves it;
  * 3. the shared top-level property the field **declares** as its source, which
  *    may be a dotted path (`data.portrait`) rather than a sibling key;
  * 4. the field's own default.
+ *
+ * ## Steps 2 and 3 are two declarations, because they are two positions
+ *
+ * They used to be one: both were keyed on `name`, which was fine only while the
+ * shared source and the in-block key were the same word. `data:` (#128) ended
+ * that — a shared source is now a path *into* a container, so `data.species`
+ * and `species` are two spellings of two different places, and no single value
+ * of `name` reached both. `name: "species"` read `hm3.species` and could not
+ * see `data.species`; `name: "data.species"` read the shared source and could
+ * not see `hm3.species`. Each yielded the field's **default** wherever only the
+ * other position was authored — silently, since the field compiles and the
+ * document is emitted with the value simply gone (#305).
+ *
+ * That made every move into `data:` a flag day. Each of this package's other
+ * retirements — `package:`, `image`, `archetype`, `relation` — works because
+ * *both spellings are read while the corpus moves*, and one property could not
+ * offer that here.
+ *
+ * So a field declares `legacyKey` beside `name`: the key it is authored at
+ * inside the block, which step 2 reads and which **falls back to `name`** when
+ * absent, so every declaration written before this resolves unchanged. A field
+ * that declares one is mid-sweep by construction, which is what
+ * {@link module:engine/field-spec.readsLegacyKey} reports on.
  *
  * ## A name that collides across the two vocabularies skips step 3
  *
@@ -313,6 +336,27 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
+ * The key a field is authored at **inside** a system block — step 2.
+ *
+ * `legacyKey` when the field declares one, and `name` otherwise. The fallback
+ * is what makes this change invisible to every declaration written before it:
+ * a field whose shared source and in-block key are the same word says so once,
+ * as it always did.
+ *
+ * Named and exported rather than spelled inline because three readers ask the
+ * question and must agree — the resolver here, the frontmatter lint building
+ * the set of keys a block may carry, and the author-facing surfaces naming
+ * where a value was written.
+ *
+ * @param {{name?: string, legacyKey?: string}} field - The declaration.
+ * @returns {string|undefined} The in-block key, or `undefined` for a field that
+ *   is not authored at all.
+ */
+export function legacyKeyOf(field) {
+    return field?.legacyKey ?? field?.name;
+}
+
+/**
  * Where a declared field's value came from.
  *
  * Reported alongside the value so a caller — a linter, a migration, a test —
@@ -356,16 +400,19 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
         if (own !== undefined) return { value: own, from: "system" };
     }
 
-    // 2. The legacy in-block position. Every note in every tree writes here
-    //    today, and will until #126 moves them; dropping it would be a corpus
-    //    migration disguised as a mechanism change.
+    // 2. The legacy in-block position, keyed on `legacyKey` — the shared
+    //    source is a path into `data:` and the in-block key is a bare word, so
+    //    the two are declared separately (#305). Every note in every tree
+    //    writes here today, and will until #126 moves them; dropping it would
+    //    be a corpus migration disguised as a mechanism change.
     const declared = systemBlock(fm, block);
-    if (declared) {
-        if (field.name in declared) {
-            const value = declared[field.name];
+    const legacyKey = legacyKeyOf(field);
+    if (declared && legacyKey) {
+        if (legacyKey in declared) {
+            const value = declared[legacyKey];
             return { value: value ?? field.default, from: "block" };
         }
-        const nested = getFrontmatter(declared, field.name, undefined);
+        const nested = getFrontmatter(declared, legacyKey, undefined);
         if (nested !== undefined) return { value: nested, from: "block" };
     }
 
@@ -421,6 +468,24 @@ export function systemDataPaths(data, prefix = "") {
  * this is the difference between "the field is lost at load" and "the build
  * told you where".
  *
+ * **A declared *leaf* holds values, not fields.** A schema declares a path that
+ * has no children of its own for two ordinary reasons — a map with **dynamic
+ * keys** (`mystery.skillAptitudes` is skill selector → modifier) and a
+ * **TypedSchemaField** (`strikeModes`, discriminated by `type`) — and in both
+ * the contents are data an author wrote, not paths the schema names. Walking
+ * into one reports every entry as an undeclared field: one finding per skill
+ * aptitude, per strike mode, per standing.
+ *
+ * It stayed invisible while those maps were authored *outside* `<system>.system`
+ * and so were never walked. The moment the corpus moves them to the destination
+ * (#126) every one of them lights up — 62 findings on `sohl-thalorna` alone,
+ * none of them a defect.
+ *
+ * So descent is conditional on the schema declaring something *beneath* the
+ * path. `body.structure` declares `parts` and `zones`, so it is a real
+ * container and an undeclared `adjacent` under it is a real finding;
+ * `skillAptitudes` declares nothing beneath it, so what is beneath is a value.
+ *
  * @param {Record<string, unknown>} data - The authored `system` data.
  * @param {ReadonlySet<string>} declared - Every field path the schema declares
  *   for this subtype, inherited ones included.
@@ -436,13 +501,32 @@ export function undeclaredPaths(data, declared, prefix = "") {
             out.push(path);
             continue;
         }
-        if (isMapping(value) && Object.keys(value).length) {
+        if (isMapping(value) && Object.keys(value).length && declaresChildren(declared, path)) {
             out.push(
                 ...undeclaredPaths(/** @type {Record<string, unknown>} */ (value), declared, path),
             );
         }
     }
     return out;
+}
+
+/**
+ * Whether the schema declares any path beneath this one.
+ *
+ * The test for "container, not leaf" — see {@link undeclaredPaths}. Asked of
+ * the declared set rather than of the authored value, because it is a question
+ * about the *schema*: an author can nest a map under either.
+ *
+ * @param {ReadonlySet<string>} declared - The declared field paths.
+ * @param {string} path - The path to test.
+ * @returns {boolean} True when something is declared beneath it.
+ */
+function declaresChildren(declared, path) {
+    const prefix = `${path}.`;
+    for (const candidate of declared) {
+        if (candidate.startsWith(prefix)) return true;
+    }
+    return false;
 }
 
 /**
