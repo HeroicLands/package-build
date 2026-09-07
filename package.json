@@ -155,7 +155,7 @@
     "devDependencies": {
         "@changesets/cli": "^3.0.0",
         "@types/node": "^26.2.0",
-        "vitest": "^4.1.10"
+        "vitest": "^5.0.0"
     },
     "scripts": {
         "test": "vitest run",
