@@ -110,6 +110,27 @@ function exportHead() {
     }
     const untar = spawnSync("tar", ["-x", "-C", dir], { input: archive.stdout });
     if (untar.status !== 0) throw new Error("could not unpack the export");
+
+    // Make the export a repository. `git archive` yields a bare directory, and
+    // a workflow step that shells out to git — `git ls-files` in a
+    // tracked-artifact check, say — then fails for want of a `.git`, which
+    // reads as the check failing rather than as this harness lacking something
+    // the runner has. GitHub's own step is a *checkout*, so the faithful export
+    // is one too.
+    //
+    // Initialised and staged rather than committed: `git ls-files` lists the
+    // index, so staging every extracted file reproduces exactly the set the
+    // runner would see, without needing an identity configured to commit with.
+    const init = spawnSync("git", ["init", "-q"], { cwd: dir });
+    if (init.status === 0) {
+        spawnSync("git", ["add", "-A"], { cwd: dir });
+    } else {
+        console.error(
+            "ci-docker: NOTE — could not make the export a git repository, so a " +
+                "workflow step that shells out to git will fail here in a way it " +
+                "would not on the runner.",
+        );
+    }
     return dir;
 }
 
