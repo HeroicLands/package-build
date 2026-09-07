@@ -27,7 +27,7 @@
  * itemBuilders: sohl
  * skipDirectories: [Templates]
  * packs:
- *     - { name: items, type: Item, folders: item-folders.yaml }
+ *     - { name: items, type: Item }
  *     - { name: journals, type: JournalEntry, label: Journals }
  * packageBuild:
  *     assets:
@@ -258,9 +258,6 @@ export function publishesContentPages(config) {
  * @property {PackDocumentType} type    Foundry document type the pack holds.
  * @property {string} [label]           Human-readable label. Defaults to `name`.
  * @property {boolean} [private]        Whether the pack is GM-only. Default `false`.
- * @property {string|null} [folders]    The pack's folder-hierarchy file, relative
- *                                      to `paths.content`. Default `null` — no
- *                                      folder documents are emitted.
  * @property {string} [prebuilt]        Directory holding this pack's per-document
  *                                     JSON, already built. Declaring it skips
  *                                     generation for the pack and compiles from
@@ -295,7 +292,6 @@ export function publishesContentPages(config) {
  * @property {PackDocumentType} type
  * @property {string} label
  * @property {boolean} private
- * @property {string|null} folders
  * @property {string|null} prebuilt
  * @property {string|null} system
  * @property {readonly Readonly<ResolvedPackSpec>[]} companions
@@ -658,7 +654,6 @@ const PACK_KEYS = [
     "type",
     "label",
     "private",
-    "folders",
     "companions",
     "mayBeEmpty",
     "default",
@@ -854,6 +849,19 @@ function optionalString(value, field) {
 function normalizePack(value, where, nested = false) {
     if (!isPlainObject(value)) fail(where, "must be an object");
     const pack = /** @type {Record<string, unknown>} */ (value);
+    // Retired with the YAML it named (#260). Refused explicitly rather than
+    // left to the unknown-key check, because the useful thing to say is not
+    // "no such key" but where the folders went: they are notes, and a pack
+    // materialises the ones its documents reference.
+    if (pack.folders !== undefined) {
+        fail(
+            `${where}.folders`,
+            "is retired — delete it. A folder is a note (`type: folder`) now, " +
+                "and a pack materialises the folders its documents reference " +
+                "through `packFolder`, so there is no per-pack hierarchy file " +
+                "to name",
+        );
+    }
     rejectUnknownKeys(pack, PACK_KEYS, `${where}.`);
 
     const name = requireNonEmptyString(pack.name, `${where}.name`);
@@ -863,10 +871,6 @@ function normalizePack(value, where, nested = false) {
         !(/** @type {readonly string[]} */ (PACK_DOCUMENT_TYPES).includes(type))
     ) {
         fail(`${where}.type`, `must be one of: ${PACK_DOCUMENT_TYPES.join(", ")}`);
-    }
-
-    if (pack.folders !== undefined && pack.folders !== null) {
-        requireNonEmptyString(pack.folders, `${where}.folders`);
     }
 
     const companionsInput = pack.companions;
@@ -893,8 +897,8 @@ function normalizePack(value, where, nested = false) {
 
     // A prebuilt pack's per-document JSON already exists, so it has no
     // generation pass. Every key below describes one, which is why none of them
-    // may accompany it: silently ignoring a `folders` file that can never be
-    // read is worse than refusing the configuration that declares it.
+    // may accompany it: silently ignoring a key that can never be read is
+    // worse than refusing the configuration that declares it.
     const prebuilt =
         pack.prebuilt === undefined || pack.prebuilt === null ?
             null
@@ -905,13 +909,6 @@ function normalizePack(value, where, nested = false) {
                 `${where}.prebuilt`,
                 "may not be declared on a companion: a companion is written by " +
                     "another pack's pass, and a prebuilt pack has no pass",
-            );
-        }
-        if (pack.folders !== undefined && pack.folders !== null) {
-            fail(
-                `${where}.folders`,
-                "may not accompany `prebuilt`: the folder hierarchy is built " +
-                    "during generation, which a prebuilt pack skips",
             );
         }
         if (Array.isArray(companionsInput) && companionsInput.length) {
@@ -946,10 +943,6 @@ function normalizePack(value, where, nested = false) {
         label:
             pack.label === undefined ? name : requireNonEmptyString(pack.label, `${where}.label`),
         private: optionalBoolean(pack.private, `${where}.private`, false),
-        folders:
-            pack.folders === undefined || pack.folders === null ?
-                null
-            :   /** @type {string} */ (pack.folders),
         companions: Object.freeze(companions),
         mayBeEmpty: optionalBoolean(pack.mayBeEmpty, `${where}.mayBeEmpty`, false),
         // Which pack of a type receives a note that declares none. Validated

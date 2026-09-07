@@ -408,8 +408,8 @@ export class Scenes extends BasePackCompiler {
         // shared `docEntryTypes` arrangement (#1514) — so neither
         // pass has to read the other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
-        const { value: authoredFolder, isAddress: folderIsAddress } = folderField(fm);
-        const folder = this.folderResolver(authoredFolder, { isAddress: folderIsAddress });
+        const { value: authoredFolder } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isAddress: true });
         // The retired spelling of the background art, reported where an author
         // meets it soonest — every consumer runs the compile, and not every
         // one runs the lint (#142). Located by reading the note back, which is
@@ -457,13 +457,11 @@ export class Scenes extends BasePackCompiler {
                     name,
                     markdown,
                     leadName: name,
-                    // As in the journals pass: an id crosses packs verbatim,
-                    // an address resolves in the pack that emits it — which is
-                    // what makes the folder materialise there too (#257).
-                    folder:
-                        folderIsAddress ?
-                            this.folderResolver(authoredFolder, { isAddress: true })
-                        :   authoredFolder,
+                    // As in the journals pass: an address resolves in the
+                    // pack that emits it, which is what makes the folder
+                    // materialise there too (#257). The id spelling that used
+                    // to cross packs verbatim is retired (#260).
+                    folder: this.folderResolver(authoredFolder, { isAddress: true }),
                     flags: fm.flags,
                 })
             :   null;

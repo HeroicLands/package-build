@@ -114,7 +114,7 @@ import {
  * @type {ReadonlySet<string>}
  */
 export const UNIVERSAL_KEYS = Object.freeze(
-    new Set(["folder", "packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
+    new Set(["packFolder", "pack", "archetype", "templatePriority", "kbcat"]),
 );
 
 /**
@@ -742,6 +742,34 @@ export function lintNote(
                 "note's package is this repository's configured " +
                 "`contentPackage`, in package-build.config.yaml, and every " +
                 "note in the tree belongs to it",
+        });
+    }
+    // `folder:` named a compendium folder by the raw Foundry id declared in a
+    // per-pack `*-folders.yaml`. Both halves are retired together (#260): the
+    // id spelling has nothing left to resolve against once the YAML is gone.
+    //
+    // Checked here as well as refused at compile because this is where an
+    // author meets every one of them in the tree at once — which is what a
+    // tree still to sweep needs, the whole corpus rather than the first note
+    // the compile happens to reach.
+    //
+    // **Both positions**, because notes wrote it both ways: top-level, and
+    // inside the `sohl:` block. The block spelling is no longer a universal
+    // key, so it would otherwise be reported as merely unrecognized, which
+    // says nothing about what to write instead.
+    const sohlBlock = fm.sohl;
+    const folderInBlock =
+        !!sohlBlock && typeof sohlBlock === "object" && Object.hasOwn(sohlBlock, "folder");
+    if (Object.hasOwn(fm, "folder") || folderInBlock) {
+        findings.push({
+            file: note.file,
+            ...at("folder"),
+            severity: "error",
+            message:
+                "`folder:` is a retired frontmatter field — write `packFolder` " +
+                "instead. A folder is a note (`type: folder`) now, and " +
+                "`packFolder` names it by its address, not by the Foundry id a " +
+                "retired `*-folders.yaml` used to declare",
         });
     }
     // `img: ""` was how a note said "I name no art" while `resolveImg`

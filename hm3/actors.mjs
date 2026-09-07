@@ -259,16 +259,13 @@ export class Hm3Actors extends SystemActorCompiler {
                 locateFrontmatterKey(this.currentNote?.absPath, field.legacyKey),
             );
 
-        // Both spellings, as everywhere else: `packFolder` is a folder note's
-        // address and `folder` a Foundry id, and which one applies comes from
-        // the field it was written in rather than from the string (#251, #255).
-        // This pass read only the id, so an HM3 tree could not file an actor by
-        // address at all — which its own sweep needs.
-        const packFolderAddress = blockField(fm, block, "packFolder", null);
-        const folder =
-            packFolderAddress ?
-                this.folderResolver(packFolderAddress, { isAddress: true })
-            :   this.folderResolver(blockField(fm, block, "folder", null));
+        // One spelling, as everywhere else: `packFolder` names a folder note
+        // by its address. This pass once read only the Foundry id, so an HM3
+        // tree could not file an actor by address at all — which its own sweep
+        // needs; the id spelling is retired outright (#251, #255, #260).
+        const folder = this.folderResolver(blockField(fm, block, "packFolder", null), {
+            isAddress: true,
+        });
 
         const system = {
             // Nullish, not `||` (#218): a note that names no portrait gets the

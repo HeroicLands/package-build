@@ -7,7 +7,7 @@ out to git behaves as it does on the runner.
 
 `git archive HEAD` yields a bare directory with no `.git`. A step that asks git
 something — `git ls-files` in a tracked-artifact check, for instance — then
-fails for want of a repository, which reads as *the check failing* rather than
+fails for want of a repository, which reads as _the check failing_ rather than
 as this harness lacking something the runner has. GitHub's own first step is a
 **checkout**, so the faithful export is one too.
 

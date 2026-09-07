@@ -51,14 +51,7 @@ import { Hm3Actors } from "../hm3/actors.mjs";
 import { Macros } from "./macros.mjs";
 import { Scenes } from "./scenes.mjs";
 import { Bundles } from "./bundles.mjs";
-import {
-    statsForPack,
-    loadFolders,
-    buildFolderResolver,
-    writeFolderDocs,
-    parseMarkdownFile,
-    folderFilename,
-} from "./helpers.mjs";
+import { statsForPack, parseMarkdownFile, folderFilename } from "./helpers.mjs";
 import {
     buildFolderNoteIndex,
     collectFolderNotes,
@@ -359,7 +352,7 @@ export function unsatisfiedPassDependencies(running, config) {
  *     count (0 on success) and the number of entries it wrote.
  */
 async function generatePack(
-    { name, type, folders, companions, system },
+    { name, type, companions, system },
     config,
     router,
     routingReporter,
@@ -380,41 +373,27 @@ async function generatePack(
 
     log.info(`Pack ${name}: ${contentBase} → ${dest}`);
 
-    let folderList;
-    let yamlResolver;
-    try {
-        folderList = folders ? loadFolders(path.join(contentBase, folders)) : [];
-        ({ resolver: yamlResolver } = buildFolderResolver(folderList));
-    } catch (err) {
-        log.error(`${name} ${folders} validation failed: ${err.message}`);
-        return { errors: 1, compiled: 0 };
-    }
-
     // Which folder notes this pack turned out to hold something for. A folder
     // materialises in every pack holding a document that references it, so the
-    // set is not knowable until the pass has compiled — which is why these
-    // documents are written after `compile()` and the YAML ones before it
-    // (#257).
+    // set is not knowable until the pass has compiled, which is why these
+    // documents are written after `compile()` (#257).
     /** @type {Set<import("./folder-notes.mjs").FolderNote>} */
     const referencedFolders = new Set();
 
     /**
-     * The Foundry folder id a note names, by address or by id.
+     * The Foundry folder id a note names, by its folder note's address.
      *
-     * The two spellings resolve against two different sources and always did:
-     * `packFolder` names a folder **note**, resolved through the address index
-     * shared by the whole build, and `folder` names a Foundry **id** declared
-     * in this pack's own YAML. Which one applies is the field the value was
-     * written in, never the string (#251).
+     * There is one spelling. `packFolder` names a folder **note**, resolved
+     * through the address index shared by the whole build; the `folder:`
+     * Foundry-id spelling and the per-pack `*-folders.yaml` it resolved
+     * against are retired together (#260), so there is no second source left
+     * for a value to come from.
      *
      * @param {string|null|undefined} value - As authored.
-     * @param {object} [opts]
-     * @param {boolean} [opts.isAddress] - Whether `value` is a folder address.
      * @returns {string|null} The folder id, or `null` for an absent value.
      */
-    const resolver = (value, { isAddress = false } = {}) => {
+    const resolver = (value) => {
         if (value == null || value === "") return null;
-        if (!isAddress) return yamlResolver(value);
         const folder = folderNotes.resolve(value);
         // Its ancestors with it: a `Folder` whose parent is absent from the
         // pack is an orphan Foundry renders at the root, so materialising a
@@ -443,10 +422,6 @@ async function generatePack(
         fs.mkdirSync(companionDest, { recursive: true });
         companionDests[companion.name] = companionDest;
     }
-
-    // A folder document belongs to the pack it is written into, so it carries
-    // that pack's system rather than the package-wide one (#48).
-    writeFolderDocs(folderList, statsForPack(system, config), dest, type);
 
     const pack = new packClass({
         contentBase,

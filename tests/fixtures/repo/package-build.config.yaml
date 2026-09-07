@@ -52,12 +52,11 @@ itemBuilders: sohl
 skipDirectories: [Templates]
 
 packs:
-    - { name: items, type: Item, folders: item-folders.yaml }
-    - { name: journals, type: JournalEntry, folders: journal-folders.yaml }
-    - { name: actors, type: Actor, folders: actor-folders.yaml }
-    - { name: macros, type: Macro, folders: macro-folders.yaml }
+    - { name: items, type: Item }
+    - { name: journals, type: JournalEntry }
+    - { name: actors, type: Actor }
+    - { name: macros, type: Macro }
     - name: scenes
       type: Scene
-      folders: scene-folders.yaml
       companions:
           - { name: adventures, type: Adventure }

@@ -296,15 +296,13 @@ export class SystemItemCompiler extends BasePackCompiler {
         });
 
         const effects = blockProperty(fm, system, "effects");
-        // Read through the system block like every other item field, so both
-        // spellings work wherever a note already writes one. `packFolder` is a
-        // folder note's address and `folder` an id; which it is comes from the
-        // field, never from the string (#251, #255).
-        const packFolderAddress = blockField(fm, system, "packFolder", null);
-        const folder =
-            packFolderAddress ?
-                this.folderResolver(packFolderAddress, { isAddress: true })
-            :   this.folderResolver(blockField(fm, system, "folder", null));
+        // Read through the system block like every other item field. There is
+        // one spelling: `packFolder` names a folder note by its address, the
+        // `folder:` id spelling having been retired with the per-pack YAML it
+        // resolved against (#251, #255, #260).
+        const folder = this.folderResolver(blockField(fm, system, "packFolder", null), {
+            isAddress: true,
+        });
 
         return {
             name,

@@ -381,12 +381,8 @@ export class Journals extends BasePackCompiler {
 
         // A documentation entry is filed exactly where the document it
         // describes is, so the journals pack mirrors the items pack and a doc
-        // sits under the same heading a reader found the item under. The id is
-        // taken verbatim rather than through `folderResolver`, which validates
-        // against this pack's own folders.yaml — an item folder is declared in
-        // the items one, a macro folder in the macros one, and a map's in the
-        // scenes one.
-        const { value: authoredFolder, isAddress } = folderField(fm);
+        // sits under the same heading a reader found the item under.
+        //
         // An address is resolved wherever it is written, including here — and
         // resolving it *here* is what cures the defect this comment used to
         // describe. A folder note has one definition and one address, so the
@@ -395,12 +391,10 @@ export class Journals extends BasePackCompiler {
         // with the first, and so no arrangement to assume: the mirroring
         // failure is unrepresentable rather than merely reported.
         //
-        // `folder:` is unchanged, and still crosses packs verbatim on the
-        // assumption both declare it — the arrangement #260 retires.
-        const folder =
-            isAddress ? this.folderResolver(authoredFolder, { isAddress: true })
-            : ownsDoc ? authoredFolder
-            : this.folderResolver(authoredFolder);
+        // The id spelling used to cross packs verbatim here, on the assumption
+        // both declared it — the arrangement #260 retires with the YAML.
+        const { value: authoredFolder } = folderField(fm);
+        const folder = this.folderResolver(authoredFolder, { isAddress: true });
 
         return buildJournalEntry({
             id,
