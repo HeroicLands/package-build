@@ -24,6 +24,7 @@ import {
     resolveMacroType,
 } from "../engine/macros.mjs";
 import { docEntryTypes, hasDocEntry, itemTypes, itemDocEntryId } from "../engine/item-docs.mjs";
+import { ACTOR_TYPES } from "../engine/subtype-registry.mjs";
 import { splitPages, buildPages } from "../engine/journals.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "../engine/wikilinks.mjs";
 import { MAP_TYPES } from "../engine/ids.mjs";
@@ -265,13 +266,18 @@ describe("a macro note carries documentation like an item does", () => {
     it("keeps every item type doc-carrying", () => {
         for (const t of itemTypes()) expect(hasDocEntry(t)).toBe(true);
         // Every item type, plus `macro`, plus the three map types — a map
-        // note's prose is a JournalEntry of its own too (#1525).
-        expect(docEntryTypes().size).toBe(itemTypes().size + 1 + MAP_TYPES.size);
+        // note's prose is a JournalEntry of its own too (#1525) — plus every
+        // actor type, since an actor publishes documentation as well (#337).
+        expect(docEntryTypes().size).toBe(itemTypes().size + 1 + MAP_TYPES.size + ACTOR_TYPES.size);
     });
 
-    it("leaves `doc` notes and actors alone — they are one document each", () => {
+    it("leaves `doc` notes alone — their single document IS the prose", () => {
         expect(hasDocEntry("doc")).toBe(false);
-        expect(hasDocEntry("being")).toBe(false);
+        // Actors used to be excluded alongside `doc`, on the same "one document
+        // each" reasoning. It never applied to them: a being carries prose a
+        // reader wants a page for, and grouping it with `doc` left it the one
+        // system-bearing note nothing could link to (#337).
+        expect(hasDocEntry("being")).toBe(true);
     });
 
     it("compiles the {#script} page into the journal, withholding nothing", () => {

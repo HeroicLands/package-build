@@ -69,6 +69,7 @@ import path from "node:path";
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
+import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
 
 /**
@@ -1953,7 +1954,15 @@ export function defineConfig(config) {
     // holds every key any of them declares, so this stays "the registry's keys"
     // rather than becoming a second list to keep in step (#1504).
     const itemTypes = Object.freeze(new Set(Object.keys(itemBuilders)));
-    const docEntryTypes = Object.freeze(new Set([...itemTypes, "macro", ...MAP_TYPES]));
+    // Every note that compiles into a *system-bearing* document publishes its
+    // prose as a documentation JournalEntry, and that includes actors (#337).
+    // A being was the one such note with no `none` address — its only address
+    // named the Actor — so nothing a prose link wrote could land on its page.
+    // `doc` stays out for the reason that actually applies to it: its single
+    // document *is* the prose.
+    const docEntryTypes = Object.freeze(
+        new Set([...itemTypes, ...ACTOR_TYPES, "macro", ...MAP_TYPES]),
+    );
 
     return Object.freeze({
         rootDir,

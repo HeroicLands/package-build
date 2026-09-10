@@ -65,6 +65,36 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
 ]);
 
 /**
+ * Every note type any shipped map compiles into an **Actor**.
+ *
+ * Derived from the maps rather than written out, so a system that adds an actor
+ * type is covered without a second list to keep in step — the same reason
+ * {@link KNOWN_DOCUMENT_SUBTYPE_MAPS} exists rather than a hand-kept table.
+ *
+ * It exists because an actor note publishes documentation like every other
+ * system-bearing note (#337). `docEntryTypes` was `itemTypes` plus `macro` and
+ * the map types, which left a being as the one system-bearing note with no
+ * `none` address — nothing a prose link could land on, since its only address
+ * named the Actor. Composing that set needs to know which types are actors, and
+ * this is where the maps that know already live.
+ *
+ * **Not an item type.** This widens what carries *documentation*; it must never
+ * widen what the items pass compiles, or a being note would be compiled into an
+ * Item beside its Actor.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const ACTOR_TYPES = Object.freeze(
+    new Set(
+        KNOWN_DOCUMENT_SUBTYPE_MAPS.flatMap((map) =>
+            Object.entries(map.types)
+                .filter(([, row]) => row?.document === "Actor")
+                .map(([noteType]) => noteType),
+        ),
+    ),
+);
+
+/**
  * The map one system ships, by its id.
  *
  * @param {string|undefined} system - The system id (`"sohl"`, `"hm3"`).
