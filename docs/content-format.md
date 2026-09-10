@@ -629,18 +629,49 @@ The full address is the unambiguous form, and almost nothing uses it — 92 of
 12,056 links in the current trees. The rest rely on shorter forms, each dropping
 segments from the left:
 
-| form                            | resolves by                                  |
-| ------------------------------- | -------------------------------------------- |
-| `package-system-type-shortcode` | exactly, always                              |
-| `package-type-shortcode`        | `(type, shortcode)` within the named package |
-| `type-shortcode`                | `(type, shortcode)` within this package      |
-| `shortcode`                     | `shortcode` within this package — see below  |
+| form                            | expands to                                               |
+| ------------------------------- | -------------------------------------------------------- |
+| `package-system-type-shortcode` | itself                                                   |
+| `system-type-shortcode`         | `<this package>-system-type-shortcode`                   |
+| `type-shortcode`                | `<this package>-<this block's system>-type-shortcode`    |
+| `shortcode`                     | as above, with the type from the field's own declaration |
 
-The last row is the everyday case, and it means two different things by
-context. In a **frontmatter field** the type segment is supplied by the field's
-own declaration, so `tashal` is a complete address. In **body prose** there is no
-field to supply it, so a bare shortcode is resolved across types and must match
-exactly one; an ambiguity is an error naming the candidates.
+There is no `package-type-shortcode`: the forms are exactly the **suffixes** of
+the canonical address, so naming another package means naming its system too.
+`kethira-place-tashal` is three segments, which reads as system `kethira`, and
+fails.
+
+#### An omitted segment defaults from where the link is written
+
+It is **not** a wildcard and resolution is not a search. Every short form expands
+to exactly one canonical address before anything is looked up, so a lookup either
+finds one entry or none — there is no candidate set, and a cross-package
+ambiguity is impossible by construction.
+
+- **package** omitted → the current package. A short address therefore names
+  _this_ package and never falls through to a dependency; reaching another one is
+  the fully qualified form's job.
+- **system** omitted → **the system block the link is written under**. Anywhere
+  under `sohl:` is `sohl`; anywhere under `hm3:` is `hm3`; **anywhere else** —
+  top-level frontmatter, `data:`, and body prose — is `none`. The enclosing block
+  decides at any depth, so `sohl.items[3].model` and `sohl.system.body.structure`
+  default alike; the field has no say.
+
+**Under `none`, a system-bearing type addresses its documentation.** A note's
+`none` address _is_ its `doc<type>` journal — the Item is the one with a system —
+so a prose `[[affiliation-sirvadar|Sirvadar]]` names the page, which is what
+prose almost always means. A prose link that means the **Item** states the
+system: `[[sohl-affiliation-sirvadar|…]]`.
+
+Only a type whose own document carries a system is redirected this way. A
+`macro` and the map types have documentation journals too, but their own
+documents are core ones already at `none`, so `macro-autoattack` names the Macro
+and `docmacro-autoattack` its journal — two live addresses.
+
+**An address capitalises nothing but its shortcode.** Package, system and type
+are closed vocabularies with one spelling each, so a capital in any of them is an
+error naming the lowercase form. A shortcode is case-sensitive and routinely
+mixed — `Clb`, `LtShoe`, `HsTunic` — and keeps whatever the note declares.
 
 **Parsing is positional counting from the right, and nothing else.** Every
 segment is alphanumeric — shortcodes, **types** and **subTypes** are all
@@ -735,14 +766,21 @@ nowhere is a typo or an omission, and both want fixing.
 There are six ways a link can fail, and each is one **error** with one message
 wherever it is met:
 
-| finding          | what it means                                  | the fix                                   |
-| ---------------- | ---------------------------------------------- | ----------------------------------------- |
-| `unlabelled`     | no `\|`, so the link addresses nothing         | write `[[type-shortcode\|Text]]`          |
-| `not-an-address` | labelled, but the target is not an address     | write the address, not the name           |
-| `unknown-type`   | qualified, but names no type this build knows  | correct the type segment                  |
-| `unresolved`     | parses as an address; nothing publishes it     | fix the shortcode, or vendor the manifest |
-| `ambiguous`      | more than one package publishes the short form | write `[[package-type-shortcode\|Text]]`  |
-| `unknown-anchor` | the address resolves; the `#section` does not  | correct the anchor                        |
+| finding          | what it means                                    | the fix                                                |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| `unlabelled`     | no `\|`, so the link addresses nothing           | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address` | labelled, but the target is not an address       | write the address, not the name                        |
+| `not-lowercase`  | a package, system or type segment is capitalised | lowercase it; only the shortcode keeps its case        |
+| `unknown-type`   | qualified, but names no type this build knows    | correct the type segment                               |
+| `unresolved`     | parses as an address; nothing publishes it       | fix the shortcode, or qualify to reach another package |
+| `ambiguous`      | _unreachable since #336; kept for the manifest_  | —                                                      |
+| `unknown-anchor` | the address resolves; the `#section` does not    | correct the anchor                                     |
+
+`ambiguous` no longer fires. An omitted segment defaults rather than wildcarding,
+so a written target expands to one canonical address and a lookup returns one
+entry or none — two claimants is a state the grammar can no longer reach. The
+reason is retained so a consumer switching on it does not break, and because a
+vendored manifest built by an older toolchain may still carry the finding.
 
 The vocabulary and the messages live in one module (`engine/wikilink-syntax.mjs`)
 precisely because an author meets whichever build ran first. Three resolvers read
@@ -812,19 +850,6 @@ frontmatter_ is part of what `content-build links` reports when it passes.
 Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
 from.
-
-#### Not yet implemented
-
-One rule in this section is settled but unbuilt, and describes the target rather
-than current behaviour:
-
-- **The `<system>` segment.** `readQualifier` reads package, type and shortcode;
-  there is no system segment. A four-segment target today parses as
-  `package-type-shortcode` with a hyphenated shortcode, or fails.
-  The corpus is close to the rule already. Of 12,056 links, 10,413 are
-  `[[type-shortcode|Label]]`, which is correct as written. Two authored links use
-  an unpiped multi-segment target, and 69 use a pipe with a note name where an
-  address belongs; those are the migration.
 
 ### What a note produces
 
