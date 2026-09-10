@@ -31,9 +31,22 @@ tree.
 | `sohl-thalorna`                   |                    96 |
 | every other tree                  | 0 — already compliant |
 
-**Emitted output should be byte-identical.** A shortcode is an identity, so
-renaming one normally moves the note's address, its `_id`, its URL and every
-wikilink naming it — but all of those already derive from the lowercased form.
-The sweep changes what is _authored_ to match what is _already published_.
-References need no edit either: no authored wikilink target carries a capital
-(10,538 checked), and `model:` addresses are already lowercase.
+**No document changes identity and no URL moves**, because an address and a
+document `_id` already derive from the lowercased form. References need no edit
+either: no authored wikilink target carries a capital (10,538 checked), and
+`model:` addresses are already lowercase.
+
+**The emitted packs do change, in three narrow ways**, measured on `sohl`'s 438:
+
+| change                                                | count |
+| ----------------------------------------------------- | ----: |
+| `system.shortcode` on an Item document, `Clb` → `clb` |   438 |
+| embedded item `_id` / `_key` on one being             |     6 |
+| journal pages showing a shortcode in a content table  |     5 |
+| **top-level document `_id`**                          | **0** |
+| **addresses and published URLs**                      | **0** |
+
+The first is the point: the emitted field now matches the address built from it.
+The six embedded ids move because an embedded id derives from the item's own
+`system.shortcode`, which #346 deliberately does **not** case-fold — folding
+there would re-identify documents rather than look them up.
