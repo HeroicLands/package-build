@@ -182,6 +182,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
     new Set([
         "unlabelled",
         "not-an-address",
+        "not-lowercase",
         "unknown-type",
         "unresolved",
         "ambiguous",
@@ -275,6 +276,12 @@ export function linkFindingMessage({ reason, target, packages, anchor }) {
                 `so write [[type-shortcode|Text]], or ` +
                 `[[package-system-type-shortcode|Text]] for a note in another ` +
                 `package`
+            );
+        case "not-lowercase":
+            return (
+                `address [[${target}]] capitalises a package, system or type ` +
+                `segment — those three are lowercase, and only the shortcode ` +
+                `keeps its case`
             );
         case "unknown-type":
             return `address [[${target}]] names no known content type`;

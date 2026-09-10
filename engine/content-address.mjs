@@ -45,7 +45,9 @@ import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 // The system vocabulary is the `<system>` segment's own registry, and
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so
 // the direction is toward the leaf and cannot close a cycle.
-import { NO_SYSTEM, assertSystemSegment } from "./systems.mjs";
+import { NO_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
+import { systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 
 // `ids.mjs` is a leaf with no local imports — the module note there says why —
 // so an address may hash itself without any risk of closing a cycle.
@@ -201,6 +203,95 @@ export function canonicalKey(pkg, system, type, shortcode) {
     // an unknown value here can only be a typo or a system nobody declared.
     assertSystemSegment(system, `the address of ${type}-${shortcode}`);
     return `${pkg}-${system}-${type}-${shortcode}`.toLowerCase();
+}
+
+/**
+ * Which system a frontmatter key path is written under.
+ *
+ * The **enclosing system block** decides, at any depth within it, and nothing
+ * else does: `sohl.items[3].model` and `sohl.system.body.structure` are both
+ * `sohl` because both sit under `sohl:`. Everywhere else is {@link NO_SYSTEM} —
+ * top-level frontmatter, the shared `data:` container, and body prose, which has
+ * no key path at all and passes `undefined`.
+ *
+ * It is the block rather than the field, so a `WikiLink` field needs no opinion
+ * about systems and no per-field table has to be kept in step with the schema.
+ *
+ * The first segment must **be** a declared system, not merely look like one:
+ * `sohlish.items` is a key called `sohlish`, and `notes.sohl.thing` names no
+ * block at all.
+ *
+ * @param {string} [keyPath] - The dotted frontmatter key path, or `undefined`
+ *   for body prose.
+ * @returns {string} The system id, or `none`.
+ */
+export function blockSystem(keyPath) {
+    if (typeof keyPath !== "string" || !keyPath) return NO_SYSTEM;
+    const first = keyPath.split(".")[0].trim().toLowerCase();
+    return isSystemSegment(first) && first !== NO_SYSTEM ? first : NO_SYSTEM;
+}
+
+/**
+ * Expand a written address to the one canonical address it names.
+ *
+ * **An omitted segment defaults from where the link is written** (#336) — it is
+ * not a wildcard, and resolution is not a search. Package omitted means the
+ * citing note's own; system omitted means {@link blockSystem} of the key path it
+ * was written under. So every short form has exactly one expansion, computed
+ * before anything is looked up, and there is no candidate set to disambiguate.
+ *
+ * **Under `none`, a system-bearing type addresses its documentation journal.**
+ * A note's `none` address *is* its `doc<type>` entry — the Item is the one with
+ * a system — so a prose `[[affiliation-sirvadar|…]]` names the page, which is
+ * almost always what prose means. A link that means the Item states the system
+ * and gets it. This is the defaulting rule applied, not an exception carved out
+ * of it.
+ *
+ * **Only a type whose own document carries a system is redirected.** A `macro`
+ * and the map types have documentation journals too, but their own documents
+ * are core ones and already live at `none` — so `<pkg>-none-macro-x` names the
+ * Macro and `<pkg>-none-docmacro-x` its journal, two live addresses that the
+ * redirect would collapse into one. The test is the note type's own system,
+ * not merely whether it has a doc entry.
+ *
+ * A `doc<type>` written explicitly is `none` **wherever** it appears, even
+ * inside a system block: no game system defines a JournalEntry, so there is no
+ * other system for one to belong to.
+ *
+ * @param {{type: string, shortcode: string, package?: string, system?: string,
+ *   itemDoc?: boolean}} read - A qualifier, as `readQualifier` returns one.
+ * @param {{package: string, system?: string}} where - The citing context: the
+ *   tree's own content package, and the system of the block the link sits in.
+ * @returns {string} The canonical `package-system-type-shortcode`.
+ */
+export function expandAddress(read, where) {
+    const pkg = read.package ?? where.package;
+    // A documentation journal is a core document, so it is `none` however it was
+    // reached; otherwise the block's system, which body prose reports as `none`.
+    const system = read.itemDoc ? NO_SYSTEM : (read.system ?? where.system ?? NO_SYSTEM);
+    const redirected = system === NO_SYSTEM && isSystemBearing(read.type);
+    const type = read.itemDoc || redirected ? `doc${read.type}` : read.type;
+    return canonicalKey(pkg, system, type, read.shortcode);
+}
+
+/**
+ * Whether a note type's **own** document carries a game system.
+ *
+ * True for the types some shipped map compiles into an Item or an Actor; false
+ * for the core-document types — `doc`, `lore`, `place`, `scenario`, `macro` and
+ * the map types — whose documents Foundry itself defines and which therefore
+ * already live at `none`.
+ *
+ * It is what {@link expandAddress} tests rather than {@link hasDocEntry}: a
+ * `macro` has a documentation journal *and* a `none` address of its own, so
+ * redirecting on "has a doc entry" would collapse two live addresses into one
+ * and a `[[macro-autoattack|]]` would stop naming the Macro.
+ *
+ * @param {string} type - The note type.
+ * @returns {boolean} True when the type compiles into a system document.
+ */
+function isSystemBearing(type) {
+    return systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS) !== NO_SYSTEM;
 }
 
 /**

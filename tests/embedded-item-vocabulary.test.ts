@@ -229,11 +229,16 @@ describe("a being's embedded items, end to end through the translation", () => {
     it("resolves a reference written in the note vocabulary", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
-            beingNote("{ type: armor, shortcode: hlmt }"),
+            beingNote("{ model: armor-hlmt }"),
             (pass) => {
                 // Loaded from the compiled tree, keyed by the subtype the
-                // document carries.
-                expect([...pass.itemsMap.keys()]).toEqual(["armorgear:hlmt"]);
+                // document carries — and, since #334, under this package's name
+                // as well, so a `model:` that states the package resolves to
+                // the same item and nothing local can shadow it.
+                expect([...pass.itemsMap.keys()].sort()).toEqual([
+                    "armorgear:hlmt",
+                    "sohl:armorgear:hlmt",
+                ]);
 
                 const doc = pass.buildEntry(
                     {
@@ -243,7 +248,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         name: { full: "Ancient Warrior" },
                         sohl: {
                             archetype: null,
-                            items: [{ type: "armorgear", shortcode: "hlmt" }],
+                            items: [{ model: "armorgear-hlmt" }],
                         },
                     },
                     "",
@@ -285,10 +290,83 @@ describe("a being's embedded items, end to end through the translation", () => {
         });
     });
 
+    it("refuses a retired top-level `shortcode`, naming `model` (#334)", async () => {
+        await withDemoPass(
+            [compiledItem("armorgear", "hlmt")],
+            beingNote("{ model: armor-hlmt }"),
+            (pass, said) => {
+                pass.buildEntry(
+                    {
+                        id: "EEEEEEEEEEEEEEEE",
+                        type: "being",
+                        shortcode: "warr",
+                        name: { full: "Ancient Warrior" },
+                        sohl: {
+                            archetype: null,
+                            items: [{ shortcode: "hlmt", type: "armorgear" }],
+                        },
+                    },
+                    "",
+                );
+                expect(pass.errorCount).toBe(1);
+                const finding = said.find((l) => l.includes("shortcode"));
+                // The message names the replacement and the distinction the old
+                // key blurred: a selector versus this item's own identity.
+                expect(finding).toContain("`model:`");
+                expect(finding).toContain("system.shortcode");
+            },
+        );
+    });
+
+    it("refuses `type` beside a `model` — the address already names it (#334)", async () => {
+        await withDemoPass(
+            [compiledItem("armorgear", "hlmt")],
+            beingNote("{ model: armor-hlmt }"),
+            (pass, said) => {
+                pass.buildEntry(
+                    {
+                        id: "EEEEEEEEEEEEEEEE",
+                        type: "being",
+                        shortcode: "warr",
+                        name: { full: "Ancient Warrior" },
+                        sohl: {
+                            archetype: null,
+                            items: [{ model: "armorgear-hlmt", type: "armorgear" }],
+                        },
+                    },
+                    "",
+                );
+                expect(pass.errorCount).toBe(1);
+                expect(said.find((l) => l.includes("both"))).toContain("Drop `type`");
+            },
+        );
+    });
+
+    it("reports a `model` that is not an address at all (#334)", async () => {
+        await withDemoPass(
+            [compiledItem("armorgear", "hlmt")],
+            beingNote("{ model: armor-hlmt }"),
+            (pass, said) => {
+                pass.buildEntry(
+                    {
+                        id: "EEEEEEEEEEEEEEEE",
+                        type: "being",
+                        shortcode: "warr",
+                        name: { full: "Ancient Warrior" },
+                        sohl: { archetype: null, items: [{ model: "Helmet" }] },
+                    },
+                    "",
+                );
+                expect(pass.errorCount).toBe(1);
+                expect(said.find((l) => l.includes("Helmet"))).toContain("is not an address");
+            },
+        );
+    });
+
     it("reports a reference that resolves to nothing, naming the note and the reference", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
-            beingNote("{ type: armor, shortcode: brst }"),
+            beingNote("{ model: armor-brst }"),
             (pass, said, absPath) => {
                 pass.buildEntry(
                     {
@@ -298,7 +376,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         name: { full: "Ancient Warrior" },
                         sohl: {
                             archetype: null,
-                            items: [{ type: "armorgear", shortcode: "brst" }],
+                            items: [{ model: "armorgear-brst" }],
                         },
                     },
                     "",
@@ -327,7 +405,7 @@ describe("a being's embedded items, end to end through the translation", () => {
     it("reports a reference whose type this system compiles into no item", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
-            beingNote("{ type: weapon, shortcode: swrd }"),
+            beingNote("{ model: weapon-swrd }"),
             (pass, said) => {
                 pass.buildEntry(
                     {
@@ -337,7 +415,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                         name: { full: "Ancient Warrior" },
                         sohl: {
                             archetype: null,
-                            items: [{ type: "weapon", shortcode: "swrd" }],
+                            items: [{ model: "weapon-swrd" }],
                         },
                     },
                     "",

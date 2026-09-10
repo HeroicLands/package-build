@@ -641,12 +641,20 @@ describe("one note carrying both blocks compiles a document in each system", () 
         expect(packDocs(root, "items-hm3").Broadsword.flags).toEqual({});
     });
 
-    it("still compiles the item note's prose into the one JournalEntry pack", () => {
-        // A being's prose is rendered into the actor itself — `{#appearance}`
-        // and `{#dossier}` are actor fields — so a `being` carries no item doc
-        // and the journals pass claims only the item note.
+    it("compiles every note's prose into the one JournalEntry pack", () => {
+        // One journals pack however many systems a note declares, and since
+        // #337 a being is in it too: an actor publishes documentation like
+        // every other system-bearing note, so its prose has a `none` address a
+        // reader can arrive at.
+        //
+        // The being *also* keeps its prose inline — `{#appearance}` and
+        // `{#dossier}` are still actor fields. That duplication is deliberate:
+        // an item's `@UUID` pointer is a compendium-bloat measure, paid because
+        // one item is embedded across hundreds of beings, and an actor is
+        // singular so the indirection would buy nothing.
         expect(Object.keys(packDocs(root, "journals")).sort()).toEqual([
             "Broadsword",
+            "Sir Aldric",
             "Training Sword",
         ]);
     });

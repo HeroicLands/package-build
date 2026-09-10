@@ -103,7 +103,7 @@ type: being
 sohl:
   archetype: null
   items:
-    - { type: skill, shortcode: climbing }
+    - { model: skill-climbing }
 ---
 
 # Appearance

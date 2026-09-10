@@ -629,18 +629,49 @@ The full address is the unambiguous form, and almost nothing uses it — 92 of
 12,056 links in the current trees. The rest rely on shorter forms, each dropping
 segments from the left:
 
-| form                            | resolves by                                  |
-| ------------------------------- | -------------------------------------------- |
-| `package-system-type-shortcode` | exactly, always                              |
-| `package-type-shortcode`        | `(type, shortcode)` within the named package |
-| `type-shortcode`                | `(type, shortcode)` within this package      |
-| `shortcode`                     | `shortcode` within this package — see below  |
+| form                            | expands to                                               |
+| ------------------------------- | -------------------------------------------------------- |
+| `package-system-type-shortcode` | itself                                                   |
+| `system-type-shortcode`         | `<this package>-system-type-shortcode`                   |
+| `type-shortcode`                | `<this package>-<this block's system>-type-shortcode`    |
+| `shortcode`                     | as above, with the type from the field's own declaration |
 
-The last row is the everyday case, and it means two different things by
-context. In a **frontmatter field** the type segment is supplied by the field's
-own declaration, so `tashal` is a complete address. In **body prose** there is no
-field to supply it, so a bare shortcode is resolved across types and must match
-exactly one; an ambiguity is an error naming the candidates.
+There is no `package-type-shortcode`: the forms are exactly the **suffixes** of
+the canonical address, so naming another package means naming its system too.
+`kethira-place-tashal` is three segments, which reads as system `kethira`, and
+fails.
+
+#### An omitted segment defaults from where the link is written
+
+It is **not** a wildcard and resolution is not a search. Every short form expands
+to exactly one canonical address before anything is looked up, so a lookup either
+finds one entry or none — there is no candidate set, and a cross-package
+ambiguity is impossible by construction.
+
+- **package** omitted → the current package. A short address therefore names
+  _this_ package and never falls through to a dependency; reaching another one is
+  the fully qualified form's job.
+- **system** omitted → **the system block the link is written under**. Anywhere
+  under `sohl:` is `sohl`; anywhere under `hm3:` is `hm3`; **anywhere else** —
+  top-level frontmatter, `data:`, and body prose — is `none`. The enclosing block
+  decides at any depth, so `sohl.items[3].model` and `sohl.system.body.structure`
+  default alike; the field has no say.
+
+**Under `none`, a system-bearing type addresses its documentation.** A note's
+`none` address _is_ its `doc<type>` journal — the Item is the one with a system —
+so a prose `[[affiliation-sirvadar|Sirvadar]]` names the page, which is what
+prose almost always means. A prose link that means the **Item** states the
+system: `[[sohl-affiliation-sirvadar|…]]`.
+
+Only a type whose own document carries a system is redirected this way. A
+`macro` and the map types have documentation journals too, but their own
+documents are core ones already at `none`, so `macro-autoattack` names the Macro
+and `docmacro-autoattack` its journal — two live addresses.
+
+**An address capitalises nothing but its shortcode.** Package, system and type
+are closed vocabularies with one spelling each, so a capital in any of them is an
+error naming the lowercase form. A shortcode is case-sensitive and routinely
+mixed — `Clb`, `LtShoe`, `HsTunic` — and keeps whatever the note declares.
 
 **Parsing is positional counting from the right, and nothing else.** Every
 segment is alphanumeric — shortcodes, **types** and **subTypes** are all
@@ -735,14 +766,21 @@ nowhere is a typo or an omission, and both want fixing.
 There are six ways a link can fail, and each is one **error** with one message
 wherever it is met:
 
-| finding          | what it means                                  | the fix                                   |
-| ---------------- | ---------------------------------------------- | ----------------------------------------- |
-| `unlabelled`     | no `\|`, so the link addresses nothing         | write `[[type-shortcode\|Text]]`          |
-| `not-an-address` | labelled, but the target is not an address     | write the address, not the name           |
-| `unknown-type`   | qualified, but names no type this build knows  | correct the type segment                  |
-| `unresolved`     | parses as an address; nothing publishes it     | fix the shortcode, or vendor the manifest |
-| `ambiguous`      | more than one package publishes the short form | write `[[package-type-shortcode\|Text]]`  |
-| `unknown-anchor` | the address resolves; the `#section` does not  | correct the anchor                        |
+| finding          | what it means                                    | the fix                                                |
+| ---------------- | ------------------------------------------------ | ------------------------------------------------------ |
+| `unlabelled`     | no `\|`, so the link addresses nothing           | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address` | labelled, but the target is not an address       | write the address, not the name                        |
+| `not-lowercase`  | a package, system or type segment is capitalised | lowercase it; only the shortcode keeps its case        |
+| `unknown-type`   | qualified, but names no type this build knows    | correct the type segment                               |
+| `unresolved`     | parses as an address; nothing publishes it       | fix the shortcode, or qualify to reach another package |
+| `ambiguous`      | _unreachable since #336; kept for the manifest_  | —                                                      |
+| `unknown-anchor` | the address resolves; the `#section` does not    | correct the anchor                                     |
+
+`ambiguous` no longer fires. An omitted segment defaults rather than wildcarding,
+so a written target expands to one canonical address and a lookup returns one
+entry or none — two claimants is a state the grammar can no longer reach. The
+reason is retained so a consumer switching on it does not break, and because a
+vendored manifest built by an older toolchain may still carry the finding.
 
 The vocabulary and the messages live in one module (`engine/wikilink-syntax.mjs`)
 precisely because an author meets whichever build ran first. Three resolvers read
@@ -813,19 +851,6 @@ Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
 from.
 
-#### Not yet implemented
-
-One rule in this section is settled but unbuilt, and describes the target rather
-than current behaviour:
-
-- **The `<system>` segment.** `readQualifier` reads package, type and shortcode;
-  there is no system segment. A four-segment target today parses as
-  `package-type-shortcode` with a hyphenated shortcode, or fails.
-  The corpus is close to the rule already. Of 12,056 links, 10,413 are
-  `[[type-shortcode|Label]]`, which is correct as written. Two authored links use
-  an unpiped multi-segment target, and 69 use a pipe with a note name where an
-  address belongs; those are the migration.
-
 ### What a note produces
 
 Note types fall into two groups, and only the first has a mapping table.
@@ -846,6 +871,21 @@ having nothing worth summarising.
 
 Every note in **both** groups still produces its JournalEntry and its web page.
 The difference is only whether a system Actor or Item is created as well.
+
+That has been true of actors only since #337. A being used to produce its Actor
+and nothing else, which left it the one system-bearing note with no address at
+`none` — so a prose link naming it had nowhere to land. It now carries a
+documentation journal like every other such note, addressed
+`<package>-none-docbeing-<shortcode>` beside the Actor's
+`<package>-<system>-being-<shortcode>`.
+
+**A being keeps its prose inline as well.** `system.appearance` and
+`system.dossier` are still the rendered text, where an item's description is an
+`@UUID` pointer into its journal. The difference is deliberate and is about
+size: one item is embedded across hundreds of beings, so baking its description
+into every copy bloats the compendium by the length of the prose times the
+number of carriers, and the pointer buys that back. An actor is singular, so the
+same indirection would cost a reader a click and save nothing.
 
 ### One note is at most one document per system
 
@@ -1112,6 +1152,62 @@ Generates a living (or undead, or spirit) being.
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
 
+#### A being's embedded items
+
+`<system>.items` is a list, and each entry compiles into one embedded Item. An
+entry takes one of two shapes.
+
+**A copy of a catalogue item** names it with `model:` — an address, read by the
+same grammar every wikilink is. The entry's remaining keys are merged over the
+model, so it carries the model's values except where it says otherwise.
+
+```yaml
+sohl:
+  items:
+    - { model: skill-wpnc, system: { masteryLevelBase: 52 } }
+    - { model: sohl-sohl-weapongear-whmr }
+    - { model: sohl-sohl-weapongear-dgr, system: { shortcode: dgr2, name: Offhand dagger } }
+```
+
+| key      | required | meaning                                                       |
+| -------- | -------- | ------------------------------------------------------------- |
+| `model`  | yes      | The address of the item this entry is a copy of               |
+| `system` | no       | Values that override the model's                              |
+| `name`   | no       | A name of this entry's own, where it differs from the model's |
+
+**`type:` is not written beside a `model`.** The address already names the type,
+so a second statement of it is a place to be wrong, and it is refused.
+
+**The address is written at whatever length says what it means.** Within this
+package `type-shortcode` is enough; reaching another package means the full
+`package-system-type-shortcode`, since the forms are suffixes of the canonical
+address. The system segment defaults from the block the entry sits in — an entry
+under `sohl.items` defaults to `sohl` — which is why the short form names an
+**Item** here while the same string in body prose names a page.
+
+**A custom item** — one that copies nothing — states `name`, `type` **and**
+`system.shortcode`, all three required, plus whatever else its data model needs.
+It is written in **block form**, never inline, so the two kinds of entry are
+distinguishable at a glance:
+
+```yaml
+sohl:
+  items:
+    - name: Whetstone
+      type: miscgear
+      system:
+        shortcode: whetstone
+        weight: 1
+        value: 5
+        durability: 0
+```
+
+**A top-level `shortcode:` is retired** (#334). It selected a template, while the
+`system.shortcode` beside it was the compiled item's identity — one word for two
+things — and it could not say which package a template came from, so an address
+resolved into a dependency only because no local pack claimed it and would have
+retargeted silently the day one did.
+
 #### Identifying a being's embedded items
 
 Each entry in `sohl.items` compiles into one embedded Item, and its `_id` is
@@ -1121,28 +1217,26 @@ derived from **what the entry is**, never from where it sits in the list:
 _id = makeId(<the actor's id>, "<subType>:<system.shortcode>")
 ```
 
-An entry's identity is its **own `system.shortcode`**. The entry's _top-level_
-`shortcode` is a **selector** — it names the catalogue template the entry is
-written from and is never written to the document — so two entries may share
-one:
+An entry's identity is its **own `system.shortcode`**. The `model:` is not it —
+a model names the item this entry is a _copy of_, and is never written to the
+document — so two entries may share one model and are then two embodiments, each
+stating its own identity:
 
 ```yaml
 sohl:
   items:
-    - shortcode: dgr # selects the catalogue's dagger
-      type: weapongear
+    - model: weapongear-dgr # the catalogue's dagger
       name: Dagger 1
       system:
         shortcode: dgr1 # this dagger's own identity
-    - shortcode: dgr
-      type: weapongear
+    - model: weapongear-dgr
       name: Dagger 2
       system:
         shortcode: dgr2
 ```
 
 **Two entries resolving to one identity are a build error naming both.** Without
-their own `system.shortcode`, both daggers above carry the catalogue's `dgr`,
+their own `system.shortcode`, both daggers above carry the model's `dgr`,
 which makes them the same entity to everything that resolves by `(type,
 shortcode)` — compendium/world reconciliation, template shadowing, cohort
 membership, effect and expression references. A `name` cannot stand in: it is

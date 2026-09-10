@@ -206,21 +206,48 @@ export class Actors extends SystemActorCompiler {
                     this.errorCount++;
                     return;
                 }
-                const { shortcode, type, ...rest } = entry;
-                if (!type) {
-                    this.noteError(`${ctx}: sohl.items[${index}] missing type`);
+                const { model, shortcode, type, ...rest } = entry;
+                if (shortcode !== undefined) {
+                    this.noteError(
+                        `${ctx}: sohl.items[${index}] carries a top-level ` +
+                            `\`shortcode\` — that key is retired. Name the item ` +
+                            `this entry copies with \`model:\` (an address, e.g. ` +
+                            `\`${type ?? "skill"}-${shortcode}\`), and use ` +
+                            `\`system.shortcode\` for this item's own identity.`,
+                    );
+                    this.errorCount++;
+                    return;
+                }
+                const read = model === undefined ? null : this.readModel(model, index, ctx);
+                if (model !== undefined && !read) return;
+                if (read && type !== undefined) {
+                    this.noteError(
+                        `${ctx}: sohl.items[${index}] states both \`model\` and ` +
+                            `\`type\` — the model's address already names the ` +
+                            `type, so the second is a place to be wrong. Drop \`type\`.`,
+                    );
+                    this.errorCount++;
+                    return;
+                }
+                const effectiveType = read ? read.type : type;
+                if (!effectiveType) {
+                    this.noteError(
+                        `${ctx}: sohl.items[${index}] names no \`model\` and no ` +
+                            `\`type\` — an entry that copies nothing must state ` +
+                            `\`name\`, \`type\` and \`system.shortcode\`.`,
+                    );
                     this.errorCount++;
                     return;
                 }
                 const embedded = this.resolveEmbedded(
                     itemsMap,
                     actorId,
-                    type,
-                    shortcode || null,
+                    effectiveType,
+                    read ? read.shortcode : null,
                     rest,
                     `items:${index}`,
                     ctx,
-                    { fmKey: "items" },
+                    { fmKey: "items", modelPackage: read?.package ?? null },
                 );
                 if (embedded) items.push(embedded);
             });

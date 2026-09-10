@@ -87,7 +87,9 @@ import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
-import { isSystemSegment } from "./systems.mjs";
+import { isSystemSegment, NO_SYSTEM } from "./systems.mjs";
+import { systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
@@ -207,6 +209,48 @@ export function resolveItemDocType(qualifier, types) {
  *   but names no known type; or `null` when it is not an address at all.
  */
 export function readQualifier(target, types, packages) {
+    // **Package, system and type are lowercase; the shortcode is not.** A
+    // shortcode is case-sensitive and routinely mixed — `Clb`, `LtShoe`,
+    // `HsTunic` — so it is written as the note declares it. The three segments
+    // in front of it are closed vocabularies with one spelling each, and
+    // accepting `Skill` beside `skill` would bless two ways of writing one
+    // address. Reported rather than folded, so the corpus has one form.
+    //
+    // Tested only once the target *parses*: a note name is full of capitals
+    // (`[[Shock State]]`), and calling that a badly-cased address rather than
+    // not an address would name the wrong mistake. Neither tree carries a
+    // violation — 10,538 authored targets — so this pins a rule already kept.
+    const read = readQualifierCased(target, types, packages);
+    if (read && !read.reason && qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
+        return { reason: "not-lowercase" };
+    }
+    return read;
+}
+
+/**
+ * The segments of a target that must be lowercase — everything but the
+ * shortcode, which is case-sensitive and keeps whatever the note declares.
+ *
+ * @param {string} target - The link target, anchor already removed.
+ * @returns {string[]} The package / system / type segments, as written.
+ */
+function qualifyingSegments(target) {
+    const slash = target.lastIndexOf("/");
+    // The legacy `type/shortcode` form states only a type.
+    if (slash > 0) return [target.slice(0, slash)];
+    const parts = target.split("-");
+    return parts.slice(0, -1);
+}
+
+/**
+ * {@link readQualifier} without the lowercase rule — the grammar alone.
+ *
+ * @param {string} target
+ * @param {Set<string>} types
+ * @param {Set<string>} [packages]
+ * @returns {object|null}
+ */
+function readQualifierCased(target, types, packages) {
     // The slash form is legacy and states neither package nor system, so it is
     // read first and separately. A slash is unconditionally a qualifier —
     // nothing else uses one — which is why an unknown type before it is
@@ -440,25 +484,24 @@ function foreignHits(index, read) {
     const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
     const shortcode = norm(read.shortcode);
 
-    // One filter for every reading, because an address is matched **by the
-    // segments it supplies** and wildcarded on the ones it does not (#59). A
-    // package-qualified target used to take a separate exact-`get` path, which
-    // is what let this function carry its own copy of the key grammar — a
-    // hand-built `${package}-${type}-${shortcode}` and a literal segment count
-    // — and drift from `readCanonicalKey` the moment the grammar gained a
-    // system segment. There is one reader now.
+    // **An omitted package means this package** (#336), so a short form
+    // addresses nothing foreign and never reaches a dependency's index. A link
+    // that resolved into another package only because no local note claimed the
+    // address was resolving by accident, and would have retargeted silently the
+    // day one did. Reaching another package is the fully qualified form's job.
     //
-    // The system is a wildcard unless the target states one: most authored
-    // links name none, and defaulting it to `none` would exclude every link to
-    // an item, which is the majority — 1,632 of `sohl`'s own resolve into the
-    // items pack. Ambiguity is caught by the caller's single-hit rule rather
-    // than pre-empted by a guess here.
+    // The system likewise comes from where the link is written — `none` in a
+    // body — so both segments are known here and this is an exact lookup rather
+    // than a filter. That is what makes a cross-package `ambiguous` impossible:
+    // one key, one entry.
+    if (!read.package) return [];
+    const wantedSystem = norm(read.system ?? NO_SYSTEM);
     const hits = [];
     for (const [key, entry] of index.foreign) {
         const parts = readCanonicalKey(key);
         if (!parts) continue;
-        if (read.package && parts.package !== norm(read.package)) continue;
-        if (read.system && parts.system !== norm(read.system)) continue;
+        if (parts.package !== norm(read.package)) continue;
+        if (parts.system !== wantedSystem) continue;
         if (parts.type !== wanted || parts.shortcode !== shortcode) continue;
         hits.push(entry);
     }
@@ -616,7 +659,22 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 });
                 return unresolvedLink(text || target, target);
             }
-            itemDoc = qualified.itemDoc;
+            // An omitted system defaults from where the link is written (#336),
+            // and a body is under no system block, so it is `none`. Under
+            // `none` a system-bearing type addresses its *documentation* — a
+            // note's `none` address IS its `doc<type>` entry — which is what a
+            // prose link almost always means. Stating the system is how prose
+            // reaches the Item instead.
+            //
+            // Only a type whose *own* document carries a system is redirected.
+            // A `macro` and the map types have documentation journals too, but
+            // their own documents are core ones already at `none`, so
+            // `macro-autoattack` names the Macro and `docmacro-autoattack` its
+            // journal — two live addresses the redirect would collapse.
+            itemDoc =
+                qualified.itemDoc ||
+                ((qualified.system ?? NO_SYSTEM) === NO_SYSTEM &&
+                    systemOf(qualified.type, KNOWN_DOCUMENT_SUBTYPE_MAPS) !== NO_SYSTEM);
             doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
         }
         if (!doc) {
