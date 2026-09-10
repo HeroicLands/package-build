@@ -261,24 +261,30 @@ describe("the checker fails an address that resolves to no note", () => {
         expect(r.deadAddresses[0]).toMatchObject({ reason: "not-an-address" });
     });
 
-    it("resolves an address one dependency's index publishes", () => {
+    it("does NOT reach a dependency from a short form — an omitted package is this one (#336)", () => {
+        // It used to resolve: a short form fell through to any foreign index
+        // that published it. That is resolving by accident — the link landed in
+        // `thalorna` only because no local note claimed the address, and would
+        // have retargeted silently the day one did.
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
             thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
         });
-        expect(r.deadAddresses).toEqual([]);
-        expect([...r.usedManifest]).toEqual(["creature-wolf"]);
+        expect(r.deadAddresses).toHaveLength(1);
+        expect(r.deadAddresses[0]).toMatchObject({ reason: "unresolved" });
+        expect([...r.usedManifest]).toEqual([]);
     });
 
-    it("reports an address two foreign packages both publish as ambiguous", () => {
-        // Not "no document has that identity" — two do, which is a different
-        // mistake with a different fix: write the package-qualified form.
+    it("cannot be ambiguous across packages any more — the form names one (#336)", () => {
+        // Two packages publishing `creature-wolf` used to make a short form
+        // ambiguous. Now the short form names *this* package and neither of
+        // them, so the finding is a plain `unresolved` with the same fix the
+        // ambiguity message used to ask for: write the qualified address.
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
             thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
             kethira: [packOnlyRecord("kethira", "creature", "wolf", "Grey Wolf")],
         });
         expect(r.deadAddresses).toHaveLength(1);
-        expect(r.deadAddresses[0]).toMatchObject({ reason: "ambiguous" });
-        expect([...r.deadAddresses[0].packages].sort()).toEqual(["kethira", "thalorna"]);
+        expect(r.deadAddresses[0]).toMatchObject({ reason: "unresolved" });
     });
 
     it("resolves the fully qualified form the ambiguity message asks for", () => {
