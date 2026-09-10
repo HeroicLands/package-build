@@ -202,7 +202,13 @@ function workedExample(type, fields) {
         // No `package:`. A note's package is the repository's configured
         // `contentPackage`, and declaring the field is a build error (#56) —
         // this example is the smallest note that compiles.
-        "id: <16-character id>",
+        //
+        // No `id:` either, for the same reason it is not shown optional-first:
+        // a note's document `_id` derives from its canonical address (#270,
+        // #277), and the authored field is the escape hatch for keeping a
+        // document's identity across a shortcode rename, not part of the
+        // envelope. This block is the one an author copies as a template, so
+        // showing the field taught every note in the tree to write it (#314).
         "sohl:",
         "  templatePriority: null",
     ];

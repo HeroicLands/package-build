@@ -106,6 +106,47 @@ describe("what the consumer supplies", () => {
     });
 });
 
+describe("the worked example is the smallest note that compiles", () => {
+    /** Every fenced example on the page — one per item type. */
+    const examples = (() => {
+        const out: string[][] = [];
+        let block: string[] | undefined;
+        for (const line of page.split("\n")) {
+            if (line.startsWith("```markdown")) block = [];
+            else if (line === "```" && block) {
+                out.push(block);
+                block = undefined;
+            } else block?.push(line);
+        }
+        return out;
+    })();
+
+    it("emits one example per type", () => {
+        expect(examples.length).toBeGreaterThan(0);
+    });
+
+    it("authors no `id:` (#314)", () => {
+        // A note's document `_id` derives from its canonical address, and `id:`
+        // is the escape hatch for keeping identity across a shortcode rename —
+        // not part of the envelope. This page is the reference an author reads
+        // while writing a note, and the block most likely to be copied as a
+        // template, so an `id:` here teaches every author to write a field that
+        // should normally be absent.
+        for (const example of examples) {
+            expect(example.filter((line) => line.startsWith("id:"))).toEqual([]);
+        }
+    });
+
+    it("still authors the address the id derives from", () => {
+        // The counterpart: what is dropped is the *optional* field, not the
+        // address the derivation reads to compute an id in its place.
+        for (const example of examples) {
+            expect(example).toContain("shortcode: xmpl");
+            expect(example.some((line) => line.startsWith("type: "))).toBe(true);
+        }
+    });
+});
+
 describe("emphasis in a field description", () => {
     it("uses the marker Prettier normalises to", async () => {
         // `*x*` and `_x_` both mean emphasis; Prettier writes `_x_`. A
