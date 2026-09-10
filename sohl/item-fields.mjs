@@ -414,6 +414,40 @@ export const ITEM_FIELDS = Object.freeze({
             describe:
                 "What running the course to the end does to the host: `death`, or the benign default `cured`.",
         },
+        // The `…Date` third of every timed-phase triplet, declared as **runtime
+        // state** (#330). A phase is authored as its `…DurationFormula`; the
+        // `…DurationBase` records what that rolled to; the date records *when
+        // it happened*, and only play can know that. All four are
+        // `worldTimeDateField()`s in SoHL's schema — nullable rather than
+        // sentinelled precisely because `0` is itself a valid world time — so
+        // there is no blank an author could honestly write either.
+        //
+        // Declaring them does two things at once: the key is left out of the
+        // compiled document, so SoHL's own `initial: null` stands, and a note
+        // authoring one is refused with a message naming the field and its
+        // reason. Written out rather than generated from a phase name, as the
+        // schema they mirror now is: a field name assembled from an argument is
+        // not in the source, and cannot be grepped, read or reported on.
+        {
+            to: "contractDate",
+            runtimeOnly: "the world time the host contracted the affliction",
+            describe: "When the host contracted it. Play state, never authored.",
+        },
+        {
+            to: "onsetDate",
+            runtimeOnly: "the world time onset fired at",
+            describe: "When onset fired. Play state, never authored.",
+        },
+        {
+            to: "treatmentDate",
+            runtimeOnly: "the world time the affliction was last treated",
+            describe: "When it was last treated. Play state, never authored.",
+        },
+        {
+            to: "resolutionDate",
+            runtimeOnly: "the world time the affliction ran its course",
+            describe: "When it resolved. Play state, never authored.",
+        },
     ]),
 
     armorgear: Object.freeze([
@@ -816,6 +850,19 @@ export const ITEM_FIELDS = Object.freeze({
             ...AS_AUTHORED,
             default: null,
             describe: "Shortcode of the body location injured. Unset on a descriptive condition.",
+        },
+        // Runtime state, for the reason `affliction`'s four are (#330): a
+        // trauma's dates are crystallized when the phase fires, and world time
+        // does not exist while content is compiled.
+        {
+            to: "contractDate",
+            runtimeOnly: "the world time the injury was taken",
+            describe: "When the injury was taken. Play state, never authored.",
+        },
+        {
+            to: "treatmentDate",
+            runtimeOnly: "the world time the injury was last treated",
+            describe: "When it was last treated. Play state, never authored.",
         },
     ]),
 

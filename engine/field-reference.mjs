@@ -34,7 +34,7 @@
  * @module
  */
 
-import { authoredFields } from "./field-spec.mjs";
+import { authoredFields, runtimeOnlyFields } from "./field-spec.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
 /**
@@ -140,6 +140,40 @@ function sharedExemptions(fields) {
 }
 
 /**
+ * The fields of one type that a note may **never** write (#330).
+ *
+ * A type's table lists what an author writes, and says nothing about the rest
+ * of its schema — which is right for a constant or a derived value, since
+ * nothing happens if a note writes the path anyway. A runtime-only field is
+ * different in the way that matters to a reader: it is a real part of the
+ * document, it is spelled beside fields they *do* write — `onsetDate` sits next
+ * to `onsetDurationFormula` — and authoring it fails the build. Leaving it
+ * unmentioned means an author meets the rule as an error rather than as
+ * documentation.
+ *
+ * Rendered from each field's own reason, for the same purpose
+ * {@link sharedExemptions} renders `topLevelMeans` for: the declaration already
+ * states it, and a page restating it in other words is a second copy to keep
+ * true.
+ *
+ * @param {readonly object[]} fields - The type's declaration.
+ * @returns {string[]} Markdown lines, empty when the type declares none.
+ */
+function runtimeState(fields) {
+    const runtime = runtimeOnlyFields(/** @type {never} */ (fields));
+    if (!runtime.length) return [];
+    return [
+        "**Never authored.** These fields are part of the document and are " +
+            "written during play, so a note that declares one fails the build. " +
+            "Left out of the compiled document entirely, they carry the data " +
+            "model's own initial value until play writes them.",
+        "",
+        ...runtime.map((field) => `- \`${field.to}\` — ${cell(field.runtimeOnly)}`),
+        "",
+    ];
+}
+
+/**
  * A minimal note for one type: the frontmatter envelope every note carries,
  * plus exactly the `sohl:` fields the type requires.
  *
@@ -233,6 +267,7 @@ export function renderItemFieldReference({
             ...fieldTable(declared[type]),
             "",
             ...sharedExemptions(declared[type]),
+            ...runtimeState(declared[type]),
             ...workedExample(type, declared[type]),
             "",
         );

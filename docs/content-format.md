@@ -161,6 +161,22 @@ document rather than the note. `title` is the one field this applies to; `subTyp
 is the other declared item field spelled like a note-level key, and there the two
 levels mean the same thing by design.
 
+**Some of a system's fields are runtime state, and a note may not write any of
+them.** A data model declares everything a document stores, and part of that is
+what _play_ writes: an affliction's `onsetDate` is the world time its onset
+fired at. Writing `<system>.system.<field>` reaches such a field as directly as
+any other — the block is a verbatim passthrough, and the field really is in the
+schema — so until #330 a note could stamp one, and the compiled pack shipped one
+world's play state to every world that installed it.
+
+So a field the document writes for itself is **declared as such**, and the
+declaration says both halves of the fact: authoring it is an error naming the
+note, the key and what the field holds, and the compiled document leaves the key
+out entirely so the data model's own initial value stands. This is a property of
+the field rather than a list of names, so it covers every such field a system
+adds later. The per-type tables below never list one — they are the vocabulary
+an author writes — and each type that has any names them under its table.
+
 **A `WikiLink` becomes a shortcode where the target field expects one.** SoHL
 stores cross-references as shortcode strings, which is what the `Code` suffix
 marks: `data.assocSkill` is a link to a skill note, and `system.assocSkillCode`
@@ -280,6 +296,74 @@ template priority on an Actor and not on an Item: `hm3/actors.mjs` writes
 item compiled from a template note loses the fact that it is one
 (`HeroicLands/package-build#283`). The row states the mapping the format makes;
 the gap is in the pass, not in the table.
+
+#### An asset path's first segment says which package owns it
+
+`img` and `portrait` are paths, and a path has to say **which package holds the
+file** — because a module's content routinely cites the system's art, while the
+system's content never cites the module's. The first segment answers that, and
+there are exactly three answers:
+
+| Authored path starts with | Owner                 | Emitted              |
+| ------------------------- | --------------------- | -------------------- |
+| `systems/`                | a separate **system** | unchanged            |
+| `modules/`                | a separate **module** | unchanged            |
+| anything else             | **this package**      | `<assetRoot>/<path>` |
+
+`<assetRoot>` is `<packageKind>/<foundryPackage>/assets`, derived from the
+configuration — `systems/sohl/assets` for the system,
+`modules/sohl-thalorna/assets` for that module. So one authored
+`icons/relic.svg` means "my own `assets/icons/relic.svg`" in whichever package
+writes it, while an authored `systems/sohl/assets/icons/noun/shield.svg` names
+the system's file and is left exactly as written wherever it appears. That
+second case is not hypothetical: every default this toolchain pairs with an item
+type is a `systems/sohl/…` path, so a module's compiled documents carry it
+verbatim.
+
+**The third row is "anything else", not a list of directories.** It is a rule
+about ownership: a package owns its whole `assets/` tree, and the directory
+names inside it are that package's business. `sohl-kethira-basic` keeps art
+under `assets/artwork/`, and `artwork/deity.webp` is rooted under its assets by
+the same rule that roots `icons/…` and `images/…` there.
+
+An address naming **no** package passes through untouched, which is that same
+rule rather than an exception — an absolute URL, a `data:` URI and a `/`-rooted
+path each already address something no package owns, so prefixing any of them
+would break an address that was already correct.
+
+`worlds/` is deliberately **not** exempt. A package may not ship art out of a
+world, so a note writing one has made a mistake; prefixing it yields a plainly
+broken path rather than a plausible one that 404s in Foundry with nothing
+reporting it.
+
+#### `banner:` addresses the CDN, not the Foundry install
+
+**`banner:` is a path, and it does not follow the rule above.** It is worth
+stating plainly, because the two fields look alike and a value written for one
+resolves somewhere else entirely under the other.
+
+`banner:` never reaches a compiled document — searching a built `packs-json`
+tree for it turns up nothing. It is a top-level key, so it passes through to the
+generated page, and its only consumer is the Hugo theme, whose
+`partials/banner-url.html` applies its own rule: an absolute URL passes through,
+and **anything else is prefixed with `images/`** and joined onto
+`params.cdnBaseURL`. A `banner:` written to the package rule therefore resolves
+to a doubled path:
+
+```text
+banner: systems/sohl/assets/images/banners/lore.webp
+      → <cdnBaseURL>/images/systems/sohl/assets/images/banners/lore.webp
+```
+
+That can be made to work by mirroring the path on the CDN, and one consumer
+does exactly that — but it is not what the author meant.
+
+**The two are not reconciled, because they are not two spellings of one thing.**
+`img:` addresses a file inside a Foundry install, where the package that holds
+it is the question worth asking. `banner:` addresses a file on a CDN, where
+there are no packages at all. Write a `banner:` relative to the CDN's `images/`
+root — `banners/lore.webp`, not `images/banners/lore.webp` and not a
+package-rooted path.
 
 #### The pack a note compiles into
 
@@ -1535,6 +1619,15 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
+**The `…Date` half of each timed phase is never authored.** SoHL stores a phase
+as `{…DurationFormula, …DurationBase, …Date}`: the formula is the authored
+definition, the base holds what it rolled to, and the date records _when the
+phase actually fired_ — which only play can know. `system.contractDate`,
+`system.onsetDate`, `system.treatmentDate` and `system.resolutionDate` are
+therefore runtime state, and a note that writes one fails the build. They are
+world times, and `0` is a valid one, so there is no blank a note could write
+either; leave them out and the data model's `null` stands.
+
 ### type: armorgear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
@@ -1831,6 +1924,11 @@ If an `hm3` property is present, an HM3 item is created. `hm3.type` must be spec
 | shared source | → sohl           | → hm3 |
 | ------------- | ---------------- | ----- |
 | `subType`     | `system.subType` | NA    |
+
+**`system.contractDate` and `system.treatmentDate` are never authored.** They
+are the world times the injury was taken and last treated — runtime state, for
+the reason `affliction`'s four dates are — so a note that writes one fails the
+build.
 
 ### type: weapongear
 

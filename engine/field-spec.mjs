@@ -138,6 +138,44 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   note, so it declares none.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
+ * @property {string} [runtimeOnly] - **What the field holds once play has
+ *   started** — declared on a field the *document* writes for itself, which no
+ *   note may author (#330).
+ *
+ *   A schema declares plenty of fields a compiled document has no business
+ *   carrying: an affliction's `onsetDate` is the world time its onset fired
+ *   at, crystallized when the phase runs. World time does not exist while
+ *   content is compiled, so there is no authoring-time value — and `0` is
+ *   itself a valid world time, which is why such a field is nullable rather
+ *   than sentinelled and why a default cannot stand in for one.
+ *
+ *   Nothing used to stop a note writing one. The three checks that might have
+ *   each declined for its own correct reason —
+ *   {@link module:engine/system-block.unknownBlockKeys} reads the block's top
+ *   level and never descends into `system:`;
+ *   {@link module:engine/system-block.mergeSystemData} passes through every
+ *   authored path no declared field claims; and the schema check's fatal
+ *   direction is *undeclared*, which a field the schema really does declare
+ *   satisfies. What was missing was a rule saying "declared by the system,
+ *   but never authorable", and this is it.
+ *
+ *   Declaring it does two things, which are the two directions of one fact:
+ *
+ *   | declaration | authored | absent |
+ *   | --- | --- | --- |
+ *   | ordinary | emitted | default written |
+ *   | runtime-only | **refused** | key omitted |
+ *
+ *   The refusal is {@link module:engine/runtime-only-fields.assertNoRuntimeOnlyFields}'s;
+ *   the omission is {@link buildFromFields}'s. A runtime-only entry declares a
+ *   `to` and **no `name`**, so it stays out of {@link authoredFields} and every
+ *   author-facing surface built on it, while still giving `mergeSystemData` a
+ *   claimed path and the refusal something to name.
+ *
+ *   **The value is the reason**, as {@link FieldSpec.topLevelMeans}'s is: a
+ *   boolean would record the decision and lose the case for it, and the reason
+ *   is what the refusal's message and the generated reference both print. It
+ *   completes the sentence "it holds …".
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -308,6 +346,14 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
+            // A runtime-only field is not this builder's to write (#330). It is
+            // declared so that the path is *claimed* — so the verbatim
+            // passthrough leaves it alone and the refusal has a name — not so
+            // that a compile-time answer is invented for a question only play
+            // can answer. Omitting the key is what leaves the DataModel's own
+            // `initial` standing; writing the `undefined` a source-less
+            // declaration resolves to would put the key in the document.
+            if (field.runtimeOnly) continue;
             setPath(out, field.to, readField(field, fm, { block, onLegacyKey, onRetiredTopLevel }));
         }
         return out;
@@ -327,4 +373,21 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
  */
 export function authoredFields(fields) {
     return fields.filter((field) => field.name !== undefined);
+}
+
+/**
+ * The fields of a declaration a note may **never** write.
+ *
+ * The complement of {@link authoredFields} in the direction that matters: those
+ * are the fields an author may write, these are the ones authoring is an error
+ * (#330). Everything else in a declaration — a constant, a derived value — is
+ * simply not authored, which is a statement about the *builder* rather than
+ * about the author, and says nothing about what happens if a note writes the
+ * path anyway.
+ *
+ * @param {readonly FieldSpec[]} fields - The declaration.
+ * @returns {FieldSpec[]} Only the fields declaring `runtimeOnly`.
+ */
+export function runtimeOnlyFields(fields) {
+    return (fields ?? []).filter((field) => Boolean(field?.runtimeOnly));
 }
