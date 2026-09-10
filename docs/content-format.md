@@ -240,7 +240,20 @@ Actor types (`being`, `vehicle`) add one more:
 An actor carries `img` (its token art) and `portrait` (its sheet portrait)
 independently, which is why this is a row of its own rather than a second
 spelling of the one above. An Item has no second image, so the row applies to
-actor types alone.
+actor types alone. Note the asymmetry in where the two are authored: `img` stays
+at the note's top level and `portrait` moved under `data:`, because a note's
+token art is a fact about the _note as a published artefact_ while the portrait
+is a fact about the _subject_.
+
+**A `data:` source is still read at the top level, for now.** `data:` (#128) did
+not invent the facts it holds — it gathered them out of the top level, where
+`portrait:` sat beside `img:` — so every key it collected has a **pre-`data:`
+spelling** that is read after the declared one and reported as retiring. Write
+`data.portrait`; a tree still on `portrait:` compiles to the identical document
+and gets a warning naming the line, until a later release removes the position.
+This is the shared level's counterpart to the in-block `<system>.<key>`
+retirement, and the two are separate: a note may have moved one and not the
+other.
 
 **Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
 on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
