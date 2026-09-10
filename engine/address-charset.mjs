@@ -39,15 +39,33 @@
  */
 
 /**
- * The shape every address segment must match: ASCII letters and digits only.
+ * The shape every address segment must match: **lowercase** ASCII letters and
+ * digits only.
  *
- * Case is deliberately **not** constrained. Hundreds of authored shortcodes are
- * mixed-case and collide with nothing, and case has no bearing on the
- * separator, which is the whole of what this pattern is protecting.
+ * Case *was* deliberately unconstrained, on the reasoning that case has no
+ * bearing on the separator — which is true, and beside the point (#340).
+ *
+ * **Two names that differ only in case are two names nobody can tell apart.** A
+ * shortcode is how a person names a thing when writing a reference —
+ * `model: weapongear-dgr`, `[[skill-melee|…]]` — and `Dgr` beside `dgr` is a
+ * distinction you cannot say out loud and can only see by looking twice.
+ *
+ * The toolchain had already half-decided it: {@link canonicalKey} lowercases the
+ * address it builds, so a note declaring `Clb` published
+ * `sohl-sohl-weapongear-clb` and its `_id` derived from that. The authored name
+ * and its address disagreed, and everything downstream keys on the address —
+ * which left two notes differing only in case sharing one address, one `_id` and
+ * one URL, with nothing to report it. It also forced two exceptions elsewhere:
+ * #336 had to exempt the shortcode from the lowercase rule it pinned on every
+ * other segment, and #346 had to fold the shortcode's case in the item catalogue
+ * because an address is lowercased when read.
+ *
+ * One case, one spelling, no exceptions. Every tree already complies but two,
+ * and nothing in any of them collides when folded.
  *
  * @type {RegExp}
  */
-export const ADDRESS_SEGMENT_PATTERN = /^[A-Za-z0-9]+$/;
+export const ADDRESS_SEGMENT_PATTERN = /^[a-z0-9]+$/;
 
 /**
  * Whether a value is a well-formed address segment.
