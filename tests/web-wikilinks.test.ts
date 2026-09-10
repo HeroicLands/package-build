@@ -25,12 +25,24 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
             // the KB the item note *is* its documentation, so the build indexes
             // `doc<type>` as an alias of the same page (#1362).
             ["docskill/climb", climb],
+            // The canonical addresses the real index carries alongside those,
+            // and what a written target expands to before lookup (#336). A
+            // `doc` note is `none`; a skill's Item is `sohl` and its page is
+            // the `none`-addressed `docskill`.
+            ["sohl-none-doc-shock", shock],
+            ["sohl-sohl-skill-climb", climb],
+            ["sohl-none-docskill-climb", climb],
         ]),
         collide: new Set<string>(["doc/coma"]),
         sections: new Set<string>(["rules", "skill"]),
         // The build seeds this with the real types *and* the virtual
         // `doc<type>` qualifier of every item type (see build-kb-content.mjs).
         contentTypes: new Set<string>(["doc", "skill", "creature", "docskill"]),
+        // The package a link defaults to when it names none (#336), and the
+        // packages a fully qualified one may name — without the latter the
+        // four-segment form does not parse as an address at all.
+        contentPackage: "sohl",
+        packages: new Set<string>(["sohl", "thalorna", "adventure"]),
         type: "doc",
         errors: [] as object[],
         src: "rules/Bleeding.md",
@@ -287,9 +299,12 @@ describe("resolveWebWikilinks", () => {
  * href; both halves of that trade are exercised here.
  */
 describe("cross-package addresses (link manifest)", () => {
+    // Keyed canonically, because reaching another package needs the fully
+    // qualified form (#336): a short address names *this* package and never
+    // falls through to a vendored manifest.
     const foreign = new Map<string, object>([
         [
-            "creature/grkrahk",
+            "thalorna-sohl-creature-grkrahk",
             {
                 url: "/thalorna/creature/grukar-ahk/",
                 name: "Grukar-ahk",
@@ -297,20 +312,21 @@ describe("cross-package addresses (link manifest)", () => {
             },
         ],
         // The same address a local entry also claims, to prove precedence.
+        ["thalorna-sohl-skill-climb", { url: "/thalorna/skill/stale/", name: "Stale" }],
         ["skill/climb", { url: "/thalorna/skill/stale/", name: "Stale" }],
     ]);
 
     it("renders a foreign address as a real link", () => {
         const ctx = makeCtx({ foreign });
-        expect(resolveWebWikilinks("the [[creature-grkrahk|Grukar-ahk]] spawn", ctx)).toBe(
-            "the [Grukar-ahk](/thalorna/creature/grukar-ahk/) spawn",
-        );
+        expect(
+            resolveWebWikilinks("the [[thalorna-sohl-creature-grkrahk|Grukar-ahk]] spawn", ctx),
+        ).toBe("the [Grukar-ahk](/thalorna/creature/grukar-ahk/) spawn");
         expect(ctx.errors).toHaveLength(0);
     });
 
     it("uses the foreign document's name when the link carries no label", () => {
         const ctx = makeCtx({ foreign });
-        expect(resolveWebWikilinks("[[creature-grkrahk|]]", ctx)).toBe(
+        expect(resolveWebWikilinks("[[thalorna-sohl-creature-grkrahk|]]", ctx)).toBe(
             "[Grukar-ahk](/thalorna/creature/grukar-ahk/)",
         );
     });
@@ -360,7 +376,7 @@ describe("cross-package addresses (link manifest)", () => {
         // the document's name as prose and the build does not fail.
         const packOnly = new Map<string, object>([
             [
-                "creature/wolf",
+                "adventure-sohl-creature-wolf",
                 {
                     name: "Dire Wolf",
                     uuid: "Compendium.sohl-adventure.items.Item.abc",
@@ -369,16 +385,20 @@ describe("cross-package addresses (link manifest)", () => {
             ],
         ]);
         const ctx = makeCtx({ foreign: packOnly });
-        expect(resolveWebWikilinks("a [[creature-wolf|]] howls", ctx)).toBe("a Dire Wolf howls");
+        expect(resolveWebWikilinks("a [[adventure-sohl-creature-wolf|]] howls", ctx)).toBe(
+            "a Dire Wolf howls",
+        );
         expect(ctx.errors).toHaveLength(0);
     });
 
     it("keeps the author's label for an address with no page", () => {
         const packOnly = new Map<string, object>([
-            ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
+            ["adventure-sohl-creature-wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
         const ctx = makeCtx({ foreign: packOnly });
-        expect(resolveWebWikilinks("a [[creature-wolf|grey wolf]]", ctx)).toBe("a grey wolf");
+        expect(resolveWebWikilinks("a [[adventure-sohl-creature-wolf|grey wolf]]", ctx)).toBe(
+            "a grey wolf",
+        );
         expect(ctx.errors).toHaveLength(0);
     });
 
@@ -435,10 +455,10 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
         // and the author did nothing wrong. Marking it would report correct
         // content as a mistake.
         const packOnly = new Map<string, object>([
-            ["creature/wolf", { name: "Dire Wolf", package: "adventure" }],
+            ["adventure-sohl-creature-wolf", { name: "Dire Wolf", package: "adventure" }],
         ]);
         const ctx = makeCtx({ foreign: packOnly });
-        const out = resolveWebWikilinks("a [[creature-wolf|]] howls", ctx);
+        const out = resolveWebWikilinks("a [[adventure-sohl-creature-wolf|]] howls", ctx);
         expect(out).toBe("a Dire Wolf howls");
         expect(out).not.toContain("sohl-unresolved-link");
     });
@@ -483,13 +503,13 @@ describe("frontmatterWikilinks (#1428)", () => {
                 government: {
                     summary:
                         "A warlord protecting the spawn-chamber of a fertile " +
-                        "[[creature-grkrahk|Grukar-ahk]]; nominally sovereign.",
+                        "[[thalorna-sohl-creature-grkrahk|Grukar-ahk]]; nominally sovereign.",
                 },
             }),
         ).toEqual([
             {
                 path: "government.summary",
-                link: "[[creature-grkrahk|Grukar-ahk]]",
+                link: "[[thalorna-sohl-creature-grkrahk|Grukar-ahk]]",
             },
         ]);
     });

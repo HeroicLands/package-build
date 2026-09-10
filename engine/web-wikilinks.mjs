@@ -46,7 +46,8 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-system-type-shortcode` key, so a package-qualified
 // address is matched the way a vendored manifest publishes it — by the
 // segments the target supplies, with the system wildcarded unless stated (#59).
-import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
+import { canonicalKey, expandAddress, readCanonicalKey } from "./content-address.mjs";
+import { NO_SYSTEM } from "./systems.mjs";
 // The one rule about a link's shape both builds share: it carries a label, and
 // {@link unlabelledLinkMessage} is the one place that says so (#180).
 import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
@@ -85,32 +86,33 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  * @param {object|null} read - From {@link readQualifier}.
  * @returns {string | null} The index key, or `null` when not an address.
  */
-function lookupRead(index, read) {
+function lookupRead(index, read, contentPackage) {
     if (!read || read.reason) return undefined;
-    // An unqualified address stays the system-blind short key, which is the
-    // wildcard an author writing `[[skill-melee]]` means, and resolves within
-    // this package only.
-    if (!read.package) return index.get(`${read.type}/${read.shortcode}`.toLowerCase());
+    // Every omitted segment defaults from where the link is written (#336) —
+    // package from the citing package, system from the block, which on a page
+    // body is `none` — so the target expands to exactly one canonical address
+    // and this is a plain lookup. No filter, no single-hit rule, and no
+    // ambiguity: one key names one entry.
+    //
+    // It replaced a system-blind short key for the unqualified form, which
+    // could be silently overwritten by a second note of the same
+    // `(type, shortcode)` under another system.
+    const key = expandAddress(read, { package: contentPackage, system: NO_SYSTEM });
+    const found = index.get(key);
+    if (found || read.package) return found;
 
-    // A package-qualified one is matched by the segments it supplies, with the
-    // system wildcarded unless stated (#59) — an exact `get` cannot express
-    // that, and would silently miss every address whose system it did not
-    // guess. Exactly one hit resolves; two are an ambiguity for the caller to
-    // report rather than a pick to make here.
-    const type = String(read.type).toLowerCase();
-    const shortcode = String(read.shortcode).toLowerCase();
-    const pkg = String(read.package).toLowerCase();
-    let found;
-    for (const [key, value] of index) {
-        const parts = readCanonicalKey(key);
-        if (!parts) continue;
-        if (parts.package !== pkg) continue;
-        if (read.system && parts.system !== String(read.system).toLowerCase()) continue;
-        if (parts.type !== type || parts.shortcode !== shortcode) continue;
-        if (found) return undefined;
-        found = value;
-    }
-    return found;
+    // A local target may also be keyed by its short form. On the KB that is not
+    // a second answer: an item note renders as **one page** which is its own
+    // documentation, so `skill/climb`, `docskill/climb` and both canonical
+    // addresses are all the same value (#1362) — the fallback cannot pick
+    // differently, only earlier. It stays because an index built before the
+    // canonical documentation key was added still carries the short one, and
+    // because a page collision here is caught by the site index's own
+    // `ambiguous` set rather than by silent overwrite as in the pack index.
+    return (
+        index.get(`${read.itemDoc ? "doc" : ""}${read.type}/${read.shortcode}`.toLowerCase()) ??
+        undefined
+    );
 }
 
 /**
@@ -366,7 +368,7 @@ export function resolveWebWikilinks(body, ctx) {
         const read = readQualifier(target, ctx.contentTypes ?? new Set(), ctx.packages);
         const rawKey = target.toLowerCase();
         const hit =
-            lookupRead(ctx.index, read) ??
+            lookupRead(ctx.index, read, ctx.contentPackage) ??
             // `section/slug` is the site's own address for a page, and it is in
             // the same map. Admitted only when the target carries a slash, so
             // a page's bare slug cannot answer for an address.
@@ -375,7 +377,11 @@ export function resolveWebWikilinks(body, ctx) {
             // local one (#1446), so a cross-package hit needs no special case
             // below. Local wins: a live build is authoritative and a vendored
             // manifest can only be staler.
-            (ctx.foreign ? lookupRead(ctx.foreign, read) : undefined);
+            // A short form names *this* package (#336), so it never reaches a
+            // vendored manifest; only a fully qualified address does.
+            (ctx.foreign && read?.package ?
+                lookupRead(ctx.foreign, read, ctx.contentPackage)
+            :   undefined);
         if (hit) {
             // An address with an *empty* label has no prose to show (a
             // shortcode is not display text), so the document's **current**

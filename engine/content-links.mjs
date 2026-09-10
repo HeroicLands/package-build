@@ -70,7 +70,13 @@ import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-import { canonicalKey, PACKAGE_BASE, readCanonicalKey } from "./content-address.mjs";
+import {
+    blockSystem,
+    canonicalKey,
+    expandAddress,
+    PACKAGE_BASE,
+    readCanonicalKey,
+} from "./content-address.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
@@ -195,9 +201,14 @@ export function buildLinkIndex(
         anchors.set(note, new Set((record.anchors ?? []).map((a) => a.slug)));
 
         if (typeof fm.shortcode === "string" && fm.shortcode) {
-            byKey.set(`${type}/${fm.shortcode}`.toLowerCase(), note);
-            // The canonical, fully qualified address alongside the short one,
-            // so a package-qualified link checks the same way a bare one does.
+            // Canonical addresses only. Every written target expands to one
+            // before lookup (#336), so there is nothing left for a short key to
+            // answer — and the short key was harmful: `type/shortcode` is
+            // system-blind, set with a plain `Map.set`, so two notes in one
+            // package sharing a `(type, shortcode)` across systems silently
+            // overwrote each other in that slot while both canonical keys sat
+            // correctly beside it.
+            //
             // Taken from the record, which is where the address rule is applied
             // once for the whole build.
             const canonical =
@@ -205,7 +216,6 @@ export function buildLinkIndex(
                 canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode);
             byKey.set(canonical, note);
             if (hasDocEntry(type)) {
-                byKey.set(`doc${type}/${fm.shortcode}`.toLowerCase(), note);
                 // A documentation journal is `none`: no game system defines a
                 // JournalEntry, and one note has one of them however many
                 // system blocks it carries.
@@ -341,23 +351,19 @@ export function buildLinkIndex(
         return matchAddress([...byKey], q).map(([, v]) => v);
     }
 
-    function resolveAddress(target) {
+    function resolveAddress(target, keyPath) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
-        // A target naming neither package nor system stays the system-blind
-        // short key, which is already the wildcard an author writing
-        // `[[skill-melee]]` means.
+        // Every omitted segment defaults from where the link is written (#336),
+        // so the target expands to exactly one canonical address and this is a
+        // plain lookup. There is no candidate set, and therefore no single-hit
+        // rule and no ambiguity to report.
         //
-        // Anything that *does* state one is matched by the segments it supplied
-        // rather than by an exact key (#59), and exactly one hit is required —
-        // two systems' documents legitimately share a
-        // `(package, type, shortcode)`, so a target that names no system may
-        // name two notes, and naming two is not resolving.
-        if (!qualified.package && !qualified.system) {
-            return byKey.get(`${qualified.type}/${qualified.shortcode}`.toLowerCase());
-        }
-        const hits = matchLocal(qualified);
-        return hits.length === 1 ? hits[0] : undefined;
+        // It replaced a system-blind short key, `type/shortcode`, populated by
+        // plain `Map.set` — so two notes in one package sharing a
+        // `(type, shortcode)` across systems silently overwrote each other, and
+        // a bare link resolved to whichever was indexed second.
+        return byKey.get(expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) }));
     }
 
     /**
@@ -375,10 +381,20 @@ export function buildLinkIndex(
      * @param {string} target - The link target.
      * @returns {object[]} The foreign entries, each carrying its `package`.
      */
-    function foreignHits(target) {
+    function foreignHits(target, keyPath) {
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return [];
-        return matchAddress([...foreign.index], q).map(([, v]) => v);
+        // An omitted package means *this* package (#336), so a short form
+        // addresses nothing foreign and never reaches a dependency's index.
+        // Reaching another package is the fully qualified form's job, and
+        // saying so is the whole point: a link that resolved into `sohl` only
+        // because no local note claimed the address was resolving by accident,
+        // and would have retargeted silently the day one did.
+        if (!q.package) return [];
+        const hit = foreign.index.get(
+            expandAddress(q, { package: q.package, system: blockSystem(keyPath) }),
+        );
+        return hit ? [hit] : [];
     }
 
     /**

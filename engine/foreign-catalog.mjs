@@ -666,7 +666,10 @@ export function foreignItemCatalogDirs(config) {
         // (#272).
         const items = itemsDir(newestVersionDir(cached));
         for (const name of fs.readdirSync(items)) {
-            dirs.push(path.join(items, name));
+            // The dependency's own id travels with its directory (#334): a
+            // being's `model:` names the package its template comes from, and
+            // the address cannot be built from the path.
+            dirs.push({ dir: path.join(items, name), package: rel.id });
         }
     }
     return dirs;

@@ -63,6 +63,9 @@ import { contentPackage } from "./content-package.mjs";
 // inferred from the type itself (#79).
 import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
+// A `model:` is an address, read by the same grammar every wikilink is (#336),
+// so an author writes one form and meets one set of messages.
+import { readQualifier } from "./wikilinks.mjs";
 
 /**
  * Strip compendium-only fields from a predefined item before embedding it
@@ -132,6 +135,31 @@ export function deepMerge(base, overlay) {
  */
 export function itemAddress(subType, shortcode) {
     return `${subType}:${shortcode}`;
+}
+
+/**
+ * The key one predefined item is held under **for the package that publishes
+ * it** — the address a `model:` naming that package resolves through (#334).
+ *
+ * The unqualified {@link itemAddress} stays beside it, and the two answer
+ * different questions. A `model` that names no package means *this* one and
+ * takes the unqualified key, where a local definition still shadows a
+ * dependency's. A `model` that names a package takes this one, which nothing
+ * can shadow: that is the whole point of writing the package down.
+ *
+ * Not the canonical wikilink address, because this map is keyed in the
+ * **document's** vocabulary — a Foundry Item subtype — while a canonical address
+ * carries the *note* type. The two differ wherever a system maps a type to a
+ * differently-named subtype, and translating here would put the translation in
+ * two places.
+ *
+ * @param {string} pkg - The content package that publishes the item.
+ * @param {string} subType - The Foundry Item subtype.
+ * @param {string} shortcode - The item's `system.shortcode`.
+ * @returns {string} The address, `package:subType:shortcode`.
+ */
+export function packagedItemAddress(pkg, subType, shortcode) {
+    return `${pkg}:${subType}:${shortcode}`;
 }
 
 /**
@@ -257,9 +285,17 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             // eslint-disable-next-line no-unused-vars
             const { _key, ...rest } = doc;
             map.set(address, rest);
+            // And under this package's own name, so a `model:` that names this
+            // package explicitly resolves to the same item (#334).
+            map.set(packagedItemAddress(contentPackage(), doc.type, shortcode), rest);
         }
     }
-    for (const foreignDir of foreignSourceDirs) {
+    for (const foreignEntry of foreignSourceDirs) {
+        // Each dependency's directory arrives with the package that published
+        // it (#334), so a foreign template gets its own canonical address
+        // rather than sharing the local address space.
+        const foreignDir = typeof foreignEntry === "string" ? foreignEntry : foreignEntry.dir;
+        const foreignPackage = typeof foreignEntry === "string" ? null : foreignEntry.package;
         for (const name of fs.readdirSync(foreignDir)) {
             if (!name.endsWith(".json")) continue;
             if (name.startsWith("folder_")) continue;
@@ -278,13 +314,18 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             const shortcode = doc?.system?.shortcode;
             if (!doc?.type || !shortcode) continue;
             const address = itemAddress(doc.type, shortcode);
+            // eslint-disable-next-line no-unused-vars
+            const { _key, ...rest } = doc;
+            // Its own package-qualified address, which a `model:` naming that
+            // package resolves through and nothing local can shadow (#334).
+            if (foreignPackage) {
+                map.set(packagedItemAddress(foreignPackage, doc.type, shortcode), rest);
+            }
             if (map.has(address)) {
                 // Deliberate: this repository defines it, so its version wins.
                 if (source.has(address)) shadowed.push(address);
                 continue;
             }
-            // eslint-disable-next-line no-unused-vars
-            const { _key, ...rest } = doc;
             map.set(address, rest);
         }
     }
@@ -355,6 +396,20 @@ export class SystemActorCompiler extends BasePackCompiler {
     /** @type {readonly string[]} */
     itemsSourceDirs;
     foreignSourceDirs;
+
+    /**
+     * Every package a `model:` may name besides this one — the dependencies
+     * whose item catalogues were supplied (#334).
+     *
+     * @returns {Set<string>} The dependency package ids.
+     */
+    get foreignPackages() {
+        return new Set(
+            (this.foreignSourceDirs ?? [])
+                .map((entry) => (typeof entry === "string" ? null : entry?.package))
+                .filter(Boolean),
+        );
+    }
 
     constructor({ itemsSourceDirs = [], foreignSourceDirs = [], ...options }) {
         super(options);
@@ -498,7 +553,66 @@ export class SystemActorCompiler extends BasePackCompiler {
      * @returns {object|null} The embedded item, or null when it resolved to
      *   nothing — always with a finding emitted.
      */
-    resolveEmbedded(itemsMap, actorId, type, shortcode, overlay, indexKey, ctx, { fmKey } = {}) {
+    /**
+     * Read an entry's `model:` — the address of the item it is a copy of.
+     *
+     * The address grammar is the wikilink one (#336), so a `model` is written at
+     * whatever length says what it means: `skill-wpnc` within this package,
+     * `sohl-sohl-skill-wpnc` to reach another. The system segment defaults from
+     * the block the entry sits in — `<system>.items` — which is what makes the
+     * short form name an *Item* here while the same string in body prose names
+     * a page.
+     *
+     * It replaced a top-level `shortcode:` that meant something different from
+     * the `system.shortcode` beside it and could not say which package a
+     * template came from (#334).
+     *
+     * @param {unknown} model - The authored value.
+     * @param {number} index - The entry's position, for the message.
+     * @param {string} ctx - Diagnostic context (the actor's label).
+     * @returns {{type: string, shortcode: string, package: string|null}|null}
+     *   The parsed address, or `null` after reporting why it is not one.
+     */
+    readModel(model, index, ctx) {
+        const key = `${this.documentSubtypes.block}.items`;
+        const where = () =>
+            locateFrontmatterKey(this.currentNote?.absPath, "items", String(model ?? ""));
+        if (typeof model !== "string" || !model.trim()) {
+            this.noteError(`${ctx}: ${key}[${index}] \`model\` must be an address`, where());
+            this.errorCount++;
+            return null;
+        }
+        // The types this system maps, which are the ones a `model` may name, and
+        // every package one may reach: this repository's own plus each
+        // dependency whose item catalogue was loaded.
+        const types = new Set(Object.keys(this.documentSubtypes.types));
+        const packages = new Set([contentPackage(), ...this.foreignPackages]);
+        const read = readQualifier(model.trim(), types, packages);
+        if (!read || read.reason) {
+            const why =
+                read?.reason === "not-lowercase" ?
+                    "capitalises a package, system or type segment — those three " +
+                    "are lowercase, and only the shortcode keeps its case"
+                : read?.reason === "unknown-type" ? "names no known content type"
+                : "is not an address — write `type-shortcode`, or " +
+                    "`package-system-type-shortcode` for another package's item";
+            this.noteError(`${ctx}: ${key}[${index}] \`model: ${model}\` ${why}`, where());
+            this.errorCount++;
+            return null;
+        }
+        return { type: read.type, shortcode: read.shortcode, package: read.package ?? null };
+    }
+
+    resolveEmbedded(
+        itemsMap,
+        actorId,
+        type,
+        shortcode,
+        overlay,
+        indexKey,
+        ctx,
+        { fmKey, modelPackage = null } = {},
+    ) {
         // Where a finding about this reference points. The value locates the
         // exact entry in a list; the key is the fallback when it cannot be
         // found, which still beats naming the note alone.
@@ -511,7 +625,14 @@ export class SystemActorCompiler extends BasePackCompiler {
             this.errorCount++;
             return null;
         }
-        const address = itemAddress(/** @type {string} */ (subType), shortcode ?? "");
+        // A `model:` may name the package its template comes from (#334). Where
+        // it does, the packaged address is used and nothing local can shadow
+        // it; where it does not, the unqualified one is, and a local definition
+        // still wins over a dependency's as it always has.
+        const address =
+            modelPackage ?
+                packagedItemAddress(modelPackage, /** @type {string} */ (subType), shortcode ?? "")
+            :   itemAddress(/** @type {string} */ (subType), shortcode ?? "");
 
         let base = null;
         if (shortcode) {

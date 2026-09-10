@@ -242,7 +242,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         const { skill, errors } = build({
             sohl: {
                 attributes: { str: 13, agl: 10 },
-                items: [{ shortcode: "clmb", type: "skill" }],
+                items: [{ model: "skill-clmb" }],
             },
         });
         expect(skill("clmb").system.masteryLevelBase).toBe(36);
@@ -253,7 +253,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         const weaker = build({
             sohl: {
                 attributes: { str: 8, agl: 8 },
-                items: [{ shortcode: "clmb", type: "skill" }],
+                items: [{ model: "skill-clmb" }],
             },
         });
         expect(weaker.skill("clmb").system.masteryLevelBase).toBe(24);
@@ -263,13 +263,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         const { skill } = build({
             sohl: {
                 attributes: { str: 13, agl: 10 },
-                items: [
-                    {
-                        shortcode: "clmb",
-                        type: "skill",
-                        system: { masteryLevelBase: 55 },
-                    },
-                ],
+                items: [{ model: "skill-clmb", system: { masteryLevelBase: 55 } }],
             },
         });
         expect(skill("clmb").system.masteryLevelBase).toBe(55);
@@ -279,7 +273,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         const { skill, errors } = build({
             sohl: {
                 attributes: { str: 13, agl: 10 },
-                items: [{ shortcode: "peoni", type: "skill" }],
+                items: [{ model: "skill-peoni" }],
             },
         });
         expect(skill("peoni").system.masteryLevelBase).toBeNull();
@@ -290,7 +284,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         // Every `attr.*` reads as 0, so the skill base is 0 — the same answer
         // the client reaches off an actor.
         const { skill } = build({
-            sohl: { items: [{ shortcode: "clmb", type: "skill" }] },
+            sohl: { items: [{ model: "skill-clmb" }] },
         });
         expect(skill("clmb").system.masteryLevelBase).toBe(0);
     });
@@ -299,7 +293,7 @@ describe("the actors pass bakes an unopened skill's mastery level (#46)", () => 
         const { items } = build({
             sohl: {
                 attributes: { str: 13, agl: 10 },
-                items: [{ shortcode: "clmb", type: "skill" }],
+                items: [{ model: "skill-clmb" }],
             },
         });
         const str = items.find((i: any) => i.type === "attribute");
