@@ -93,6 +93,14 @@
  * {@link module:engine/system-block.resolveFieldValue}'s answer; this module
  * only says what an author is told about it.
  *
+ * **A field has two retiring positions, not one (#332).** The in-block key is
+ * the obvious one; the other is the note's **top level**, because #128 did not
+ * invent the facts `data:` holds — it gathered them from exactly there. So
+ * `portrait:` beside `img:` is the pre-`data:` spelling of `data.portrait`,
+ * read for the same reason and reported by {@link retiredTopLevelMessage}. Both
+ * are needed, and separately: a note may have moved one and not the other, and
+ * a single finding covering both would name the wrong line half the time.
+ *
  * @module
  */
 
@@ -100,6 +108,7 @@ import fs from "node:fs";
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { sohlField } from "./frontmatter.mjs";
+import { retiredTopLevelKey } from "./system-block.mjs";
 
 /**
  * What a note declaring `draft:` is told, in one place.
@@ -504,6 +513,38 @@ export function legacyKeyMessage(block, field, file) {
         (file ? ` — ${file}` : "") +
         `. Both are read and \`${legacy}\` wins, so the note compiles ` +
         `identically either way; the in-block key is removed in a later release`
+    );
+}
+
+/**
+ * What a note writing a field at the **top-level key `data:` gathered it off**
+ * is told (#332).
+ *
+ * {@link legacyKeyMessage}'s counterpart for the other retiring position. #128
+ * did not invent the facts `data:` holds — it collected them out of the note's
+ * open top level — so `portrait:` beside `img:` is the *pre-`data:`* spelling
+ * of `data.portrait`, and both are read for the same reason both in-block
+ * spellings are: a package moves its corpus when it is ready, not on a flag day.
+ *
+ * It says nothing about which value is emitted, because that is not what an
+ * author needs from it. The value is the same either way; what the finding
+ * counts is one more note still on the old position.
+ *
+ * @param {{name?: string}} field - The declaration, which names the current
+ *   position; the retiring one is derived from it.
+ * @param {string} [file] - The note's path, named in the message. Omit it where
+ *   the caller emits through a diagnostic, whose locator already starts the
+ *   line — repeating it prints the path twice.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function retiredTopLevelMessage(field, file) {
+    const retiring = retiredTopLevelKey(field);
+    return (
+        `top-level \`${retiring}:\` is the pre-\`data:\` position of the shared ` +
+        `\`${field.name}:\` — move it under \`data:\` instead` +
+        (file ? ` — ${file}` : "") +
+        `. Both are read and \`${field.name}\` wins, so the note compiles ` +
+        `identically either way; the top-level key is removed in a later release`
     );
 }
 

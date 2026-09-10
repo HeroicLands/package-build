@@ -43,9 +43,9 @@
  * @module
  */
 
-import { legacyKeyOf, resolveFieldValue, setPath } from "./system-block.mjs";
+import { legacyKeyOf, resolveFieldValue, retiredTopLevelKey, setPath } from "./system-block.mjs";
 
-export { legacyKeyOf, setPath };
+export { legacyKeyOf, retiredTopLevelKey, setPath };
 
 /**
  * @typedef {object} FieldSpec
@@ -267,6 +267,29 @@ export function readsLegacyKey(field, from) {
 }
 
 /**
+ * Whether a resolution read a field from the top-level key `data:` gathered it
+ * off — the shared level's retiring position (#332).
+ *
+ * {@link readsLegacyKey}'s sibling, and the same signal: a finding here counts
+ * one note still on the pre-`data:` spelling, so the sweep has something to
+ * count down instead of a corpus nobody has surveyed.
+ *
+ * The `from` tag already carries the whole answer — step 3b is the only thing
+ * that produces it, and it produces it only for a `data.` source — so this is a
+ * name for the question rather than a second test of it. Named all the same,
+ * because a compile-time report and the frontmatter lint both ask it and must
+ * not drift apart about what counts.
+ *
+ * @param {FieldSpec} field - The declaration.
+ * @param {import("./system-block.mjs").FieldSource} from - Where
+ *   {@link resolveFieldValue} said the value came from.
+ * @returns {boolean} True when the value came from the retiring top-level key.
+ */
+export function readsRetiredTopLevel(field, from) {
+    return from === "topLevel" && retiredTopLevelKey(field) !== undefined;
+}
+
+/**
  * Read one declared field out of a note's frontmatter.
  *
  * The *position* is resolved by {@link resolveFieldValue} — `<system>.system`
@@ -287,12 +310,19 @@ export function readsLegacyKey(field, from) {
  *   rather than a returned list because the caller is a compiler, which already
  *   knows the note and how to locate a key in it; this module knows neither and
  *   would have to invent a finding shape to say so.
+ * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Called with
+ *   each field read from the top-level key `data:` gathered it off (#332). The
+ *   shared level's counterpart to `onLegacyKey`, and a separate callback
+ *   because it is a separate position: a note may have moved one of the two and
+ *   not the other, and a caller that conflated them would tell its author to
+ *   fix the wrong line.
  * @returns {any} The value to emit.
  */
-export function readField(field, fm, { block = "sohl", onLegacyKey } = {}) {
+export function readField(field, fm, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
     const { value, from } = resolveFieldValue(field, fm, { block });
     if (from === "value") return value;
     if (onLegacyKey && readsLegacyKey(field, from)) onLegacyKey(field);
+    if (onRetiredTopLevel && readsRetiredTopLevel(field, from)) onRetiredTopLevel(field);
     return field.read ? field.read(value, { fm, field }) : value;
 }
 
@@ -307,9 +337,12 @@ export function readField(field, fm, { block = "sohl", onLegacyKey } = {}) {
  * @param {(field: FieldSpec) => void} [options.onLegacyKey] - Passed through to
  *   {@link readField}: called with each field the note authored at the position
  *   it is being swept off (#305).
+ * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Passed
+ *   through to {@link readField}: called with each field the note authored at
+ *   the top-level key `data:` gathered it off (#332).
  * @returns {(fm: object) => object} A `system`-block builder.
  */
-export function buildFromFields(fields, { block = "sohl", onLegacyKey } = {}) {
+export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
@@ -321,7 +354,7 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey } = {}) {
             // `initial` standing; writing the `undefined` a source-less
             // declaration resolves to would put the key in the document.
             if (field.runtimeOnly) continue;
-            setPath(out, field.to, readField(field, fm, { block, onLegacyKey }));
+            setPath(out, field.to, readField(field, fm, { block, onLegacyKey, onRetiredTopLevel }));
         }
         return out;
     };

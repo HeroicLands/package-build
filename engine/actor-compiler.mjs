@@ -168,6 +168,36 @@ export function packagedItemAddress(pkg, subType, shortcode) {
 }
 
 /**
+ * The key one predefined item is held under **in the catalogue**, with the
+ * shortcode folded to lower case.
+ *
+ * A shortcode is case-sensitive and routinely mixed — `Clb`, `LtShoe`,
+ * `HsTunic` — while an **address** is not: `readQualifier` normalises what it
+ * reads, and every canonical address is lowercase. So the moment a `model:` is
+ * read as an address (#334), `weapongear-clb` has to find the document whose
+ * `system.shortcode` is `Clb`, and an exact match cannot (#346).
+ *
+ * Folding is safe because the fold is already the address: no two items in any
+ * published tree differ only by the case of their shortcode, and #340 will make
+ * that impossible rather than merely true.
+ *
+ * **This is not {@link itemAddress}, and must not become it.** That one seeds
+ * {@link embeddedItemId}, so folding there would change the `_id` of every
+ * embedded item whose identity carries a capital — a silent re-identification of
+ * documents nothing about which had changed. The catalogue is a lookup table;
+ * an id is a promise.
+ *
+ * @param {string} subType - The Foundry Item subtype.
+ * @param {string} shortcode - The item's `system.shortcode`, in any case.
+ * @param {string} [pkg] - The publishing package, for the qualified form.
+ * @returns {string} The catalogue key.
+ */
+export function catalogueKey(subType, shortcode, pkg) {
+    const folded = String(shortcode).toLowerCase();
+    return pkg ? packagedItemAddress(pkg, subType, folded) : itemAddress(subType, folded);
+}
+
+/**
  * What identifies one embedded item on its actor.
  *
  * **Its own `system.shortcode`** — not the entry's top-level `shortcode`, which
@@ -276,7 +306,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             }
             const shortcode = doc?.system?.shortcode;
             if (!doc?.type || !shortcode) continue;
-            const address = itemAddress(doc.type, shortcode);
+            const address = catalogueKey(doc.type, shortcode);
             const owner = source.get(address);
             if (owner && owner !== itemsSourceDir) {
                 throw new Error(
@@ -292,7 +322,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             map.set(address, rest);
             // And under this package's own name, so a `model:` that names this
             // package explicitly resolves to the same item (#334).
-            map.set(packagedItemAddress(contentPackage(), doc.type, shortcode), rest);
+            map.set(catalogueKey(doc.type, shortcode, contentPackage()), rest);
         }
     }
     for (const foreignEntry of foreignSourceDirs) {
@@ -318,13 +348,13 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             }
             const shortcode = doc?.system?.shortcode;
             if (!doc?.type || !shortcode) continue;
-            const address = itemAddress(doc.type, shortcode);
+            const address = catalogueKey(doc.type, shortcode);
             // eslint-disable-next-line no-unused-vars
             const { _key, ...rest } = doc;
             // Its own package-qualified address, which a `model:` naming that
             // package resolves through and nothing local can shadow (#334).
             if (foreignPackage) {
-                map.set(packagedItemAddress(foreignPackage, doc.type, shortcode), rest);
+                map.set(catalogueKey(doc.type, shortcode, foreignPackage), rest);
             }
             if (map.has(address)) {
                 // Deliberate: this repository defines it, so its version wins.
@@ -634,10 +664,11 @@ export class SystemActorCompiler extends BasePackCompiler {
         // it does, the packaged address is used and nothing local can shadow
         // it; where it does not, the unqualified one is, and a local definition
         // still wins over a dependency's as it always has.
-        const address =
-            modelPackage ?
-                packagedItemAddress(modelPackage, /** @type {string} */ (subType), shortcode ?? "")
-            :   itemAddress(/** @type {string} */ (subType), shortcode ?? "");
+        const address = catalogueKey(
+            /** @type {string} */ (subType),
+            shortcode ?? "",
+            modelPackage ?? undefined,
+        );
 
         // The entry's `system:` overlay is merged verbatim, so it reaches the
         // document without passing a single field declaration — which left it
