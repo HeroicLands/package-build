@@ -33,6 +33,8 @@ import { addressSlug, canonicalKey } from "../engine/content-address.mjs";
 import { systemOf } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { splitPages } from "../engine/journals.mjs";
+import { collectFolderNotes, folderDocument } from "../engine/folder-notes.mjs";
+import { itemDocEntryId } from "../engine/item-docs.mjs";
 
 let tmp: string;
 
@@ -691,6 +693,31 @@ describe("a note that is in no one pack, or in none (#243)", () => {
         expect(record.foundry).toBeNull();
     });
 
+    /*
+     * "Truthy" was the whole of the assertion above, and a wrong id is truthy
+     * (#310). The value a consumer reads has to be the one the packs address,
+     * so it is asserted against the emitted `Folder` document rather than
+     * against a second derivation written out here — which is exactly the
+     * mistake being fixed.
+     */
+    it("publishes the id the emitted Folder document carries (#310)", () => {
+        note("Folders/Cookware_cookware.md", "type: folder\nshortcode: cookware");
+        const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
+
+        const [folder] = collectFolderNotes(
+            [{ frontmatter: { type: "folder", shortcode: "cookware" }, absPath: "/x.md" }],
+            "sohl",
+        );
+        expect(record.id).toBe(folderDocument(folder, null, "Item", {})._id);
+    });
+
+    it("publishes a pinned folder id unchanged", () => {
+        note("Folders/Actors_actors.md", "type: folder\nshortcode: actors\nid: ONXsqZAIZr2qzxTb");
+        const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
+
+        expect(record.id).toBe("ONXsqZAIZr2qzxTb");
+    });
+
     it("records a homepage the same way, for the opposite reason", () => {
         note("homepage.md", "type: homepage\nshortcode: home");
         const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
@@ -810,6 +837,27 @@ describe("an item note is two records: the item, and its documentation (#239)", 
         expect(doc.foundry.none.uuid).toContain(".JournalEntry.");
         expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.none.uuid);
         expect(doc.foundry.sohl).toBeUndefined();
+    });
+
+    /*
+     * The rule #310 states in general: **for every entry the index gives an
+     * identity to, it publishes both the `id` and the `uuid`.** The
+     * documentation journal is a document with an id of its own — hashed from
+     * the item's by `itemDocEntryId`, which is what the journals pass files it
+     * under — and the record carried its UUID while saying nothing about the id
+     * that UUID ends in. A consumer holding the record could read the id back
+     * out of the UUID's last segment, which is a string operation on a value
+     * whose shape is not the index's contract to keep.
+     */
+    it("publishes the journal's own id beside its UUID (#310)", () => {
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
+
+        expect(doc.id).toBe(itemDocEntryId(item.id));
+        // The identity the UUID names, so the two agree by construction.
+        expect(doc.foundry.none.uuid.endsWith(`.${doc.id}`)).toBe(true);
+        // Two documents, two ids: the journal is not the item.
+        expect(doc.id).not.toBe(item.id);
     });
 
     it("does not copy the item's frontmatter onto the journal", () => {

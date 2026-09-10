@@ -709,11 +709,13 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                 // which wins over the id it derives under the folder namespace.
                 // A record's `id` is not that: the index fills it in for every
                 // addressable note (#270), so handing records straight over
-                // would make every folder look pinned and file each one under a
-                // different id than the packs address it by. The index cannot
-                // tell a pin from a derivation, so the note is read — and only
-                // folder notes are, 79 of `sohl`'s 1,685 rather than all of
-                // them.
+                // would make every folder look pinned. Since #310 the *value*
+                // would be right either way — the index derives a folder's id
+                // under the folder namespace, so the two agree — but `derivedId`
+                // would not, and it is what tells an author whether a duplicate
+                // id was two pins or two addresses. The index cannot tell a pin
+                // from a derivation, so the note is read — and only folder notes
+                // are, 79 of `sohl`'s 1,685 rather than all of them.
                 corpus.records
                     .filter(
                         (record) =>

@@ -133,6 +133,12 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  * @param {string} name - The note's display name.
  * @param {string} address - The note's package-relative address.
  * @param {string} body - The note's markdown body.
+ * **Each entry carries the `id` of the document it addresses**, not only its
+ * UUID. The two are one fact — a UUID ends in the id — but only the entry knows
+ * which derivation produced it: an item's is its note's `fm.id`, and its
+ * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
+ * what lets the content index publish an identity it did not re-derive (#310).
+ *
  * @param {object} ctx - Resolved identities: `{ contentPackage,
  *   foundryPackageId, packRouter }`.
  * @returns {Array<object>} One or two entries, in {@link buildManifest}'s shape.
@@ -201,6 +207,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 fm,
                 name,
                 url,
+                id: fm.id,
                 uuid: uuidFor(fm.type, fm.id, fm),
                 doc: docKey,
             },
@@ -211,6 +218,12 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 // On the web the item note renders as one page which *is* its
                 // documentation, so both addresses resolve to the same URL.
                 url,
+                // The journal's **own** id, which is not the item's: the
+                // content index publishes it beside the UUID, so an entry the
+                // index gives an identity to states both halves of it rather
+                // than leaving a consumer to parse the id back out of the
+                // UUID's last segment (#310).
+                id: docEntryId,
                 uuid: docUuid,
                 anchors: docUuid ? anchorsOf(docUuid, docEntryId, body ?? "", name) : undefined,
             },
@@ -226,6 +239,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
             fm,
             name,
             url,
+            id: fm.id,
             uuid: own,
             anchors: own && fm.type === "doc" ? anchorsOf(own, fm.id, body ?? "", name) : undefined,
         },
