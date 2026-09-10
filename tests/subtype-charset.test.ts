@@ -256,11 +256,15 @@ describe("the declared vocabulary is held to the same rule (#206)", () => {
 });
 
 describe("the shortcode rule is untouched (#206)", () => {
-    it("still accepts and refuses exactly what it did", () => {
+    it("accepts and refuses what the shared pattern does", () => {
         expect(isValidShortcode("clmb")).toBe(true);
-        expect(isValidShortcode("Clmb42")).toBe(true);
+        expect(isValidShortcode("clmb42")).toBe(true);
         expect(isValidShortcode("harn-adventures")).toBe(false);
         expect(isValidShortcode("")).toBe(false);
+        // #206 left case alone; #340 does not — a shortcode is lowercase, so
+        // the whole address is, and every exception carved for the shortcode's
+        // case goes with it.
+        expect(isValidShortcode("Clmb42")).toBe(false);
     });
 
     it("is the same pattern, not a copy of it", () => {

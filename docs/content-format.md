@@ -799,14 +799,19 @@ Only a type whose own document carries a system is redirected this way. A
 documents are core ones already at `none`, so `macro-autoattack` names the Macro
 and `docmacro-autoattack` its journal — two live addresses.
 
-**An address capitalises nothing but its shortcode.** Package, system and type
-are closed vocabularies with one spelling each, so a capital in any of them is an
-error naming the lowercase form. A shortcode is case-sensitive and routinely
-mixed — `Clb`, `LtShoe`, `HsTunic` — and keeps whatever the note declares.
+**An address is lowercase throughout** (#340). Every segment — package,
+system, type and shortcode alike — is `^[a-z0-9]+$`, so a capital anywhere in an
+address is an error naming the lowercase form.
+
+The shortcode was the exception until #340: it was case-sensitive and routinely
+mixed (`Clb`, `LtShoe`, `HsTunic`) while the address built from it was lowercased
+wholesale, so the authored name and its address disagreed. Two names differing
+only in case are two names nobody can tell apart, and they collapsed onto one
+address, one `_id` and one URL with nothing to report it.
 
 **Parsing is positional counting from the right, and nothing else.** Every
 segment is alphanumeric — shortcodes, **types** and **subTypes** are all
-`^[A-Za-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
+`^[a-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
 alphanumeric — so the hyphen is purely a separator. There is no longest-match
 against a roster and no vocabulary check before splitting.
 
@@ -821,7 +826,7 @@ against the same constant a shortcode is checked against, and a note carrying a
 hyphenated value is reported where it wrote it:
 
 ```text
-Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not a well-formed subType — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. It is a vocabulary term the whole toolchain keys on, and one closed set away from being an address segment again, so a charset that held for every term but this one would be a rule nobody could state in a sentence
+Trauma/Blood_Loss.md:3:1: error: `subType` "blood-loss" is not a well-formed subType — a subType is lowercase letters and digits only (^[a-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. It is a vocabulary term the whole toolchain keys on, and one closed set away from being an address segment again, so a charset that held for every term but this one would be a rule nobody could state in a sentence
 ```
 
 One declared value broke the rule and has been renamed: a `doc`'s `user-guide`
@@ -834,7 +839,7 @@ No retirement-specific code outlived the sweep.
 
 That is a guarantee rather than an observation, and it holds: of **4,456 distinct
 shortcodes** across the four content trees, not one contains a character outside
-`[A-Za-z0-9]`. It is load-bearing, so relaxing the charset later would break
+`[a-z0-9]`. It is load-bearing, so relaxing the charset later would break
 resolution with nothing to say so.
 
 `type/shortcode` with a slash is the legacy form, still resolved so links written
@@ -897,15 +902,15 @@ nowhere is a typo or an omission, and both want fixing.
 There are six ways a link can fail, and each is one **error** with one message
 wherever it is met:
 
-| finding          | what it means                                    | the fix                                                |
-| ---------------- | ------------------------------------------------ | ------------------------------------------------------ |
-| `unlabelled`     | no `\|`, so the link addresses nothing           | write `[[type-shortcode\|Text]]`                       |
-| `not-an-address` | labelled, but the target is not an address       | write the address, not the name                        |
-| `not-lowercase`  | a package, system or type segment is capitalised | lowercase it; only the shortcode keeps its case        |
-| `unknown-type`   | qualified, but names no type this build knows    | correct the type segment                               |
-| `unresolved`     | parses as an address; nothing publishes it       | fix the shortcode, or qualify to reach another package |
-| `ambiguous`      | _unreachable since #336; kept for the manifest_  | —                                                      |
-| `unknown-anchor` | the address resolves; the `#section` does not    | correct the anchor                                     |
+| finding          | what it means                                   | the fix                                                |
+| ---------------- | ----------------------------------------------- | ------------------------------------------------------ |
+| `unlabelled`     | no `\|`, so the link addresses nothing          | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address` | labelled, but the target is not an address      | write the address, not the name                        |
+| `not-lowercase`  | any segment of the address is capitalised       | lowercase it — every segment is lowercase              |
+| `unknown-type`   | qualified, but names no type this build knows   | correct the type segment                               |
+| `unresolved`     | parses as an address; nothing publishes it      | fix the shortcode, or qualify to reach another package |
+| `ambiguous`      | _unreachable since #336; kept for the manifest_ | —                                                      |
+| `unknown-anchor` | the address resolves; the `#section` does not   | correct the anchor                                     |
 
 `ambiguous` no longer fires. An omitted segment defaults rather than wildcarding,
 so a written target expands to one canonical address and a lookup returns one

@@ -96,11 +96,20 @@ function acceptedFor(pkg: string, extra: string[] = []): string {
 }
 
 describe("the address-segment charset", () => {
-    it("accepts ASCII letters and digits, in any case", () => {
+    it("accepts lowercase ASCII letters and digits", () => {
         expect(isAddressSegment("sohl")).toBe(true);
         expect(isAddressSegment("harnadventures")).toBe(true);
-        expect(isAddressSegment("BCFl")).toBe(true);
+        expect(isAddressSegment("bcfl")).toBe(true);
         expect(isAddressSegment("weapon2")).toBe(true);
+    });
+
+    it("rejects a capital — two names differing only in case are one name (#340)", () => {
+        // `Dgr` beside `dgr` is a distinction nobody can say out loud and can
+        // only see by looking twice. It also collapsed silently: `canonicalKey`
+        // lowercases, so both published one address, one `_id` and one URL.
+        expect(isAddressSegment("BCFl")).toBe(false);
+        expect(isAddressSegment("Dgr")).toBe(false);
+        expect(isAddressSegment("ltShoe")).toBe(false);
     });
 
     it("rejects the separator, and everything else that is not alphanumeric", () => {

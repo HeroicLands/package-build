@@ -81,10 +81,17 @@ const lint = (files: Record<string, string>) =>
     lintContentTree(tree(files), { skipDirectories: [] });
 
 describe("isValidShortcode", () => {
-    it("accepts ASCII alphanumerics in any case", () => {
+    it("accepts lowercase ASCII alphanumerics", () => {
         expect(isValidShortcode("aconite")).toBe(true);
-        expect(isValidShortcode("BCFl")).toBe(true);
+        expect(isValidShortcode("bcfl")).toBe(true);
         expect(isValidShortcode("weapon2")).toBe(true);
+    });
+
+    it("rejects a capital (#340)", () => {
+        // `Dgr` beside `dgr` is a distinction nobody can say out loud, and the
+        // two collapsed silently onto one address, one `_id` and one URL.
+        expect(isValidShortcode("BCFl")).toBe(false);
+        expect(isValidShortcode("Dgr")).toBe(false);
     });
 
     // The separator in a `type-shortcode` address must be the only hyphen, so
@@ -291,10 +298,10 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("says nothing about a well-formed declaration", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
-                renamedFrom: "Tabri",
+                shortcode: "taburi",
+                renamedFrom: "tabri",
             }),
         });
         expect(r.findings).toEqual([]);
@@ -302,10 +309,10 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("accepts a list, because renames chain between two releases", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburin",
-                renamedFrom: "\n  - Tabri\n  - Taburi",
+                shortcode: "taburin",
+                renamedFrom: "\n  - tabri\n  - taburi",
             }),
         });
         expect(r.findings).toEqual([]);
@@ -313,9 +320,9 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("reports an entry that is not a shortcode, which the diff would skip", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 renamedFrom: "17",
             }),
         });
@@ -327,9 +334,9 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("reports a blank entry as blank rather than as a type", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 renamedFrom: '""',
             }),
         });
@@ -339,9 +346,9 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("holds a past shortcode to the charset a current one is held to", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 renamedFrom: "ta-bri",
             }),
         });
@@ -351,10 +358,10 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("reports a note that declares a rename from itself", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
-                renamedFrom: "Taburi",
+                shortcode: "taburi",
+                renamedFrom: "taburi",
             }),
         });
         expect(r.findings).toHaveLength(1);
@@ -367,10 +374,10 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
      */
     it("warns about a repeated entry without failing the tree", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburin",
-                renamedFrom: "\n  - Tabri\n  - Tabri",
+                shortcode: "taburin",
+                renamedFrom: "\n  - tabri\n  - tabri",
             }),
         });
         expect(r.findings).toHaveLength(1);
@@ -386,10 +393,10 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
      */
     it("reports a declaration on a note that has no address of its own", () => {
         const r = lintTree({
-            "Weapons/Taburi.md": note({
+            "Weapons/taburi.md": note({
                 type: "weapongear",
                 shortcode: null,
-                renamedFrom: "Tabri",
+                renamedFrom: "tabri",
             }),
         });
         expect(r.findings).toHaveLength(1);
@@ -398,12 +405,12 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 
     it("refuses a claim on an address another note still publishes", () => {
         const r = lintTree({
-            "Weapons/Tabri.md": note({ type: "weapongear", shortcode: "Tabri", name: "Tabri" }),
-            "Weapons/Taburi.md": note({
+            "Weapons/tabri.md": note({ type: "weapongear", shortcode: "tabri", name: "tabri" }),
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 name: "Tabûri",
-                renamedFrom: "Tabri",
+                renamedFrom: "tabri",
             }),
         });
         expect(r.findings).toHaveLength(1);
@@ -421,15 +428,15 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
         const r = lintTree({
             "Weapons/A.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 name: "A",
-                renamedFrom: "Tabri",
+                renamedFrom: "tabri",
             }),
             "Weapons/B.md": note({
                 type: "weapongear",
-                shortcode: "Taburin",
+                shortcode: "taburin",
                 name: "B",
-                renamedFrom: "Tabri",
+                renamedFrom: "tabri",
             }),
         });
         expect(r.findings).toHaveLength(2);
@@ -438,8 +445,8 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
         // is told where the other is.
         expect(new Set(r.findings.map((f) => f.file)).size).toBe(2);
         expect(r.findings[0].message).toContain("claimed as a predecessor by more than one");
-        expect(r.findings.map((f) => f.message).join(" ")).toContain("Taburi");
-        expect(r.findings.map((f) => f.message).join(" ")).toContain("Taburin");
+        expect(r.findings.map((f) => f.message).join(" ")).toContain("taburi");
+        expect(r.findings.map((f) => f.message).join(" ")).toContain("taburin");
     });
 
     /*
@@ -448,12 +455,12 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
      */
     it("scopes a claim to the note's type", () => {
         const r = lintTree({
-            "Skills/Tabri.md": note({ type: "skill", shortcode: "Tabri", name: "Skill" }),
-            "Weapons/Taburi.md": note({
+            "Skills/tabri.md": note({ type: "skill", shortcode: "tabri", name: "Skill" }),
+            "Weapons/taburi.md": note({
                 type: "weapongear",
-                shortcode: "Taburi",
+                shortcode: "taburi",
                 name: "Tabûri",
-                renamedFrom: "Tabri",
+                renamedFrom: "tabri",
             }),
         });
         expect(r.findings).toEqual([]);
