@@ -143,6 +143,106 @@ describe("parsing the specification (#130)", () => {
     });
 });
 
+/**
+ * The other half of a type's vocabulary (#345).
+ *
+ * A type's `data` properties were read from its table and compared to the
+ * declaration; its `subType` values were prose that nothing read, free to
+ * disagree with `NOTE_VOCABULARY` in either direction — the same silent drift
+ * #231 and #232 were filed about, on the half they did not cover.
+ *
+ * The specification wrote them five ways (`subType`, `subType:`,
+ * `**subType**`, `**subType**:`, `**subTypes**:`), so the shapes converged
+ * onto one before a parser was asked to read them: a reader that accepted
+ * every spelling would keep accepting the sixth, and each variant is another
+ * way for a section to be read as declaring nothing.
+ */
+describe("reading a type's `subType` values (#345)", () => {
+    /** A miniature section, given its body lines. */
+    const spec = (...body: string[]) =>
+        ["## Content format", "", "### type: trauma", "", ...body, ""].join("\n");
+
+    const subTypesOf = (text: string) =>
+        parseContentFormat(text, { file: "spec.md" }).types.get("trauma")!.subTypes;
+
+    it("reads the values a section enumerates, in document order", () => {
+        // Order is the specification's, and it is kept: the declaration lists
+        // them in the same order, so a reordering of either is drift worth
+        // reporting rather than noise to sort away.
+        const values = subTypesOf(
+            spec("**subType**:", "", "- injury: Physical harm.", "- fear: An emotional response."),
+        );
+        expect(values).toEqual(["injury", "fear"]);
+    });
+
+    it("takes the value, not the definition beside it", () => {
+        expect(subTypesOf(spec("**subType**:", "", "- injury: Physical harm: caused."))).toEqual([
+            "injury",
+        ]);
+    });
+
+    it("reads a bare value, which several types list without a definition", () => {
+        expect(subTypesOf(spec("**subType**:", "", "- social", "- nature"))).toEqual([
+            "social",
+            "nature",
+        ]);
+    });
+
+    it("reads a value whose definition wraps onto the next line", () => {
+        const values = subTypesOf(
+            spec(
+                "**subType**:",
+                "",
+                "- gathering: A scheduled public occasion people travel to — a",
+                "  tournament, a great market, a religious festival.",
+                "- fear: An emotional response.",
+            ),
+        );
+        expect(values).toEqual(["gathering", "fear"]);
+    });
+
+    it("stops at the end of the list, so a second enumeration is not read as subTypes", () => {
+        // Several sections state another closed vocabulary of their own
+        // directly below — `TransmissionTypes`, `GovernanceModel` — and reading
+        // on would silently attribute its values to `subType`.
+        const values = subTypesOf(
+            spec(
+                "**subType**:",
+                "",
+                "- injury: Physical harm.",
+                "",
+                "**TransmissionTypes**",
+                "",
+                "- airborne: Through the air.",
+            ),
+        );
+        expect(values).toEqual(["injury"]);
+    });
+
+    it("declares none for a section that states no `subType` at all", () => {
+        // The ordinary case for nine types: a `weapongear` has no subType, and
+        // saying so is not the same as failing to read one.
+        expect(subTypesOf(spec("A weapon.", "", "- not: a subType list."))).toEqual([]);
+    });
+
+    it("refuses a marker shape it does not recognise, rather than reading none", () => {
+        // The failure this exists to prevent: a section whose values are
+        // written the old way is read as declaring nothing, and every
+        // comparison against it passes vacuously.
+        for (const marker of ["subType", "subType:", "**subType**", "**subTypes**:"]) {
+            expect(() => subTypesOf(spec(marker, "", "- injury: Physical harm.")), marker).toThrow(
+                /spec\.md:5:1: error: .*\*\*subType\*\*:/s,
+            );
+        }
+    });
+
+    it("refuses a marker with no values under it", () => {
+        expect(() => subTypesOf(spec("**subType**:", "", "A trauma has kinds."))).toThrow(
+            /spec\.md:5:1: error: .*enumerates no values/,
+        );
+    });
+});
+
 describe("the shipped specification (#130)", () => {
     const format = loadContentFormat();
 
@@ -530,16 +630,8 @@ describe("lore declares a genre for a scheduled public occasion (#333)", () => {
     // A subType is what makes a genre browsable — `site.sections` narrows a
     // section with `listSubType` — so the value only pays off if an author can
     // tell which of the three neighbours a note belongs to. That is what the
-    // specification is for, and this holds the two together for `lore`: every
-    // declared genre carries a definition there, and the specification names no
-    // genre the vocabulary has not declared.
-    it("defines every `lore` genre in the specification, and no others", () => {
-        const spec = fs.readFileSync(CONTENT_FORMAT_PATH, "utf8");
-        const section = spec.slice(spec.indexOf("### type: lore"));
-        const bullets = section.slice(0, section.indexOf("| `data` property"));
-        const documented = [...bullets.matchAll(/^-\s+([A-Za-z0-9]+):/gm)].map((m) => m[1]);
-
-        expect(documented).toEqual([...NOTE_VOCABULARY.lore.subTypes]);
-        expect(documented).toContain("gathering");
-    });
+    // specification is for, and holding the two together is no longer `lore`'s
+    // own business: `content-format-agreement.test.ts` compares every type's
+    // documented genres to its declared ones, in both directions and in order
+    // (#345), which is where this type's assertion now lives.
 });

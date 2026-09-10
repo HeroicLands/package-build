@@ -224,6 +224,16 @@ first matching value. Where a mapping is missing for a whole class of note, that
 is a gap in the vocabulary rather than something to write into every note: an
 override that thousands of notes need is a missing subType value.
 
+**A type's `subType` values are stated in one shape**, so that they can be read
+and compared to the vocabulary that enforces them (#345). Under the type's
+heading, write `**subType**:` on a line of its own, then one bullet per value —
+`- <value>` or `- <value>: <definition>` — and nothing else between the marker
+and the list. A type that has no `subType`, or whose values are not enumerated
+yet, writes no marker at all. Any other spelling is a build error naming the
+line: five were in use, and a reader that accepted them all would keep accepting
+the sixth by reading a section as declaring nothing, which is exactly the drift
+the comparison exists to catch.
+
 ### Mappings every type shares
 
 Eight rows were identical in all sixteen tables below, so they are stated once
@@ -1401,7 +1411,7 @@ the divine, magic, the spirit world — and that partition is load-bearing rathe
 than descriptive: a system filtering which mystical practices may associate with
 an affiliation can only be as precise as the distinction it filters on.
 
-subType
+**subType**:
 
 - guild: A sworn association of craftsmen holding monopoly over a trade within a locality.
 - order: A body of members bound by vows or a rule of life to a shared purpose.
@@ -1568,7 +1578,7 @@ one, at `sohl.system.title`.
 
 Represents an affliction.
 
-**subType**
+**subType**:
 
 - disease: A biological affliction: an illness or parasite that infects the body or mind (e.g. typhoid, tuberculosis, river blindness)
 - poisontoxin: A chemical affliction: a toxic substance or venom that impairs or kills the host (e.g. hemotoxin, mandrake, wasp venom)
@@ -1824,7 +1834,7 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 
 ### type: projectilegear
 
-**subTypes**:
+**subType**:
 
 - none
 - arrow
@@ -1861,7 +1871,7 @@ HM3 side while remaining distinct on the SoHL side.
 
 ### type: skill
 
-**subTypes**:
+**subType**:
 
 - social
 - nature
@@ -1954,7 +1964,7 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 
 In-world information about people, places, or concepts.
 
-subType:
+**subType**:
 
 - cosmology: The structure of reality — planes, realms, creation, and the ordering of what exists.
 - deity: Individual gods and their attributed natures, domains, epithets, and aspects.
@@ -2003,7 +2013,7 @@ the place from the map is the end that cannot, because a map is written once and
 depicts what it depicts. A place's maps are therefore derived — every map whose
 `place` is this one — and the relation exists in exactly one place.
 
-subType:
+**subType**:
 
 - battlemap: Tactical scale, for a scene played out square by square.
 - localmap: Roughly a kilometre across — a settlement, a holding, a small valley.
@@ -2106,7 +2116,7 @@ three maps, and none of those maps needs to know it is a keep.
 
 ### type: place
 
-subType:
+**subType**:
 
 - world: A self-contained whole in which places exist — a planet, plane, or realm.
 - region: A bounded division of a world or larger region — continents, marches, uplands, provinces.
@@ -2149,7 +2159,7 @@ place it depicts — see `type: map` below.
 
 Content prepared to be played — a situation with its cast, places, and possible outcomes.
 
-subType:
+**subType**:
 
 - campaign: A long arc toward a goal, spanning many adventures — carries standing cast, factions, and its own timeline.
 - adventure: A self-contained undertaking with a specific objective, playable in a few sessions.
@@ -2168,7 +2178,7 @@ subType:
 
 ### type: doc
 
-subType:
+**subType**:
 
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - userguide: How to operate the Foundry implementation to play by the rules.
