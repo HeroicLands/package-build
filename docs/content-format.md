@@ -1152,6 +1152,62 @@ Generates a living (or undead, or spirit) being.
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
 
+#### A being's embedded items
+
+`<system>.items` is a list, and each entry compiles into one embedded Item. An
+entry takes one of two shapes.
+
+**A copy of a catalogue item** names it with `model:` — an address, read by the
+same grammar every wikilink is. The entry's remaining keys are merged over the
+model, so it carries the model's values except where it says otherwise.
+
+```yaml
+sohl:
+  items:
+    - { model: skill-wpnc, system: { masteryLevelBase: 52 } }
+    - { model: sohl-sohl-weapongear-whmr }
+    - { model: sohl-sohl-weapongear-dgr, system: { shortcode: dgr2, name: Offhand dagger } }
+```
+
+| key      | required | meaning                                                       |
+| -------- | -------- | ------------------------------------------------------------- |
+| `model`  | yes      | The address of the item this entry is a copy of               |
+| `system` | no       | Values that override the model's                              |
+| `name`   | no       | A name of this entry's own, where it differs from the model's |
+
+**`type:` is not written beside a `model`.** The address already names the type,
+so a second statement of it is a place to be wrong, and it is refused.
+
+**The address is written at whatever length says what it means.** Within this
+package `type-shortcode` is enough; reaching another package means the full
+`package-system-type-shortcode`, since the forms are suffixes of the canonical
+address. The system segment defaults from the block the entry sits in — an entry
+under `sohl.items` defaults to `sohl` — which is why the short form names an
+**Item** here while the same string in body prose names a page.
+
+**A custom item** — one that copies nothing — states `name`, `type` **and**
+`system.shortcode`, all three required, plus whatever else its data model needs.
+It is written in **block form**, never inline, so the two kinds of entry are
+distinguishable at a glance:
+
+```yaml
+sohl:
+  items:
+    - name: Whetstone
+      type: miscgear
+      system:
+        shortcode: whetstone
+        weight: 1
+        value: 5
+        durability: 0
+```
+
+**A top-level `shortcode:` is retired** (#334). It selected a template, while the
+`system.shortcode` beside it was the compiled item's identity — one word for two
+things — and it could not say which package a template came from, so an address
+resolved into a dependency only because no local pack claimed it and would have
+retargeted silently the day one did.
+
 #### Identifying a being's embedded items
 
 Each entry in `sohl.items` compiles into one embedded Item, and its `_id` is
@@ -1161,28 +1217,26 @@ derived from **what the entry is**, never from where it sits in the list:
 _id = makeId(<the actor's id>, "<subType>:<system.shortcode>")
 ```
 
-An entry's identity is its **own `system.shortcode`**. The entry's _top-level_
-`shortcode` is a **selector** — it names the catalogue template the entry is
-written from and is never written to the document — so two entries may share
-one:
+An entry's identity is its **own `system.shortcode`**. The `model:` is not it —
+a model names the item this entry is a _copy of_, and is never written to the
+document — so two entries may share one model and are then two embodiments, each
+stating its own identity:
 
 ```yaml
 sohl:
   items:
-    - shortcode: dgr # selects the catalogue's dagger
-      type: weapongear
+    - model: weapongear-dgr # the catalogue's dagger
       name: Dagger 1
       system:
         shortcode: dgr1 # this dagger's own identity
-    - shortcode: dgr
-      type: weapongear
+    - model: weapongear-dgr
       name: Dagger 2
       system:
         shortcode: dgr2
 ```
 
 **Two entries resolving to one identity are a build error naming both.** Without
-their own `system.shortcode`, both daggers above carry the catalogue's `dgr`,
+their own `system.shortcode`, both daggers above carry the model's `dgr`,
 which makes them the same entity to everything that resolves by `(type,
 shortcode)` — compendium/world reconciliation, template shadowing, cohort
 membership, effect and expression references. A `name` cannot stand in: it is

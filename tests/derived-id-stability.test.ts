@@ -69,16 +69,16 @@ describe("an actor's embedded item ids do not move when the list is reordered", 
 
     it("gives one entry the same id whatever position it holds", () => {
         const first = build([
-            { shortcode: "clmb", type: "skill" },
-            { shortcode: "swim", type: "skill" },
-            { shortcode: "dgr", type: "weapongear" },
+            { model: "skill-clmb" },
+            { model: "skill-swim" },
+            { model: "weapongear-dgr" },
         ]);
         // The same three entries, written in a different order. Nothing about
         // any of them changed — only their neighbours did.
         const second = build([
-            { shortcode: "dgr", type: "weapongear" },
-            { shortcode: "clmb", type: "skill" },
-            { shortcode: "swim", type: "skill" },
+            { model: "weapongear-dgr" },
+            { model: "skill-clmb" },
+            { model: "skill-swim" },
         ]);
         expect(first.errors).toBe(0);
         expect(second.errors).toBe(0);
@@ -86,14 +86,11 @@ describe("an actor's embedded item ids do not move when the list is reordered", 
     });
 
     it("survives an entry being inserted ahead of the others", () => {
-        const before = build([
-            { shortcode: "clmb", type: "skill" },
-            { shortcode: "swim", type: "skill" },
-        ]);
+        const before = build([{ model: "skill-clmb" }, { model: "skill-swim" }]);
         const after = build([
-            { shortcode: "dgr", type: "weapongear" },
-            { shortcode: "clmb", type: "skill" },
-            { shortcode: "swim", type: "skill" },
+            { model: "weapongear-dgr" },
+            { model: "skill-clmb" },
+            { model: "skill-swim" },
         ]);
         expect(after.byCode.get("clmb")).toBe(before.byCode.get("clmb"));
         expect(after.byCode.get("swim")).toBe(before.byCode.get("swim"));
@@ -104,18 +101,8 @@ describe("an actor's embedded item ids do not move when the list is reordered", 
         // never written to the document; two entries may share one. What
         // identifies each embodiment is the `system.shortcode` it carries.
         const { byCode, errors } = build([
-            {
-                shortcode: "dgr",
-                type: "weapongear",
-                name: "Dagger 1",
-                system: { shortcode: "dgr1" },
-            },
-            {
-                shortcode: "dgr",
-                type: "weapongear",
-                name: "Dagger 2",
-                system: { shortcode: "dgr2" },
-            },
+            { model: "weapongear-dgr", name: "Dagger 1", system: { shortcode: "dgr1" } },
+            { model: "weapongear-dgr", name: "Dagger 2", system: { shortcode: "dgr2" } },
         ]);
         expect(errors).toBe(0);
         expect(byCode.get("dgr1")).not.toBe(byCode.get("dgr2"));
@@ -138,8 +125,8 @@ describe("an actor's embedded item ids do not move when the list is reordered", 
             {
                 sohl: {
                     items: [
-                        { shortcode: "dgr", type: "weapongear", name: "Dagger 1" },
-                        { shortcode: "dgr", type: "weapongear", name: "Dagger 2" },
+                        { model: "weapongear-dgr", name: "Dagger 1" },
+                        { model: "weapongear-dgr", name: "Dagger 2" },
                     ],
                 },
             },
