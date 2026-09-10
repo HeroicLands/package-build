@@ -161,6 +161,22 @@ document rather than the note. `title` is the one field this applies to; `subTyp
 is the other declared item field spelled like a note-level key, and there the two
 levels mean the same thing by design.
 
+**Some of a system's fields are runtime state, and a note may not write any of
+them.** A data model declares everything a document stores, and part of that is
+what _play_ writes: an affliction's `onsetDate` is the world time its onset
+fired at. Writing `<system>.system.<field>` reaches such a field as directly as
+any other — the block is a verbatim passthrough, and the field really is in the
+schema — so until #330 a note could stamp one, and the compiled pack shipped one
+world's play state to every world that installed it.
+
+So a field the document writes for itself is **declared as such**, and the
+declaration says both halves of the fact: authoring it is an error naming the
+note, the key and what the field holds, and the compiled document leaves the key
+out entirely so the data model's own initial value stands. This is a property of
+the field rather than a list of names, so it covers every such field a system
+adds later. The per-type tables below never list one — they are the vocabulary
+an author writes — and each type that has any names them under its table.
+
 **A `WikiLink` becomes a shortcode where the target field expects one.** SoHL
 stores cross-references as shortcode strings, which is what the `Code` suffix
 marks: `data.assocSkill` is a link to a skill note, and `system.assocSkillCode`
@@ -1517,6 +1533,15 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
 
+**The `…Date` half of each timed phase is never authored.** SoHL stores a phase
+as `{…DurationFormula, …DurationBase, …Date}`: the formula is the authored
+definition, the base holds what it rolled to, and the date records _when the
+phase actually fired_ — which only play can know. `system.contractDate`,
+`system.onsetDate`, `system.treatmentDate` and `system.resolutionDate` are
+therefore runtime state, and a note that writes one fails the build. They are
+world times, and `0` is a valid one, so there is no blank a note could write
+either; leave them out and the data model's `null` stands.
+
 ### type: armorgear
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
@@ -1813,6 +1838,11 @@ If an `hm3` property is present, an HM3 item is created. `hm3.type` must be spec
 | shared source | → sohl           | → hm3 |
 | ------------- | ---------------- | ----- |
 | `subType`     | `system.subType` | NA    |
+
+**`system.contractDate` and `system.treatmentDate` are never authored.** They
+are the world times the injury was taken and last treated — runtime state, for
+the reason `affliction`'s four dates are — so a note that writes one fails the
+build.
 
 ### type: weapongear
 

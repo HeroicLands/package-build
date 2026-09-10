@@ -66,6 +66,9 @@ import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
 // `system` verbatim, and `<system>.img` / `.effects` / `.flags` overriding
 // their shared top-level forms for this system alone (#58).
 import { blockField, blockProperty, claimedPaths, mergeSystemData } from "./system-block.mjs";
+// The other direction of the same declaration: a field the *document* writes in
+// play, which a note may not author and the builder does not emit (#330).
+import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
 
 /**
  * The description an item carries: a pointer to its **item doc**, the
@@ -172,6 +175,29 @@ export class SystemItemCompiler extends BasePackCompiler {
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
         const row = subtypeRow(/** @type {never} */ (map), fm.type);
         return !row || row.document === "Item";
+    }
+
+    /**
+     * Refuse a note authoring one of its type's **runtime-only** fields (#330).
+     *
+     * A schema declares fields the document writes for itself — an affliction's
+     * `onsetDate` is the world time its onset fired at — and a note authoring
+     * one used to compile, because `<system>.system` is a verbatim passthrough
+     * and the field really is in the schema. The result was shipped content
+     * carrying one world's play state, with the build reporting success.
+     *
+     * The declaration says which, so nothing here knows a field name; see
+     * {@link module:engine/runtime-only-fields}.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {void}
+     * @throws {Error} When the note authors one.
+     */
+    assertAuthorable(fm) {
+        assertNoRuntimeOnlyFields(fm, itemFields(fm.type, this.system), {
+            block: this.system,
+            absPath: this.currentNote?.absPath,
+        });
     }
 
     /**
