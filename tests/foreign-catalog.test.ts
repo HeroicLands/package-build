@@ -169,9 +169,17 @@ describe("reading the catalogue cache", () => {
         fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
         fs.mkdirSync(path.join(dir, "items", "extras"), { recursive: true });
         fs.writeFileSync(path.join(dir, ".complete"), "0.8.2\n");
-        expect(foreignItemCatalogDirs(config(root)).sort()).toEqual([
-            path.join(dir, "items", "extras"),
-            path.join(dir, "items", "items"),
+        // Each entry carries the package that published it (#334): a being's
+        // `model:` names the package its template comes from, and that cannot
+        // be recovered from the path.
+        expect(
+            foreignItemCatalogDirs(config(root))
+                .map((e) => e.dir)
+                .sort(),
+        ).toEqual([path.join(dir, "items", "extras"), path.join(dir, "items", "items")]);
+        expect(foreignItemCatalogDirs(config(root)).map((e) => e.package)).toEqual([
+            "sohl",
+            "sohl",
         ]);
     });
 
@@ -181,7 +189,7 @@ describe("reading the catalogue cache", () => {
             fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
             fs.writeFileSync(path.join(dir, ".complete"), `${v}\n`);
         }
-        expect(foreignItemCatalogDirs(config(root))).toEqual([
+        expect(foreignItemCatalogDirs(config(root)).map((e) => e.dir)).toEqual([
             path.join(root, "sohl@0.8.2", "items", "items"),
         ]);
     });
@@ -196,7 +204,7 @@ describe("reading the catalogue cache", () => {
             fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
             fs.writeFileSync(path.join(dir, ".complete"), `${v}\n`);
         }
-        expect(foreignItemCatalogDirs(config(root))).toEqual([
+        expect(foreignItemCatalogDirs(config(root)).map((e) => e.dir)).toEqual([
             path.join(root, "sohl@0.8.10", "items", "items"),
         ]);
     });
