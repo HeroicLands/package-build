@@ -46,7 +46,8 @@ import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so
 // the direction is toward the leaf and cannot close a cycle.
 import { NO_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
-import { hasDocEntry } from "./item-docs.mjs";
+import { systemOf } from "./document-subtypes.mjs";
+import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 
 // `ids.mjs` is a leaf with no local imports — the module note there says why —
 // so an address may hash itself without any risk of closing a cycle.
@@ -246,6 +247,13 @@ export function blockSystem(keyPath) {
  * and gets it. This is the defaulting rule applied, not an exception carved out
  * of it.
  *
+ * **Only a type whose own document carries a system is redirected.** A `macro`
+ * and the map types have documentation journals too, but their own documents
+ * are core ones and already live at `none` — so `<pkg>-none-macro-x` names the
+ * Macro and `<pkg>-none-docmacro-x` its journal, two live addresses that the
+ * redirect would collapse into one. The test is the note type's own system,
+ * not merely whether it has a doc entry.
+ *
  * A `doc<type>` written explicitly is `none` **wherever** it appears, even
  * inside a system block: no game system defines a JournalEntry, so there is no
  * other system for one to belong to.
@@ -261,8 +269,29 @@ export function expandAddress(read, where) {
     // A documentation journal is a core document, so it is `none` however it was
     // reached; otherwise the block's system, which body prose reports as `none`.
     const system = read.itemDoc ? NO_SYSTEM : (read.system ?? where.system ?? NO_SYSTEM);
-    const type = system === NO_SYSTEM && hasDocEntry(read.type) ? `doc${read.type}` : read.type;
+    const redirected = system === NO_SYSTEM && isSystemBearing(read.type);
+    const type = read.itemDoc || redirected ? `doc${read.type}` : read.type;
     return canonicalKey(pkg, system, type, read.shortcode);
+}
+
+/**
+ * Whether a note type's **own** document carries a game system.
+ *
+ * True for the types some shipped map compiles into an Item or an Actor; false
+ * for the core-document types — `doc`, `lore`, `place`, `scenario`, `macro` and
+ * the map types — whose documents Foundry itself defines and which therefore
+ * already live at `none`.
+ *
+ * It is what {@link expandAddress} tests rather than {@link hasDocEntry}: a
+ * `macro` has a documentation journal *and* a `none` address of its own, so
+ * redirecting on "has a doc entry" would collapse two live addresses into one
+ * and a `[[macro-autoattack|]]` would stop naming the Macro.
+ *
+ * @param {string} type - The note type.
+ * @returns {boolean} True when the type compiles into a system document.
+ */
+function isSystemBearing(type) {
+    return systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS) !== NO_SYSTEM;
 }
 
 /**

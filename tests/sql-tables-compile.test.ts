@@ -179,8 +179,13 @@ describe("a `sql` content table, compiled", () => {
     it("resolves the links it emits, like an authored one", () => {
         // The table is expanded before wikilinks are converted, so a cell it
         // emits is resolved by the same pass — not shipped as raw `[[…]]`.
+        //
+        // A `_ref` cell writes the bare address, and a generated link sits in
+        // prose like any other, so it resolves the way prose does (#336): to
+        // the row's *page*, not its Item. That is what a reader clicking a row
+        // of a gear table wants.
         expect(page).not.toContain("[[");
-        expect(page).toMatch(/Compendium\.sohl\.items\.Item\./);
+        expect(page).toMatch(/Compendium\.sohl\.journals\.JournalEntry\./);
     });
 
     it("does not render the underscore-prefixed aliases as columns", () => {

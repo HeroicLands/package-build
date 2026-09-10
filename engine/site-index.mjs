@@ -52,6 +52,7 @@
 import path from "node:path";
 
 import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
+import { NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
@@ -266,6 +267,17 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             if (hasDocEntry(type)) {
                 contentTypes.add(`doc${type}`);
                 index.set(`doc${type}/${shortcode}`.toLowerCase(), value);
+                // The canonical documentation address too, so the page answers
+                // to the address a bare prose link expands to (#336): body
+                // prose is under no system block, so it defaults to `none`, and
+                // a system-bearing type's `none` address is its `doc<type>`
+                // one. In Foundry that names a second document; here it names
+                // this same page, which is what makes one authored link correct
+                // in both builds.
+                index.set(
+                    canonicalKey(e.pkg ?? ownPackage, NO_SYSTEM, `doc${type}`, shortcode),
+                    value,
+                );
             }
         }
     }
@@ -316,6 +328,11 @@ export function wikiContext(built, { src, file, type = null, errors, foreignInde
         sections: built.sections,
         contentTypes: built.contentTypes,
         packages: built.packages,
+        // The package a link written on this page defaults to when it names
+        // none (#336). Taken from the resolved configuration, the same source
+        // the index's own addresses are built from, so a bare link cannot
+        // resolve against a package the index never keyed.
+        contentPackage: contentPackage(),
         type,
         errors,
         src,
