@@ -388,6 +388,24 @@ exactly once, here, and read through `loadPackConfig()` everywhere. There is one
 resolved set at runtime; the compilers and the link-manifest emitter cannot come
 to disagree about which notes carry documentation.
 
+**Every note compiling into a system-bearing document carries documentation, and
+that includes actors** (#337). `docEntryTypes` is `itemTypes` plus the actor
+types the shipped subtype maps declare (`ACTOR_TYPES`, derived from them rather
+than listed again), plus `macro` and the map types. Only `doc` is outside it, for
+the reason that actually applies to it: its single document _is_ the prose.
+
+A being therefore has the same two addresses an item has — `<pkg>-<system>-being-<shortcode>`
+for the Actor and `<pkg>-none-docbeing-<shortcode>` for the page — where before
+it had only the first, and was the one system-bearing note a prose link could not
+name.
+
+**An actor keeps its prose inline as well, and that asymmetry is deliberate.** An
+item's description is an `@UUID` pointer into its journal, because one item is
+embedded across hundreds of beings and baking long prose into every copy bloats
+the compendium by the length of the text times the number of carriers. An actor
+is singular, so the same indirection costs a reader a click and saves nothing:
+`system.appearance` and `system.dossier` stay as rendered prose.
+
 The Item compiler **dispatches through that same resolved table**, via
 `engine/item-registry.mjs` (`itemTypes()` and `itemBuilder(type)`), so the types a
 consumer's notes are accepted for and the builders they compile with are one

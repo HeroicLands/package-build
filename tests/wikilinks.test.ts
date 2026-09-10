@@ -346,12 +346,14 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     });
 
     it("rejects `doc` applied to a type that has no item doc", () => {
-        // `doc` and `being` compile to the journals and actors packs
-        // respectively; neither has an item doc to address.
-        for (const [link, text, target] of [
-            ["[[docdoc/shock|Shock]]", "Shock", "docdoc/shock"],
-            ["[[docbeing/condor|Condor]]", "Condor", "docbeing/condor"],
-        ]) {
+        // A `doc` note compiles to the journals pack, and its single document
+        // *is* the prose — so there is no separate documentation to address,
+        // and `docdoc` names nothing.
+        //
+        // `docbeing` is deliberately not tested here any more: since #337 an
+        // actor publishes documentation like every other system-bearing note,
+        // so it is a valid qualifier. See the case below.
+        for (const [link, text, target] of [["[[docdoc/shock|Shock]]", "Shock", "docdoc/shock"]]) {
             const { markdown, unresolved } = convert(link);
             // The author's text survives, marked so the reader can tell a link
             // was meant. Dropping it would silently rewrite the sentence.
@@ -360,6 +362,16 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
             );
             expect(unresolved[0]).toMatchObject({ reason: "unknown-type" });
         }
+    });
+
+    it("resolves `docbeing` to the actor's documentation journal (#337)", () => {
+        // The counterpart of the case above. A being's prose is a page a reader
+        // wants to arrive at, so it has a documentation journal and an address
+        // that names it — which is what a bare prose link defaults to.
+        const { markdown, unresolved } = convert("[[docbeing/condor|Condor]]");
+        expect(unresolved).toEqual([]);
+        expect(markdown).toMatch(/^@UUID\[Compendium\.sohl\.journals\.JournalEntry\./);
+        expect(markdown).toMatch(/\{Condor\}$/);
     });
 
     it("reports an unknown shortcode under a valid virtual qualifier", () => {

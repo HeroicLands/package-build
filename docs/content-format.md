@@ -847,6 +847,21 @@ having nothing worth summarising.
 Every note in **both** groups still produces its JournalEntry and its web page.
 The difference is only whether a system Actor or Item is created as well.
 
+That has been true of actors only since #337. A being used to produce its Actor
+and nothing else, which left it the one system-bearing note with no address at
+`none` — so a prose link naming it had nowhere to land. It now carries a
+documentation journal like every other such note, addressed
+`<package>-none-docbeing-<shortcode>` beside the Actor's
+`<package>-<system>-being-<shortcode>`.
+
+**A being keeps its prose inline as well.** `system.appearance` and
+`system.dossier` are still the rendered text, where an item's description is an
+`@UUID` pointer into its journal. The difference is deliberate and is about
+size: one item is embedded across hundreds of beings, so baking its description
+into every copy bloats the compendium by the length of the prose times the
+number of carriers, and the pointer buys that back. An actor is singular, so the
+same indirection would cost a reader a click and save nothing.
+
 ### One note is at most one document per system
 
 A note produces **at most one document in each system**. That constraint is worth

@@ -582,7 +582,22 @@ describe("emitContentIndex", () => {
         expect(path.basename(result.file)).toBe("sohl-metadata.jsonl");
         expect(result.notes).toBe(2);
         expect(result.bytes).toBeGreaterThan(0);
-        expect(readIndex(result.file).map((r) => r.shortcode)).toEqual(["aurochs", "baboon"]);
+        // Two notes, four records: since #337 a being publishes documentation
+        // like every other system-bearing note, so it has an address for the
+        // Actor *and* one for the page — the same pair an item has always had,
+        // and what lets a prose link name a being at all.
+        expect(readIndex(result.file).map((r) => r.address.canonical)).toEqual([
+            "sohl-none-docbeing-aurochs",
+            "sohl-sohl-being-aurochs",
+            "sohl-none-docbeing-baboon",
+            "sohl-sohl-being-baboon",
+        ]);
+        expect(readIndex(result.file).map((r) => r.shortcode)).toEqual([
+            "aurochs",
+            "aurochs",
+            "baboon",
+            "baboon",
+        ]);
     });
 
     it("is byte-stable across runs over an unchanged tree", () => {

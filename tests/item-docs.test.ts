@@ -86,9 +86,16 @@ describe("hasDocEntry (whose prose becomes a JournalEntry of its own)", () => {
         expect(hasDocEntry("macro")).toBe(true);
     });
 
-    it("rejects the types that are one document each", () => {
-        for (const type of ["doc", "being"]) {
-            expect(hasDocEntry(type), type).toBe(false);
-        }
+    it("accepts an actor — a being's prose is a page like any other (#337)", () => {
+        // An actor note publishes documentation exactly as an item note does.
+        // It also keeps its prose inline in `system.appearance` / `dossier`:
+        // an item's `@UUID` pointer is a compendium-bloat measure, paid because
+        // one item is embedded across hundreds of beings, and an actor is
+        // singular so the indirection would buy nothing.
+        expect(hasDocEntry("being")).toBe(true);
+    });
+
+    it("rejects `doc`, whose single document IS the prose", () => {
+        expect(hasDocEntry("doc")).toBe(false);
     });
 });
