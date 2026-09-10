@@ -401,14 +401,91 @@ export function makeFilename(name, id) {
  */
 
 /**
+ * The path prefixes that name a package other than the one being compiled.
+ *
+ * Foundry serves every installed package from a root named for its kind, so a
+ * path opening with one of these is already a served address and belongs to
+ * somebody else — most often `systems/sohl/assets/…`, where every default this
+ * toolchain ships lives, and which a module's content cites as readily as the
+ * system's own does.
+ *
+ * **Two, not "the ones we happen to use".** `worlds/` is left out on purpose: a
+ * package may not ship art out of a world, so a note that writes one has made a
+ * mistake, and prefixing it yields a plainly broken path rather than a
+ * plausible one that fails silently much later.
+ *
+ * @type {readonly string[]}
+ */
+const FOREIGN_PACKAGE_ROOTS = Object.freeze(["systems/", "modules/"]);
+
+/**
+ * Whether a path already addresses something this package does not own, and so
+ * must be emitted exactly as authored.
+ *
+ * Three shapes qualify, each a different kind of "not mine":
+ *
+ * - **Another package** — `systems/…` or `modules/…`, per
+ *   {@link FOREIGN_PACKAGE_ROOTS}.
+ * - **Somewhere off this install** — a URI scheme (`https:`, `data:`) or a
+ *   protocol-relative `//cdn…`.
+ * - **The data root itself** — a leading `/`, which Foundry serves from the
+ *   install rather than from any package.
+ *
+ * @param {string} s - A non-empty authored path.
+ * @returns {boolean} Whether it passes through untranslated.
+ */
+function addressesAnotherPackage(s) {
+    if (FOREIGN_PACKAGE_ROOTS.some((root) => s.startsWith(root))) return true;
+    // `//host/x.png` — protocol-relative, so it leaves this origin entirely.
+    // Checked before the single-slash case, which would otherwise claim it.
+    if (s.startsWith("//")) return true;
+    // `/x.png` — rooted at the Foundry data root, not at any package.
+    if (s.startsWith("/")) return true;
+    // `https://…`, `data:…`, `file:…` — a scheme, so not a path at all.
+    return /^[a-z][a-z0-9+.-]*:/i.test(s);
+}
+
+/**
  * Translate a content-relative image path into its Foundry-relative form.
  *
  * Content frontmatter (`img` / `portrait`) authors a single path that has to
- * work for Foundry, the knowledgebase, and the website. For Foundry the bundled
- * asset roots — `icons/...` and `images/...` — are served from the package
- * directory, so they are rewritten to `<assetRoot>/<path>` — `systems/sohl/assets`
- * for this repository, `modules/<id>/assets` for a module (#1508). Any other
- * path (already package-rooted, an absolute URL) is returned unchanged.
+ * work for Foundry, the knowledgebase, and the website. **Its first segment
+ * says which package owns the file** (#331), and there are exactly three
+ * answers:
+ *
+ * | Authored path starts with | Owner                 | Emitted              |
+ * | ------------------------- | --------------------- | -------------------- |
+ * | `systems/`                | a separate **system** | unchanged            |
+ * | `modules/`                | a separate **module** | unchanged            |
+ * | anything else             | **this package**      | `<assetRoot>/<path>` |
+ *
+ * So `icons/relic.svg` compiles to `systems/sohl/assets/icons/relic.svg` here
+ * and to `modules/sohl-thalorna/assets/icons/relic.svg` in a module — the asset
+ * root is derived from the configuration, and is the one place `systems/sohl`
+ * is ever spelled (#1508). An authored
+ * `systems/sohl/assets/icons/noun/shield.svg` is left exactly as written,
+ * whichever package is compiling it.
+ *
+ * **This is a rule about ownership, not an allowlist of directories.** It used
+ * to prefix `icons/…` and `images/…` and pass everything else through — the
+ * same answer for every path any tree authors today, and the wrong one for the
+ * next directory a package ships. `sohl-kethira-basic` keeps art under
+ * `assets/artwork/`, so an authored `artwork/deity.webp` would have shipped
+ * unprefixed: a 404 in Foundry, reported by nothing. That a package owns its
+ * own tree is the fact; the directory names inside it are that package's
+ * business (#331).
+ *
+ * **Off-install addresses pass through too**, which is the same rule rather
+ * than a fourth: a URL, a `data:` URI, or a `/`-rooted path names something no
+ * package owns. See {@link addressesAnotherPackage}.
+ *
+ * **`banner:` does not follow this rule, deliberately (#331).** It is not an
+ * asset path inside a Foundry install at all: it reaches no compiled document,
+ * and its only consumer is the Hugo theme, which prefixes a relative value with
+ * `images/` and joins it onto `params.cdnBaseURL`. The two fields look alike
+ * and address different places — `img:` a file Foundry serves, `banner:` a file
+ * the CDN serves — so they are documented apart rather than reconciled into one
+ * rule that would be true of neither.
  *
  * **Two empties, and they mean opposite things (#218).** `null` — or an absent
  * key, which reaches here as `undefined` — means _unset_: the note names no art
@@ -453,10 +530,10 @@ export function resolveImg(raw, config = loadPackConfig()) {
     const s = String(raw);
     // Blank on purpose — the caller's default must not apply.
     if (s === "") return "";
-    if (s.startsWith("icons/") || s.startsWith("images/")) {
-        return `${config.assetRoot}/${s}`;
-    }
-    return s;
+    // Somebody else's to serve — emit it exactly as authored.
+    if (addressesAnotherPackage(s)) return s;
+    // Ours, so root it where Foundry serves this package's files from.
+    return `${config.assetRoot}/${s}`;
 }
 
 /**

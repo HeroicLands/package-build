@@ -422,7 +422,14 @@ export const NOTE_VOCABULARY = Object.freeze({
         // values here would put a second, weaker answer beside the real one.
         subTypes: null,
         data: Object.freeze([
-            { name: "portrait", ...TEXT, describe: "Path to the portrait image." },
+            {
+                name: "portrait",
+                ...TEXT,
+                describe:
+                    "Path to the portrait image. Its first segment says which package owns " +
+                    "the file: `systems/…` and `modules/…` are emitted unchanged, anything " +
+                    "else is this package's own and is rooted under its assets.",
+            },
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
@@ -466,7 +473,14 @@ export const NOTE_VOCABULARY = Object.freeze({
     vehicle: Object.freeze({
         subTypes: null,
         data: Object.freeze([
-            { name: "portrait", ...TEXT, describe: "Path to the portrait image." },
+            {
+                name: "portrait",
+                ...TEXT,
+                describe:
+                    "Path to the portrait image. Its first segment says which package owns " +
+                    "the file: `systems/…` and `modules/…` are emitted unchanged, anything " +
+                    "else is this package's own and is rooted under its assets.",
+            },
             TEMPLATE_PRIORITY,
         ]),
     }),
@@ -886,7 +900,14 @@ export const NOTE_VOCABULARY = Object.freeze({
             // `sohl:` today. It says outright that one of the two has
             // to move; the container takes the specification's name,
             // and moving the authored key is the migration's business.
-            { name: "img", ...TEXT, describe: "Path to the map art." },
+            {
+                name: "img",
+                ...TEXT,
+                describe:
+                    "Path to the map art, owned by whichever package its first segment " +
+                    "names — `systems/…` and `modules/…` unchanged, anything else this " +
+                    "package's own.",
+            },
             {
                 name: "dimensions",
                 ...LIST,
