@@ -161,7 +161,10 @@ const MAP_FIELDS = Object.freeze([
         // Art is not system-specific — a Scene is a core Foundry document, and
         // every other note type carries its `img` at the note's top level.
         shared: true,
-        describe: "The scene's background image.",
+        describe:
+            "The scene's background image. Owned by whichever package its first segment " +
+            "names — `systems/…` and `modules/…` are emitted unchanged, anything else is " +
+            "this package's own and is rooted under its assets.",
     },
     {
         name: "dimensions",

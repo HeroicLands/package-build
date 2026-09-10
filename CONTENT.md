@@ -552,9 +552,46 @@ Both spellings are equal; the difference is only whether the type brings art.
 whitelist without a builder behind it.
 
 **The path is spelled the way a note spells it.** Registry art goes through the
-same `resolveImg` rule as a note's `img:`, so `icons/relic.svg` means _this_
-repository's asset root — `modules/sohl-relics/assets/icons/relic.svg` — and an
-already-served path (`systems/sohl/assets/icons/…`) passes through untouched.
+same `resolveImg` rule as a note's `img:`, so one spelling means one thing
+wherever it is written.
+
+#### An asset path's first segment says which package owns it
+
+Every authored asset path — a registry `img:`, a note's `img:`, an actor's
+`portrait:` — answers "which package holds this file?" in its **first segment**,
+and there are exactly three answers:
+
+| Authored path starts with | Owner                 | Emitted              |
+| ------------------------- | --------------------- | -------------------- |
+| `systems/`                | a separate **system** | unchanged            |
+| `modules/`                | a separate **module** | unchanged            |
+| anything else             | **this package**      | `<assetRoot>/<path>` |
+
+`assetRoot` is derived, never authored: it is
+`<packageKind>/<foundryPackage>/assets`, and it is the one place `systems/sohl`
+(or `modules/sohl-thalorna`) is ever spelled. So `icons/relic.svg` in a module's
+registry compiles to `modules/sohl-relics/assets/icons/relic.svg`, and the same
+string in the system's compiles to `systems/sohl/assets/icons/relic.svg`. An
+already-served `systems/sohl/assets/icons/…` passes through untouched — which is
+what lets a module pair a SoHL default with one of its own types.
+
+**"Anything else" is the rule, not a list of directories.** A package owns its
+whole `assets/` tree, so a directory this toolchain has never heard of is still
+that package's: art under `assets/artwork/` is addressed `artwork/deity.webp`
+and rooted exactly as `icons/…` and `images/…` are. An address naming no package
+at all — an absolute URL, a `data:` URI, a `/`-rooted path — passes through, on
+the same rule rather than as an exception.
+
+`worlds/` is deliberately not exempt: a package may not ship art out of a world,
+so prefixing such a path produces a plainly broken one rather than a plausible
+one that 404s in Foundry unreported.
+
+**`banner:` is a path that does not follow this rule.** It reaches no compiled
+document; it is a top-level key the Hugo theme reads, and the theme prefixes a
+relative value with `images/` and joins it onto `params.cdnBaseURL`. The two
+address different places — `img:` a file Foundry serves, `banner:` a file the
+CDN serves — so they are stated apart rather than reconciled. See the
+[content format specification](docs/content-format.md#banner-addresses-the-cdn-not-the-foundry-install).
 
 #### "Names no art" and "wants no art" are different (#218)
 
