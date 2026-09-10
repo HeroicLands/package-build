@@ -591,29 +591,46 @@ function checkTags(note, { type }) {
  * note in any tree writes `img: ""` on a being; a check keyed on `img` alone
  * would have called that tree clean (#218).
  *
- * @type {readonly string[]}
+ * **Each carries where it is authored**, because the two no longer agree. The
+ * specification puts an actor's portrait under `data:` and leaves its token art
+ * at the note's top level, so `portrait` has a third position to read and `img`
+ * does not — and a check that read only the two they share would pass a
+ * `data.portrait: ""` it could not see (#332).
+ *
+ * @type {readonly {key: string, inData: boolean}[]}
  */
-const ART_FIELDS = Object.freeze(["img", "portrait"]);
+const ART_FIELDS = Object.freeze([
+    Object.freeze({ key: "img", inData: false }),
+    Object.freeze({ key: "portrait", inData: true }),
+]);
 
 /**
- * Read a shared top-level field the way the compiler reads one: the `sohl:`
- * block first, then the note's top level.
+ * Read a shared field the way the compiler reads one: the `sohl:` block first,
+ * then `data:` where the field lives there, then the note's top level.
  *
- * The same order {@link module:engine/helpers.sohlField} uses, restated here
- * rather than imported so this module stays a leaf the linter can load without
- * a resolved build configuration. Unlike `sohlField` it distinguishes the two
- * empties — an authored `""` comes back as `""` and an authored `null` as
- * `null` — which is the whole point of the caller below (#218).
+ * The same order {@link module:engine/system-block.resolveFieldValue} uses,
+ * restated here rather than imported so this module stays a leaf the linter can
+ * load without a resolved build configuration. Unlike that resolver it
+ * distinguishes the two empties — an authored `""` comes back as `""` and an
+ * authored `null` as `null` — which is the whole point of the caller below
+ * (#218).
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} key - The field name.
- * @returns {any} The authored value, or `undefined` where neither position
- *   declares one.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.inData=false] - Whether the field's shared source
+ *   is `data.<key>` rather than the top-level key.
+ * @returns {any} The authored value, or `undefined` where no position declares
+ *   one.
  */
-function authoredValue(fm, key) {
+function authoredValue(fm, key, { inData = false } = {}) {
     const block = fm?.sohl;
     if (block && typeof block === "object" && !Array.isArray(block) && Object.hasOwn(block, key)) {
         return block[key];
+    }
+    const data = inData ? fm?.data : undefined;
+    if (data && typeof data === "object" && !Array.isArray(data) && Object.hasOwn(data, key)) {
+        return data[key];
     }
     return fm && Object.hasOwn(fm, key) ? fm[key] : undefined;
 }
@@ -829,8 +846,8 @@ export function lintNote(
         });
     }
 
-    for (const key of ART_FIELDS) {
-        if (authoredValue(fm, key) !== "") continue;
+    for (const { key, inData } of ART_FIELDS) {
+        if (authoredValue(fm, key, { inData }) !== "") continue;
         findings.push({
             file: note.file,
             ...at(key),

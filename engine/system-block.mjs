@@ -50,6 +50,8 @@
  *    kept until #126 moves it;
  * 3. the shared top-level property the field **declares** as its source, which
  *    may be a dotted path (`data.portrait`) rather than a sibling key;
+ * 3b. for a `data.` source, the bare top-level key that container gathered it
+ *    off — the retiring *shared* position, derived rather than declared;
  * 4. the field's own default.
  *
  * ## Steps 2 and 3 are two declarations, because they are two positions
@@ -75,6 +77,29 @@
  * that declares one is mid-sweep by construction, which is what
  * {@link module:engine/field-spec.readsLegacyKey} reports on.
  *
+ * ## Step 3 has a retiring position too, and it is derived (#332)
+ *
+ * `legacyKey` retires the *in-block* position, and for a while that looked like
+ * the whole of what `data:` left behind. It is not. The facts `data:` holds
+ * were not invented by it — #128 **gathered** them out of the note's open top
+ * level, where `portrait:` sat beside `img:` and `shortcode:` — so a field that
+ * declares `data.portrait` has two shared spellings to read, not one, and
+ * reading only the current one is the same silent miss `legacyKey` exists to
+ * prevent. It is worse here, because the caller's `?? default` cannot tell a
+ * value that is absent from one that is merely unreachable: 646 `sohl-thalorna`
+ * beings shipped the generic person icon over an authored path, and no tree
+ * that still writes the top-level spelling — `sohl`'s own bestiary does —
+ * looked any different from one that names no art at all.
+ *
+ * So step 3b reads it, and unlike `legacyKey` it is **derived**: the retiring
+ * spelling of `data.<key>` is `<key>`, mechanically, because that is precisely
+ * what the move did. A second declaration would be a second place for the same
+ * fact to be stated, and the retirement it describes is one rule rather than a
+ * per-field decision. {@link retiredTopLevelKey} is that derivation, and it
+ * answers for `data.` sources alone — `protection.blunt` is a path into a
+ * container notes have always written at the top level, never a `blunt:` that
+ * moved.
+ *
  * ## A name that collides across the two vocabularies skips step 3
  *
  * A field's `name` is both its identity and the shared property it draws from,
@@ -90,8 +115,10 @@
  * `"null"` in fifteen documents (#218).
  *
  * So a field may declare `topLevelMeans`: what the top-level key of that name
- * means *instead*. Declaring it removes step 3 for that field, leaving the two
- * positions that describe the document rather than the note. It is deliberately
+ * means *instead*. Declaring it removes the whole shared level — step 3 and the
+ * retiring 3b alike, since both read the note's top level and the objection is
+ * to that level, not to a spelling — leaving the two positions that describe
+ * the document rather than the note. It is deliberately
  * a per-field opt-out rather than a change to the order — step 3 is right
  * wherever the two levels state the same quantity, which is nearly everywhere —
  * and its value is the reason rather than a bare flag, so the collision is
@@ -357,13 +384,50 @@ export function legacyKeyOf(field) {
 }
 
 /**
+ * The `data:` container's prefix, as a shared source spells it.
+ *
+ * @type {string}
+ */
+const DATA_PREFIX = "data.";
+
+/**
+ * The bare top-level key a `data:`-sourced field is being swept off — step 3b.
+ *
+ * `data:` (#128) did not invent the facts it holds; it *gathered* them, out of
+ * the note's open top level where each was a sibling of `img` and `shortcode`.
+ * So the retiring spelling of `data.portrait` is not a second declaration
+ * anyone has to write — it is `portrait`, mechanically, and the same holds for
+ * every other key that move relocated. Deriving it is what keeps the two
+ * spellings of one field from disagreeing the way two declarations would.
+ *
+ * **Only a `data.` source has one.** `protection.blunt` and `impact.die` are
+ * paths into containers a note has always written at the top level; they were
+ * never `blunt:` or `die:`, and reading those would invent a position rather
+ * than remember one.
+ *
+ * A field declaring {@link module:engine/field-spec.FieldSpec `topLevelMeans`}
+ * has no shared position at all, retiring or otherwise — the resolver checks
+ * that before asking.
+ *
+ * @param {{name?: string}} field - The declaration.
+ * @returns {string|undefined} The retiring top-level path, or `undefined` for a
+ *   field whose shared source never lived there.
+ */
+export function retiredTopLevelKey(field) {
+    const name = field?.name;
+    if (typeof name !== "string" || !name.startsWith(DATA_PREFIX)) return undefined;
+    const rest = name.slice(DATA_PREFIX.length);
+    return rest === "" ? undefined : rest;
+}
+
+/**
  * Where a declared field's value came from.
  *
  * Reported alongside the value so a caller — a linter, a migration, a test —
  * can distinguish a value an author wrote from one a default supplied, which
  * the value alone never says.
  *
- * @typedef {"system"|"block"|"shared"|"default"|"value"} FieldSource
+ * @typedef {"system"|"block"|"shared"|"topLevel"|"default"|"value"} FieldSource
  */
 
 /**
@@ -422,6 +486,20 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
     if (field.topLevelMeans === undefined) {
         const shared = getFrontmatter(fm, field.name, undefined);
         if (shared !== undefined) return { value: shared, from: "shared" };
+
+        // 3b. The bare top-level key the `data:` source was gathered off — the
+        //     retiring *shared* position, exactly as `legacyKey` is the
+        //     retiring *in-block* one (#332). Without it a field declaring
+        //     `data.portrait` cannot see the `portrait:` every tree still
+        //     writes, and the miss arrives at the caller's `?? default` as an
+        //     ordinary absence: 646 `sohl-thalorna` beings compiled the generic
+        //     person icon over an authored path, deterministically and with
+        //     nothing said.
+        const retiring = retiredTopLevelKey(field);
+        if (retiring !== undefined) {
+            const legacy = getFrontmatter(fm, retiring, undefined);
+            if (legacy !== undefined) return { value: legacy, from: "topLevel" };
+        }
     }
 
     // 4. The field's own default.

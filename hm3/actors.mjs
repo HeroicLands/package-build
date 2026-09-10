@@ -29,10 +29,11 @@
  * **What is emitted, and what is deliberately not.** Four rows of the content
  * format's `being` mapping table give HM3 a destination — `data.portrait` →
  * `system.bioImage`, `data.species`, `data.gender`, `data.occupation`, and
- * `data.templatePriority` → `flags.hm3.templatePriority` — and, since #305,
- * three of them are *declared as those sources* rather than as the bare key the
- * corpus writes, so the specification's mapping is executable rather than
- * aspirational. Plus the two anchored prose sections: `{#appearance}` is HM3's `description` and `{#dossier}` its
+ * `data.templatePriority` → `flags.hm3.templatePriority` — and every one of
+ * them is *declared as that source* rather than as the bare key the corpus
+ * writes, so the specification's mapping is executable rather than
+ * aspirational. Three were declared by #305; `data.portrait` was still read by
+ * hand until #332, and so was the one row that did not work. Plus the two anchored prose sections: `{#appearance}` is HM3's `description` and `{#dossier}` its
  * `biography`. Everything else an HM3 actor carries — the thirteen abilities,
  * the sunsign, `move`, `fatigue`, `shockIndex`, a creature's `loadRating` — has
  * no shared source stated anywhere, so it is authored at its own path under
@@ -49,15 +50,19 @@
  */
 
 import { resolveName, resolveImg } from "../engine/helpers.mjs";
-import { buildFromFields, STRING } from "../engine/field-spec.mjs";
+import { buildFromFields, readField, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
-// The retirement window's report, shared with the frontmatter lint so the
-// two cannot say different things about the same key (#305).
-import { legacyKeyMessage, locateFrontmatterKey } from "../engine/retired-fields.mjs";
+// The retirement window's reports, shared with the frontmatter lint so the
+// two cannot say different things about the same key (#305, #332).
+import {
+    legacyKeyMessage,
+    locateFrontmatterKey,
+    retiredTopLevelMessage,
+} from "../engine/retired-fields.mjs";
 // The note-level `hm3:` block: `hm3.system` onto the document's `system`
 // verbatim, and `hm3.img` / `hm3.items` / `hm3.effects` / `hm3.flags`
 // overriding their shared top-level forms for this system alone (#58).
@@ -93,6 +98,33 @@ const ACTOR_FIELDS = Object.freeze([
         describe: "The kind of creature this is.",
     },
 ]);
+
+/**
+ * The actor's bio image — the fourth row of the specification's `being` table,
+ * and the last one that was still read by hand.
+ *
+ * Declared for the reason {@link ACTOR_FIELDS} is, and fixed for the reason
+ * `data.species` was: read with `blockProperty(fm, block, "portrait")` it saw
+ * the block and the note's top level and nothing else, so the `data.portrait`
+ * the specification names never reached the document and the `?? defaultImg`
+ * beside it dressed the miss up as "this note names no art" (#332).
+ *
+ * It is **not** in `ACTOR_FIELDS`, because `buildFromFields` has no seam for
+ * the subtype default that has to follow it — the `?? defaultImg` is the whole
+ * of what distinguishes an unnamed portrait from a deliberately blank one
+ * (#218), and it needs a subtype the coercion is not handed.
+ *
+ * @type {import("../engine/field-spec.mjs").FieldSpec}
+ */
+const BIO_IMAGE_FIELD = Object.freeze({
+    name: "data.portrait",
+    legacyKey: "portrait",
+    to: "bioImage",
+    shape: "path",
+    read: (raw) => resolveImg(raw),
+    default: null,
+    describe: "Path to the portrait image.",
+});
 
 /**
  * The two `data:` facts HM3 declares on a `character` and not on a `creature`.
@@ -259,6 +291,24 @@ export class Hm3Actors extends SystemActorCompiler {
                 locateFrontmatterKey(this.currentNote?.absPath, field.legacyKey),
             );
 
+        // The shared level's own retiring position — the top-level key `data:`
+        // gathered the field off (#332). Same signal, same severity, separate
+        // callback: a note may have moved one position and not the other.
+        // Anchored at column 1, because the two spellings coincide — `portrait`
+        // names a block key and a top-level one — and a locator that took the
+        // first match would point at the wrong line.
+        const onRetiredTopLevel = (field) =>
+            this.noteWarn(
+                retiredTopLevelMessage(field),
+                locateFrontmatterKey(
+                    this.currentNote?.absPath,
+                    retiredTopLevelKey(field),
+                    undefined,
+                    { topLevel: true },
+                ),
+            );
+        const reports = { block, onLegacyKey, onRetiredTopLevel };
+
         // One spelling, as everywhere else: `packFolder` names a folder note
         // by its address. This pass once read only the Foundry id, so an HM3
         // tree could not file an actor by address at all — which its own sweep
@@ -270,15 +320,15 @@ export class Hm3Actors extends SystemActorCompiler {
         const system = {
             // Nullish, not `||` (#218): a note that names no portrait gets the
             // subtype's default, one that writes `""` ships blank on purpose.
-            bioImage: resolveImg(blockProperty(fm, block, "portrait")) ?? defaultImg,
+            // Resolved through the declaration so `data.portrait` is reached at
+            // all — see {@link BIO_IMAGE_FIELD} (#332).
+            bioImage: readField(BIO_IMAGE_FIELD, fm, reports) ?? defaultImg,
             description: renderSection(body || "", "appearance"),
             biography: renderSection(body || "", "dossier"),
-            ...buildFromFields(ACTOR_FIELDS, { block, onLegacyKey })(fm),
+            ...buildFromFields(ACTOR_FIELDS, reports)(fm),
             // Declared on `character` alone, so written there alone — see the
             // module note.
-            ...(subType === "character" ?
-                buildFromFields(CHARACTER_FIELDS, { block, onLegacyKey })(fm)
-            :   {}),
+            ...(subType === "character" ? buildFromFields(CHARACTER_FIELDS, reports)(fm) : {}),
         };
 
         // Whatever the note authors under `hm3.system`, at the DataModel's own
