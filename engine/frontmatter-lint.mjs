@@ -605,6 +605,43 @@ const ART_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The in-block keys a type's own declarations claim for a *different* quantity.
+ *
+ * {@link module:engine/field-spec.FieldSpec.topLevelMeans} read from the other
+ * side. That property says the note's top-level key of a field's name means
+ * something else, and `resolveFieldValue` honours it by refusing to read the
+ * shared position *for that field*. The statement is symmetric: if the two
+ * positions hold unrelated quantities, then the **block** position is not the
+ * note-level field either, and a check about the note-level field must not read
+ * it.
+ *
+ * `affiliation`'s `title` is the case that named this. A note's top-level
+ * `title` is its page heading, which the site emitter publishes as
+ * `fm.title ?? name`; `sohl.title` is the style of address an office carries —
+ * "Ajaw", "Warden". Twenty-eight `sohl-kethira-basic` affiliations author
+ * `sohl.title: ""` — an office with no style of address, which is ordinary —
+ * and every one of them was reported as publishing a page with no heading. None
+ * of them does; their pages take `name.full` exactly as intended (#312).
+ *
+ * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
+ * its first segment where that is dotted — because that is the position a note
+ * authors, and so the position a note-level check would otherwise read.
+ *
+ * @param {readonly object[]|null|undefined} schema - The type's declarations.
+ * @returns {Set<string>} The in-block keys that are not the note-level field of
+ *   the same name.
+ */
+function collidingBlockKeys(schema) {
+    const keys = new Set();
+    if (!Array.isArray(schema)) return keys;
+    for (const field of authoredFields(schema)) {
+        if (field.topLevelMeans === undefined) continue;
+        keys.add(String(legacyKeyOf(field)).split(".")[0]);
+    }
+    return keys;
+}
+
+/**
  * Read a shared field the way the compiler reads one: the `sohl:` block first,
  * then `data:` where the field lives there, then the note's top level.
  *
@@ -615,16 +652,25 @@ const ART_FIELDS = Object.freeze([
  * authored `null` as `null` — which is the whole point of the caller below
  * (#218).
  *
+ * **`blockCollides` drops the first position**, where the note's type declares
+ * a system field of that name meaning something else — the resolver's
+ * `topLevelMeans` exemption, applied from the note-level side (#312). See
+ * {@link collidingBlockKeys}. The caller decides per key rather than this
+ * function deciding for itself, because this module knows no type's vocabulary:
+ * the declarations arrive from the caller, as `schemas` and `vocabulary` do.
+ *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} key - The field name.
  * @param {object} [options] - Options.
  * @param {boolean} [options.inData=false] - Whether the field's shared source
  *   is `data.<key>` rather than the top-level key.
+ * @param {boolean} [options.blockCollides=false] - Whether `sohl.<key>` is a
+ *   system field that merely shares this name, and so answers for nothing here.
  * @returns {any} The authored value, or `undefined` where no position declares
  *   one.
  */
-function authoredValue(fm, key, { inData = false } = {}) {
-    const block = fm?.sohl;
+function authoredValue(fm, key, { inData = false, blockCollides = false } = {}) {
+    const block = blockCollides ? undefined : fm?.sohl;
     if (block && typeof block === "object" && !Array.isArray(block) && Object.hasOwn(block, key)) {
         return block[key];
     }
@@ -750,6 +796,14 @@ export function lintNote(
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
+    /**
+     * The in-block keys this note's own type claims for something other than
+     * the note-level field of that name, which every note-level check below
+     * reads past (#312). Resolved once: the type is fixed for the note, and
+     * each check would otherwise ask the same question of the same
+     * declarations.
+     */
+    const blockCollisions = collidingBlockKeys(schemas?.[currentType(type)]);
 
     // The retired top-level fields, checked before the type: a note may carry
     // one whatever its type is, and each finding stands on its own. Reported
@@ -820,15 +874,23 @@ export function lintNote(
     // optional strings, and it is not — it belongs to `resolveImg`, and `title`
     // never goes through it.
     //
-    // It once had a sharper reason, recorded here because it was load-bearing
-    // and is now false: a note's top-level `title` was simultaneously the shared
-    // source for an `affiliation` item's `system.title`, so asking an author for
-    // `title: null` would have compiled the literal string `"null"` into the
-    // document. That collision is gone — the field declares `topLevelMeans` and
-    // the top-level key is no longer a source for it — so `title: null` is now
-    // harmless. Whether `title: ""` deserves a warning of its own is a separate
-    // question about the *page's* heading, still open on #218, and not settled
-    // by extending an art-path check to it.
+    // It once had a sharper reason: a note's top-level `title` was
+    // simultaneously the shared source for an `affiliation` item's
+    // `system.title`, so asking an author for `title: null` would have compiled
+    // the literal string `"null"` into the document. The field declares
+    // `topLevelMeans` now, so the top-level key is no longer a source for it and
+    // `title: null` is harmless. `title: ""` is warned about on its own account
+    // below, as the *page's* heading rather than as an art path.
+    //
+    // **The collision itself did not go away, and this was where that was
+    // misread.** `topLevelMeans` settles which position the *emitted field*
+    // reads; it says nothing about which position a *check* reads, and
+    // `authoredValue` went on resolving through the block regardless — so an
+    // office with no style of address answered for its note's heading, in
+    // twenty-eight `sohl-kethira-basic` affiliations (#312). Hence
+    // `blockCollisions`: a note-level check reads past a block key its type
+    // claims for something else.
+
     // The template priority is a *shared source* — the specification states it
     // once for every type, as it does `pack` — so its retirement is reported
     // here rather than by the per-type loop below, which only reaches a field
@@ -889,7 +951,11 @@ export function lintNote(
     );
     for (const { key, inData } of ART_FIELDS) {
         if (!inertArt.has(key)) continue;
-        if (typeof authoredValue(fm, key, { inData }) !== "string") continue;
+        const authored = authoredValue(fm, key, {
+            inData,
+            blockCollides: blockCollisions.has(key),
+        });
+        if (typeof authored !== "string") continue;
         findings.push({
             file: note.file,
             ...at(key),
@@ -910,7 +976,8 @@ export function lintNote(
         // where nothing is emitted, `""` and `null` are equally inert and the
         // note has no default art to lose.
         if (inertArt.has(key)) continue;
-        if (authoredValue(fm, key, { inData }) !== "") continue;
+        if (authoredValue(fm, key, { inData, blockCollides: blockCollisions.has(key) }) !== "")
+            continue;
         findings.push({
             file: note.file,
             ...at(key),
@@ -932,7 +999,13 @@ export function lintNote(
     //
     // A warning rather than an error: the value is legal under the rule, and a
     // note that genuinely wants no heading may keep it — it just has to mean it.
-    if (authoredValue(fm, "title") === "") {
+    //
+    // **The emitter reads `fm.title`, so this reads the note level.** On an
+    // `affiliation` `sohl.title` is the office's style of address, which the
+    // heading has nothing to do with — and `blockCollisions` is what keeps the
+    // two apart (#312). On every other type nothing claims the block key, so the
+    // resolution is the unchanged one.
+    if (authoredValue(fm, "title", { blockCollides: blockCollisions.has("title") }) === "") {
         findings.push({
             file: note.file,
             ...at("title"),

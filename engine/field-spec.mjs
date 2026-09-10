@@ -109,6 +109,13 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   describe the *document* rather than the note: `<system>.system.<to>` and
  *   the legacy in-block `<system>.<name>`. Absent means the ordinary case —
  *   the top level is read, as the third step.
+ *
+ *   **It is read from the other side too**, because the statement is symmetric:
+ *   if the two positions hold unrelated quantities then the *in-block* position
+ *   is not the note-level field either, so a check about the note-level field
+ *   reads past it. `engine/frontmatter-lint.mjs` resolves that through
+ *   `collidingBlockKeys`. Read for the emitted field alone until #312, which is
+ *   how an affiliation's office style came to answer for its page heading.
  * @property {string} [shape] - Human-readable shape, for documentation. Comes
  *   paired with `read` from one of the coercion constants below.
  * @property {(raw: any, ctx: {fm: object, field: FieldSpec}) => any} [read] -
