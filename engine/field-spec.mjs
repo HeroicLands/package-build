@@ -138,6 +138,40 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   note, so it declares none.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
+ * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when
+ *   the note does not carry the field** (#329), rather than written from a
+ *   declared default.
+ *
+ *   Every other field answers absence with a value: an unauthored `weight` is
+ *   `0`, an unauthored `seat` is `null`. That is right wherever the type has an
+ *   opinion about the empty case. It is wrong wherever the **DataModel** is the
+ *   one holding the answer — an affliction's `onsetDurationFormula` has no
+ *   compile-time value, and writing `null` over it does not merely fail to
+ *   help: it makes "the author said none" and "the author said nothing"
+ *   indistinguishable to every reader downstream, and it overwrites an
+ *   `initial` the system chose on purpose.
+ *
+ *   It is the other conditional row of the same table
+ *   {@link FieldSpec.runtimeOnly} completes, and the two differ only in what
+ *   they do about an *authored* value:
+ *
+ *   | declaration      | authored | absent |
+ *   | --- | --- | --- |
+ *   | ordinary         | emitted  | default written |
+ *   | `omitWhenAbsent` | emitted  | key omitted |
+ *   | `runtimeOnly`    | refused  | key omitted |
+ *
+ *   **A field declaring it must declare no `default`**, and the two are
+ *   contradictory rather than merely redundant — a default is a value for the
+ *   absent case, which is the case this says has none. Nor may it be combined
+ *   with `required` (which fails the build on absence, so nothing is ever
+ *   omitted) or with `runtimeOnly` (which is never emitted at all). The shipped
+ *   declarations are checked for all three in `tests/item-fields.test.ts`.
+ *
+ *   Unlike `runtimeOnly` this is a flag rather than a reason, because there is
+ *   only ever one reason and no message prints it: the DataModel's `initial`
+ *   stands. What an author needs to know is *that* the field has no default,
+ *   which the generated reference states in the field's own row.
  * @property {string} [runtimeOnly] - **What the field holds once play has
  *   started** — declared on a field the *document* writes for itself, which no
  *   note may author (#330).
@@ -318,12 +352,69 @@ export function readsRetiredTopLevel(field, from) {
  *   fix the wrong line.
  * @returns {any} The value to emit.
  */
-export function readField(field, fm, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
+export function readField(field, fm, options = {}) {
+    return readFieldEntry(field, fm, options).value;
+}
+
+/**
+ * The same read, reporting **where the value came from** as well.
+ *
+ * {@link readField} answers "what does this field hold", which is what almost
+ * every caller wants. A builder has one further question — *should the key be
+ * written at all* — and it cannot be answered from the value: `null` from a
+ * note and `null` from a declared default are the same value and opposite
+ * facts (#329).
+ *
+ * So the position rides back beside the value, resolved **once**. The
+ * alternative is a builder that calls {@link resolveFieldValue} for the source
+ * and {@link readField} for the value, which resolves the position twice and
+ * states in two places the rule that a field is authored in exactly one.
+ *
+ * @param {FieldSpec} field - The declaration.
+ * @param {object} fm - The note's frontmatter.
+ * @param {object} [options] - Options, as {@link readField} takes them.
+ * @param {string} [options.block="sohl"] - Which system's block to resolve
+ *   against.
+ * @param {(field: FieldSpec) => void} [options.onLegacyKey] - See
+ *   {@link readField}.
+ * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - See
+ *   {@link readField}.
+ * @returns {{value: any, from: import("./system-block.mjs").FieldSource}} The
+ *   value to emit, and the position it was read from.
+ */
+export function readFieldEntry(field, fm, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
     const { value, from } = resolveFieldValue(field, fm, { block });
-    if (from === "value") return value;
+    if (from === "value") return { value, from };
     if (onLegacyKey && readsLegacyKey(field, from)) onLegacyKey(field);
     if (onRetiredTopLevel && readsRetiredTopLevel(field, from)) onRetiredTopLevel(field);
-    return field.read ? field.read(value, { fm, field }) : value;
+    return { value: field.read ? field.read(value, { fm, field }) : value, from };
+}
+
+/**
+ * Whether a note supplied a value for a field, as opposed to a default doing it.
+ *
+ * The question {@link FieldSpec.omitWhenAbsent} turns on, asked of the
+ * *position* rather than of the value — which cannot answer it, since a
+ * declared `default: null` and an authored `null` are indistinguishable once
+ * the value is in hand (#329).
+ *
+ * `undefined` counts as absent whatever position reported it, because writing
+ * the key then emits a value `JSON.stringify` drops — the key present in the
+ * object and absent from the pack, which is the sort of disagreement this
+ * package exists to remove. It arrives from one place: the in-block step
+ * answers `value ?? field.default` for a key authored as `null`, so a field
+ * declaring no default resolves through "authored" to nothing at all. A field
+ * that also declares a `read` never reaches this, since its coercion has by
+ * then turned the `undefined` into whatever it makes of an absent value —
+ * ordinarily `null`, which is a value the note asked for and is emitted.
+ *
+ * @param {import("./system-block.mjs").FieldSource} from - Where
+ *   {@link resolveFieldValue} said the value came from.
+ * @param {any} value - The value it gave back.
+ * @returns {boolean} True when the note wrote one.
+ */
+export function isAuthored(from, value) {
+    return from !== "default" && value !== undefined;
 }
 
 /**
@@ -354,7 +445,20 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
             // `initial` standing; writing the `undefined` a source-less
             // declaration resolves to would put the key in the document.
             if (field.runtimeOnly) continue;
-            setPath(out, field.to, readField(field, fm, { block, onLegacyKey, onRetiredTopLevel }));
+            const { value, from } = readFieldEntry(field, fm, {
+                block,
+                onLegacyKey,
+                onRetiredTopLevel,
+            });
+            // The other conditional row: a field whose *absence* is meaningful
+            // (#329). Writing a declared default would answer a question the
+            // note did not ask — "this affliction's onset takes `null` days" —
+            // and would make the field's unset state indistinguishable from an
+            // authored one for every reader downstream. Omitting the key leaves
+            // the DataModel's own `initial` to say it instead, which is the one
+            // place the answer actually lives.
+            if (field.omitWhenAbsent && !isAuthored(from, value)) continue;
+            setPath(out, field.to, value);
         }
         return out;
     };
