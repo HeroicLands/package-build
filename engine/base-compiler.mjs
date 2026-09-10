@@ -416,6 +416,31 @@ export class BasePackCompiler {
     }
 
     /**
+     * A refusal only this pass can make, because its subject is the note's
+     * **type** (#330).
+     *
+     * The `assertNo*Field` family above it in the walk is type-agnostic by
+     * construction: it runs before `selects`, so that a note declaring a
+     * retired field is answered whichever pass would have claimed it. A rule
+     * about what a *`trauma`* may write cannot live there — it needs the type's
+     * field declaration, which only the pass that compiles the type can reach.
+     *
+     * So it is a hook, called once the note is known to be this pass's, and its
+     * throw is counted and located exactly as the family's is: the note is
+     * declined rather than skipped, and the build fails naming the line.
+     *
+     * The default refuses nothing, which is the honest position for a pass
+     * whose documents have no schema to have opinions about.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @returns {void}
+     * @throws {Error} When the note authors something its type forbids. The
+     *   error may carry a `position` for the diagnostic.
+     */
+    // eslint-disable-next-line no-unused-vars
+    assertAuthorable(fm) {}
+
+    /**
      * Whether this pass claims a note. **Required.**
      *
      * Called only for a note this build compiles — every note in the tree
@@ -967,6 +992,13 @@ export class BasePackCompiler {
                     stats.skippedOther++;
                     continue;
                 }
+                // The type-specific half of the retired-field family (#330):
+                // what a note of *this* type may not write, which needs the
+                // type's own field declaration and so cannot be asked before
+                // `selects`. Counted as a declined note for the same reason
+                // they are — the alternative is a tree that compiles fewer
+                // documents than it has notes and exits 0.
+                this.assertAuthorable(fm);
             } catch (err) {
                 stats.declined++;
                 this.errorCount++;

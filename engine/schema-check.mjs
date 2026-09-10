@@ -68,6 +68,9 @@ import path from "node:path";
 import { cachedSchemaPath, SCHEMA_ARTIFACT_FILE } from "./foreign-catalog.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { systemData, systemDataPaths, undeclaredPaths } from "./system-block.mjs";
+// A field the document writes for itself in play: declared by the schema,
+// emitted by no builder, and authored by no note (#330).
+import { runtimeOnlyFields } from "./field-spec.mjs";
 
 /**
  * The artifact version this module reads.
@@ -133,12 +136,21 @@ export function declaredFields(artifact, documentType, subtype) {
  * the path beneath it separately, so a comparison that knew only the leaf would
  * report the container as unemitted and the leaf as undeclared.
  *
- * @param {readonly {to: string}[]} fields - A type's field declaration.
+ * **A runtime-only field is not in it** (#330). It declares a `to` in order to
+ * *claim* the path — so the verbatim passthrough leaves it alone and the
+ * refusal has something to name — and `buildFromFields` deliberately skips it,
+ * because the document writes that field in play. Counting it here would make
+ * the check assert the builder writes a key it never writes; the *unemitted*
+ * direction handles it instead, in {@link compareFields}.
+ *
+ * @param {readonly {to: string, runtimeOnly?: string}[]} fields - A type's
+ *   field declaration.
  * @returns {Set<string>} The paths, parents included.
  */
 export function emittedFields(fields) {
     const out = new Set();
     for (const field of fields ?? []) {
+        if (field?.runtimeOnly) continue;
         if (typeof field?.to !== "string" || !field.to) continue;
         const parts = field.to.split(".");
         for (let i = 1; i <= parts.length; i++) {
@@ -221,6 +233,15 @@ export function compareFields({
         }
 
         const emitted = emittedFields(fields);
+        // Paths the declaration says the *document* writes in play (#330). They
+        // are neither emitted nor a defect, so they answer the unemitted
+        // question below rather than appearing in it: "every compiled document
+        // will carry the field's initial value" is exactly what a runtime-only
+        // field is for, and reporting it would leave a permanent warning that
+        // the correct declaration cannot clear.
+        const runtimeOnly = new Set(
+            runtimeOnlyFields(/** @type {never} */ (fields)).map((field) => field.to),
+        );
         for (const path of emitted) {
             if (declared.all.has(path)) continue;
             undeclared.push({
@@ -238,6 +259,7 @@ export function compareFields({
             // on a type that populates them correctly — two findings, both
             // false, on the first real schema this was run against.
             if (coveredByAncestor(path, emitted)) continue;
+            if (runtimeOnly.has(path)) continue;
             unemitted.push({
                 type,
                 subtype,

@@ -63,6 +63,11 @@ import { contentPackage } from "./content-package.mjs";
 // inferred from the type itself (#79).
 import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
+// An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
+// document by a path no field declaration sits on — including, until #330, the
+// fields the document is supposed to write for itself in play.
+import { itemFields } from "./item-registry.mjs";
+import { runtimeOnlyIn, runtimeOnlyMessage } from "./runtime-only-fields.mjs";
 // A `model:` is an address, read by the same grammar every wikilink is (#336),
 // so an author writes one form and meets one set of messages.
 import { readQualifier } from "./wikilinks.mjs";
@@ -664,6 +669,24 @@ export class SystemActorCompiler extends BasePackCompiler {
             shortcode ?? "",
             modelPackage ?? undefined,
         );
+
+        // The entry's `system:` overlay is merged verbatim, so it reaches the
+        // document without passing a single field declaration — which left it
+        // the one position a runtime-only field stayed authorable at once #330
+        // closed the item note's own. Asked of the **overlay** rather than of
+        // the merged result: the template it merges onto is a compiled
+        // document, which by then carries none, and a finding has to name what
+        // this note wrote.
+        const [runtimeOnly] = runtimeOnlyIn(overlay?.system, itemFields(type, this.system));
+        if (runtimeOnly) {
+            this.noteError(
+                `${ctx}: ${indexKey}: ` +
+                    `${runtimeOnlyMessage(`${indexKey}.system.${runtimeOnly.to}`, runtimeOnly)}.`,
+                where(),
+            );
+            this.errorCount++;
+            return null;
+        }
 
         let base = null;
         if (shortcode) {

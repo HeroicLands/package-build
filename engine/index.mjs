@@ -69,6 +69,9 @@ export * as notePackage from "./note-package.mjs";
 /** Frontmatter fields a note may no longer declare, and the refusal of them. */
 export * as retiredFields from "./retired-fields.mjs";
 
+/** Schema fields a note may never declare, because play writes them. */
+export * as runtimeOnlyFields from "./runtime-only-fields.mjs";
+
 /** The package homepage: the note type that compiles to a page, not a document. */
 export * as homepage from "./homepage.mjs";
 
