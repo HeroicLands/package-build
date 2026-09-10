@@ -503,3 +503,43 @@ describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
         expect(packageAddress({ type: "doc", shortcode: "combat" })).toBe("doc-combat/");
     });
 });
+
+describe("lore declares a genre for a scheduled public occasion (#333)", () => {
+    // A tournament, a great market or fair, a religious festival, a ceremony or
+    // rite: something that happens at a place and a time, on a cycle, and that
+    // people travel to. Neither neighbour fitted. `calendar` covers the
+    // *reckoning* — the cycle, the seasons, the dating system — so a festival's
+    // date is calendar and the festival is not, and a tournament is not a matter
+    // of time-reckoning at all. `culture` is by its own definition a grouping of
+    // people, which a market is not.
+    //
+    // The name is the widest of the three considered. `festival` is too narrow
+    // (a tournament is not one, a market is a fair, a rite is not a
+    // celebration), and `event` is avoided because it already names something
+    // else in SoHL — the event queue and `system.scheduledActions`, where an
+    // event is a timed thing that fires in play.
+    it("declares `gathering`", () => {
+        expect(NOTE_VOCABULARY.lore.subTypes).toContain("gathering");
+    });
+
+    it("does not spell it `festival` or `event`", () => {
+        expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("festival");
+        expect(NOTE_VOCABULARY.lore.subTypes).not.toContain("event");
+    });
+
+    // A subType is what makes a genre browsable — `site.sections` narrows a
+    // section with `listSubType` — so the value only pays off if an author can
+    // tell which of the three neighbours a note belongs to. That is what the
+    // specification is for, and this holds the two together for `lore`: every
+    // declared genre carries a definition there, and the specification names no
+    // genre the vocabulary has not declared.
+    it("defines every `lore` genre in the specification, and no others", () => {
+        const spec = fs.readFileSync(CONTENT_FORMAT_PATH, "utf8");
+        const section = spec.slice(spec.indexOf("### type: lore"));
+        const bullets = section.slice(0, section.indexOf("| `data` property"));
+        const documented = [...bullets.matchAll(/^-\s+([A-Za-z0-9]+):/gm)].map((m) => m[1]);
+
+        expect(documented).toEqual([...NOTE_VOCABULARY.lore.subTypes]);
+        expect(documented).toContain("gathering");
+    });
+});

@@ -809,6 +809,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             "folk",
             "culture",
             "bestiary",
+            "gathering",
         ]),
         // Nothing of its own: a lore note is prose, and what it *is* about is
         // its subType. The specification declares an empty table for it, and
