@@ -183,32 +183,49 @@ describe("convertWikilinks", () => {
         expect(unresolved[0]).toMatchObject({ reason: "unlabelled" });
     });
 
-    it("crosses packs: a doc linking a skill reaches the items pack", () => {
-        const { markdown } = convert("a [[skill/climb|Climbing]] test");
+    it("crosses packs: a system-qualified skill link reaches the items pack", () => {
+        // Qualified with the system, because prose defaults to `none` and a
+        // bare link therefore names the documentation (#336).
+        const { markdown } = convert("a [[sohl-skill-climb|Climbing]] test");
         expect(markdown).toBe(
             "a @UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} test",
         );
     });
 
     it("routes actor and macro types to their packs", () => {
-        expect(convert("[[being/condor|Condor]]").markdown).toBe(
+        expect(convert("[[sohl-being-condor|Condor]]").markdown).toBe(
             "@UUID[Compendium.sohl.actors.Actor.ccccccccccccccc1]{Condor}",
         );
+        // A macro's own document is a core one, already at `none`, so the bare
+        // form still names the Macro and is not redirected to its journal.
         expect(convert("[[macro/rollit|Roll It]]").markdown).toBe(
             "@UUID[Compendium.sohl.macros.Macro.ddddddddddddddd1]{Roll It}",
         );
     });
 
     it("resolves a type whose directory has no pack mapping of its own (#1276)", () => {
-        expect(convert("[[containergear/backpack|a backpack]]").markdown).toBe(
+        expect(convert("[[sohl-containergear-backpack|a backpack]]").markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.eeeeeeeeeeeeeee1]{a backpack}",
         );
     });
 
-    it("matches the qualifier case-insensitively", () => {
-        expect(convert("[[Skill/Climb|Climbing]]").markdown).toBe(
-            "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
+    it("refuses a capitalised package, system or type segment", () => {
+        // Those three are closed vocabularies with one spelling each, so
+        // accepting `Skill` beside `skill` would bless two ways of writing one
+        // address. Reported rather than folded.
+        const { markdown, unresolved } = convert("[[SOHL-Skill-Climb|Climbing]]");
+        expect(markdown).toBe(
+            '<span class="sohl-unresolved-link" title="Unresolved link: SOHL-Skill-Climb">Climbing</span>',
         );
+        expect(unresolved[0]).toMatchObject({ reason: "not-lowercase" });
+    });
+
+    it("keeps a mixed-case SHORTCODE, which is case-sensitive", () => {
+        // A shortcode is written as the note declares it — `Clb`, `LtShoe`,
+        // `HsTunic` are all real — so only the three segments in front of it
+        // are held to lowercase.
+        const { unresolved } = convert("[[sohl-skill-Climb|Climbing]]");
+        expect(unresolved).toEqual([]);
     });
 
     it("converts a cross-page section link to a JournalEntryPage target", () => {
@@ -286,7 +303,7 @@ describe("convertWikilinks", () => {
     });
 
     it("converts every link on a line, and leaves surrounding prose alone", () => {
-        const { markdown } = convert("[[doc/shock|Shock]] and [[skill/climb|Climbing]] both");
+        const { markdown } = convert("[[doc/shock|Shock]] and [[sohl-skill-climb|Climbing]] both");
         expect(markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa1]{Shock} and " +
                 "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} both",
@@ -333,15 +350,42 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         );
     });
 
-    it("matches the virtual qualifier case-insensitively", () => {
-        expect(convert("[[DocSkill/Climb|Climbing]]").markdown).toBe(
+    it("refuses the virtual qualifier in mixed case, like any other address", () => {
+        // The lowercase rule is the address's, not a per-form exception, so the
+        // virtual `doc<type>` spelling is held to it too.
+        const { unresolved } = convert("[[DocSkill/Climb|Climbing]]");
+        expect(unresolved[0]).toMatchObject({ reason: "not-lowercase" });
+        expect(convert("[[docskill/climb|Climbing]]").markdown).toBe(
             `@UUID[Compendium.sohl.journals.JournalEntry.${climbDoc}]{Climbing}`,
         );
     });
 
-    it("leaves the plain item qualifier pointing at the item", () => {
-        expect(convert("[[skill/climb|Climbing]]").markdown).toBe(
+    it("points a bare prose link at the documentation, not the item (#336)", () => {
+        // Body prose is under no system block, so the system defaults to
+        // `none` — and a note's `none` address IS its `doc<type>` journal. From
+        // prose it is almost always the written page a reader wants, not the
+        // Item's sheet. This used to emit the Item's UUID.
+        expect(convert("[[skill/climb|Climbing]]").markdown).toMatch(
+            /^@UUID\[Compendium\.sohl\.journals\.JournalEntry\./,
+        );
+        expect(convert("[[skill-climb|Climbing]]").markdown).toMatch(
+            /^@UUID\[Compendium\.sohl\.journals\.JournalEntry\./,
+        );
+    });
+
+    it("points at the item when the link states the system (#336)", () => {
+        // "and if not, then we should be using the full format" — stating the
+        // system is how prose reaches the Item.
+        expect(convert("[[sohl-skill-climb|Climbing]]").markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
+        );
+    });
+
+    it("leaves a system-less type at its own document", () => {
+        // `doc` carries no `doc<type>` form, so `none` names the note itself
+        // and nothing is redirected.
+        expect(convert("[[doc-extshock|Extreme Shock]]").markdown).toBe(
+            "@UUID[Compendium.sohl.journals.JournalEntry.aaaaaaaaaaaaaaa4]{Extreme Shock}",
         );
     });
 
@@ -386,14 +430,30 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         // Only a JournalEntry has pages. Rather than forge a JournalEntryPage id
         // onto a document that can never hold one (the #1362 defect), the anchor
         // is simply dropped and the link addresses the item.
-        const { markdown, unresolved } = convert("[[skill/climb#crafting|Climbing]]");
+        //
+        // Reaching the Item from prose means stating the system (#336); the
+        // bare form names the documentation, where the anchor does address a
+        // page — see the case below.
+        const { markdown, unresolved } = convert("[[sohl-skill-climb#crafting|Climbing]]");
         expect(markdown).toBe("@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}");
         expect(markdown).not.toContain("JournalEntryPage");
         expect(unresolved).toEqual([]);
     });
 
+    it("carries the anchor when prose names the documentation (#336)", () => {
+        // The same anchor, on the same authored link, now lands on a real page:
+        // a bare prose link names the note's `none` address, which is its
+        // documentation journal, and a journal does have pages. It used to be
+        // dropped because the link addressed the Item.
+        const page = anchorPageId(climbDoc, "crafting");
+        expect(convert("[[skill-climb#crafting|Climbing]]").markdown).toBe(
+            "@UUID[Compendium.sohl.journals.JournalEntry." +
+                `${climbDoc}.JournalEntryPage.${page}]{Climbing}`,
+        );
+    });
+
     it("ignores an anchor on an actor or a macro for the same reason", () => {
-        expect(convert("[[being/condor#wings|Condor]]").markdown).toBe(
+        expect(convert("[[sohl-being-condor#wings|Condor]]").markdown).toBe(
             "@UUID[Compendium.sohl.actors.Actor.ccccccccccccccc1]{Condor}",
         );
         expect(convert("[[macro/rollit#step|Roll It]]").markdown).toBe(
@@ -462,10 +522,12 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
     });
 
     it("reaches every pack, like the slash form", () => {
-        expect(convert("[[skill-climb|Climbing]]").markdown).toBe(
+        // System-qualified, since a bare prose link names the documentation
+        // (#336); the point here is the hyphen form reaching each pack.
+        expect(convert("[[sohl-skill-climb|Climbing]]").markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
         );
-        expect(convert("[[being-condor|Condor]]").markdown).toBe(
+        expect(convert("[[sohl-being-condor|Condor]]").markdown).toBe(
             "@UUID[Compendium.sohl.actors.Actor.ccccccccccccccc1]{Condor}",
         );
     });
@@ -477,10 +539,9 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
         );
     });
 
-    it("matches the qualifier case-insensitively", () => {
-        expect(convert("[[Skill-Climb|Climbing]]").markdown).toBe(
-            "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
-        );
+    it("refuses the hyphen form too when it carries an uppercase letter", () => {
+        const { unresolved } = convert("[[Sohl-Skill-Climb|Climbing]]");
+        expect(unresolved[0]).toMatchObject({ reason: "not-lowercase" });
     });
 
     // This used to split at the *first* hyphen so a shortcode could contain one
@@ -546,7 +607,7 @@ describe("convertWikilinks — an address with an empty label (#1409)", () => {
     });
 
     it("shows the name of a target in another pack", () => {
-        expect(convert("a [[skill-climb|]] test").markdown).toBe(
+        expect(convert("a [[sohl-skill-climb|]] test").markdown).toBe(
             "a @UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} test",
         );
     });
@@ -745,7 +806,7 @@ describe("a code fence is verbatim (#1505)", () => {
             "const first = grid[[0]];",
             "```",
             "",
-            "And [[skill-climb|]] after.",
+            "And [[sohl-skill-climb|]] after.",
         ].join("\n");
         const { markdown, unresolved } = convert(src);
         expect(markdown).toContain("const first = grid[[0]];");

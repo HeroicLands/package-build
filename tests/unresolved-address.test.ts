@@ -168,6 +168,7 @@ describe("one vocabulary of link findings", () => {
         expect([...LINK_FINDING_REASONS].sort()).toEqual([
             "ambiguous",
             "not-an-address",
+            "not-lowercase",
             "unknown-anchor",
             "unknown-type",
             "unlabelled",
@@ -261,24 +262,30 @@ describe("the checker fails an address that resolves to no note", () => {
         expect(r.deadAddresses[0]).toMatchObject({ reason: "not-an-address" });
     });
 
-    it("resolves an address one dependency's index publishes", () => {
+    it("does NOT reach a dependency from a short form — an omitted package is this one (#336)", () => {
+        // It used to resolve: a short form fell through to any foreign index
+        // that published it. That is resolving by accident — the link landed in
+        // `thalorna` only because no local note claimed the address, and would
+        // have retargeted silently the day one did.
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
             thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
         });
-        expect(r.deadAddresses).toEqual([]);
-        expect([...r.usedManifest]).toEqual(["creature-wolf"]);
+        expect(r.deadAddresses).toHaveLength(1);
+        expect(r.deadAddresses[0]).toMatchObject({ reason: "unresolved" });
+        expect([...r.usedManifest]).toEqual([]);
     });
 
-    it("reports an address two foreign packages both publish as ambiguous", () => {
-        // Not "no document has that identity" — two do, which is a different
-        // mistake with a different fix: write the package-qualified form.
+    it("cannot be ambiguous across packages any more — the form names one (#336)", () => {
+        // Two packages publishing `creature-wolf` used to make a short form
+        // ambiguous. Now the short form names *this* package and neither of
+        // them, so the finding is a plain `unresolved` with the same fix the
+        // ambiguity message used to ask for: write the qualified address.
         const r = audit(corpus("See [[creature-wolf|a wolf]]."), {
             thalorna: [packOnlyRecord("thalorna", "creature", "wolf", "Dire Wolf")],
             kethira: [packOnlyRecord("kethira", "creature", "wolf", "Grey Wolf")],
         });
         expect(r.deadAddresses).toHaveLength(1);
-        expect(r.deadAddresses[0]).toMatchObject({ reason: "ambiguous" });
-        expect([...r.deadAddresses[0].packages].sort()).toEqual(["kethira", "thalorna"]);
+        expect(r.deadAddresses[0]).toMatchObject({ reason: "unresolved" });
     });
 
     it("resolves the fully qualified form the ambiguity message asks for", () => {
@@ -322,10 +329,33 @@ describe("the pack build fails an address that resolves to no note", () => {
                 { name: "Grey Wolf", type: "creature", package: "kethira", uuid: "C.a.b.Item.d" },
             ],
         ]);
+        // Two packages publishing `creature-wolf` used to make the short form
+        // ambiguous. Since #336 an omitted package means *this* package, so the
+        // short form names neither of them and the finding is a plain
+        // `unresolved` — with the same fix the ambiguity message asked for.
         const { unresolved } = convertWikilinks("[[creature-wolf|a wolf]]", from(foreign));
         expect(unresolved).toHaveLength(1);
-        expect(unresolved[0]).toMatchObject({ reason: "ambiguous" });
-        expect([...unresolved[0].packages].sort()).toEqual(["kethira", "thalorna"]);
+        expect(unresolved[0]).toMatchObject({ reason: "unresolved" });
+    });
+
+    it("resolves each of them by its own qualified address (#336)", () => {
+        const foreign = new Map<string, object>([
+            [
+                "thalorna-sohl-creature-wolf",
+                { name: "Dire Wolf", type: "creature", package: "thalorna", uuid: "C.a.b.Item.c" },
+            ],
+            [
+                "kethira-sohl-creature-wolf",
+                { name: "Grey Wolf", type: "creature", package: "kethira", uuid: "C.a.b.Item.d" },
+            ],
+        ]);
+        const dire = convertWikilinks("[[thalorna-sohl-creature-wolf|a wolf]]", from(foreign));
+        expect(dire.unresolved).toEqual([]);
+        expect(dire.markdown).toContain("C.a.b.Item.c");
+
+        const grey = convertWikilinks("[[kethira-sohl-creature-wolf|a wolf]]", from(foreign));
+        expect(grey.unresolved).toEqual([]);
+        expect(grey.markdown).toContain("C.a.b.Item.d");
     });
 
     it("fails the note with the shared message", () => {
@@ -355,6 +385,10 @@ describe("the site build fails an address that resolves to no note", () => {
         sections: new Set<string>(["kb"]),
         contentTypes: new Set<string>(["skill", "creature"]),
         foreign: new Map<string, object>(),
+        // The package a bare link defaults to, and the packages a qualified one
+        // may name (#336).
+        contentPackage: "sohl",
+        packages: new Set<string>(["sohl", "thalorna", "kethira", "adventure"]),
         type: "skill",
         errors: [] as Record<string, unknown>[],
         src: "Skills/Jumping.md",
@@ -430,10 +464,15 @@ describe("the site build fails an address that resolves to no note", () => {
         // A pack-only package (#1516) publishes Foundry addresses and no pages,
         // so the address is real and there is simply nothing to link to. It was
         // never the unresolved case and must not become one.
+        //
+        // Qualified, because reaching another package needs the full form
+        // (#336) — a short address names this package and never a dependency.
         const c = ctx({
-            foreign: new Map<string, object>([["creature/wolf", { name: "Dire Wolf" }]]),
+            foreign: new Map<string, object>([
+                ["adventure-sohl-creature-wolf", { name: "Dire Wolf" }],
+            ]),
         });
-        expect(resolveWebWikilinks("a [[creature-wolf|]] howls", c as never)).toBe(
+        expect(resolveWebWikilinks("a [[adventure-sohl-creature-wolf|]] howls", c as never)).toBe(
             "a Dire Wolf howls",
         );
         expect(c.errors).toEqual([]);

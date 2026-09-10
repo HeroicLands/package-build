@@ -271,7 +271,10 @@ describe("generatePacksJson — two Item packs, notes routed between them", () =
                 "AAAAAAAAAAAAAAAA",
                 "climbing",
                 {},
-                "Related to [[skill-secondsight|Second Sight]].",
+                // System-qualified, so the link names the *Item* — this test is
+                // about which Item pack a UUID carries, and a bare prose link
+                // would name the documentation journal instead (#336).
+                "Related to [[sohl-skill-secondsight|Second Sight]].",
             ),
             "SecondSight.md": skillNote("Second Sight", "BBBBBBBBBBBBBBBB", "secondsight", {
                 pack: "mysteries",
