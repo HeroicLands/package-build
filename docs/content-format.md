@@ -1872,6 +1872,12 @@ subType:
 - culture: A social grouping of individuals with common beliefs, mores, and values.
 - bestiary: A kind of creature that is not a people — beasts, monsters, and the made things
   that were never born. What `folk` covers for the sapient, this covers for everything else.
+- gathering: A scheduled public occasion people travel to — a tournament or martial games, a
+  great market or fair, a religious festival, a ceremony or rite. What these share is assembly
+  on a cycle: a place, a time, and something contested or observed. Held apart from `calendar`,
+  which covers the _reckoning_ — a festival's date is calendar and the festival is not, and a
+  tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
+  of people rather than an occasion they attend.
 
 | `data` property | Values | Description |
 | --------------- | ------ | ----------- |

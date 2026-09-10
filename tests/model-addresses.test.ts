@@ -13,7 +13,12 @@
 
 import { describe, it, expect } from "vitest";
 
-import { itemAddress, packagedItemAddress, loadItemsMap } from "../engine/actor-compiler.mjs";
+import {
+    itemAddress,
+    packagedItemAddress,
+    catalogueKey,
+    loadItemsMap,
+} from "../engine/actor-compiler.mjs";
 
 /**
  * #334 — a being's items entry names the item it copies with `model:`, an
@@ -27,6 +32,27 @@ describe("packagedItemAddress (#334)", () => {
         // The unqualified form is unchanged, and still what a `model` naming no
         // package resolves through.
         expect(itemAddress("weapongear", "dgr")).toBe("weapongear:dgr");
+    });
+});
+
+describe("the catalogue folds the shortcode's case (#346)", () => {
+    it("finds `Clb` from the address `clb`", () => {
+        // A shortcode is case-sensitive and routinely mixed; an address is not,
+        // because `readQualifier` normalises what it reads. So a `model:` of
+        // `weapongear-clb` has to find the document whose `system.shortcode` is
+        // `Clb`. It did not, and every being carrying one of SoHL's six
+        // mixed-case gear shortcodes failed to compile.
+        expect(catalogueKey("weapongear", "Clb")).toBe(catalogueKey("weapongear", "clb"));
+        expect(catalogueKey("weapongear", "Clb")).toBe("weapongear:clb");
+        expect(catalogueKey("armorgear", "LtShoe", "sohl")).toBe("sohl:armorgear:ltshoe");
+    });
+
+    it("does NOT fold the id-bearing address", () => {
+        // `itemAddress` seeds `embeddedItemId`, so folding there would change
+        // the `_id` of every embedded item whose identity carries a capital —
+        // silently re-identifying documents nothing about which had changed.
+        expect(itemAddress("weapongear", "Dgr1")).toBe("weapongear:Dgr1");
+        expect(itemAddress("weapongear", "Dgr1")).not.toBe(itemAddress("weapongear", "dgr1"));
     });
 });
 
