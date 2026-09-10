@@ -103,6 +103,40 @@ function noteContext(fm, type) {
     return `${type} "${fm?.name?.full ?? fm?.shortcode ?? "?"}"`;
 }
 
+/**
+ * A timed phase's duration **formula** — what is rolled to seed the interval.
+ *
+ * SoHL's own field is a nullable, non-blank `StringField`, and the interval it
+ * yields is in **seconds** (`"432000"` is the five days the world setting
+ * defaults to). A bare number is as valid as a dice expression, and both are
+ * stringified here so a note may write either — which is also why no `kind` is
+ * declared: a lint claiming this must be a string would report `86400` as an
+ * authoring mistake when it is the commonest thing to write.
+ *
+ * Blank reads as unset rather than as `""`, matching the field's `blank: false`
+ * — but a field declaring {@link FieldSpec.omitWhenAbsent} skips before this
+ * runs when the note carries nothing, so the `null` is only ever reached by a
+ * note that cleared the key on purpose.
+ */
+const DURATION_FORMULA = Object.freeze({
+    shape: "roll formula, or a whole number of seconds",
+    read: (raw) => (raw == null || raw === "" ? null : String(raw)),
+});
+
+/**
+ * A timed phase's rolled duration, in **seconds** — the fact, where the formula
+ * above is the definition.
+ *
+ * Authoring it states the interval outright instead of leaving it to a roll,
+ * which is what a fixed-cadence phase wants. Non-numeric reads `0` rather than
+ * `NaN`, as every other count in this vocabulary does.
+ */
+const DURATION_BASE = Object.freeze({
+    shape: "whole number of seconds",
+    kind: "number",
+    read: (raw) => (raw == null || raw === "" ? null : Number(raw) || 0),
+});
+
 /** Aptitude weights per skill selector, validated as whole numbers. */
 const SKILL_APTITUDES = Object.freeze({
     shape: "map of skill selector → whole number",
@@ -413,6 +447,70 @@ export const ITEM_FIELDS = Object.freeze({
             default: "cured",
             describe:
                 "What running the course to the end does to the host: `death`, or the benign default `cured`.",
+        },
+        // The two **authored** thirds of each timed-phase triplet (#329). Every
+        // one omits its key when the note does not carry it, because the value
+        // that stands otherwise is the DataModel's `initial: null` — writing a
+        // compile-time `null` over it would claim the phase takes no time,
+        // which is a different statement than the note not setting the phase at
+        // all, and `AfflictionLogic.rollDuration()` opens `if (!formula) return 0`.
+        //
+        // Until they were declared here the only way to author one was the raw
+        // `system:` passthrough — undocumented, uncoerced, and absent from the
+        // field list every author-facing surface is built from — so no note in
+        // any tree wrote one and every shipped affliction had zero-length
+        // phases.
+        // Spelled out, one entry per field, for the reason the dates below are:
+        // a name assembled from a phase argument is not in the source, so it
+        // cannot be grepped, and each phase's prose differs anyway — which is
+        // the whole content of the declaration.
+        {
+            name: "onsetDurationFormula",
+            to: "onsetDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval from contracting the affliction to the start of onset. Omitted when unset, leaving no incubation.",
+        },
+        {
+            name: "onsetDurationBase",
+            to: "onsetDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The onset interval in seconds, standing in for a roll of the formula. Omitted when unset.",
+        },
+        {
+            name: "healingCheckDurationFormula",
+            to: "healingCheckDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval between healing checks, once the affliction is symptomatic. Omitted when unset.",
+        },
+        {
+            name: "healingCheckDurationBase",
+            to: "healingCheckDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The healing-check interval in seconds, standing in for a roll of the formula. Omitted when unset.",
+        },
+        {
+            name: "resolutionDurationFormula",
+            to: "resolutionDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval from onset to the affliction running its course. Omitted when unset.",
+        },
+        {
+            name: "resolutionDurationBase",
+            to: "resolutionDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The resolution interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         // The `…Date` third of every timed-phase triplet, declared as **runtime
         // state** (#330). A phase is authored as its `…DurationFormula`; the
@@ -850,6 +948,64 @@ export const ITEM_FIELDS = Object.freeze({
             ...AS_AUTHORED,
             default: null,
             describe: "Shortcode of the body location injured. Unset on a descriptive condition.",
+        },
+        // A trauma's three timed phases (#329). Its healing check and course
+        // both fall back to a **world setting** when the trauma sets neither
+        // half, which is the sharper reason these omit rather than default: a
+        // compile-time `null` written here is still a value, and the seeding in
+        // `TraumaDataModel._preCreate` reads `data.courseDurationFormula == null`
+        // to decide whether the GM's configured interval applies. A default
+        // would answer that question for every trauma in every world.
+        //
+        // `bloodLossAdvance*` is the one an author reaches for most: a trauma
+        // that sets it bleeds, and one that leaves it unset does not.
+        {
+            name: "healingCheckDurationFormula",
+            to: "healingCheckDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval between healing checks. Omitted when unset, leaving the world's configured interval to apply.",
+        },
+        {
+            name: "healingCheckDurationBase",
+            to: "healingCheckDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The healing-check interval in seconds, standing in for a roll of the formula. Omitted when unset.",
+        },
+        {
+            name: "bloodLossAdvanceDurationFormula",
+            to: "bloodLossAdvanceDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval between blood-loss advances. Omitted when unset, leaving the world's configured interval to apply.",
+        },
+        {
+            name: "bloodLossAdvanceDurationBase",
+            to: "bloodLossAdvanceDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The blood-loss interval in seconds. Setting it is what makes the wound bleed; omitted when unset, and the wound does not.",
+        },
+        {
+            name: "courseDurationFormula",
+            to: "courseDurationFormula",
+            ...DURATION_FORMULA,
+            omitWhenAbsent: true,
+            describe:
+                "Interval between course tests, for a condition that runs one — shock, coma, infection. Omitted when unset.",
+        },
+        {
+            name: "courseDurationBase",
+            to: "courseDurationBase",
+            ...DURATION_BASE,
+            omitWhenAbsent: true,
+            describe:
+                "The course-test interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         // Runtime state, for the reason `affliction`'s four are (#330): a
         // trauma's dates are crystallized when the phase fires, and world time
