@@ -59,12 +59,14 @@ jobs:
     # being merged and then forgotten: the release pipeline versions from
     # changesets, so a change that adds none ships nothing.
     #
-    # This job's name is the required status context, so it has to *report* on
-    # every pull request — including the Version Packages one, which is the one
-    # pull request that legitimately carries no changeset: consuming them is
-    # precisely what it does. The check step is skipped there and the job still
-    # succeeds, rather than the job being skipped, because a skipped job reports
-    # a skipped check and a required context wants a passing one.
+    # This job's name is the required status context — and, since it is the only
+    # required one, a pull request it fails cannot be merged at all. So it has to
+    # *report* on every pull request, including the two that legitimately carry
+    # no changeset: the Version Packages one, which consumes them, and
+    # Dependabot's, which bumps a `devDependency` no consumer installs. The check
+    # step is skipped for those and the job still succeeds, rather than the job
+    # being skipped, because a skipped job reports a skipped check and a required
+    # context wants a passing one.
     #
     # It was previously left to not run at all there, on the assumption that a
     # branch pushed with GITHUB_TOKEN starts no workflow runs. That assumption
@@ -89,13 +91,36 @@ jobs:
             # commit with no branches.
             - name: Fetch main
               run: git fetch --no-tags origin main:refs/remotes/origin/main
-            # `changeset-release/*` is the branch the changesets action opens
-            # the Version Packages pull request from.
+            # Two pull requests legitimately declare no release, and each is
+            # recognised by what it *is* rather than by what it contains:
+            #
+            #   - `changeset-release/*` — the branch the changesets action opens
+            #     the Version Packages pull request from. It consumes changesets;
+            #     requiring it to add one would be circular.
+            #   - Dependabot's — a dependency bump has no changelog line to
+            #     write. Every dependency here is a `devDependency`, so it
+            #     reaches no consumer: nothing about the published package
+            #     changes, and an entry saying so would be noise in a file that
+            #     describes the setting rather than the work.
+            #
+            # Dependabot is matched on the pull request's **author**, not on its
+            # branch name. The branch prefix (`dependabot/…`) is the obvious
+            # alternative and is what the `changeset-release/` case uses, but a
+            # branch name is anybody's to choose, while the author is GitHub's
+            # to set — and unlike `github.actor` it does not change to a human
+            # when one reopens the pull request or pushes a fixup to it.
             - name: Changeset present
-              if: ${{ !startsWith(github.head_ref, 'changeset-release/') }}
+              if: >-
+                  ${{ !startsWith(github.head_ref, 'changeset-release/')
+                  && github.event.pull_request.user.login != 'dependabot[bot]' }}
               run: npx changeset status --since=origin/main
             - name: This pull request is the bump
               if: ${{ startsWith(github.head_ref, 'changeset-release/') }}
               run: >-
                   echo 'Version Packages pull request: it consumes the
                   changesets rather than declaring one.'
+            - name: This pull request is a dependency bump
+              if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
+              run: >-
+                  echo 'Dependabot pull request: a devDependency bump reaches no
+                  consumer, so it declares no release.'
