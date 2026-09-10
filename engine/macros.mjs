@@ -296,6 +296,14 @@ export class Macros extends BasePackCompiler {
     static convertsWikilinks = false;
 
     /**
+     * A Macro carries an `img` — the tile art Foundry shows on the hotbar —
+     * defaulting to {@link DEFAULT_MACRO_IMG} where the note names none.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze(["img"]);
+
+    /**
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True for a `macro` note.
      */

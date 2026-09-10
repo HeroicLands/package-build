@@ -387,6 +387,21 @@ export class SystemActorCompiler extends BasePackCompiler {
     static label = "actor";
 
     /**
+     * **Both**, and they are two independent pictures: `img` is the actor's
+     * token art — written onto `document.img` and the prototype token's texture
+     * — and `portrait` is the sheet portrait, a declared field each system
+     * lands under its own name (`system.portrait` for SoHL,
+     * `system.bioImage` for HM3).
+     *
+     * Declared on the shared class because both subclasses emit both. A system
+     * whose actor genuinely carried only one would override it here rather than
+     * leave the claim standing.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze(["img", "portrait"]);
+
+    /**
      * Which `(actor, subType:identity)` each resolved entry claimed, and the
      * entry that claimed it first.
      *

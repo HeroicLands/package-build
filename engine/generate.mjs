@@ -66,7 +66,10 @@ import { buildCompileCorpus } from "./compile-corpus.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
-import { unclaimedNoteFindings } from "./note-claims.mjs";
+import { NEVER_PACKED_TYPES, unclaimedNoteFindings } from "./note-claims.mjs";
+// Which document a content type compiles into, so the art declaration below is
+// answered from the same routing the compile uses (#349).
+import { RETIRED_TYPES, currentType, packForType } from "./ids.mjs";
 import { contentPackage } from "./content-package.mjs";
 
 /**
@@ -129,6 +132,56 @@ const SYSTEM_COMPILERS = Object.freeze({
  */
 export function compilerFor(docType, system = null) {
     return (system && SYSTEM_COMPILERS[system]?.[docType]) || COMPILERS[docType];
+}
+
+/**
+ * The art fields a note of one content type reaches its document through, and
+ * the document it reaches (#349).
+ *
+ * **Derived, never listed.** A note's type routes to a document type
+ * ({@link packForType}), a document type routes to the pass that compiles it
+ * ({@link compilerFor}), and the pass declares which art it emits
+ * ({@link BasePackCompiler.emitsArt}). So the answer is assembled from the same
+ * three statements the compile itself follows, and a pass that starts or stops
+ * emitting art changes this by changing its own declaration. A second table of
+ * "types with no image" would be a table free to drift from what is emitted,
+ * which is the defect this exists to report rather than to reproduce.
+ *
+ * **The union across systems**, because a note is compiled by whichever pack
+ * claims it: a tree feeding both SoHL and HM3 has two Actor passes, and a field
+ * either of them emits is live for the note. Only a field *no* pass emits is
+ * inert, and that is the finding this supports.
+ *
+ * @param {string} type - The note's content type.
+ * @returns {{document: string|null, art: readonly string[]}|null} What the type
+ *   compiles into and the art it carries there, or `null` where no claim can be
+ *   made — a retired type, which is reported as retired instead.
+ */
+export function emittedArtFor(type) {
+    const name = String(type ?? "");
+    if (!name || Object.hasOwn(RETIRED_TYPES, name)) return null;
+
+    // A homepage compiles into a *page*, not a compendium document, so nothing
+    // it authors reaches one. It is the one type whose absence from every pack
+    // is the intended state (`NEVER_PACKED_TYPES`).
+    if (NEVER_PACKED_TYPES.has(currentType(name))) return { document: null, art: [] };
+
+    // A folder reaches a pack by a route of its own — it materialises in every
+    // pack holding a document that references it — so `packForType` has no
+    // answer for it and no compiler class writes it. `folderDocument` does, and
+    // a Foundry `Folder` has no artwork at all.
+    if (currentType(name) === FOLDER_TYPE) return { document: "Folder", art: [] };
+
+    const { docType } = packForType(name);
+    const passes = [
+        COMPILERS[docType],
+        ...Object.values(SYSTEM_COMPILERS).map((bySystem) => bySystem[docType]),
+    ].filter(Boolean);
+    if (!passes.length) return null;
+
+    const art = new Set();
+    for (const pass of passes) for (const field of pass.emitsArt ?? []) art.add(field);
+    return { document: docType, art: Object.freeze([...art]) };
 }
 
 /**

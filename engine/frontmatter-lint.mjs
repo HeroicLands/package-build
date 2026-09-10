@@ -726,6 +726,12 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   note against whatever its type declares and knows no type names of its
  *   own. Its absence skips the `data:` and `subType` checks rather than
  *   reporting every key as unknown.
+ * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]
+ *   What art a note of one type reaches its document through — the passes' own
+ *   declaration, asked through `engine/generate.mjs`'s `emittedArtFor`.
+ *   Supplied by the caller like `schemas`, so this module states no list of
+ *   iconless types of its own; absent it, an inert `img:` goes unreported
+ *   rather than every note's being (#349).
  * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
  *   The system blocks to check, and what each accepts. See
  *   {@link DEFAULT_SYSTEM_BLOCKS}.
@@ -737,7 +743,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  */
 export function lintNote(
     note,
-    { schemas, index, vocabulary, packs, systems = DEFAULT_SYSTEM_BLOCKS },
+    { schemas, index, vocabulary, packs, emittedArt, systems = DEFAULT_SYSTEM_BLOCKS },
 ) {
     const findings = [];
     const fm = note.fm ?? {};
@@ -846,7 +852,64 @@ export function lintNote(
         });
     }
 
+    // An art field a note's own type never emits (#349). `img` is a *shared
+    // top-level* field — `BLOCK_DOCUMENT_PROPERTIES` maps it onto
+    // `document.img`, so it is legal on every note whatever the type — and a
+    // note whose document has no such property authors it, validates, compiles,
+    // and loses the value with nothing said. `Parrot` in `sohl-thalorna` had
+    // declared `img: images/mystery/parrot.webp` since long before the art rule
+    // was written and compiled `img: null`, exactly as a note declaring nothing
+    // does. The author's only evidence was the absence of an icon somewhere
+    // they were probably not looking.
+    //
+    // **Which types those are is not stated here.** It is asked of the passes,
+    // through the `emittedArt` the caller supplies — a note's type routes to a
+    // document, a document to the pass that compiles it, and the pass declares
+    // its own art. A list of iconless types kept in the linter would be a list
+    // free to drift from what is actually emitted, which is the defect rather
+    // than the check. Absent the option no claim is made, on the pattern
+    // `index` and `vocabulary` set.
+    //
+    // **Only an authored value, never `null`.** `null` is the blessed spelling
+    // for "this note names no art" (#218), and on a type with no art that is a
+    // true and harmless thing to say — it compiles identically to writing
+    // nothing. Twenty-six `sohl-thalorna` place notes are in exactly that
+    // state, and telling each of them to delete a key that already means
+    // nothing would bury the fifty-seven that name a path they believe ships.
+    //
+    // A **warning**, as the `package:` and retired-alias sweeps are: the note
+    // compiles correctly and the value is merely inert. Nor is it certainly
+    // unwanted — a note's top level is the generated page's front matter as
+    // well, so a template may read there what no document carries, which is a
+    // judgement only the tree's author can make.
+    const emitted = emittedArt ? emittedArt(currentType(type)) : null;
+    /** The art fields this note's type reaches nothing through. */
+    const inertArt = new Set(
+        emitted ? ART_FIELDS.filter(({ key }) => !emitted.art.includes(key)).map((f) => f.key) : [],
+    );
     for (const { key, inData } of ART_FIELDS) {
+        if (!inertArt.has(key)) continue;
+        if (typeof authoredValue(fm, key, { inData }) !== "string") continue;
+        findings.push({
+            file: note.file,
+            ...at(key),
+            severity: "warning",
+            message:
+                `\`${key}:\` reaches no document from a \`${type}\` note — ` +
+                (emitted?.document ?
+                    `it compiles into a ${emitted.document}, which carries no artwork`
+                :   "it compiles into a page rather than a compendium document") +
+                ", so the path is dropped. Delete the key, or move the art onto " +
+                "the note whose document is meant to show it; keep it only where " +
+                "a page template reads it as a parameter",
+        });
+    }
+
+    for (const { key, inData } of ART_FIELDS) {
+        // Reported above, and the distinction this draws does not exist there:
+        // where nothing is emitted, `""` and `null` are equally inert and the
+        // note has no default art to lose.
+        if (inertArt.has(key)) continue;
         if (authoredValue(fm, key, { inData }) !== "") continue;
         findings.push({
             file: note.file,
@@ -1215,10 +1278,15 @@ export function lintNote(
  *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
  * @param {readonly string[]} [opts.packs] - The declared pack names; see
  *   {@link lintNote}.
+ * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]
+ *   What art a type reaches its document through; see {@link lintNote}.
  * @returns {{findings: object[], notes: number}} The findings, and how many
  *   notes were inspected.
  */
-export function lintFrontmatter(index, { schemas, vocabulary, packs, references = true, systems }) {
+export function lintFrontmatter(
+    index,
+    { schemas, vocabulary, packs, emittedArt, references = true, systems },
+) {
     const findings = [];
     const notes = [...index.notes].sort((a, b) =>
         a.file < b.file ? -1
@@ -1231,6 +1299,7 @@ export function lintFrontmatter(index, { schemas, vocabulary, packs, references 
                 schemas,
                 vocabulary,
                 packs,
+                emittedArt,
                 index: references ? index : undefined,
                 ...(systems ? { systems } : {}),
             }),

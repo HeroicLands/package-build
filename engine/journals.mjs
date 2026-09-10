@@ -312,6 +312,20 @@ export class Journals extends BasePackCompiler {
     static requiresId = false;
 
     /**
+     * **None.** A JournalEntry has no artwork — no `img` property, and no
+     * nested place for one — so a note whose whole document is prose has
+     * nowhere to put an authored path (#349).
+     *
+     * The emptiness is the declaration, in the sense `JOURNAL_ONLY_FIELDS` is:
+     * it is what separates a pass that emits no art from one that has simply
+     * not said, and it is the fact the frontmatter lint reports a `lore` note's
+     * inert `img:` from.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze([]);
+
+    /**
      * How many of the compiled entries were documentation for a document
      * compiled elsewhere, for the summary.
      *
