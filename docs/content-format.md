@@ -1607,8 +1607,11 @@ Represents an affliction.
 | `contagionIndex`              | `number`            | how contagious the disease is                                                             |
 | `outcomeTraumas`              | `SafeExpression`    | Expression returning traumas that result from affliction recovery                         |
 | `onsetDurationFormula`        | `RollFormula`       | Formula to calculate duration until onset after contracting affliction                    |
+| `onsetDurationBase`           | `number`            | That duration in seconds, stated outright instead of rolled                               |
 | `healingCheckDurationFormula` | `RollFormula`       | Formula to calculate duration until next healing check (measured from last healing check) |
+| `healingCheckDurationBase`    | `number`            | That duration in seconds, stated outright instead of rolled                               |
 | `resolutionDurationFormula`   | `RollFormula`       | Formula to calculate duration after onset to resolution                                   |
+| `resolutionDurationBase`      | `number`            | That duration in seconds, stated outright instead of rolled                               |
 
 If `sohl` is present, this becomes an `affliction` item.
 
@@ -1621,17 +1624,41 @@ If `sohl` is present, this becomes an `affliction` item.
 | `data.contagionIndex`              | `system.contagionIndexBase`          | NA    |
 | `data.outcomeTraumas`              | `system.outcomeTraumas`              | NA    |
 | `data.onsetDurationFormula`        | `system.onsetDurationFormula`        | NA    |
+| `data.onsetDurationBase`           | `system.onsetDurationBase`           | NA    |
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
+| `data.healingCheckDurationBase`    | `system.healingCheckDurationBase`    | NA    |
 | `data.resolutionDurationFormula`   | `system.resolutionDurationFormula`   | NA    |
+| `data.resolutionDurationBase`      | `system.resolutionDurationBase`      | NA    |
 
-**The `…Date` half of each timed phase is never authored.** SoHL stores a phase
-as `{…DurationFormula, …DurationBase, …Date}`: the formula is the authored
-definition, the base holds what it rolled to, and the date records _when the
-phase actually fired_ — which only play can know. `system.contractDate`,
-`system.onsetDate`, `system.treatmentDate` and `system.resolutionDate` are
-therefore runtime state, and a note that writes one fails the build. They are
-world times, and `0` is a valid one, so there is no blank a note could write
-either; leave them out and the data model's `null` stands.
+**A timed phase is a triplet, and a note writes two thirds of it.** SoHL stores
+each phase as `{…DurationFormula, …DurationBase, …Date}`, and the three are
+authored differently:
+
+| third              | who writes it | what it says                                             |
+| ------------------ | ------------- | -------------------------------------------------------- |
+| `…DurationFormula` | the note      | what is **rolled** to get the interval                   |
+| `…DurationBase`    | the note      | the interval **outright**, in seconds, instead of a roll |
+| `…Date`            | play          | _when the phase actually fired_                          |
+
+Write the **formula** for a phase whose length varies — `"2d6*86400"` for an
+incubation of two-to-twelve days — and the **base** for one that does not. Both
+are intervals in **seconds**, and a bare number is a valid formula, so
+`onsetDurationFormula: 86400` and `onsetDurationBase: 86400` differ only in
+whether a roll is attempted.
+
+**Omitting either omits the key**, rather than writing a default over it. That
+matters because the data model's own `null` is what several phases fall back on:
+a trauma that sets no `healingCheckDuration*` takes the world's configured
+healing-check interval, and one that sets no `bloodLossAdvanceDurationBase` does
+not bleed at all. A compile-time `null` is still a value, and would answer those
+questions for every note in every world.
+
+**The `…Date` third is never authored.** It records when the phase fired, which
+only play can know, so `system.contractDate`, `system.onsetDate`,
+`system.treatmentDate` and `system.resolutionDate` are runtime state and a note
+that writes one fails the build. They are world times, and `0` is a valid one,
+so there is no blank a note could write either; leave them out and the data
+model's `null` stands.
 
 ### type: armorgear
 
@@ -1918,17 +1945,37 @@ Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Commu
 - shock: A prolonged physiological state of shock lasting hours or days, following severe trauma or blood loss — distinct from the transient combat-shock states.
 - coma: A prolonged state of unconsciousness.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `data` property                   | Values        | Description                                                            |
+| --------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `templatePriority`                | `number`      | Template priority, _null_ = not a template                             |
+| `healingCheckDurationFormula`     | `RollFormula` | Formula for the interval between healing checks                        |
+| `healingCheckDurationBase`        | `number`      | That interval in seconds, stated outright instead of rolled            |
+| `bloodLossAdvanceDurationFormula` | `RollFormula` | Formula for the interval between blood-loss advances                   |
+| `bloodLossAdvanceDurationBase`    | `number`      | That interval in seconds. Setting it is what makes the wound bleed     |
+| `courseDurationFormula`           | `RollFormula` | Formula for the interval between course tests — shock, coma, infection |
+| `courseDurationBase`              | `number`      | That interval in seconds, stated outright instead of rolled            |
 
 if a `sohl` property is present, a SoHL item of type "trauma" will be created.
 
 If an `hm3` property is present, an HM3 item is created. `hm3.type` must be specified as either `injury` or `trait`.
 
-| shared source | → sohl           | → hm3 |
-| ------------- | ---------------- | ----- |
-| `subType`     | `system.subType` | NA    |
+| shared source                          | → sohl                                   | → hm3 |
+| -------------------------------------- | ---------------------------------------- | ----- |
+| `subType`                              | `system.subType`                         | NA    |
+| `data.healingCheckDurationFormula`     | `system.healingCheckDurationFormula`     | NA    |
+| `data.healingCheckDurationBase`        | `system.healingCheckDurationBase`        | NA    |
+| `data.bloodLossAdvanceDurationFormula` | `system.bloodLossAdvanceDurationFormula` | NA    |
+| `data.bloodLossAdvanceDurationBase`    | `system.bloodLossAdvanceDurationBase`    | NA    |
+| `data.courseDurationFormula`           | `system.courseDurationFormula`           | NA    |
+| `data.courseDurationBase`              | `system.courseDurationBase`              | NA    |
+
+**A trauma's three timed phases follow the triplet rule** stated under
+`affliction`: write the formula or the base, both in seconds, and omitting each
+leaves the key out so the data model answers. Two of them fall back to a **world
+setting** when the trauma sets neither half — the healing check and the course —
+which is why a default written here would be wrong rather than merely
+redundant. `bloodLossAdvanceDurationBase` is the switch that makes a wound
+bleed: a trauma that sets it bleeds, one that leaves it unset does not.
 
 **`system.contractDate` and `system.treatmentDate` are never authored.** They
 are the world times the injury was taken and last treated — runtime state, for
