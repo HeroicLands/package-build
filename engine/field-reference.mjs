@@ -104,7 +104,15 @@ function fieldTable(fields) {
             `\`${field.name}\``,
             cell(field.shape ?? "as authored"),
             field.required ? "**yes**" : "no",
-            field.required ? "—" : renderDefault(field.default),
+            // Three different answers, and the third is not a value (#329). A
+            // required field has no default because omitting it fails the
+            // build; an `omitWhenAbsent` field has none because omitting it
+            // omits the *key*, leaving the data model to answer. Rendering
+            // both as the em dash a missing default already prints would put
+            // two opposite behaviours in one cell.
+            field.required ? "—"
+            : field.omitWhenAbsent ? "_omitted_"
+            : renderDefault(field.default),
             cell(field.describe ?? ""),
         ]),
     ];
@@ -255,8 +263,11 @@ export function renderItemFieldReference({
             `repository compiles declare their frontmatter below. Every field ` +
             `is written under a note's \`sohl:\` block; a dotted name such as ` +
             `\`impact.die\` is a nested key. A field a note does not carry ` +
-            `takes the default shown, and a **required** field has none — ` +
-            `omitting it fails the build rather than guessing.`,
+            `takes the default shown; a **required** field has none — omitting ` +
+            `it fails the build rather than guessing — and one shown as ` +
+            `_omitted_ has none either, because leaving it out leaves the key ` +
+            `out of the compiled document, so the data model's own initial ` +
+            `value stands.`,
         "",
     );
 

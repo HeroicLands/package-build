@@ -151,8 +151,8 @@ describe("the shipped specification (#130)", () => {
         expect(CONTENT_FORMAT_PATH.endsWith(path.join("docs", "content-format.md"))).toBe(true);
     });
 
-    it("makes the 86 mapping claims the audit counted", () => {
-        expect(format.claims).toHaveLength(86);
+    it("makes the 95 mapping claims the audit counted", () => {
+        expect(format.claims).toHaveLength(95);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
@@ -259,7 +259,7 @@ describe("the specification against the committed fixture schema (#130)", () => 
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(67);
+        expect(checked).toBe(76);
     });
 });
 
