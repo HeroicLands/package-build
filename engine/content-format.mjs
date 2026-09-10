@@ -46,6 +46,16 @@
  * A mapping table's remaining header cells name the systems (`→ sohl`,
  * `→ hm3`), so the system vocabulary comes from the document too.
  *
+ * **The other half of a type's vocabulary is a bullet list, not a table.** A
+ * type's `subType` values are stated as `**subType**:` followed by one bullet
+ * per value, `- <value>` or `- <value>: <definition>`, and that is read here
+ * for the same reason the tables are: so the specification and
+ * `note-vocabulary.mjs` cannot disagree about which genres exist (#345). The
+ * one shape is enforced rather than guessed at — the document wrote them five
+ * ways, and a reader that accepted every spelling would accept the sixth by
+ * reading the section as declaring nothing, which is the drift it exists to
+ * catch. An unrecognised shape throws.
+ *
  * **A mapping table before the first `### type:` heading is the shared one.**
  * The document states the rows every type maps identically once, at the top,
  * and omits them from all sixteen per-type tables — so a parser that only ever
@@ -92,6 +102,9 @@ export const CONTENT_FORMAT_PATH = path.join(
  *   property — what a note actually writes. `appearance.eye_color` is authored
  *   as `appearance`, so that is the key recorded.
  * @property {Set<string>} dataPaths - The declared paths, whole.
+ * @property {string[]} subTypes - The `subType` values the section enumerates,
+ *   in document order — empty when it states none, which is the ordinary case
+ *   for a type that has no `subType` at all.
  */
 
 /**
@@ -178,6 +191,79 @@ function columnOfCell(line, index) {
     return at + lead + 2;
 }
 
+/** The one shape the specification states a type's `subType` values in. */
+const SUBTYPE_MARKER = "**subType**:";
+
+/** Any line that reads as a `subType` marker, canonical or not. */
+const SUBTYPE_MARKER_ISH = /^\s*\**\s*subTypes?\s*\**\s*:?\s*$/i;
+
+/** One bullet of a values list: `- <value>` or `- <value>: <definition>`. */
+const SUBTYPE_BULLET = /^-\s+(\S+?)\s*(?::|$)/;
+
+/**
+ * A parse failure, positioned where the document went wrong.
+ *
+ * Thrown rather than collected, because there is nothing partial to report: a
+ * marker the reader does not understand yields a section that appears to
+ * declare no subTypes, and every comparison against it then passes vacuously
+ * (#345). The message carries the compiler-parseable position the rest of the
+ * toolchain's diagnostics use.
+ *
+ * @param {string} file - The document being read.
+ * @param {number} line - 1-based line the fault is on.
+ * @param {string} message - What is wrong, and what to write instead.
+ * @returns {Error} The failure to throw.
+ */
+function specError(file, line, message) {
+    return new Error(`${file}:${line}:1: error: ${message}`);
+}
+
+/**
+ * The `subType` values a section enumerates under its marker.
+ *
+ * Reads the one contiguous bullet list directly below the marker and stops
+ * there: several sections state another closed vocabulary of their own a blank
+ * line later — `TransmissionTypes`, `GovernanceModel` — and reading on would
+ * quietly attribute its values to `subType`.
+ *
+ * @param {string[]} lines - The document's lines.
+ * @param {number} at - Index of the marker line.
+ * @param {string} file - The document, for the failure message.
+ * @returns {string[]} The values, in document order.
+ */
+function subTypeValues(lines, at, file) {
+    /** @type {string[]} */
+    const values = [];
+    let i = at + 1;
+    while (i < lines.length && lines[i].trim() === "") i += 1;
+    for (; i < lines.length; i += 1) {
+        const line = lines[i];
+        // A wrapped definition is indented under its own bullet.
+        if (values.length && /^\s+\S/.test(line)) continue;
+        if (!line.startsWith("-")) break;
+        const bullet = SUBTYPE_BULLET.exec(line);
+        const value = bullet?.[1].replace(/`/g, "");
+        if (!value || !/^[A-Za-z0-9]+$/.test(value)) {
+            throw specError(
+                file,
+                i + 1,
+                `\`${SUBTYPE_MARKER}\` takes one bullet per value, ` +
+                    "`- <value>` or `- <value>: <definition>`, and this bullet states none.",
+            );
+        }
+        values.push(value);
+    }
+    if (!values.length) {
+        throw specError(
+            file,
+            at + 1,
+            `\`${SUBTYPE_MARKER}\` enumerates no values. A type whose subType values the ` +
+                "specification does not state omits the marker.",
+        );
+    }
+    return values;
+}
+
 /**
  * Parse the specification's tables.
  *
@@ -211,8 +297,24 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
                 line: i + 1,
                 dataKeys: new Set(),
                 dataPaths: new Set(),
+                subTypes: [],
             };
             types.set(current.name, current);
+            table = undefined;
+            continue;
+        }
+
+        if (current && SUBTYPE_MARKER_ISH.test(line)) {
+            if (line.trim() !== SUBTYPE_MARKER) {
+                throw specError(
+                    file,
+                    i + 1,
+                    `a type's subType values are stated as \`${SUBTYPE_MARKER}\`, ` +
+                        `not \`${line.trim()}\`. The specification had five spellings and ` +
+                        "converged on one, so that a section is never read as declaring none.",
+                );
+            }
+            current.subTypes = subTypeValues(lines, i, file);
             table = undefined;
             continue;
         }

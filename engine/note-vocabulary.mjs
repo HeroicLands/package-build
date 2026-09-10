@@ -592,14 +592,29 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe: "Roll formula for the delay between contraction and onset.",
             },
             {
+                name: "onsetDurationBase",
+                ...NUM,
+                describe: "That delay in seconds, stated outright instead of rolled.",
+            },
+            {
                 name: "healingCheckDurationFormula",
                 ...TEXT,
                 describe: "Roll formula for the interval between healing checks.",
             },
             {
+                name: "healingCheckDurationBase",
+                ...NUM,
+                describe: "That interval in seconds, stated outright instead of rolled.",
+            },
+            {
                 name: "resolutionDurationFormula",
                 ...TEXT,
                 describe: "Roll formula for the time from onset to resolution.",
+            },
+            {
+                name: "resolutionDurationBase",
+                ...NUM,
+                describe: "That time in seconds, stated outright instead of rolled.",
             },
         ]),
     }),
@@ -733,7 +748,39 @@ export const NOTE_VOCABULARY = Object.freeze({
             "shock",
             "coma",
         ]),
-        data: Object.freeze([TEMPLATE_PRIORITY]),
+        data: Object.freeze([
+            TEMPLATE_PRIORITY,
+            {
+                name: "healingCheckDurationFormula",
+                ...TEXT,
+                describe: "Roll formula for the interval between healing checks.",
+            },
+            {
+                name: "healingCheckDurationBase",
+                ...NUM,
+                describe: "That interval in seconds, stated outright instead of rolled.",
+            },
+            {
+                name: "bloodLossAdvanceDurationFormula",
+                ...TEXT,
+                describe: "Roll formula for the interval between blood-loss advances.",
+            },
+            {
+                name: "bloodLossAdvanceDurationBase",
+                ...NUM,
+                describe: "That interval in seconds. Setting it is what makes the wound bleed.",
+            },
+            {
+                name: "courseDurationFormula",
+                ...TEXT,
+                describe: "Roll formula for the interval between course tests.",
+            },
+            {
+                name: "courseDurationBase",
+                ...NUM,
+                describe: "That interval in seconds, stated outright instead of rolled.",
+            },
+        ]),
     }),
 
     weapongear: Object.freeze({

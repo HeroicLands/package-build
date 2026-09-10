@@ -104,7 +104,15 @@ function fieldTable(fields) {
             `\`${field.name}\``,
             cell(field.shape ?? "as authored"),
             field.required ? "**yes**" : "no",
-            field.required ? "—" : renderDefault(field.default),
+            // Three different answers, and the third is not a value (#329). A
+            // required field has no default because omitting it fails the
+            // build; an `omitWhenAbsent` field has none because omitting it
+            // omits the *key*, leaving the data model to answer. Rendering
+            // both as the em dash a missing default already prints would put
+            // two opposite behaviours in one cell.
+            field.required ? "—"
+            : field.omitWhenAbsent ? "_omitted_"
+            : renderDefault(field.default),
             cell(field.describe ?? ""),
         ]),
     ];
@@ -202,7 +210,13 @@ function workedExample(type, fields) {
         // No `package:`. A note's package is the repository's configured
         // `contentPackage`, and declaring the field is a build error (#56) —
         // this example is the smallest note that compiles.
-        "id: <16-character id>",
+        //
+        // No `id:` either, for the same reason it is not shown optional-first:
+        // a note's document `_id` derives from its canonical address (#270,
+        // #277), and the authored field is the escape hatch for keeping a
+        // document's identity across a shortcode rename, not part of the
+        // envelope. This block is the one an author copies as a template, so
+        // showing the field taught every note in the tree to write it (#314).
         "sohl:",
         "  templatePriority: null",
     ];
@@ -255,8 +269,11 @@ export function renderItemFieldReference({
             `repository compiles declare their frontmatter below. Every field ` +
             `is written under a note's \`sohl:\` block; a dotted name such as ` +
             `\`impact.die\` is a nested key. A field a note does not carry ` +
-            `takes the default shown, and a **required** field has none — ` +
-            `omitting it fails the build rather than guessing.`,
+            `takes the default shown; a **required** field has none — omitting ` +
+            `it fails the build rather than guessing — and one shown as ` +
+            `_omitted_ has none either, because leaving it out leaves the key ` +
+            `out of the compiled document, so the data model's own initial ` +
+            `value stands.`,
         "",
     );
 
