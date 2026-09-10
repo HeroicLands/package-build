@@ -117,6 +117,17 @@ export class SystemItemCompiler extends BasePackCompiler {
     static requiresSystemBlock = true;
 
     /**
+     * An Item carries an `img` — its icon — which this pass writes from the
+     * note's own path, falling back to the type's default art.
+     *
+     * `portrait` is **not** among them: a portrait is a being's sheet picture,
+     * and an item has nowhere to put one.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze(["img"]);
+
+    /**
      * The note-type → document-subtype map this pass compiles against.
      *
      * Stated by the class rather than reached for through a module import, so

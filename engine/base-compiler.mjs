@@ -199,6 +199,34 @@ export class BasePackCompiler {
      */
     static requiresSystemBlock = false;
 
+    /**
+     * The **art fields** this pass reads off a note and writes onto its
+     * document — `img`, `portrait`, whichever of them reaches the output.
+     *
+     * Empty by default, and every shipped pass states its own, for the reason
+     * {@link BasePackCompiler.readsPackOutputOf} does: the fact belongs to the
+     * class that does the writing, and a second list of it somewhere else is a
+     * list free to disagree with what is actually emitted.
+     *
+     * The reader is the frontmatter lint. `img` is a *shared top-level* field —
+     * legal on every note whatever its type, because
+     * `BLOCK_DOCUMENT_PROPERTIES` maps it onto `document.img` — so a note whose
+     * document has no such property authors it, validates, compiles, and loses
+     * the value with nothing said. That is #349: `Parrot` in `sohl-thalorna`
+     * had declared `img:` since long before the art rule existed and compiled
+     * `img: null` exactly as a note declaring nothing does. Naming the fields
+     * here is what lets the lint tell an inert key from a live one.
+     *
+     * A pass that emits art **anywhere** in its document declares it, not only
+     * one that writes a top-level `img`: the scenes pass puts the path on the
+     * scene's background rather than on a property called `img`, and the value
+     * is no less live for it. The question this answers is whether the authored
+     * path reaches the output at all.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze([]);
+
     /** @type {string} */
     contentBase;
     /** @type {string} */

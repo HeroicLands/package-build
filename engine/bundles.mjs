@@ -136,6 +136,15 @@ export class Bundles extends BasePackCompiler {
     static readsPackOutputOf = Object.freeze(["Actor", "Item", "JournalEntry", "Macro", "Scene"]);
 
     /**
+     * An Adventure carries an `img` — what Foundry shows on the import card.
+     * There is no default for it: a bundle naming none ships a blank tile,
+     * deliberately, since no stand-in artwork means "a set of documents".
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze(["img"]);
+
+    /**
      * The JSON directories this pass reads its members from, by document type.
      *
      * @type {Readonly<Record<string, readonly string[]>>}

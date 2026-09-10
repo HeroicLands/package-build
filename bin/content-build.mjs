@@ -136,7 +136,7 @@ import {
     locateAddressFinding,
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
-import { itemPackJsonDirs } from "../engine/generate.mjs";
+import { emittedArtFor, itemPackJsonDirs } from "../engine/generate.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -799,6 +799,12 @@ function lintCommand() {
                     // the compile asks the map for whichever pack it is
                     // writing, and a companion is a pack it writes.
                     packs: config.packDirectories,
+                    // What art each type actually reaches its document through,
+                    // asked of the passes rather than listed here (#349). This
+                    // is the one place that decides what a tree is held to, so
+                    // it is where the derivation is handed over — the linter
+                    // states no list of iconless types of its own.
+                    emittedArt: emittedArtFor,
                     references: argv.references,
                 });
 

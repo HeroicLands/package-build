@@ -257,6 +257,30 @@ no SoHL form, so its SoHL column is. Nothing else varies — which is why these
 rows are worth stating once: repeated sixteen times they buried the differences
 that matter.
 
+**`img` maps onto a document that has one, and not every type's does.** The row
+is shared because the key is legal on every note whatever its type, not because
+every document carries artwork: `doc`, `place`, `lore` and `scenario` compile
+into a JournalEntry, which has no image of any kind, and a `folder` compiles into
+a Foundry `Folder`, which has none either. A `homepage` compiles into no
+compendium document at all. On any of those the mapping has no destination, so an
+authored path is simply dropped — the note validates, the tree compiles, and the
+value goes nowhere.
+
+Since a dropped value looks exactly like a value never written, the frontmatter
+lint **reports it**: an `img:` (or `portrait:`) authored on a type whose passes
+emit neither is a warning naming the note and the key. A warning rather than an
+error, because the note still compiles correctly and the key is not certainly
+unwanted — a note's top level is the generated page's front matter as well, so a
+site template may read there what no document carries. `img: null` is never
+reported: that is the blessed way to say "this note names no art", and on a type
+with no art it is a true and harmless thing to say.
+
+Which types those are is **not a list**. It is asked of the passes: a type routes
+to a document, a document to the pass that compiles it, and each pass declares
+the art it writes (`emitsArt`). A second table of iconless types would be a table
+free to drift from what is actually emitted, which is the defect rather than the
+check.
+
 Actor types (`being`, `vehicle`) add one more:
 
 | shared source   | → sohl            | → hm3             |

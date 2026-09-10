@@ -127,6 +127,17 @@ export class Scenes extends BasePackCompiler {
     static id = "scenes";
     static label = "map";
 
+    /**
+     * A map note's `img` is its background art, and it is **required**: the map
+     * compiler refuses a note without one. It lands on the scene's level rather
+     * than on a property spelled `img`, which makes no difference to the
+     * question this declaration answers — the authored path reaches the output
+     * (#349). The place Adventure this pass bundles carries it too.
+     *
+     * @type {readonly string[]}
+     */
+    static emitsArt = Object.freeze(["img"]);
+
     /** @type {string} */
     adventureDir;
 
