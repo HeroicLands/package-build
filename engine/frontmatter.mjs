@@ -301,13 +301,15 @@ export function parseValueDesc(raw) {
 }
 
 /**
- * The compendium folder a note names, and how it named it.
+ * The compendium folder a note names.
  *
- * Two spellings, deliberately not merged into one value: `packFolder:` is a
- * folder note's **address** (`folder-poisonsandtoxins`) and `folder:` is a
- * Foundry **id** (`ONXsqZAIZr2qzxTb`). Which one a value is cannot be told from
- * the string — both are alphanumeric — so the field it was written in is what
- * says, and that answer is carried rather than re-derived (#251).
+ * **There is one spelling.** `packFolder:` is a folder note's **address**
+ * (`folder-poisonsandtoxins`), resolved through the address index the whole
+ * build shares. The `folder:` Foundry-id spelling this function once read
+ * beside it, and the per-pack `*-folders.yaml` that id was resolved against,
+ * are retired together (#260) — a note declaring `folder:` is refused by
+ * {@link module:engine/folder-notes.assertNoDeclaredFolder} rather than
+ * reaching here, so there is no second source for a value to come from.
  *
  * **`packFolder` was a path for one release** (`Possessions/Misc_Gear/Cooking`)
  * and is an address now (#255). A path encoded the hierarchy *in the value*, so
@@ -318,13 +320,11 @@ export function parseValueDesc(raw) {
  * authors to migrate, which is the whole reason the change was cheap enough to
  * make.
  *
- * `packFolder` wins where both are present. Nothing about `folder` changes: a
- * note that names one is read, resolved and emitted exactly as before, until
- * #260 retires it.
- *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @returns {{value: string|null, isAddress: boolean}} The authored value, and
- *   whether it is a folder note's address.
+ *   whether it is a folder note's address. `isAddress` is always `true` and is
+ *   kept so a caller reads the same shape it always did; it distinguished the
+ *   two spellings, and there is only one left to be.
  */
 export function folderField(fm) {
     const asAddress = sohlField(fm, "packFolder", null);

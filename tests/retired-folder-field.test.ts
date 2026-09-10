@@ -156,3 +156,55 @@ describe("the frontmatter lint", () => {
         expect(hits[0].message).toMatch(/packFolder/);
     });
 });
+
+/**
+ * The specification is the other place the model is stated, and prose is
+ * checked by nothing (#358).
+ *
+ * The epic's argument against `*-folders.yaml` was that a second, unchecked
+ * statement of one fact drifts from the first. These assertions point that
+ * argument at `docs/content-format.md`, which had drifted in both of the ways
+ * a retired spelling can: it offered `folder` beside `packFolder` as a live
+ * source, and it still called `packFolder` a path.
+ *
+ * They deliberately do not test the engine's docblocks. A sentence describing
+ * `folder:` as **retired** is correct and must survive, and no assertion can
+ * separate that from one describing it as live without reading the prose — so
+ * the docblocks are held to review, and only the two mechanical claims below
+ * are pinned.
+ */
+describe("the specification states the address model (#358)", () => {
+    const SPEC = fs.readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
+
+    /** The shared-mappings rows — `| shared source | → sohl | → hm3 |` (#275). */
+    function sharedMappingSources(): string[] {
+        const table = SPEC.match(/^\|\s*shared source.*\n\|[-\s|]+\n((?:\|.*\n)+)/m);
+        return (table?.[1] ?? "")
+            .trim()
+            .split("\n")
+            .map((row) => row.trim().replace(/^\|/, "").split("|")[0].trim())
+            .filter(Boolean);
+    }
+
+    it("parses a shared-mappings table that still has rows to read", () => {
+        // Guards the guard: reshaping the table would otherwise make the
+        // assertions below vacuously pass.
+        const sources = sharedMappingSources();
+        expect(sources.length).toBeGreaterThan(4);
+        expect(sources).toContain("`name.full`");
+    });
+
+    it("names `packFolder` alone as the compendium-folder source", () => {
+        // `folder:` is refused at compile and reported by the lint, so offering
+        // it here tells an author to write a value the build rejects.
+        const named = sharedMappingSources().filter((s) => /folder/i.test(s));
+        expect(named).toEqual(["`packFolder`"]);
+    });
+
+    it("never presents `packFolder` as holding a path", () => {
+        // The placeholder form is a claim about live syntax. Prose about the
+        // path form having existed ("`packFolder` was a path for one release")
+        // is history, and is left alone.
+        expect(SPEC).not.toMatch(/`packFolder: <path>`/);
+    });
+});

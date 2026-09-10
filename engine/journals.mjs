@@ -30,10 +30,13 @@
  * any other: the macro pass reads the same page independently, and withholds
  * nothing from the journal (#1514).
  *
- * Folder placement is identical to the items pack: `sohl.folder` in
- * frontmatter is the target folder's id (from folders.yaml), resolved
- * against a folders.yaml list via the constructor's `folderResolver`. A
- * documentation entry reuses its document's folder id verbatim.
+ * Folder placement is identical to the items pack: `sohl.packFolder` in
+ * frontmatter is a folder **note's address**, resolved through the shared
+ * address index by the constructor's `folderResolver` (#255, #260). A folder
+ * materialises in every pack holding a document that names it, so a journals
+ * pack needs to declare nothing (#257) — which is what stopped this pass
+ * filing documentation into folders its own pack had never heard of. A
+ * documentation entry reuses its document's folder verbatim.
  *
  * Not a standalone script — exports the `Journals` compiler class, imported
  * and driven by `packages/content-build/engine/generate.mjs` (via `npm run build:compiledb`).

@@ -245,7 +245,7 @@ type.
 | `name.full`             | `name`                    | `name`                       |
 | `img`                   | `img`                     | `img`                        |
 | `id`                    | `_id`                     | `_id`                        |
-| `packFolder` / `folder` | `folder`                  | `folder`                     |
+| `packFolder`            | `folder`                  | `folder`                     |
 | `shortcode`             | `system.shortcode`        | NA                           |
 | `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
 | `actionDefs`            | `system.actionDefs`       | NA                           |
@@ -540,7 +540,7 @@ every pack of a document type, which is exactly the scope a primary document's
 id must be unique within, and it said nothing at all about a duplicate `id`. So
 the derived id inherits a guard that already exists, where the authored one had
 none. It is the same principle that turned `folder: ONXsqZAIZr2qzxTb` into
-`packFolder: <path>` above: an opaque derived identity does not belong in
+`packFolder: <address>` above: an opaque derived identity does not belong in
 authored content.
 
 **An authored `id` still wins**, and that is how a document's identity is
