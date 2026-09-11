@@ -37,6 +37,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { isBuiltin } from "node:module";
 import { fileURLToPath } from "node:url";
+import { parse } from "acorn";
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const PKG_ROOT = path.dirname(HERE);
@@ -57,8 +58,68 @@ const declaredDev = Object.keys(manifest.devDependencies ?? {});
  *
  * The lookbehind keeps the keyword from matching inside a string literal:
  * `["from", "to"]` would otherwise read as importing `", "`.
+ *
+ * It cannot do the same for a **comment**, where the keyword is a real word and
+ * the quotes are real quotes — so comments are removed before this ever runs
+ * (see {@link blankComments}).
  */
 const SPECIFIER = /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
+
+/**
+ * The source with every comment's characters replaced by spaces (#355).
+ *
+ * English prose matches {@link SPECIFIER} whenever it contains the word `from`
+ * — or `import`, or `require` — followed by a quoted phrase, which ordinary
+ * explanatory comments in this codebase do:
+ *
+ * ```js
+ * // writing a compile-time `null` over it would say "this phase takes no time",
+ * // which is a different claim from "this note does not set the phase".
+ * ```
+ *
+ * That reported `sohl/item-fields.mjs` as importing an undeclared package named
+ * `this note does not set the phase`, and cost a debugging cycle in #329 before
+ * anyone suspected the prose. A comment is not code, so nothing in one is an
+ * import.
+ *
+ * Blanking rather than deleting is what keeps the finding honest: every
+ * character is replaced one-for-one (newlines survive untouched), so offsets and
+ * line numbers are the same as in the file a reader opens.
+ *
+ * Comments are located by parsing, not by a second regex — `//` inside a string
+ * literal is not a comment, and only a parser knows the difference.
+ */
+function blankComments(source: string): string {
+    const comments: { start: number; end: number }[] = [];
+    parse(source, {
+        ecmaVersion: "latest",
+        sourceType: "module",
+        allowHashBang: true,
+        onComment: (_block, _text, start, end) => comments.push({ start, end }),
+    });
+
+    let out = "";
+    let cursor = 0;
+    for (const { start, end } of comments) {
+        out += source.slice(cursor, start);
+        out += source.slice(start, end).replace(/[^\n]/g, " ");
+        cursor = end;
+    }
+    return out + source.slice(cursor);
+}
+
+/** The external packages a source text imports, with the line each was seen on. */
+function importsIn(source: string): { pkg: string; line: number }[] {
+    const code = blankComments(source);
+    const seen: { pkg: string; line: number }[] = [];
+    for (const match of code.matchAll(SPECIFIER)) {
+        const pkg = packageOf(match[1] ?? "");
+        if (!pkg) continue;
+        const line = code.slice(0, match.index).split("\n").length;
+        seen.push({ pkg, line });
+    }
+    return seen;
+}
 
 /**
  * The npm package a specifier resolves to — `yargs/helpers` is `yargs`,
@@ -83,17 +144,9 @@ function shippedFiles(entry: string): string[] {
 
 const files = manifest.files.flatMap(shippedFiles);
 
-/** The external packages a file imports, with the line each was seen on. */
+/** The same, for a file on disk. */
 function importsOf(file: string): { pkg: string; line: number }[] {
-    const source = fs.readFileSync(file, "utf8");
-    const seen: { pkg: string; line: number }[] = [];
-    for (const match of source.matchAll(SPECIFIER)) {
-        const pkg = packageOf(match[1] ?? "");
-        if (!pkg) continue;
-        const line = source.slice(0, match.index).split("\n").length;
-        seen.push({ pkg, line });
-    }
-    return seen;
+    return importsIn(fs.readFileSync(file, "utf8"));
 }
 
 describe("the package declares what it imports", () => {
@@ -141,5 +194,77 @@ describe("the package declares what it imports", () => {
         const unused = declared.filter((pkg) => !imported.has(pkg));
 
         expect(unused).toEqual([]);
+    });
+});
+
+/**
+ * The comment that cost a debugging cycle in #329, verbatim, so the regression
+ * has a name. `sohl/item-fields.mjs` carries it again, reading naturally.
+ */
+const PROSE_FROM_329 = [
+    '// writing a compile-time `null` over it would say "this phase takes no time",',
+    '// which is a different claim from "this note does not set the phase".',
+].join("\n");
+
+describe("the scanner reads code, not prose", () => {
+    it("finds no import in the line comment that cost a cycle in #329", () => {
+        // It was reported as `… → this note does not set the phase`, a package
+        // name nothing in the message suggested was a sentence.
+        expect(importsIn(PROSE_FROM_329)).toEqual([]);
+    });
+
+    it("finds no import in a block comment that names one", () => {
+        const source = [
+            "/*",
+            ' * Resolved with require("node:fs") back when this was CommonJS, and',
+            ' * imported from "archiver" ever since.',
+            " */",
+        ].join("\n");
+
+        expect(importsIn(source)).toEqual([]);
+    });
+
+    it("still finds a real import on the line after such a comment", () => {
+        const source = [PROSE_FROM_329, 'import archiver from "archiver";'].join("\n");
+
+        expect(importsIn(source)).toEqual([{ pkg: "archiver", line: 3 }]);
+    });
+
+    it("still finds a real import after a block comment, at the right line", () => {
+        const source = [
+            "/* a comment",
+            "   spanning",
+            "   three lines */",
+            'import { glob } from "glob";',
+        ].join("\n");
+
+        expect(importsIn(source)).toEqual([{ pkg: "glob", line: 4 }]);
+    });
+
+    it("still reads an import that a comment trails", () => {
+        const source = 'import yaml from "yaml"; // parsed from "the frontmatter"';
+
+        expect(importsIn(source)).toEqual([{ pkg: "yaml", line: 1 }]);
+    });
+
+    it("does not read a string literal as an import", () => {
+        // The case the lookbehind already covered: `", "` is not a package.
+        expect(importsIn('const keys = ["from", "to"];')).toEqual([]);
+    });
+
+    it("treats `//` inside a string literal as text, not the start of a comment", () => {
+        // A scanner that blanked from the first `//` would lose the import.
+        const source = 'const docs = "https://example.invalid/"; import yaml from "yaml";';
+
+        expect(importsIn(source)).toEqual([{ pkg: "yaml", line: 1 }]);
+    });
+
+    it("blanks a comment in place, moving nothing after it", () => {
+        const source = ["/* one", "   two */ code();", "// three"].join("\n");
+        const blanked = blankComments(source);
+
+        expect(blanked).toHaveLength(source.length);
+        expect(blanked.split("\n")).toHaveLength(source.split("\n").length);
+        expect(blanked.split("\n")[1]).toBe("          code();");
     });
 });

@@ -451,9 +451,9 @@ export const ITEM_FIELDS = Object.freeze({
         // The two **authored** thirds of each timed-phase triplet (#329). Every
         // one omits its key when the note does not carry it, because the value
         // that stands otherwise is the DataModel's `initial: null` — writing a
-        // compile-time `null` over it would claim the phase takes no time,
-        // which is a different statement than the note not setting the phase at
-        // all, and `AfflictionLogic.rollDuration()` opens `if (!formula) return 0`.
+        // compile-time `null` over it would say "this phase takes no time",
+        // which is a different claim from "this note does not set the phase",
+        // and `AfflictionLogic.rollDuration()` opens `if (!formula) return 0`.
         //
         // Until they were declared here the only way to author one was the raw
         // `system:` passthrough — undocumented, uncoerced, and absent from the
