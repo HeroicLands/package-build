@@ -497,8 +497,11 @@ async function generatePack(
         // not contain, for a repository that authors beings without
         // holding the items they are assembled from. Cache-only: a cold
         // cache throws naming `content-build deps fetch` rather than
-        // downloading inside a compile.
-        foreignSourceDirs: foreignItemCatalogDirs(config),
+        // downloading inside a compile. Scoped to this pack's system for the
+        // reason the local half is (#58): both halves answer one lookup, so a
+        // dependency shipping two systems' items would otherwise supply the
+        // wrong vocabulary's document for an address that exists in both.
+        foreignSourceDirs: foreignItemCatalogDirs(config, system ?? null),
         // The bundles pass resolves each Adventure's members against the output
         // of every pass that produces one. Stated from the configured pack list
         // for the same reason `itemsSourceDirs` is (#1508), and scoped to this

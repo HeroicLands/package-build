@@ -165,12 +165,72 @@ function cacheSchemaArtifact(root, dir) {
 }
 
 /**
+ * What each extracted pack is, written beside the items rather than inferred
+ * from the directory it landed in (#58).
+ *
+ * A dependency may ship a pack per system — `items-sohl` and `items-hm3` — and
+ * the two hold documents of the *same* `(type, shortcode)` addresses with
+ * different data models: `skill:awar` exists in both vocabularies and means two
+ * different documents. So a consumer compiling an `hm3` pack has to read the
+ * `hm3` half of the catalogue and no other, and the only place that says which
+ * half a directory is, is the dependency's own manifest at fetch time.
+ *
+ * Held as a manifest at the cache root rather than a marker inside each pack
+ * directory, because those directories are walked as JSON trees: a file dropped
+ * in one would be loaded as though it were a document.
+ *
+ * @type {string}
+ */
+const ITEM_PACKS = "item-packs.json";
+
+/**
+ * What to record about the packs being extracted.
+ *
+ * Exported so the pair is one fact: {@link foreignItemCatalogDirs} reads what
+ * this writes, and a test that hand-wrote the file would prove the reader
+ * against a transcription of the format rather than against the format.
+ *
+ * A pack declaring no `system` records `null` — Foundry requires the field on
+ * an Item pack, so this is the shape of a manifest that is wrong rather than a
+ * case with a meaning, and `null` reads as "neutral", which is the safe way to
+ * be wrong: a neutral pack is read by every system rather than by none.
+ *
+ * @param {readonly object[]} itemPacks - The manifest's Item pack entries.
+ * @returns {Array<{name: string, system: string|null}>} What each one is.
+ */
+export function itemPackManifest(itemPacks) {
+    return itemPacks.map((pack) => ({ name: pack.name, system: pack.system ?? null }));
+}
+
+/**
+ * The system each extracted pack was published for.
+ *
+ * @param {string} dir - The dependency's cache directory.
+ * @returns {Map<string, string|null>} Pack name → its declared system, `null`
+ *   for a pack that declares none.
+ */
+function cachedItemPacks(dir) {
+    const file = path.join(dir, ITEM_PACKS);
+    const declared = JSON.parse(fs.readFileSync(file, "utf8"));
+    return new Map(declared.map((pack) => [pack.name, pack.system ?? null]));
+}
+
+/**
  * Whether a dependency's cache is present and complete.
+ *
+ * **A cache without its pack manifest is incomplete**, not merely unlabelled.
+ * One written before #58 holds the items and not what they are, and the two
+ * ways of proceeding without it are both wrong: reading every pack resolves an
+ * `hm3` reference against `sohl` documents — the silent-wrong-output failure
+ * this scoping exists to remove — and reading none fails a build that was
+ * working. Treating it as incomplete makes `content-build deps fetch` refill
+ * it, which is a command the cold-cache path already tells anyone to run.
  *
  * @param {string} dir - The dependency's cache directory.
  * @returns {boolean} True when it was fetched to completion.
  */
-const isComplete = (dir) => fs.existsSync(path.join(dir, STAMP));
+const isComplete = (dir) =>
+    fs.existsSync(path.join(dir, STAMP)) && fs.existsSync(path.join(dir, ITEM_PACKS));
 
 /**
  * Read a dependency's manifest.
@@ -243,8 +303,18 @@ async function extractItemPacks(id, version, manifest, root, dir) {
         const out = path.join(dir, "items", pack.name);
         fs.mkdirSync(out, { recursive: true });
         await extractPack(src, out, { log: false });
-        log.info(`${id}@${version}: extracted pack "${pack.name}"`);
+        log.info(
+            `${id}@${version}: extracted pack "${pack.name}"` +
+                (pack.system ? ` (system: ${pack.system})` : ""),
+        );
     }
+    // What each pack is, from the only place that knows: the manifest that
+    // declared it (#58). Written before the stamp, so the stamp continues to
+    // mean the cache is whole.
+    fs.writeFileSync(
+        path.join(dir, ITEM_PACKS),
+        `${JSON.stringify(itemPackManifest(itemPacks), null, 4)}\n`,
+    );
     // Last, so a fetch that died partway is never mistaken for a complete one.
     fs.writeFileSync(path.join(dir, STAMP), `${version}\n`);
 }
@@ -650,10 +720,24 @@ export async function fetchAllCatalogs(config) {
  * Reads the cache only. A cold cache is an error naming the command that fills
  * it, rather than a download nobody asked for.
  *
+ * **Scoped to one system when the caller compiles for one (#58)**, exactly as
+ * {@link module:engine/generate.itemPackJsonDirs} scopes the local half. The
+ * two halves answer the same lookup — `loadItemsMap` merges them into one
+ * address space keyed by `subType:shortcode` — so scoping only the local one
+ * leaves the collision it was meant to remove: `skill:awar` is a real address
+ * in both vocabularies, and a `harn-ensemble` actor compiled for `hm3` would
+ * resolve three quarters of its references against whichever document the
+ * dependency's `sohl` pack happened to supply. A pack that declares no system
+ * is neutral and always read; asking for no system reads every pack, which is
+ * every single-system build.
+ *
  * @param {object} config - The resolved build configuration.
- * @returns {string[]} Every cached dependency's item directories.
+ * @param {string|null} [system] - The system the caller is compiling for.
+ *   Omitted or `null`, every cached pack is read.
+ * @returns {Array<{dir: string, package: string}>} Every cached dependency's
+ *   item directories, each with the package that published it.
  */
-export function foreignItemCatalogDirs(config) {
+export function foreignItemCatalogDirs(config, system = null) {
     const dirs = [];
     for (const rel of itemCatalogRelationships(config)) {
         const root = config.paths.foreignCache;
@@ -677,12 +761,17 @@ export function foreignItemCatalogDirs(config) {
         // rewritten: a plain string sort would put `0.8.10` before `0.8.2` and
         // silently resolve every embedded item against the older catalogue
         // (#272).
-        const items = itemsDir(newestVersionDir(cached));
-        for (const name of fs.readdirSync(items)) {
+        const newest = newestVersionDir(cached);
+        const packSystems = cachedItemPacks(newest);
+        const items = itemsDir(newest);
+        for (const entry of fs.readdirSync(items, { withFileTypes: true })) {
+            if (!entry.isDirectory()) continue;
+            const packSystem = packSystems.get(entry.name) ?? null;
+            if (system != null && packSystem != null && packSystem !== system) continue;
             // The dependency's own id travels with its directory (#334): a
             // being's `model:` names the package its template comes from, and
             // the address cannot be built from the path.
-            dirs.push({ dir: path.join(items, name), package: rel.id });
+            dirs.push({ dir: path.join(items, entry.name), package: rel.id });
         }
     }
     return dirs;

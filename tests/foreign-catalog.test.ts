@@ -21,6 +21,7 @@ import {
     itemCatalogRelationships,
     foreignItemCatalogDirs,
     fetchCatalogFromPath,
+    itemPackManifest,
 } from "../engine/foreign-catalog.mjs";
 import { defineConfig } from "../index.mjs";
 import { Actors } from "../sohl/actors.mjs";
@@ -149,6 +150,36 @@ describe("reading the catalogue cache", () => {
         },
     });
 
+    /**
+     * A complete cache: the extracted packs, what each one is, and the stamp.
+     *
+     * `packs` names each pack and the system it was published for, as the
+     * dependency's own manifest declared it (#58); `null` is a pack that
+     * declares none.
+     */
+    const cache = (version: string, packs: Record<string, string | null>) => {
+        const dir = path.join(root, `sohl@${version}`);
+        for (const name of Object.keys(packs)) {
+            fs.mkdirSync(path.join(dir, "items", name), { recursive: true });
+        }
+        // Written through the producer rather than hand-shaped, so these cases
+        // read what a fetch actually writes.
+        fs.writeFileSync(
+            path.join(dir, "item-packs.json"),
+            JSON.stringify(
+                itemPackManifest(
+                    Object.entries(packs).map(([name, system]) => ({
+                        name,
+                        type: "Item",
+                        ...(system === null ? {} : { system }),
+                    })),
+                ),
+            ),
+        );
+        fs.writeFileSync(path.join(dir, ".complete"), `${version}\n`);
+        return dir;
+    };
+
     it("fails on a cold cache, naming the command that fills it", () => {
         // A compile must never reach the network: a build that downloads
         // silently is not reproducible and fails strangely offline.
@@ -164,11 +195,61 @@ describe("reading the catalogue cache", () => {
         expect(() => foreignItemCatalogDirs(config(root))).toThrow(/deps fetch/);
     });
 
-    it("returns each extracted pack directory of a complete cache", () => {
+    it("records a pack declaring no system as neutral rather than dropping it", () => {
+        // Foundry requires `system` on an Item pack, so this is a malformed
+        // manifest rather than a case with a meaning — and a neutral pack is
+        // read by every system rather than by none, which is the safe way to
+        // be wrong about it.
+        expect(
+            itemPackManifest([
+                { name: "items-hm3", type: "Item", system: "hm3" },
+                { name: "odd", type: "Item" },
+            ]),
+        ).toEqual([
+            { name: "items-hm3", system: "hm3" },
+            { name: "odd", system: null },
+        ]);
+    });
+
+    it("refuses a cache that does not say what its packs are (#58)", () => {
+        // Stamped, but written before the pack manifest existed. Reading every
+        // pack would resolve an `hm3` reference against a `sohl` document, and
+        // reading none would fail a build that worked — so it is incomplete,
+        // and the command that refills it is the one already named.
         const dir = path.join(root, "sohl@0.8.2");
         fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
-        fs.mkdirSync(path.join(dir, "items", "extras"), { recursive: true });
         fs.writeFileSync(path.join(dir, ".complete"), "0.8.2\n");
+        expect(() => foreignItemCatalogDirs(config(root))).toThrow(/deps fetch/);
+    });
+
+    it("reads only the asked-for system's packs, and the neutral ones (#58)", () => {
+        // `skill:awar` is a real address in both vocabularies and means two
+        // different documents. The local half of the catalogue is already
+        // scoped by pack system; unscoped here, this dependency would answer
+        // an `hm3` lookup with whatever its `sohl` pack holds.
+        const dir = cache("0.8.2", {
+            "items-sohl": "sohl",
+            "items-hm3": "hm3",
+            "items-shared": null,
+        });
+        expect(
+            foreignItemCatalogDirs(config(root), "hm3")
+                .map((e) => e.dir)
+                .sort(),
+        ).toEqual([path.join(dir, "items", "items-hm3"), path.join(dir, "items", "items-shared")]);
+    });
+
+    it("reads every pack when no system is asked for, which is every single-system build", () => {
+        const dir = cache("0.8.2", { "items-sohl": "sohl", "items-hm3": "hm3" });
+        expect(
+            foreignItemCatalogDirs(config(root))
+                .map((e) => e.dir)
+                .sort(),
+        ).toEqual([path.join(dir, "items", "items-hm3"), path.join(dir, "items", "items-sohl")]);
+    });
+
+    it("returns each extracted pack directory of a complete cache", () => {
+        const dir = cache("0.8.2", { items: "sohl", extras: "sohl" });
         // Each entry carries the package that published it (#334): a being's
         // `model:` names the package its template comes from, and that cannot
         // be recovered from the path.
@@ -184,11 +265,7 @@ describe("reading the catalogue cache", () => {
     });
 
     it("uses the newest cached version when several are present", () => {
-        for (const v of ["0.8.1", "0.8.2"]) {
-            const dir = path.join(root, `sohl@${v}`);
-            fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
-            fs.writeFileSync(path.join(dir, ".complete"), `${v}\n`);
-        }
+        for (const v of ["0.8.1", "0.8.2"]) cache(v, { items: "sohl" });
         expect(foreignItemCatalogDirs(config(root)).map((e) => e.dir)).toEqual([
             path.join(root, "sohl@0.8.2", "items", "items"),
         ]);
@@ -199,11 +276,7 @@ describe("reading the catalogue cache", () => {
         // would then resolve its embedded item references against the older
         // catalogue with nothing to report it: both caches are complete and
         // stamped, and the wrong one is a perfectly valid catalogue.
-        for (const v of ["0.8.2", "0.8.10"]) {
-            const dir = path.join(root, `sohl@${v}`);
-            fs.mkdirSync(path.join(dir, "items", "items"), { recursive: true });
-            fs.writeFileSync(path.join(dir, ".complete"), `${v}\n`);
-        }
+        for (const v of ["0.8.2", "0.8.10"]) cache(v, { items: "sohl" });
         expect(foreignItemCatalogDirs(config(root)).map((e) => e.dir)).toEqual([
             path.join(root, "sohl@0.8.10", "items", "items"),
         ]);
