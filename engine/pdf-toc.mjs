@@ -65,7 +65,7 @@ import { positionOfYamlPath } from "./diagnostics.mjs";
 export const PRESENTATION_KEYS = Object.freeze(["header", "footer", "infobox", "page"]);
 
 /** Keys a section node may carry. @type {readonly string[]} */
-const SECTION_KEYS = Object.freeze(["sectionName", "contents", "keepEmpty", ...PRESENTATION_KEYS]);
+const SECTION_KEYS = Object.freeze(["sectionName", "contents", ...PRESENTATION_KEYS]);
 
 /** Keys a content entry may carry instead of being a section. */
 const LEAF_KEYS = Object.freeze(["file", "filter"]);
@@ -183,7 +183,6 @@ function walkSections(contents, keyPath, trail, inherited, ctx) {
             depth: here.length,
             keyPath: at,
             presentation,
-            keepEmpty: entry.keepEmpty === true,
             items: collectItems(list, [...at, "contents"], here, ctx),
         });
 
@@ -273,28 +272,50 @@ function finding(ctx, keyPath, message, opts) {
  * something that is not a note, and unable to pick up the `doc<type>`
  * documentation rows that ride the same index as the notes they document.
  *
+ * **A filter that selects nothing is an error**, and the distinction that makes
+ * that consistent is worth stating. A *note* no clause selects is expected: the
+ * book is a selection and a project decides what its own volume carries. A
+ * *clause* that selects no note is not the same thing — a filter is a deliberate
+ * act, so one matching nothing is either wrong or left over from a structure
+ * that has moved on, and in both cases the tree should not carry it. Reported
+ * with the section's name and the filter's position, so the choice between
+ * fixing it and deleting it is the author's.
+ *
  * @param {object[]} nodes - From {@link parseDocumentTree}.
  * @param {{query: (sql: string) => Promise<{rows: object[]}>}} db - An open
  *   database, from {@link module:engine/sql-tables.openNotesDatabase}.
  * @param {object} [opts] - Options.
  * @param {(record: object) => boolean} [opts.keep] - Which rows are notes.
+ * @param {string} [opts.text] - The document's source, for finding positions.
  * @returns {Promise<{selections: Map<string, object[]>, findings: object[]}>}
  */
-export async function runTreeFilters(nodes, db, { keep = () => true } = {}) {
+export async function runTreeFilters(nodes, db, { keep = () => true, text } = {}) {
     const selections = new Map();
     const findings = [];
     for (const node of nodes) {
         for (const item of node.items) {
             if (item.kind !== "filter") continue;
+            const where = `\`${node.trail.join(" › ")}\``;
             try {
                 const { rows } = await db.query(`SELECT * FROM notes WHERE ${item.where}`);
-                selections.set(item.id, rows.filter(keep));
+                const kept = rows.filter(keep);
+                selections.set(item.id, kept);
+                if (!kept.length) {
+                    findings.push({
+                        severity: "error",
+                        message:
+                            `${where}: the filter selected no notes — ` +
+                            `\`${item.where}\` matches nothing in this project, so ` +
+                            `either it is wrong or the section should not be here`,
+                        ...position(text, [...item.keyPath, "filter"]),
+                    });
+                }
             } catch (err) {
                 findings.push({
                     severity: "error",
                     message:
-                        `\`${node.trail.join(" › ")}\`: the filter did not run — ` +
-                        String(err.message).split("\n")[0],
+                        `${where}: the filter did not run — ` + String(err.message).split("\n")[0],
+                    ...position(text, [...item.keyPath, "filter"]),
                 });
                 selections.set(item.id, []);
             }
@@ -320,9 +341,11 @@ export async function runTreeFilters(nodes, db, { keep = () => true } = {}) {
  *
  * **A section with nothing in it does not print**, and emptiness is judged after
  * its descendants are: a section holding only sections that all resolved to
- * nothing is itself empty. A section that has *prose* is not empty even when no
- * filter matched — dropping authored text is a worse surprise than a short
- * section, and `keepEmpty: true` forces the question either way.
+ * nothing is itself empty. In a correct tree this never fires — a filter that
+ * selects nothing is reported by {@link runTreeFilters} as the error it is — so
+ * this is the graceful half of that failure rather than a feature: a build whose
+ * filters are broken still produces a readable document to look at while they
+ * are fixed. A section holding only prose is not empty; it is a preface.
  *
  * @param {object[]} nodes - From {@link parseDocumentTree}.
  * @param {object} [opts] - Options.
@@ -428,7 +451,7 @@ function emitSection(node, nodes, ctx) {
 
     for (const child of children) contributed += emitSection(child, nodes, ctx);
 
-    if (!contributed && !node.keepEmpty) {
+    if (!contributed) {
         ctx.entries.length = start;
         return 0;
     }

@@ -23,7 +23,7 @@ import { describe, it, expect } from "vitest";
 import YAML from "yaml";
 import * as pdfToc from "../engine/pdf-toc.mjs";
 
-const { parseDocumentTree, planDocument } = pdfToc as any;
+const { parseDocumentTree, planDocument, runTreeFilters } = pdfToc as any;
 
 /** A record as the content index derives it, reduced to what the planner reads. */
 const note = (slug: string, name: string) => ({
@@ -243,22 +243,8 @@ contents:
         ]);
     });
 
-    it("keeps an empty section when it says so", () => {
-        const { nodes } = tree(`
-contents:
-  - sectionName: Affiliations
-    keepEmpty: true
-    contents:
-      - filter: type = 'affiliation'
-`);
-        const { entries } = planDocument(nodes, {
-            selections: selections({ [nodes[0].items[0].id]: [] }),
-        });
-        expect(entries.map((e: any) => e.title)).toEqual(["Affiliations"]);
-    });
-
     it("keeps a section that has prose but selected no notes", () => {
-        // Dropping authored text is a worse surprise than a short section.
+        // A section holding only prose is a preface, not an empty section.
         const { nodes } = tree(`
 contents:
   - sectionName: Preface
@@ -308,5 +294,98 @@ contents:
         const prose = entries.find((e: any) => e.kind === "prose");
         expect(prose.anchor).toBe("assets-pdf-front-preface");
         expect(prose.file).toBe("assets/pdf/Front/Preface.md");
+    });
+});
+
+describe("runTreeFilters", () => {
+    const db = (answers: Record<string, any[]>) => ({
+        async query(sql: string) {
+            const where = sql.replace("SELECT * FROM notes WHERE ", "");
+            if (!(where in answers)) throw new Error(`Parser Error: syntax error near "${where}"`);
+            return { rows: answers[where] };
+        },
+    });
+
+    it("reports a filter that selects nothing, with its position", async () => {
+        // The distinction that makes this consistent with an unselected note
+        // being fine: a *clause* matching nothing is either wrong or left over,
+        // and in both cases the tree should not carry it.
+        const text = `
+contents:
+  - sectionName: Affiliations
+    contents:
+      - filter: type = 'affiliation'
+`;
+        const { nodes } = tree(text);
+        const { selections, findings } = await runTreeFilters(
+            nodes,
+            db({ "type = 'affiliation'": [] }),
+            { text },
+        );
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("error");
+        expect(findings[0].message).toMatch(/selected no notes/);
+        expect(findings[0].message).toMatch(/Affiliations/);
+        expect(findings[0].line).toBe(5);
+        expect(selections.get(nodes[0].items[0].id)).toEqual([]);
+    });
+
+    it("says nothing about a filter that selected something", async () => {
+        const text = `
+contents:
+  - sectionName: Weapons
+    contents:
+      - filter: type = 'weapongear'
+`;
+        const { nodes } = tree(text);
+        const { findings } = await runTreeFilters(
+            nodes,
+            db({ "type = 'weapongear'": [note("weapongear-dgr", "Dagger")] }),
+            { text },
+        );
+        expect(findings).toEqual([]);
+    });
+
+    it("reports a filter that will not run, and keeps going", async () => {
+        const text = `
+contents:
+  - sectionName: Broken
+    contents:
+      - filter: type ==== 'weapongear'
+  - sectionName: Weapons
+    contents:
+      - filter: type = 'weapongear'
+`;
+        const { nodes } = tree(text);
+        const { selections, findings } = await runTreeFilters(
+            nodes,
+            db({ "type = 'weapongear'": [note("weapongear-dgr", "Dagger")] }),
+            { text },
+        );
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toMatch(/did not run/);
+        // The second section still resolved: one bad clause does not cost the
+        // report of everything after it.
+        expect(selections.get(nodes[1].items[0].id)).toHaveLength(1);
+    });
+
+    it("counts only the rows that are notes", async () => {
+        // The index carries a `doc<type>` documentation row beside each note;
+        // the build owns the SELECT precisely so those cannot reach a book.
+        const text = `
+contents:
+  - sectionName: Weapons
+    contents:
+      - filter: type = 'weapongear'
+`;
+        const { nodes } = tree(text);
+        const rows = [note("weapongear-dgr", "Dagger"), { documents: [], name: { full: "doc" } }];
+        const { selections, findings } = await runTreeFilters(
+            nodes,
+            db({ "type = 'weapongear'": rows }),
+            { text, keep: (r: any) => !r.documents },
+        );
+        expect(selections.get(nodes[0].items[0].id)).toHaveLength(1);
+        expect(findings).toEqual([]);
     });
 });
