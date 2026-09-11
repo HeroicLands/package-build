@@ -208,6 +208,11 @@ packageBuild:
       run: [npx, cypress, run]
       open: [npx, cypress, open]
 
+    # Where that suite writes its results. Optional, and what it buys is the
+    # difference between "the suite ran and passed" and "the suite did not
+    # run" — a headless run that writes nothing here is reported as a failure.
+    results: [cypress/results]
+
     # What the fast loop can rebuild, in the order it must be built: the
     # bundler empties the stage, so it goes first. `recreate` marks a target
     # whose output Foundry reads once, at world launch.
@@ -482,6 +487,35 @@ repository can hold without rotting.
 
 A green sweep is what licenses moving `compatibility.verified` to that build. A
 red one is the early warning the sweep exists to produce.
+
+### A run that executed nothing is not a pass
+
+Because a sweep is evidence, the exit status of the suite is not enough on its
+own to call a run green. Every way of stopping a runner before it starts — a
+corrupt install, a missing browser, a killed process, an `npm ci` racing the
+run and taking `node_modules` with it — produces a run that executed nothing,
+and a harness that reports that as 0 makes the evidence unfalsifiable in the
+one direction that matters (#153).
+
+So the suite is bracketed rather than trusted:
+
+| Check                         | What it catches                                                                                            |
+| ----------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| Before, the command resolves  | The runner is not installed. The error names it, before a container is stood up and a world seeded.        |
+| A runner is read through      | `npx cypress run` is checked for **`cypress`**, not `npx` — `npx` is never missing, so it answers nothing. |
+| After, the command still does | The runner went away mid-run. That is a run that cannot have finished, whatever it exited with.            |
+| After, results are newer      | The suite started and produced nothing. Requires `packageBuild.e2e.results`.                               |
+
+`results` names one path or a list of them, relative to the repository root.
+Existence is not the test — a directory the _previous_ run left behind exists,
+and reading that as evidence would make the check agree with exactly what it
+was built to catch. What counts is a file modified since the spawn.
+
+Two things it deliberately does not do. It only ever makes a verdict **worse**:
+a suite that failed keeps its own status, so there is no second path by which
+the harness can report a result that did not happen. And it does not apply to
+`open`, where a person decides what to execute and when to close the runner —
+"it wrote no results" describes that session rather than faulting it.
 
 ### Waiting for a world, not for a port
 
