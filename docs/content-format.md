@@ -2161,11 +2161,16 @@ single Level is synthesised from `img`, `overlay`, `levelName` and
 > system would want the identical art — so the field sits beside every other
 > note's `img` rather than inside a system block.
 >
-> `image` is **retired in favour of it**, in the three steps `package:` took
-> (#56), and this is the first: both spellings are read, `img` wins where a note
-> carries both, and a note still writing `image` gets a located **warning**
-> rather than a refusal. It compiles to the byte-identical document, so failing
-> a build over it would red a tree that has done nothing wrong.
+> `image` was **retired in favour of it**, in the three steps `package:` took
+> (#56), and all three have now run
+> ([package-build#149](https://github.com/HeroicLands/package-build/issues/149)).
+> Through the window both spellings were read, `img` won where a note carried
+> both, and a note still writing `image` got a located **warning** rather than a
+> refusal — it compiled to the byte-identical document, so failing a build over
+> it would have redded a tree that had done nothing wrong. The trees were then
+> swept, and the alias dropped. `image` is now simply not a key a map has: in a
+> `sohl:` block it is reported as unknown, and either way the note is refused
+> for the `img` it never declared.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,

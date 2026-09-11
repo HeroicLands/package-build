@@ -943,11 +943,9 @@ export const NOTE_VOCABULARY = Object.freeze({
         // derived for them, which is precisely what a subType decides (#174).
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),
         data: Object.freeze([
-            // The specification spells this `img`, matching every other
-            // note type, while the map compiler reads `image` from
-            // `sohl:` today. It says outright that one of the two has
-            // to move; the container takes the specification's name,
-            // and moving the authored key is the migration's business.
+            // `img`, as every other note type spells its artwork. A map alone
+            // read `image` out of its `sohl:` block; that spelling is retired
+            // and gone (#149), so the two names are one again.
             {
                 name: "img",
                 ...TEXT,

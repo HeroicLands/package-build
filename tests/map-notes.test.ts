@@ -40,8 +40,8 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         shortcode: "ambushdefile",
         type: "map",
         subType: "battlemap",
+        img: "systems/sohl/assets/ui/parchment.jpg",
         sohl: {
-            image: "systems/sohl/assets/ui/parchment.jpg",
             dimensions: [1900, 2600],
             pxPerGrid: 100,
             ...sohl,
@@ -244,7 +244,7 @@ describe("embedded document ids", () => {
 });
 
 describe("buildScene — the whole document", () => {
-    it("synthesises exactly one inline Level from image/overlay and names it initial", () => {
+    it("synthesises exactly one inline Level from img/overlay and names it initial", () => {
         const scene = buildSceneDoc(
             makeNote({ overlay: "systems/sohl/assets/ui/parchment.jpg" }),
             makeCtx(),
