@@ -68,7 +68,11 @@ import { buildCompileCorpus } from "./compile-corpus.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
-import { NEVER_PACKED_TYPES, unclaimedNoteFindings } from "./note-claims.mjs";
+import {
+    NEVER_PACKED_TYPES,
+    unclaimedNoteFindings,
+    unpackedDocumentFindings,
+} from "./note-claims.mjs";
 // Which document a content type compiles into, so the art declaration below is
 // answered from the same routing the compile uses (#349).
 import { RETIRED_TYPES, currentType, packForType } from "./ids.mjs";
@@ -677,6 +681,16 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
     for (const finding of unclaimed) emitDiagnostic(finding);
 
+    // And the **partial** case the question above cannot see (#152): a note
+    // whose primary document routes to a pack while a second document it
+    // produces — an item's prose, a macro's, a map's — has none. The union
+    // "does any pack claim this type?" is satisfied by whichever half lands, so
+    // the other half was dropped with the build still exiting 0. Asked here for
+    // the same two reasons: it is a fact about the configured pack list rather
+    // than about this run, and it reads the corpus every pass reads.
+    const unpacked = unpackedDocumentFindings(config, undefined, { records: corpus.records });
+    for (const finding of unpacked) emitDiagnostic(finding);
+
     fs.mkdirSync(config.paths.packJson, { recursive: true });
 
     // A companion pack has no pass of its own — naming it selects the pass that
@@ -771,10 +785,10 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
         for (const message of unsatisfied) {
             emitDiagnostic({ severity: "error", message });
         }
-        return unsatisfied.length + unclaimed.length;
+        return unsatisfied.length + unclaimed.length + unpacked.length;
     }
 
-    let totalErrors = unclaimed.length + corpusProblems.length;
+    let totalErrors = unclaimed.length + unpacked.length + corpusProblems.length;
     const passes = [];
     for (const pack of ordered) {
         const { errors, compiled } = await generatePack(

@@ -512,6 +512,59 @@ hand-authored `system.template.json` lived, and the package-id guard and the
 top-level `compatibility.minimum`, the id is derived from `package.json`
 `name`, and `@heroiclands/package-build` writes the manifest from this file.
 
+### Every document a note produces needs a pack
+
+A note is not one document. An item note compiles into an **Item** and, from its
+prose, a **JournalEntry**; a `macro` note into a **Macro** and a JournalEntry; a
+map note into a **Scene** and a JournalEntry; a `being` into an **Actor** and a
+JournalEntry. Only `doc`, `place`, `lore` and `scenario` are single documents —
+their one document _is_ the prose.
+
+So `packs:` is checked against what the tree actually authors, and two different
+things are reported:
+
+- **No configured pack claims a note's `type:` at all** (#146). The note
+  compiles into nothing. The finding says which — a configuration gap (this
+  build knows the type and nothing here compiles it), an authoring mistake (the
+  type is not a content type at all), or a type the content format specifies and
+  this toolchain has not implemented yet.
+- **A pack claims one of a note's documents and nothing claims another** (#152).
+  The note compiles _part_ of itself, every pass that runs succeeds, and the
+  build used to exit 0 with the rest missing. The finding names the note, the
+  document class, and what is missing.
+
+The second is the case a union over `packs:` cannot see, and two configurations
+already have its shape:
+
+| configuration        | declares no           | a note of      | silently lost        |
+| -------------------- | --------------------- | -------------- | -------------------- |
+| `sohl-thalorna`      | `Macro`, `Scene` pack | `macro`, `map` | the Macro, the Scene |
+| `sohl-kethira-basic` | `JournalEntry` pack   | any item type  | the prose            |
+
+```text
+assets/content/Kaldor.md:6:1: error: a note of type "map" compiles into a Scene,
+and this configuration has nowhere to put it: `packs:` declares no Scene pack. It
+still compiles a JournalEntry holding its prose, which is why the build reports
+no other error. Declare one in package-build.config.yaml, or stop authoring the
+type.
+```
+
+Three remedies, told apart, because only two of them are things you can write in
+this file:
+
+- **no pack of that class** — declare one in `packs:`, or stop authoring what
+  produces the document. For a documentation entry that second option is real:
+  a note with an empty body compiles no journal and loses nothing.
+- **packs of that class exist and none claims the type** — today always the item
+  registry, so the finding names `itemBuilders` rather than `packs:`.
+- **this toolchain compiles no document of that class** — a system map is free
+  to name any Foundry document, and nothing you add to `packs:` will help. A
+  pack of that type would fail the build for want of a compiler.
+
+A type one system maps and another does not is still **silent** for the system
+that does not map it: the documents a note produces are the union across the
+systems that map its type, so an unmapped type produces nothing to lose (#79).
+
 ### Declaration order is presentation, not compile order
 
 `packs:` is the manifest's `packs` array as well, so a consumer orders it for a

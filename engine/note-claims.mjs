@@ -13,7 +13,8 @@
 
 /**
  * **Which note types a configuration compiles at all** — and the finding for a
- * note whose type nothing claims (#146).
+ * note whose type nothing claims (#146), or whose *second* document nothing
+ * claims (#152).
  *
  * Every compile pass answers one question about a note: _is this mine?_ A note
  * every pass answers "no" to is skipped as quietly as the thousands that
@@ -58,10 +59,44 @@
  * the question here. `tests/unclaimed-note-types.test.ts` compares the two for
  * every type in the vocabulary, so the two statements cannot drift apart.
  *
+ * ## The partial case, which the union above cannot see (#152)
+ *
+ * Everything above asks one question of the whole configuration — _does any
+ * pack claim this type?_ — and a union answers it. That union is **blind to a
+ * note that lands half of itself**, because one claiming pack satisfies it
+ * however many documents the note actually produces.
+ *
+ * A note produces more than one. An item note compiles into an Item *and*, from
+ * its prose, a JournalEntry; a `macro` note into a Macro and a JournalEntry; a
+ * map note into a Scene and a JournalEntry. So two live configurations already
+ * have the shape:
+ *
+ * | configuration | declares no | the note | what is lost |
+ * | --- | --- | --- | --- |
+ * | `sohl-thalorna` | `Macro`, `Scene` pack | a `macro` or a `map` note | the Macro, or the Scene |
+ * | `sohl-kethira-basic` | `JournalEntry` pack | any item note with prose | the prose |
+ *
+ * In each the union says "claimed", every pass that runs succeeds, the build
+ * exits 0, and the missing document is missing with nothing said about it.
+ *
+ * So this question is asked **per note and per document** rather than per type:
+ * {@link documentsProducedBy} enumerates what one note compiles into, and
+ * {@link unpackedDocumentFindings} asks the claim question once for each. The
+ * two checks divide cleanly and neither can report the other's case — a type
+ * *nothing* claims is #146's, and this one passes over such a note by name, so
+ * none is ever reported twice.
+ *
+ * **#79's silence is preserved by staying type-wide about systems.** The
+ * documents a note produces are the union across the systems that map its type,
+ * exactly as above, so a type one system deliberately does not map produces
+ * nothing for that system and is reported for nothing. The partial case is
+ * about *document classes*, not about systems, and asking it per system would
+ * reintroduce the noise #79 forbids.
+ *
  * @module
  */
 
-import { assertSuppliedCorpus } from "./helpers.mjs";
+import { assertSuppliedCorpus, parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only: this module is imported by the content index, so
 // importing the index back would close a cycle (#243).
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
@@ -199,6 +234,29 @@ function mappingSystems(maps, type) {
 }
 
 /**
+ * The Foundry document classes some pass of this build actually compiles.
+ *
+ * The claim table below answers for exactly these and returns the empty set for
+ * everything else, which is what keeps a prebuilt `Cards` or `RollTable` pack
+ * from appearing to answer for any note. Stated as a set as well, because
+ * "claims nothing" and "nothing compiles it" are the same empty answer read two
+ * ways, and #152 has to tell them apart: a document class with no pack is a line
+ * a consumer can add to `packs:`, while a class this toolchain has no pass for
+ * is a gap no configuration can close, and sending someone to edit
+ * `package-build.config.yaml` for the second is sending them nowhere.
+ *
+ * It is `generate.mjs`'s `COMPILERS` keys restated — the same relationship the
+ * claim table has to each pass's `selects`, and held together the same way, by
+ * a test rather than by an import. `generate.mjs` imports *this* module, so the
+ * arrow cannot point the other way.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const COMPILED_DOCUMENT_CLASSES = Object.freeze(
+    new Set(["Item", "Actor", "JournalEntry", "Macro", "Scene", "Adventure"]),
+);
+
+/**
  * The note types a pass of one document type claims — the claim table.
  *
  * Each row restates one pass's `selects`, in the only form that can be asked of
@@ -314,6 +372,74 @@ export function noteTypeVocabulary(sources) {
 }
 
 /**
+ * The document a note's **own** `type:` compiles into, before any second one.
+ *
+ * Three sources, asked in the order that makes each one's answer the best
+ * available: a system's map is the most specific statement there is, the item
+ * registry answers for a type the shipped maps do not name, and
+ * {@link PACK_BY_TYPE} holds the engine's own types, which belong to no system
+ * and no registry.
+ *
+ * @param {Required<ClaimSources>} sources - What to answer from.
+ * @param {string} current - The note's type, in its current spelling.
+ * @returns {string[]} The document classes, deduplicated, in map order.
+ */
+function primaryDocuments(sources, current) {
+    const documents = mappedDocuments(sources.maps, current);
+    if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
+    if (!documents.length && PACK_BY_TYPE[current]) documents.push(PACK_BY_TYPE[current].docType);
+    return documents;
+}
+
+/**
+ * Every document one note compiles into, and what each of them is to the note.
+ *
+ * **The question #146 could not ask.** That check needs one fact about a type —
+ * does anything claim it — and this needs the list, because a note that lands
+ * its Item and loses its prose is claimed and half-compiled at once. Two roles,
+ * and they fail for different reasons and are remedied differently:
+ *
+ * - `"primary"` — the document the note's `type:` names. A `map` note's Scene,
+ *   an item note's Item, a `being`'s Actor. Losing it loses the note.
+ * - `"documentation"` — the JournalEntry the note's **prose** compiles into,
+ *   for every type in `docEntryTypes` (#1348, #1514, #1525, #337). Losing it
+ *   loses the words and leaves the document pointing at nothing.
+ *
+ * **The union across systems, never per system** — see the module comment.
+ * A type one system maps and another does not produces exactly the documents
+ * the mapping systems name, which is #79's rule stated as a list rather than as
+ * a silence.
+ *
+ * @param {string} type - The note's declared `type`, authored spelling.
+ * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {boolean} [opts.prose=true] - Whether the note body carries prose. A
+ *   doc-carrying note with an empty body compiles **no** documentation entry —
+ *   `Journals.skipNote` and the scenes pass apply that rule to the same body, so
+ *   a caller that has read the note says so here and is told the truth about
+ *   what the note produces rather than about what its type could.
+ * @returns {Array<{document: string, role: "primary"|"documentation"}>} The
+ *   documents, primaries first.
+ */
+export function documentsProducedBy(type, sources, { prose = true } = {}) {
+    const resolved = resolveSources(sources);
+    // Every table here is keyed by the current spelling of a note type; a note
+    // on a renamed one compiles exactly the same documents (#78).
+    const current = currentType(type);
+    const produced = primaryDocuments(resolved, current).map((document) => ({
+        document,
+        role: /** @type {"primary"} */ ("primary"),
+    }));
+    if (prose && resolved.docEntryTypes.has(current)) {
+        produced.push({
+            document: "JournalEntry",
+            role: /** @type {"documentation"} */ ("documentation"),
+        });
+    }
+    return produced;
+}
+
+/**
  * A readable list — `"a", "b" or "c"`.
  *
  * @param {readonly string[]} values - The values.
@@ -354,9 +480,7 @@ function configurationMessage(type, config, sources) {
     // message quotes the authored one, which is what the reader has in front of
     // them (#78).
     const current = currentType(type);
-    const documents = mappedDocuments(sources.maps, type);
-    if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
-    if (!documents.length && PACK_BY_TYPE[current]) documents.push(PACK_BY_TYPE[current].docType);
+    const documents = primaryDocuments(sources, current);
 
     const systems = mappingSystems(sources.maps, type);
     const configured = new Set((config.packs ?? []).map((pack) => pack.type));
@@ -437,6 +561,12 @@ function authoringMessage(type) {
 /**
  * Every note in the content tree that no configured pack would compile.
  *
+ * **"No configured pack claims it" is the whole of the question here**, and it
+ * is a union: a note half of whose documents land is claimed, and passes
+ * through untouched. That case is {@link unpackedDocumentFindings}, which asks
+ * per document instead (#152). The two partition the tree on exactly this
+ * condition, so no note is reported by both.
+ *
  * Read-only: it walks the tree and reports, and writes nothing. Three kinds of
  * note are passed over, each for a stated reason rather than by omission — a
  * file with no frontmatter is not a note; a note with no `type:` is the
@@ -499,6 +629,257 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
                 : Object.hasOwn(NOTE_VOCABULARY, current) ? specifiedMessage(type)
                 : authoringMessage(type),
         });
+    }
+    return findings;
+}
+
+/* ---------------------------------------------------------------------- */
+/*  The partial case: one document lands, another has nowhere to go (#152) */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * How a document a note produces reads in a sentence.
+ *
+ * A primary is named by its class, because the class is what the reader has to
+ * declare a pack of. The documentation entry is named by what it *holds* as
+ * well, because "no JournalEntry pack" beside an item note reads as though the
+ * item itself were a journal — and the thing actually being lost is the prose
+ * the author typed into that file.
+ *
+ * @param {{document: string, role: string}} produced - One produced document.
+ * @returns {string} The phrase.
+ */
+function documentPhrase({ document, role }) {
+    return role === "documentation" ?
+            `${article(document)} ${document} holding its prose`
+        :   `${article(document)} ${document}`;
+}
+
+/**
+ * Why one document a note produces reaches no pack, and what closes the gap.
+ *
+ * Three answers, and the whole point of the check is that they are different
+ * answers. Only the first two are things a consumer can act on in
+ * `package-build.config.yaml`; naming that file for the third would send
+ * someone to write a line that changes nothing.
+ *
+ * @param {object} args - Arguments.
+ * @param {string} args.type - The note's declared `type`, authored spelling.
+ * @param {{document: string, role: string}} args.produced - The lost document.
+ * @param {boolean} args.hasPack - Whether any pack of the class is configured.
+ * @returns {{reason: string, remedy: string}} The two halves of the sentence.
+ */
+function lostDocumentReason({ type, produced, hasPack }) {
+    const { document, role } = produced;
+
+    // Nothing here compiles the class at all, so the pack list is not where the
+    // answer is. A system map is free to name any Foundry document, and the day
+    // one names a `RollTable` the honest report is that this toolchain has no
+    // pass for it — not an invitation to declare a pack that would then fail
+    // the build with "no compiler for document type".
+    if (!COMPILED_DOCUMENT_CLASSES.has(document)) {
+        return {
+            reason: `this toolchain compiles no ${document} at all — no pass produces one`,
+            remedy:
+                `No entry in \`packs:\` will change that; a ${document} pack ` +
+                `would fail the build for want of a compiler. Stop authoring ` +
+                `the type until a release compiles it.`,
+        };
+    }
+
+    // The class has packs, and none of them claims this type. Today that is
+    // always the item registry: every other claim set is fixed by the engine and
+    // matches what {@link documentsProducedBy} derives, so a produced Actor,
+    // JournalEntry, Macro, Scene or Adventure is claimed wherever a pack exists.
+    // Derived rather than asserted, so a registry that grows a second dimension
+    // is reported rather than mis-reported.
+    if (hasPack) {
+        const registry =
+            document === "Item" ?
+                ` — no \`itemBuilders\` registry declares "${type}", and the ` +
+                `items pass compiles only what a registry declares`
+            :   "";
+        return {
+            reason: `no configured ${document} pack claims "${type}"${registry}`,
+            remedy:
+                document === "Item" ?
+                    `Declare "${type}" in an \`itemBuilders\` registry in ` +
+                    `package-build.config.yaml, or stop authoring the type.`
+                :   `Check the pack list in package-build.config.yaml.`,
+        };
+    }
+
+    return {
+        reason: `\`packs:\` declares no ${document} pack`,
+        remedy:
+            role === "documentation" ?
+                `Declare one in package-build.config.yaml, or stop authoring ` +
+                `prose on a "${type}" note — a note with an empty body compiles ` +
+                `no documentation and loses nothing.`
+            :   `Declare one in package-build.config.yaml, or stop authoring the type.`,
+    };
+}
+
+/**
+ * The finding for one document a note produces and this configuration drops.
+ *
+ * It says three things in order, because a reader who sees only the first is
+ * owed the second: **what is lost**, **that the rest of the note compiled
+ * anyway** — which is the reason nothing else reported it and the build
+ * succeeded — and **what to do**.
+ *
+ * @param {object} args - Arguments.
+ * @param {string} args.type - The note's declared `type`, authored spelling.
+ * @param {{document: string, role: string}} args.produced - The lost document.
+ * @param {readonly {document: string, role: string}[]} args.landed - The
+ *   documents this note does compile.
+ * @param {string} args.reason - Why it reaches no pack.
+ * @param {string} args.remedy - What closes the gap.
+ * @returns {string} The message.
+ */
+function unpackedMessage({ type, produced, landed, reason, remedy }) {
+    // {@link list} quotes what it joins, which is right for a type name and
+    // wrong for a phrase, so the prose list is joined here.
+    const phrases = landed.map((d) => documentPhrase(d));
+    const joined =
+        phrases.length <= 1 ?
+            phrases.join("")
+        :   `${phrases.slice(0, -1).join(", ")} and ${phrases[phrases.length - 1]}`;
+    const rest =
+        landed.length ?
+            `It still compiles ${joined}, which is why the build reports no ` + `other error`
+        :   `Nothing else this note produces compiles either, so it leaves no ` +
+            `trace in any pack`;
+
+    return (
+        `a note of type "${type}" compiles into ${documentPhrase(produced)}, ` +
+        `and this configuration has nowhere to put it: ${reason}. ${rest}. ${remedy}`
+    );
+}
+
+/**
+ * Every note in the content tree that compiles **less than all** of itself.
+ *
+ * One finding per lost document, naming the note, the document class and what
+ * is missing — a pack, a registry entry, or a pass this toolchain does not
+ * have.
+ *
+ * **A note nothing claims is passed over by name**, because that is #146's
+ * finding and it says strictly more: it can distinguish a configuration gap
+ * from an authoring mistake from an unimplemented type, and it names the whole
+ * note rather than one of its documents. Reporting the same note twice, in two
+ * vocabularies, is worse than either report alone — so the two checks partition
+ * the tree on `claimedNoteTypes`, which is the one condition #146 fires on.
+ *
+ * **A note's body is read only once something is already known to be lost**,
+ * and only for a doc-carrying note. Whether it holds prose decides both halves
+ * of the report — a bodyless note neither loses a documentation entry nor
+ * compiles one, and the second half is what stops the finding for its Scene
+ * claiming that a journal compiled in its place. That fact is in the file and
+ * not in the index, which records a documentation entry for every doc-carrying
+ * note whatever its body holds. So the read is on the error path alone: a
+ * configuration that puts every document somewhere opens no note here at all.
+ *
+ * Read-only, like {@link unclaimedNoteFindings}: it reports and writes nothing.
+ *
+ * @param {object} [config] - The resolved build configuration. Defaults to this
+ *   repository's.
+ * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once by the
+ *   compile and handed in (#243).
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: "error", message: string, type: string, document: string,
+ *   role: "primary"|"documentation"}>} One finding per lost document.
+ */
+export function unpackedDocumentFindings(config = loadPackConfig(), sources, { records } = {}) {
+    const resolved = resolveSources(sources);
+    const claimed = claimedNoteTypes(config, resolved);
+    // The document classes that have a pass behind them here. A **prebuilt**
+    // pack is not one: its per-document JSON is checked in rather than
+    // compiled, so no note is routed into it — the same exemption
+    // {@link claimedNoteTypes} makes, and for the same reason.
+    const configured = new Set(
+        (config.packs ?? []).filter((pack) => !pack.prebuilt).map((pack) => pack.type),
+    );
+    const findings = [];
+
+    assertSuppliedCorpus(records, "unpackedDocumentFindings");
+
+    /**
+     * Whether a document this note produces reaches a pass that compiles it.
+     *
+     * Both halves, because they fail apart: an Item pack with no `itemBuilders`
+     * entry for the type is a configured pack that claims nothing, and counting
+     * it would call the item compiled when it is not.
+     *
+     * @param {{document: string}} produced - One produced document.
+     * @param {string} current - The note's type, current spelling.
+     * @returns {boolean} True when the document lands somewhere.
+     */
+    const lands = ({ document }, current) =>
+        configured.has(document) && noteTypesClaimedBy(document, resolved).has(current);
+
+    for (const record of records) {
+        if (!isNoteRecord(record)) continue;
+        const fm = authoredFrontmatter(record);
+        if (!fm) continue;
+        const type = typeof fm.type === "string" ? fm.type.trim() : "";
+        if (!type) continue;
+        // The same three exemptions {@link unclaimedNoteFindings} makes, for the
+        // same reasons: a homepage is in no pack by design, a folder reaches one
+        // by a route of its own, and a retired type is answered by name
+        // elsewhere.
+        if (NEVER_PACKED_TYPES.has(type)) continue;
+        if (DERIVED_PACKED_TYPES.has(type)) continue;
+        if (RETIRED_TYPES[type]) continue;
+
+        const current = currentType(type);
+        // #146's note, reported there and not here — see above.
+        if (!claimed.has(current)) continue;
+
+        let produced = documentsProducedBy(type, resolved);
+        if (produced.every((d) => lands(d, current))) continue;
+
+        // The one place a body is needed, and only now that something is
+        // already known to be lost. It is read whichever side of the note the
+        // documentation entry falls on: a bodyless note does not *lose* one,
+        // and it does not compile one either — and the second half is what
+        // keeps the finding for its Scene from claiming a journal compiled in
+        // its place.
+        const absPath = noteFile(config.paths.content, record);
+        if (produced.some((d) => d.role === "documentation")) {
+            const { body } = parseMarkdownFile(absPath);
+            if (!String(body ?? "").trim()) {
+                produced = produced.filter((d) => d.role !== "documentation");
+            }
+        }
+
+        const landed = produced.filter((d) => lands(d, current));
+        const lost = produced.filter((d) => !lands(d, current));
+        if (!lost.length) continue;
+
+        const position = locateFrontmatterKey(absPath, "type", type);
+        for (const one of lost) {
+            findings.push({
+                file: absPath,
+                ...position,
+                severity: /** @type {"error"} */ ("error"),
+                type,
+                document: one.document,
+                role: /** @type {"primary"|"documentation"} */ (one.role),
+                message: unpackedMessage({
+                    type,
+                    produced: one,
+                    landed,
+                    ...lostDocumentReason({
+                        type,
+                        produced: one,
+                        hasPack: configured.has(one.document),
+                    }),
+                }),
+            });
+        }
     }
     return findings;
 }
