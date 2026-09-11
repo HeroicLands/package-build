@@ -12,7 +12,7 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
-import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
+import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import { MARKDOWNLINT_CONFIG, PRETTIER_CONFIG } from "../engine/prose-config.mjs";
 
 /**
@@ -338,6 +338,110 @@ describe("content-build format agrees with Prettier itself (#125)", () => {
 
         expect((await checkFormatting(root)).findings).toEqual([]);
         expect(prettierComplaints()).toEqual([]);
+    });
+});
+
+describe("the shared conventions say when they are not in force (#133)", () => {
+    /**
+     * The shipped configuration, by file URL.
+     *
+     * A fixture in the OS temp directory cannot resolve
+     * `@heroiclands/package-build/prettier` — it has no `node_modules` and no
+     * link to this checkout — so the one-line re-export every consumer writes
+     * is modelled by importing the same module through its path. What is under
+     * test is the resolved *values*, and those are identical either way.
+     */
+    const sharedConfig = new URL("../prettier-config.mjs", import.meta.url).href;
+    const proseConfig = new URL("../engine/prose-config.mjs", import.meta.url).href;
+
+    /** The messages, for asserts that read like the output does. */
+    const messages = (findings: Array<{ message: string }>) => findings.map((f) => f.message);
+
+    it("says nothing when a consumer re-exports the shared configuration", async () => {
+        // What all five consumers spell today. The silent case is the one that
+        // must stay silent: a report nobody can satisfy is a report nobody
+        // reads.
+        write("prettier.config.mjs", `export { default } from ${JSON.stringify(sharedConfig)};\n`);
+
+        const r = await checkPrettierConventions(root);
+        expect(r.findings).toEqual([]);
+        expect(r.configFile).toBe(path.join(root, "prettier.config.mjs"));
+    });
+
+    it("names the markdown override a spread of the base drops", async () => {
+        // The first half of #133: a config that carries every shared value and
+        // loses the one that only reaches markdown, so notes reindent at 4 —
+        // the reindentation the override exists to prevent (#76).
+        write(
+            "prettier.config.mjs",
+            `import { PRETTIER_BASE } from ${JSON.stringify(proseConfig)};\n` +
+                "export default { ...PRETTIER_BASE };\n",
+        );
+
+        const r = await checkPrettierConventions(root);
+        expect(messages(r.findings)).toEqual([
+            "markdown `tabWidth` is 4 here; the shared configuration says 2",
+        ]);
+        expect(r.findings[0].severity).toBe("warning");
+        // Named against the file the reader has to edit.
+        expect(r.findings[0].file).toBe(path.join(root, "prettier.config.mjs"));
+    });
+
+    it("names every convention a partial config discards, and the one it keeps", async () => {
+        // `{"tabWidth": 2}` is not "the shared configuration plus one change":
+        // declaring anything discards everything not restated, which is the
+        // half of #133 nothing reported.
+        write(".prettierrc", '{ "tabWidth": 2 }\n');
+
+        const r = await checkPrettierConventions(root);
+        const said = messages(r.findings).join("\n");
+
+        expect(said).toContain("`printWidth` is not set here, so Prettier's own default applies");
+        expect(said).toContain("the shared configuration says 100");
+        expect(said).toContain("`trailingComma` is not set here");
+        expect(said).toContain("`experimentalTernaries` is not set here");
+        // Set, not absent — a choice, reported as one.
+        expect(said).toContain("`tabWidth` is 2 here; the shared configuration says 4");
+        // ...and right for markdown, so it is not also reported there. A key
+        // that resolves the same way everywhere is one finding, not two.
+        expect(said).not.toContain("markdown `tabWidth`");
+        expect(r.findings.every((f) => f.severity === "warning")).toBe(true);
+    });
+
+    it("reports a repository with no Prettier configuration, and what to do about it", async () => {
+        // The sharper half: the command is correct here and everything else in
+        // the repository is not. `npx prettier --check .` formats at 80 what
+        // this formats at 100, and the two take turns rewriting the same lines.
+        const r = await checkPrettierConventions(root);
+
+        expect(r.configFile).toBeNull();
+        expect(r.findings).toHaveLength(1);
+        expect(r.findings[0].severity).toBe("warning");
+        expect(r.findings[0].message).toContain("declares no Prettier configuration");
+        expect(r.findings[0].message).toContain("npx prettier");
+        expect(r.findings[0].message).toContain(
+            'export { default } from "@heroiclands/package-build/prettier";',
+        );
+        // No file: there is none, and #17's rule is to drop a field rather
+        // than invent one.
+        expect(r.findings[0].file).toBeUndefined();
+    });
+
+    it("leaves a deliberate local override working, as a warning and not a failure", () => {
+        // The whole tree is formatted to the local config's rules, so the only
+        // thing `format` has to say is that those rules are not the shared
+        // ones — and it must still exit 0.
+        const bin = fileURLToPath(new URL("../bin/content-build.mjs", import.meta.url));
+        write(".prettierrc", '{ "tabWidth": 2 }\n');
+        write("a.md", "Some _emphasis_ here.\n");
+
+        const r = spawnSync(process.execPath, [bin, "format"], { cwd: root, encoding: "utf8" });
+
+        expect(r.status).toBe(0);
+        const output = `${r.stdout}${r.stderr}`;
+        expect(output).toContain("warning: `printWidth` is not set here");
+        expect(output).not.toContain("error:");
+        expect(output).toContain("Formatting is clean");
     });
 });
 

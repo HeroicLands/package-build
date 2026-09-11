@@ -105,7 +105,7 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
+import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import {
     authoredFrontmatter,
     emitContentIndex,
@@ -973,6 +973,13 @@ function lintCommand() {
  * which paths a repository skips is knowledge about that repository's layout,
  * and it stays there.
  *
+ * It is a default that **says when it is not in force**, though. Every run first
+ * reports, as warnings, each shared convention the repository's own
+ * configuration resolves differently — or that it declares no configuration at
+ * all, which guarantees an editor and a bare `npx prettier` disagree with this
+ * command about the same tree (#133). Nothing there fails the run: the point is
+ * that a local choice is deliberate rather than silent.
+ *
  * @returns {object} The yargs command module.
  */
 // eslint-disable-next-line
@@ -1006,6 +1013,20 @@ function formatCommand() {
                     return;
                 }
                 const root = process.cwd();
+                // Before the per-file report, because it is the context for it:
+                // which rules this run applied, and whether anything else in
+                // the repository applies the same ones (#133). Warnings only —
+                // a consumer's config wins by design, so none of this touches
+                // the exit code.
+                const conventions = await checkPrettierConventions(root);
+                for (const finding of conventions.findings) emitDiagnostic(finding);
+                if (conventions.findings.length && conventions.configFile) {
+                    log.warn(
+                        `${conventions.findings.length} shared Prettier convention(s) are not ` +
+                            "what this repository resolves; a deliberate local choice wins on " +
+                            "purpose, so this is a warning and not a failure.",
+                    );
+                }
                 const { findings, checked, written } = await checkFormatting(root, {
                     paths: argv.paths,
                     write: argv.write,

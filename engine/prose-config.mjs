@@ -135,6 +135,48 @@ export function sharedPrettierOptionsFor(file) {
 }
 
 /**
+ * Where a resolved Prettier configuration disagrees with the shared one.
+ *
+ * The runner resolves each file's options as *either* the consumer's own config
+ * or {@link sharedPrettierOptionsFor}, never a merge. That is what bare Prettier
+ * does and it is the contract — but it means the conventions this package exists
+ * to publish hold by convention alone, and they lapse in two opposite directions
+ * (#133). A consumer that declares any config of its own gets whatever that
+ * config says: spread {@link PRETTIER_BASE} without the markdown override and
+ * every note reindents at 4, the reindentation the override was added to prevent
+ * (#76); write a partial `.prettierrc` such as `{"tabWidth": 2}` and
+ * `printWidth`, `trailingComma`, `experimentalTernaries` and the rest fall back
+ * to Prettier's own defaults. A consumer that declares *nothing* formats one way
+ * under this command and another under a bare `npx prettier`.
+ *
+ * This is the comparison that makes either absence visible. It is a **report,
+ * not a merge**: what a consumer declared still wins, and a deliberate local
+ * choice stays possible — it stops being silent, and nothing here fails a build
+ * over it.
+ *
+ * Every shared value is a primitive, so `!==` is the whole comparison. An option
+ * holding an object would need a deeper one, and the shared set has none —
+ * `overrides` is not compared, because `resolveConfig` has already applied and
+ * removed it by the time a configuration reaches this.
+ *
+ * @param {object|null|undefined} resolved - What `prettier.resolveConfig`
+ *   returned for `file`, with the consumer's own `overrides` already applied.
+ *   `null` — no configuration at all — reports every shared key as absent.
+ * @param {string} file - Path the options were resolved for. Decides whether
+ *   {@link PRETTIER_MARKDOWN} is part of what is expected.
+ * @returns {Array<{key: string, shared: unknown, local: unknown}>} One entry per
+ *   shared key the resolved configuration does not carry the value of, in the
+ *   order {@link PRETTIER_BASE} declares them. `local` is `undefined` where the
+ *   key is absent entirely, which is not the same finding as a key set to
+ *   something else and is reported differently.
+ */
+export function sharedPrettierDivergence(resolved, file) {
+    return Object.entries(sharedPrettierOptionsFor(file))
+        .filter(([key, shared]) => resolved?.[key] !== shared)
+        .map(([key, shared]) => ({ key, shared, local: resolved?.[key] }));
+}
+
+/**
  * The markdownlint rules — the structural checks Prettier cannot make.
  *
  * Prettier already formats every hand-written `.md` file, and it is indifferent
