@@ -1,5 +1,54 @@
 # @heroiclands/package-build
 
+## 20.1.0
+
+### Minor Changes
+
+- f6d2a8f: **A fetched item catalogue is read one system at a time** (#58).
+  
+  A pack declaring `system: hm3` already read only this repository's `hm3` and
+  system-neutral Item packs. The other half of the same lookup — the catalogue
+  fetched from a dependency that declares `itemCatalog: true` — was unscoped, and
+  both halves are merged into one address space keyed by `subType:shortcode`. So
+  an address that exists in both vocabularies resolved against whichever document
+  the dependency's other system happened to supply, and said nothing: `skill:awar`
+  is a real address under SoHL and under HM3 and means two different documents.
+  
+  `deps fetch` now records what each extracted pack is, from the dependency's own
+  manifest, and `foreignItemCatalogDirs(config, system)` reads only the packs that
+  system may see plus the ones declaring no system at all.
+  
+  **What a consumer sees**
+  
+  |                                      | Before                  | After                            |
+  | ------------------------------------ | ----------------------- | -------------------------------- |
+  | a pack with `system: hm3`            | reads every cached pack | reads the `hm3` and neutral ones |
+  | a single-system build                | reads every cached pack | unchanged                        |
+  | a cache filled by an earlier version | used as-is              | treated as incomplete            |
+  
+  **Refill the cache once.** A cache written before this holds the items but not
+  what they are, and neither way of proceeding without that is honest: reading
+  every pack is the wrong-document failure above, and reading none fails a build
+  that worked. So it is incomplete, and `content-build deps fetch` refills it —
+  the command the cold-cache error already names.
+
+### Patch Changes
+
+- 2b1157e: **The license header is on every shipped module, and CI refuses a `TODO`.**
+  
+  `engine/foreign-catalog.mjs` and `engine/schema-extract.mjs` shipped without the
+  GPL-3.0 header every other module carries — 109 of 111 had one, which is the
+  state a rule reaches when nothing checks it.
+  
+  The forbidden-marker check now runs here too, through the org-wide
+  `HeroicLands/.github/actions/todos` action the other repositories already call.
+  It scans the whole checkout rather than a named list of directories: this
+  package's modules sit at its root as well as under `bin/`, `ci/`, `engine/`,
+  `hm3/` and `sohl/`, so a list would name sixteen root files today and quietly
+  stop covering the seventeenth.
+  
+  Nothing a consumer imports changes.
+
 ## 20.0.0
 
 ### Major Changes
