@@ -1498,6 +1498,28 @@ markdownlint honour them natively. The one exception is `CHANGELOG.md`, which
 `changeset version` regenerates in every repository here: linting it reports on
 the generator, so it is skipped by default.
 
+**A default that says when it is not in force.** Because a local config wins
+wholesale rather than merging, the conventions above otherwise hold by convention
+alone: a `prettier.config.mjs` that spreads `PRETTIER_BASE` without the `**/*.md`
+override reindents every note at 4, and a partial `.prettierrc` such as
+`{"tabWidth": 2}` silently discards `printWidth: 100`, `trailingComma` and the
+rest. So every `format` run first names, as warnings, each shared convention this
+repository resolves differently (#133):
+
+```text
+prettier.config.mjs: warning: markdown `tabWidth` is 4 here; the shared configuration says 2
+.prettierrc: warning: `printWidth` is not set here, so Prettier's own default applies; the shared configuration says 100
+```
+
+A repository with **no** Prettier config is warned too, and it is the sharper
+case: the shared conventions then reach this command and nothing else, so an
+editor's format-on-save and a bare `npx prettier --check .` apply Prettier's own
+defaults to the same tree and the two take turns rewriting the same lines. The
+fix is the one-line re-export below.
+
+None of this fails a run. A deliberate local choice still wins — it just stops
+being silent.
+
 Neither tool's file discovery is reimplemented, so `content-build format --check`
 and a bare `prettier --check .` report the same thing. A file Prettier cannot
 parse is a **finding**, with its position — not a crash that costs the report on

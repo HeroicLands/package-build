@@ -38,6 +38,7 @@ import {
     MARKDOWNLINT_CONFIG,
     MARKDOWN_GLOBS,
     MARKDOWN_IGNORES,
+    sharedPrettierDivergence,
     sharedPrettierOptionsFor,
 } from "./prose-config.mjs";
 
@@ -77,6 +78,27 @@ const IGNORE_FILES = Object.freeze([".gitignore", ".prettierignore"]);
  * already formatted, where the first pass converges immediately.
  */
 const MAX_FORMAT_PASSES = 3;
+
+/**
+ * The two paths whose resolved configuration stands for the repository's.
+ *
+ * Prettier resolves a configuration *per file*, so asking what a repository is
+ * configured to do means asking about a file. These are the two answers that
+ * differ: markdown carries the shared `tabWidth` override and everything else
+ * does not, so a single probe would check half the conventions and miss the one
+ * most worth checking (#133).
+ *
+ * Ordinary names at the repository root, and neither has to exist —
+ * `resolveConfig` reads the path to walk up from it and to match `overrides`
+ * against it, never the file. That is also the limit of what this can say: it
+ * reports the configuration a file *at the root* resolves to, so an override a
+ * consumer scoped to some subtree of its own is outside the question being
+ * asked, and rightly so.
+ */
+const CONVENTION_PROBES = Object.freeze({ code: "index.mjs", markdown: "README.md" });
+
+/** The one line a consumer writes to adopt the shared configuration verbatim. */
+const SHARED_CONFIG_RE_EXPORT = 'export { default } from "@heroiclands/package-build/prettier";';
 
 /**
  * Every file under a root, minus the directories nothing should walk.
@@ -243,6 +265,110 @@ export async function checkFormatting(root, opts = {}) {
     }
 
     return { findings, checked, written };
+}
+
+/**
+ * One divergence as the sentence a diagnostic carries.
+ *
+ * The two cases read differently on purpose. A key set to something else is a
+ * choice someone made and can defend; a key that is simply absent is the
+ * silent half of #133 — the consumer did not choose Prettier's default, it
+ * arrived because declaring one option discards every option not restated.
+ *
+ * @param {{key: string, shared: unknown, local: unknown}} divergence - From
+ *   {@link sharedPrettierDivergence}.
+ * @param {string} [scope=""] - Which files this is about, when it is not all of
+ *   them. Prefixed to the key, so the line reads `markdown \`tabWidth\` …`.
+ * @returns {string} The message.
+ */
+function divergenceMessage({ key, shared, local }, scope = "") {
+    const here =
+        local === undefined ?
+            "is not set here, so Prettier's own default applies"
+        :   `is ${JSON.stringify(local)} here`;
+    return `${scope}\`${key}\` ${here}; the shared configuration says ${JSON.stringify(shared)}`;
+}
+
+/**
+ * Report where a repository's own Prettier configuration parts from the shared
+ * one — or that it has none at all (#133).
+ *
+ * **Warnings, every one of them.** A consumer's config wins by design and this
+ * does not change that; it only refuses to let the divergence be silent, which
+ * is the whole of what the issue asks for. Turning any of this into an error
+ * would make the shared conventions mandatory, and they are a default.
+ *
+ * The no-configuration case is the sharper one and is reported even though the
+ * command itself behaves correctly there: with no config file the shared
+ * conventions reach `content-build format` and reach *nothing else*, so an
+ * editor's format-on-save and a bare `npx prettier --check .` apply Prettier's
+ * own defaults to the same tree, and the two take turns rewriting the same
+ * lines. That is not hypothetical — it is what the config files in
+ * `sohl-thalorna` and `sohl-kethira-basic` were added to stop.
+ *
+ * @param {string} root - Repository to ask about.
+ * @param {object} [opts]
+ * @param {object} [opts.prettier] - The Prettier module, for tests.
+ * @returns {Promise<{findings: Array<{file?: string, severity: string,
+ *   message: string}>, configFile: string|null}>} The findings and the config
+ *   file they are about, which is `null` when the repository declares none. A
+ *   finding about a missing file carries no `file`: #17's rule is to drop a
+ *   field rather than invent one.
+ */
+export async function checkPrettierConventions(root, opts = {}) {
+    const prettier = opts.prettier ?? (await import("prettier"));
+    const base = path.resolve(root);
+    const probe = (name) => path.join(base, name);
+
+    const configFile = await prettier.resolveConfigFile(probe(CONVENTION_PROBES.code));
+    if (!configFile) {
+        return {
+            findings: [
+                {
+                    severity: "warning",
+                    message:
+                        "this repository declares no Prettier configuration, so `content-build " +
+                        "format` applies the shared conventions while an editor and a bare `npx " +
+                        "prettier` apply Prettier's own to the same tree; declare them in a " +
+                        `prettier.config.mjs — ${SHARED_CONFIG_RE_EXPORT}`,
+                },
+            ],
+            configFile: null,
+        };
+    }
+
+    /** @param {string} name - One of {@link CONVENTION_PROBES}. */
+    const divergenceFor = async (name) =>
+        sharedPrettierDivergence(
+            await prettier.resolveConfig(probe(name), { editorconfig: false }),
+            probe(name),
+        );
+
+    const code = await divergenceFor(CONVENTION_PROBES.code);
+    const markdown = await divergenceFor(CONVENTION_PROBES.markdown);
+
+    const findings = code.map((divergence) => ({
+        file: configFile,
+        severity: "warning",
+        message: divergenceMessage(divergence),
+    }));
+    for (const divergence of markdown) {
+        // A key that resolves the same way everywhere is one finding, not two.
+        // Only what markdown alone gets wrong is worth a line of its own — and
+        // it is the line that matters most, `tabWidth` being the value a note
+        // moving between repositories reindents on.
+        const everywhere = code.some(
+            (other) => other.key === divergence.key && Object.is(other.local, divergence.local),
+        );
+        if (everywhere) continue;
+        findings.push({
+            file: configFile,
+            severity: "warning",
+            message: divergenceMessage(divergence, "markdown "),
+        });
+    }
+
+    return { findings, configFile };
 }
 
 /**
