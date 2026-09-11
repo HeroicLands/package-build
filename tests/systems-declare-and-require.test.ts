@@ -84,6 +84,22 @@ describe("declaring a system does not restrict where the package loads", () => {
         expect(sohl.systemVersion).toBe("0.8.2");
     });
 
+    // The fixture above is `harn-ensemble`'s shape *with* its `systems:` block,
+    // and the real configuration had no such block — so every pack fell through
+    // to a package-wide stat a module declaring no system does not have, and
+    // 2,513 compiled actors shipped `_stats.systemId: null` from a pack whose
+    // configuration says `system: sohl` on the line above. The suite was green
+    // throughout, because the fixture was more complete than the repository.
+    //
+    // Refused at configuration time, where the fix is: the stamp needs a
+    // version, and the pack's `system:` is the only thing that can say which.
+    it("refuses a pack naming a system nothing declares a version for", () => {
+        const { systems: _omitted, ...noSystemsBlock } = twoSystems();
+        expect(() => resolveIn(repoDir(), noSystemsBlock)).toThrow(
+            /`packs\.actors-hm3\.system` names `hm3`.*stamped null/s,
+        );
+    });
+
     // `systemId` travels with `systemVersion`: stamping a per-pack version
     // against a package-wide id would emit `systemId: sohl, systemVersion:
     // 1.6.3` on HM3 documents — a plausible lie, worse than an absence.

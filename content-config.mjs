@@ -1370,6 +1370,52 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * @param {unknown} value - The declared `systems:` mapping.
  * @returns {Readonly<Record<string, Readonly<object>>>} Frozen; `{}` when absent.
  */
+/**
+ * The **package-wide** system, or `null` where the configuration names none
+ * (#48).
+ *
+ * A *system* package is its own system, which is true by construction and needs
+ * no declaration. A *module* takes the one it requires, or the one system it
+ * declares when there is exactly one; with several and no gate there is no
+ * package-wide answer, and each pack carries its own.
+ *
+ * A lone `relationships.systems` entry is a declaration of the system as much as
+ * a gate, so it still answers. That matters because the relationship carries
+ * `itemCatalog` too — a separate concern the `systems:` split does not replace —
+ * so a repository using it would otherwise have to restate its compatibility
+ * under `systems:` purely to keep stamping, which is the duplication that split
+ * exists to remove. Several entries have no single answer and get none.
+ *
+ * **Written once and read twice**, which is why it is a function rather than the
+ * expression it used to be: the value stamped into `stats.systemId` and the
+ * value a pack's `system:` is validated against are the same fact, and two
+ * spellings of it would be free to disagree about exactly the case that has no
+ * answer.
+ *
+ * @param {object} parts - The resolved pieces of the configuration.
+ * @param {string} parts.packageKind - `systems` or `modules`.
+ * @param {unknown} parts.foundryPackage - The package id.
+ * @param {string|null} parts.requiresSystem - The declared gate, if any.
+ * @param {Readonly<Record<string, object>>} parts.systems - The `systems:` block.
+ * @param {readonly {id?: string}[]} parts.relationshipSystems - System
+ *   relationships.
+ * @returns {string|null} The system id, or `null` where there is no single one.
+ */
+function packageWideSystemId({
+    packageKind,
+    foundryPackage,
+    requiresSystem,
+    systems,
+    relationshipSystems,
+}) {
+    if (packageKind === "systems") return /** @type {string} */ (foundryPackage);
+    if (requiresSystem) return requiresSystem;
+    const declared = Object.keys(systems);
+    if (declared.length === 1) return declared[0];
+    if (relationshipSystems.length === 1) return relationshipSystems[0]?.id ?? null;
+    return null;
+}
+
 function normalizeSystems(value) {
     if (value === undefined || value === null) return Object.freeze({});
     if (!isPlainObject(value)) fail("systems", "must be a mapping of id to spec");
@@ -1875,6 +1921,15 @@ export function defineConfig(config) {
     const relationshipSystems = /** @type {{id?: string}[]} */ (
         (isPlainObject(input.relationships) ? input.relationships.systems : null) ?? []
     );
+    // Read here as well as stamped below, so the check that a pack's `system:`
+    // resolves to something and the value it resolves to are one statement.
+    const packageWide = packageWideSystemId({
+        packageKind,
+        foundryPackage: input.foundryPackage,
+        requiresSystem,
+        systems,
+        relationshipSystems,
+    });
 
     // A name that resolves to nothing is a build error rather than a
     // fall-through, in the spirit the rest of this file already follows: a pack
@@ -1891,11 +1946,35 @@ export function defineConfig(config) {
     }
     for (const pack of packs.flatMap((p) => [p, ...p.companions])) {
         if (!pack.system) continue;
-        if (declaredSystems.size && !declaredSystems.has(pack.system)) {
+        // **A pack's `system:` must resolve to a stamp**, and there are exactly
+        // two things it can resolve to: a `systems:` entry, which carries the
+        // verified version `statsForPack` reads, or this package's own
+        // package-wide system, whose stats answer for every pack of it.
+        //
+        // This used to be skipped entirely when `systems:` was empty or absent
+        // — `declaredSystems.size &&` guarded it — which left the case the
+        // comment above was written about wide open. `harn-ensemble` declares
+        // `system: sohl` and `system: hm3` on its packs, no `systems:` block,
+        // and no package-wide system, so every pack fell through to a
+        // package-wide stat that is null: 2,513 compiled actors stamped
+        // `_stats.systemId: null` in a pack that says `system: sohl` on the
+        // line above. That is the plausible lie #43 was about, reached by the
+        // one path this check did not cover, and the `requiresSystem` check ten
+        // lines up already refuses its own version of it in as many words.
+        if (!declaredSystems.has(pack.system) && pack.system !== packageWide) {
             fail(
                 `packs.${pack.name}.system`,
-                `names \`${pack.system}\`, which \`systems:\` does not ` +
-                    `declare. Declared: ${[...declaredSystems].join(", ")}`,
+                `names \`${pack.system}\`, which \`systems:\` does not declare` +
+                    (declaredSystems.size ?
+                        ` (declared: ${[...declaredSystems].join(", ")})`
+                    :   ` — the \`systems:\` block is empty or absent`) +
+                    (packageWide ?
+                        `, and which is not this package's own system \`${packageWide}\``
+                    :   `, and this package has no package-wide system either`) +
+                    `. Every document in the pack is stamped \`_stats.systemId\` ` +
+                    `and \`systemVersion\` from one of those two, so with ` +
+                    `neither it would be stamped null. Add \`systems:\` naming ` +
+                    `\`${pack.system}\` with a \`compatibility.verified\` version`,
             );
         }
         // With a gate set, a pack for any other system could never be seen:
@@ -1979,21 +2058,13 @@ export function defineConfig(config) {
         // when there is exactly one; with several and no gate there is no
         // package-wide answer, and each pack carries its own.
         stats: normalizeStats(input.stats, {
-            systemId:
-                packageKind === "systems" ? foundryPackage
-                : requiresSystem ? requiresSystem
-                : Object.keys(systems).length === 1 ? Object.keys(systems)[0]
-                    // A lone `relationships.systems` entry is a declaration of
-                    // the system as much as a gate, so it still answers. That
-                    // matters because the relationship carries `itemCatalog`
-                    // too — a separate concern the split does not replace — so
-                    // a repository using it would otherwise have to restate its
-                    // compatibility under `systems:` purely to keep stamping,
-                    // which is the duplication this whole change exists to
-                    // remove. Several entries have no single answer and get
-                    // none.
-                : relationshipSystems.length === 1 ? (relationshipSystems[0]?.id ?? null)
-                : null,
+            systemId: packageWideSystemId({
+                packageKind,
+                foundryPackage,
+                requiresSystem,
+                systems,
+                relationshipSystems,
+            }),
             // Derived here where the answer is pure data — the `verified` of
             // whichever system the package-wide block takes — and supplied by
             // the loader otherwise. The loader is the half that may do I/O, and
