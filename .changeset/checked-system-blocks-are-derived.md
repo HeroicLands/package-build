@@ -33,22 +33,30 @@ rather than asking for it again — in all three places it is written:
   remaining spelling: a system package is its own system, and a module takes
   `requiresSystem`, its lone `systems:` entry, or its lone system relationship.
 
-**Each block is held to its own system's vocabulary**, from the registry that
-system declares in `itemBuilders`. `skill` is one name over two data models, so
-a key SoHL's `skill` declares is not thereby a key HM3's declares. A type a
-system's registry does not name is a type that system says nothing about, and
-its block is left alone on such a note rather than reported wholesale. A package
+**Each block is held to its own system's vocabulary**, and that has two sources.
+A system's `itemBuilders` registry covers its item types — `skill` is one name
+over two data models, so a key SoHL's `skill` declares is not thereby a key
+HM3's. The note schemas cover the rest, `being` above all, which is an actor type
+sitting in no item registry; they are SoHL's, because that is the vocabulary
+`content-build` is built with.
+
+A type neither source names is a type that system says nothing about, and its
+block is left alone on such a note rather than reported wholesale. A package
 naming no system anywhere is system-agnostic on purpose — its packs are core
 document types carrying no system data — so it has no system block, and none is
 invented for it.
 
 **A block whose vocabulary nothing states is said out loud.** A package
-declaring a system but no `itemBuilders` registry for it — `harn-ensemble`
-declares two systems through its packs and a registry for neither — has nothing
-that can say what that block may carry, so the block goes unchecked and
-`content-build lint` reports that once, naming the systems and the registry to
+declaring a system other than SoHL and no `itemBuilders` registry for it has
+nothing that can say what that block may carry, so the block goes unchecked and
+`content-build lint` reports that once, naming the system and the registry to
 declare. A check that quietly does nothing is indistinguishable from one that
 passed, which is the whole subject here.
+
+For `harn-ensemble` — the tree this issue is about, declaring both systems
+through its packs — that means its `sohl:` block is checked exactly as before,
+its 2,512 `being` notes included, and its `hm3:` block waits on
+`itemBuilders: [hm3, sohl]`, which the lint now asks for by name.
 
 **Nothing changes for a package shipping for SoHL**, which is every consumer
 today: one system, one registry, and the derivation is the identity on it.

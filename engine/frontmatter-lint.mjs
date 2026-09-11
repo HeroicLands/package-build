@@ -218,37 +218,51 @@ export function declaredSystems(config) {
  * - and the block that *was* checked was named after a system that package does
  *   not ship for, so the one finding it could make was about nothing.
  *
- * **Each system's vocabulary comes from its own registry.**
- * `itemFieldsBySystem` is that declaration, keyed by system, and until now
- * nothing read it. A system with no registry of its own falls back to the note
- * schemas the caller supplies — but only where it is the package's **single**
- * system, because that is the one case where those schemas are known to be
- * describing it. With several systems and a registry for only some, the rest
- * are left out rather than held to a vocabulary belonging to their neighbour.
+ * **A block's vocabulary has two sources, and a system may have both.**
  *
- * **A system left out here is a check that does not run**, which is
- * indistinguishable from one that passed — so the caller says it out loud.
- * {@link declaredSystems} is the other half of that comparison: a system it
- * names and this omits is a block nothing can state the vocabulary of, which is
- * `harn-ensemble` today, declaring two systems and an `itemBuilders` registry
- * for neither.
+ * - The **note schemas** the caller hands in as `schemas`. Those belong to one
+ *   system — the CLI imports `sohl/note-schemas.mjs` — and `schemaSystem` is the
+ *   caller naming which, because only the caller knows. It is the only source
+ *   that reaches a type no item registry declares, which is to say `being`: the
+ *   2,512 notes `harn-ensemble` is made of, and the reason this is not an
+ *   optional refinement.
+ * - The system's **own registry**, `itemFieldsBySystem`, keyed by system and
+ *   until now read by nothing. This is what a *second* system's block is held
+ *   to, since the note schemas describe its neighbour.
+ *
+ * A system with neither is left out: nothing can state what its block may
+ * carry, and holding it to an empty vocabulary would report every key in a
+ * correct tree. **That is a check that does not run**, which is
+ * indistinguishable from one that passed, so the caller says it out loud —
+ * {@link declaredSystems} is the other half of that comparison. `harn-ensemble`
+ * is the tree it names: two systems, and an `itemBuilders` registry for
+ * neither, so its `hm3:` block is unchecked until it declares one.
+ *
+ * An earlier draft of this took the note schemas for a system's vocabulary only
+ * where the package declared **one** system, on the reasoning that with several
+ * there is nothing to say which one they describe. There is: the caller, which
+ * chose them. The guess cost `harn-ensemble` its whole `sohl:` check — two
+ * systems declared, so the fallback never fired — which is the coverage this
+ * change exists to widen rather than narrow.
  *
  * @param {object} [config] - A resolved configuration from `defineConfig`.
+ * @param {object} [options] - Options.
+ * @param {string} [options.schemaSystem] - The system whose vocabulary the
+ *   caller's `schemas` state. There are two systems, not an open set, so this is
+ *   one word from the caller rather than a mechanism.
  * @returns {Readonly<Record<string, SystemBlockSpec>>} The blocks to check, in
- *   declared order. Empty where the package names no system, and where nothing
- *   states the vocabulary of any system it names.
+ *   declared order. A system nothing states the vocabulary of is absent.
  */
-export function systemBlocksFor(config) {
-    const systems = declaredSystems(config);
+export function systemBlocksFor(config, { schemaSystem } = {}) {
     const byName = config?.itemFieldsBySystem ?? {};
     /** @type {Record<string, SystemBlockSpec>} */
     const blocks = {};
-    for (const system of systems) {
-        if (byName[system]) {
-            blocks[system] = Object.freeze({ fields: byName[system] });
-        } else if (systems.length === 1) {
-            blocks[system] = Object.freeze({ fieldVocabulary: true });
-        }
+    for (const system of declaredSystems(config)) {
+        /** @type {SystemBlockSpec} */
+        const spec = {};
+        if (system === schemaSystem) spec.fieldVocabulary = true;
+        if (byName[system]) spec.fields = byName[system];
+        if (Object.keys(spec).length) blocks[system] = Object.freeze(spec);
     }
     return Object.freeze(blocks);
 }
@@ -1350,13 +1364,17 @@ export function lintNote(
         // block's *shape* and holds whether or not this system declares a
         // vocabulary for the note's type.
         findings.push(...checkEmbeddedShortcodes(note, blockName));
-        // A system that declares its own fields is checked against them, and
-        // only where it speaks: a type its registry does not name is a type
-        // this system says nothing about — SoHL's `mysticalability` is not an
-        // HM3 type at all — and holding its block to an empty vocabulary would
-        // report every key in it, which is the correct tree reported red.
+        // A block is checked only where its system speaks about this type. A
+        // type a system's registry does not name is a type it says nothing
+        // about — SoHL's `mysticalability` is not an HM3 type at all — and
+        // holding the block to an empty vocabulary would report every key in
+        // it, which is the correct tree reported red.
+        //
+        // `fieldVocabulary` reaches types no registry declares, `being` above
+        // all, so a spec carrying it always speaks. Only a spec whose *sole*
+        // statement is `fields` can fall silent here.
         const own = spec?.fields;
-        if (own && !own[type]) continue;
+        if (own && !own[type] && !spec?.fieldVocabulary && !spec?.known) continue;
         const accepted = new Set([
             ...UNIVERSAL_KEYS,
             ...(spec?.known ?? []),

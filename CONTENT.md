@@ -1035,22 +1035,28 @@ note routed to a pack declaring one and carrying no such block fails the build �
 so a lint blind to it would refuse a note for want of a block it never checked.
 `harn-ensemble` declares its two systems that way and no other.
 
-**Each block is checked against its own system's vocabulary**, taken from the
-registry that system declares in `itemBuilders`. `skill` is one name over two
-data models, so a key SoHL's `skill` declares is not thereby a key HM3's
-declares, and a block that borrowed its neighbour's field names would accept the
-one mistake this check exists to report. A type a system's registry does not
-name — `mysticalability` is SoHL's, `invocation` is HM3's — is a type that
-system says nothing about, and its block is left alone on such a note rather
-than reported wholesale. A package that names no system at all is
-system-agnostic on purpose: its packs are core document types carrying no system
-data, so it has no system block and none is invented for it.
+**Each block is checked against its own system's vocabulary**, and that has two
+sources. A system's **`itemBuilders` registry** covers its item types: `skill` is
+one name over two data models, so a key SoHL's `skill` declares is not thereby a
+key HM3's declares, and a block that borrowed its neighbour's field names would
+accept the one mistake this check exists to report. The **note schemas** cover
+the rest — `being` above all, which is an actor type and sits in no item
+registry — and they belong to one system, SoHL, because that is the vocabulary
+`content-build` is built with.
+
+A type neither source names — `mysticalability` is SoHL's, `invocation` is
+HM3's — is a type that system says nothing about, and its block is left alone on
+such a note rather than reported wholesale. A package that names no system at all
+is system-agnostic on purpose: its packs are core document types carrying no
+system data, so it has no system block and none is invented for it.
 
 **A block whose vocabulary nothing states is said out loud.** A package
-declaring a system but no `itemBuilders` registry for it has nothing that can
-say what that block may carry, so the block goes unchecked — and `content-build
-lint` reports that once, naming the systems and the registry to declare, because
-a check that quietly does nothing is indistinguishable from one that passed.
+declaring a system other than SoHL and no `itemBuilders` registry for it has
+nothing that can say what that block may carry, so the block goes unchecked — and
+`content-build lint` reports that once, naming the system and the registry to
+declare, because a check that quietly does nothing is indistinguishable from one
+that passed. `harn-ensemble` is the tree that gets it today: its `sohl:` block is
+checked, and its `hm3:` waits on `itemBuilders: [hm3, sohl]`.
 
 **`subType` stays at the top level**, and is closed in its own way: a type
 either declares a `subType` or does not, and a type that does declares its

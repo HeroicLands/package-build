@@ -790,7 +790,12 @@ function lintCommand() {
                 // Which system blocks this tree carries, derived from what it
                 // declares it ships for (#58). Read before the lint so the
                 // systems it will *not* check can be said out loud below.
-                const systemBlocks = systemBlocksFor(config);
+                // `schemaSystem` names whose vocabulary the `schemas` below
+                // are. They are `sohl/note-schemas.mjs`, imported here
+                // unconditionally, so this states a fact about this file rather
+                // than introducing one — and it is what lets a type no item
+                // registry declares, `being` above all, be checked at all.
+                const systemBlocks = systemBlocksFor(config, { schemaSystem: "sohl" });
                 const uncheckedSystems = declaredSystems(config).filter(
                     (system) => !(system in systemBlocks),
                 );
