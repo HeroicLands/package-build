@@ -349,6 +349,21 @@ pack: mysteries
   that type's default implicitly; a type with several designates one with
   `default: true`. Where several exist and none is marked, a declaration is
   **mandatory** and an undeclared note fails the build.
+- **A default is per system, not merely per type** (#58). The rule above counts
+  every pack of a type together, so a tree shipping one Actor pack per system has
+  two and would need a flag — except that asked _per system_ the layout is
+  unambiguous, one pack each, for the same reason a single-pack type needs no
+  flag. And a system is never answered with another system's pack: a type-wide
+  default declaring `system: sohl` does not route the HM3 document, which
+  otherwise had that pass see a pack name that was not its own and skip every
+  note in the tree without a word.
+- **A `pack:` naming another system's pack** is refused where the _block_
+  declares it — `hm3.pack` says where the HM3 document goes, so naming a SoHL
+  pack is a contradiction, reported naming the note and the pack. At the top
+  level it is no contradiction: the shared position is the value a note states
+  once for every system, and a system-specific pack cannot be that value, so it
+  simply does not answer for the other system, which falls through to its own
+  default.
 - **A `pack:` naming no configured pack is a build error**, not a fall-through to
   the default. A typo'd name that quietly landed content in the wrong compendium
   would be silent partial compilation — the failure mode this toolchain's guards
@@ -456,11 +471,16 @@ systems:
   sohl: { compatibility: { verified: "0.9.0" } }
   hm3: { compatibility: { verified: "1.6.3" } }
 packs:
-  - { name: items-sohl, type: Item, system: sohl, default: true }
+  - { name: items-sohl, type: Item, system: sohl }
   - { name: items-hm3, type: Item, system: hm3 }
-  - { name: actors-sohl, type: Actor, system: sohl, default: true }
+  - { name: actors-sohl, type: Actor, system: sohl }
   - { name: actors-hm3, type: Actor, system: hm3 }
 ```
+
+No `default: true` anywhere, because each system has exactly one pack of each
+type and a default is resolved per system. Marking one is still allowed and
+still means what it says — it designates that _system's_ default where a system
+has several packs of a type.
 
 A note carrying both a `sohl:` and an `hm3:` block then compiles **one document
 in each system**, each shaped by its own builders and stamped with its own
