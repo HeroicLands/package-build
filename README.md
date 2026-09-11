@@ -575,13 +575,18 @@ npm test
 ```
 
 Plain `vitest`, no setup file and no aliases: everything here is ESM over Node
-built-ins and three dependencies, and a harness that offered a Foundry global
-would let something reach for one.
+built-ins and what `dependencies` declares, and a harness that offered a Foundry
+global would let something reach for one. (This said "three dependencies" while
+it described the packaging half alone; absorbing the content half at 3.0.0
+brought the compendium, Markdown and SQL toolchains with it. The number is left
+out rather than restated, because the next dependency would make a restated one
+wrong again.)
 
 `tests/dependencies-are-declared.test.ts` is the guard an extraction most needs
 — every bare specifier in a shipped file must be a builtin, this package, or a
-declared `dependency`. Inside a workspace a missing declaration is invisible;
-installed from npm it fails on the first import.
+declared `dependency`. Inside a workspace, which this package was for its first
+six changes, a missing declaration is invisible; installed from npm it fails on
+the first import.
 
 ## Releasing
 
