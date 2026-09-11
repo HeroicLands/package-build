@@ -527,10 +527,23 @@ _id = makeId("document", "<package>-<system>-<type>-<shortcode>")
 ```
 
 — the note's canonical address, hashed with SHA-1 and truncated to the 16 hex
-characters a Foundry id is. Nothing else feeds it. A consumer holding a
-content-index entry can therefore recompute a document's id, and so its
-compendium UUID, from the `canonical` key alone; it is not a value the index has
-to transport.
+characters a Foundry id is. Nothing else feeds it.
+
+**One type hashes under a different namespace, and a consumer must not assume
+otherwise.** A `Folder` is a document of its own class, and its id is
+`makeId("folder", <address>)` — a separate namespace so that a folder and an
+item sharing a shortcode cannot derive one id, which Foundry would not report
+because it keys folders and documents in separate collections. See
+[`type: folder`](#type-folder).
+
+**So the id is transported, not recomputed.** The content index publishes an
+`id` on every entry it gives an identity to, beside the `uuid` that identity
+ends in, and both are computed by whatever owns that entry's derivation — the
+folder pass for a folder, the journals pass for a documentation journal, this
+rule for everything else. Re-deriving one from the `canonical` key alone reads
+correctly and is wrong for a folder, and wrong in a way nothing outside the
+build can detect: the result is a plausible 16-character id that resolves to
+nothing (#310).
 
 **Why the address and not an authored string.** A note used to declare an
 opaque 16-character `id` — 6,343 of them across the four content trees — which
@@ -2495,3 +2508,10 @@ folder needs no invented id. An authored `id` is kept where one is present —
 which is what lets a tree sweep its folder YAML into notes without a world that
 already holds those folders losing them. Two folders claiming one id is a build
 error.
+
+The derivation is `makeId("folder", "<package>-none-folder-<shortcode>")`, and
+the namespace is **`folder`**, not the `document` one [every other note hashes
+under](#the-document-id): a folder and an item sharing a shortcode would
+otherwise derive the same id, and Foundry keys the two in separate collections
+so neither would complain. The content index publishes this value, so a consumer
+reads a folder's id rather than recomputing one (#310).

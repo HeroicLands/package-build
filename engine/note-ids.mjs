@@ -44,6 +44,11 @@ import { documentId } from "./content-address.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
+// The folder id's derivation, taken from the pass that owns it rather than
+// restated here — see the `folder` branch below. `folder-notes.mjs` reaches
+// only `content-address`, `address-charset`, `ids` and `retired-fields`, none
+// of which reach this module, so the direction closes no cycle.
+import { FOLDER_TYPE, folderDocId } from "./folder-notes.mjs";
 
 /**
  * A frontmatter value read as a non-blank string, or `undefined`.
@@ -63,6 +68,20 @@ function text(value) {
 
 /**
  * The document id a note compiles under: its pin, or its address.
+ *
+ * **One type hashes its address differently, and that is not an exception to
+ * the rule but an application of it.** A `Folder` is a document of its own
+ * class, and its id is hashed under the `folder` namespace so that a folder and
+ * an item sharing a shortcode cannot derive one id — a collision Foundry would
+ * not report, since it keys folders and documents in separate collections
+ * (#258). So the answer for a folder comes from
+ * {@link module:engine/folder-notes.folderDocId}, the pass that emits those
+ * documents, rather than from a second derivation here.
+ *
+ * That this function ever answered differently was invisible from inside a
+ * build — no pass reads a folder's id from here — and surfaced only in the
+ * content index, which is read from outside and had no way to be checked
+ * against what shipped (#310).
  *
  * Returns `undefined` for a file with **no address** — no `type`, or no
  * `shortcode`. Such a file is not an addressable note, so it has no document
@@ -88,7 +107,12 @@ export function noteDocId(fm, { pkg, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS } = {}) 
     const type = text(fm.type);
     const shortcode = text(fm.shortcode);
     if (!type || !shortcode) return undefined;
-    return documentId(pkg ?? contentPackage(), systemOf(type, maps), type, shortcode);
+    const owner = pkg ?? contentPackage();
+    // Lowercased because `collectFolderNotes` matches the type that way, and
+    // the two must answer alike about the same note or the divergence this
+    // branch closes reopens under a capitalised `type: Folder`.
+    if (type.toLowerCase() === FOLDER_TYPE) return folderDocId(owner, shortcode);
+    return documentId(owner, systemOf(type, maps), type, shortcode);
 }
 
 /**

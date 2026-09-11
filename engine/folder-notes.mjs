@@ -186,6 +186,29 @@ export function folderAddress(pkg, shortcode) {
 }
 
 /**
+ * The Foundry `_id` a folder note's documents are filed under.
+ *
+ * **The one derivation, because two passes need the same answer.** The folder
+ * pass hashes it here on its way to emitting the `Folder` documents; the
+ * content index publishes it, through `noteDocId`, for a consumer who will
+ * never run this build. Deriving it twice is how the index came to publish a
+ * plausible-looking id that resolved to nothing — the general id rule hashes a
+ * note's address under the `document` namespace, and a folder's is hashed under
+ * {@link FOLDER_ID_NAMESPACE} (#310).
+ *
+ * An **authored `id` still wins**, and is applied by the caller: this is the
+ * derivation, not the resolution, so the pin rule stays stated once, where
+ * every other note type states it ({@link module:engine/note-ids.noteDocId}).
+ *
+ * @param {string} pkg - The content package.
+ * @param {string} shortcode - The folder's shortcode.
+ * @returns {string} The folder's 16-character Foundry id.
+ */
+export function folderDocId(pkg, shortcode) {
+    return makeId(FOLDER_ID_NAMESPACE, folderAddress(pkg, shortcode));
+}
+
+/**
  * Collect every folder note in a content tree.
  *
  * The walk is the caller's to supply, so this stays testable without a tree on
@@ -246,7 +269,7 @@ export function collectFolderNotes(notes, pkg) {
             // stable one from its address (#258). Keeping the authored id is
             // what makes this a build change rather than a world migration: a
             // world already holding these folders goes on resolving them.
-            id: authoredId || makeId(FOLDER_ID_NAMESPACE, address),
+            id: authoredId || folderDocId(pkg, shortcode),
             derivedId: !authoredId,
             absPath,
         });

@@ -625,12 +625,20 @@ rather than two.
 > (`sohl/item-fields.mjs`, "the style of address the office carries"), so one
 > authored key fed two unrelated destinations that disagreed about what empty
 > means — and `title: null` stringified into the compiled document as the literal
-> `"null"`. That collision is gone: the field declares `topLevelMeans`, and the
-> top-level key is no longer a source for it (#218).
+> `"null"`. The field declares `topLevelMeans` now, so the top-level key is no
+> longer a source for it (#218).
 >
-> So `title: null` is now a note declining to state a heading, and the site
-> emitter's `fm.title ?? name` falls back to `name.full`. `title: ""` still
-> publishes a deliberately blank heading, and nothing warns about that yet.
+> So `title: null` is a note declining to state a heading, and the site emitter's
+> `fm.title ?? name` falls back to `name.full`. `title: ""` publishes a
+> deliberately blank heading and is warned about on its own account — as the
+> page's heading, not as an art path.
+>
+> **That warning reads the note's top level only.** The two spellings still name
+> unrelated quantities, so a `sohl.title` — the office's style of address — must
+> not answer for the page's heading. Twenty-eight `sohl-kethira-basic`
+> affiliations write `sohl.title: ""`, meaning an office with no style of
+> address, and every one of them was reported as publishing a blank heading
+> until the check honoured the declaration (#312).
 
 Because `""` used to mean "unset", a note still carrying that spelling has
 quietly changed meaning, and the frontmatter lint says so — for either art
@@ -766,6 +774,14 @@ opt-out, not a change to the order — step 3 is right wherever the two levels
 state the same quantity, which is nearly everywhere: `subType` is the other
 declared item field spelled like a note-level key, and there the two agree by
 design.
+
+**The statement is symmetric, and the frontmatter linter reads it from the other
+side too.** If the two positions hold unrelated quantities, then the _in-block_
+position is not the note-level field either — so a check about a note-level field
+(the page's heading, an art path) reads past a block key the note's own type
+claims for something else. Declaring `topLevelMeans` settles both directions at
+once; it was read for the emitted field alone until #312, which is how an
+affiliation's office style came to answer for its page heading.
 
 **An exempted field is still authorable**, at the two positions that describe the
 document rather than the note:

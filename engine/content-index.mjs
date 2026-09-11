@@ -490,9 +490,9 @@ export function buildIndexRecord({
  * **Lean, and deliberately not the note's frontmatter.** The item's `sohl:`
  * block describes the *item*; copying it onto the journal would assert things
  * about the journal that are not true, and double the file to do it. What the
- * journal has of its own is its addresses, its name, and the file it came from
- * — plus `documents`, naming the record it is the documentation for, so the
- * link is navigable in both directions.
+ * journal has of its own is its addresses, its **id**, its name, and the file
+ * it came from — plus `documents`, naming the record it is the documentation
+ * for, so the link is navigable in both directions.
  *
  * On the web both addresses resolve to one page — the item note renders as the
  * page that *is* its documentation — so the slug is shared and only the
@@ -514,6 +514,11 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             type: `doc${frontmatter.type}`,
             shortcode: frontmatter.shortcode,
             name: frontmatter.name,
+            // The journal's own `_id`, taken from the entry rather than
+            // re-derived: every entry the index gives an identity to publishes
+            // both the id and the UUID, computed once by whatever owns that
+            // entry's derivation (#310).
+            id: entry.id,
             nameAscii: asciiName(frontmatter?.name?.full),
             address: { slug: address.slug, canonical: entry.key },
             // The record this is the documentation *for*. `documentation` is
@@ -595,15 +600,13 @@ export function collectContentIndex(
         }
     }
 
-    // Content path, then the note id. The walk yields in directory-read order,
-    // which is not a fact about the content, and a rebuild that reorders lines
-    // would make every regeneration look like a change.
     // Content path, then the canonical address, then the note id. The walk
     // yields in directory-read order, which is not a fact about the content,
     // and a rebuild that reordered lines would make every regeneration look
     // like a change. The address comes before the id because an item note's two
-    // records share a file and only one of them carries an id — ordering on the
-    // id first would put the documentation ahead of the item it documents.
+    // records share a file and carry two different ids — ordering on the id
+    // first would sort the documentation against the item it documents by a
+    // pair of hashes, which is no order at all.
     records.sort(
         (a, b) =>
             String(a.file.path).localeCompare(String(b.file.path), "en") ||
