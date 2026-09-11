@@ -148,8 +148,8 @@ const BEING_FIELDS = Object.freeze([
  *
  * `img` is the one required field — the compiler refuses a map note without it,
  * since a scene with no background is not a map. It was spelled `image` and
- * read from the `sohl:` block until #142; both spellings still compile, and the
- * retired one is reported rather than refused.
+ * read from the `sohl:` block until #142, which read both while the trees were
+ * swept; that retirement has since completed and `image` is gone (#149).
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */

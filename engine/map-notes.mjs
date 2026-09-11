@@ -56,9 +56,9 @@ import { compendiumUuid, makeId, MAP_SUBTYPES, MAP_TYPES } from "./ids.mjs";
 // bridge (`SohlRegionTriggerBehavior`), so an event this build accepts is
 // exactly one the bridge forwards.
 import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.mjs";
-// A map's background art is `img`, as every other note type's art is; `image`
-// is the retired spelling, still read through the retirement window (#142).
-import { readAliasedField } from "./retired-fields.mjs";
+// A map's background art is `img`, as every other note type's art is. `image`,
+// the spelling a map alone once used, is retired and gone (#149).
+import { sohlField } from "./frontmatter.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -907,7 +907,7 @@ export function buildScene(fm, ctx) {
     // Read from the note rather than from its `sohl:` block: art is not
     // system-specific, so `img` is authored at the top level like every other
     // type's, and `sohlField` honours the block for anything already there.
-    const img = readAliasedField(fm, "img");
+    const img = sohlField(fm, "img");
     if (!img) throw new Error("a map note needs an `img`");
 
     const warn = (message) => {
@@ -981,11 +981,11 @@ export function buildScene(fm, ctx) {
  * @param {string} sceneId - The owning scene's `_id`.
  * @param {string} [img] - The background art, already resolved from the note.
  *   Passed by {@link buildScene}, which reads it from the note rather than from
- *   the block; defaults to whichever spelling the block itself carries, so a
- *   direct two-argument call still works (#142).
+ *   the block; defaults to the block's own `img`, so a direct two-argument call
+ *   still works.
  * @returns {object} The Level document, keyed for the pack.
  */
-export function buildLevel(sohl, sceneId, img = readAliasedField({ sohl }, "img")) {
+export function buildLevel(sohl, sceneId, img = sohlField({ sohl }, "img")) {
     const level = {
         _id: DEFAULT_LEVEL_ID,
         name: sohl.levelName ?? "Ground",
