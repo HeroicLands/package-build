@@ -1,5 +1,629 @@
 # @heroiclands/package-build
 
+## 20.0.0
+
+### Major Changes
+
+- 1670506: **An omitted address segment now defaults from where the link is written** (#336),
+  instead of being wildcarded or searched for. Three resolvers each carried their
+  own reading of a partial address and disagreed; there is one rule now, in
+  `expandAddress` beside `canonicalKey`.
+  
+  - **package** omitted → the current package.
+  - **system** omitted → the **system block the link sits under**: anywhere under
+    `sohl:` is `sohl`, anywhere under `hm3:` is `hm3`, and anywhere else —
+    top-level frontmatter, `data:`, body prose — is `none`. The enclosing block
+    decides at any depth; the field has no say.
+  
+  Every short form therefore expands to exactly one canonical address before
+  lookup. Resolution is a `Map.get`, with no candidate set and no single-hit rule.
+  
+  **Under `none`, a system-bearing type addresses its documentation.** A note's
+  `none` address _is_ its `doc<type>` journal, so a prose `[[affiliation-x|…]]`
+  names the page — what a prose link almost always means. A prose link that means
+  the Item states the system: `[[sohl-affiliation-x|…]]`. A `macro` and the map
+  types are **not** redirected: their own documents are core ones already at
+  `none`, so `macro-x` still names the Macro.
+  
+  **Breaking, in three ways a consumer will notice**
+  
+  |                                     | before                                       | after                                             |
+  | ----------------------------------- | -------------------------------------------- | ------------------------------------------------- |
+  | a bare prose link to an item type   | the Item's UUID                              | the documentation journal's                       |
+  | a bare address naming no local note | fell through to any dependency publishing it | `unresolved`; qualify it to reach another package |
+  | `[[Skill-Climb\|…]]`                | resolved, case folded                        | `not-lowercase`                                   |
+  
+  The first rewrites every such link in every pack. The second is the point of the
+  issue: a link resolved into another package only because no local note claimed
+  the address, and would have retargeted silently the day one did.
+  
+  **Two defects go with it.** The index's system-blind `type/shortcode` key is
+  gone — it was set with a plain `Map.set`, so two notes in one package sharing a
+  `(type, shortcode)` across systems silently overwrote each other while both
+  canonical keys sat correctly beside it. And cross-package `ambiguous` is now
+  unreachable: one expanded address names one package, so a lookup returns one
+  entry or none. The finding is retained for older vendored manifests.
+  
+  **An address capitalises nothing but its shortcode.** Package, system and type
+  are closed vocabularies with one spelling each; a shortcode is case-sensitive and
+  routinely mixed (`Clb`, `LtShoe`), so it keeps its case. Neither tree carried a
+  violation — 10,538 authored targets checked. Requiring the shortcode to be
+  lowercase too is tracked as #340.
+- c906d54: **A shortcode must now match `^[a-z0-9]+$`** — lowercase letters and digits only
+  (#340). So must every other address segment; the charset is one rule with no
+  exceptions left in it.
+  
+  `Dgr` beside `dgr` is a distinction nobody can say out loud and can only see by
+  looking twice. It was also a silent identity collapse: `canonicalKey` lowercases
+  the address it builds, so a note declaring `Clb` published
+  `sohl-sohl-weapongear-clb` and derived its `_id` from that — and two notes
+  differing only in case shared one address, one `_id` and one URL with nothing to
+  report it, because the shortcode check compared shortcodes (genuinely distinct)
+  and the address check saw one address.
+  
+  It forced two exceptions elsewhere, and both go: #336 had to exempt the shortcode
+  from the lowercase rule it pinned on every other segment, and #346 had to fold
+  the shortcode's case in the item catalogue because an address is lowercased when
+  it is read.
+  
+  **A consumer with a capital in a shortcode will fail to build**, citing the
+  note's file, line and column. The sweep is mechanical: every violation in every
+  tree is a capital letter — no underscores, hyphens or other characters occur —
+  and **nothing collides when folded**, checked per `(type, shortcode)` in every
+  tree.
+  
+  | tree                              |  shortcodes to change |
+  | --------------------------------- | --------------------: |
+  | `Song-of-Heroic-Lands-FoundryVTT` |                   438 |
+  | `sohl-thalorna`                   |                    96 |
+  | every other tree                  | 0 — already compliant |
+  
+  **No document changes identity and no URL moves**, because an address and a
+  document `_id` already derive from the lowercased form. References need no edit
+  either: no authored wikilink target carries a capital (10,538 checked), and
+  `model:` addresses are already lowercase.
+  
+  **The emitted packs do change, in three narrow ways**, measured on `sohl`'s 438:
+  
+  | change                                                | count |
+  | ----------------------------------------------------- | ----: |
+  | `system.shortcode` on an Item document, `Clb` → `clb` |   438 |
+  | embedded item `_id` / `_key` on one being             |     6 |
+  | journal pages showing a shortcode in a content table  |     5 |
+  | **top-level document `_id`**                          | **0** |
+  | **addresses and published URLs**                      | **0** |
+  
+  The first is the point: the emitted field now matches the address built from it.
+  The six embedded ids move because an embedded id derives from the item's own
+  `system.shortcode`, which #346 deliberately does **not** case-fold — folding
+  there would re-identify documents rather than look them up.
+- 4890864: **A map note's `image:` is no longer read** (#149). Its art is `img:`, as every
+  other note type's is.
+  
+  This is the third and last step of the rename #142 began. Through the retirement
+  window both spellings were read, `img` won where a note carried both, and a note
+  still writing `image` got a located warning — it compiled to the byte-identical
+  document, so failing a build over it would have redded a tree that had done
+  nothing wrong. The trees have since been swept, so the alias has nothing left to
+  honour and is gone.
+  
+  **No shipped tree is affected.** Every content tree was checked — `sohl`,
+  `sohl-thalorna`, `sohl-kethira-basic`, `harn-ensemble` and `harn-adventures` —
+  and none writes the retired spelling. The window did its job; this only closes
+  it.
+  
+  **What an unswept note now sees.** Two errors rather than one warning, and it
+  stops compiling: `image` in a `sohl:` block is reported as a key the type does
+  not have, and the `img` the note therefore never declared is reported as
+  missing. The fix is the rename, and moving the key to the note's top level while
+  you are there — art is not system-specific, so it belongs beside every other
+  note's `img` rather than inside a system block.
+  
+  **A tile's `image:` is untouched.** `sohl.tiles.<key>.image` is a nested
+  placeable's texture, not the note's own artwork, and was never the retired field:
+  the check reads the `sohl:` block's own keys and never descends into one.
+  
+  **Nothing was added to refuse it.** The two findings above are the ordinary
+  unknown-key and required-field checks, which is the point of a rename's third
+  step — one that had to add a standing refusal would be one whose replacement
+  never arrived. No tombstone entry is kept: the absence of an alias is the record.
+- a1c21e8: **A being's items entry names the item it copies with `model:`, an address**
+  (#334). The top-level `shortcode:` it replaces is retired.
+  
+  ```yaml
+  sohl:
+    items:
+      - { model: skill-wpnc, system: { masteryLevelBase: 52 } } # this package
+      - { model: sohl-sohl-weapongear-dgr } # another one
+  ```
+  
+  The old key was doing two jobs badly. It **selected a template**, while the
+  `system.shortcode` beside it **was** the compiled item's identity — one word for
+  two things, which the compiler's own error messages had to keep explaining. And
+  it could not say **which package** the template came from: `loadItemsMap`
+  flattened every local Item pack and every dependency catalogue into one
+  `subType:shortcode` space where a local definition silently shadowed a foreign
+  one. In `sohl-thalorna`, 25,485 of 26,251 model references reach into `sohl` and
+  none of them said so; the day that repository ships its own `weapongear-dgr`,
+  every entry citing `dgr` would have retargeted with a green build and no
+  diagnostic.
+  
+  **What changes for an author**
+  
+  |                          | before                             | after                                          |
+  | ------------------------ | ---------------------------------- | ---------------------------------------------- |
+  | naming a template        | `{ shortcode: wpnc, type: skill }` | `{ model: skill-wpnc }`                        |
+  | reaching another package | impossible                         | `{ model: sohl-sohl-skill-wpnc }`              |
+  | `type:` beside it        | required                           | refused — the address names the type           |
+  | a custom item            | `name` + `type` + `system`         | unchanged, and `system.shortcode` now required |
+  
+  A `model` is read by the same grammar every wikilink is (#336), so it is written
+  at whatever length says what it means and the system segment defaults from the
+  block the entry sits in — which is why the short form names an **Item** here
+  while the same string in body prose names a page.
+  
+  **The catalogue is package-aware.** Every item is keyed under its own package as
+  well as unqualified, so a `model` that states a package resolves to that
+  package's item and nothing local can shadow it, while a `model` that states none
+  still resolves locally-first exactly as before. `foreignItemCatalogDirs` returns
+  `{ dir, package }` rather than a bare path.
+  
+  **Consumer sweeps**: HeroicLands/Song-of-Heroic-Lands-FoundryVTT#1875 (95 beings,
+  1,557 entries) and HeroicLands/sohl-thalorna#176 (645 beings, 26,251 entries plus
+  938 shortcodes derived for custom gear).
+
+### Minor Changes
+
+- ccf35a1: **An actor note now publishes documentation, like every other note that compiles
+  into a system-bearing document** (#337).
+  
+  A being used to produce its Actor and nothing else. That left it the one
+  system-bearing note with no address at `none` — its only address named the
+  Actor — so a prose link written `[[being-<shortcode>|Text]]` had no page to land
+  on. `sohl-thalorna` alone carries 772 such links.
+  
+  `docEntryTypes` is now `itemTypes` plus the actor types the shipped subtype maps
+  declare (derived from those maps, not listed again), plus `macro` and the map
+  types. Only `doc` stays outside it, for the reason that actually applies to it:
+  its single document _is_ the prose.
+  
+  **What a consumer sees**
+  
+  | Before                                | After                                                                |
+  | ------------------------------------- | -------------------------------------------------------------------- |
+  | `<pkg>-<system>-being-<shortcode>`    | that, **and** `<pkg>-none-docbeing-<shortcode>`                      |
+  | a being's prose reachable only inline | also a JournalEntry, and a page the site publishes                   |
+  | `[[docbeing-x\|Text]]` unresolved     | resolves, in the link checker, the pack compilers and the site build |
+  
+  Packs gain one JournalEntry per being **carrying prose**; a being with an empty
+  body compiles no entry, exactly as an item with an empty body does. No existing
+  document changes.
+  
+  **A being keeps its prose inline as well**, and the asymmetry with items is
+  deliberate. `system.appearance` and `system.dossier` stay as rendered text, where
+  an item's description is an `@UUID` pointer into its journal. One item is
+  embedded across hundreds of beings, so baking its description into every copy
+  bloats the compendium by the length of the prose times the number of carriers,
+  and the pointer buys that back. An actor is singular, so the same indirection
+  would cost a reader a click and save nothing.
+- afb3650: **An asset path's first segment says which package owns it, and the rule is now
+  stated and tested** (#331).
+  
+  `img:` and `portrait:` have always answered "which package holds this file?" in
+  their first segment, but nothing wrote the rule down and nothing asserted it —
+  the only way to confirm it was to compile a package and read `build/packs-json`.
+  
+  | Authored path starts with | Owner                 | Emitted              |
+  | ------------------------- | --------------------- | -------------------- |
+  | `systems/`                | a separate **system** | unchanged            |
+  | `modules/`                | a separate **module** | unchanged            |
+  | anything else             | **this package**      | `<assetRoot>/<path>` |
+  
+  **The third row is now true.** The translator prefixed `icons/…` and `images/…`
+  and passed everything else through — the same answer for every path any tree
+  authors today, and the wrong one for the next directory a package ships.
+  `sohl-kethira-basic` keeps art under `assets/artwork/`, so an authored
+  `artwork/deity.webp` would have shipped unprefixed: a 404 in Foundry, reported
+  by nothing. Ownership is the rule; the directory names inside a package's
+  `assets/` tree are that package's business.
+  
+  An address naming no package — an absolute URL, a `data:` URI, a `/`-rooted
+  path — passes through, on the same rule rather than as an exception. `worlds/`
+  is deliberately not exempt: a package may not ship art out of a world.
+  
+  **No compiled document changes.** Compiling `sohl-thalorna` and this system's
+  own tree before and after gives byte-identical `packs-json`; every path either
+  tree authors is `icons/`, `images/` or already `systems/`-rooted.
+  
+  **`banner:` is a path that does not follow this rule, and is documented as
+  deliberate rather than reconciled.** It reaches no compiled document: it is a
+  top-level key the Hugo theme reads, and the theme prefixes a relative value with
+  `images/` and joins it onto `params.cdnBaseURL`. The two address different
+  places — `img:` a file Foundry serves, `banner:` a file the CDN serves.
+- e3d300c: **An `img:` authored on a type that emits none is now reported instead of
+  dropped in silence** (#349).
+  
+  `img` is a shared top-level field — it maps onto `document.img`, so it is legal
+  on every note whatever the type — but not every document has one. `doc`, `place`,
+  `lore` and `scenario` compile into a JournalEntry, `folder` into a Foundry
+  `Folder`, and neither carries artwork; a `homepage` compiles into no compendium
+  document at all. On any of those the authored path went nowhere, the note
+  validated, the tree compiled clean, and nothing said so.
+  
+  The frontmatter lint now warns, naming the note, the key and what the type
+  compiles into. `portrait:` is checked the same way, so an item authoring one is
+  told it has nowhere to put a sheet portrait.
+  
+  **What it does not report.** `img: null` — that is the blessed way to say "this
+  note names no art", and on a type with no art it is a true and harmless thing to
+  say. A warning rather than an error, too: the note still compiles correctly, and
+  a note's top level is the generated page's front matter as well, so a site
+  template may read there what no document carries.
+  
+  **Which types those are is derived, not listed.** Each pass declares the art it
+  writes (`BasePackCompiler.emitsArt`), and `emittedArtFor` walks type → document →
+  pass to answer. A second table of iconless types would be free to drift from what
+  is actually emitted, which is the defect rather than the check.
+  
+  **What a consumer sees.** New advisory findings on notes already in this state;
+  warnings do not fail a build. `sohl-thalorna` has 57 — the `Lore/Totems/` and
+  `Lore/Deities/Kemetian/` clusters, which carried an `img:` from when they
+  compiled to affiliation items. The other shipped trees are clean.
+- bd5e6cb: **`lore` declares `gathering`, a genre for a scheduled public occasion** (#333).
+  
+  A tournament or martial games, a great market or fair, a religious festival, a
+  ceremony or rite: something that happens at a place and a time, on a cycle, and
+  that people travel to. The genre had no value, and neither neighbour fitted.
+  
+  | genre       | what it covers                                                   |
+  | ----------- | ---------------------------------------------------------------- |
+  | `calendar`  | the _reckoning_ — the cycle, the seasons, the dating system      |
+  | `culture`   | a social grouping of people                                      |
+  | `gathering` | the occasion itself — who attends, what is contested or observed |
+  
+  A festival's **date** is `calendar`; the festival is not. A tournament is not a
+  matter of time-reckoning at all, and a great market is not a grouping of people.
+  
+  **Why it matters beyond labelling.** `site.sections` narrows a section with
+  `listSubType`, so a subType is what makes a genre browsable. Without one, a
+  consumer declaring a Gatherings section would sweep in the castes, Marriage and
+  Personal Names alongside the games — the notes could not be listed as what they
+  are.
+  
+  **On the name.** `festival` is too narrow: a tournament is not a festival, a
+  great market is a fair, and a rite is not a celebration. `event` is avoided
+  because it already names something else in SoHL — the event queue and
+  `system.scheduledActions`, where an event is a timed thing that fires in play.
+  `gathering` covers the whole set, and matches how the other `lore` genres are
+  named: a single lowercase noun for a kind of thing.
+  
+  Nothing existing changes. A note already filed under `lore/culture` keeps
+  compiling until its author moves it; `subType` is not an address, so nothing
+  resolves through it.
+- 5630e7c: **A note can no longer author a field the document writes in play** (#330).
+  
+  A data model declares everything a document stores, and part of that is runtime
+  state — an affliction's `onsetDate` is the world time its onset fired at.
+  Writing `sohl.system.onsetDate` reached it as directly as any other field: the
+  block is a verbatim passthrough, no declared field claimed the path, and the
+  schema check's fatal direction is _undeclared_, which a field the schema really
+  does declare satisfies. So a compiled pack could ship one world's play state to
+  every world that installed it, with the build reporting success.
+  
+  A field declaration may now say `runtimeOnly`, whose value is the reason — what
+  the field holds — the way `topLevelMeans` already works. It states both halves
+  of one fact:
+  
+  | declaration   | authored    | absent          |
+  | ------------- | ----------- | --------------- |
+  | ordinary      | emitted     | default written |
+  | `runtimeOnly` | **refused** | key omitted     |
+  
+  The refusal names the note, the line, the whole key and the field's own reason,
+  and says that deleting it is the fix — there is no value that makes writing one
+  right. Omitting the key rather than emitting `null` is what leaves the data
+  model's own `initial` standing.
+  
+  It is a property of the declaration, not a list of names, so it holds for any
+  runtime-only field any system adds later. Such an entry declares a `to` and no
+  `name`, which keeps it out of the authored vocabulary — the generated field
+  reference lists it under **Never authored** with its reason instead of as a row
+  an author might fill in — while still claiming the path for the passthrough.
+  
+  **What a consumer sees**
+  
+  - SoHL's six timed-phase dates are declared: `contractDate`, `onsetDate`,
+    `treatmentDate` and `resolutionDate` on `affliction`; `contractDate` and
+    `treatmentDate` on `trauma`. No tree authors one today, so no compiled
+    document changes.
+  - The refusal covers both positions a note can reach them from: a note's own
+    `<system>.system` block, and an actor's `items:` entry `system:` overlay,
+    which merges verbatim and so passed no field declaration at all.
+  - A runtime-only path is no longer reported as a field the builder forgot to
+    emit — "every compiled document will carry the field's initial value" is what
+    the declaration is _for_, so the warning could never be cleared.
+  - Regenerate the item frontmatter reference to pick up the new section.
+- cf20488: **The specification's `subType` lists are compared to the declared vocabulary,
+  for every type** (#345).
+  
+  `tests/content-format-agreement.test.ts` made `docs/content-format.md`
+  executable for the `data` property tables only. The other half of the same
+  vocabulary entry — a type's genres, which an author picks from and which a
+  note's `subType` is closed against — was prose that nothing read, free to
+  disagree with `note-vocabulary.mjs` in either direction. That is the drift #231
+  and #232 were filed about, on the half they did not reach. `gathering` (#333)
+  guarded `lore` alone, deliberately scoped to the type it changed.
+  
+  **The five spellings converged on one first.** The document stated a type's
+  values as `subType`, `subType:`, `**subType**`, `**subType**:` and
+  `**subTypes**:`, and a reader that accepted every one of them would accept the
+  sixth by reading that section as declaring nothing — the exact failure the
+  comparison exists to catch. One shape is now stated in the specification and
+  enforced by the parser: `**subType**:` on its own line, then `- <value>` or
+  `- <value>: <definition>`, one bullet per value. A type with no `subType`, or
+  one whose values are not enumerated yet, writes no marker.
+  
+  | Written                                      | Read as                                                     |
+  | -------------------------------------------- | ----------------------------------------------------------- |
+  | `**subType**:` + a bullet per value          | that type's closed value list, in document order            |
+  | no marker                                    | the type enumerates none — the ordinary case for nine types |
+  | any other spelling, or a marker with no list | a build error naming the line                               |
+  
+  **What the comparison asks**, of every type rather than of `lore`: the values
+  the specification lists equal the values `NOTE_VOCABULARY` declares, in the same
+  order. `subTypes` stays three-valued — a list is closed, `null` is a `subType`
+  whose values are not enumerated, an absent key is a type with no `subType` at
+  all — and each reading is compared to what the document states. The `lore`-only
+  assertion is folded in.
+  
+  Nothing that compiles changes: the values were already equal everywhere, in both
+  shapes, so this is about keeping them that way. `parseContentFormat` gains a
+  `subTypes` array per type, and throws on a marker it does not recognise —
+  reachable only through `content-format --spec <a copy of the document>`.
+- 312379e: **Afflictions and traumas can declare their timed phases** (#329).
+  
+  SoHL stores each timed phase as `{…DurationFormula, …DurationBase, …Date}`, and
+  the two authored thirds were declared by nothing. They were reachable only
+  through the raw `system:` passthrough — undocumented, uncoerced, and absent from
+  the field list every author-facing surface is built from — so no note in any
+  tree wrote one. Every shipped affliction carried `null`, and
+  `AfflictionLogic.rollDuration()` opens `if (!formula) return 0`: the timed-phase
+  machinery existed, and the content that would drive it could not be written.
+  
+  They could not simply be declared either. `buildFromFields` wrote every declared
+  field unconditionally, so a declaration would have stamped `null` onto every
+  document — the same outcome, minus the ability to tell "unset" from "authored as
+  empty".
+  
+  **`omitWhenAbsent`** is the missing capability: a field declaring it is emitted
+  when the note carries one and has its **key left out entirely** when it does
+  not, so the DataModel's own `initial` stands. It completes the table
+  `runtimeOnly` (#330) opened:
+  
+  | declaration      | authored    | absent          |
+  | ---------------- | ----------- | --------------- |
+  | ordinary         | emitted     | default written |
+  | `omitWhenAbsent` | emitted     | key omitted     |
+  | `runtimeOnly`    | **refused** | key omitted     |
+  
+  The decision is made on the **position** a value came from, never on the value:
+  a declared `default: null` and an authored `null` are the same value and
+  opposite facts. `readFieldEntry` reports the source beside the value so the
+  position is resolved once rather than twice.
+  
+  **Twelve fields are now declared vocabulary** — `onset`, `healingCheck` and
+  `resolution` on `affliction`; `healingCheck`, `bloodLossAdvance` and `course` on
+  `trauma` — each as both a `…DurationFormula` and a `…DurationBase`, in the
+  `sohl:` block and in the closed `data:` container alike. Intervals are in
+  seconds, and a bare number is a valid formula.
+  
+  **What a consumer sees**
+  
+  - The twelve appear in the generated item-frontmatter reference, with `_omitted_`
+    in the Default column rather than a value. Regenerate the page.
+  - The `unemitted` warnings these raised against a pinned schema clear.
+  - No compiled document changes: no tree authors one yet, and a note that writes
+    nothing emits nothing where it previously emitted nothing.
+  - `omitWhenAbsent` may not be combined with `default` (contradictory), with
+    `required`, or with `runtimeOnly`; the shipped declarations are checked for all
+    three.
+
+### Patch Changes
+
+- b5004f0: **A `model:` now resolves an item whose shortcode carries a capital** (#346). The
+  catalogue was keyed on the compiled document's `system.shortcode` exactly, while
+  an address is lower-cased when it is read — so `model: weapongear-clb` looked for
+  `weapongear:clb` while the document sat under `weapongear:Clb`, and every being
+  referencing one of the six mixed-case gear shortcodes in `sohl` failed to
+  compile.
+  
+  The catalogue key folds the shortcode's case. The **id-bearing** address does
+  not: `itemAddress` seeds `embeddedItemId`, so folding there would change the
+  `_id` of every embedded item whose identity carries a capital — silently
+  re-identifying documents nothing about which had changed. A catalogue is a lookup
+  table; an id is a promise.
+  
+  Verified by compiling both swept trees: `sohl` emits actors, items, macros,
+  scenes and adventures byte-identical to its pre-sweep baseline, and
+  `sohl-thalorna` differs only by the 938 embedded ids its sweep predicts.
+- 4c57a5a: **A being's `data.portrait` reaches the actor** (#332). It never had: the
+  emitters read `blockProperty(fm, "portrait")`, which knows a system block and
+  the note's top level and never splits a dotted path, so the position the content
+  format names was invisible to them — and the `?? defaultImg` beside it turned
+  every miss into the subtype's icon rather than into a complaint. 646
+  `sohl-thalorna` beings authored a portrait, 341 of them pointing at art that
+  exists on disk, and every one compiled the generic person icon. Nothing warned.
+  
+  `portrait` now resolves through the same declaration `data.species` does, in
+  both the `sohl` and `hm3` actor passes.
+  
+  **A `data:` source has a retiring top-level spelling, and step 3b reads it.**
+  `data:` did not invent the facts it holds — it gathered them out of the note's
+  open top level, where `portrait:` sat beside `img:` — so the pre-`data:`
+  spelling of `data.<key>` is `<key>`, and until now nothing read it. That is why
+  this is a resolution-order fix and not a one-line emitter fix: `data.portrait`
+  had to start working _without_ breaking the top-level `portrait:` that `sohl`'s
+  own bestiary writes on every note.
+  
+  The spelling is **derived**, not declared — a second declaration would be a
+  second place for one fact to live — and only a `data.` source has one, so
+  `protection.blunt` and `impact.die` resolve exactly as they did.
+  
+  **Nothing is dropped in silence any more.** A field read from the retiring
+  top-level key emits a warning naming the line, the counterpart to the existing
+  in-block report; the note compiles to the identical document either way. The
+  frontmatter lint's `portrait: ""` check reads the `data:` position too, which it
+  could not see before.
+- 59469d7: **The dependency check read English prose in a comment as an import** (#355).
+  
+  `tests/dependencies-are-declared.test.ts` finds a shipped file's imports with a
+  regex over the raw file text. It already reasoned about one false positive — the
+  lookbehind stops `["from", "to"]` reading as an import of `", "` — but not about
+  comments, where `from` is an ordinary word and the quotes are ordinary quotes.
+  Any explanatory comment containing the word `from`, `import` or `require`
+  followed by a quoted phrase was reported as an undeclared dependency:
+  
+  ```text
+  FAIL sohl/item-fields.mjs imports only builtins, itself, or a declared dependency
+    + [ "sohl/item-fields.mjs:455 → this note does not set the phase" ]
+  ```
+  
+  The message names a real file and a real line and says a dependency is missing,
+  so the first reading is that one genuinely is. Nothing in it suggests the culprit
+  is a sentence, and the fix — reword the comment — is unrelated to anything the
+  message describes. It cost a debugging cycle in #329, and the workaround left the
+  trap armed for whoever wrote the next comment.
+  
+  **Comments are now blanked before the regex runs.** They are located by parsing
+  the file, not by a second regex, so `//` inside a string literal is still a string
+  literal. Each comment's characters are replaced one-for-one with spaces and its
+  newlines are left alone, so every offset survives and a finding still points at
+  the line a reader opens. The `sohl/item-fields.mjs` comment that provoked this
+  reads naturally again, and the suite carries it verbatim.
+- fec6c80: **The generated item-frontmatter examples no longer author an `id:`** (#314).
+  
+  `content-build docs item-fields` emitted `id: <16-character id>` in the worked
+  example for every item type — thirteen of them in the `sohl` tree. Since #270
+  and #277 a note's document `_id` derives from its canonical address, and the
+  authored field is the escape hatch for keeping a document's identity across a
+  shortcode rename, not part of the envelope every note carries.
+  
+  The example is the block an author copies as a template, and the page is the
+  per-type reference they read while writing the note, so the one place the field
+  survived a tree's sweep was the document teaching them to write it. It is now
+  omitted, as every other optional envelope field already was; the `type` and
+  `shortcode` the derivation reads are unchanged.
+  
+  Consumers should regenerate their item frontmatter reference to drop the line.
+- a48802f: **A folder note's published `id` is now the id its Foundry documents carry**
+  (#310).
+  
+  The content index derived every note's id under the `document` namespace. A
+  `Folder` is hashed under the `folder` namespace, so the index published one
+  value and the packs addressed another — `sohl-none-folder-cookware` was
+  `f5d3dc635b7e799c` in the index and `b92b28b7d06638ed` in every pack.
+  
+  `noteDocId` now asks the folder pass for a folder's id instead of deriving a
+  second one, so the two cannot disagree.
+  
+  **Why nothing caught it.** Every one of `sohl`'s 79 folder notes pins an `id`,
+  and a pin wins in both paths — so all 65 emitted folder documents agreed by
+  coincidence. It is also invisible from inside a build: no pass reads a folder's
+  id off the index. The published artifact was the only place the wrong value
+  surfaced, and a reader outside the build could neither recompute the right one
+  nor notice the wrong one.
+  
+  **The general rule this settles:** for every entry the content index gives an
+  identity to, it publishes both the `id` and the `uuid`, each computed once by
+  whatever owns that entry's derivation. A documentation journal's record
+  accordingly gains its own `id` — it carried the UUID that id ends in, but not
+  the id — so a consumer reads it rather than parsing it back out of the UUID's
+  last segment.
+  
+  _No emitted document changes; this corrects what the index says about them._
+- ebd3a80: **A note-level frontmatter check no longer answers from a system field that
+  merely shares the name** (#312).
+  
+  `topLevelMeans` exists because one spelling can name two unrelated quantities. An
+  `affiliation` item's `system.title` is the style of address an office carries —
+  "Ajaw", "Warden"; a note's top-level `title` is the heading its page publishes
+  under. The field declares the collision, and `resolveFieldValue` honours it by
+  refusing to read the top level for that field.
+  
+  The frontmatter lint did not. `authoredValue` resolved every check through the
+  `sohl:` block first, so the blank-heading check — whose emitter is `fm.title ??
+  name`, the note's top level and nothing else — read `sohl.title` and found the
+  office's style of address. An office with no style of address is ordinary, and
+  each one was reported as a page published with no heading, sorting to the front
+  of its section.
+  
+  **The statement is symmetric, and is now read that way.** If two positions hold
+  unrelated quantities then the in-block position is not the note-level field
+  either, so a note-level check reads past a block key the note's own type claims
+  for something else. The exemption is still the field's own declaration rather
+  than a name the linter knows: `collidingBlockKeys` asks the schemas the caller
+  supplies, so the linter and the resolver cannot disagree about which field
+  declares one.
+  
+  **The art fields are checked the same way.** `img` and `portrait` keep resolving
+  through the block, because that is what their emitter does — `blockProperty`
+  reads `sohl.img` first, so a `sohl.img: ""` really does ship a document with no
+  art and is still reported. What changes is that a future system field of either
+  name cannot quietly answer for the note's own art; a map's was `sohl.image`
+  until #142.
+  
+  **What a consumer sees.** Twenty-eight fewer warnings on an unswept
+  `sohl-kethira-basic` — every affiliation writing `sohl.title: ""`. All were false
+  positives; their pages took `name.full` throughout. A tree already swept onto
+  `sohl.system.title` was unaffected either way, which is why the findings
+  disappearing looked like a lint regression in that sweep rather than the
+  false positives going away.
+- f6a8a05: **The specification and four engine docblocks stated the retired folder model**
+  (#358).
+  
+  The folder epic replaced a model wholesale — `folder:` named a Foundry id
+  resolved against a per-pack `*-folders.yaml`, and `packFolder` named a path.
+  None of that exists: `folder:` is refused, the YAML is gone, and `packFolder`
+  is a folder note's address. Six passages still described the old shape as the
+  live one.
+  
+  **`docs/content-format.md` contradicted itself twice.** The shared-mappings
+  table — the one place eight rows common to all sixteen type tables are stated —
+  offered `` `packFolder` / `folder` ``, so a reader was told to write a value the
+  build rejects, 330 lines before the same document says it is retired. And the
+  argument for deriving a document id cited "`packFolder: <path>` above", where
+  above says address.
+  
+  **Four docblocks described the retired resolution path**, and they publish:
+  
+  | site                       | said                                                                                |
+  | -------------------------- | ----------------------------------------------------------------------------------- |
+  | `engine/generate.mjs`      | folder files "referenced from entry frontmatter via `sohl.folder: <id>`"            |
+  | `engine/journals.mjs`      | the target folder's id "from folders.yaml", resolved against a folders.yaml list    |
+  | `engine/base-compiler.mjs` | `folderResolver` "resolves a `sohl.folder` id against this pack's folder hierarchy" |
+  | `engine/frontmatter.mjs`   | `folderField` reads "two spellings", `packFolder` winning "where both are present"  |
+  
+  The last two were the sharpest. `folderField` reads `packFolder` and nothing
+  else, so its docstring described a resolution the function cannot perform and
+  deferred to an issue that had closed. `generate.mjs` disagreed with itself
+  across one file: the module header named `sohl.folder`, while its `resolver`
+  states the rule correctly — "There is one spelling."
+  
+  **Prose is the defect the epic was about.** Its argument against
+  `*-folders.yaml` was that a second, unchecked statement of one fact drifts from
+  the first, and nothing compares the two. These six passages were exactly that,
+  and nothing caught them: `lint:content-format` makes a claim only for a
+  `system.*` target, so a row mapping to core Foundry's `folder` yields none, and
+  the source side of a shared row is checked by nothing at all.
+  
+  Two assertions now hold the specification to it — the shared-mappings sources
+  name no retired field, and the document never presents `packFolder` as holding
+  a path. The docblocks are held to review instead: a sentence describing
+  `folder:` as _retired_ is correct and must survive, and no assertion separates
+  that from one describing it as live without reading the prose.
+  
+  No behaviour changes; the fix is what the documents say.
+
 ## 19.0.0
 
 ### Major Changes
