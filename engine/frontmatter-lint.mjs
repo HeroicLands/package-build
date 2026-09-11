@@ -121,23 +121,103 @@ export const UNIVERSAL_KEYS = Object.freeze(
  * The system blocks a build checks, and what each accepts beyond the shared
  * vocabulary.
  *
- * One entry, because one system is what every existing tree declares — and the
- * default is a *declaration*, not a hard-coded assumption: a build that ships
- * content for two systems passes both, and each block is then checked against
- * its own vocabulary rather than against the other's (#58). A block nothing
- * declares is not checked, because nothing can say what it may carry, and
- * inventing a rule for it would report a correct tree red.
+ * One entry, because one system is what every existing tree declares — and it
+ * is a *fallback*, not the rule. {@link systemBlocksFor} derives the map from
+ * the configuration, which is what makes the block a package actually ships for
+ * the block that gets checked; this is what a caller holding no configuration
+ * gets, which in practice is a unit test.
  *
- * `fieldVocabulary` says the note type's own declared field names are keys of
- * this block. True for `sohl` and untrue in general: those names come from the
- * `itemBuilders` registry that this system declares, and a second system's
- * notes write a second system's fields.
+ * A block nothing declares is not checked, because nothing can say what it may
+ * carry, and inventing a rule for it would report a correct tree red.
  *
- * @type {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>}
+ * Three ways a block may state its vocabulary, and a spec declares at most one:
+ *
+ * - `known` — an explicit list of keys, for a caller stating them outright.
+ * - `fieldVocabulary` — the note type's own declared field names, as the
+ *   caller's `schemas` state them, are keys of this block. That holds for the
+ *   **one** system a single-registry tree ships for, where `schemas` *is* that
+ *   system's vocabulary, and in general holds for no other.
+ * - `fields` — type → that system's own declared fields, from the registry the
+ *   system declares. What a second system's block is checked against, because a
+ *   second system's notes write a second system's fields and the note-type
+ *   schemas describe somebody else's.
+ *
+ * @type {Readonly<Record<string, SystemBlockSpec>>}
  */
 export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
     sohl: Object.freeze({ fieldVocabulary: true }),
 });
+
+/**
+ * What one system block accepts beyond the keys every block carries.
+ *
+ * @typedef {object} SystemBlockSpec
+ * @property {readonly string[]} [known] - Keys stated outright.
+ * @property {boolean} [fieldVocabulary] - Whether the note type's declared field
+ *   names, as the caller's `schemas` state them, are keys of this block.
+ * @property {Readonly<Record<string, readonly object[]>>} [fields] - Type → this
+ *   system's own declared fields. A type it does not name is a type this system
+ *   says nothing about, and its block is left unchecked on such a note rather
+ *   than reported wholesale.
+ */
+
+/**
+ * The system blocks a configuration says its tree carries (#58).
+ *
+ * The lint checks the blocks its caller names, and for as long as there was one
+ * system the only caller named none — so every tree took the `sohl:` of
+ * {@link DEFAULT_SYSTEM_BLOCKS}, a constant, in a module whose whole discipline
+ * is that it states no vocabulary of its own. That is wrong in both directions
+ * the moment a second system exists, and the second direction is the worse:
+ *
+ * - a package shipping for `hm3` had its `hm3:` block **never looked at**, so
+ *   every key in it was discarded at compile without a word — the silent-drop
+ *   family this check exists to close;
+ * - and the block that *was* checked was named after a system that package does
+ *   not ship for, so the one finding it could make was about nothing.
+ *
+ * **Which systems a package ships for is already declared**, so this reads that
+ * rather than asking a new question. `systems:` (#48) names them where there
+ * are several; `stats.systemId` is the package-wide answer where there is one,
+ * and it has already absorbed every way of spelling that — a system package is
+ * its own system, and a module takes `requiresSystem`, its lone `systems:`
+ * entry, or its lone system relationship. A package naming a system in none of
+ * those places is system-agnostic on purpose: its packs are core document types
+ * carrying no system data, so it has no system block for this to check and
+ * naming one would invent it.
+ *
+ * **Each system's vocabulary comes from its own registry**, where it declares
+ * one. `itemFieldsBySystem` is that declaration, keyed by system, and until now
+ * nothing read it. A system with no registry of its own falls back to the note
+ * schemas the caller supplies — but only where it is the package's **single**
+ * system, because that is the one case where those schemas are known to be
+ * describing it. With several systems and a registry for only some, the rest
+ * are left out rather than held to a vocabulary belonging to their neighbour.
+ *
+ * @param {object} [config] - A resolved configuration from `defineConfig`.
+ * @returns {Readonly<Record<string, SystemBlockSpec>>} The blocks to check, in
+ *   declared order. Empty where the package names no system.
+ */
+export function systemBlocksFor(config) {
+    const declared = Object.keys(config?.systems ?? {});
+    const packageWide = config?.stats?.systemId;
+    const systems =
+        declared.length ? declared
+        : typeof packageWide === "string" && packageWide ? [packageWide]
+        : [];
+
+    const byName = config?.itemFieldsBySystem ?? {};
+    /** @type {Record<string, SystemBlockSpec>} */
+    const blocks = {};
+    for (const system of systems) {
+        if (byName[system]) {
+            blocks[system] = Object.freeze({ fields: byName[system] });
+        } else if (systems.length === 1) {
+            blocks[system] = Object.freeze({ fieldVocabulary: true });
+        }
+    }
+    return Object.freeze(blocks);
+}
 
 /**
  * Edit distance, capped — enough to answer "did you mean".
@@ -631,6 +711,27 @@ const ART_FIELDS = Object.freeze([
  * @returns {Set<string>} The in-block keys that are not the note-level field of
  *   the same name.
  */
+/**
+ * The keys a field declaration is authored at **inside a system block**.
+ *
+ * The first segment of each field's in-block key: `impact.die` is authored as
+ * `impact`, and a field whose shared source moved under `data:` is authored at
+ * the `legacyKey` it declares rather than at its dotted name (#305). Keying on
+ * the name instead would report `sohl.species` as a property no `being` has,
+ * against exactly the notes the sweep has not reached yet.
+ *
+ * Written once and read twice: the note type's own declaration answers for the
+ * system whose vocabulary the caller's `schemas` are, and a second system's
+ * registry answers for its block (#58). Two derivations of one thing would be
+ * free to disagree about which position a note authors.
+ *
+ * @param {readonly object[]|null|undefined} schema - A type's declarations.
+ * @returns {Set<string>} The in-block keys.
+ */
+function inBlockKeys(schema) {
+    return new Set(authoredFields(schema ?? []).map((f) => legacyKeyOf(f).split(".")[0]));
+}
+
 function collidingBlockKeys(schema) {
     const keys = new Set();
     if (!Array.isArray(schema)) return keys;
@@ -778,9 +879,11 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   Supplied by the caller like `schemas`, so this module states no list of
  *   iconless types of its own; absent it, an inert `img:` goes unreported
  *   rather than every note's being (#349).
- * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
- *   The system blocks to check, and what each accepts. See
- *   {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {Readonly<Record<string, SystemBlockSpec>>} [opts.systems]
+ *   The system blocks to check, and what each accepts. Supplied by the caller
+ *   for the same reason `schemas` is — a build derives them from its
+ *   configuration through {@link systemBlocksFor}, and this module states no
+ *   system name of its own. See {@link DEFAULT_SYSTEM_BLOCKS} for the fallback.
  * @param {readonly string[]} [opts.packs] - The pack names this package
  *   declares, for a `data:` field whose map is keyed by pack. Supplied by the
  *   caller like `schemas` and `vocabulary`, and absent it no claim is made
@@ -1169,15 +1272,8 @@ export function lintNote(
     }
 
     const fields = authoredFields(schema);
-    /**
-     * First segment of the key each field is authored at **inside the block** —
-     * `impact.die` is authored as `impact`, and a field whose shared source
-     * moved under `data:` is authored at the `legacyKey` it declares rather
-     * than at its dotted name (#305). Keying this on the name would report
-     * `sohl.species` as a property no `being` has, against exactly the notes
-     * the sweep has not reached yet.
-     */
-    const declared = new Set(fields.map((f) => legacyKeyOf(f).split(".")[0]));
+    /** The keys this type's own declaration is authored at inside a block. */
+    const declared = inBlockKeys(schema);
 
     // The retired spelling of a field this type declares → what to write now.
     // Built from the type's own vocabulary, so a renamed field is retired
@@ -1209,16 +1305,29 @@ export function lintNote(
     // Every declared system's block, each against its own vocabulary (#58). A
     // block carries the shared keys any system's does — `system`, `type`,
     // `img`, `effects`, `flags`, `pack` — plus whatever that system declares:
-    // for `sohl`, the note type's own field names, which are still the position
-    // the corpus authors them at until #126 moves them.
+    // the note type's own field names for the system those schemas describe,
+    // and a second system's own registry for its block. Which systems arrive
+    // here is the configuration's answer, not this module's; see
+    // {@link systemBlocksFor}.
     for (const [blockName, spec] of Object.entries(systems ?? {})) {
         // Two embedded items denoting one entity (#228). Per block, because
         // `items` is a block key and a second system's actor carries its own.
+        // Before the `continue` below, because it is a statement about the
+        // block's *shape* and holds whether or not this system declares a
+        // vocabulary for the note's type.
         findings.push(...checkEmbeddedShortcodes(note, blockName));
+        // A system that declares its own fields is checked against them, and
+        // only where it speaks: a type its registry does not name is a type
+        // this system says nothing about — SoHL's `mysticalability` is not an
+        // HM3 type at all — and holding its block to an empty vocabulary would
+        // report every key in it, which is the correct tree reported red.
+        const own = spec?.fields;
+        if (own && !own[type]) continue;
         const accepted = new Set([
             ...UNIVERSAL_KEYS,
             ...(spec?.known ?? []),
             ...(spec?.fieldVocabulary ? declared : []),
+            ...(own ? inBlockKeys(own[type]) : []),
         ]);
         for (const key of unknownBlockKeys(fm, blockName, { known: accepted })) {
             // Reported above, with what to write instead — a retired spelling
@@ -1347,8 +1456,9 @@ export function lintNote(
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
  *   it declares (#128); see {@link lintNote}.
  * @param {boolean} [opts.references=true] - Whether to check references.
- * @param {Readonly<Record<string, {known?: readonly string[], fieldVocabulary?: boolean}>>} [opts.systems]
- *   The system blocks to check. See {@link DEFAULT_SYSTEM_BLOCKS}.
+ * @param {Readonly<Record<string, SystemBlockSpec>>} [opts.systems]
+ *   The system blocks to check; see {@link lintNote} and
+ *   {@link systemBlocksFor}.
  * @param {readonly string[]} [opts.packs] - The declared pack names; see
  *   {@link lintNote}.
  * @param {(type: string) => {document: string|null, art: readonly string[]}|null} [opts.emittedArt]

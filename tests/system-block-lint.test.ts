@@ -19,7 +19,8 @@
 
 import { describe, it, expect } from "vitest";
 
-import { DEFAULT_SYSTEM_BLOCKS, lintNote } from "../engine/frontmatter-lint.mjs";
+import { DEFAULT_SYSTEM_BLOCKS, lintNote, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
+import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const SCHEMAS = {
     skill: [
@@ -127,5 +128,98 @@ describe("a second system's block", () => {
         );
         expect(messages(findings)).toHaveLength(1);
         expect(findings[0].message).toMatch(/"subType"/);
+    });
+});
+
+describe("the blocks a configuration says its tree carries", () => {
+    it("derives the one system a single-registry tree ships for", () => {
+        expect(systemBlocksFor({ systems: {}, stats: { systemId: "sohl" } })).toEqual({
+            sohl: { fieldVocabulary: true },
+        });
+    });
+
+    it("names the system the package ships for, not `sohl`", () => {
+        // The defect the derivation exists for. A package shipping for HM3 had
+        // its `hm3:` block never looked at — every key in it discarded at
+        // compile without a word — while the block that *was* checked was named
+        // after a system it does not ship for, so it could report nothing.
+        expect(systemBlocksFor({ stats: { systemId: "hm3" } })).toEqual({
+            hm3: { fieldVocabulary: true },
+        });
+    });
+
+    it("gives each declared system its own registry's fields", () => {
+        const sohl = { skill: [{ name: "subType" }] };
+        const hm3 = { skill: [{ name: "sunsign" }] };
+        expect(
+            systemBlocksFor({
+                systems: { sohl: {}, hm3: {} },
+                itemFieldsBySystem: { sohl, hm3 },
+            }),
+        ).toEqual({ sohl: { fields: sohl }, hm3: { fields: hm3 } });
+    });
+
+    it("leaves out a declared system whose vocabulary nothing states", () => {
+        // With several systems the note schemas describe one of them, and
+        // nothing says which. Falling back to them would hold one system's
+        // block to its neighbour's vocabulary, reporting a correct tree red.
+        const sohl = { skill: [] };
+        expect(
+            systemBlocksFor({ systems: { sohl: {}, hm3: {} }, itemFieldsBySystem: { sohl } }),
+        ).toEqual({ sohl: { fields: sohl } });
+    });
+
+    it("checks no block for a package that names no system", () => {
+        // System-agnostic on purpose: its packs are core document types
+        // carrying no system data, so naming a block would invent one.
+        expect(systemBlocksFor({})).toEqual({});
+        expect(systemBlocksFor(undefined)).toEqual({});
+    });
+
+    it("holds this package's own configuration to exactly what it was held to", () => {
+        // The regression anchor. Every consumer today declares one system and
+        // one system-less registry, so on all of them the derivation has to be
+        // the identity — the constant it replaces.
+        expect(systemBlocksFor(loadPackConfig())).toEqual(DEFAULT_SYSTEM_BLOCKS);
+    });
+});
+
+describe("a second system's own vocabulary", () => {
+    const HM3_FIELDS = {
+        skill: [{ name: "sunsign", to: "sunsign", kind: "string", describe: "the sign" }],
+    };
+    const dual = {
+        schemas: SCHEMAS,
+        systems: { sohl: { fieldVocabulary: true }, hm3: { fields: HM3_FIELDS } },
+    };
+
+    it("accepts a key that system's registry declares", () => {
+        const findings = lintNote(
+            note({ sohl: { subType: "physical" }, hm3: { sunsign: "ulandus" } }),
+            dual,
+        );
+        expect(messages(findings)).toEqual([]);
+    });
+
+    it("reports a key it does not, naming the block", () => {
+        // `weight` is SoHL's. A block checked against its own system's registry
+        // does not accept it for having been spelled somewhere in the tree.
+        const findings = lintNote(
+            note({ sohl: { subType: "physical" }, hm3: { sunsign: "ulandus", weight: 3 } }),
+            dual,
+        );
+        expect(messages(findings)).toHaveLength(1);
+        expect(findings[0].message).toMatch(/"weight" is not a property of a skill under `hm3`/);
+    });
+
+    it("leaves the block unchecked on a type that system does not declare", () => {
+        // `mysticalability` is SoHL's and HM3 has no such type, so HM3 says
+        // nothing about what such a note may carry. Holding the block to an
+        // empty vocabulary would report every key in it.
+        const findings = lintNote(
+            { fm: { type: "mysticalability", hm3: { anything: 1 } }, file: "A.md", raw: "" },
+            { schemas: { mysticalability: [] }, systems: { hm3: { fields: HM3_FIELDS } } },
+        );
+        expect(messages(findings)).toEqual([]);
     });
 });

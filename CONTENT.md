@@ -1020,6 +1020,26 @@ key it was probably meant to be, drawn from that type's own vocabulary:
 assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
 ```
 
+**A system block is closed too, and which blocks exist is the configuration's
+answer** (#58). A package is held to the blocks named after the systems it
+declares it ships for — `systems:` where there are several, `stats.systemId`
+where there is one — so a package shipping for HM3 has its `hm3:` block checked
+and a package shipping for SoHL its `sohl:`. It used to be a constant, and the
+constant was `sohl`: an `hm3:` block was never read at all, so every key in it
+was discarded at compile without a word, while the block that _was_ checked was
+named after a system the package does not ship for.
+
+**Each block is checked against its own system's vocabulary**, taken from the
+registry that system declares in `itemBuilders`. `skill` is one name over two
+data models, so a key SoHL's `skill` declares is not thereby a key HM3's
+declares, and a block that borrowed its neighbour's field names would accept the
+one mistake this check exists to report. A type a system's registry does not
+name — `mysticalability` is SoHL's, `invocation` is HM3's — is a type that
+system says nothing about, and its block is left alone on such a note rather
+than reported wholesale. A package that names no system at all is
+system-agnostic on purpose: its packs are core document types carrying no system
+data, so it has no system block and none is invented for it.
+
 **`subType` stays at the top level**, and is closed in its own way: a type
 either declares a `subType` or does not, and a type that does declares its
 values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strike

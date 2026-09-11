@@ -79,7 +79,7 @@ import {
 } from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
-import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -805,6 +805,14 @@ function lintCommand() {
                     // it is where the derivation is handed over — the linter
                     // states no list of iconless types of its own.
                     emittedArt: emittedArtFor,
+                    // Which system blocks this tree carries, derived from what
+                    // it declares it ships for (#58). Handed over here for the
+                    // same reason the vocabulary is: the linter checks the
+                    // blocks it is given and names no system itself. Until this
+                    // it was given none, so every tree was held to a `sohl:`
+                    // whatever system it ships for — and an `hm3:` block went
+                    // unread, which is a key discarded at compile in silence.
+                    systems: systemBlocksFor(config),
                     references: argv.references,
                 });
 
