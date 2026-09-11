@@ -80,9 +80,18 @@
  * still compiles, correctly, and refusing it would fail a build over a document
  * that is not wrong. Those retire in the three steps `package:` took (#56), and
  * this module carries the **first**: both spellings are read, the current one
- * wins, and the retired one is *reported* rather than refused. The sweep and
- * the refusal come later, once no tree writes it. See
+ * wins, and the retired one is *reported* rather than refused. See
  * {@link RETIRED_FIELD_ALIASES}.
+ *
+ * **The third step is deletion, and it needs no code (#149).** `image`, a map's
+ * background art, is the first rename to have run all three: reported (#142),
+ * swept (SoHL#1801 and the position move that followed), then dropped from the
+ * table. Removing the entry is the whole of it — with no alias, the spelling is
+ * an ordinary unknown key in the `sohl:` block, which the frontmatter lint
+ * already refuses as an error alongside the required field it failed to supply.
+ * So nothing here *records* a finished retirement: the absence of an entry is
+ * the record, and a retirement that needed a standing refusal would mean the
+ * replacement never arrived. Do not keep a tombstone for one.
  *
  * **A retired *position* is the same case, and reads the same (#305).** A field
  * whose shared source moved under `data:` is not renamed — `data.species` and
@@ -426,8 +435,8 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * and what every reader asks for; the value is the spelling still honoured.
  * The table is therefore scoped by the schema without saying so twice: an alias
  * applies to a note only where that note's type declares the current field, so
- * `image` is retired on a map — which declares `img` — and remains an unknown
- * key anywhere else.
+ * `relation` is retired on an affiliation — which declares `relations` — and
+ * remains an unknown key anywhere else.
  *
  * **`templatePriority` (#266).** The number that decides which of several
  * competing templates the Create dialog offers was called `archetype`, and
@@ -442,18 +451,9 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * read past. Only `affiliation` declares the field, so the alias is reported
  * there and the old spelling stays an ordinary unknown key everywhere else.
  *
- * **`img` (#142).** Every note type names its artwork `img`, at the note's top
- * level, and resolves it the same way. A map alone named its background art
- * `image` and read it out of the `sohl:` block — two spellings for one idea,
- * with nothing to reconcile them, and a specification that had to hedge rather
- * than state a rule. Art is not system-specific: a Scene is a core Foundry
- * document and HM3 would want the identical one, so the field belongs beside
- * every other note's `img`, not inside a system block.
- *
  * @type {Readonly<Record<string, string>>}
  */
 export const RETIRED_FIELD_ALIASES = Object.freeze({
-    img: "image",
     templatePriority: "archetype",
     relations: "relation",
 });
@@ -580,9 +580,9 @@ export function declaresRetiredAlias(fm, current) {
  * first, then the note's top level — so a renamed field keeps working wherever
  * it was already written while the canonical home is the top level.
  *
- * A blank value counts as absent: `img:` cleared in an editor means the note
- * names no art there, and falling through to the retired spelling is what an
- * author part-way through the rename means by it.
+ * A blank value counts as absent: `relations:` cleared in an editor means the
+ * note records no standings there, and falling through to the retired spelling
+ * is what an author part-way through the rename means by it.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} current - The field's current name.
