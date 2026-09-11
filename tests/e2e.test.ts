@@ -18,18 +18,26 @@
  */
 
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 import {
     E2E_GM_ID,
     E2E_SCENE_ID,
     defaultSceneDocument,
+    findExecutable,
+    freshResults,
     gmDocument,
     hashPassword,
     isWorldActive,
+    missingExecutables,
     moduleConfigurationDocument,
     parseFastArgs,
     resolveE2EWorld,
     resolveSweepVersion,
+    suiteExecutables,
+    suiteVerdict,
     worldManifest,
 } from "../e2e.mjs";
 
@@ -213,5 +221,136 @@ describe("what the fast loop was asked to do", () => {
             "--spec",
             "cypress/e2e/skill.cy.js",
         ]);
+    });
+});
+
+describe("what a suite command needs before it can run", () => {
+    it("reads the tool a package runner is only standing in for", () => {
+        // `npx` is never missing, so checking it answers nothing. The question
+        // the harness has to ask is whether `cypress` is there.
+        expect(suiteExecutables(["npx", "cypress", "run"])).toEqual(["npx", "cypress"]);
+        expect(suiteExecutables(["npx", "--yes", "cypress", "run"])).toEqual(["npx", "cypress"]);
+        expect(suiteExecutables(["pnpm", "dlx", "cypress", "run"])).toEqual(["pnpm", "cypress"]);
+    });
+
+    it("does not mistake a script name for a program", () => {
+        // `npm run e2e` names a package script. There is no `e2e` executable to
+        // go looking for, and reporting one missing would name a fiction.
+        expect(suiteExecutables(["npm", "run", "e2e"])).toEqual(["npm"]);
+    });
+
+    it("checks the runner alone when the command names its package another way", () => {
+        expect(suiteExecutables(["npx", "-p", "cypress", "cypress", "run"])).toEqual(["npx"]);
+        expect(suiteExecutables(["npx", "--package=cypress", "cypress"])).toEqual(["npx"]);
+    });
+
+    it("takes a plain command at its word", () => {
+        expect(suiteExecutables(["./scripts/e2e.sh", "--spec", "x"])).toEqual(["./scripts/e2e.sh"]);
+        expect(suiteExecutables([])).toEqual([]);
+    });
+
+    it("names what is missing rather than failing three minutes later", () => {
+        expect(
+            missingExecutables({
+                command: ["npx", "definitely-not-an-installed-runner", "run"],
+                cwd: os.tmpdir(),
+                env: { PATH: "" },
+            }),
+        ).toEqual(["npx", "definitely-not-an-installed-runner"]);
+    });
+
+    it("finds a tool in the repository's own node_modules/.bin", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-e2e-"));
+        const bin = path.join(root, "node_modules", ".bin");
+        const shim = process.platform === "win32" ? "cypress.cmd" : "cypress";
+        fs.mkdirSync(bin, { recursive: true });
+        fs.writeFileSync(path.join(bin, shim), "#!/bin/sh\n");
+
+        expect(findExecutable("cypress", { cwd: root, env: { PATH: "" } })).toBe(
+            path.join(bin, shim),
+        );
+        expect(
+            missingExecutables({ command: ["cypress", "run"], cwd: root, env: { PATH: "" } }),
+        ).toEqual([]);
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+});
+
+describe("a run that executed nothing is not a pass", () => {
+    it("hands back a plain result when there is nothing to check it against", () => {
+        expect(suiteVerdict({ status: 0 })).toEqual({ status: 0, message: null });
+        expect(suiteVerdict({ status: 3 })).toEqual({ status: 3, message: null });
+    });
+
+    it("refuses to report a run green when it wrote no results", () => {
+        const verdict = suiteVerdict({
+            status: 0,
+            declared: ["cypress/results"],
+            fresh: [],
+        });
+
+        expect(verdict.status).toBe(1);
+        expect(verdict.message).toMatch(/cypress\/results/);
+    });
+
+    it("reports a run green when it did write results", () => {
+        expect(
+            suiteVerdict({
+                status: 0,
+                declared: ["cypress/results"],
+                fresh: ["cypress/results"],
+            }),
+        ).toEqual({ status: 0, message: null });
+    });
+
+    it("leaves a failing suite its own status rather than inventing one", () => {
+        // The check may only ever make a verdict worse. A harness that could
+        // rewrite one non-zero status into another would be a second way to
+        // report something that did not happen.
+        expect(suiteVerdict({ status: 4, declared: ["cypress/results"], fresh: [] }).status).toBe(
+            4,
+        );
+    });
+
+    it("fails a run whose runner disappeared out from under it", () => {
+        // The reported case: `npm ci` removed `node_modules` mid-run, Cypress
+        // died, and the harness said 0 (#153).
+        const verdict = suiteVerdict({ status: 0, vanished: ["cypress"] });
+
+        expect(verdict.status).toBe(1);
+        expect(verdict.message).toMatch(/cypress/);
+    });
+});
+
+describe("evidence that the suite ran", () => {
+    it("counts what this run wrote, not what a previous one left behind", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-e2e-"));
+        const stale = path.join(root, "stale", "nested");
+        const written = path.join(root, "written");
+        fs.mkdirSync(stale, { recursive: true });
+        fs.mkdirSync(written, { recursive: true });
+        fs.writeFileSync(path.join(stale, "old.json"), "{}");
+        const yesterday = new Date(Date.now() - 86_400_000);
+        fs.utimesSync(path.join(stale, "old.json"), yesterday, yesterday);
+
+        const since = Date.now();
+        fs.writeFileSync(path.join(written, "results.json"), "{}");
+
+        expect(freshResults({ paths: ["written", "stale"], since, cwd: root })).toEqual([
+            "written",
+        ]);
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("counts nothing for a results path that was never created", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-e2e-"));
+
+        expect(freshResults({ paths: ["never-written"], since: Date.now(), cwd: root })).toEqual(
+            [],
+        );
+
+        fs.rmSync(root, { recursive: true, force: true });
     });
 });
