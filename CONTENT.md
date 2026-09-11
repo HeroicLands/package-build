@@ -1556,6 +1556,17 @@ asked for — a build that downloads silently is not reproducible and fails
 strangely offline. The cache is keyed by version, so changing the pinned version
 is a miss rather than a silent overwrite.
 
+**A fetched catalogue is read one system at a time.** A dependency may ship a
+pack per system, and the two hold the same `(type, shortcode)` addresses with
+different data models — `skill:awar` is a real address in both vocabularies and
+means two different documents. So a pack declaring `system: hm3` resolves its
+embedded items against the dependency's `hm3` packs and its system-neutral ones,
+never against another system's, exactly as it already does for this repository's
+own packs. What each cached pack is comes from the dependency's manifest at
+fetch time, so a cache filled before this rule existed is treated as incomplete
+and `deps fetch` refills it — the alternative is a lookup that answers with the
+wrong system's document and reports nothing.
+
 **`--from` is for two packages changing together.** It fills the cache from a
 locally built artifact — a package zip or the directory it was built from — so a
 consumer can be built against a dependency that has not shipped. Without it,
