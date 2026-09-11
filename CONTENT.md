@@ -477,6 +477,16 @@ packs:
   - { name: actors-hm3, type: Actor, system: hm3 }
 ```
 
+**The `systems:` block is required here, not decorative.** A pack's `system:` is
+what its documents are stamped `_stats.systemId` and `systemVersion` from, and
+the version can only come from that block — or, for a package whose packs are
+all for its own system, from the package-wide stats. A pack naming a system that
+resolves to neither is refused at configuration time, naming the pack and the
+entry to add. It used to fall through and stamp `null` for both, which is the
+plausible lie #43 was about arriving by the one path the check did not cover:
+`harn-ensemble` shipped 2,513 compiled actors that way, out of a pack whose
+configuration says `system: sohl` on the line above.
+
 No `default: true` anywhere, because each system has exactly one pack of each
 type and a default is resolved per system. Marking one is still allowed and
 still means what it says — it designates that _system's_ default where a system

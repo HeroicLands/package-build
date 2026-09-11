@@ -29,6 +29,9 @@ import { contentPackage } from "../engine/content-package.mjs";
 
 /** Normalize a bare pack list through `defineConfig`'s validation. */
 function routerFor(packs: any[]) {
+    // A pack's `system:` must resolve to the version its documents are stamped
+    // with, so a complete configuration declares every system its packs name.
+    const named = [...new Set(packs.map((p) => p.system).filter(Boolean))] as string[];
     const config = defineConfig({
         compatibility: { minimum: "14.359", verified: "14.359" },
         rootDir: os.tmpdir(),
@@ -36,6 +39,13 @@ function routerFor(packs: any[]) {
         foundryPackage: "sohl",
         packageKind: "systems",
         stats: { lastModifiedBy: "sohltestbuild0000" },
+        ...(named.length ?
+            {
+                systems: Object.fromEntries(
+                    named.map((id) => [id, { compatibility: { verified: "1.0.0" } }]),
+                ),
+            }
+        :   {}),
         packs,
     } as any);
     return createPackRouter(config.packs);
