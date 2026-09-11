@@ -47,14 +47,38 @@
  * actually needed: every accessor in the engine funnels through here, so
  * anything that reads configuration throws with the message below.
  *
- * **Located by walking up from this module, not from the working directory.**
- * The config file sits at the root of the repository that installed the
- * toolchain, so climbing out of
- * `node_modules/@heroiclands/package-build/engine/` lands on it either way.
- * Resolving it against `process.cwd()` instead would make the build read a
- * different tree depending on where it was launched from, which is the very
- * property #1508 removed. `PACKAGE_BUILD_CONFIG` names the file explicitly when
- * a consumer keeps it somewhere else.
+ * **Located by walking up from the working directory, and from this module only
+ * when that finds nothing.** The config file sits at the root of the repository
+ * being built, and a build is run inside that repository — so the walk from
+ * `process.cwd()` finds it from the root, from `packages/`, from anywhere
+ * below. Climbing from this module instead finds the same file too, right up
+ * until the installed package is not the one the caller is standing in: a git
+ * worktree nested under its parent checkout with no `node_modules` of its own
+ * resolves `@heroiclands/package-build` out of the *parent's*, because Node's
+ * resolution walks parent directories. `import.meta.dirname` is then inside the
+ * parent, the walk lands on the parent's configuration, and the build compiles
+ * the parent's content tree into the parent's `build/` and exits 0 — saying so
+ * only in paths that are easy to read past (#364).
+ *
+ * That failure is undetectable on exactly the work most likely to provoke it.
+ * The usual tell is a zero diff where a change was expected; an
+ * output-preserving sweep *expects* zero differences, so the tell is gone and a
+ * wrong-tree build produces confident evidence for a tree nobody touched. Order
+ * of resolution is the fix, because reviewer vigilance cannot be.
+ *
+ * The module walk stays, as the fallback for an invocation from outside any
+ * repository, and is never *preferred*: a configuration found above the
+ * installed package rather than above the working directory is not the one a
+ * caller meant. When both walks find one and they disagree, the ignored one is
+ * named in a warning rather than passed over — that disagreement is also the
+ * only cheap signal that this tree is building on another checkout's
+ * `node_modules`. `PACKAGE_BUILD_CONFIG` names the file explicitly and skips
+ * both walks, which is why it was the workaround.
+ *
+ * What #1508 removed stays removed. The property it bought was not "resolve
+ * from the module"; it was that a build reads one tree however it was launched,
+ * and an upward walk from the working directory keeps that — every directory
+ * inside a repository resolves that repository's single configuration.
  *
  * **Loaded synchronously.** A YAML config is parsed synchronously as a matter
  * of course; an `.mjs` one is loaded with `require` rather than `await import`,
@@ -81,7 +105,12 @@ import { createRequire } from "node:module";
 import YAML from "yaml";
 
 import { defineConfig, DERIVED_SYSTEM_VERSION } from "../content-config.mjs";
-import { formatDiagnostic, positionOfYamlPath, yamlKeyPath } from "./diagnostics.mjs";
+import {
+    emitDiagnostic,
+    formatDiagnostic,
+    positionOfYamlPath,
+    yamlKeyPath,
+} from "./diagnostics.mjs";
 
 /** The stem every consuming repository declares its build under. */
 export const CONFIG_BASENAME = "package-build.config";
@@ -142,6 +171,41 @@ export function findConfigFile(from) {
         if (parent === dir) return undefined;
         dir = parent;
     }
+}
+
+/**
+ * Which configuration file a build launched here should read, and what each
+ * walk found.
+ *
+ * Kept separate from {@link loadPackConfig} because the *choice* is worth being
+ * able to ask about without loading anything: the two walks disagreeing is the
+ * observable form of #364, and a caller that wants to report it — or a test
+ * that wants to describe it — should not have to reproduce the resolution and
+ * risk disagreeing with the loader about it. It performs I/O, and is named for
+ * it, like the {@link findConfigFile} it calls twice.
+ *
+ * `PACKAGE_BUILD_CONFIG` is deliberately not consulted here. An explicit name
+ * is not a search result: {@link loadPackConfig} short-circuits on it before it
+ * ever asks, so there is no walk to report and nothing to disagree with.
+ *
+ * @param {object} [from] - Where to walk up from; both default to the real
+ *   thing, and are parameters only so a caller can describe a tree it is not
+ *   standing in.
+ * @param {string} [from.cwd] - The directory the build was launched in.
+ * @param {string} [from.moduleDir] - The directory this module sits in.
+ * @returns {{path: string|undefined, fromCwd: string|undefined, fromModule: string|undefined}}
+ *   The file to read, and each walk's own answer — the same file in an ordinary
+ *   build, different ones in a worktree resolving the toolchain out of its
+ *   parent checkout.
+ * @throws {Error} As {@link findConfigFile}, when one directory holds more than
+ *   one configuration.
+ */
+export function resolveConfigFile({ cwd = process.cwd(), moduleDir = import.meta.dirname } = {}) {
+    const fromCwd = findConfigFile(cwd);
+    const fromModule = findConfigFile(moduleDir);
+    // `??`, not `||`: the module walk is a fallback for finding *nothing*, never
+    // a tie-break between two answers.
+    return { path: fromCwd ?? fromModule, fromCwd, fromModule };
 }
 
 const require = createRequire(import.meta.url);
@@ -607,18 +671,44 @@ export function loadPackConfig() {
     if (loaded) return loaded;
 
     const explicit = process.env.PACKAGE_BUILD_CONFIG;
-    const configPath = explicit ? path.resolve(explicit) : findConfigFile(import.meta.dirname);
+    const found = explicit ? undefined : resolveConfigFile();
+    const configPath = explicit ? path.resolve(explicit) : found.path;
 
     if (!configPath || !fs.existsSync(configPath)) {
         throw new Error(
             explicit ?
                 `package-build: PACKAGE_BUILD_CONFIG names ${configPath}, ` +
                     `which does not exist.`
+                // Both origins, because either walk could have found one and
+                // naming only the module's would send a reader looking inside
+                // `node_modules/` for a file that belongs in their own root.
             :   `package-build: no ${CONFIG_FILENAMES.join(" or ")} found at ` +
-                    `or above ${import.meta.dirname}. A consuming repository ` +
-                    `declares its build in one file at its root; set ` +
+                    `or above ${process.cwd()}, nor at or above ` +
+                    `${import.meta.dirname}. A consuming repository declares ` +
+                    `its build in one file at its root; set ` +
                     `PACKAGE_BUILD_CONFIG to name it elsewhere.`,
         );
+    }
+
+    // Two different files, one of which is about to be ignored. Said out loud
+    // because the alternative is what #364 was: a build that reads the parent
+    // checkout's configuration, compiles the parent's tree, and reports it only
+    // in absolute paths nobody rereads. A warning rather than an error — the
+    // shape is legitimate, and the working directory's answer is the right one
+    // — but never silence.
+    if (found?.fromCwd && found.fromModule && found.fromCwd !== found.fromModule) {
+        emitDiagnostic({
+            severity: "warning",
+            message:
+                `package-build: reading ${found.fromCwd}, the configuration ` +
+                `above this working directory. The installed ` +
+                `@heroiclands/package-build sits under a different ` +
+                `repository, whose own ${found.fromModule} is being ignored — ` +
+                `usually because this tree has no \`node_modules\` of its own ` +
+                `and resolved the toolchain out of a parent checkout. Run ` +
+                `\`npm ci\` here, or set PACKAGE_BUILD_CONFIG, to say which ` +
+                `tree is meant.`,
+        });
     }
 
     loaded =

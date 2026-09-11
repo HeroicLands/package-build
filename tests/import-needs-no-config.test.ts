@@ -198,5 +198,10 @@ describe("the shipped package needs no configuration to be imported (#2)", () =>
         expect(status, stderr).toBe(0);
         expect(stdout).toContain(CONFIG_BASENAME);
         expect(stdout).toContain("PACKAGE_BUILD_CONFIG");
+        // Both places it looked, not just the module's: resolution starts at
+        // the working directory as of #364, and naming only the installed
+        // package's directory would send a reader hunting inside
+        // `node_modules/` for a file that belongs at their own root.
+        expect(stdout).toContain("nor at or above");
     });
 });

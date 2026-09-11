@@ -390,11 +390,25 @@ pack: mysteries
   type one system maps and another does not stays silent for the system that
   declines it, per #79.
 
-**The configuration is found by walking up, not from the working directory.**
-`engine/pack-config.mjs` climbs from itself — so it works from `packages/` and
-from `node_modules/` alike, and does not depend on the directory the build was
-launched from. Set `PACKAGE_BUILD_CONFIG` to point at the file explicitly if a
-consumer keeps it somewhere else.
+**The configuration is found by walking up from the working directory, and from
+the installed package only if that finds nothing.** `engine/pack-config.mjs`
+climbs from `process.cwd()` first, so a build reads the tree it was run in —
+from the repository root, from `packages/`, from anywhere below, since the walk
+climbs. Climbing from the module itself is the fallback, for an invocation from
+outside any repository.
+
+The order matters in one shape: a git worktree nested under its parent checkout
+with **no `node_modules` of its own** resolves `@heroiclands/package-build` out
+of the parent's, because Node's resolution walks parent directories. Climbing
+from the module then landed on the _parent's_ configuration, and the build
+compiled the parent's content tree into the parent's `build/` and exited 0
+(#364). When both walks find a configuration and they disagree, the working
+directory's is read and the ignored one is named in a warning — that
+disagreement is also the cheapest signal that this tree is building on another
+checkout's `node_modules`. Run `npm ci` in the worktree to give it its own.
+
+Set `PACKAGE_BUILD_CONFIG` to point at the file explicitly if a consumer keeps
+it somewhere else; it skips both walks.
 
 **The configuration is resolved on first read, never at import.** Every module
 here can be imported — and `content-build --version` and `--help` answered — in a
@@ -2476,10 +2490,20 @@ one that keeps "resolved on first read, never at import" honest. It copies the
 files the package ships into a temporary directory outside this repository and
 imports each shipped module on its own, in a process whose environment has
 `PACKAGE_BUILD_CONFIG` deleted. Outside is load-bearing: the config walk climbs
-from the module's own directory, so a copy left inside the tree could reach a
-configuration above it and prove nothing — which is why the first case asserts
-that none is reachable from the copy before the rest run. A module that hoisted
-a configured value to import time fails there, and only there.
+from the working directory and from the module's own directory, and the copy is
+both — so one left inside the tree could reach a configuration above it and
+prove nothing, which is why the first case asserts that none is reachable from
+the copy before the rest run. A module that hoisted a configured value to import
+time fails there, and only there.
+
+`tests/config-from-working-directory.test.ts` describes the resolution order
+itself (#364). It builds the shape no unit test can fake — a repository with the
+toolchain installed under it, and a second checkout nested inside that
+repository with its own configuration and no `node_modules` — and asserts which
+configuration a build run in each place reads. The nested case is the one that
+was wrong, and it is untestable any other way: the tell of a wrong-tree build is
+normally an unexpected zero diff, and the sweeps that provoke this shape expect
+zero differences, so only "which file was read" separates the outcomes.
 
 ## Releasing
 
