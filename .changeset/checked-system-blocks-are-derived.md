@@ -22,10 +22,16 @@ the costlier:
 | a tree feeding both           | one of two blocks checked                                 | each block against its own system    |
 
 **Which systems a package ships for is already declared**, so this reads that
-rather than asking for it again: `systems:` where there are several,
-`stats.systemId` where there is one — and that has already absorbed every way of
-spelling it, since a system package is its own system and a module takes
-`requiresSystem`, its lone `systems:` entry, or its lone system relationship.
+rather than asking for it again — in all three places it is written:
+
+- `systems:`, which declares them without requiring one;
+- a **pack's** `system:`, which is the same statement per pack and the only one
+  some trees make. It is already authoritative at compile, where a note routed
+  to such a pack and carrying no such block fails the build, so a lint blind to
+  it would refuse a note for want of a block it never checked;
+- `stats.systemId` where neither is written, which has already absorbed every
+  remaining spelling: a system package is its own system, and a module takes
+  `requiresSystem`, its lone `systems:` entry, or its lone system relationship.
 
 **Each block is held to its own system's vocabulary**, from the registry that
 system declares in `itemBuilders`. `skill` is one name over two data models, so
@@ -35,6 +41,14 @@ its block is left alone on such a note rather than reported wholesale. A package
 naming no system anywhere is system-agnostic on purpose — its packs are core
 document types carrying no system data — so it has no system block, and none is
 invented for it.
+
+**A block whose vocabulary nothing states is said out loud.** A package
+declaring a system but no `itemBuilders` registry for it — `harn-ensemble`
+declares two systems through its packs and a registry for neither — has nothing
+that can say what that block may carry, so the block goes unchecked and
+`content-build lint` reports that once, naming the systems and the registry to
+declare. A check that quietly does nothing is indistinguishable from one that
+passed, which is the whole subject here.
 
 **Nothing changes for a package shipping for SoHL**, which is every consumer
 today: one system, one registry, and the derivation is the identity on it.

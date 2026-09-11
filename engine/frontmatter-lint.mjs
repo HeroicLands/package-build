@@ -162,7 +162,49 @@ export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
  */
 
 /**
- * The system blocks a configuration says its tree carries (#58).
+ * Every system a configuration says its tree carries (#58).
+ *
+ * **Which systems a package ships for is already declared**, in three places
+ * that answer different questions, so this reads all three rather than asking a
+ * new one:
+ *
+ * - `systems:` (#48) declares them without requiring one, which is how a
+ *   package ships for several;
+ * - a **pack's** `system:` is the same statement made per pack, and it is the
+ *   one some trees make: `harn-ensemble` declares an `actors-sohl` and an
+ *   `actors-hm3` and nothing else about either system. It is already
+ *   authoritative elsewhere — `eligibleFor` fails a note for want of the block
+ *   a pack's `system:` names — so a lint that did not read it would refuse a
+ *   note at compile for a block it never checked;
+ * - `stats.systemId` is the package-wide answer where there is one, and it has
+ *   already absorbed every way of spelling that: a system package is its own
+ *   system, and a module takes `requiresSystem`, its lone `systems:` entry, or
+ *   its lone system relationship.
+ *
+ * A package naming a system in none of them is system-agnostic on purpose — its
+ * packs are core document types carrying no system data — so it carries no
+ * system block and naming one would invent it.
+ *
+ * @param {object} [config] - A resolved configuration from `defineConfig`.
+ * @returns {string[]} The system ids, deduplicated, in declared order.
+ */
+export function declaredSystems(config) {
+    const out = [];
+    for (const system of Object.keys(config?.systems ?? {})) {
+        if (!out.includes(system)) out.push(system);
+    }
+    for (const pack of config?.packs ?? []) {
+        const system = pack?.system;
+        if (typeof system === "string" && system && !out.includes(system)) out.push(system);
+    }
+    if (out.length) return out;
+    const packageWide = config?.stats?.systemId;
+    return typeof packageWide === "string" && packageWide ? [packageWide] : [];
+}
+
+/**
+ * The system blocks a configuration says its tree carries, and what each
+ * accepts (#58).
  *
  * The lint checks the blocks its caller names, and for as long as there was one
  * system the only caller named none — so every tree took the `sohl:` of
@@ -176,36 +218,28 @@ export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
  * - and the block that *was* checked was named after a system that package does
  *   not ship for, so the one finding it could make was about nothing.
  *
- * **Which systems a package ships for is already declared**, so this reads that
- * rather than asking a new question. `systems:` (#48) names them where there
- * are several; `stats.systemId` is the package-wide answer where there is one,
- * and it has already absorbed every way of spelling that — a system package is
- * its own system, and a module takes `requiresSystem`, its lone `systems:`
- * entry, or its lone system relationship. A package naming a system in none of
- * those places is system-agnostic on purpose: its packs are core document types
- * carrying no system data, so it has no system block for this to check and
- * naming one would invent it.
- *
- * **Each system's vocabulary comes from its own registry**, where it declares
- * one. `itemFieldsBySystem` is that declaration, keyed by system, and until now
+ * **Each system's vocabulary comes from its own registry.**
+ * `itemFieldsBySystem` is that declaration, keyed by system, and until now
  * nothing read it. A system with no registry of its own falls back to the note
  * schemas the caller supplies — but only where it is the package's **single**
  * system, because that is the one case where those schemas are known to be
  * describing it. With several systems and a registry for only some, the rest
  * are left out rather than held to a vocabulary belonging to their neighbour.
  *
+ * **A system left out here is a check that does not run**, which is
+ * indistinguishable from one that passed — so the caller says it out loud.
+ * {@link declaredSystems} is the other half of that comparison: a system it
+ * names and this omits is a block nothing can state the vocabulary of, which is
+ * `harn-ensemble` today, declaring two systems and an `itemBuilders` registry
+ * for neither.
+ *
  * @param {object} [config] - A resolved configuration from `defineConfig`.
  * @returns {Readonly<Record<string, SystemBlockSpec>>} The blocks to check, in
- *   declared order. Empty where the package names no system.
+ *   declared order. Empty where the package names no system, and where nothing
+ *   states the vocabulary of any system it names.
  */
 export function systemBlocksFor(config) {
-    const declared = Object.keys(config?.systems ?? {});
-    const packageWide = config?.stats?.systemId;
-    const systems =
-        declared.length ? declared
-        : typeof packageWide === "string" && packageWide ? [packageWide]
-        : [];
-
+    const systems = declaredSystems(config);
     const byName = config?.itemFieldsBySystem ?? {};
     /** @type {Record<string, SystemBlockSpec>} */
     const blocks = {};

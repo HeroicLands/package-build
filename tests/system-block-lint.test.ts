@@ -19,7 +19,12 @@
 
 import { describe, it, expect } from "vitest";
 
-import { DEFAULT_SYSTEM_BLOCKS, lintNote, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
+import {
+    DEFAULT_SYSTEM_BLOCKS,
+    declaredSystems,
+    lintNote,
+    systemBlocksFor,
+} from "../engine/frontmatter-lint.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 
 const SCHEMAS = {
@@ -167,6 +172,36 @@ describe("the blocks a configuration says its tree carries", () => {
         expect(
             systemBlocksFor({ systems: { sohl: {}, hm3: {} }, itemFieldsBySystem: { sohl } }),
         ).toEqual({ sohl: { fields: sohl } });
+    });
+
+    it("reads the systems a tree declares only through its packs", () => {
+        // `harn-ensemble`'s shape: no `systems:`, no `stats.systemId`, and two
+        // Actor packs that each name one. A pack's `system:` already decides at
+        // compile whether a note may be compiled there, so a lint blind to it
+        // would refuse a note for want of a block it never checked.
+        const config = {
+            packs: [
+                { name: "actors-hm3", type: "Actor", system: "hm3" },
+                { name: "actors-sohl", type: "Actor", system: "sohl" },
+            ],
+        };
+        expect(declaredSystems(config)).toEqual(["hm3", "sohl"]);
+        // …and with a registry for neither, nothing can state what either block
+        // may carry. The CLI says that out loud rather than passing in silence.
+        expect(systemBlocksFor(config)).toEqual({});
+    });
+
+    it("prefers what a package declares over the packs that repeat it", () => {
+        expect(
+            declaredSystems({
+                systems: { sohl: {} },
+                packs: [
+                    { name: "items", type: "Item" },
+                    { name: "actors-sohl", system: "sohl" },
+                ],
+                stats: { systemId: "sohl" },
+            }),
+        ).toEqual(["sohl"]);
     });
 
     it("checks no block for a package that names no system", () => {
