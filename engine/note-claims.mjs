@@ -12,8 +12,9 @@
  */
 
 /**
- * **Which note types a configuration compiles at all** — and the finding for a
- * note whose type nothing claims (#146).
+ * **Which note types a configuration compiles at all** — the finding for a note
+ * whose type nothing claims (#146), and the one for a note that loses a
+ * document while the rest of it compiles (#152).
  *
  * Every compile pass answers one question about a note: _is this mine?_ A note
  * every pass answers "no" to is skipped as quietly as the thousands that
@@ -50,6 +51,27 @@
  * who invented a word. Collapsing the two would send `harn-ensemble` to correct
  * five perfectly good notes.
  *
+ * ## The partial case is a third condition, and it was invisible (#152)
+ *
+ * The table above asks whether a note is compiled *at all*, and a note that
+ * compiles one of its two documents answers yes. But a note produces more than
+ * one document as a matter of course — an item note an Item and the
+ * JournalEntry its prose becomes, a map note a Scene and a JournalEntry, an
+ * actor note an Actor and a JournalEntry since #337 — so a configuration
+ * missing a pack for *one* of them dropped that document while the rest of the
+ * note compiled into a pack that does exist. The build succeeded and shipped
+ * half of what was written.
+ *
+ * | condition | what it means | whose fix |
+ * | --- | --- | --- |
+ * | some documents have a pack, one does not | this note compiles, and one of its documents is lost | configuration |
+ *
+ * {@link documentClassesFor} is the question this needs and the type-level
+ * table could not answer: not "is anything claiming this note" but "which
+ * documents does this note produce", asked per note, because documentation is
+ * per note — a doc-carrying note with an empty body produces no JournalEntry at
+ * all, and `Journals.skipNote` is where that is decided.
+ *
  * ## The claim table mirrors `selects`, and a test holds them together
  *
  * Which note types a pass claims is stated by that pass's `selects`, and the
@@ -61,7 +83,7 @@
  * @module
  */
 
-import { assertSuppliedCorpus } from "./helpers.mjs";
+import { assertSuppliedCorpus, parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only: this module is imported by the content index, so
 // importing the index back would close a cycle (#243).
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
@@ -253,6 +275,115 @@ export function noteTypesClaimedBy(docType, sources) {
 }
 
 /**
+ * Every Foundry document class {@link noteTypesClaimedBy} answers for.
+ *
+ * The switch above, read the other way round. It is written out rather than
+ * derived because a `switch` cannot be enumerated — and
+ * `tests/unclaimed-note-types.test.ts` holds the two together by checking that
+ * no class outside this list claims anything, so a row added there and not here
+ * fails rather than going quiet.
+ *
+ * Order is the order a reader meets them in a message, not a precedence.
+ *
+ * @type {readonly string[]}
+ */
+export const CLAIMABLE_DOCUMENT_TYPES = Object.freeze([
+    "Item",
+    "Actor",
+    "JournalEntry",
+    "Macro",
+    "Scene",
+    "Adventure",
+]);
+
+/**
+ * Every document class a note of one type compiles into (#152).
+ *
+ * **A note produces more than one document, and that is the ordinary case.** An
+ * item note compiles an Item *and* the JournalEntry its prose becomes; a map
+ * note a Scene and a JournalEntry; since #337 an actor note an Actor and a
+ * JournalEntry too. {@link claimedNoteTypes} unions over the configured packs
+ * and so answers "is this note compiled *at all*", which is #146's question and
+ * cannot see a note that compiles one of its two documents and loses the other.
+ *
+ * Asked of the **claim table** rather than of a list of its own, so the set of
+ * documents a type produces and the set of passes that claim it are one
+ * statement. A pass that starts claiming a type starts producing its document
+ * here, with nothing to remember.
+ *
+ * **Union across systems, never per system.** A type one system maps and
+ * another does not appears once, because the `Item` and `Actor` rows already
+ * fold the maps together — so this cannot report a document class a system
+ * deliberately declines to produce, which is the silence #79 requires.
+ *
+ * ## The JournalEntry row is the one that is per *note*
+ *
+ * Every other row is a property of the type: a `macro` note produces a Macro, a
+ * map note a Scene, whatever either says. Documentation is not. `Journals`
+ * declines a doc-carrying note whose body is empty — *"an item with no prose
+ * gets no doc, and the items pass leaves its description empty rather than
+ * pointing at nothing"* — so whether an item note produces a JournalEntry is
+ * decided by the note, not by its type.
+ *
+ * That distinction is the whole difference between a useful finding and a
+ * useless one. `sohl-kethira-basic` declares no JournalEntry pack and ships 393
+ * notes whose descriptions are *deliberately* empty, under the Fan Material
+ * Guidelines its configuration explains at length. A type-level answer would
+ * report every one of them for losing a document none of them produces. Asking
+ * per note, it reports none, and still reports `harn-ensemble`'s 2,517 beings,
+ * whose `{#appearance}` and `{#dossier}` prose is real and is lost.
+ *
+ * `hasProse` is therefore how the caller answers that, and it is a **thunk** so
+ * that the file is read only where the answer could change the outcome. Omitted,
+ * the answer is the type's full potential — every document such a note *could*
+ * produce — which is what a caller asking about a type rather than a note wants.
+ *
+ * @param {string} type - The note's declared `type`, current spelling.
+ * @param {ClaimSources} [sources] - What to answer from.
+ * @param {object} [opts] - Options.
+ * @param {(() => boolean)|boolean} [opts.hasProse] - Whether *this note* carries
+ *   a body. Omitted, the type's potential is reported.
+ * @returns {string[]} The document classes, in {@link CLAIMABLE_DOCUMENT_TYPES}
+ *   order. Empty for a type nothing compiles.
+ */
+export function documentClassesFor(type, sources, { hasProse } = {}) {
+    const resolved = resolveSources(sources);
+    return CLAIMABLE_DOCUMENT_TYPES.filter((docType) => {
+        if (!noteTypesClaimedBy(docType, resolved).has(type)) return false;
+        if (docType !== "JournalEntry") return true;
+        // A type whose *whole* document is the journal always produces one;
+        // there is no body condition, because the body is the document.
+        if (JOURNAL_TYPES.has(type)) return true;
+        if (hasProse === undefined) return true;
+        return Boolean(typeof hasProse === "function" ? hasProse() : hasProse);
+    });
+}
+
+/**
+ * Whether a note carries a body at all — the condition `Journals.skipNote`
+ * applies, asked from the outside (#152).
+ *
+ * Read from the file rather than from the index record, because a record
+ * carries a note's frontmatter and its derived address and not its prose. The
+ * walk that calls this is already reading the same file to locate the `type:`
+ * key for a finding's position, so this is the same cost in the same place —
+ * and it is called only for a note whose documentation would otherwise be
+ * reported as lost.
+ *
+ * @param {string} absPath - The note's path.
+ * @returns {boolean} True when the body has content.
+ */
+function noteHasProse(absPath) {
+    try {
+        return Boolean(parseMarkdownFile(absPath).body);
+    } catch {
+        // Unreadable here means unreadable for the compile too, which reports
+        // it with a message about the file rather than about its documentation.
+        return false;
+    }
+}
+
+/**
  * Every note type some pack in a configuration would compile.
  *
  * The union across the configured pack list, so a type claimed by any one pack
@@ -419,6 +550,44 @@ function specifiedMessage(type) {
 }
 
 /**
+ * The **partial** finding: the note compiles, and one of its documents does not
+ * (#152).
+ *
+ * #146's question is "does anything claim this note", and the answer is yes —
+ * which is exactly why this went unreported. A note produces more than one
+ * document, and a configuration missing a pack for one of them drops that
+ * document while the rest of the note compiles into a pack that does exist. The
+ * build succeeds, the compendium ships, and the missing half is discoverable
+ * only by noticing it is not there.
+ *
+ * The message names the note, the document class with no pack, and the class
+ * that *did* compile — the last because it is what distinguishes this from
+ * #146's finding at a glance: the note is not unclaimed, it is half-claimed, and
+ * the fix is a pack rather than a `type:`.
+ *
+ * @param {string} type - The note's declared `type`.
+ * @param {readonly string[]} missing - Document classes with no pack.
+ * @param {readonly string[]} compiled - Document classes that do have one.
+ * @returns {string} The message.
+ */
+function partialMessage(type, missing, compiled) {
+    // `Item`, `Actor` and `Adventure` take "an". Spelled out rather than left
+    // to read as a typo in a message an author meets at the moment they are
+    // being told something went wrong.
+    const article = (name) => (/^[AEIOU]/.test(name) ? "an" : "a");
+    const list = (classes) => classes.map((name) => `${article(name)} ${name}`).join(" and ");
+    const names = (classes) => classes.join(" and ");
+    return (
+        `a note of type "${type}" compiles into ${list(missing)} as well as ` +
+        `${list(compiled)}, and \`packs:\` declares no ${names(missing)} pack — ` +
+        `so the ${names(missing)} is dropped with no error while the rest of the ` +
+        `note compiles. Declare ${list(missing)} pack in ` +
+        `package-build.config.yaml, or accept the loss deliberately by not ` +
+        `authoring what it would have carried.`
+    );
+}
+
+/**
  * The **authoring** finding: nothing anywhere knows the type.
  *
  * @param {string} type - The note's declared `type`.
@@ -455,9 +624,13 @@ function authoringMessage(type) {
  */
 export function unclaimedNoteFindings(config = loadPackConfig(), sources, { records } = {}) {
     const resolved = resolveSources(sources);
-    const claimed = claimedNoteTypes(config, resolved);
     const vocabulary = noteTypeVocabulary(resolved);
     const findings = [];
+    // The document classes this configuration can actually receive a compiled
+    // document into. A **prebuilt** pack is not one of them, for the reason
+    // {@link claimedNoteTypes} states: its JSON is checked in, it has no pass,
+    // and no note is routed into it.
+    const configured = new Set((config.packs ?? []).filter((p) => !p.prebuilt).map((p) => p.type));
 
     // The corpus this compile derived once (#243), required rather than
     // derived here: this module is imported *by* the content index, so it
@@ -481,7 +654,37 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         // authored one (#78). The rename itself is reported by the frontmatter
         // lint, which can say what to write instead.
         const current = currentType(type);
-        if (claimed.has(current)) continue;
+
+        // Every document this note produces, against the classes this
+        // configuration has a pack for. Three outcomes, and the middle one is
+        // #152's — it was invisible while the question was only "is anything
+        // claiming this note", because the answer there is yes.
+        const produces = documentClassesFor(current, resolved, {
+            // Lazy: only a doc-carrying type whose JournalEntry has nowhere to
+            // go asks, so a tree with a JournalEntry pack — which is most of
+            // them — reads no bodies at all.
+            hasProse: () => noteHasProse(absPath),
+        });
+        const missing = produces.filter((docType) => !configured.has(docType));
+        const compiled = produces.filter((docType) => configured.has(docType));
+
+        // Every document it produces has somewhere to go.
+        if (produces.length && !missing.length) continue;
+
+        // Some do and some do not: the note compiles, and one of its documents
+        // is dropped in silence. A type nothing produces at all falls past this
+        // to the #146 messages below, where `produces` being empty is itself
+        // part of the answer.
+        if (compiled.length) {
+            findings.push({
+                file: absPath,
+                ...locateFrontmatterKey(absPath, "type", type),
+                severity: /** @type {"error"} */ ("error"),
+                type,
+                message: partialMessage(type, missing, compiled),
+            });
+            continue;
+        }
 
         findings.push({
             file: absPath,

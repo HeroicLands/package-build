@@ -372,6 +372,23 @@ pack: mysteries
 - **A note's `pack:` names where its _own_ document goes.** Anything derived from
   it — an item's or a macro's prose, which compiles into a JournalEntry of its
   own — lands in the default pack of _that_ type.
+- **Every document a note produces needs a pack, and one that has none is a
+  finding** (#152). A note produces more than one document as a matter of
+  course: an item note an Item and the JournalEntry its prose becomes, a map
+  note a Scene and a JournalEntry, an actor note an Actor and a JournalEntry
+  since #337. Where the configuration declares no pack for one of them, that
+  document used to be dropped while the rest of the note compiled into a pack
+  that does exist — a build that succeeds and ships half of what was written.
+  The finding names the note, the class with no pack, and the class that did
+  compile, which is what distinguishes it from a note **nothing** claims: that
+  one is a `type:` to correct, this one a pack to declare.
+
+  It is asked **per note, not per type**, because documentation is: `Journals`
+  declines a doc-carrying note whose body is empty — an item with no prose gets
+  no doc — so a tree of deliberately description-less items loses nothing by
+  having no JournalEntry pack, and is told nothing. And it names no system, so a
+  type one system maps and another does not stays silent for the system that
+  declines it, per #79.
 
 **The configuration is found by walking up, not from the working directory.**
 `engine/pack-config.mjs` climbs from itself — so it works from `packages/` and
