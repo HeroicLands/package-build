@@ -2318,32 +2318,50 @@ JSDoc.
 
 ## Tests
 
-The package carries its own suite and its own vitest project, so it is
-verifiable without the repository that happens to host it:
+The package carries its own suite, so it is verifiable without any repository
+that consumes it:
 
 ```
-npm test -w @heroiclands/package-build     # from the SoHL repository root
-npm test                                   # from packages/content-build/
+npm test                                  # the whole suite
+npx vitest run tests/wikilinks.test.ts    # one file
 ```
 
-The SoHL repository's root `npm run test` names the very same project config, so
-one command still gates everything CI runs and neither entry point can drift
-into a different suite.
+**The suite is configured from a fixture, not from this repository's root.**
+`vitest.config.ts` points `PACKAGE_BUILD_CONFIG` at
+`tests/fixtures/repo/package-build.config.yaml`, whose adjacent `package.json`
+is shaped like a consumer's. The Foundry package id and the system version are
+derived from the manifest beside the configuration, and at the root that
+manifest is this toolchain's own — `@heroiclands/package-build`, which is
+neither a Foundry package id nor a game system version, so the derivations
+would assert nothing.
 
 The harness is deliberately austere: no global setup, no Foundry stubs, and no
 alias onto a consuming repository's source. `tests/suite-is-self-contained.test.ts`
-enforces that — a test in this suite that reached for `globalThis.game` or `@src`
-would pass in situ and fail the moment the package was installed from npm.
+enforces that — a test that reached for `globalThis.game`, imported `@src/…`, or
+resolved a path climbing out of the package would pass in situ and fail the
+moment the package was installed from npm. Before the extraction five files
+resolved `"../../.."` and asserted about whatever happened to be there, which
+was the system repository, because the package was vendored inside it (#1).
 
 `tests/dependencies-are-declared.test.ts` guards the same failure from the
-shipping side. Because this package is a workspace, npm hoists the root
-repository's `devDependencies` into the workspace root, so an import this
-package never declared still resolves here and fails nowhere but a consumer's
-install (#1557). The test walks every module named by the `files` field and
-holds each bare specifier to one of three cases — a Node builtin, this package
-addressing itself, or a declared `dependency` — and checks the converse: nothing
-shipped may import a `devDependency`, and no declared dependency may go
-unimported.
+shipping side. This package spent its first six changes as a workspace inside
+the Song of Heroic Lands repository, where npm hoisted the root's
+`devDependencies` into the workspace root: an import this package never declared
+still resolved, and failed nowhere but a consumer's install (#1557). The test
+walks every module named by the `files` field and holds each bare specifier to
+one of three cases — a Node builtin, this package addressing itself, or a
+declared `dependency` — and checks the converse: nothing shipped may import a
+`devDependency`, and no declared dependency may go unimported.
+
+`tests/import-needs-no-config.test.ts` is the third of the same family, and the
+one that keeps "resolved on first read, never at import" honest. It copies the
+files the package ships into a temporary directory outside this repository and
+imports each shipped module on its own, in a process whose environment has
+`PACKAGE_BUILD_CONFIG` deleted. Outside is load-bearing: the config walk climbs
+from the module's own directory, so a copy left inside the tree could reach a
+configuration above it and prove nothing — which is why the first case asserts
+that none is reachable from the copy before the rest run. A module that hoisted
+a configured value to import time fails there, and only there.
 
 ## Releasing
 

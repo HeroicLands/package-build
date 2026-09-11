@@ -21,6 +21,23 @@ jobs:
         runs-on: ubuntu-latest
         steps:
             - uses: actions/checkout@v7
+            # Wants a checkout and nothing else, so it runs before the install
+            # and fails in seconds rather than after one. The rule — deferred
+            # work is an issue, not a marker in a comment — and its
+            # implementation live in the org-wide action; this repository
+            # states only which files it applies to.
+            #
+            # `paths: .` rather than a list of directories: this package's
+            # modules sit at its root as well as under `bin/`, `ci/`, `engine/`,
+            # `hm3/` and `sohl/`, so a list would have to name sixteen root
+            # files and would silently stop covering the seventeenth. A
+            # checkout holds only tracked files, and the action prunes
+            # `node_modules/`, so scanning the tree is both exact and
+            # self-extending.
+            - name: Check for forbidden markers
+              uses: HeroicLands/.github/actions/todos@main
+              with:
+                  paths: .
             - uses: actions/setup-node@v7
               with:
                   node-version: 24
