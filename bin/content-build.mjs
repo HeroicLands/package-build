@@ -79,7 +79,7 @@ import {
 } from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
-import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -787,6 +787,38 @@ function lintCommand() {
                         skipDirectories: config.skipDirectories,
                     }),
                 });
+                // Which system blocks this tree carries, derived from what it
+                // declares it ships for (#58). Read before the lint so the
+                // systems it will *not* check can be said out loud below.
+                // `schemaSystem` names whose vocabulary the `schemas` below
+                // are. They are `sohl/note-schemas.mjs`, imported here
+                // unconditionally, so this states a fact about this file rather
+                // than introducing one — and it is what lets a type no item
+                // registry declares, `being` above all, be checked at all.
+                const systemBlocks = systemBlocksFor(config, { schemaSystem: "sohl" });
+                const uncheckedSystems = declaredSystems(config).filter(
+                    (system) => !(system in systemBlocks),
+                );
+                if (uncheckedSystems.length) {
+                    // Said out loud for the reason the missing schema artifact
+                    // is: a check that quietly does nothing is indistinguishable
+                    // from one that passed, and the thing going unchecked here
+                    // is a closed region whose unknown keys the compiler drops
+                    // without a word. `harn-ensemble` is the tree this names —
+                    // two systems declared through its packs and an
+                    // `itemBuilders` registry for neither.
+                    log.info(
+                        `No \`itemBuilders\` registry declares the vocabulary of ` +
+                            `${uncheckedSystems.map((s) => `\`${s}\``).join(" or ")}, so ` +
+                            `${
+                                uncheckedSystems.length === 1 ?
+                                    "that system's block is"
+                                :   "those systems' blocks are"
+                            } unchecked — a key inside one is discarded at ` +
+                            `compile with no warning. Declare ` +
+                            `\`itemBuilders: [${declaredSystems(config).join(", ")}]\`.`,
+                    );
+                }
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
                     // The closed frontmatter regions (#128). Passed in rather
@@ -805,6 +837,13 @@ function lintCommand() {
                     // it is where the derivation is handed over — the linter
                     // states no list of iconless types of its own.
                     emittedArt: emittedArtFor,
+                    // Handed over for the same reason the vocabulary is: the
+                    // linter checks the blocks it is given and names no system
+                    // itself. Until this it was given none, so every tree was
+                    // held to a `sohl:` whatever system it ships for — and an
+                    // `hm3:` block went unread, which is a key discarded at
+                    // compile in silence.
+                    systems: systemBlocks,
                     references: argv.references,
                 });
 
