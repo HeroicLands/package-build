@@ -16,7 +16,7 @@ import {
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
-import { authoredFields } from "../engine/field-spec.mjs";
+import { authoredFields, STRING } from "../engine/field-spec.mjs";
 import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "../engine/ids.mjs";
 
 /** A note as the link index hands one over. */
@@ -442,6 +442,82 @@ describe('an authored `img: ""` (#218)', () => {
         expect(titleFindings).toHaveLength(1);
         expect(titleFindings[0].severity).toBe("warning");
         expect(titleFindings[0].message).toMatch(/title: null/);
+    });
+});
+
+/* -------------------------------------------------------------------- */
+/*  A system field that merely shares a note-level field's name (#312)   */
+/* -------------------------------------------------------------------- */
+
+describe("a system field that merely shares a note-level field's name (#312)", () => {
+    /** The blank-heading finding, whichever position provoked it. */
+    const blankHeading = (findings: Array<{ message: string }>) =>
+        findings.filter((f) => /publishes a page with no heading/.test(f.message));
+
+    it("says nothing about an affiliation whose office has no style of address", () => {
+        // `sohl.title` on an affiliation is the style of address the office
+        // carries — "Ajaw", "Warden" — and `""` is the ordinary way to say an
+        // office carries none. The note's *heading* is its top-level `title`,
+        // which this note does not author at all, so its page takes `name.full`
+        // exactly as intended. Twenty-eight `sohl-kethira-basic` affiliations
+        // are in this state and every one of them was reported.
+        const findings = lintNote(note("affiliation", { title: "" }), { schemas: NOTE_SCHEMAS });
+
+        expect(blankHeading(findings)).toHaveLength(0);
+    });
+
+    it("still reports the note-level `title` on that same type", () => {
+        // The exemption removes one position, not the check: an affiliation
+        // that really does publish a blank heading is still reported.
+        const findings = lintNote(note("affiliation", {}, { title: "" }), {
+            schemas: NOTE_SCHEMAS,
+        });
+
+        expect(blankHeading(findings)).toHaveLength(1);
+    });
+
+    it("still resolves through the block on a type that claims nothing there", () => {
+        // `skill` declares no `title`, so nothing competes for the spelling and
+        // the resolution is the unchanged one — a `sohl.title: ""` is the note's
+        // own heading, written in the block.
+        const findings = lintNote(note("skill", { title: "" }), { schemas: NOTE_SCHEMAS });
+
+        expect(blankHeading(findings)).toHaveLength(1);
+    });
+
+    it("reads the declaration rather than the field name", () => {
+        // The mechanism is `topLevelMeans`, which `resolveFieldValue` already
+        // honours — so the linter and the resolver agree about the one field
+        // that declares it, and a hardcoded `title` would not have said so.
+        const title = ITEM_FIELDS.affiliation.find((field) => field.name === "title") as any;
+
+        expect(title.topLevelMeans).toBeTruthy();
+    });
+
+    it("applies to the art fields too, where a type claims the block key", () => {
+        // `img` and `portrait` are checked the same way. No shipped type
+        // declares a system field of either name today — which is why
+        // `sohl.img: ""` still answers for the art check, the emitter reading
+        // the block first — so the exemption is exercised with a declaration of
+        // its own. A map's art was `sohl.image` until #142, and the next such
+        // collision must not need this fixed a second time.
+        const schemas = {
+            widget: [
+                {
+                    name: "img",
+                    to: "img",
+                    ...STRING,
+                    default: "",
+                    topLevelMeans: "the note's own artwork, not the widget's stamped badge",
+                    describe: "The badge a widget is stamped with.",
+                },
+            ],
+        } as any;
+        const art = (findings: Array<{ message: string }>) =>
+            findings.filter((f) => /`img: ""`/.test(f.message));
+
+        expect(art(lintNote(note("widget", { img: "" }), { schemas }))).toHaveLength(0);
+        expect(art(lintNote(note("widget", {}, { img: "" }), { schemas }))).toHaveLength(1);
     });
 });
 
