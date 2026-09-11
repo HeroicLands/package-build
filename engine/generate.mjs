@@ -23,10 +23,12 @@
  * Each `*` compiler walks the whole content tree and selects its own entries by
  * the note's `type` — every note in the tree belongs to this repository's
  * `contentPackage` (#56) — so routing is directory-agnostic: a file lands in a
- * pack because of its `type`, not its location. Which packs exist and which
- * folder hierarchy each one loads are declared in
- * `package-build.config.yaml`; folder files live under the content root and are
- * referenced from entry frontmatter via `sohl.folder: <id>`.
+ * pack because of its `type`, not its location. Which packs exist is declared
+ * in `package-build.config.yaml`; the **folder hierarchy is not declared
+ * anywhere**. A folder is a note like any other (#256), named by `packFolder`
+ * — its address — and it materialises in every pack that holds a document
+ * naming it, its ancestors with it (#257). So no pack loads a folder list, and
+ * two packs can no longer disagree about a folder they both hold.
  *
  * **The order the passes run in is derived, not declared** — see
  * {@link orderPassesByDependency}. The declared list is the manifest's `packs`

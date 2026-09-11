@@ -299,8 +299,9 @@ export class BasePackCompiler {
      * @param {string} options.dest - Where this pass writes its JSON.
      * @param {readonly string[]} options.skipDirectories - Directories the walk
      *   never descends into. Required: see {@link assertStatedScope}.
-     * @param {(path: string|null) => string|null} [options.folderResolver] -
-     *   Resolves a `sohl.folder` id against this pack's folder hierarchy.
+     * @param {(address: string|null) => string|null} [options.folderResolver] -
+     *   Resolves a `packFolder` — a folder note's address — to the Foundry
+     *   folder id it materialises as in this pack (#255, #257).
      * @param {string} [options.packName] - The pack this pass writes.
      * @param {string} [options.docType] - The Foundry document type it holds.
      * @param {{resolve: Function}} [options.router] - The pack router. Omit it
