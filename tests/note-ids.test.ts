@@ -21,6 +21,12 @@ import { describe, it, expect } from "vitest";
 import { documentId, DOCUMENT_ID_NAMESPACE, canonicalKey } from "../engine/content-address.mjs";
 import { makeId } from "../engine/ids.mjs";
 import { noteDocId, resolveNoteId } from "../engine/note-ids.mjs";
+import {
+    FOLDER_TYPE,
+    collectFolderNotes,
+    folderDocId,
+    folderDocument,
+} from "../engine/folder-notes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 
 const MAPS = [SOHL_DOCUMENT_SUBTYPES] as any;
@@ -114,5 +120,48 @@ describe("resolveNoteId", () => {
         const first = fm.id;
         resolveNoteId(fm, at);
         expect(fm.id).toBe(first);
+    });
+});
+
+/*
+ * A folder is a real Foundry `Folder`, and its `_id` is hashed under the
+ * **folder** namespace against its own address (#258) — not under `document`,
+ * so that a folder and an item sharing a shortcode cannot collide silently.
+ *
+ * `noteDocId` used to hash every note alike, so the value it returned for a
+ * folder was a second derivation of one id, and the one that does not ship.
+ * Nothing inside a build noticed: no pass reads a folder's id from here (the
+ * folder pass reads the note from disk), and every folder note in this
+ * repository pins an `id`, which wins in both paths. The content index is where
+ * it surfaced, because the index is read from outside (#310).
+ */
+describe("noteDocId, for a folder note (#310)", () => {
+    const folderFm = { type: FOLDER_TYPE, shortcode: "cookware" };
+
+    it("hashes under the folder namespace, which is what the packs address", () => {
+        expect(noteDocId(folderFm, at)).toBe(folderDocId("sohl", "cookware"));
+    });
+
+    it("is the id the emitted Folder document carries", () => {
+        // The end the issue is about: the published value and the shipped one.
+        const [folder] = collectFolderNotes(
+            [{ frontmatter: { ...folderFm }, absPath: "/content/Cookware.md" }],
+            "sohl",
+        );
+        expect(noteDocId(folderFm, at)).toBe(folderDocument(folder, null, "Item", {})._id);
+    });
+
+    it("is not the id it would derive under the document namespace", () => {
+        expect(noteDocId(folderFm, at)).not.toBe(documentId("sohl", "none", "folder", "cookware"));
+    });
+
+    it("still takes an authored id — a pin wins here as it does everywhere", () => {
+        expect(noteDocId({ ...folderFm, id: "ONXsqZAIZr2qzxTb" }, at)).toBe("ONXsqZAIZr2qzxTb");
+    });
+
+    it("reads the type case-insensitively, as the folder pass does", () => {
+        expect(noteDocId({ type: "Folder", shortcode: "cookware" }, at)).toBe(
+            folderDocId("sohl", "cookware"),
+        );
     });
 });
