@@ -146,9 +146,9 @@ the corpus moves, with the block winning. A field says so by naming each: its
 shared source, and the legacy in-block key it is being swept off. Reading it
 from the legacy position is _reported_, so the sweep has a progress signal, and
 the note compiles to the identical document either way — the same read-both,
-report-one shape every other retirement in this format uses. Until #305 the two
-were one declaration, so a field could name only one of them, and a row this
-table stated was reachable only by a note that had already moved.
+report-one shape every other retirement in this format uses. As one
+declaration the two would let a field name only one of them, and a row this
+table states would be reachable only by a note that had already moved.
 
 **A field whose spelling means something else at the note level has no shared
 source.** The fallback assumes the two vocabularies agree about what a name
@@ -166,8 +166,8 @@ them.** A data model declares everything a document stores, and part of that is
 what _play_ writes: an affliction's `onsetDate` is the world time its onset
 fired at. Writing `<system>.system.<field>` reaches such a field as directly as
 any other — the block is a verbatim passthrough, and the field really is in the
-schema — so until #330 a note could stamp one, and the compiled pack shipped one
-world's play state to every world that installed it.
+schema — so a note left free to stamp one ships that world's play state to
+every world that installs the compiled pack.
 
 So a field the document writes for itself is **declared as such**, and the
 declaration says both halves of the fact: authoring it is an error naming the
@@ -328,7 +328,7 @@ NA on both sides for that type, and its table says so.
 template priority on an Actor and not on an Item: `hm3/actors.mjs` writes
 `flags.hm3.templatePriority`, and HM3's Item pass writes no equivalent, so an HM3
 item compiled from a template note loses the fact that it is one
-(`HeroicLands/package-build#283`). The row states the mapping the format makes;
+The row states the mapping the format makes;
 the gap is in the pass, not in the table.
 
 #### An asset path's first segment says which package owns it
@@ -449,7 +449,7 @@ The shared mapping table above names it `data.templatePriority`, targeting
 
 > **`archetype` is the retiring spelling.** It is still read, in the `sohl:`
 > block and at the top level, so a tree sweeps on its own schedule
-> (`HeroicLands/package-build#266`) — but the frontmatter linter refuses it, and
+> — but the frontmatter linter refuses it, and
 > what is compiled and emitted is `templatePriority` on all three sides.
 >
 > It is more than a rename, and the collision is **already live** rather than
@@ -481,7 +481,7 @@ real priority** — the one SoHL's own templates ship at — not an absence.
 it.** SoHL records it in `system`; HM3 keeps it under its own flag scope,
 `flags.hm3`, and a note that is not a template writes nothing there rather than a
 `null` nothing reads. Both of HM3's passes write it — an Item's flag was missing
-until `HeroicLands/package-build#283`, which made an item note's priority reach
+until an item note's priority reached
 SoHL and stop at HM3, with nothing said on either side.
 
 **How a winner is chosen.** Opening a Create dialog gathers every candidate
@@ -816,7 +816,7 @@ and `docmacro-autoattack` its journal — two live addresses.
 system, type and shortcode alike — is `^[a-z0-9]+$`, so a capital anywhere in an
 address is an error naming the lowercase form.
 
-The shortcode was the exception until #340: it was case-sensitive and routinely
+The shortcode is the one that would otherwise be case-sensitive and routinely
 mixed (`Clb`, `LtShoe`, `HsTunic`) while the address built from it was lowercased
 wholesale, so the authored name and its address disagreed. Two names differing
 only in case are two names nobody can tell apart, and they collapsed onto one
@@ -831,7 +831,7 @@ against a roster and no vocabulary check before splitting.
 **`type` and `subType` are held to that charset, not merely expected to meet
 it**. A type is the first segment of every address, so a hyphen in one is
 read back as a segment boundary that was never meant as one. A `subType` reaches
-no address since #204 retired sections, but it is held to the same rule all the
+no address, sections being retired, but it is held to the same rule all the
 same: it is a vocabulary term the whole toolchain keys on, one closed set away
 from being an address again, and a charset that holds for two of the three
 segments and half of a fourth is a rule nobody can state. Both are checked
@@ -915,15 +915,15 @@ nowhere is a typo or an omission, and both want fixing.
 There are six ways a link can fail, and each is one **error** with one message
 wherever it is met:
 
-| finding          | what it means                                   | the fix                                                |
-| ---------------- | ----------------------------------------------- | ------------------------------------------------------ |
-| `unlabelled`     | no `\|`, so the link addresses nothing          | write `[[type-shortcode\|Text]]`                       |
-| `not-an-address` | labelled, but the target is not an address      | write the address, not the name                        |
-| `not-lowercase`  | any segment of the address is capitalised       | lowercase it — every segment is lowercase              |
-| `unknown-type`   | qualified, but names no type this build knows   | correct the type segment                               |
-| `unresolved`     | parses as an address; nothing publishes it      | fix the shortcode, or qualify to reach another package |
-| `ambiguous`      | _unreachable since #336; kept for the manifest_ | —                                                      |
-| `unknown-anchor` | the address resolves; the `#section` does not   | correct the anchor                                     |
+| finding          | what it means                                 | the fix                                                |
+| ---------------- | --------------------------------------------- | ------------------------------------------------------ |
+| `unlabelled`     | no `\|`, so the link addresses nothing        | write `[[type-shortcode\|Text]]`                       |
+| `not-an-address` | labelled, but the target is not an address    | write the address, not the name                        |
+| `not-lowercase`  | any segment of the address is capitalised     | lowercase it — every segment is lowercase              |
+| `unknown-type`   | qualified, but names no type this build knows | correct the type segment                               |
+| `unresolved`     | parses as an address; nothing publishes it    | fix the shortcode, or qualify to reach another package |
+| `ambiguous`      | _unreachable; kept for the manifest_          | —                                                      |
+| `unknown-anchor` | the address resolves; the `#section` does not | correct the anchor                                     |
 
 `ambiguous` no longer fires. An omitted segment defaults rather than wildcarding,
 so a written target expands to one canonical address and a lookup returns one
@@ -1021,10 +1021,10 @@ having nothing worth summarising.
 Every note in **both** groups still produces its JournalEntry and its web page.
 The difference is only whether a system Actor or Item is created as well.
 
-That has been true of actors only since #337. A being used to produce its Actor
-and nothing else, which left it the one system-bearing note with no address at
-`none` — so a prose link naming it had nowhere to land. It now carries a
-documentation journal like every other such note, addressed
+That includes actors. A being producing its Actor and nothing else would be
+the one system-bearing note with no address at `none`, leaving a prose link
+naming it nowhere to land. It carries a documentation journal like every other
+such note, addressed
 `<package>-none-docbeing-<shortcode>` beside the Actor's
 `<package>-<system>-being-<shortcode>`.
 
@@ -2111,11 +2111,11 @@ depicts what it depicts. A place's maps are therefore derived — every map whos
 The three differ only in the canvas defaults derived for them, which is why they
 are subTypes of one type rather than three types.
 
-> The three were **types** until package-build#174, which is the shape the notes
-> in the wild still carry. Both are read: a note still writing `type: battlemap`
-> is reported and told what to write instead, exactly as a note writing
-> `type: character` is (SoHL#1580). A consumer's `sections` config keys off the
-> type, so it takes one `map` entry where it carried three.
+> The three are also readable as **types**, which is the shape notes in the
+> wild still carry: a note writing `type: battlemap` is reported and told what
+> to write instead, exactly as a note writing `type: character` is. A
+> consumer's `sections` config keys off the type, so it takes one `map` entry
+> rather than three.
 
 **NoteLocation** is `[GridLocation, anchor]` where the `anchor` is an anchor identified in the body of the note, and `GridLocation` represents a particular grid location on the document.
 
@@ -2153,24 +2153,13 @@ compilation, and the server-side migration shim is version-gated on
 single Level is synthesised from `img`, `overlay`, `levelName` and
 `backgroundColor`.
 
-> **`img`, at the note's top level, as every other type's artwork is.** A map
-> alone named it `image` and read it out of the `sohl:` block, so one idea had
-> two spellings and this table had to hedge rather than state a rule
-> ([package-build#142](https://github.com/HeroicLands/package-build/issues/142)).
-> Art is not system-specific — a Scene is a core Foundry document, and a second
-> system would want the identical art — so the field sits beside every other
-> note's `img` rather than inside a system block.
+> **`img`, at the note's top level, as every other type's artwork is.** Art is
+> not system-specific — a Scene is a core Foundry document, and a second system
+> would want the identical art — so the field sits beside every other note's
+> `img` rather than inside a system block.
 >
-> `image` was **retired in favour of it**, in the three steps `package:` took
-> , and all three have now run
-> ([package-build#149](https://github.com/HeroicLands/package-build/issues/149)).
-> Through the window both spellings were read, `img` won where a note carried
-> both, and a note still writing `image` got a located **warning** rather than a
-> refusal — it compiled to the byte-identical document, so failing a build over
-> it would have redded a tree that had done nothing wrong. The trees were then
-> swept, and the alias dropped. `image` is now simply not a key a map has: in a
-> `sohl:` block it is reported as unknown, and either way the note is refused
-> for the `img` it never declared.
+> `image` is **not a key a map has**: in a `sohl:` block it is reported as
+> unknown, and either way the note is refused for the `img` it never declared.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,
@@ -2289,8 +2278,8 @@ way (`homepage-root`).
 
 There is no landing page and no section. A `README.md` used to _be_ its
 section's landing, and a `subType: collection` note with a top-level `section:`
-key was a second way to say the same thing. All of it is retired — the second
-rule in #202, the first in #204 — because a section appears in **no address**: a
+key was a second way to say the same thing. All of it is retired, because a
+section appears in **no address**: a
 page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
 section is what Hugo calls a content directory, and the note format does not
 carry one.

@@ -42,12 +42,12 @@
  * transmission — and is true of it whichever system is reading. What each
  * system makes of that value is declared elsewhere, in that system's own half.
  *
- * **The type names here are the specification's**, since #78 renamed `armor`,
+ * **The type names here are the specification's**, which renamed `armor`,
  * `projectile` and `concoction` off the `…gear` spellings that named a SoHL
  * document subtype rather than the thing the note is about. `weapon` is the one
  * the specification and this registry still spell differently: both systems
  * call that document a `weapongear`, so the name says nothing system-specific
- * and #78's table has no row for it. A note left on a renamed spelling still
+ * and the table has no row for it. A note left on a renamed spelling still
  * reaches its entry — every type-keyed lookup normalises through
  * `RENAMED_TYPES` — and is reported rather than refused until the content trees
  * have swept.
@@ -63,7 +63,7 @@
  * about why.
  *
  * A subType reaches no address of its own. It did when this rule was written —
- * a `doc`'s was its section, a path segment — and #204 retired sections from
+ * a `doc`'s was its section, a path segment — and sections are retired from
  * the note format one release later. It keeps the rule regardless, and the
  * reason is not inertia: a subType is a vocabulary term the whole toolchain
  * keys on, it is one closed set away from being an address again, and a charset
@@ -76,7 +76,7 @@
  */
 
 // The one charset, read rather than restated. A second spelling of the pattern
-// is how the three disagreements found in #202/#203 happened.
+// is how a disagreement between the three arises.
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
@@ -157,7 +157,7 @@ const LINKS = Object.freeze({ shape: "list of wikilinks", kind: "list" });
  * another, and both large trees file the same folder under a different parent
  * in the items pack and the journals pack.
  *
- * Typing it as a bare {@link LINK} is what #288 was: the compiler read both
+ * Typing it as a bare {@link LINK} makes the compiler read both
  * forms and the lint rejected one of them, so every note using the form the
  * specification prescribes was a finding and no note using it was not.
  */
@@ -810,7 +810,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // document, so its address carries the `none` system segment and
     // everything it says is a `data` property.
     //
-    // It carries **no prose**, which is the decision #256 left open: a folder
+    // It carries **no prose**: a folder
     // is structure, not content, so it wants no documentation journal and takes
     // no part in `docEntryTypes`.
     folder: Object.freeze({
@@ -1001,10 +1001,11 @@ export const NOTE_VOCABULARY = Object.freeze({
 /**
  * What a note carrying a subType outside the address charset is told.
  *
- * **Why the charset holds for a subType, which reaches no address.** #206 said
+ * **Why the charset holds for a subType, which reaches no address.** The rule
+ * said
  * "the hyphen separates the segments of an address", and that was true of a
  * subType when it shipped: `sectionOf` returned a `doc`'s subType, so the value
- * was a URL path segment. #204 retired sections and it is not one now. The rule
+ * was a URL path segment. Sections are retired and it is not one. The rule
  * stays, on its own footing: a subType is a vocabulary term the whole toolchain
  * keys on, and it is one closed set away from being an address segment again —
  * so the reason to spell it in the address charset is that a charset holding
@@ -1054,7 +1055,7 @@ export function typeCharsetMessage(type) {
  *
  * The message states the reason **per key**, as {@link typeCharsetMessage} and
  * {@link subTypeCharsetMessage} do: a type is an address segment, and a subType
- * has not been one since #204 retired sections, so a single claim covering both
+ * is not one, since sections are retired, so a single claim covering both
  * would be half wrong.
  *
  * @param {Readonly<Record<string, TypeVocabulary>>} vocabulary - The registry.
@@ -1077,7 +1078,7 @@ export function assertVocabularyCharset(vocabulary, where = "the note vocabulary
         `${where} declares ${bad.join(", ")}, which ${bad.length === 1 ? "is" : "are"} ` +
             `not ${ADDRESS_SEGMENT_PATTERN.source}. A type is an address segment, ` +
             `and the hyphen separates segments rather than occurring inside one. ` +
-            `A subType reaches no address since #204 retired sections, and is ` +
+            `A subType reaches no address, and is ` +
             `held to the same charset anyway: it is a vocabulary term the whole ` +
             `toolchain keys on, one closed set away from being a segment again, ` +
             `and a charset holding for every term but that one would be a rule ` +

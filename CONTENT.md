@@ -376,7 +376,7 @@ pack: mysteries
   finding**. A note produces more than one document as a matter of
   course: an item note an Item and the JournalEntry its prose becomes, a map
   note a Scene and a JournalEntry, an actor note an Actor and a JournalEntry
-  since #337. Where the configuration declares no pack for one of them, that
+  too. Where the configuration declares no pack for one of them, that
   document used to be dropped while the rest of the note compiled into a pack
   that does exist — a build that succeeds and ships half of what was written.
   The finding names the note, the class with no pack, and the class that did
@@ -388,7 +388,7 @@ pack: mysteries
   no doc — so a tree of deliberately description-less items loses nothing by
   having no JournalEntry pack, and is told nothing. And it names no system, so a
   type one system maps and another does not stays silent for the system that
-  declines it, per #79.
+  declines it.
 
 **The configuration is found by walking up from the working directory, and from
 the installed package only if that finds nothing.** `engine/pack-config.mjs`
@@ -487,7 +487,7 @@ than one registry declares, **throws** rather than answering with whichever was
 declared first.
 
 **`hm3` is a real registry, and the rest of the pipeline follows the same
-field.** Since #139 this package ships two system halves, `sohl/` and `hm3/`,
+field.** This package ships two system halves, `sohl/` and `hm3/`,
 each with its own builders, its own default art and its own note-type →
 document-subtype map; they share the engine between them and import nothing from
 each other. A pack's `system:` is what selects among them — the Item and Actor
@@ -513,10 +513,9 @@ what its documents are stamped `_stats.systemId` and `systemVersion` from, and
 the version can only come from that block — or, for a package whose packs are
 all for its own system, from the package-wide stats. A pack naming a system that
 resolves to neither is refused at configuration time, naming the pack and the
-entry to add. It used to fall through and stamp `null` for both, which is the
-plausible lie #43 was about arriving by the one path the check did not cover:
-`harn-ensemble` shipped 2,513 compiled actors that way, out of a pack whose
-configuration says `system: sohl` on the line above.
+entry to add. Falling through and stamping `null` for both is a plausible lie:
+a pack whose configuration says `system: sohl` on the line above ships every
+compiled actor with no system at all.
 
 No `default: true` anywhere, because each system has exactly one pack of each
 type and a default is resolved per system. Marking one is still allowed and
@@ -736,7 +735,7 @@ one failed the build with an error naming a module in someone else's package.
 
 Widening that map was not the fix. It is deliberately SoHL data, shared with the
 runtime's `SohlItem.getDefaultArtwork` so that the build-time and runtime
-defaults are one list and cannot drift (SoHL#932/#1510). Pairing art with the
+defaults are one list and cannot drift. Pairing art with the
 builder instead moves it onto the seam a type is _already_ declared through, and
 costs the `sohl` package nothing: `ITEM_BUILDERS` reads each entry's image out of
 that same map, so there is still exactly one map — and the drift a test used to
@@ -841,7 +840,7 @@ side too.** If the two positions hold unrelated quantities, then the _in-block_
 position is not the note-level field either — so a check about a note-level field
 (the page's heading, an art path) reads past a block key the note's own type
 claims for something else. Declaring `topLevelMeans` settles both directions at
-once; it was read for the emitted field alone until #312, which is how an
+once. Reading it for the emitted field alone is how an
 affiliation's office style came to answer for its page heading.
 
 **An exempted field is still authorable**, at the two positions that describe the
@@ -983,10 +982,8 @@ package whose front page is not the page a person chose.
   authored homepage exists to prevent, and a silent one: the site build reports
   `wrote 0 homepage(s)` and exits 0.
 - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
-  since #182 it is only that.** It used to rest on the fixed destination every
-  homepage shared — the second overwrote the first — so the address rule
-  enforced it as a side effect. A homepage is written at its own address now, so
-  two of them publish two pages and collide over nothing: the duplicate-address
+  only that.** A homepage is written at its own address, so two of them publish
+  two pages and collide over nothing: the duplicate-address
   check catches only the pair that happen to share a shortcode, and says nothing
   at all about a `homepage-root` beside a `homepage-front`. Which of the two the
   redirect at `/<package>/` should name is a question nothing here can answer,
@@ -1130,7 +1127,7 @@ constant a `shortcode` is held to, read rather than restated. A type is a
 segment of every address — the first of the short form an author writes, the
 third of the canonical `package-system-type-shortcode` — so a hyphen in one is
 read back as a segment boundary nobody wrote. A `subType` reaches no address
-since #204 retired sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
+— sections are retired — and keeps the rule anyway: it is a vocabulary term the toolchain keys
 on, and one charset that holds for every term is a rule an author can state. The
 rule is checked ahead of the closed-set check, which is what makes it reach a
 type whose values are declared but not yet enumerated:
@@ -1348,7 +1345,7 @@ serves.
 
 ### The homepage's own links
 
-The homepage is the page a reader arrives at, and until #54 it was the one page
+The homepage is the page a reader arrives at, and it is the one page
 nothing checked. SoHL's landing pointed at `kb/creature/` and `kb/character/`
 from the day those two types merged into `being` — two 404s on the package's
 front page, through every build, because a landing's links went through no
@@ -1798,9 +1795,8 @@ publish:
 
 A note's `subType` is checked against the values its type declares, and only
 those. It briefly had a second reading — a `README` landing's `subType` was the
-_address_ it landed at, so the closed genre list could not answer for it (#197,
-#198, #200, #201) — and #204 removed the cause rather than widening the
-vocabulary again.
+_address_ it landed at, so the closed genre list could not answer for it. The
+cause is removed rather than the vocabulary widened again.
 
 The only note the scheme yields no address for is one carrying no `shortcode`.
 It is **reported and omitted**, never guessed: the command prints one located
@@ -2046,7 +2042,7 @@ That is the whole envelope. A homepage **compiles into no compendium
 document**, and so appears in no pack and in no link manifest — which is why it
 still refuses `id`. Everything else about its address is ordinary: it declares a
 `shortcode`, publishes at `/<contentPackage>/homepage-root/`, and is cited as
-`[[homepage-root|Text]]` (#182 — see
+`[[homepage-root|Text]]` (see
 [The homepage is addressed like every other note](#the-homepage-is-addressed-like-every-other-note)).
 `/<contentPackage>/` itself is a redirect the package authors, not a page this
 build writes. It is dispatched on `type` like every other note, not on a
@@ -2263,8 +2259,8 @@ to a code span.
 Leaving it unset is the legitimate empty case — every `{@link}` degrades, and
 nothing is reported. Setting it to a path that cannot be read, cannot be parsed,
 or does not hold a name → page object **fails the build**, naming the file and
-the reason: those were all indistinguishable from "no symbols" until #75, so a
-site could publish 224 dead `{@link}` tags at exit 0. A map that is read reports
+the reason. Left unreported they are indistinguishable from "no symbols", and
+a site publishes dead `{@link}` tags at exit 0. A map that is read reports
 its symbol count at info level, which is the only way to tell a map that loaded
 from one that loaded empty without reading the emitted HTML.
 
@@ -2442,7 +2438,7 @@ affiliation standings. Each has its own entry point —
 `.../engine/region-events`, `.../sohl/affiliation-standings` — so a client bundle
 reaches the constant without importing a barrel that grows to hold compilers
 reading the filesystem. Keeping one copy of each is the point: the build-time and
-runtime values cannot disagree, which is the drift that produced #932.
+runtime values cannot disagree.
 
 `@heroiclands/package-build/content-config` exposes the configuration contract's own
 module, so a consumer can name its types (`ContentBuildConfig`, `PackSpec`) from
