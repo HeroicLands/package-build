@@ -6,7 +6,7 @@
  */
 
 /**
- * The charset guarantees a canonical address rests on (#59).
+ * The charset guarantees a canonical address rests on.
  *
  * An address is parsed by counting hyphen-separated segments, which is sound
  * only while the hyphen is *purely* a separator — no segment may contain one.
@@ -103,7 +103,7 @@ describe("the address-segment charset", () => {
         expect(isAddressSegment("weapon2")).toBe(true);
     });
 
-    it("rejects a capital — two names differing only in case are one name (#340)", () => {
+    it("rejects a capital — two names differing only in case are one name", () => {
         // `Dgr` beside `dgr` is a distinction nobody can say out loud and can
         // only see by looking twice. It also collapsed silently: `canonicalKey`
         // lowercases, so both published one address, one `_id` and one URL.
@@ -148,7 +148,7 @@ describe("`contentPackage` must be alphanumeric", () => {
 
     it("names the file, line and column the key is written on", () => {
         // The `file:line:column: severity: message` form the rest of the build
-        // uses (#95) — and the position has to be *true*, so it is read back
+        // uses — and the position has to be *true*, so it is read back
         // out of the file that was written.
         const { message, text } = rejectionFor("harn-adventures");
         const at = /^(\S+):(\d+):(\d+): error: /.exec(message);

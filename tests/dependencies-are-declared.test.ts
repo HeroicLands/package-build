@@ -7,14 +7,14 @@
 
 /**
  * Every package this toolchain imports at runtime must be declared in its own
- * `dependencies` (#1557).
+ * `dependencies`.
  *
  * This package spent its first six changes as a workspace inside the Song of
  * Heroic Lands repository, where a missing declaration is invisible: npm hoists
  * the root's `devDependencies` into the workspace root's `node_modules/`, so
  * `acorn` or `archiver` resolves whether or not this package ever asked for it.
  * Installed from npm by another repository nothing hoists, and the first import
- * fails. The content half shipped exactly that way once (#1557), and an
+ * fails. The content half shipped exactly that way once, and an
  * extraction is precisely the moment the defect becomes reachable — the same
  * class of "passes in situ, fails when installed" defect that
  * `suite-is-self-contained.test.ts` guards from the other direction.
@@ -66,7 +66,7 @@ const declaredDev = Object.keys(manifest.devDependencies ?? {});
 const SPECIFIER = /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
 
 /**
- * The source with every comment's characters replaced by spaces (#355).
+ * The source with every comment's characters replaced by spaces.
  *
  * English prose matches {@link SPECIFIER} whenever it contains the word `from`
  * — or `import`, or `require` — followed by a quoted phrase, which ordinary

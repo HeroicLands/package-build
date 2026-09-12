@@ -6,7 +6,7 @@
  */
 
 /**
- * The one normalisation this build makes (#181).
+ * The one normalisation this build makes.
  *
  * `slugify` reduces prose to a URL-safe token for a **heading anchor** and a
  * **pack filename**. It no longer addresses anything: a page's URL is its
@@ -93,7 +93,7 @@ describe("slugify", () => {
 
 describe("what a name no longer decides", () => {
     it("exports no page slug and no collision check", () => {
-        // Both existed only to make a display name serve as an address (#181).
+        // Both existed only to make a display name serve as an address.
         expect(Object.keys(contentSlugModule).sort()).toEqual(["slugify"]);
     });
 });

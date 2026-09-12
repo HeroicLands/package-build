@@ -7,7 +7,7 @@
 
 /**
  * A derived id is keyed on the thing's **identity**, never on where it sits in
- * a list (#268).
+ * a list.
  *
  * Two ids were keyed on position: an actor's embedded item, and an unanchored
  * journal page. A Foundry id is how a world refers to a document it imported,
@@ -176,7 +176,7 @@ describe("a journal page's id does not move when a heading is inserted", () => {
 // -------------------------------------------------- no document, no address --
 
 describe("a type that compiles into no compendium document publishes no UUID", () => {
-    // Every addressable note now derives an id (#270), where before a note that
+    // Every addressable note now derives an id, where before a note that
     // compiled into nothing simply authored none. So "has an id" stopped being
     // evidence that a compendium document exists, and the types for which it
     // does not have to say so themselves.

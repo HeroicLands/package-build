@@ -19,7 +19,7 @@
  * failed are the same in every pass. They were written out
  * once per pass — three times when this was filed, five by the time it landed —
  * so a fix to any of them had to be made everywhere, and the passes drifted
- * apart in exactly the places nobody was comparing (#1509).
+ * apart in exactly the places nobody was comparing.
  *
  * A pass now states only what makes it that pass:
  *
@@ -43,7 +43,7 @@
  * `selects` answers *which document type* a pass claims, and it is the same
  * answer for every pack of that type. Which **pack of that type** a claimed
  * note lands in is a second question, answered by the pack router from the
- * note's own `pack:` declaration (#1566) — so a subclass never has to know that
+ * note's own `pack:` declaration — so a subclass never has to know that
  * its type ships in more than one pack.
  *
  * **This is the extension point.** The pack list is data
@@ -74,7 +74,7 @@ import {
     statsForPack,
 } from "./helpers.mjs";
 // The record accessors only — see `engine/index-records.mjs` for why they live
-// apart from the index that builds them (#243).
+// apart from the index that builds them.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
@@ -98,7 +98,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
  * note is one this build **refused** — it declares a retired frontmatter field
  * — and it is an error; a skipped one legitimately belongs to another pass, and
  * there are thousands of those. Folding the first into the second is what let a
- * whole tree be filtered out in silence (#56).
+ * whole tree be filtered out in silence.
  *
  * @typedef {object} PassStats
  * @property {number} compiled - Notes that became a document.
@@ -106,7 +106,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
  * @property {number} skippedOther - Notes this pass does not claim.
  * @property {number} declined - Notes this pack **refused** — one declaring a
  *   retired frontmatter field, or one routed to a system pack whose system it
- *   says nothing about (#58). Counted as errors, never as skips.
+ *   says nothing about. Counted as errors, never as skips.
  */
 
 /**
@@ -148,7 +148,7 @@ export class BasePackCompiler {
      * its generated tables expanded and its wikilinks converted.
      *
      * False for a pass whose output must be exactly what the author typed —
-     * the macros pass, whose `command` is executable source (#1514). A pass
+     * the macros pass, whose `command` is executable source. A pass
      * that says so also skips building the content-wide link index it would
      * never read.
      *
@@ -165,7 +165,7 @@ export class BasePackCompiler {
      * passes wrote — so an Actor pass must run after every Item pass, and it
      * says so here.
      *
-     * The generator derives the compile order from this (#73), so the order
+     * The generator derives the compile order from this, so the order
      * `packs:` declares is presentation only — it is the manifest's `packs`
      * array as well, and a consumer orders that for a reader. A pass that
      * reads another's output states the dependency once, in the class that
@@ -181,7 +181,7 @@ export class BasePackCompiler {
 
     /**
      * Whether this pass's document **is** a system's data, and therefore takes
-     * only notes that carry that system's block (#58).
+     * only notes that carry that system's block.
      *
      * A pack may declare a `system:` — `harn-ensemble` ships an `actors-hm3`
      * and an `actors-sohl` from one tree — and the note-side half of that is
@@ -237,7 +237,7 @@ export class BasePackCompiler {
     errorCount = 0;
 
     /**
-     * Emitted-`system` findings, one per `documentType|subtype|field` (#155).
+     * Emitted-`system` findings, one per `documentType|subtype|field`.
      *
      * A key the compiler writes is on **every** document of a subtype, so
      * reporting it where it is found would print the same sentence 3,126 times
@@ -301,7 +301,7 @@ export class BasePackCompiler {
      *   never descends into. Required: see {@link assertStatedScope}.
      * @param {(address: string|null) => string|null} [options.folderResolver] -
      *   Resolves a `packFolder` — a folder note's address — to the Foundry
-     *   folder id it materialises as in this pack (#255, #257).
+     *   folder id it materialises as in this pack.
      * @param {string} [options.packName] - The pack this pass writes.
      * @param {string} [options.docType] - The Foundry document type it holds.
      * @param {{resolve: Function}} [options.router] - The pack router. Omit it
@@ -347,7 +347,7 @@ export class BasePackCompiler {
             writable: false,
         });
         // The walk's scope, stated by whoever built this pass rather than
-        // resolved from the working directory (#243). Every walk this compiler
+        // resolved from the working directory. Every walk this compiler
         // makes — its own, the table corpus, the link index, the SQL tables —
         // uses this one answer.
         Object.defineProperty(this, "skipDirectories", {
@@ -360,14 +360,14 @@ export class BasePackCompiler {
         this.router = router;
         this.routingReporter = routingReporter;
         // The corpus this compile is running over, derived once by
-        // `generatePacksJson` and shared by every pass (#243). A pass that is
+        // `generatePacksJson` and shared by every pass. A pass that is
         // handed none derives its own in `prepare`, which is what a consumer
         // constructing one compiler directly does.
         this.corpus = corpus;
     }
 
     /**
-     * The `_stats` block every entry this pass emits is stamped with (#48).
+     * The `_stats` block every entry this pass emits is stamped with.
      *
      * Per pack rather than per package, because a module may ship the same
      * content for two systems — `harn-ensemble` has an `actors-hm3` pack and an
@@ -424,7 +424,7 @@ export class BasePackCompiler {
     eligibleFor(fm) {
         if (!this.constructor.requiresSystemBlock || !this.packSystem) return true;
         if (carriesSystemBlock(fm, this.packSystem)) return true;
-        // Another system's pack of this document type will claim it (#139). A
+        // Another system's pack of this document type will claim it. A
         // note carrying only `hm3:` routes here because this pack is the
         // *default* of its document type, and defaults are declared per type
         // rather than per system — but it is not an incomplete note, it is
@@ -446,7 +446,7 @@ export class BasePackCompiler {
 
     /**
      * A refusal only this pass can make, because its subject is the note's
-     * **type** (#330).
+     * **type**.
      *
      * The `assertNo*Field` family above it in the walk is type-agnostic by
      * construction: it runs before `selects`, so that a note declaring a
@@ -473,7 +473,7 @@ export class BasePackCompiler {
      * Whether this pass claims a note. **Required.**
      *
      * Called only for a note this build compiles — every note in the tree
-     * belongs to the configured content package (#56) — so a subclass decides
+     * belongs to the configured content package — so a subclass decides
      * on `type` alone.
      *
      * @param {object} fm - The note's frontmatter.
@@ -524,7 +524,7 @@ export class BasePackCompiler {
         // The corpus, and the three whole-tree derivations built over it. Every
         // one of them is a pure function of (tree, scope, router), which do not
         // vary between the passes of a single compile — so `generatePacksJson`
-        // derives them once and hands them to each pass (#243).
+        // derives them once and hands them to each pass.
         //
         // The measurement that motivated it: compiling `sohl` read every note
         // **20 times**, four per pass — this link index, the table corpus, the
@@ -580,14 +580,14 @@ export class BasePackCompiler {
             type: fm.type,
             id: fm.id,
             // Where this note is, so a link that resolves nowhere is reported
-            // at a position an author can open rather than by note name (#17).
+            // at a position an author can open rather than by note name.
             file: absPath,
             bodyLine,
             bodyColumn,
             lineMap,
             // A `[[#slug]]` self-link addresses the source note, which has no
             // entry in the index — so where its own documents landed has to
-            // travel with it (#1566).
+            // travel with it.
             pack: this.router?.resolveOrNull(fm, packForType(fm.type).docType),
             docPack: this.router?.resolveOrNull(fm, "JournalEntry"),
             index: this.linkIndex,
@@ -636,8 +636,7 @@ export class BasePackCompiler {
     }
 
     /**
-     * Report every `<system>.system` key the receiving subtype does not declare
-     * (#58).
+     * Report every `<system>.system` key the receiving subtype does not declare.
      *
      * An **error**, not a warning: Foundry drops an unknown `system` key at
      * construction without a word, so the alternative is a document shipped
@@ -657,8 +656,8 @@ export class BasePackCompiler {
      */
     reportUndeclaredSystemData(fm, block, documentType, subType) {
         const absPath = this.currentNote?.absPath;
-        // Whose schema, where a build has more than one system: this pack's
-        // (#139). `undefined` — a pack that declares no system — keeps the
+        // Whose schema, where a build has more than one system: this pack's.
+        // `undefined` — a pack that declares no system — keeps the
         // package-wide answer this always used.
         const findings = checkAuthoredSystemData(fm, {
             block,
@@ -676,7 +675,7 @@ export class BasePackCompiler {
 
     /**
      * Record every `system` key the *compiled document* carries that the
-     * receiving subtype does not declare (#155).
+     * receiving subtype does not declare.
      *
      * The sibling of {@link BasePackCompiler#reportUndeclaredSystemData}, and
      * the half that sees what no declaration states. A compiler writes keys of
@@ -859,7 +858,7 @@ export class BasePackCompiler {
         }
         if (stats.declined) {
             // Its own line, at error level: these are not skips, and burying
-            // them in the skipped tally is the defect (#56). Each one has
+            // them in the skipped tally is the defect. Each one has
             // already been named individually as a diagnostic.
             log.error(
                 `Declined ${stats.declined} note(s) — each named above, with ` +
@@ -892,7 +891,7 @@ export class BasePackCompiler {
         // refusal, because it *is* the same refusal: the index defers to
         // `assertNoDeclaredPackage` for a retired `package:`, which is the
         // check this loop makes a few lines further down. All that changed is
-        // which pass sees the note first (#243).
+        // which pass sees the note first.
         if (this.reportsCorpusProblems) {
             for (const problem of this.corpus.problems ?? []) {
                 stats.declined++;
@@ -911,7 +910,7 @@ export class BasePackCompiler {
         }
 
         // The corpus, from the index this compile derived once — not a walk of
-        // this pass's own (#243). Each note is then read for its **prose**: the
+        // this pass's own. Each note is then read for its **prose**: the
         // index carries what is *about* a note and deliberately not its text,
         // nor the `bodyLine`/`bodyColumn` a diagnostic needs, and this pass has
         // to have the body anyway. So the read is one this pass was already
@@ -922,7 +921,7 @@ export class BasePackCompiler {
             const absPath = noteFile(this.contentBase, record);
             const { frontmatter: fm, body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
             // Which note this pass is on, so anything it calls can report a
-            // position without every method having to be handed one (#17).
+            // position without every method having to be handed one.
             this.currentNote = { absPath, bodyLine, bodyColumn };
             // A file carrying no frontmatter at all is not a note.
             if (!fm) {
@@ -933,12 +932,12 @@ export class BasePackCompiler {
             // note is answered whichever pass would have claimed it — and
             // whatever the declared value says.
             //
-            // - `package:` (#56): a note's package is the repository's
+            // - `package:`: a note's package is the repository's
             //   configured one, so declaring it restates a constant.
-            // - `draft:` (#69): it excluded the note from the packs, the
+            // - `draft:`: it excluded the note from the packs, the
             //   manifest and the site, and no checker reported the links that
             //   left dangling.
-            // - `aliases:` (#180): it fed the alias index, which the bare
+            // - `aliases:`: it fed the alias index, which the bare
             //   `[[Alias]]` form was looked up in; the form is retired, so the
             //   list has no reader left. The nested `name.aliases` is a
             //   different field and is **not** refused — it is reserved, and
@@ -973,7 +972,7 @@ export class BasePackCompiler {
             }
             // The id this note's document is filed under: its authored `id`
             // if it pins one, otherwise the id derived from its canonical
-            // address (#270). Resolved for every note this pass claims, and
+            // address. Resolved for every note this pass claims, and
             // through the one function every other corpus reader calls — the
             // wikilink index, the content index and the Foundry-address pass
             // must all compute the id this pass compiles under, and none of
@@ -1021,7 +1020,7 @@ export class BasePackCompiler {
                     stats.skippedOther++;
                     continue;
                 }
-                // The type-specific half of the retired-field family (#330):
+                // The type-specific half of the retired-field family:
                 // what a note of *this* type may not write, which needs the
                 // type's own field declaration and so cannot be asked before
                 // `selects`. Counted as a declined note for the same reason
@@ -1048,7 +1047,7 @@ export class BasePackCompiler {
                 this.errorCount++;
                 // `position` is set by whatever failed if it knew where — an
                 // unresolved address, a bad table directive — so the report
-                // points at the line rather than at the note (#17).
+                // points at the line rather than at the note.
                 this.noteError(
                     `${this.noteLabel(fm)} failed to compile: ${err.message}`,
                     err.position,

@@ -24,7 +24,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
  * a compendium-bloat measure, paid because one item is embedded across hundreds
  * of beings, and an actor is singular so the indirection buys nothing.
  */
-describe("an actor note carries a documentation journal (#337)", () => {
+describe("an actor note carries a documentation journal", () => {
     it("counts `being` among the doc-carrying types", () => {
         expect(hasDocEntry("being")).toBe(true);
         expect(docEntryTypes().has("being")).toBe(true);

@@ -323,6 +323,6 @@ describe("the retiring language", () => {
 
         expect(errors).toEqual([]);
         expect(warnings).toHaveLength(1);
-        expect(warnings[0].reason).toMatch(/#246/);
+        expect(warnings[0].reason).toMatch(/`dataview`.*replaced by `sql`/);
     });
 });

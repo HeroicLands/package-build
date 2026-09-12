@@ -21,8 +21,8 @@
  *
  * It used to be a property of the note, and a **selector**: the compile loop
  * read `package:` out of frontmatter and skipped anything that did not match
- * the configured value. That is the defect this module exists to remove
- * (#56). The skip was silent and it was bucketed as "belongs to another pass",
+ * the configured value. That is the defect this module exists to remove.
+ * The skip was silent and it was bucketed as "belongs to another pass",
  * so a tree whose notes named a package no configuration answered to compiled
  * **zero notes and exited 0** — which is exactly the state the un-migrated
  * `hm-loc-*` / `hm-adv-*` repositories are in today.
@@ -64,7 +64,7 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
  * field, so a collection note that scopes itself with `WHERE … and package =
  * "sohl"` would match nothing now that the field is gone, and would render an
  * **empty table** in silence. Supplying the derived value here is what kept the
- * sweep mechanical rather than a trap (#56) — and a query that never mentions
+ * sweep mechanical rather than a trap — and a query that never mentions
  * `package` is unaffected either way.
  *
  * The frontmatter is copied rather than written into: it is the note's own

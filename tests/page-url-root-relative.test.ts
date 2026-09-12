@@ -7,7 +7,7 @@
 
 /**
  * A page's stated `url:` is **site-root relative**; every href is **site
- * absolute** (#217).
+ * absolute**.
  *
  * The two used to be one value. `site.base` is correctly where the package is
  * served — the prefix on every `href` this build writes into a page body, and
@@ -159,8 +159,8 @@ describe("everything that points at a page keeps the package base", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const index = buildSiteIndex(pages);
         expect(index.index.get("weapongear/dagger")?.url).toBe("/demo/weapongear-dagger/");
-        // The canonical key carries the system a `weapongear` compiles into
-        // (#59); the site index derives it from the type, so the caller states
+        // The canonical key carries the system a `weapongear` compiles into;
+        // the site index derives it from the type, so the caller states
         // nothing extra.
         expect(index.index.get("demo-sohl-weapongear-dagger")?.url).toBe(
             "/demo/weapongear-dagger/",
@@ -171,7 +171,7 @@ describe("everything that points at a page keeps the package base", () => {
     // a page's URL carries the base this build serves the package at, and the
     // address a *consumer* resolves is that URL with the base stripped. Stating
     // them separately is how a published address came to assert a URL the site
-    // no longer served (#239).
+    // no longer served.
     it("strips that base back off to recover the package-relative address", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const page = pages.find((p) => p.url?.includes("weapongear-dagger"))!;
@@ -205,7 +205,7 @@ describe("end to end, the two quantities are written to the same page", () => {
 
     it('publishes the same address under the consumers\' `site.base: "/"` stopgap', () => {
         // Both publishing consumers took `site.base: "/"` to buy the correct
-        // addresses (#1812, #130). With the split in place that setting must
+        // addresses. With the split in place that setting must
         // not double-correct into a *third* answer: the address is the same
         // one, and only the hrefs are short — the state those PRs already ship.
         const result = buildSite({ config: configFor({ out: "out-stopgap", base: "/" }) });

@@ -79,7 +79,7 @@ describe("packForType (content type → the pack it compiles into)", () => {
     it("routes the non-item types to their own packs", () => {
         // Pack *names*, not addresses: the package that owns them is supplied
         // by the caller, because it belongs to the repository doing the
-        // building and not to the content (#1498).
+        // building and not to the content.
         expect(packForType("doc")).toEqual({
             pack: "journals",
             docType: "JournalEntry",
@@ -93,7 +93,7 @@ describe("packForType (content type → the pack it compiles into)", () => {
             docType: "Actor",
         });
         // A map note compiles into a Scene, so a link to one addresses the
-        // scenes pack rather than falling through to items (#1525).
+        // scenes pack rather than falling through to items.
         for (const type of ["map"]) {
             expect(packForType(type)).toEqual({
                 pack: "scenes",
@@ -101,7 +101,7 @@ describe("packForType (content type → the pack it compiles into)", () => {
             });
         }
         // A bundle compiles into an Adventure — the installer a set of
-        // documents is packaged as (#259). Conventionally the `adventures`
+        // documents is packaged as. Conventionally the `adventures`
         // pack, which is also what the scenes pass calls its companion; a
         // repository shipping both names them apart.
         expect(packForType("bundle")).toEqual({
@@ -139,7 +139,7 @@ describe("packForType (content type → the pack it compiles into)", () => {
             });
         }
         // Item types are the open set, so a type added tomorrow is linkable the
-        // day it is authored — no table to forget (#1276).
+        // day it is authored — no table to forget.
         expect(packForType("somenewgear")).toEqual({
             pack: "items",
             docType: "Item",
@@ -175,7 +175,7 @@ describe("convertWikilinks", () => {
         expect(unresolved).toEqual([]);
     });
 
-    it("reports an unlabelled link, keeping the author's prose (#180)", () => {
+    it("reports an unlabelled link, keeping the author's prose", () => {
         const { markdown, unresolved } = convert("worsens the [[Shock State]] of the victim");
         expect(markdown).toBe(
             `worsens the ${'<span class="sohl-unresolved-link" title="Unresolved link: Shock State">Shock State</span>'} of the victim`,
@@ -185,7 +185,7 @@ describe("convertWikilinks", () => {
 
     it("crosses packs: a system-qualified skill link reaches the items pack", () => {
         // Qualified with the system, because prose defaults to `none` and a
-        // bare link therefore names the documentation (#336).
+        // bare link therefore names the documentation.
         const { markdown } = convert("a [[sohl-skill-climb|Climbing]] test");
         expect(markdown).toBe(
             "a @UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing} test",
@@ -203,7 +203,7 @@ describe("convertWikilinks", () => {
         );
     });
 
-    it("resolves a type whose directory has no pack mapping of its own (#1276)", () => {
+    it("resolves a type whose directory has no pack mapping of its own", () => {
         expect(convert("[[sohl-containergear-backpack|a backpack]]").markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.eeeeeeeeeeeeeee1]{a backpack}",
         );
@@ -257,7 +257,7 @@ describe("convertWikilinks", () => {
 
     it("resolves an address from any source type", () => {
         // An address is not scoped to the citing note, so the same link means
-        // the same document wherever it is written (#180).
+        // the same document wherever it is written.
         const { markdown, unresolved } = convert("[[doc-coma|Coma]]", {
             type: "skill",
             id: "bbbbbbbbbbbbbbb1",
@@ -314,7 +314,7 @@ describe("convertWikilinks", () => {
 /**
  * An item and its documentation are two different documents in two different
  * packs, so they need two different addresses. `skill/climb` is the item;
- * `docskill/climb` is the JournalEntry that item's prose compiled into (#1362).
+ * `docskill/climb` is the JournalEntry that item's prose compiled into.
  */
 describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     const climbDoc = itemDocEntryId("bbbbbbbbbbbbbbb1");
@@ -360,7 +360,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         );
     });
 
-    it("points a bare prose link at the documentation, not the item (#336)", () => {
+    it("points a bare prose link at the documentation, not the item", () => {
         // Body prose is under no system block, so the system defaults to
         // `none` — and a note's `none` address IS its `doc<type>` journal. From
         // prose it is almost always the written page a reader wants, not the
@@ -373,7 +373,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         );
     });
 
-    it("points at the item when the link states the system (#336)", () => {
+    it("points at the item when the link states the system", () => {
         // "and if not, then we should be using the full format" — stating the
         // system is how prose reaches the Item.
         expect(convert("[[sohl-skill-climb|Climbing]]").markdown).toBe(
@@ -408,7 +408,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         }
     });
 
-    it("resolves `docbeing` to the actor's documentation journal (#337)", () => {
+    it("resolves `docbeing` to the actor's documentation journal", () => {
         // The counterpart of the case above. A being's prose is a page a reader
         // wants to arrive at, so it has a documentation journal and an address
         // that names it — which is what a bare prose link defaults to.
@@ -431,7 +431,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         // onto a document that can never hold one (the #1362 defect), the anchor
         // is simply dropped and the link addresses the item.
         //
-        // Reaching the Item from prose means stating the system (#336); the
+        // Reaching the Item from prose means stating the system; the
         // bare form names the documentation, where the anchor does address a
         // page — see the case below.
         const { markdown, unresolved } = convert("[[sohl-skill-climb#crafting|Climbing]]");
@@ -440,7 +440,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         expect(unresolved).toEqual([]);
     });
 
-    it("carries the anchor when prose names the documentation (#336)", () => {
+    it("carries the anchor when prose names the documentation", () => {
         // The same anchor, on the same authored link, now lands on a real page:
         // a bare prose link names the note's `none` address, which is its
         // documentation journal, and a journal does have pages. It used to be
@@ -493,7 +493,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     });
 });
 
-describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
+describe("convertWikilinks — the `type-shortcode` separator", () => {
     it("resolves a hyphen-qualified target exactly as the slash form does", () => {
         const slash = convert("[[doc/shock|the Shock rules]]");
         const hyphen = convert("[[doc-shock|the Shock rules]]");
@@ -522,8 +522,8 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
     });
 
     it("reaches every pack, like the slash form", () => {
-        // System-qualified, since a bare prose link names the documentation
-        // (#336); the point here is the hyphen form reaching each pack.
+        // System-qualified, since a bare prose link names the documentation;
+        // the point here is the hyphen form reaching each pack.
         expect(convert("[[sohl-skill-climb|Climbing]]").markdown).toBe(
             "@UUID[Compendium.sohl.items.Item.bbbbbbbbbbbbbbb1]{Climbing}",
         );
@@ -591,7 +591,7 @@ describe("convertWikilinks — the `type-shortcode` separator (#1398)", () => {
 // An address written with an *empty* label — `[[x|]]`. It is the one form that
 // shows the target's own name rather than text the author wrote, so a rename
 // reaches every citation with no link edited.
-describe("convertWikilinks — an address with an empty label (#1409)", () => {
+describe("convertWikilinks — an address with an empty label", () => {
     it("shows a qualified target's document name, not its shortcode", () => {
         // `doc-shock` is an *address*, not prose: showing it to the reader
         // leaks the shortcode into the sentence.
@@ -654,7 +654,7 @@ describe("convertWikilinks — an address with an empty label (#1409)", () => {
     });
 });
 
-describe("readQualifier — the strict address grammar (#59)", () => {
+describe("readQualifier — the strict address grammar", () => {
     const TYPES = new Set(["skill", "doc", "being"]);
     const PACKAGES = new Set(["sohl", "thalorna"]);
 
@@ -733,7 +733,7 @@ describe("readQualifier — the strict address grammar (#59)", () => {
     });
 
     // Positional counting is sound only because every segment is
-    // `^[A-Za-z0-9]+$` (#1397) — verified across four content trees: 138,204
+    // `^[A-Za-z0-9]+$` — verified across four content trees: 138,204
     // shortcodes, none carrying a separator. A fifth segment is therefore not a
     // hyphenated shortcode; it is not an address.
     it("refuses more segments than the grammar has", () => {
@@ -763,7 +763,7 @@ describe("readQualifier — the strict address grammar (#59)", () => {
     });
 });
 
-describe("an unresolved link keeps its text and is marked (#1499)", () => {
+describe("an unresolved link keeps its text and is marked", () => {
     const index = buildWikilinkIndex(DOCS, "sohl");
     const from = { type: "doc", id: "1111111111111111", index };
 
@@ -794,7 +794,7 @@ describe("an unresolved link keeps its text and is marked (#1499)", () => {
     });
 });
 
-describe("a code fence is verbatim (#1505)", () => {
+describe("a code fence is verbatim", () => {
     it("leaves a nested array literal in a fence alone", () => {
         // `[[0]]` is not a link, and whether the old regex bit on it depended
         // on the array's shape — `[[1,2],[3,4]]` survived — so the corruption
@@ -839,7 +839,7 @@ describe("a code fence is verbatim (#1505)", () => {
     });
 });
 
-describe("a `#section` the target does not declare (#193)", () => {
+describe("a `#section` the target does not declare", () => {
     const DOCS_WITH_ANCHORS = [
         {
             type: "doc",

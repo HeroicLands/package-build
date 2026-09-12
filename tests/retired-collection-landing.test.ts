@@ -6,7 +6,7 @@
  */
 
 /**
- * The `collection` landing rule is retired (#202).
+ * The `collection` landing rule is retired.
  *
  * A `doc` note whose `subType` was `collection`, addressing the section named by
  * an authored top-level `section:`, was one of two ways to land a section. It
@@ -21,8 +21,8 @@
  *   or vocabulary declared it — so under `readme` a note declaring it was
  *   ignored in silence.
  *
- * Both halves are therefore *refused* rather than ignored, the way `draft:`
- * (#69), `package:` (#56) and `aliases:` (#180) are: a retired thing left
+ * Both halves are therefore *refused* rather than ignored, the way `draft:`,
+ * `package:` and `aliases:` are: a retired thing left
  * merely ignored reads to its author as though it still works.
  *
  * The rule's own refusal is no longer this file's: #204 retired the concept and
@@ -42,7 +42,7 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { assertNoSectionField, sectionRetiredMessage } from "../engine/retired-fields.mjs";
 import { NOTE_LEVEL_KEYS } from "../engine/content-format-check.mjs";
 
-describe("`section:` is a retired frontmatter field (#202)", () => {
+describe("`section:` is a retired frontmatter field", () => {
     let tmp: string;
 
     beforeAll(() => {
@@ -127,8 +127,8 @@ describe("`section:` is a retired frontmatter field (#202)", () => {
     });
 });
 
-describe("what survives the retirement in `packageAddress` (#202)", () => {
-    it("lands no README at a section, because there are no landings (#204)", () => {
+describe("what survives the retirement in `packageAddress`", () => {
+    it("lands no README at a section, because there are no landings", () => {
         // The surviving rule went the same way one release later: a `README.md`
         // is an ordinary note, addressed like every other.
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };

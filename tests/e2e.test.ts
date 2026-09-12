@@ -315,7 +315,7 @@ describe("a run that executed nothing is not a pass", () => {
 
     it("fails a run whose runner disappeared out from under it", () => {
         // The reported case: `npm ci` removed `node_modules` mid-run, Cypress
-        // died, and the harness said 0 (#153).
+        // died, and the harness said 0.
         const verdict = suiteVerdict({ status: 0, vanished: ["cypress"] });
 
         expect(verdict.status).toBe(1);

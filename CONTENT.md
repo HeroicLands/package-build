@@ -2068,8 +2068,8 @@ note-format knowledge against game-system knowledge, and a homepage carries no
 | `content`  | The homepage plus every page the content tree compiles to, and its extra trees. |
 
 There is no value meaning "no web presence": every package publishes its
-homepage. It was a boolean until 5.0.0, and both spellings are now refused
-naming the mode to write instead — see [MIGRATING.md](MIGRATING.md).
+homepage. A boolean is refused, with a message naming the mode to write
+instead.
 
 **Homepage-only is a first-class mode, not an accommodation.**
 `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'

@@ -6,7 +6,7 @@
  */
 
 /**
- * A note whose `type:` no configured pack claims (#146).
+ * A note whose `type:` no configured pack claims.
  *
  * `harn-ensemble` declares no `itemBuilders`, so its five `affiliation` notes
  * were a type no compiler selected: the journals pass rejected them, the Actor
@@ -159,7 +159,7 @@ describe("claimedNoteTypes — what some configured pack would compile", () => {
         expect(noteTypesClaimedBy("RollTable").size).toBe(0);
     });
 
-    it("claims a bundle for an Adventure pack (#259)", () => {
+    it("claims a bundle for an Adventure pack", () => {
         expect([...noteTypesClaimedBy("Adventure")]).toEqual(["bundle"]);
         const config = baseConfig({ packs: [{ name: "bundles", type: "Adventure" }] });
         expect(
@@ -274,7 +274,7 @@ describe("a type one system maps and another does not", () => {
  * The corpus for a fixture repository.
  *
  * `unclaimedNoteFindings` reads the records the compile derived rather than
- * walking (#243) — it is imported *by* the content index and so cannot derive
+ * walking — it is imported *by* the content index and so cannot derive
  * one itself — and its production caller already holds them.
  */
 function unclaimedNoteFindingsFor(config: any, sources: any) {
@@ -508,7 +508,7 @@ describe("the two types #241 left to check", () => {
     });
 });
 
-describe("a type whose whole document is a journal (#241)", () => {
+describe("a type whose whole document is a journal", () => {
     it("routes place, lore and scenario to the journals pack", () => {
         for (const type of ["place", "lore", "scenario"]) {
             expect(packForType(type), type).toEqual({
@@ -545,7 +545,7 @@ describe("a type whose whole document is a journal (#241)", () => {
 });
 
 /**
- * Every declared type has a route, or a stated reason for having none (#243).
+ * Every declared type has a route, or a stated reason for having none.
  *
  * This is the check #241 needed and nobody had. `place`, `lore` and `scenario`
  * were declared, validated, and claimed by no pass — and the only thing that
@@ -571,7 +571,7 @@ describe("a type whose whole document is a journal (#241)", () => {
  *    which is HM3's); or **named in `UNIMPLEMENTED_TYPES`**, the set that states
  *    which specified types this toolchain does not compile yet (`vehicle`).
  */
-describe("every declared note type is routed, or excused for a stated reason (#243)", () => {
+describe("every declared note type is routed, or excused for a stated reason", () => {
     /** Why a type needs no pass of its own, or `null` when it needs one. */
     function excuse(type: string): string | null {
         if (NEVER_PACKED_TYPES.has(type)) return "never packed";

@@ -23,10 +23,10 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
             ["skill/climb", climb], // type/shortcode
             // In Foundry the item and its documentation are two documents; on
             // the KB the item note *is* its documentation, so the build indexes
-            // `doc<type>` as an alias of the same page (#1362).
+            // `doc<type>` as an alias of the same page.
             ["docskill/climb", climb],
             // The canonical addresses the real index carries alongside those,
-            // and what a written target expands to before lookup (#336). A
+            // and what a written target expands to before lookup. A
             // `doc` note is `none`; a skill's Item is `sohl` and its page is
             // the `none`-addressed `docskill`.
             ["sohl-none-doc-shock", shock],
@@ -38,7 +38,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
         // The build seeds this with the real types *and* the virtual
         // `doc<type>` qualifier of every item type (see build-kb-content.mjs).
         contentTypes: new Set<string>(["doc", "skill", "creature", "docskill"]),
-        // The package a link defaults to when it names none (#336), and the
+        // The package a link defaults to when it names none, and the
         // packages a fully qualified one may name — without the latter the
         // four-segment form does not parse as an address at all.
         contentPackage: "sohl",
@@ -56,7 +56,7 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
  * Mirrors the pack compiler's `unresolvedLink`, deliberately character for
  * character: one authored link must look the same on both surfaces, and a
  * literal here is what makes a divergence show up as a failing test rather
- * than as two builds quietly disagreeing (#1665).
+ * than as two builds quietly disagreeing.
  */
 const unresolved = (text: string, target: string) =>
     `<span class="sohl-unresolved-link" title="Unresolved link: ${target}">` + `${text}</span>`;
@@ -92,7 +92,7 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    it("treats `doc<type>` as an alias of the item's own page (#1362)", () => {
+    it("treats `doc<type>` as an alias of the item's own page", () => {
         const ctx = makeCtx();
         // The item and its documentation are one page here, so both qualifiers
         // land on the same URL — the same authored link that addresses two
@@ -114,7 +114,7 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors).toEqual([]);
     });
 
-    it("reports an unlabelled link, keeping the author's prose (#180)", () => {
+    it("reports an unlabelled link, keeping the author's prose", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("worsens the [[Shock State]]", ctx)).toBe(
             `worsens the ${unresolved("Shock State", "Shock State")}`,
@@ -158,8 +158,8 @@ describe("resolveWebWikilinks", () => {
         expect(resolveWebWikilinks("[[doc/shock|]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
     });
 
-    it("falls back to the name for the hyphen form too (#1409)", () => {
-        // `type-shortcode` is the canonical address (#1398), so it is no more
+    it("falls back to the name for the hyphen form too", () => {
+        // `type-shortcode` is the canonical address, so it is no more
         // display text than `type/shortcode` is.
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[doc-shock|]]", ctx)).toBe("[Shock](/rules/sohl-shock/)");
@@ -168,7 +168,7 @@ describe("resolveWebWikilinks", () => {
     it("keeps a hyphenated unlabelled target as the prose the author wrote", () => {
         // `Grukar-ahk` is a note *name*, not `type-shortcode`. It resolves
         // nowhere now — there is no name namespace left — but the author's
-        // words still stand in the rendered sentence (#1409, #180).
+        // words still stand in the rendered sentence.
         const ctx = makeCtx();
         expect(resolveWebWikilinks("the [[Grukar-ahk]] raid", ctx)).toBe(
             `the ${unresolved("Grukar-ahk", "Grukar-ahk")} raid`,
@@ -185,7 +185,7 @@ describe("resolveWebWikilinks", () => {
         expect(ctx.errors[0]).toMatchObject({ reason: "unresolved" });
     });
 
-    it("fails an unresolved hyphen-qualified target (#184)", () => {
+    it("fails an unresolved hyphen-qualified target", () => {
         // The hyphen form used to be left as prose while any linkable package
         // was invisible here: `[[creature-grkrahk]]` is a real note in the
         // `thalorna` package, and nothing in the syntax separated it from a
@@ -203,7 +203,7 @@ describe("resolveWebWikilinks", () => {
 
     // A hyphenated *name* is not an address, and there is no second namespace
     // it could be instead — so it is a finding either way, differing only in
-    // which one (#180).
+    // which one.
     it("reports a hyphenated *name* written as an address", () => {
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[Grukar-ahk|the Grukar]]", ctx)).toBe(
@@ -275,7 +275,7 @@ describe("resolveWebWikilinks", () => {
         // namespace it could name — so it is a finding rather than prose. A
         // slash is unconditionally a qualifier, so the class is `unknown-type`
         // rather than `not-an-address`: the same reading the link checker has
-        // always had, which the site build now shares (#184).
+        // always had, which the site build now shares.
         const ctx = makeCtx();
         expect(resolveWebWikilinks("[[Setting/Creatures/Folk/Grukar|Grukar]]", ctx)).toBe(
             unresolved("Grukar", "Setting/Creatures/Folk/Grukar"),
@@ -291,7 +291,7 @@ describe("resolveWebWikilinks", () => {
 });
 
 /**
- * Cross-package resolution through the link manifest (#1446).
+ * Cross-package resolution through the link manifest.
  *
  * `creature-grkrahk` is the real case: a Bestiary page addresses a note that
  * lives in the `thalorna` package. Before the manifest nothing in the syntax
@@ -300,7 +300,7 @@ describe("resolveWebWikilinks", () => {
  */
 describe("cross-package addresses (link manifest)", () => {
     // Keyed canonically, because reaching another package needs the fully
-    // qualified form (#336): a short address names *this* package and never
+    // qualified form: a short address names *this* package and never
     // falls through to a vendored manifest.
     const foreign = new Map<string, object>([
         [
@@ -350,7 +350,7 @@ describe("cross-package addresses (link manifest)", () => {
         ]);
     });
 
-    it("fails the same address with no manifest vendored at all (#184)", () => {
+    it("fails the same address with no manifest vendored at all", () => {
         // The pre-#184 behaviour was to tolerate this: with `thalorna`
         // invisible, a correct cross-package link is indistinguishable from a
         // typo. But the pack compilers and the link checker failed it anyway,
@@ -370,8 +370,8 @@ describe("cross-package addresses (link manifest)", () => {
     });
 
     it("renders an address with no page as its name, not a dead href", () => {
-        // A pack-only package publishes Foundry addresses and no web pages
-        // (#1516), so its entries carry no `path`. The address is real — this
+        // A pack-only package publishes Foundry addresses and no web pages,
+        // so its entries carry no `path`. The address is real — this
         // is not a typo — but there is nothing to link to, so the reader gets
         // the document's name as prose and the build does not fail.
         const packOnly = new Map<string, object>([
@@ -404,8 +404,8 @@ describe("cross-package addresses (link manifest)", () => {
 
     it("marks and reports a target that is not an address", () => {
         // A worldbuilding placeholder naming no type. It is *marked*, so the
-        // author can see it went nowhere (#1665), and reported, because there
-        // is no namespace left for a bare name to be in (#180).
+        // author can see it went nowhere, and reported, because there
+        // is no namespace left for a bare name to be in.
         const ctx = makeCtx({ foreign });
         expect(resolveWebWikilinks("[[Some Unwritten Place|there]]", ctx)).toBe(
             unresolved("there", "Some Unwritten Place"),
@@ -421,14 +421,14 @@ describe("cross-package addresses (link manifest)", () => {
 });
 
 /**
- * Marking an unresolved link (#1665).
+ * Marking an unresolved link.
  *
  * A link that resolves nowhere keeps the author's text — dropping it would
  * rewrite the sentence — but it is marked, so a reader can tell a link was
  * meant and an author can find it. The pack compiler has always done this for
  * compiled Foundry prose; these cases are the website half of the same rule.
  */
-describe("an unresolved link is marked, not silently plain (#1665)", () => {
+describe("an unresolved link is marked, not silently plain", () => {
     it("escapes the author's text and the target", () => {
         // The span is raw HTML in a markdown document, so anything interpolated
         // into it has to be escaped — an unresolved link is the one path where
@@ -450,7 +450,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
     });
 
     it("does not mark a resolved address that merely has no page", () => {
-        // The reverse error, and the costlier one: a pack-only package (#1516)
+        // The reverse error, and the costlier one: a pack-only package
         // publishes Foundry addresses and no pages, so the address *resolved*
         // and the author did nothing wrong. Marking it would report correct
         // content as a mistake.
@@ -473,7 +473,7 @@ describe("an unresolved link is marked, not silently plain (#1665)", () => {
     });
 });
 
-describe("a code fence is verbatim (#1505)", () => {
+describe("a code fence is verbatim", () => {
     it("leaves a nested array literal in a fence alone", () => {
         const ctx = makeCtx();
         const src = [
@@ -495,7 +495,7 @@ describe("a code fence is verbatim (#1505)", () => {
     });
 });
 
-describe("frontmatterWikilinks (#1428)", () => {
+describe("frontmatterWikilinks", () => {
     it("finds a wikilink authored in a nested frontmatter value", () => {
         expect(
             frontmatterWikilinks({

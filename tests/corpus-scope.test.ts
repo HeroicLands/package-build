@@ -6,7 +6,7 @@
  */
 
 /**
- * One answer to "which files are the corpus?" (#243).
+ * One answer to "which files are the corpus?".
  *
  * `walkMarkdownTree` used to default its scope to
  * `loadPackConfig().skipDirectories` — whichever configuration resolved from the
@@ -77,7 +77,7 @@ describe("the walk's scope is the caller's to state", () => {
      * The table corpus no longer walks at all: it reads the records the compile
      * derived, so the scope reaches it one level up — whatever the index was
      * built over is what the corpus holds, and there is no second answer for it
-     * to disagree with (#243). Supplying the corpus is required for the same
+     * to disagree with. Supplying the corpus is required for the same
      * reason stating the scope is.
      */
     it("passes it on to the table corpus, through the records", () => {

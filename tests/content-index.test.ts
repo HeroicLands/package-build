@@ -104,7 +104,7 @@ describe("noteAddress", () => {
         expect(address?.slug).toBe(addressSlug(fm));
         // The system segment is derived, not passed in: `systemOf` answers it
         // from the type, so the index and the manifest agree about which
-        // system's document a note addresses without either being told (#59).
+        // system's document a note addresses without either being told.
         expect(address?.canonical).toBe(
             canonicalKey(
                 "sohl",
@@ -415,7 +415,7 @@ describe("buildIndexRecord", () => {
 
     /*
      * `package` is on the derived list, but it is not a name collision — it is
-     * a **retired field** (#56), and the correction is to delete it rather than
+     * a **retired field**, and the correction is to delete it rather than
      * to rename it. `assertNoDeclaredPackage` has always said so and, until
      * #243 gave it this caller, had nobody to say it to. Two messages
      * contradicting each other about the fix is worse than one.
@@ -523,7 +523,7 @@ describe("collectContentIndex", () => {
      * other finding with it, and the reader is handed a stack rather than a
      * line to open.
      */
-    describe("a note the index cannot record (#243)", () => {
+    describe("a note the index cannot record", () => {
         it("is collected as a located diagnostic, and the rest of the tree is read", () => {
             note("Good.md", "type: being\nid: g\nshortcode: good");
             note("Legacy.md", "type: being\nid: l\nshortcode: leg\npackage: sohl");
@@ -655,8 +655,8 @@ describe("emitContentIndex", () => {
 /**
  * #243's other open question — "not everything is a note" — as it actually
  * stands, which is not where the issue left it. `item-folders.yaml` is retired
- * and a folder is a note (#260, #276), so folders *are* recorded; a bundle is a
- * note too (#263, #286). What is genuinely absent from those records is a
+ * and a folder is a note, so folders *are* recorded; a bundle is a
+ * note too. What is genuinely absent from those records is a
  * Foundry **address**, and in both cases that absence is the right answer
  * rather than a gap:
  *
@@ -671,7 +671,7 @@ describe("emitContentIndex", () => {
  * a folder record carries an address and an id and *no* `foundry` block is the
  * fact such a pass would be built on.
  */
-describe("a note that is in no one pack, or in none (#243)", () => {
+describe("a note that is in no one pack, or in none", () => {
     const packedConfig = (root: string) =>
         ({
             paths: { content: root, contentIndex: path.join(root, "..", "out") },
@@ -694,13 +694,13 @@ describe("a note that is in no one pack, or in none (#243)", () => {
     });
 
     /*
-     * "Truthy" was the whole of the assertion above, and a wrong id is truthy
-     * (#310). The value a consumer reads has to be the one the packs address,
+     * "Truthy" was the whole of the assertion above, and a wrong id is truthy.
+     * The value a consumer reads has to be the one the packs address,
      * so it is asserted against the emitted `Folder` document rather than
      * against a second derivation written out here — which is exactly the
      * mistake being fixed.
      */
-    it("publishes the id the emitted Folder document carries (#310)", () => {
+    it("publishes the id the emitted Folder document carries", () => {
         note("Folders/Cookware_cookware.md", "type: folder\nshortcode: cookware");
         const [record] = readIndex(emitContentIndex({ config: packedConfig(tmp) }).file);
 
@@ -754,7 +754,7 @@ describe("a note that is in no one pack, or in none (#243)", () => {
     });
 });
 
-describe("an item note is two records: the item, and its documentation (#239)", () => {
+describe("an item note is two records: the item, and its documentation", () => {
     /** A config whose Foundry identities let a UUID be derived. */
     const foundryConfig = (root: string) =>
         ({
@@ -810,7 +810,7 @@ describe("an item note is two records: the item, and its documentation (#239)", 
 
         // The item is the `sohl` system's document; the journal is nobody's,
         // so it is keyed `none` — and stays `none` however many system blocks
-        // the note grows, because there is only ever one of it (#59).
+        // the note grows, because there is only ever one of it.
         expect(item.address.canonical).toBe("sohl-sohl-affliction-blkdth");
         expect(doc.address.canonical).toBe("sohl-none-docaffliction-blkdth");
         // On the web the note renders as one page which *is* its documentation.
@@ -849,7 +849,7 @@ describe("an item note is two records: the item, and its documentation (#239)", 
      * out of the UUID's last segment, which is a string operation on a value
      * whose shape is not the index's contract to keep.
      */
-    it("publishes the journal's own id beside its UUID (#310)", () => {
+    it("publishes the journal's own id beside its UUID", () => {
         note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
         const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
@@ -913,7 +913,7 @@ describe("a note may declare more than one system", () => {
         note("Plague.md", "type: affliction\nid: p1\nshortcode: plague");
         // Asked for by type, not by position: an item note is two records and
         // the file is ordered by canonical address, where the journal's `none`
-        // now sorts ahead of the item's `sohl` (#59).
+        // now sorts ahead of the item's `sohl`.
         const item = readIndex(emitContentIndex({ config: cfg(tmp) }).file).find(
             (r: any) => r.type === "affliction",
         )!;

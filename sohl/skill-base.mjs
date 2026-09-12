@@ -13,7 +13,7 @@
 
 /**
  * Build-time Skill Base evaluation — the small part of SoHL's `SafeExpression`
- * needed to compile a skill's opening mastery level into the pack (#46).
+ * needed to compile a skill's opening mastery level into the pack.
  *
  * A skill's `skillBaseFormula` is a `SafeExpression` in the `skill.base` scope:
  * an expression over one binding, `attr` (attribute scores by shortcode), with

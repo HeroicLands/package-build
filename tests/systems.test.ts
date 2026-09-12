@@ -6,7 +6,7 @@
  */
 
 /**
- * **The closed registry of system ids** (#59).
+ * **The closed registry of system ids**.
  *
  * The `<system>` segment of a canonical address is filled from a vocabulary,
  * and the issue is specific about where that vocabulary comes from: "known

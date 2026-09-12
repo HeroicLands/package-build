@@ -90,7 +90,7 @@ describe("resolveTemplatePriority (build:compiledb archetype contract, #640)", (
 
     it("throws when neither spelling is present", () => {
         // The message names `templatePriority`, the spelling to write — not
-        // `archetype`, which is retiring (#266).
+        // `archetype`, which is retiring.
         expect(() => resolveTemplatePriority({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
         expect(() => resolveTemplatePriority({}, "widget")).toThrow(/templatePriority/i);
     });
@@ -156,7 +156,7 @@ describe("systemTemplatePriority (the `system.templatePriority` value, #126, #26
     });
 });
 
-describe("withArchetypeFlag is gone (#126)", () => {
+describe("withArchetypeFlag is gone", () => {
     it("is exported by nothing", () => {
         expect("withArchetypeFlag" in helpers).toBe(false);
     });

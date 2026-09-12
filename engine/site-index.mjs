@@ -31,14 +31,14 @@
  * `type/shortcode` are unique by construction, so they always resolve.
  * `type/shortcode` is the authored form; the canonical
  * `package-system-type-shortcode` is set alongside it, which is what a
- * cross-package link and every merged foreign entry use (#1499, #59). A
+ * cross-package link and every merged foreign entry use. A
  * cross-package target states its package and usually not its system, so it is
  * matched by the segments it supplies rather than fetched by an exact key —
  * one hit resolves, and anything else is a finding.
  *
- * **A page's *name* is not a key** (#180). It was, as one of a set of
+ * **A page's *name* is not a key**. It was, as one of a set of
  * collision-aware fallbacks a bare `[[Name]]` was looked up in — which is what
- * made two pages of one type forbidden from sharing a display name (#179). The
+ * made two pages of one type forbidden from sharing a display name. The
  * bare form is retired, so the fallbacks answer nothing and the constraint they
  * imposed is gone with them.
  *
@@ -57,7 +57,7 @@ import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { contentPackage } from "./content-package.mjs";
-// The declared tag vocabulary (#172), which is where `draft` is stated.
+// The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
 /**
@@ -74,8 +74,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {string} [sec]  The Hugo section a **tree** page is filed under, and
  *                           the first segment of the `<sec>/<slug>` address it
  *                           is reachable by. A content page has none: it is
- *                           addressed by `(type, shortcode)` and emitted flat
- *                           (#204).
+ *                           addressed by `(type, shortcode)` and emitted flat.
  * @property {string} base   Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
  * @property {boolean} [isReadme]  Whether a tree page is its directory's
@@ -89,7 +88,7 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {Map<string, {url: string, name?: string, draft?: boolean}>} index
  *                                       Address → page. `draft` says the page
  *                                       carries the `draft` tag, which marks a
- *                                       link *into* it (#183).
+ *                                       link *into* it.
  * @property {Set<string>} ambiguous     Short addresses claimed by two
  *                                       packages, and so deliberately absent
  *                                       from `index`.
@@ -176,27 +175,27 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
     // Every package an address may name: this build's own, plus every one a
     // vendored manifest speaks for. Without it `readQualifier` cannot see the
     // leading package segment of a canonical address, and `kethira-place-x`
-    // reads as the unknown type `kethira` (#131).
+    // reads as the unknown type `kethira`.
     const ownPackage = contentPackage();
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
     // `section/slug` is unique by construction, and is now a **tree** page's
     // address: a `trees` entry keeps its source layout below a named section,
     // so `dev-docs/testing` is how one is cited. A content page carries no
-    // section at all (#204) and is addressed by `(type, shortcode)` below —
+    // section at all and is addressed by `(type, shortcode)` below —
     // indexing it here as well would have written `weapongear/weapongear-dagger`,
     // a key no author could reasonably write.
     //
     // A page's name, filename and bare slug were indexed here too, as
     // collision-aware fallbacks the bare `[[Name]]` form looked up; that form is
     // retired and nothing consults them, so they are gone and with them the rule
-    // that two pages of a type may not share a name (#179, #180).
+    // that two pages of a type may not share a name.
     for (const e of entries) {
         if (typeof e.sec !== "string" || !e.sec) continue;
         sections.add(e.sec.toLowerCase());
         // `draft` rides on every key a page is addressable by, because a link
-        // into a draft note renders marked whichever of them the author wrote
-        // (#183). It decides nothing about resolution: the page is indexed and
+        // into a draft note renders marked whichever of them the author wrote.
+        // It decides nothing about resolution: the page is indexed and
         // published as any other.
         index.set(`${e.sec}/${e.slug}`.toLowerCase(), {
             url: e.url,
@@ -243,10 +242,10 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             // The canonical address alongside the short one. The short form
             // stays because a bare `[[skill-lang]]` defaults to the citing
             // note's own package and must keep resolving unchanged; the
-            // canonical form is what cross-package links use (#1499).
+            // canonical form is what cross-package links use.
             // The page's package is the configured one — the site collection
             // resolves it and records it as `pkg`. Never read out of
-            // frontmatter: `package:` is retired (#56).
+            // frontmatter: `package:` is retired.
             index.set(
                 canonicalKey(
                     e.pkg ?? ownPackage,
@@ -258,7 +257,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
             );
             if (e.pkg) packages.add(e.pkg);
             // In Foundry an item and its documentation are two documents, so
-            // `skill/wpnc` and `docskill/wpnc` are two UUIDs (#1362). Here the
+            // `skill/wpnc` and `docskill/wpnc` are two UUIDs. Here the
             // item note renders as one page which *is* its documentation, so
             // the two qualifiers alias one URL and an anchor on either is an
             // ordinary in-page anchor. One authored link, correct in both
@@ -268,7 +267,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
                 contentTypes.add(`doc${type}`);
                 index.set(`doc${type}/${shortcode}`.toLowerCase(), value);
                 // The canonical documentation address too, so the page answers
-                // to the address a bare prose link expands to (#336): body
+                // to the address a bare prose link expands to: body
                 // prose is under no system block, so it defaults to `none`, and
                 // a system-bearing type's `none` address is its `doc<type>`
                 // one. In Foundry that names a second document; here it names
@@ -329,7 +328,7 @@ export function wikiContext(built, { src, file, type = null, errors, foreignInde
         contentTypes: built.contentTypes,
         packages: built.packages,
         // The package a link written on this page defaults to when it names
-        // none (#336). Taken from the resolved configuration, the same source
+        // none. Taken from the resolved configuration, the same source
         // the index's own addresses are built from, so a bare link cannot
         // resolve against a package the index never keyed.
         contentPackage: contentPackage(),

@@ -12,7 +12,7 @@
  */
 
 /**
- * No index carries an alias source of its own (#147).
+ * No index carries an alias source of its own.
  *
  * The site index once added a note's filename **verbatim** as an alias, while
  * the pack index and the link checker folded `_` to a space before indexing —
@@ -40,7 +40,7 @@ const NOTE = {
 
 const FILENAME_FORMS = ["sebeq_sut", "Sebeq_Sut", "sebeq sut", "Sebeq Sut"];
 
-describe("one alias namespace, and it is empty (#147)", () => {
+describe("one alias namespace, and it is empty", () => {
     it("the pack index keys a note by its address, not by its filename", () => {
         const index = buildWikilinkIndex([NOTE], "sohl");
         expect(index.byShortcode.has("place/sebeqsut")).toBe(true);

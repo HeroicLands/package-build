@@ -19,14 +19,14 @@
  * note, looking its subtype up in the system's map, dispatching to the
  * consumer's registry, merging the authored `sohl.system` block, checking what
  * was emitted against the receiving schema, and writing the envelope. That was
- * all here until a second system needed it (#139), and it reached its
+ * all here until a second system needed it, and it reached its
  * system-specific facts through one constant read off SoHL's own map — which is
  * why lifting it cost a subclass rather than a rewrite.
  *
  * What stays:
  *
  * - **The map**, declared in `document-subtypes.mjs` and named here, which
- *   decides which notes this pass claims and what each one becomes (#79).
+ *   decides which notes this pass claims and what each one becomes.
  * - **`commonSystem`** — `shortcode`, `templatePriority`, `actionDefs`, `notes` and
  *   `docHtml`, which SoHL's compiler writes on every item of every type and no
  *   field declaration states.
@@ -44,8 +44,7 @@ import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 export class Items extends SystemItemCompiler {
     /**
      * SoHL's note-type → document-subtype map — the one declaration that says
-     * which block this pass reads, which notes it claims, and what each becomes
-     * (#58/#79).
+     * which block this pass reads, which notes it claims, and what each becomes.
      *
      * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
      */

@@ -13,7 +13,7 @@
 
 /**
  * The closed registry of system ids, and the `none` that stands for no system
- * at all (#59).
+ * at all.
  *
  * A canonical address carries the system in a fixed position —
  * `harnadventures-none-being-grod` — so "which systems exist" is a question the

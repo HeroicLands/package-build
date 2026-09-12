@@ -6,7 +6,7 @@
  */
 
 /**
- * A folder is a note (#256), addressed like every other note, and the defects
+ * A folder is a note, addressed like every other note, and the defects
  * that made it worth changing are asserted here as *unrepresentable* rather
  * than merely fixed:
  *
@@ -14,7 +14,7 @@
  *   `Unknown folder id`;
  * - a parent cycle is refused, at index time, whether or not anything
  *   references the folder carrying it;
- * - an id is derived from the address when none is authored (#258), and an
+ * - an id is derived from the address when none is authored, and an
  *   authored one still wins, so a world already holding these folders keeps
  *   resolving them.
  */
@@ -100,7 +100,7 @@ describe("collectFolderNotes", () => {
     });
 });
 
-describe("a folder's Foundry id (#258)", () => {
+describe("a folder's Foundry id", () => {
     it("is derived from the canonical address when none is authored", () => {
         const [possessions] = collectFolderNotes(TREE, "sohl");
         expect(possessions.derivedId).toBe(true);

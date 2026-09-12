@@ -7,14 +7,14 @@
 
 import { describe, it, expect } from "vitest";
 // Fenced-code detection is engine machinery: every content package's wikilink
-// and table passes skip code regions through it (#1512).
+// and table passes skip code regions through it.
 import { codeRegions, matchAllOutsideCode, replaceOutsideCode } from "../engine/code-fences.mjs";
 
 /** Stand-in for a rewriter: every `[[…]]` outside code becomes `X`. */
 const LINK = /\[\[([^\]\n]+)\]\]/g;
 const rewrite = (src: string) => replaceOutsideCode(src, LINK, () => "X");
 
-describe("replaceOutsideCode — fenced blocks are verbatim (#1505)", () => {
+describe("replaceOutsideCode — fenced blocks are verbatim", () => {
     it("rewrites a link in prose", () => {
         expect(rewrite("see [[doc-shock]] here")).toBe("see X here");
     });
@@ -69,7 +69,7 @@ describe("replaceOutsideCode — fenced blocks are verbatim (#1505)", () => {
     });
 });
 
-describe("replaceOutsideCode — indented code blocks (#1505)", () => {
+describe("replaceOutsideCode — indented code blocks", () => {
     it("leaves a four-space indented block alone", () => {
         const src = ["Example:", "", "    const first = grid[[0]];", "", "[[doc-shock]]"].join(
             "\n",
@@ -107,7 +107,7 @@ describe("replaceOutsideCode — indented code blocks (#1505)", () => {
     });
 });
 
-describe("replaceOutsideCode — inline code spans (#1505)", () => {
+describe("replaceOutsideCode — inline code spans", () => {
     it("leaves a span alone", () => {
         expect(rewrite("write `grid[[0]]` in code")).toBe("write `grid[[0]]` in code");
     });

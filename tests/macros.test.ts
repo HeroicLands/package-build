@@ -234,7 +234,7 @@ describe("buildMacroEntry", () => {
     });
 
     it("falls back to a core icon when the note authors none", () => {
-        // `null`, not `""` — the two stopped meaning the same thing (#218).
+        // `null`, not `""` — the two stopped meaning the same thing.
         // A note that writes `""` means "ship no art", and is covered in
         // `img-unset-vs-blank.test.ts` alongside the rest of that rule.
         const doc = buildMacroEntry({ ...FM, img: null }, { command: "x();" });
@@ -266,8 +266,8 @@ describe("a macro note carries documentation like an item does", () => {
     it("keeps every item type doc-carrying", () => {
         for (const t of itemTypes()) expect(hasDocEntry(t)).toBe(true);
         // Every item type, plus `macro`, plus the three map types — a map
-        // note's prose is a JournalEntry of its own too (#1525) — plus every
-        // actor type, since an actor publishes documentation as well (#337).
+        // note's prose is a JournalEntry of its own too — plus every
+        // actor type, since an actor publishes documentation as well.
         expect(docEntryTypes().size).toBe(itemTypes().size + 1 + MAP_TYPES.size + ACTOR_TYPES.size);
     });
 
@@ -276,7 +276,7 @@ describe("a macro note carries documentation like an item does", () => {
         // Actors used to be excluded alongside `doc`, on the same "one document
         // each" reasoning. It never applied to them: a being carries prose a
         // reader wants a page for, and grouping it with `doc` left it the one
-        // system-bearing note nothing could link to (#337).
+        // system-bearing note nothing could link to.
         expect(hasDocEntry("being")).toBe(true);
     });
 
@@ -352,7 +352,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
     /**
      * A foreign manifest publishing a macro and its documentation.
      *
-     * Both keyed `none` (#59): a Macro and a JournalEntry are Foundry's own
+     * Both keyed `none`: a Macro and a JournalEntry are Foundry's own
      * documents, which no game system defines. The link below states no system
      * at all, because a wikilink is a *partial* address — it names the segments
      * an author knows and is matched on those.

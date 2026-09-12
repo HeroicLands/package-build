@@ -121,7 +121,7 @@ describe("what the loader derives from where the file sits", () => {
     it("reads a system's stats.systemVersion from the adjacent package.json", () => {
         // For a system, `package.json` version *is* the system version. The
         // stamp has to equal the version that did the compiling; a transcribed
-        // copy froze at 0.6.0 for four releases (#1548).
+        // copy froze at 0.6.0 for four releases.
         const root = repoDir({
             "package.json": JSON.stringify({ name: "sohl", version: "1.2.3" }),
         });
@@ -194,13 +194,13 @@ describe("a module's system version comes from its system relationship", () => {
 
         // A module declaring *nothing* is system-agnostic on purpose and stamps
         // null — that is #43, and it is now the only reading available, since
-        // `stats.systemId` can no longer be authored to say otherwise (#48).
+        // `stats.systemId` can no longer be authored to say otherwise.
         const none = { ...minimal(), packageKind: "modules" };
         expect(resolveIn(repoDir(), none).stats.systemVersion).toBeNull();
     });
 
     // This used to be settled by an authored `stats.systemId` picking one of
-    // several relationships. That selector is gone with the key (#48), and
+    // several relationships. That selector is gone with the key, and
     // `requiresSystem` is what says which system the package-wide block takes —
     // which is the same question asked where it can also be validated.
     it("takes the version of the system requiresSystem names", () => {
@@ -243,7 +243,7 @@ describe("itemBuilders is named, because a registry is code", () => {
         });
         // The same table a code config imports — not a copy of it.
         expect(Object.keys(config.itemBuilders).sort()).toEqual(Object.keys(ITEM_BUILDERS).sort());
-        // And the type whitelist is still derived from its keys (#1504).
+        // And the type whitelist is still derived from its keys.
         expect([...config.itemTypes].sort()).toEqual(Object.keys(ITEM_BUILDERS).sort());
     });
 
@@ -312,7 +312,7 @@ describe("locating the configuration", () => {
     });
 });
 
-describe("a system-agnostic module stamps no system version (#43)", () => {
+describe("a system-agnostic module stamps no system version", () => {
     /**
      * A module whose packs are core document types carrying no system data
      * installs under any system, so it declares neither a `systemId` nor a
@@ -339,7 +339,7 @@ describe("a system-agnostic module stamps no system version (#43)", () => {
     });
 
     // #1548 guarded "named a system but no relationship" by reading an
-    // *authored* `stats.systemId`. That key is derived now (#48), so the signal
+    // *authored* `stats.systemId`. That key is derived now, so the signal
     // it carried has moved: a module says which system it is for by declaring
     // it under `systems:`, and a declaration with no `verified` is the mistake.
     it("throws when a declared system carries no verified version", () => {

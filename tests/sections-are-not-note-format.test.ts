@@ -12,8 +12,7 @@
  */
 
 /**
- * A section is a Hugo directory concept, and the note format does not carry one
- * (#204).
+ * A section is a Hugo directory concept, and the note format does not carry one.
  *
  * Since #181 a page's URL **is** its address, `/<package>/<type>-<shortcode>/`,
  * so a section appears in no address at all. Its only remaining job was to pick
@@ -264,7 +263,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
         });
     });
 
-    it("leaves the charset check ahead of it (#206)", () => {
+    it("leaves the charset check ahead of it", () => {
         // The two changes are complementary and land in one function: #206 put
         // a charset error ahead of the closed-set check, and #204 removed the
         // section branch from underneath it. Both survive, in that order. #206
@@ -346,7 +345,7 @@ describe("every page's `url:` survives the move, byte for byte", () => {
         for (const name of files) {
             const { data } = matter(fs.readFileSync(path.join(mount, name), "utf8"));
             // Site-root relative: the package base is Hugo's own `baseURL`,
-            // and stating it here published the page inside it twice (#217).
+            // and stating it here published the page inside it twice.
             expect(data.url, name).toBe(`/${name.replace(/\.md$/, "")}/`);
         }
     });

@@ -14,7 +14,7 @@
 /**
  * **The Item pass, for any system** — everything about compiling a note into a
  * Foundry Item that is a fact about the *note format* rather than about a
- * particular game system (#139).
+ * particular game system.
  *
  * `sohl/items.mjs` was the whole of it, and every system-specific thing in it
  * was reached through one module-level constant read off SoHL's map. That is
@@ -55,24 +55,23 @@ import { foundryPackageId } from "./content-package.mjs";
 import { itemDocEntryId, itemDocPointer } from "./item-docs.mjs";
 // The whitelist and the per-type `system` builders both come from the resolved
 // configuration, so the types this pass claims and the builders it compiles
-// them with are one table — the consuming repository's, not this package's
-// (#1504/#1563).
+// them with are one table — the consuming repository's, not this package's.
 import { itemTypes, itemBuilder, itemArt, itemFields } from "./item-registry.mjs";
 import { currentType } from "./ids.mjs";
 // Which Foundry Item subtype a note's `type` compiles into. Looked up in the
-// system's declared map, never inferred from the type itself (#79).
+// system's declared map, never inferred from the type itself.
 import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
 // The note-level `<system>:` block: `<system>.system` onto the document's
 // `system` verbatim, and `<system>.img` / `.effects` / `.flags` overriding
-// their shared top-level forms for this system alone (#58).
+// their shared top-level forms for this system alone.
 import { blockField, blockProperty, claimedPaths, mergeSystemData } from "./system-block.mjs";
 // The other direction of the same declaration: a field the *document* writes in
-// play, which a note may not author and the builder does not emit (#330).
+// play, which a note may not author and the builder does not emit.
 import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
 
 /**
  * The description an item carries: a pointer to its **item doc**, the
- * JournalEntry the journals pass compiles this same body into (#1348).
+ * JournalEntry the journals pass compiles this same body into.
  *
  * The prose is not rendered into the item at all. Carrying it would duplicate
  * it onto every actor holding the item — 7.59 MB of copies across the actors
@@ -112,7 +111,7 @@ export class SystemItemCompiler extends BasePackCompiler {
 
     /**
      * An Item **is** a system's data, so this pack takes only notes carrying
-     * this system's block (#58).
+     * this system's block.
      */
     static requiresSystemBlock = true;
 
@@ -168,7 +167,7 @@ export class SystemItemCompiler extends BasePackCompiler {
     /**
      * Every content type that compiles into an item **for this system**.
      *
-     * The whitelist is the consuming repository's `itemBuilders` keys (#1504),
+     * The whitelist is the consuming repository's `itemBuilders` keys,
      * and the system's own map is a second filter on top of it: a type this
      * system maps onto some *other* document class is not an item however a
      * registry spells it, which is the "no wrongly-typed document" half of #79.
@@ -181,7 +180,7 @@ export class SystemItemCompiler extends BasePackCompiler {
     selects(fm) {
         // Through {@link currentType}: the registry is keyed by the current
         // spelling, and a note still on a renamed one compiles unchanged
-        // during the retirement window (#78).
+        // during the retirement window.
         if (!fm.type || !itemTypes().has(currentType(fm.type))) return false;
         const map = /** @type {typeof SystemItemCompiler} */ (this.constructor).documentSubtypes;
         const row = subtypeRow(/** @type {never} */ (map), fm.type);
@@ -189,7 +188,7 @@ export class SystemItemCompiler extends BasePackCompiler {
     }
 
     /**
-     * Refuse a note authoring one of its type's **runtime-only** fields (#330).
+     * Refuse a note authoring one of its type's **runtime-only** fields.
      *
      * A schema declares fields the document writes for itself — an affliction's
      * `onsetDate` is the world time its onset fired at — and a note authoring
@@ -217,7 +216,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * **Looked up, not inferred.** For every type this system declares, the
      * emitted subtype is the map's, so the note vocabulary and the document
      * vocabulary are two separately-stated things rather than one string
-     * written twice (#79).
+     * written twice.
      *
      * **A type the map does not name belongs to the consumer**, and its
      * registry entry is the declaration: a repository shipping an item type of
@@ -251,7 +250,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * Nothing by default, which is the honest position for a system that has
      * not said otherwise: a key written here lands on every document of every
      * type, so inventing one that the receiving DataModel does not declare
-     * would be a finding on the whole pack (#155).
+     * would be a finding on the whole pack.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {object} at - What the pass already knows about this note.
@@ -278,7 +277,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * field for it and an undeclared `system` key is discarded at load without
      * a word.
      *
-     * **This is the one emitted key nothing else can check** (#283). A `system`
+     * **This is the one emitted key nothing else can check**. A `system`
      * key this pass invents is caught by the emitted-`system` check against the
      * receiving schema, but a flag is declared by no schema — so an omission
      * here is silent, and was: the Actor pass wrote the priority and this one
@@ -313,14 +312,14 @@ export class SystemItemCompiler extends BasePackCompiler {
         // Whatever the note authors under `<system>.system`, at the DataModel's
         // own paths. A path a declared field already writes is left to that
         // field: its value came from the same authored place and went through
-        // the field's own coercion (#58).
+        // the field's own coercion.
         mergeSystemData(built, fm, {
             block: system,
             claimed: claimedPaths(itemFields(type, system)),
         });
         this.reportUndeclaredSystemData(fm, system, "Item", subType);
         // And what *this* pass wrote on its own initiative, which no field
-        // declaration states and so no other check can see (#155). Read off the
+        // declaration states and so no other check can see. Read off the
         // assembled block, so a key added to `commonSystem` is checked without
         // anyone remembering to list it.
         this.reportEmittedSystemData(built, {
@@ -336,7 +335,7 @@ export class SystemItemCompiler extends BasePackCompiler {
         // Read through the system block like every other item field. There is
         // one spelling: `packFolder` names a folder note by its address, the
         // `folder:` id spelling having been retired with the per-pack YAML it
-        // resolved against (#251, #255, #260).
+        // resolved against.
         const folder = this.folderResolver(blockField(fm, system, "packFolder", null), {
             isAddress: true,
         });
@@ -345,9 +344,9 @@ export class SystemItemCompiler extends BasePackCompiler {
             name,
             // The note's `type` addresses the builder and the default art —
             // both registries are keyed by content type — while the document's
-            // own subtype comes from the system's map (#79).
+            // own subtype comes from the system's map.
             type: subType,
-            // Nullish, not `||` (#218): `resolveImg` returns `null` for a
+            // Nullish, not `||`: `resolveImg` returns `null` for a
             // note that names no art and `""` for one that wants none, and only
             // the first may be replaced by the type's default.
             img: resolveImg(blockProperty(fm, system, "img")) ?? itemArt(type, system),
@@ -355,7 +354,7 @@ export class SystemItemCompiler extends BasePackCompiler {
             system: built,
             effects: Array.isArray(effects) ? [...effects] : [],
             // Whatever the note authors, plus whatever this system records in
-            // flags because its data model has nowhere else for it (#283).
+            // flags because its data model has nowhere else for it.
             flags: this.commonFlags(fm),
             _stats: this.stats,
             ownership: { default: 0 },

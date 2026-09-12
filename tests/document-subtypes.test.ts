@@ -6,7 +6,7 @@
  */
 
 /**
- * The note-type → document-subtype map (#79).
+ * The note-type → document-subtype map.
  *
  * The two vocabularies — what a markdown note calls its `type`, and what
  * Foundry calls the document's subtype — were the same identifier because a
@@ -255,7 +255,7 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         }
     });
 
-    it("still answers to a renamed type's retired spelling (#78)", () => {
+    it("still answers to a renamed type's retired spelling", () => {
         // The retirement window: a tree that has not swept its `(type,
         // shortcode)` references compiles into the document it always did, so
         // the packs cannot move while the sweep is outstanding.

@@ -12,7 +12,7 @@
  */
 
 /**
- * Publishing a content tree as a website (#63).
+ * Publishing a content tree as a website.
  *
  * Compiling a content tree into compendium packs is `content-build package
  * compile`. Publishing the *same tree* as a website was a script each consumer
@@ -60,7 +60,7 @@ import { formatUnaddressableFinding, unaddressableForeignPackages } from "./meta
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-// The corpus, from the one pass that derives it (#243).
+// The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import {
@@ -81,7 +81,7 @@ const require = createRequire(import.meta.url);
  * tree in reverse. Order was load-bearing here when the address index carried
  * first-writer-wins fallbacks for a page's name, filename and slug — reversing
  * the walk silently changed which page an ambiguous name resolved to. Those
- * fallbacks are gone with the bare `[[Name]]` form (#180), so this is now
+ * fallbacks are gone with the bare `[[Name]]` form, so this is now
  * ordinary reading order rather than a dependency; it is kept because a site's
  * emitted pages should not reorder for no reason.
  *
@@ -108,7 +108,7 @@ export function walkSiteTree(dir, skip = []) {
 /**
  * The content-tree files this build publishes from, in the order it emits them.
  *
- * **The corpus comes from the content index** (#243) — the same derivation the
+ * **The corpus comes from the content index** — the same derivation the
  * packs are compiled from — so the site and the packs cannot disagree about
  * which files are the content. The note is still read for its `{fm, body}`: the
  * index carries no note text, and a page *is* its text.
@@ -118,7 +118,7 @@ export function walkSiteTree(dir, skip = []) {
  * "a site's emitted pages should not reorder for no reason". Records are in
  * content-path order, which is the same set in a different sequence. Nothing
  * downstream depends on it any more: the first-writer-wins fallbacks that made
- * order load-bearing went with the bare `[[Name]]` form (#180), each page is
+ * order load-bearing went with the bare `[[Name]]` form, each page is
  * emitted to its own file at an address derived from its frontmatter, and the
  * one place order could still show — a section's page list — is sorted by the
  * theme. Verified rather than argued: over `sohl`'s tree the emitted mount is
@@ -182,7 +182,7 @@ export function collectContentPages(contentBase, ctx) {
     // Where an addressed page publishes. A missing `base` would put *every*
     // page at `undefined/` rather than one, and it is the caller's contract
     // rather than a note's defect, so it throws instead of being collected as a
-    // finding (#195).
+    // finding.
     if (typeof ctx.base !== "string" || !ctx.base) {
         throw new TypeError(
             "collectContentPages: `ctx.base` must be a non-empty string — it is the package address every page's URL is built on",
@@ -197,14 +197,13 @@ export function collectContentPages(contentBase, ctx) {
         if (!note) continue;
         const { fm, body } = note;
         // The configuration's, never a note's: `package:` is retired, so every
-        // note in the tree belongs to the package this repository compiles
-        // (#56).
+        // note in the tree belongs to the package this repository compiles.
         const pkg = ctx.contentPackage;
         if (!ctx.packages.has(pkg) || !fm.type) continue;
-        // A homepage is addressed like any other note (#182), but it is
+        // A homepage is addressed like any other note, but it is
         // gathered by {@link collectHomepages} rather than here: it is the
         // whole of a homepage-only build, which never walks the tree for
-        // content pages at all (#55).
+        // content pages at all.
         if (isHomepage(fm)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
@@ -212,7 +211,7 @@ export function collectContentPages(contentBase, ctx) {
         }
 
         const name = fm.name?.full ?? path.basename(file, ".md");
-        // The page's address, and therefore its URL (#181). `name` is the
+        // The page's address, and therefore its URL. `name` is the
         // display string and nothing else: it titles the page and labels an
         // inbound link, and moving it moves no address.
         let slug;
@@ -230,11 +229,11 @@ export function collectContentPages(contentBase, ctx) {
             fm,
             // The note's own path on disk. Carried so a link finding can be
             // reported as `file:line:column:` against the source an author
-            // edits, rather than against the page this build emits (#184).
+            // edits, rather than against the page this build emits.
             file,
             // The page's package, recorded once here so every consumer — the
             // index's canonical keys, the table universe, the local-package set
-            // — reads one configured value and never frontmatter (#56).
+            // — reads one configured value and never frontmatter.
             pkg,
             body,
             name,
@@ -251,7 +250,7 @@ export function collectContentPages(contentBase, ctx) {
             // authoring folder, for grouped landings.
             folder: path.basename(path.dirname(file)),
             // Every page is addressed by `(type, shortcode)` at the package
-            // root, which takes no content mount (#181). The file is written
+            // root, which takes no content mount. The file is written
             // flat under the mount — see {@link pageDestination} — and the
             // front matter carries this `url` so Hugo publishes it at its
             // address rather than at its path.
@@ -299,7 +298,7 @@ export function collectTreePages(tree, ctx) {
             kind: "tree",
             tree,
             fm,
-            // As above: the source file, for a located link diagnostic (#184).
+            // As above: the source file, for a located link diagnostic.
             file,
             // The H1 is stripped: the page title renders it.
             body: body.replace(/^\s*#\s+.*$\r?\n?/m, ""),
@@ -327,13 +326,13 @@ export function collectTreePages(tree, ctx) {
  * it, because in homepage-only mode it is the **whole** of the site build: the
  * content tree is never read for pages at all, so the licensing constraint two
  * packages ship under is a property of the code path rather than of a
- * configuration that happens to be empty (#55).
+ * configuration that happens to be empty.
  *
  * Returned as a list rather than as the one note there should be, because the
- * count is what {@link checkHomepageCount} judges (#52) — this walk reports
+ * count is what {@link checkHomepageCount} judges — this walk reports
  * what it found, and {@link buildSite} decides whether that is one.
  *
- * A homepage that declares no `shortcode` has no address (#182), and is
+ * A homepage that declares no `shortcode` has no address, and is
  * reported rather than written: it is the same finding a content page's missing
  * shortcode produces, and it has to be available in homepage-only mode, where
  * no other gate runs.
@@ -379,7 +378,7 @@ export function collectHomepages(contentBase, ctx) {
  * {@link auditHomepageLinks} reads the `landing:` addresses and the body's
  * markdown links, and reports a wikilink on the page rather than resolving one.
  *
- * **Its destination is no longer fixed** (#182). The file is written at the
+ * **Its destination is no longer fixed**. The file is written at the
  * note's address, flat at the package's site root, and the page states that
  * address as its `url` — the same separation of file from URL every other page
  * has. Nothing is written at `/<package>/` itself: that becomes a redirect the
@@ -417,8 +416,7 @@ export function writeHomepages(outRoot, pages, config) {
  * - **Addresses** next: a note that has no address — no shortcode to be
  *   addressed by, or no section to be filed under — would silently drop a page.
  *   There is no collision gate beside it: an address is `(type, shortcode)`,
- *   which is unique within a package by rule, so two pages cannot claim one URL
- *   (#181).
+ *   which is unique within a package by rule, so two pages cannot claim one URL.
  * - **Foreign manifests** last, in two steps. *Unusable* is a file this build
  *   cannot read; *unaddressable* is one it can read but cannot look anything up
  *   in — a distinction worth keeping, because the second surfaces as a pile of
@@ -434,7 +432,7 @@ export function siteGates(pages, findings, { config }) {
     const out = {
         // Always empty here: the homepage count is decided in `buildSite`
         // before the content walk, and a failing count returns without ever
-        // reaching these gates (#52). Present so every caller reads one shape.
+        // reaching these gates. Present so every caller reads one shape.
         homepages: [],
         frontmatterLinks: findings.fmLinkFindings ?? [],
         addressErrors: findings.addressFindings ?? [],
@@ -525,7 +523,7 @@ export function tableUniverse(pages) {
         byPackage.get(pkg).push({
             // Package present for a `WHERE … package = "…"` clause,
             // synthesised rather than authored — see
-            // {@link searchableFrontmatter} (#56).
+            // {@link searchableFrontmatter}.
             fm: searchableFrontmatter(p.fm, pkg),
             path: p.relPath,
             tld: p.tld,
@@ -571,7 +569,7 @@ export function sectionFrontmatter(meta) {
 /**
  * The frontmatter a page publishes with.
  *
- * An authored `aliases` is retired (#180) and refused before a build reaches
+ * An authored `aliases` is retired and refused before a build reaches
  * here, which makes this a guard rather than a working path. It was Obsidian's
  * — a list of *names* a reader might call
  * the note, which is vault addressing and stays in the vault. Hugo reads
@@ -580,13 +578,13 @@ export function sectionFrontmatter(meta) {
  * redirects of its own.
  *
  * A content page states its own **`url`**, which is its address rather than its
- * path (#181). It is written flat under the content mount (#204), so Hugo would
+ * path. It is written flat under the content mount, so Hugo would
  * otherwise publish it at `<mount><type>-<shortcode>/` rather than at the
  * package-wide address the link manifest records — the same address, one
  * segment too deep. So the address is stated and the mount does not reach it.
  *
- * **It is stated relative to the site root, and so carries no package base**
- * (#217). Hugo resolves a `url` against `baseURL`, whose path is already where
+ * **It is stated relative to the site root, and so carries no package base**.
+ * Hugo resolves a `url` against `baseURL`, whose path is already where
  * the package is served — a consumer's Hugo site *is* its package — so writing
  * `page.url`, which carries the base for every href this build renders, wrote
  * that base a second time and published every content page a segment too deep
@@ -595,8 +593,8 @@ export function sectionFrontmatter(meta) {
  * index a wikilink resolves through, and the link manifest — composes
  * `<base><slug>/`.
  *
- * A content page carries the package the build **derived** (#65). No note
- * declares one — `package:` is retired (#56) — so the note's frontmatter alone
+ * A content page carries the package the build **derived**. No note
+ * declares one — `package:` is retired — so the note's frontmatter alone
  * would publish a page that does not say which package it belongs to. The
  * emitted page is what a
  * theme reads: `breadcrumbs.html` builds its middle crumb from
@@ -623,7 +621,7 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
             // `package: undefined` is not a value YAML can carry.
             ...(page.pkg ? { package: page.pkg } : {}),
             // The address, stated — site-root relative, because Hugo prefixes
-            // the site's own base to it (#217). `slug` is written beside it
+            // the site's own base to it. `slug` is written beside it
             // because it is the last segment of that address and Hugo's own key
             // for one; it decides nothing while `url` is present, but a page
             // that carried only `url` would report a slug Hugo had inferred
@@ -651,7 +649,7 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
 /**
  * Where a page is written, relative to the output root.
  *
- * **Flat, under the mount, named by its address** (#204). A content page's URL
+ * **Flat, under the mount, named by its address**. A content page's URL
  * is its address — `/<package>/<type>-<shortcode>/` — and the file is now named
  * the same way, so the two agree. It used to be filed into `<section>/` so that
  * Hugo would read a section off its path; a section appears in no address, and
@@ -715,7 +713,7 @@ export function renderPages(pages, options) {
         // The page's path in the tree an author edits: below the content root
         // for a content note, below the tree's own root for a `trees` page. It
         // used to be composed as `<section>/<basename>` for a content note,
-        // which named a directory that was never the note's (#204).
+        // which named a directory that was never the note's.
         const src = page.relPath ?? page.rel ?? page.base;
         const ctx = wikiContext(index, {
             src,
@@ -765,7 +763,7 @@ export function renderPages(pages, options) {
 /**
  * Writes the Hugo sections a published tree declares.
  *
- * **This is where a section lives now, and the only place** (#204). A content
+ * **This is where a section lives now, and the only place**. A content
  * note carries none: it is addressed by `(type, shortcode)` and emitted flat
  * under the mount, so nothing a page does creates a directory. A site that wants
  * `/<package>/<prefix><section>/` to answer — with a title, a hero, and whatever
@@ -953,7 +951,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
-    // Homepage-only or homepage-plus-content (#55). The floor is the homepage,
+    // Homepage-only or homepage-plus-content. The floor is the homepage,
     // so this decides whether the *content* surfaces are published, never
     // whether anything is.
     const publishesContent = publishesContentPages(resolved);
@@ -970,7 +968,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     // `<out>/<prefix>/<section>/` publishes at `<base><prefix><section>/`.
     // Resolved against the repository root for the same reason every configured
     // path is — so the build reads and writes the same places whatever
-    // directory it was launched from (#1508).
+    // directory it was launched from.
     const outBase = resolveOutputRoot(resolved.rootDir, site.out);
     const out =
         outRoot ? path.resolve(outRoot)
@@ -988,13 +986,13 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const ctx = {
         packages,
         // The package every note in the tree belongs to. `package:` is
-        // retired, so this is the only source of it (#56).
+        // retired, so this is the only source of it.
         contentPackage: resolved.contentPackage,
         skipDirectories: resolved.skipDirectories,
         config: resolved,
         // The corpus, derived once for this build and handed to both
         // collectors — the homepage pass and the content pass read one answer
-        // about which files the content is, rather than walking twice (#243).
+        // about which files the content is, rather than walking twice.
         records: indexRecordsFor({
             contentBase: resolved.paths.content,
             config: resolved,
@@ -1002,7 +1000,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
         }),
         // Where the package is served, which is where an addressed page
         // publishes: an address is `(type, shortcode)`, a package-wide
-        // identity that takes no content mount (#181).
+        // identity that takes no content mount.
         base,
         mount,
         scheme,
@@ -1012,7 +1010,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const homepages = collected.pages;
 
     // Exactly one homepage, and checked here — before the output tree is
-    // cleared and before either mode branches (#52). Before the clear, because
+    // cleared and before either mode branches. Before the clear, because
     // a gate that fired after it would have destroyed a good site to report a
     // bad tree. Before the branch, because the requirement does not vary by
     // mode: `publish.site` chooses whether the *content* surfaces are
@@ -1026,7 +1024,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
         contentPackage: resolved.contentPackage,
     });
     // A homepage that cannot be addressed is reported in the same place, and
-    // reaches homepage-only mode — which runs no other gate at all (#182).
+    // reaches homepage-only mode — which runs no other gate at all.
     const homepageFindings =
         counted.length ? counted : (
             collected.addressFindings.map((f) => ({
@@ -1051,7 +1049,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
 
     // Homepage-only stops here, and stopping is the point: nothing below reads
     // the content tree for pages, so `sohl-kethira-basic` and `harn-adventures`
-    // cannot publish one whatever else their `site:` block declares (#55).
+    // cannot publish one whatever else their `site:` block declares.
     if (!publishesContent) {
         return {
             gates: emptyGates(),
@@ -1070,7 +1068,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const pages = [...content.pages];
     const fmLinkFindings = [...content.fmLinkFindings];
 
-    // The homepage is **indexed but not rendered** (#182). Now that it has an
+    // The homepage is **indexed but not rendered**. Now that it has an
     // address, `[[homepage-root|Text]]` is an ordinary wikilink and has to
     // resolve to the page the build publishes — which means the address index
     // must hold it. It still takes no part in `renderPages`: a homepage is

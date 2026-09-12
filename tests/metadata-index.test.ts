@@ -150,7 +150,7 @@ describe("reading the metadata cache", () => {
     });
 });
 
-describe("choosing the newest of several cached versions (#272)", () => {
+describe("choosing the newest of several cached versions", () => {
     /*
      * Shared by both version-keyed caches under `build/cache` — the content
      * index here and the item catalogue in `foreign-catalog.mjs`. Written

@@ -26,7 +26,7 @@ import {
  * from the `system.shortcode` beside it and could not say which package the
  * template came from.
  */
-describe("packagedItemAddress (#334)", () => {
+describe("packagedItemAddress", () => {
     it("qualifies the document-vocabulary address with its package", () => {
         expect(packagedItemAddress("sohl", "weapongear", "dgr")).toBe("sohl:weapongear:dgr");
         // The unqualified form is unchanged, and still what a `model` naming no
@@ -35,7 +35,7 @@ describe("packagedItemAddress (#334)", () => {
     });
 });
 
-describe("the catalogue folds the shortcode's case (#346)", () => {
+describe("the catalogue folds the shortcode's case", () => {
     it("finds `Clb` from the address `clb`", () => {
         // A shortcode is case-sensitive and routinely mixed; an address is not,
         // because `readQualifier` normalises what it reads. So a `model:` of
@@ -56,7 +56,7 @@ describe("the catalogue folds the shortcode's case (#346)", () => {
     });
 });
 
-describe("loadItemsMap keys a dependency's items under its own package (#334)", () => {
+describe("loadItemsMap keys a dependency's items under its own package", () => {
     /** A compiled item document, as an Item pack's JSON tree holds one. */
     const doc = (type: string, shortcode: string, name: string) => ({
         _id: "AAAAAAAAAAAAAAAA",

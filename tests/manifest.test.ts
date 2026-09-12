@@ -450,7 +450,7 @@ describe("writeManifest", () => {
     });
 });
 
-describe("manifestPacks — the system is per pack (#40)", () => {
+describe("manifestPacks — the system is per pack", () => {
     const pack = (extra = {}) => ({
         name: "adventures",
         type: "Adventure",

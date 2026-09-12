@@ -17,15 +17,15 @@
  * The machinery an actor of any system needs — the predefined-item catalogue,
  * reference translation through the system's map, embedding and its stable ids,
  * the anchored prose sections — lives in
- * {@link module:engine/actor-compiler}, where a second system reaches it
- * (#139). What is left here is SoHL's data model: the body structure and its
+ * {@link module:engine/actor-compiler}, where a second system reaches it.
+ * What is left here is SoHL's data model: the body structure and its
  * movement profiles, the attributes-and-items frontmatter that becomes embedded
  * documents, the opening mastery level a skill is baked with, and the `system`
  * block itself.
  *
  * One content type today, and the actor subtype it produces is **declared**
  * rather than assumed to be the same word: `sohl/document-subtypes.mjs` maps
- * `being` → `Actor` / `being`, and this pass looks it up (#79). It read
+ * `being` → `Actor` / `being`, and this pass looks it up. It read
  * `ACTOR_VAULT_TYPE = "being"` here and emitted `type: "being"` several hundred
  * lines below, which made the two vocabularies agree by coincidence.
  *
@@ -56,16 +56,16 @@ import {
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into. Looked up in the
-// system's declared map, never inferred from the type itself (#79).
+// system's declared map, never inferred from the type itself.
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 // The note-level `sohl:` block: `sohl.system` onto the document's `system`
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
-// shared top-level forms for this system alone (#58).
+// shared top-level forms for this system alone.
 import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
 import { readField, retiredTopLevelKey } from "../engine/field-spec.mjs";
 // The retirement window's reports, shared with the frontmatter lint so the two
-// cannot say different things about the same key (#305, #332).
+// cannot say different things about the same key.
 import {
     legacyKeyMessage,
     locateFrontmatterKey,
@@ -76,7 +76,7 @@ import {
  * The system this pass compiles for — the block its notes write.
  *
  * Read from the map rather than spelled here, so the block name and the subtype
- * map are one statement (#58/#79).
+ * map are one statement.
  *
  * @type {string}
  */
@@ -98,7 +98,7 @@ const DEFAULT_IMG = {
  * and the note's top level and nothing else — so `data.portrait`, the position
  * the specification names and `sohl-thalorna` writes on 646 beings, was
  * invisible, and `?? defaultImg` on the next line turned every miss into the
- * generic person icon rather than into a complaint (#332). Going through
+ * generic person icon rather than into a complaint. Going through
  * {@link module:engine/field-spec.readField} is what makes the mapping table
  * executable here as it already is for HM3's `data.species`.
  *
@@ -115,7 +115,7 @@ const PORTRAIT_FIELD = Object.freeze({
     shape: "path",
     // The two empties survive, because the caller's `?? defaultImg` is what
     // tells them apart: `null` and an absent key mean "no art named, default
-    // me", `""` means "ship blank on purpose" (#218).
+    // me", `""` means "ship blank on purpose".
     read: (raw) => resolveImg(raw),
     default: null,
     describe: "Path to the portrait image.",
@@ -194,7 +194,7 @@ export class Actors extends SystemActorCompiler {
     /**
      * SoHL's note-type → document-subtype map — the one declaration that says
      * which block this pass reads, which notes it claims, and what each
-     * becomes (#79). It is also what every embedded reference is translated
+     * becomes. It is also what every embedded reference is translated
      * through, which is why a subclass replaces one thing and not two.
      *
      * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
@@ -298,7 +298,7 @@ export class Actors extends SystemActorCompiler {
     }
 
     /**
-     * Bake each unopened skill's opening mastery level into the document (#46).
+     * Bake each unopened skill's opening mastery level into the document.
      *
      * A skill whose `masteryLevelBase` is still null once the note's frontmatter
      * has been merged onto the catalogue entry is *not yet opened*, and the
@@ -352,7 +352,7 @@ export class Actors extends SystemActorCompiler {
         const id = fm.id;
         const ctx = `actor "${name}"`;
         // The document's own subtype, and the art that goes with it. Both are
-        // looked up from the note's `type` rather than spelled here (#79).
+        // looked up from the note's `type` rather than spelled here.
         const subType = /** @type {string} */ (
             documentSubtype(this.constructor.documentSubtypes, fm.type, fm, {
                 absPath: this.currentNote?.absPath,
@@ -406,17 +406,17 @@ export class Actors extends SystemActorCompiler {
             // with the schema, since an undeclared `system` key is discarded at
             // construction without a warning.
             templatePriority: systemTemplatePriority(fm, ctx),
-            // Nullish, not `||` (#218): a note that names no portrait gets the
+            // Nullish, not `||`: a note that names no portrait gets the
             // subtype's default, one that writes `""` ships blank on purpose.
             // Resolved through the declaration so `data.portrait` is reached at
-            // all — see {@link PORTRAIT_FIELD} (#332).
+            // all — see {@link PORTRAIT_FIELD}.
             portrait: readField(PORTRAIT_FIELD, fm, portraitReports) ?? defaultImg,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };
 
         // Fill `system.body` (+ the base-actor movement fields) from the being's
-        // frontmatter, rather than embedding a corpus item (#535). The `sohl`
+        // frontmatter, rather than embedding a corpus item. The `sohl`
         // block mirrors `system` field-for-field: `sohl.body` nests the body
         // (`structure` / `weight` / …), with `currentMoveMedium` /
         // `movementProfiles` flat alongside it. An **incorporeal** being omits
@@ -441,14 +441,14 @@ export class Actors extends SystemActorCompiler {
         }
 
         // Whatever the note authors under `sohl.system`, at the DataModel's own
-        // paths (#58). This pass has no field declaration, so it claims
+        // paths. This pass has no field declaration, so it claims
         // nothing: every authored path is the author's, and the fields above
         // are what a note that authors none still gets.
         mergeSystemData(system, fm, { block: SYSTEM });
         this.reportUndeclaredSystemData(fm, SYSTEM, "Actor", subType);
         // And what this pass wrote itself. There is no field declaration for a
         // being at all, so *every* key here is a compiler emission — including
-        // `templatePriority` (#126), which nothing compared until #155.
+        // `templatePriority`, which nothing compared until #155.
         this.reportEmittedSystemData(system, {
             fm,
             block: SYSTEM,
@@ -462,7 +462,7 @@ export class Actors extends SystemActorCompiler {
         return {
             name,
             type: subType,
-            // Nullish, not `||` — see the portrait above (#218).
+            // Nullish, not `||` — see the portrait above.
             img: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? defaultImg,
             _id: id,
             system,
@@ -483,7 +483,7 @@ export class Actors extends SystemActorCompiler {
             ownership: { default: 0 },
             // Whatever the note authors, and nothing else. The priority used to
             // be spliced in here as `flags.sohl.docArchetype`; it is a schema
-            // field now and sits in `system` (#126).
+            // field now and sits in `system`.
             flags: blockProperty(fm, SYSTEM, "flags", {}),
             _stats: this.stats,
             _key: `!actors!${id}`,

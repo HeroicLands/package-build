@@ -12,7 +12,7 @@
  */
 
 /**
- * The charset authored content is held to, so a book can choose its face (#377).
+ * The charset authored content is held to, so a book can choose its face.
  *
  * The packs and the website render in whatever font the reader's browser or
  * Foundry supplies, and a glyph nobody has is somebody else's problem. **A book

@@ -12,7 +12,7 @@
  */
 
 /**
- * Naming an interface icon in a note, without drawing it there (#378).
+ * Naming an interface icon in a note, without drawing it there.
  *
  * The user guide describes Foundry's interface, and it did so by pasting
  * Unicode lookalikes of the icons the sheets actually draw: `☆` for the improve
@@ -85,7 +85,7 @@ export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
  * **Two, because the interface uses two.** The SoHL icon legend says so in its
  * own prose: Font Awesome for most things, and Game-Icons.net *"for the arms,
  * gear, and condition glyphs that Font Awesome does not cover"* — eighteen of
- * them, `ginf-broadsword` and its kin (#391).
+ * them, `ginf-broadsword` and its kin.
  *
  * They differ in more than a class prefix, which is why this is a family rather
  * than a naming convention:
@@ -287,7 +287,7 @@ export const DEFAULT_ICONS = Object.freeze({
  * surface that also renders `:smile:` can tell the two apart without a lookup,
  * and a reader can tell what `:icon-star:` is without knowing this module
  * exists. Names are lowercase, digits and hyphens — the charset an address
- * segment already uses (#59), so nothing new has to be explained.
+ * segment already uses, so nothing new has to be explained.
  *
  * Not `:name[content]`. That is remark-directive syntax, and this toolchain
  * parses with markdown-it; a directive would render as its own literal text.

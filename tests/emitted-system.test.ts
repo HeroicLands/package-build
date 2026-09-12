@@ -6,10 +6,9 @@
  */
 
 /**
- * The `system` keys a **compiler** writes, against the receiving DataModel
- * (#155).
+ * The `system` keys a **compiler** writes, against the receiving DataModel.
  *
- * `compareFields` (#60) derives what a build emits from the `itemBuilders`
+ * `compareFields` derives what a build emits from the `itemBuilders`
  * field declarations, so a key the compiler writes itself — `shortcode`,
  * `actionDefs`, `notes`, `docHtml`, and since #126 `archetype` — is in neither
  * the emitted set nor the declared one, and is never compared. #145's
@@ -265,7 +264,7 @@ describe("the two conditions are told apart, because the fixes differ", () => {
     });
 });
 
-describe("`templatePriority` — the key the check was blind to (#155, #126)", () => {
+describe("`templatePriority` — the key the check was blind to", () => {
     // The shape SoHL 0.8.2 publishes: everything a `skill` carries except the
     // field #154 started writing.
     const withoutPriority = artifact({

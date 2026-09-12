@@ -6,8 +6,7 @@
  */
 
 /**
- * `packFolder:` — naming a compendium folder by a folder note's **address**
- * (#251, #255).
+ * `packFolder:` — naming a compendium folder by a folder note's **address**.
  *
  * It was a path for one release (`Possessions/Cooking`). A path encoded the
  * hierarchy in the value, so reparenting a folder made every note naming it
@@ -19,7 +18,7 @@
  * materialises in **every pack holding a document that references it**, so the
  * mirroring defect the path form could only *report* is now unrepresentable.
  *
- * The `folder:` Foundry-id spelling it replaced is retired (#260); what is
+ * The `folder:` Foundry-id spelling it replaced is retired; what is
  * left of it is asserted in `retired-folder-field.test.ts`.
  */
 
@@ -120,8 +119,8 @@ ${Object.entries(parents)
  * A throwaway repository with an item pack and a journals pack.
  *
  * No folder YAML is written for either, because there is no longer any such
- * file to write (#260). Each pack materialises the folders it needs from what
- * its documents reference, so there is no second file left to mirror (#257).
+ * file to write. Each pack materialises the folders it needs from what
+ * its documents reference, so there is no second file left to mirror.
  */
 function folderRepo(notes: Record<string, string>): string {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-folder-tree-"));
@@ -294,7 +293,7 @@ describe("compiling a note that names its folder by address", () => {
     });
 
     it("refuses a note that still names a Foundry id, naming `packFolder`", () => {
-        // The retirement, through a real compile (#260): the id spelling has
+        // The retirement, through a real compile: the id spelling has
         // nothing left to resolve against, so it fails rather than filing the
         // note somewhere arbitrary — or, worse, nowhere and silently.
         const root = folderRepo({

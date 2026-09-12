@@ -13,7 +13,7 @@
 
 /**
  * Schema fields a note may **never** author, because the document writes them
- * in play (#330).
+ * in play.
  *
  * `retired-fields.mjs` refuses a field a note may no longer declare; this
  * refuses one it never could. The two read alike deliberately — a note says one

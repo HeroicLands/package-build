@@ -43,7 +43,7 @@ describe("checkSceneLevels", () => {
         expect(checkSceneLevels([["!items!AAAAAAAAAAAAAAAA", { _id: "x" }]])).toEqual([]);
     });
 
-    // The reported failure (#1538): the parent still names its Level, but the
+    // The reported failure: the parent still names its Level, but the
     // `scenes.levels` sublevel record is gone. Foundry reads that as "no
     // levels" and persists the emptied array on the next launch, so the map
     // image is lost and `initialLevel` dangles.

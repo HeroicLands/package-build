@@ -12,7 +12,7 @@
  */
 
 /**
- * The things the content format asserts that can be checked (#130, #136).
+ * The things the content format asserts that can be checked.
  *
  * `content-format.mjs` reads the specification as data; this compares it
  * against the three worlds it makes claims about — the systems it maps onto,
@@ -22,7 +22,7 @@
  *
  * **The format does not define the `sohl:` or `hm3:` schemas.** Each system
  * defines its own, and its published `schema.json` is the authoritative
- * statement of it (#127). So a mapping row is a *claim*: `data.weight` reaches
+ * statement of it. So a mapping row is a *claim*: `data.weight` reaches
  * `system.weightBase` in SoHL. If SoHL declares no such field the two disagree,
  * and which of them is wrong is a question for a person — but that they
  * disagree is a fact a build can establish.
@@ -71,7 +71,7 @@
  * The specification hand-writes a `data` table under most of its type sections,
  * which is the ground {@link module:engine/field-reference} already generates
  * from the `fields` on each `itemBuilders` entry — the duplication that module's
- * docstring exists to prevent, one document over (#136).
+ * docstring exists to prevent, one document over.
  *
  * **Checked rather than generated, because a merge is not available.** The
  * document's vocabulary spans note types that produce Scenes, Macros and
@@ -138,7 +138,7 @@ export function declaredPaths(artifact) {
  *
  * A shared row names no type, so it is placed rather than typed: "in the shared
  * mappings" instead of "on a `weapongear`". Reading `on a \`the shared
- * mappings\`` would be the alternative, and a diagnostic is prose (#275).
+ * mappings\`` would be the alternative, and a diagnostic is prose.
  *
  * @param {object} finding - `{system, systemVersion, noteType, source, target, shared}`.
  * @returns {string} The message.
@@ -342,8 +342,8 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
 
     // The specification's sections are headed by the current spelling of a note
     // type, so a note still on a renamed one is measured against the section it
-    // will move to rather than reported as a type the format does not declare
-    // (#78). The rename itself is the frontmatter lint's finding.
+    // will move to rather than reported as a type the format does not declare.
+    // The rename itself is the frontmatter lint's finding.
     const spec = format.types.get(currentType(type));
     if (!spec) {
         add(
@@ -475,9 +475,9 @@ export function fieldDriftMessage({ noteType, source, target, name, to }) {
  * A shared source, as the two sides spell it.
  *
  * The specification writes every type-specific row `data.<key>` — the container
- * `data:` (#128) put those facts in — while a declaration writes either: the
+ * `data:` put those facts in — while a declaration writes either: the
  * bare key it has always named, or the same dotted path now that a field can
- * declare its shared source and its legacy in-block key separately (#305).
+ * declare its shared source and its legacy in-block key separately.
  * Both are the same source, so both are normalized before they are compared;
  * matching one spelling against the other would report every moved field as
  * unmapped, which is the opposite of what this check is for.
@@ -507,7 +507,7 @@ function claimsFor(format, noteType, system) {
 
 /**
  * Check the specification's per-type tables against the field declarations that
- * compile them (#136).
+ * compile them.
  *
  * @param {object} opts
  * @param {import("./content-format.mjs").ContentFormat} opts.format - The
@@ -563,7 +563,7 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
             }
             // No declaration names it. That is coverage, not a contradiction —
             // the specification maps fields no builder emits yet, which is the
-            // ordinary mid-migration state (#127) and what `schema-check.mjs`
+            // ordinary mid-migration state and what `schema-check.mjs`
             // already reports as unemitted.
             if (!match) continue;
             fields += 1;

@@ -6,8 +6,7 @@
  */
 
 /**
- * **The five declarations that re-read the note must see the destination**
- * (#126).
+ * **The five declarations that re-read the note must see the destination**.
  *
  * Most fields take the value {@link resolveFieldValue} hands them, so they
  * resolve at `<system>.system.<to>` for free. Five do not: `subType`,
@@ -24,7 +23,7 @@
  *
  * The impact die is the one whose two positions are spelled differently —
  * authored `impact.die`, stored `impactBase.die` — so the reader takes both,
- * the same shape `FieldSpec.name`/`legacyKey` takes (#305).
+ * the same shape `FieldSpec.name`/`legacyKey` takes.
  */
 
 import { describe, it, expect } from "vitest";

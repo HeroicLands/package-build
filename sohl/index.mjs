@@ -16,7 +16,7 @@
  * Lands data model that a generic content module must never receive.
  *
  * The item-type registry and its builders, the items and actors compilers, the
- * default-art map, and the affiliation standings live here (#1512). Nothing in
+ * default-art map, and the affiliation standings live here. Nothing in
  * `@heroiclands/package-build/engine` exports any of it, so an adventure module
  * that builds journals, macros, and scenes never receives `buildWeaponGear`.
  *
@@ -33,7 +33,7 @@
 /** The item-type registry: every type that compiles into an Item, and its builder. */
 export * as itemBuilders from "./item-builders.mjs";
 
-/** This system's note-type → document-subtype map, identity rows included (#79). */
+/** This system's note-type → document-subtype map, identity rows included. */
 export * as documentSubtypes from "./document-subtypes.mjs";
 
 /** The Item compiler. */
@@ -47,7 +47,7 @@ export * as kbPasses from "./kb-passes.mjs";
 
 // Flat as well as namespaced: the Foundry runtime imports these by name through
 // their own entry points, and they were this barrel's surface before the
-// compilers arrived (#1510).
+// compilers arrived.
 export { DEFAULT_ITEM_ART, defaultItemArt } from "./default-item-art.mjs";
 export { AFFILIATION_STANDINGS } from "./affiliation-standings.mjs";
 export { BEING_TYPE, GEAR_TYPE_TO_KEY, deriveBeingInfo, isBeing } from "./being-info.mjs";

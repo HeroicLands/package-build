@@ -12,7 +12,7 @@
  */
 
 /**
- * `img` says "unset" and "blank on purpose" with two different values (#218).
+ * `img` says "unset" and "blank on purpose" with two different values.
  *
  * `resolveImg` used to open with `if (!raw) return ""`, and every caller then
  * applied its own default with `||`. That made `""`, `null` and an absent key
@@ -50,7 +50,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /*  The translator itself                                               */
 /* -------------------------------------------------------------------- */
 
-describe("resolveImg tells an unset path from a deliberately blank one (#218)", () => {
+describe("resolveImg tells an unset path from a deliberately blank one", () => {
     it("returns null for an absent path, so a caller's default can apply", () => {
         expect(resolveImg(undefined)).toBeNull();
     });
@@ -82,7 +82,7 @@ describe("resolveImg tells an unset path from a deliberately blank one (#218)", 
 /*  The callers that pair it with a default                             */
 /* -------------------------------------------------------------------- */
 
-describe("an item note's `img` (#218)", () => {
+describe("an item note's `img`", () => {
     function compiler() {
         const config = loadPackConfig();
         return new Items({
@@ -125,7 +125,7 @@ describe("an item note's `img` (#218)", () => {
     });
 });
 
-describe("a macro note's `img` (#218)", () => {
+describe("a macro note's `img`", () => {
     const FM = {
         id: "HSNwLca3kMYLN3Ag",
         type: "macro",

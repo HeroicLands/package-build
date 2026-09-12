@@ -13,7 +13,7 @@
 
 /**
  * The published content index — the artifact packages exchange addresses
- * through (#239).
+ * through.
  *
  * **A package publishes its own index; a consumer fetches the ones it depends
  * on.** That is the whole mechanism, and it replaces a vendored link manifest
@@ -230,7 +230,7 @@ export function cachedMetadataIndexes(config) {
  * rather than being written once per cache. Two copies would be two chances to
  * get it wrong, and the wrong answer is invisible: every cached version is a
  * complete, stamped, perfectly valid artifact, so picking the older one reports
- * nothing and simply resolves against stale data (#272).
+ * nothing and simply resolves against stale data.
  *
  * @param {string[]} dirs - Complete cache directories, named `<id>@<version>`.
  * @returns {string} The newest one.
@@ -426,7 +426,7 @@ export function cachedIndexPath(config, pkg) {
  * therefore reported against the index, once, instead of once per citing note.
  *
  * The realistic cause is a version skew: a dependency released before the
- * address grammar gained its `<system>` segment (#59) ships three-segment keys.
+ * address grammar gained its `<system>` segment ships three-segment keys.
  * Re-fetching after that dependency releases is the fix.
  *
  * @param {Map<string, object>} foreignIndex - The resolved foreign index.

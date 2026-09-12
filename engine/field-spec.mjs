@@ -17,8 +17,8 @@
  * **The declaration is the builder, not a description of one.** A builder used
  * to be an opaque function: the mapping from a note's `sohl:` frontmatter to
  * the emitted `system` block existed only inside its body, so nothing could
- * read it — not a documentation generator, not a validator, not a person
- * (#22). The obvious repair, a table written *beside* the function, buys very
+ * read it — not a documentation generator, not a validator, not a person.
+ * The obvious repair, a table written *beside* the function, buys very
  * little: two statements of one rule drift, and nothing notices.
  *
  * So the table is the only statement. {@link buildFromFields} turns a field
@@ -55,13 +55,13 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  * @property {string} [name] - The **shared, top-level property this field draws
  *   from** when the note authors no value at `<system>.system.<to>`. Dotted for
  *   a path into a shared container (`data.portrait`), which is now the ordinary
- *   case: `data:` (#128) puts every type-specific fact under one.
+ *   case: `data:` puts every type-specific fact under one.
  *
  *   It used to mean "frontmatter key under `sohl:`", and that reading is the
  *   degenerate case where the shared source and the system destination happen
  *   to share a name. They constantly do not — one shared `data.portrait` feeds
  *   `sohl.system.portrait` *and* `hm3.system.bioImage` — so the source is
- *   declared rather than matched by spelling (#58). The in-block position is
+ *   declared rather than matched by spelling. The in-block position is
  *   still read, second, until #126 moves the corpus off it — keyed on
  *   `legacyKey` where the two spellings differ.
  *
@@ -71,7 +71,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   that is not `name`. Absent, the position is keyed on `name`.
  *
  *   The two were one property until #305, which held only while a field's
- *   shared source and its in-block key were the same word. `data:` (#128) ended
+ *   shared source and its in-block key were the same word. `data:` ended
  *   that: a shared source is a path into a container, so `data.species` and
  *   `species` name two different places and no single value reached both.
  *   `name: "species"` could not see `data.species`; `name: "data.species"`
@@ -87,7 +87,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  * @property {string} [topLevelMeans] - **What the note's top-level key of this
  *   name means instead** — declared only where it means something else, and
  *   stating it removes the shared top-level position from this field's
- *   resolution order (#218).
+ *   resolution order.
  *
  *   A field's `name` doubles as its identity and as the shared property it
  *   draws from, which is right wherever the two levels state the same quantity
@@ -130,10 +130,9 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   third step of {@link module:engine/system-block.resolveFieldValue}'s order,
  *   so the value resolves whichever region carries it. What it tells the
  *   author-facing surfaces is which of the two is the field's *home*, so a
- *   message about it names `img` rather than sending an author to `sohl.img`
- *   (#142).
+ *   message about it names `img` rather than sending an author to `sohl.img`.
  * @property {"string"|"number"|"boolean"|"list"|"map"} [kind] - The value's
- *   shape, for the frontmatter linter (#19). Distinct from `shape`, which is
+ *   shape, for the frontmatter linter. Distinct from `shape`, which is
  *   prose for a reader, and from `read`, which is what the compiler does: a
  *   field may declare `kind` without changing a byte of what it emits, and
  *   several do — `weight` is coerced leniently but is still a number, and
@@ -146,7 +145,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
  * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when
- *   the note does not carry the field** (#329), rather than written from a
+ *   the note does not carry the field**, rather than written from a
  *   declared default.
  *
  *   Every other field answers absence with a value: an unauthored `weight` is
@@ -181,7 +180,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   which the generated reference states in the field's own row.
  * @property {string} [runtimeOnly] - **What the field holds once play has
  *   started** — declared on a field the *document* writes for itself, which no
- *   note may author (#330).
+ *   note may author.
  *
  *   A schema declares plenty of fields a compiled document has no business
  *   carrying: an affliction's `onsetDate` is the world time its onset fired
@@ -309,7 +308,7 @@ export function readsLegacyKey(field, from) {
 
 /**
  * Whether a resolution read a field from the top-level key `data:` gathered it
- * off — the shared level's retiring position (#332).
+ * off — the shared level's retiring position.
  *
  * {@link readsLegacyKey}'s sibling, and the same signal: a finding here counts
  * one note still on the pre-`data:` spelling, so the sweep has something to
@@ -335,7 +334,7 @@ export function readsRetiredTopLevel(field, from) {
  *
  * The *position* is resolved by {@link resolveFieldValue} — `<system>.system`
  * first, then the legacy in-block key, then the declared shared source, then
- * the default (#58). The **coercion** is applied here, once, wherever the value
+ * the default. The **coercion** is applied here, once, wherever the value
  * came from: a field's `read` is a statement about the field, not about where
  * an author happened to write it, so `weight: "7"` reads as `7` at every one of
  * those positions.
@@ -347,12 +346,12 @@ export function readsRetiredTopLevel(field, from) {
  *   against. The default is the one block every existing tree authors; a
  *   second system passes its own.
  * @param {(field: FieldSpec) => void} [options.onLegacyKey] - Called with each
- *   field read from the position it is being swept off (#305). A callback
+ *   field read from the position it is being swept off. A callback
  *   rather than a returned list because the caller is a compiler, which already
  *   knows the note and how to locate a key in it; this module knows neither and
  *   would have to invent a finding shape to say so.
  * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Called with
- *   each field read from the top-level key `data:` gathered it off (#332). The
+ *   each field read from the top-level key `data:` gathered it off. The
  *   shared level's counterpart to `onLegacyKey`, and a separate callback
  *   because it is a separate position: a note may have moved one of the two and
  *   not the other, and a caller that conflated them would tell its author to
@@ -370,7 +369,7 @@ export function readField(field, fm, options = {}) {
  * every caller wants. A builder has one further question — *should the key be
  * written at all* — and it cannot be answered from the value: `null` from a
  * note and `null` from a declared default are the same value and opposite
- * facts (#329).
+ * facts.
  *
  * So the position rides back beside the value, resolved **once**. The
  * alternative is a builder that calls {@link resolveFieldValue} for the source
@@ -403,7 +402,7 @@ export function readFieldEntry(field, fm, { block = "sohl", onLegacyKey, onRetir
  * The question {@link FieldSpec.omitWhenAbsent} turns on, asked of the
  * *position* rather than of the value — which cannot answer it, since a
  * declared `default: null` and an authored `null` are indistinguishable once
- * the value is in hand (#329).
+ * the value is in hand.
  *
  * `undefined` counts as absent whatever position reported it, because writing
  * the key then emits a value `JSON.stringify` drops — the key present in the
@@ -434,17 +433,17 @@ export function isAuthored(from, value) {
  *   systems declare the same shared source and different destinations.
  * @param {(field: FieldSpec) => void} [options.onLegacyKey] - Passed through to
  *   {@link readField}: called with each field the note authored at the position
- *   it is being swept off (#305).
+ *   it is being swept off.
  * @param {(field: FieldSpec) => void} [options.onRetiredTopLevel] - Passed
  *   through to {@link readField}: called with each field the note authored at
- *   the top-level key `data:` gathered it off (#332).
+ *   the top-level key `data:` gathered it off.
  * @returns {(fm: object) => object} A `system`-block builder.
  */
 export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetiredTopLevel } = {}) {
     return function buildDeclaredSystem(fm) {
         const out = {};
         for (const field of fields) {
-            // A runtime-only field is not this builder's to write (#330). It is
+            // A runtime-only field is not this builder's to write. It is
             // declared so that the path is *claimed* — so the verbatim
             // passthrough leaves it alone and the refusal has a name — not so
             // that a compile-time answer is invented for a question only play
@@ -457,8 +456,8 @@ export function buildFromFields(fields, { block = "sohl", onLegacyKey, onRetired
                 onLegacyKey,
                 onRetiredTopLevel,
             });
-            // The other conditional row: a field whose *absence* is meaningful
-            // (#329). Writing a declared default would answer a question the
+            // The other conditional row: a field whose *absence* is meaningful.
+            // Writing a declared default would answer a question the
             // note did not ask — "this affliction's onset takes `null` days" —
             // and would make the field's unset state indistinguishable from an
             // authored one for every reader downstream. Omitting the key leaves
@@ -490,8 +489,8 @@ export function authoredFields(fields) {
  * The fields of a declaration a note may **never** write.
  *
  * The complement of {@link authoredFields} in the direction that matters: those
- * are the fields an author may write, these are the ones authoring is an error
- * (#330). Everything else in a declaration — a constant, a derived value — is
+ * are the fields an author may write, these are the ones authoring is an error.
+ * Everything else in a declaration — a constant, a derived value — is
  * simply not authored, which is a statement about the *builder* rather than
  * about the author, and says nothing about what happens if a note writes the
  * path anyway.

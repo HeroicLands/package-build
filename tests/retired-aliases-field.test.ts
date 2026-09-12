@@ -6,15 +6,15 @@
  */
 
 /**
- * The top-level `aliases:` is retired (#180).
+ * The top-level `aliases:` is retired.
  *
  * It fed one reader — the alias index the bare `[[Alias]]` form looked up in —
  * and that form resolved to nothing anywhere in the corpus. What the index did
  * do was fold `name.full` in beside it, which made two notes of one type
- * forbidden from sharing a display name (#179).
+ * forbidden from sharing a display name.
  *
  * So the reader is gone and the field is **refused**, the same way `draft:`
- * (#69) and `package:` (#56) are: a retired field left merely ignored reads to
+ * and `package:` are: a retired field left merely ignored reads to
  * its author as though it still works.
  *
  * **`name.aliases` is not this field.** It fed the same index and lost the same
@@ -254,7 +254,7 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
 
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines).toHaveLength(1);
-            // `file:line:column: severity: message`, the path first (#17).
+            // `file:line:column: severity: message`, the path first.
             expect(lines[0]).toMatch(/aliased\.md:7:1: error: /);
             expect(lines[0]).toContain("retired frontmatter field");
         } finally {
@@ -284,7 +284,7 @@ describe("the compile loop refuses a note declaring `aliases:`", () => {
         expect(fs.readdirSync(dest)).toHaveLength(1);
     });
 
-    it("lets two notes of one type share a display name (#179)", async () => {
+    it("lets two notes of one type share a display name", async () => {
         // The alias index folded `name.full` into the namespace, so this pair
         // was a build failure and every fix moved a published URL. With the
         // index gone, `name.full` is not an index key and the pair is fine.

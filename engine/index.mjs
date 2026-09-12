@@ -19,7 +19,7 @@
  * The content walk, frontmatter parsing, table generation, wikilink
  * resolution, id and folder derivation, the link manifest and the web-address
  * rule, `BasePackCompiler`, and the generic Foundry document compilers
- * (journals, macros, scenes) all live here (#1512).
+ * (journals, macros, scenes) all live here.
  *
  * **Each module is re-exported as its own namespace, not flattened.** Several
  * of them deliberately re-export a neighbour's symbol so a caller keeps one
@@ -51,13 +51,13 @@ export * as contentTree from "./content-tree.mjs";
 /** The consuming repository's resolved `package-build.config.yaml`. */
 export * as packConfig from "./pack-config.mjs";
 
-/** Which pack of a document type a note's document lands in (#1566). */
+/** Which pack of a document type a note's document lands in. */
 export * as packRouter from "./pack-router.mjs";
 
-/** Which note types a configuration compiles, and the notes nothing claims (#146). */
+/** Which note types a configuration compiles, and the notes nothing claims. */
 export * as noteClaims from "./note-claims.mjs";
 
-/** Folders as notes: the address index, the parent chain, and the emitted `Folder` (#256). */
+/** Folders as notes: the address index, the parent chain, and the emitted `Folder`. */
 export * as folderNotes from "./folder-notes.mjs";
 
 /** The content package a build compiles, and the Foundry package it ships in. */
@@ -95,13 +95,13 @@ export * as contentAddress from "./content-address.mjs";
 /** Which note-type → document-subtype maps this toolchain ships. */
 export * as subtypeRegistry from "./subtype-registry.mjs";
 
-/** The id a note's document is filed under: its pin, or its address (#270). */
+/** The id a note's document is filed under: its pin, or its address. */
 export * as noteIds from "./note-ids.mjs";
 
-/** The shortcodes a note declares it used to be published under (#278). */
+/** The shortcodes a note declares it used to be published under. */
 export * as noteRenames from "./note-renames.mjs";
 
-/** The published content index packages exchange addresses through (#239). */
+/** The published content index packages exchange addresses through. */
 export * as metadataIndex from "./metadata-index.mjs";
 
 /** Deriving this package's own link manifest from its content tree. */
@@ -185,7 +185,7 @@ export * as compendiums from "./compendiums.mjs";
 // The region-event vocabulary stays flat as well as namespaced: the Foundry
 // runtime imports these three by name through
 // `@heroiclands/package-build/engine/region-events`, and they were part of this
-// barrel's surface before the pipeline arrived (#1510).
+// barrel's surface before the pipeline arrived.
 export {
     CURATED_REGION_EVENTS,
     EXCLUDED_REGION_EVENTS,

@@ -45,7 +45,7 @@ const messages = (findings: Array<{ message: string }>) =>
 
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
-describe("a `subType` is an address segment (#206)", () => {
+describe("a `subType` is an address segment", () => {
     it("accepts the alphanumeric spelling `userguide` on a doc", () => {
         expect(lintNote(note("doc", { subType: "userguide" }), opts)).toEqual([]);
     });
@@ -99,7 +99,7 @@ describe("a `subType` is an address segment (#206)", () => {
     });
 });
 
-describe("`user-guide` is refused, the acceptance having been removed (#210)", () => {
+describe("`user-guide` is refused, the acceptance having been removed", () => {
     const findings = () => lintNote(note("doc", { subType: "user-guide" }), opts);
 
     it("is an error, not a warning — every consumer tree has swept", () => {
@@ -143,7 +143,7 @@ describe("`user-guide` is refused, the acceptance having been removed (#210)", (
     });
 });
 
-describe("the subType charset message says why the rule holds for a subType (#210)", () => {
+describe("the subType charset message says why the rule holds for a subType", () => {
     const message = subTypeCharsetMessage("user-guide");
 
     it("does not justify it by an address a subType no longer reaches", () => {
@@ -174,7 +174,7 @@ describe("the subType charset message says why the rule holds for a subType (#21
     });
 });
 
-describe("a `type` is an address segment (#206)", () => {
+describe("a `type` is an address segment", () => {
     it("refuses a hyphenated type, at the `type` line", () => {
         const subject = note("user-guide", { shortcode: "abc" });
         const [finding] = lintNote(subject, opts) as any[];
@@ -211,7 +211,7 @@ describe("a `type` is an address segment (#206)", () => {
     });
 });
 
-describe("the declared vocabulary is held to the same rule (#206)", () => {
+describe("the declared vocabulary is held to the same rule", () => {
     it("declares no hyphenated type or subType", () => {
         expect(() => assertVocabularyCharset(NOTE_VOCABULARY)).not.toThrow();
     });
@@ -234,7 +234,7 @@ describe("the declared vocabulary is held to the same rule (#206)", () => {
         ).toThrow(/user-guide/);
     });
 
-    it("says why the rule holds for each key, not by one claim covering both (#210)", () => {
+    it("says why the rule holds for each key, not by one claim covering both", () => {
         // The same correction `subTypeCharsetMessage` got, in the second place
         // the claim survived. A type *is* an address segment, so that half
         // stands; a subType stopped being one when #204 retired sections, so
@@ -255,7 +255,7 @@ describe("the declared vocabulary is held to the same rule (#206)", () => {
     });
 });
 
-describe("the shortcode rule is untouched (#206)", () => {
+describe("the shortcode rule is untouched", () => {
     it("accepts and refuses what the shared pattern does", () => {
         expect(isValidShortcode("clmb")).toBe(true);
         expect(isValidShortcode("clmb42")).toBe(true);

@@ -12,7 +12,7 @@
  */
 
 /**
- * The shortcodes a note declares it used to be published under (#278).
+ * The shortcodes a note declares it used to be published under.
  *
  * A package's `(type, shortcode)` addresses are a published interface, and
  * `addresses diff` reports what a build stopped publishing — telling a
@@ -52,7 +52,7 @@
  * **It is transient.** Once every baseline a build is compared against post-dates
  * the rename, the declaration has nothing left to say and may be deleted. That
  * is the difference from an `id:` pin, which is permanent, opaque, and a second
- * identity for a thing that already has one (#270).
+ * identity for a thing that already has one.
  *
  * **It is one key per note, at the top level, however many systems the note
  * compiles into.** A shortcode is the note's, not a system block's: a note

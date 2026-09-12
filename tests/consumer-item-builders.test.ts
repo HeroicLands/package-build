@@ -12,7 +12,7 @@
  * `item-builders.test.ts` covers the registry this repository ships. This file
  * covers the half only a foreign registry can prove — that the builder the
  * compiler dispatches to is the one the consumer configured, not the table the
- * package happens to hold (#1563). In this repository the two are the same
+ * package happens to hold. In this repository the two are the same
  * object, so nothing but a foreign configuration can tell them apart.
  *
  * Out of process, because the resolved configuration is loaded once per module
@@ -144,7 +144,7 @@ const RELIC_FM = `{
     sohl: { power: 7, archetype: null },
 }`;
 
-describe("a consumer's own itemBuilders table is the one that compiles (#1563)", () => {
+describe("a consumer's own itemBuilders table is the one that compiles", () => {
     const configPath = consumerRepo();
 
     it("dispatches to the builder the consumer configured", () => {

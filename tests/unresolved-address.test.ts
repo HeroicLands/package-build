@@ -6,7 +6,7 @@
  */
 
 /**
- * An address that resolves to no note fails every build (#184).
+ * An address that resolves to no note fails every build.
  *
  * The tolerance was a property of the **bare** form. `[[Sunless Vault]]` was
  * read as a worldbuilding placeholder — a note somebody meant to write — so an
@@ -215,7 +215,7 @@ describe("one vocabulary of link findings", () => {
 
 describe("the checker fails an address that resolves to no note", () => {
     // The grammar's middle form: a system stated, the package left to default
-    // to the citing note's own (#59). Nothing covered it, because until the
+    // to the citing note's own. Nothing covered it, because until the
     // parser counted segments no written target could state a system at all.
     it("resolves a system-qualified address in the local package", () => {
         const r = audit(corpus("See [[sohl-skill-clmb|Climbing]]."));
@@ -262,7 +262,7 @@ describe("the checker fails an address that resolves to no note", () => {
         expect(r.deadAddresses[0]).toMatchObject({ reason: "not-an-address" });
     });
 
-    it("does NOT reach a dependency from a short form — an omitted package is this one (#336)", () => {
+    it("does NOT reach a dependency from a short form — an omitted package is this one", () => {
         // It used to resolve: a short form fell through to any foreign index
         // that published it. That is resolving by accident — the link landed in
         // `thalorna` only because no local note claimed the address, and would
@@ -275,7 +275,7 @@ describe("the checker fails an address that resolves to no note", () => {
         expect([...r.usedManifest]).toEqual([]);
     });
 
-    it("cannot be ambiguous across packages any more — the form names one (#336)", () => {
+    it("cannot be ambiguous across packages any more — the form names one", () => {
         // Two packages publishing `creature-wolf` used to make a short form
         // ambiguous. Now the short form names *this* package and neither of
         // them, so the finding is a plain `unresolved` with the same fix the
@@ -338,7 +338,7 @@ describe("the pack build fails an address that resolves to no note", () => {
         expect(unresolved[0]).toMatchObject({ reason: "unresolved" });
     });
 
-    it("resolves each of them by its own qualified address (#336)", () => {
+    it("resolves each of them by its own qualified address", () => {
         const foreign = new Map<string, object>([
             [
                 "thalorna-sohl-creature-wolf",
@@ -386,7 +386,7 @@ describe("the site build fails an address that resolves to no note", () => {
         contentTypes: new Set<string>(["skill", "creature"]),
         foreign: new Map<string, object>(),
         // The package a bare link defaults to, and the packages a qualified one
-        // may name (#336).
+        // may name.
         contentPackage: "sohl",
         packages: new Set<string>(["sohl", "thalorna", "kethira", "adventure"]),
         type: "skill",
@@ -461,12 +461,12 @@ describe("the site build fails an address that resolves to no note", () => {
     });
 
     it("still passes an address that resolved to a package with no page", () => {
-        // A pack-only package (#1516) publishes Foundry addresses and no pages,
+        // A pack-only package publishes Foundry addresses and no pages,
         // so the address is real and there is simply nothing to link to. It was
         // never the unresolved case and must not become one.
         //
         // Qualified, because reaching another package needs the full form
-        // (#336) — a short address names this package and never a dependency.
+        // — a short address names this package and never a dependency.
         const c = ctx({
             foreign: new Map<string, object>([
                 ["adventure-sohl-creature-wolf", { name: "Dire Wolf" }],

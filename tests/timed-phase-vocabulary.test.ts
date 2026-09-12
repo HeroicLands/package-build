@@ -6,7 +6,7 @@
  */
 
 /**
- * Declaring a field whose **absence** is meaningful (#329).
+ * Declaring a field whose **absence** is meaningful.
  *
  * The defect these pin: an affliction's and a trauma's timed phases are stored
  * as `{…DurationFormula, …DurationBase, …Date}`, and the two authored thirds

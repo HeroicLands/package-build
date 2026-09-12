@@ -6,7 +6,7 @@
  */
 
 /**
- * A published page's URL is its address (#181).
+ * A published page's URL is its address.
  *
  * The rule under test is `/<package>/<type>-<shortcode>/`. What matters is not
  * the spelling but its three properties, and each is asserted here rather than
@@ -15,7 +15,7 @@
  * **derivable from the canonical key**, so the link manifest transports an
  * address rather than inventing one.
  *
- * That last property is derivable from the key's *parsed parts* (#59), not
+ * That last property is derivable from the key's *parsed parts*, not
  * from its text: the key gained a system segment between the package and the
  * type, so the address is no longer a suffix of it.
  */
@@ -40,8 +40,8 @@ describe("addressSlug", () => {
         // `canonicalKey` lowercases too, which is what lets a consumer derive
         // the address from the key it looked the entry up by.
         //
-        // It derives from the key's *parts*, not from a suffix of the key
-        // (#59). The system segment sits between the package and the type
+        // It derives from the key's *parts*, not from a suffix of the key.
+        // The system segment sits between the package and the type
         // (`sohl-sohl-weapongear-taburi`), so the slug is no longer the tail
         // of the key and a consumer that stripped a package prefix would now
         // carry the system into the URL. `readCanonicalKey` is the seam that
@@ -79,7 +79,7 @@ describe("a page's address is not its name", () => {
         // page addressed by `(type, shortcode)` is not addressed by where it is
         // filed. The `type-` half is what keeps that flat namespace clear of
         // `/<package>/` and `/<package>/api/`, neither of which has a hyphen.
-        // There is no scheme parameter left to pass one through (#215), so a
+        // There is no scheme parameter left to pass one through, so a
         // caller that still holds a scheme cannot reach the address with it.
         const fm = { type: "affliction", shortcode: "aconite" };
         expect(packageAddress(fm)).toBe("affliction-aconite/");
@@ -90,8 +90,8 @@ describe("a page's address is not its name", () => {
 
     it("spells a `doc`'s subtype nowhere in the address", () => {
         // The subtype is a genre, and a genre is not an address. It used to
-        // pick the directory the file was written into; that directory is gone
-        // (#204), and the address never had it.
+        // pick the directory the file was written into; that directory is gone,
+        // and the address never had it.
         expect(packageAddress({ type: "doc", subType: "rules", shortcode: "combat" })).toBe(
             "doc-combat/",
         );
@@ -108,7 +108,7 @@ describe("a page's address is not its name", () => {
     });
 });
 
-describe("there is no landing page, because there is no section (#204)", () => {
+describe("there is no landing page, because there is no section", () => {
     it("addresses a `README.md`'s note like every other note", () => {
         const fm = { type: "doc", subType: "rules", shortcode: "rulesintro" };
         expect(packageAddress(fm)).toBe("doc-rulesintro/");
@@ -125,7 +125,7 @@ describe("a note with no address is refused, never guessed", () => {
     it("publishes a `doc` with no subtype — nothing is left for it to lack", () => {
         // It used to be refused for having "no section, so nowhere to file the
         // page". The directory was the only thing it lacked, and there is no
-        // directory (#204).
+        // directory.
         expect(packageAddress({ type: "doc", shortcode: "homeless" })).toBe("doc-homeless/");
     });
 
@@ -134,12 +134,12 @@ describe("a note with no address is refused, never guessed", () => {
     });
 });
 
-describe("there is one address, so the module exports one name for it (#226)", () => {
+describe("there is one address, so the module exports one name for it", () => {
     it("no longer publishes `contentAddress` beside `packageAddress`", () => {
         // The two were a note's address *in the content tree* and *relative to
         // the package* — quantities that could differ while a `README.md`
-        // addressed its section (#204) and a URL was derived from `name.full`
-        // (#181). Both distinctions are retired, so a second name could only
+        // addressed its section and a URL was derived from `name.full`.
+        // Both distinctions are retired, so a second name could only
         // invite a caller to think it was picking between two rules.
         expect(typeof contentAddressModule.packageAddress).toBe("function");
         expect("contentAddress" in contentAddressModule).toBe(false);

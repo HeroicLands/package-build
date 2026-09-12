@@ -24,14 +24,14 @@
  * `documentTypes.Item` and reported by world migration as unrecognized — was
  * still advertised as compilable, so a `type: trait` note passed the gate and
  * then died on `BUILDERS[type] is not a function`, swallowed as a per-file
- * error (#1504).
+ * error.
  *
  * **The builders are generated, not written.** Each type's `system` builder
  * comes from its field declaration in `item-fields.mjs` by way of
  * {@link buildFromFields}, so the vocabulary a note may write is readable data
  * rather than statements buried in a function body — which is what lets the
- * authoring reference be generated and a note be linted against its type
- * (#22). One consequence worth naming: the registry's keys are now
+ * authoring reference be generated and a note be linted against its type.
+ * One consequence worth naming: the registry's keys are now
  * {@link ITEM_FIELDS}'s keys, so adding an item type is one edit *there* (plus
  * its `documentTypes.Item` declaration and its default art), and removing one
  * is likewise a single deletion.
@@ -43,7 +43,7 @@
  * own evaluation. The table travels into configuration; the engine's
  * `item-registry.mjs` reads it back out and the Item compiler dispatches
  * through that, which is how a consumer's own table is the one its notes
- * compile with (#1563).
+ * compile with.
  */
 
 import { defaultItemArt } from "./default-item-art.mjs";
@@ -86,7 +86,7 @@ const FINALIZERS = Object.freeze({
  *
  * **The art map is keyed by the document subtype**, which the runtime reads
  * with a Foundry `Item`'s own `type`, so this asks SoHL's map what an `armor`
- * note becomes before looking art up (#78). Translating on the build side is
+ * note becomes before looking art up. Translating on the build side is
  * the only place it can happen: the runtime has no note in hand. Every SoHL
  * Item row is one-to-one, so `documentSubtype` needs no frontmatter and cannot
  * throw for a discriminator.

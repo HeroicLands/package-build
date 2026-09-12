@@ -6,9 +6,9 @@
  */
 
 /**
- * **A `data:` source has a retiring top-level spelling, and it is read** (#332).
+ * **A `data:` source has a retiring top-level spelling, and it is read**.
  *
- * `data:` (#128) did not invent the facts it holds — it gathered them out of
+ * `data:` did not invent the facts it holds — it gathered them out of
  * the note's open top level, where `portrait:` sat beside `img:` and
  * `shortcode:`. So a field declaring `data.portrait` has *two* shared
  * spellings, and #305 taught the resolver only about the retiring **in-block**
@@ -260,7 +260,7 @@ const beingNote = (extra: Record<string, unknown>) => ({
 /** The generic person icon a miss used to compile to. */
 const DEFAULT_BEING_ART = "systems/sohl/assets/icons/game-icons/delapouite/person.svg";
 
-describe("a SoHL being's `system.portrait` (#332)", () => {
+describe("a SoHL being's `system.portrait`", () => {
     it("carries the path authored at `data.portrait`, resolved through resolveImg", () => {
         const doc = actors().buildBeing(
             new Map(),
@@ -297,7 +297,7 @@ describe("a SoHL being's `system.portrait` (#332)", () => {
         );
     });
 
-    it('still ships blank for a deliberate `""`, at either shared position (#218)', () => {
+    it('still ships blank for a deliberate `""`, at either shared position', () => {
         expect(
             actors().buildBeing(new Map(), beingNote({ portrait: "" }), "").system.portrait,
         ).toBe("");
@@ -324,8 +324,8 @@ describe("a SoHL being's `system.portrait` (#332)", () => {
     });
 });
 
-describe("an HM3 actor's `system.bioImage` (#332)", () => {
-    /** HM3 splits a `being` in two, so the note says which (#139). */
+describe("an HM3 actor's `system.bioImage`", () => {
+    /** HM3 splits a `being` in two, so the note says which. */
     const hm3Being = (extra: Record<string, unknown>) => ({
         ...beingNote(extra),
         hm3: { type: "creature", ...((extra.hm3 as object) ?? {}) },

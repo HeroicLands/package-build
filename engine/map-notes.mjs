@@ -12,7 +12,7 @@
  */
 
 /**
- * **Map notes** — the markdown → Foundry `Scene` translation (issue #1525).
+ * **Map notes** — the markdown → Foundry `Scene` translation.
  *
  * A map note carries an *essence*: a curated, hand-owned subset of what a Scene
  * record holds, exactly as a weapon note carries a weapon's essence rather than
@@ -57,7 +57,7 @@ import { compendiumUuid, makeId, MAP_SUBTYPES, MAP_TYPES } from "./ids.mjs";
 // exactly one the bridge forwards.
 import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.mjs";
 // A map's background art is `img`, as every other note type's art is. `image`,
-// the spelling a map alone once used, is retired and gone (#149).
+// the spelling a map alone once used, is retired and gone.
 import { sohlField } from "./frontmatter.mjs";
 
 /* -------------------------------------------------------------------- */
@@ -556,7 +556,7 @@ const SCROLLING_TEXT_EVENTS = Object.freeze([
  * @type {Readonly<Record<string, {fields: string[], events?: readonly string[]}>>}
  */
 const BEHAVIOR_SPECS = Object.freeze({
-    // The SoHL bridge (#593).
+    // The SoHL bridge.
     trigger: { fields: ["events", "action"], events: CURATED_REGION_EVENTS },
     adjustDarknessLevel: { fields: ["mode", "modifier"] },
     applyActiveEffect: { fields: ["effects"] },

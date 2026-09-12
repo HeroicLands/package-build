@@ -22,7 +22,7 @@ import { Macros } from "../engine/macros.mjs";
 import { Scenes } from "../engine/scenes.mjs";
 /**
  * A note in the tree's shape. It declares no package: a note's package is the
- * repository's configured `contentPackage` and `package:` is retired (#56).
+ * repository's configured `contentPackage` and `package:` is retired.
  */
 function note(body: string, fm: Record<string, unknown>): string {
     const lines = Object.entries(fm).map(([k, v]) => `${k}: ${JSON.stringify(v)}`);
@@ -90,7 +90,7 @@ const TREE: Record<string, string> = {
         shortcode: "two",
         type: "probe",
     }),
-    // The retired field, which no value makes acceptable (#56).
+    // The retired field, which no value makes acceptable.
     "Declares.md": note("Declares a package.", {
         name: { full: "Probe Declares" },
         id: "PROBEPROBE000004",
@@ -170,7 +170,7 @@ describe("BasePackCompiler's shared compile loop", () => {
     it("declines a note declaring the retired `package:` field", () => {
         // Refused rather than skipped, and counted as an error below: a note
         // the compiler would not compile used to vanish into the "belongs to
-        // another pass" tally (#56).
+        // another pass" tally.
         expect(read(out)["Probe Declares"]).toBeUndefined();
     });
 
@@ -206,7 +206,7 @@ describe("BasePackCompiler's per-pass switches", () => {
         expect(read(out)["Probe One"].body).toContain("[[doc-probetarget|Target]]");
     });
 
-    it("compiles a note that authors no id, deriving one from its address (#270)", async () => {
+    it("compiles a note that authors no id, deriving one from its address", async () => {
         // `id:` used to be mandatory and is now optional: the document is filed
         // under `makeId("document", <canonical address>)`, an identity the note
         // already had and `content-lint` already guards.

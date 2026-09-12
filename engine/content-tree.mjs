@@ -20,7 +20,7 @@
  * notices — the LevelDB packs are written, the deploy mirrors them, and the
  * defect surfaces as "my compendiums are blank" long after the build went green.
  *
- * `assets/content/` is this repository's own source (#1445), but an empty or
+ * `assets/content/` is this repository's own source, but an empty or
  * partial tree is still possible — a bad checkout, or a sparse clone. This
  * counts what is actually there so the build can refuse.
  */

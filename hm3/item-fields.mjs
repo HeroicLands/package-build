@@ -33,7 +33,7 @@
  * **One shared source, two destinations.** `name` is the shared property a
  * field draws from and `to` is where it lands, so a single authored `weight`
  * feeds `sohl.system.weightBase` *and* `hm3.system.weight` — one authored fact,
- * two documents (#58). That is the whole reason the two are declared
+ * two documents. That is the whole reason the two are declared
  * separately.
  *
  * The specification writes those sources as `data.weight`, and the sources here

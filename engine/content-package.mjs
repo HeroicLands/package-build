@@ -16,7 +16,7 @@
  * ships them — read from the repository's `package-build.config.yaml`.
  *
  * Both values are **derived**, not declared: `config.mjs` is the single place
- * the configuration is resolved (#1508). This module survives as the import
+ * the configuration is resolved. This module survives as the import
  * path the link resolver and the compilers have always used, so that the values
  * can still be mocked in one place and so no consumer has to learn a new
  * spelling for them.

@@ -18,7 +18,7 @@
  * compiled from bespoke configuration — `*-folders.yaml`, five files per tree —
  * rather than from a note. That was the one hole in the rule #243 establishes,
  * *the compiler follows the index*: a pass cannot follow the index for things
- * the index does not contain (#256).
+ * the index does not contain.
  *
  * Three things follow from a folder being a note, and each is a defect that
  * becomes unrepresentable rather than a tidiness win:
@@ -26,14 +26,14 @@
  * 1. **`parent` is an address**, resolved and checked like every other
  *    reference. A dangling parent stops being a special-cased
  *    `Unknown folder id` and becomes an ordinary dead-address finding.
- * 2. **Where a folder materialises is derived from what references it** (#257).
+ * 2. **Where a folder materialises is derived from what references it**.
  *    A documentation journal is filed beside the item it describes, which used
  *    to mean passing the *items* pack's folder id into the *journals* pack —
  *    verbatim, validated nowhere, and correct only where the two folder files
  *    happened to mirror each other. They did in one tree of three. With one
  *    folder note and one address there is no second file to disagree with the
  *    first, so a pack cannot fail to declare a folder something in it points at.
- * 3. **The Foundry id is derived from the address** (#258), the way a
+ * 3. **The Foundry id is derived from the address**, the way a
  *    `JournalEntryPage` id is already hashed from its anchor — with an authored
  *    `id` still winning, so a world already holding these folders keeps
  *    resolving them.
@@ -194,7 +194,7 @@ export function folderAddress(pkg, shortcode) {
  * never run this build. Deriving it twice is how the index came to publish a
  * plausible-looking id that resolved to nothing — the general id rule hashes a
  * note's address under the `document` namespace, and a folder's is hashed under
- * {@link FOLDER_ID_NAMESPACE} (#310).
+ * {@link FOLDER_ID_NAMESPACE}.
  *
  * An **authored `id` still wins**, and is applied by the caller: this is the
  * derivation, not the resolution, so the pin rule stays stated once, where
@@ -212,8 +212,7 @@ export function folderDocId(pkg, shortcode) {
  * Collect every folder note in a content tree.
  *
  * The walk is the caller's to supply, so this stays testable without a tree on
- * disk and so one build cannot disagree with another about what the corpus is
- * (#243).
+ * disk and so one build cannot disagree with another about what the corpus is.
  *
  * @param {Iterable<{frontmatter: object|null, absPath: string}>} notes - As
  *   yielded by `walkMarkdownTree`.
@@ -237,7 +236,7 @@ export function collectFolderNotes(notes, pkg) {
         // The charset rule is load-bearing here rather than tidy: the address
         // is parsed by counting separators, so a hyphenated shortcode would be
         // read back as two segments and resolve to nothing, reporting nothing
-        // about why (#1397, #273).
+        // about why.
         if (!isAddressSegment(shortcode)) {
             throw Object.assign(
                 new Error(
@@ -266,7 +265,7 @@ export function collectFolderNotes(notes, pkg) {
                 Object.entries(parent).map(([pack, value]) => [pack, bareAddress(value)]),
             ),
             // An authored id is kept, and a folder without one derives a
-            // stable one from its address (#258). Keeping the authored id is
+            // stable one from its address. Keeping the authored id is
             // what makes this a build change rather than a world migration: a
             // world already holding these folders goes on resolving them.
             id: authoredId || folderDocId(pkg, shortcode),
@@ -283,7 +282,7 @@ export function collectFolderNotes(notes, pkg) {
  *
  * Three keys per folder, and no more: the canonical address, the
  * `folder-<shortcode>` short form, and the bare shortcode. They are the
- * suffixes of the canonical address the grammar admits (#273) — a `packFolder`
+ * suffixes of the canonical address the grammar admits — a `packFolder`
  * or `parent` field supplies the type itself, so a bare shortcode is a complete
  * address there.
  *
@@ -402,7 +401,7 @@ export function buildFolderNoteIndex(folders) {
      *
      * A folder cannot materialise without them: a `Folder` whose parent is
      * absent from the pack is an orphan Foundry renders at the root, so the
-     * tree would be broken at the top rather than merely incomplete (#257).
+     * tree would be broken at the top rather than merely incomplete.
      *
      * @param {FolderNote} folder - The folder.
      * @param {string} [pack] - The pack being compiled.
@@ -497,7 +496,7 @@ export function folderDocument(folder, parent, documentType, stats) {
  * Refuse a note that declares the retired `folder:` spelling.
  *
  * `folder:` named a compendium folder by the raw Foundry id declared in a
- * per-pack `*-folders.yaml`. Both halves are retired together (#260): the id
+ * per-pack `*-folders.yaml`. Both halves are retired together: the id
  * spelling has nothing left to resolve against once the YAML is gone, and the
  * YAML has no reader once the spelling is refused.
  *

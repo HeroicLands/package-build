@@ -55,7 +55,7 @@ A skill belonging to the configured content package.
 /**
  * A second note, likewise declaring no package. Every note in every tree has
  * this shape now: the package a note belongs to is the repository's, not the
- * note's (#56).
+ * note's.
  */
 const UNDECLARED_SKILL = `---
 name:
@@ -213,8 +213,8 @@ beforeAll(async () => {
         contentBase: content,
         dest: dest("actors"),
         // Stated, not inferred from the destination's siblings: where the items
-        // passes wrote their JSON is configuration (#1508), and there may be
-        // more than one Item pack (#1566).
+        // passes wrote their JSON is configuration, and there may be
+        // more than one Item pack.
         itemsSourceDirs: [dirs.items],
     });
     await compilers.actors.compile();

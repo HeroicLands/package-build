@@ -19,7 +19,7 @@
  * both systems names both: `itemBuilders: [sohl, hm3]`. The engine keeps them
  * apart from there on — `itemBuilder(type, system)` takes the system that is
  * asking, and a type both registries declare **throws** rather than resolving
- * when nobody says which (#58). That guard existed before there was a second
+ * when nobody says which. That guard existed before there was a second
  * registry to trip it; this is the registry it was written for.
  *
  * **The builders are generated, not written**, from the field declarations in

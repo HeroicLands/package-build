@@ -66,7 +66,7 @@ describe("a section can describe itself", () => {
         // `partials/hero-banner.html` already renders `description` as the hero
         // standfirst on any page that has one, so before this every generated
         // section landing rendered a hero with a heading and no standfirst —
-        // and could not be given one, at any level, by any consumer (#91).
+        // and could not be given one, at any level, by any consumer.
         const out = mount();
         writeSectionLandings(out, {
             sections: {
@@ -111,7 +111,7 @@ describe("a section can describe itself", () => {
     });
 
     it("says nothing about a content page, whatever it is called", () => {
-        // A content note has no section to describe (#204): it is addressed
+        // A content note has no section to describe: it is addressed
         // `(type, shortcode)` and emitted flat, so a `README.md` in the content
         // tree is an ordinary page and takes an ordinary page's front matter.
         const data = pageFrontmatter(

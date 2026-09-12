@@ -17,7 +17,7 @@
  * One module, one import: everything the compilers used to hard-code — the
  * content package, the Foundry package and its kind, every path, the `_stats`
  * identity, the item-type membership, and the pack list — arrives from the
- * consuming repository's `package-build.config.yaml` (#1508).
+ * consuming repository's `package-build.config.yaml`.
  *
  * **The configuration is data, and a repository writes it as data.** Every
  * value in it is a literal; the three consumers' configs held no logic between
@@ -58,7 +58,7 @@
  * resolution walks parent directories. `import.meta.dirname` is then inside the
  * parent, the walk lands on the parent's configuration, and the build compiles
  * the parent's content tree into the parent's `build/` and exits 0 — saying so
- * only in paths that are easy to read past (#364).
+ * only in paths that are easy to read past.
  *
  * That failure is undetectable on exactly the work most likely to provoke it.
  * The usual tell is a zero diff where a change was expected; an
@@ -244,7 +244,7 @@ const ITEM_BUILDER_REGISTRIES = Object.freeze({
  *
  * `stats.systemVersion` is stamped into every compiled document, and a
  * transcribed copy of it froze at `0.6.0` for four releases before anyone
- * noticed (#1548). `package.json` is the file Changesets bumps, so reading it
+ * noticed. `package.json` is the file Changesets bumps, so reading it
  * is what keeps the stamp equal to the version that did the compiling.
  *
  * The read happens *here*, in the loader, rather than in `defineConfig`:
@@ -343,7 +343,7 @@ function shippedSystemVersion(rootDir, input) {
     const declaredSystems = /** @type {Record<string, unknown>} */ (input.relationships ?? {})
         .systems;
 
-    // The `systems:` block declares without requiring (#48), so it is consulted
+    // The `systems:` block declares without requiring, so it is consulted
     // first: a package that has adopted it needs no relationship, and one that
     // ships for two systems could not express itself through a relationship at
     // all. `requiresSystem` names the package-wide default when there is one;
@@ -373,7 +373,7 @@ function shippedSystemVersion(rootDir, input) {
     // system data, and it installs under any system. There is no version to
     // stamp, and inventing one would be the very thing the throw below guards
     // against. The two signals together are what separate this from a module
-    // that simply forgot to declare its system (#43).
+    // that simply forgot to declare its system.
     if (
         (systemId === undefined || systemId === null) &&
         !(Array.isArray(declaredSystems) && declaredSystems.length)
@@ -453,7 +453,7 @@ function positionInConfig(configPath, field) {
  * worse than locating none — a reader would learn that some configuration
  * errors carry a position and could not predict which — so the path rides on
  * the error and every one of them is located here, at the boundary that knows
- * which file was read (#95).
+ * which file was read.
  *
  * The message keeps its body and gains the `file:line:column: error: ` prefix
  * every other finding in this build already uses, so nothing a reader has today
@@ -500,7 +500,7 @@ export function locateConfigError(err, configPath) {
  *   cannot write `import.meta.dirname`, and any absolute path it wrote instead
  *   would be one machine's — so authoring it is rejected rather than honoured.
  * - **`itemBuilders`** is a *name* (`sohl`) — or a list of names, for a tree
- *   feeding more than one system (#58) — resolved against the built-in
+ *   feeding more than one system — resolved against the built-in
  *   registries. A registry's name is the system it belongs to. A registry of a
  *   consumer's own is code, and code goes in an `.mjs` configuration.
  * - **`stats.systemVersion`** is derived from the adjacent `package.json` when
@@ -554,7 +554,7 @@ export function configFromData(data, configPath) {
         const declared = input.itemBuilders;
         const known = Object.keys(ITEM_BUILDER_REGISTRIES).join(", ");
         // One name or several. A repository feeding two systems needs both
-        // vocabularies, and one registry can only carry one (#58); the scalar
+        // vocabularies, and one registry can only carry one; the scalar
         // form every existing configuration uses is the one-element case and
         // means exactly what it always did.
         const names = Array.isArray(declared) ? declared : [declared];

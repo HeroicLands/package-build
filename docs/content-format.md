@@ -225,7 +225,7 @@ is a gap in the vocabulary rather than something to write into every note: an
 override that thousands of notes need is a missing subType value.
 
 **A type's `subType` values are stated in one shape**, so that they can be read
-and compared to the vocabulary that enforces them (#345). Under the type's
+and compared to the vocabulary that enforces them. Under the type's
 heading, write `**subType**:` on a line of its own, then one bullet per value —
 `- <value>` or `- <value>: <definition>` — and nothing else between the marker
 and the list. A type that has no `subType`, or whose values are not enumerated
@@ -295,7 +295,7 @@ at the note's top level and `portrait` moved under `data:`, because a note's
 token art is a fact about the _note as a published artefact_ while the portrait
 is a fact about the _subject_.
 
-**A `data:` source is still read at the top level, for now.** `data:` (#128) did
+**A `data:` source is still read at the top level, for now.** `data:` did
 not invent the facts it holds — it gathered them out of the top level, where
 `portrait:` sat beside `img:` — so every key it collected has a **pre-`data:`
 spelling** that is read after the declared one and reported as retiring. Write
@@ -543,7 +543,7 @@ folder pass for a folder, the journals pass for a documentation journal, this
 rule for everything else. Re-deriving one from the `canonical` key alone reads
 correctly and is wrong for a folder, and wrong in a way nothing outside the
 build can detect: the result is a plausible 16-character id that resolves to
-nothing (#310).
+nothing.
 
 **Why the address and not an authored string.** A note used to declare an
 opaque 16-character `id` — 6,343 of them across the four content trees — which
@@ -689,7 +689,7 @@ the first.
 
 > **`folder:` was a Foundry id**, resolved against a per-pack
 > `*-folders.yaml` — five files per tree. Both halves are **retired** together
-> (#260): the id spelling has nothing left to resolve against once the YAML is
+> : the id spelling has nothing left to resolve against once the YAML is
 > gone, and the YAML has no reader once the spelling is refused. A note that
 > still writes `folder:` fails the build, naming `packFolder` and the line to
 > rewrite, rather than being ignored — a retired field left ignored reads to
@@ -812,7 +812,7 @@ Only a type whose own document carries a system is redirected this way. A
 documents are core ones already at `none`, so `macro-autoattack` names the Macro
 and `docmacro-autoattack` its journal — two live addresses.
 
-**An address is lowercase throughout** (#340). Every segment — package,
+**An address is lowercase throughout**. Every segment — package,
 system, type and shortcode alike — is `^[a-z0-9]+$`, so a capital anywhere in an
 address is an error naming the lowercase form.
 
@@ -829,7 +829,7 @@ alphanumeric — so the hyphen is purely a separator. There is no longest-match
 against a roster and no vocabulary check before splitting.
 
 **`type` and `subType` are held to that charset, not merely expected to meet
-it** (#206). A type is the first segment of every address, so a hyphen in one is
+it**. A type is the first segment of every address, so a hyphen in one is
 read back as a segment boundary that was never meant as one. A `subType` reaches
 no address since #204 retired sections, but it is held to the same rule all the
 same: it is a vocabulary term the whole toolchain keys on, one closed set away
@@ -846,7 +846,7 @@ One declared value broke the rule and has been renamed: a `doc`'s `user-guide`
 is now **`userguide`**. The old spelling was accepted for one transitional
 release, as a warning naming the replacement, so the 43 `sohl` notes authoring
 it were not invalidated by the release that renamed them. Every consumer tree
-has swept, so the acceptance is gone (#210) and `user-guide` is refused by the
+has swept, so the acceptance is gone and `user-guide` is refused by the
 charset check — it contains a hyphen, which is the reason that always applied.
 No retirement-specific code outlived the sweep.
 
@@ -870,7 +870,7 @@ There is one namespace, and the pipe is required:
 | `[[WikiLink\|Text]]` | an address  | `Text`                     |
 | `[[Name]]`           | nothing     | a finding                  |
 
-**A link written without a label addresses nothing** (#180), and the correction
+**A link written without a label addresses nothing**, and the correction
 is always the same: write `[[type-shortcode|Text]]`.
 
 The bare form used to name an **alias** — a note's own display name, or one of
@@ -880,7 +880,7 @@ across 8,305 wikilinks in three content trees, **not one** bare link resolved to
 a note. What the index behind it did do was fold every note's `name.full` into
 itself, so two notes of one type could not share a display name — a rules page
 and a user guide page both called "Gear" were a build failure whose every
-available fix moved a published URL (#179).
+available fix moved a published URL.
 
 The top-level `aliases:` that fed it is **retired** and refused. The nested
 `name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
@@ -901,7 +901,7 @@ page it is written on. It is the label that is required, not a target.
 
 #### Every address resolves, and every build says so the same way
 
-An address that names no note **fails the build** (#184) — in the link checker,
+An address that names no note **fails the build** — in the link checker,
 in the pack compilers and in the site build alike.
 
 It was a warning in the checker and, in the site build, nothing at all while any
@@ -909,7 +909,7 @@ linkable package had no vendored manifest. The reasoning was that `[[Sunless
 Vault]]` might be a placeholder for a note somebody meant to write. That was a
 property of the **bare** form, which is retired, and the intent behind it has a
 real spelling now: a note tagged `draft` exists, resolves, compiles and
-publishes, and a link to it renders visibly marked (#183). So an address landing
+publishes, and a link to it renders visibly marked. So an address landing
 nowhere is a typo or an omission, and both want fixing.
 
 There are six ways a link can fail, and each is one **error** with one message
@@ -1116,7 +1116,7 @@ still rendered — the finding is the point, not withholding the output.
 ##### In SQL, over the content index
 
 `dataview` is being replaced by **SQL**, queried over the content index, and both
-fences work while the corpus is converted (#246). The query is real SQL, run by
+fences work while the corpus is converted. The query is real SQL, run by
 DuckDB — not a dialect maintained by this package.
 
 ````markdown
@@ -1351,7 +1351,7 @@ sohl:
         durability: 0
 ```
 
-**A top-level `shortcode:` is retired** (#334). It selected a template, while the
+**A top-level `shortcode:` is retired**. It selected a template, while the
 `system.shortcode` beside it was the compiled item's identity — one word for two
 things — and it could not say which package a template came from, so an address
 resolved into a dependency only because no local pack claimed it and would have
@@ -1612,7 +1612,7 @@ the heading its page is published under; an affiliation's `system.title` is _the
 style of address the office carries_, Ajaw or Warden, which a being holds by
 virtue of its rank. So the top-level key is **not** a shared source for this
 field, and a note that writes one is stating its own heading and nothing else
-(#218). Author the style of address on the membership — the `system.title` of the
+. Author the style of address on the membership — the `system.title` of the
 entry in a being's `sohl.items` — or, on a catalogue note that genuinely carries
 one, at `sohl.system.title`.
 
@@ -2162,7 +2162,7 @@ single Level is synthesised from `img`, `overlay`, `levelName` and
 > note's `img` rather than inside a system block.
 >
 > `image` was **retired in favour of it**, in the three steps `package:` took
-> (#56), and all three have now run
+> , and all three have now run
 > ([package-build#149](https://github.com/HeroicLands/package-build/issues/149)).
 > Through the window both spellings were read, `img` won where a note carried
 > both, and a note still writing `image` got a located **warning** rather than a
@@ -2440,7 +2440,7 @@ an Adventure pack declared first still compiles last.
 
 Foundry's `Folder` — the grouping documents are filed in, and the last document
 this package compiled from bespoke configuration (`*-folders.yaml`, five files
-per tree) rather than from a note. Those files are retired (#260); a pack that
+per tree) rather than from a note. Those files are retired; a pack that
 still names one is refused.
 
 ```yaml
@@ -2519,4 +2519,4 @@ the namespace is **`folder`**, not the `document` one [every other note hashes
 under](#the-document-id): a folder and an item sharing a shortcode would
 otherwise derive the same id, and Foundry keys the two in separate collections
 so neither would complain. The content index publishes this value, so a consumer
-reads a folder's id rather than recomputing one (#310).
+reads a folder's id rather than recomputing one.

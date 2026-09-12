@@ -17,8 +17,8 @@
  * This is the authority for what an item note may write, and — because
  * {@link buildFromFields} turns each list into the builder that runs — it is
  * the same authority the compiler obeys. A field that is not here is not
- * emitted; a description here is a description of the thing that executes
- * (#22). The per-type authoring reference on the knowledgebase is generated
+ * emitted; a description here is a description of the thing that executes.
+ * The per-type authoring reference on the knowledgebase is generated
  * from this file.
  *
  * **SoHL type vocabulary, so it lives in `sohl/`.** `engine/` holds the
@@ -197,7 +197,7 @@ const STRIKE_MODES = Object.freeze({
  * depends on it.
  *
  * Authored `impact.die`, stored `impactBase.die` — the one re-reading field
- * whose two positions are spelled differently, so both are named (#126).
+ * whose two positions are spelled differently, so both are named.
  *
  * @param {object} fm - The note's frontmatter.
  * @returns {number} The die size, `0` when the projectile declares none.
@@ -448,7 +448,7 @@ export const ITEM_FIELDS = Object.freeze({
             describe:
                 "What running the course to the end does to the host: `death`, or the benign default `cured`.",
         },
-        // The two **authored** thirds of each timed-phase triplet (#329). Every
+        // The two **authored** thirds of each timed-phase triplet. Every
         // one omits its key when the note does not carry it, because the value
         // that stands otherwise is the DataModel's `initial: null` — writing a
         // compile-time `null` over it would say "this phase takes no time",
@@ -513,7 +513,7 @@ export const ITEM_FIELDS = Object.freeze({
                 "The resolution interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         // The `…Date` third of every timed-phase triplet, declared as **runtime
-        // state** (#330). A phase is authored as its `…DurationFormula`; the
+        // state**. A phase is authored as its `…DurationFormula`; the
         // `…DurationBase` records what that rolled to; the date records *when
         // it happened*, and only play can know that. All four are
         // `worldTimeDateField()`s in SoHL's schema — nullable rather than
@@ -949,7 +949,7 @@ export const ITEM_FIELDS = Object.freeze({
             default: null,
             describe: "Shortcode of the body location injured. Unset on a descriptive condition.",
         },
-        // A trauma's three timed phases (#329). Its healing check and course
+        // A trauma's three timed phases. Its healing check and course
         // both fall back to a **world setting** when the trauma sets neither
         // half, which is the sharper reason these omit rather than default: a
         // compile-time `null` written here is still a value, and the seeding in
@@ -1007,7 +1007,7 @@ export const ITEM_FIELDS = Object.freeze({
             describe:
                 "The course-test interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
-        // Runtime state, for the reason `affliction`'s four are (#330): a
+        // Runtime state, for the reason `affliction`'s four are: a
         // trauma's dates are crystallized when the phase fires, and world time
         // does not exist while content is compiled.
         {

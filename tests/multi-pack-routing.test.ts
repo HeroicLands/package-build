@@ -7,7 +7,7 @@
 
 /**
  * Several packs of one document type, and the note-level declaration that
- * routes between them (#1566).
+ * routes between them.
  *
  * The scenario is `sohl-kethira-basic`'s: three editorial groupings of
  * Item-type documents, whose collapse into one pack invalidated every stored
@@ -273,7 +273,7 @@ describe("generatePacksJson — two Item packs, notes routed between them", () =
                 {},
                 // System-qualified, so the link names the *Item* — this test is
                 // about which Item pack a UUID carries, and a bare prose link
-                // would name the documentation journal instead (#336).
+                // would name the documentation journal instead.
                 "Related to [[sohl-skill-secondsight|Second Sight]].",
             ),
             "SecondSight.md": skillNote("Second Sight", "BBBBBBBBBBBBBBBB", "secondsight", {
@@ -346,7 +346,7 @@ describe("generatePacksJson — a note that routes nowhere", () => {
     it("reports the unroutable note exactly once, not once per pack", async () => {
         const messages: string[] = [];
         // A note diagnostic goes to the console unprefixed, in compiler form,
-        // so it names the file it is about (#17).
+        // so it names the file it is about.
         const original = console.error;
         console.error = (...args: unknown[]) => messages.push(args.join(" "));
         try {

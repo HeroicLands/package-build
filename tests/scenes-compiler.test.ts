@@ -147,7 +147,7 @@ describe("the scenes pass", () => {
     it("stamps a core version the Level survives being read back at", () => {
         // Foundry's `migrateLevels` rewrites any Scene stamped older than
         // 14.353, discarding an authored Level and its map image without a
-        // word (#1533). The stamp comes from the manifest's supported floor.
+        // word. The stamp comes from the manifest's supported floor.
         const ground = read(sceneDir)["Test Ground Floor"];
         const [major, build = 0] = ground._stats.coreVersion.split(".").map(Number);
         expect(major).toBe(14);

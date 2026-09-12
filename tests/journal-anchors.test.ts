@@ -68,7 +68,7 @@ describe("assertUniquePages", () => {
         ).not.toThrow();
     });
 
-    it("rejects two unanchored pages sharing a heading (#268)", () => {
+    it("rejects two unanchored pages sharing a heading", () => {
         // They derive one page id, so the two compile to a single document —
         // reported here, where the note and the heading can be named, rather
         // than by the LevelDB packer as an opaque key collision.

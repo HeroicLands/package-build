@@ -46,7 +46,7 @@
  *
  * The walk itself — filtering by type, expanding tables, converting
  * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
- * states only what makes this pass its own (#1509).
+ * states only what makes this pass its own.
  */
 
 import log from "loglevel";
@@ -261,7 +261,7 @@ export function buildMacroEntry(fm, { command, folder = null, stats = defaultSta
         // into chat instead of running.
         type: resolveMacroType(fm, name),
         author: null,
-        // Nullish, not `||` (#218): a macro note that names no art gets the
+        // Nullish, not `||`: a macro note that names no art gets the
         // shared default, one that writes `img: ""` ships blank on purpose.
         img: resolveImg(fm.img) ?? DEFAULT_MACRO_IMG,
         scope: resolveMacroScope(fm, name),
@@ -326,7 +326,7 @@ export class Macros extends BasePackCompiler {
             folder: this.folderResolver(folderField(fm).value, {
                 isAddress: folderField(fm).isAddress,
             }),
-            // This pack's system, not the package-wide one (#48).
+            // This pack's system, not the package-wide one.
             stats: this.stats,
         });
     }

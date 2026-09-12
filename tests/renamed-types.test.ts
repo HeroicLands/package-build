@@ -38,7 +38,7 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
  * references inside a being's `items:` list, so a toolchain release that
  * refused them would red every consumer's build until it had swept.
  */
-describe("renamed content types (#78)", () => {
+describe("renamed content types", () => {
     it("names the current spelling of each renamed type", () => {
         expect(RENAMED_TYPES).toEqual({
             armor: "armorgear",

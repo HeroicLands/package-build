@@ -7,7 +7,7 @@
 
 /**
  * Checking a note's **system blocks** — each against that system's own
- * vocabulary (#58).
+ * vocabulary.
  *
  * The frontmatter lint knew one block, `sohl:`, and one vocabulary, the note
  * type's field names. Two things follow from #58 and neither was expressible:
@@ -72,7 +72,7 @@ describe("the shared block vocabulary", () => {
 describe("a field resolved through the block", () => {
     it("counts a value authored at `<system>.system.<to>` as authored", () => {
         // The required check must follow the same resolution order the compiler
-        // does, or a migrated note (#126) reports its own field as missing.
+        // does, or a migrated note reports its own field as missing.
         const findings = lintNote(note({ sohl: { system: { subType: "physical" } } }), {
             schemas: SCHEMAS,
         });

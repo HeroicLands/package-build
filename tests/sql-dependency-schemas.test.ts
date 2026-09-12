@@ -6,7 +6,7 @@
  */
 
 /**
- * **A dependency's index is a schema you can query** (#246).
+ * **A dependency's index is a schema you can query**.
  *
  * A satellite tabulating what it *depends on* — thalorna listing SoHL's skills —
  * had no way to say so. The proposal was a fence property naming a file

@@ -13,7 +13,7 @@
 
 /**
  * The note types the **engine** declares — the ones whose vocabulary is a fact
- * about the note format rather than about any game system (#51).
+ * about the note format rather than about any game system.
  *
  * `sohl/note-schemas.mjs` is the other half, and the line between them is the
  * `engine/` ÷ `sohl/` line everywhere else in this package: note-format
@@ -55,7 +55,7 @@ import { HOMEPAGE_FIELDS, HOMEPAGE_TYPE } from "./homepage.mjs";
  * all three and nothing implemented them, so a note using one was reported as
  * having no schema and then *skipped entirely*: `lintNote` returns after that
  * finding, so the note's `data:`, `subType`, references and system block all
- * went unexamined (#231).
+ * went unexamined.
  *
  * @type {readonly import("./field-spec.mjs").FieldSpec[]}
  */
@@ -90,7 +90,7 @@ const BUNDLE_FIELDS = Object.freeze([]);
  * Empty for the same reason a bundle's is: a folder declares no system-block
  * fields, because a `Folder` is a core Foundry document rather than any
  * system's. Its two properties — `parent` and `color` — are `data:` keys, held
- * closed by `engine/note-vocabulary.mjs` (#256).
+ * closed by `engine/note-vocabulary.mjs`.
  *
  * @type {readonly import("./field-spec.mjs").FieldSpec[]}
  */

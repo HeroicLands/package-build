@@ -6,7 +6,7 @@
  */
 
 /**
- * The per-system frontmatter block (#58).
+ * The per-system frontmatter block.
  *
  * A note is system-agnostic; the only system-specific things are the
  * properties named after a system. `<system>.system` maps straight onto the
@@ -143,7 +143,7 @@ describe("the resolution order for a declared field", () => {
     });
 
     it("reads a dotted shared source, not only a sibling key", () => {
-        // `data:` (#128) puts every type-specific fact under a container, so
+        // `data:` puts every type-specific fact under a container, so
         // every shared→system row draws from a path *into* it. A rule that
         // accepted only a sibling key would never fire.
         const fm = { data: { species: "human" } };
@@ -395,7 +395,7 @@ describe("a field declaration reads through the block", () => {
 });
 
 /* --------------------------------------------------------------------- */
-/*  A declared leaf holds values, not fields (#126)                       */
+/*  A declared leaf holds values, not fields                       */
 /* --------------------------------------------------------------------- */
 
 describe("undeclaredPaths stops descending at a declared leaf", () => {
@@ -404,7 +404,7 @@ describe("undeclaredPaths stops descending at a declared leaf", () => {
         // declares the container and nothing beneath it, because what is
         // beneath is data. Walking into it reports one undeclared field per
         // authored entry — ~40 false positives when this was first met, and one
-        // per key on every note the corpus moves under `<system>.system` (#126).
+        // per key on every note the corpus moves under `<system>.system`.
         const declared = new Set(["skillAptitudes", "subType"]);
         const data = { subType: "grimoire", skillAptitudes: { zepharis: 2, "subType:social": 1 } };
         expect(undeclaredPaths(data, declared)).toEqual([]);

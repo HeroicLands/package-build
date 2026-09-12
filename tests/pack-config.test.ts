@@ -63,7 +63,7 @@ describe("this repository's resolved pack configuration", () => {
     it("resolves every path against the configured root, not the cwd", () => {
         // The configured root is the fixture repository, not this package's
         // own: the development configuration moved there to have a
-        // `package.json` to derive its identity from (#50).
+        // `package.json` to derive its identity from.
         for (const [key, value] of Object.entries(packConfig.paths)) {
             expect(path.isAbsolute(value as string), key).toBe(true);
             expect(String(value).startsWith(PKG_ROOT), key).toBe(true);
@@ -107,8 +107,8 @@ describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", (
     });
 
     it("names no folder-hierarchy file, there being none to name", () => {
-        // The per-pack `*-folders.yaml` — five files per tree — is retired
-        // (#260). A folder is a note, and a pack materialises the folders its
+        // The per-pack `*-folders.yaml` — five files per tree — is retired.
+        // A folder is a note, and a pack materialises the folders its
         // documents reference through `packFolder`.
         expect(packConfig.packs.every((p) => !("folders" in p))).toBe(true);
     });
@@ -144,7 +144,7 @@ describe("the core version is configuration, and the config is its source", () =
     it("throws rather than falling back when none is declared", () => {
         // The loud failure is the feature, and survives the reversal above. A
         // silent fallback is how every pack came to ship `coreVersion: "14"`,
-        // which sorts below every v14 build (#1533).
+        // which sorts below every v14 build.
         expect(() => supportedCoreVersion({ compatibility: null })).toThrow(
             /compatibility\.minimum/,
         );

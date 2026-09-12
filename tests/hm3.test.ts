@@ -6,7 +6,7 @@
  */
 
 /**
- * **The `hm3/` half of the toolchain** (#139).
+ * **The `hm3/` half of the toolchain**.
  *
  * `sohl/` was the only system half this package had, so no note could compile
  * an HM3 document however its frontmatter was written. These tests hold the
@@ -264,7 +264,7 @@ describe("compilerFor — the pass a pack of one system gets", () => {
         // An `Adventure` has no `system` field, so a bundle is not a system's
         // data and there is nothing for a per-system compiler to differ about:
         // a bundle spanning two systems is two documents, and the pack each is
-        // written to is what carries the system (#259).
+        // written to is what carries the system.
         expect(compilerFor("Adventure", "hm3")).toBe(Bundles);
         expect(compilerFor("Adventure", null)).toBe(Bundles);
     });
@@ -348,7 +348,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 /**
  * The two systems' published field sets, as `content-build deps fetch` caches
- * them — the artifact the schema check reads (#60).
+ * them — the artifact the schema check reads.
  *
  * Deliberately small and deliberately *different*: each declares only what its
  * own compiler emits for a `containergear`, so a path belonging to the other
@@ -515,7 +515,7 @@ Tall and scarred.
 /**
  * A note that *is* a starting template, stating the priority at the specified
  * home. Both systems record the same statement — SoHL in `system`, HM3 in flags
- * (#283) — so one note proves the whole row.
+ * — so one note proves the whole row.
  */
 const TEMPLATE_SWORD = `---
 name:
@@ -605,7 +605,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
     it("writes each actor's shared facts at its own system's paths", () => {
         // Authored under `data:`, which is where the specification's
         // `data.species` → `system.species` row says they live, and reached
-        // through the shared source the declaration names (#305). Before that
+        // through the shared source the declaration names. Before that
         // the row was unreachable: the field named the bare key, so it read a
         // top-level `species:` by coincidence of spelling and could not see the
         // container the format actually maps from.
@@ -627,7 +627,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
      * `data.templatePriority` → `system.templatePriority` in SoHL and
      * `flags.hm3.templatePriority` here. The HM3 *item* pass did not make it,
      * so an item note declaring the priority compiled into a SoHL template and
-     * an HM3 non-template, with nothing said (#283).
+     * an HM3 non-template, with nothing said.
      */
     it("records an item's template priority in both systems", () => {
         expect(packDocs(root, "items-sohl")["Training Sword"].system.templatePriority).toBe(0);
@@ -670,7 +670,7 @@ const LEGACY_KNIGHT = KNIGHT.replace(
     "",
 ).replace("  type: character\n", "  type: character\n  species: human\n  gender: male\n");
 
-describe("a field mid-sweep reads either position, and says which (#305)", () => {
+describe("a field mid-sweep reads either position, and says which", () => {
     let root: string;
     let result: { errors: number; output: string };
 
@@ -874,7 +874,7 @@ describe("the hm3 half stays a half", () => {
 /**
  * The template priority is a *shared* statement — one note-level fact both
  * systems record, SoHL as `system.templatePriority` and HM3 as
- * `flags.hm3.templatePriority` (#266).
+ * `flags.hm3.templatePriority`.
  *
  * It was resolved here as an ordinary declared field, whose shared source is a
  * single position, so only a bare top-level `templatePriority` ever answered.

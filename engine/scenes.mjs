@@ -13,8 +13,7 @@
 
 /**
  * Scenes pack compiler — map notes in `assets/content/` → Foundry `Scene`
- * documents, and the `Adventure` bundles that make their references resolve
- * (issue #1525).
+ * documents, and the `Adventure` bundles that make their references resolve.
  *
  * The translation itself lives in the framework-free `map-notes.mjs`; this
  * module is the pass that walks the tree, resolves what one note says about
@@ -44,7 +43,7 @@
  *
  * The walk itself — filtering by type, expanding tables, converting
  * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
- * states only what makes this pass its own (#1509).
+ * states only what makes this pass its own.
  */
 
 import fs from "fs";
@@ -62,12 +61,12 @@ import {
 import { BasePackCompiler } from "./base-compiler.mjs";
 // What an Adventure member may carry is one rule, and the module that owns the
 // Adventure states it: the scenes pass bundles its pinned places, and the
-// bundles pass compiles a note into one (#259).
+// bundles pass compiles a note into one.
 import { stripAdventureKeys } from "./bundle-notes.mjs";
 import { buildJournalEntry, splitPages, journalPageId } from "./journals.mjs";
 import { compendiumUuid, makeId, packForType } from "./ids.mjs";
 // The record accessors only — see `engine/index-records.mjs` for why they live
-// apart from the index that builds them (#243).
+// apart from the index that builds them.
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { packRouter } from "./pack-router.mjs";
 import { foundryPackageId } from "./content-package.mjs";
@@ -124,8 +123,8 @@ export class Scenes extends BasePackCompiler {
      * A map note's `img` is its background art, and it is **required**: the map
      * compiler refuses a note without one. It lands on the scene's level rather
      * than on a property spelled `img`, which makes no difference to the
-     * question this declaration answers — the authored path reaches the output
-     * (#349). The place Adventure this pass bundles carries it too.
+     * question this declaration answers — the authored path reaches the output.
+     * The place Adventure this pass bundles carries it too.
      *
      * @type {readonly string[]}
      */
@@ -182,7 +181,7 @@ export class Scenes extends BasePackCompiler {
      * `generatePack` hands every pass the one router the compile resolved, and
      * that is the answer whenever a real compile is running — a second router
      * is a second answer to where a document landed, built from whichever
-     * configuration the working directory offers (#243). A compiler
+     * configuration the working directory offers. A compiler
      * constructed directly, as a consumer's or a test's is, has none, and falls
      * back exactly as `prepare` falls back to deriving its own corpus.
      *
@@ -196,19 +195,19 @@ export class Scenes extends BasePackCompiler {
         const maps = [];
         const effectsByAddress = new Map();
         // The corpus this compile derived once, not a walk of this pass's own
-        // (#243) — and a note is opened only when this pass needs its *prose*,
+        // — and a note is opened only when this pass needs its *prose*,
         // which for a map note means three files in `sohl` rather than 1,685.
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
             // No retired-field test: this pass's own walk — the shared compile
-            // loop — is where a note still declaring `package:` (#56) or
-            // `draft:` (#69) is reported, once. Repeating either check here
+            // loop — is where a note still declaring `package:` or
+            // `draft:` is reported, once. Repeating either check here
             // would double the diagnostic or throw past it. A refused note is
             // indexed and then never compiled, so it reaches no document.
             const fm = authoredFrontmatter(record);
             const absPath = noteFile(this.contentBase, record);
             // The id is the index's, derived against the configuration this
-            // build resolved (#270, #243) — it was derived here through
+            // build resolved — it was derived here through
             // `resolveNoteId(fm)` with no package, which falls back to the
             // ambient one. What remains unset is a file with no address.
             if (!fm || !fm.id) continue;
@@ -218,10 +217,10 @@ export class Scenes extends BasePackCompiler {
                     type: fm.type,
                     // Where the owning item landed, so a region behaviour's
                     // effect reference addresses the right pack when a
-                    // repository ships several of one type (#1566).
+                    // repository ships several of one type.
                     // This compile's router, not a freshly built one: a
                     // second router is a second answer to where the document
-                    // landed, resolved from the working directory (#243).
+                    // landed, resolved from the working directory.
                     pack: this.#packRouter.resolveOrNull(fm, packForType(fm.type).docType),
                     effects: fm.effects,
                 });
@@ -409,7 +408,7 @@ export class Scenes extends BasePackCompiler {
         const name = resolveName(fm);
         const hasBody = Boolean(String(markdown).trim());
         // The same doc-entry id the journals pass derives, from the
-        // shared `docEntryTypes` arrangement (#1514) — so neither
+        // shared `docEntryTypes` arrangement — so neither
         // pass has to read the other's output.
         const entryId = hasBody ? itemDocEntryId(fm.id) : undefined;
         const { value: authoredFolder } = folderField(fm);
@@ -423,8 +422,8 @@ export class Scenes extends BasePackCompiler {
             journalEntryId: entryId,
             // A map note's prose is a derived JournalEntry: it lands in the
             // default JournalEntry pack, not in whichever Scene pack the map
-            // itself was routed to (#1566).
-            // This compile's router, as everywhere else in this pass (#243).
+            // itself was routed to.
+            // This compile's router, as everywhere else in this pass.
             journalPack: this.#packRouter.defaultOf("JournalEntry"),
             pageIds: hasBody ? this.#pageIds(markdown, entryId, name) : new Map(),
             knownActions: this.knownActions,
@@ -432,7 +431,7 @@ export class Scenes extends BasePackCompiler {
             ...this.#resolvers(this.index, this.effectsByAddress, fm.shortcode),
         });
         for (const message of warnings) {
-            // Named by file, like every other note diagnostic (#17). A map
+            // Named by file, like every other note diagnostic. A map
             // warning is about the note's frontmatter, which carries no
             // offset, so it names the file and stops there rather than
             // pointing at a line it cannot establish.
@@ -452,8 +451,8 @@ export class Scenes extends BasePackCompiler {
                     leadName: name,
                     // As in the journals pass: an address resolves in the
                     // pack that emits it, which is what makes the folder
-                    // materialise there too (#257). The id spelling that used
-                    // to cross packs verbatim is retired (#260).
+                    // materialise there too. The id spelling that used
+                    // to cross packs verbatim is retired.
                     folder: this.folderResolver(authoredFolder, { isAddress: true }),
                     flags: fm.flags,
                 })

@@ -13,12 +13,12 @@
 
 /**
  * The affiliation standings an authored `relation` map may use — one
- * affiliation's stance toward another (#1404).
+ * affiliation's stance toward another.
  *
  * Plain ESM for the same reason `./default-item-art.mjs` is: the pack scripts
  * run under bare `node`, so they cannot read the runtime's TypeScript
  * `AFFILIATION_STANDING`. This module is where the pipeline reads the list
- * from, rather than restating it inside a compiler (#1510).
+ * from, rather than restating it inside a compiler.
  *
  * The runtime keeps its own `defineType("SOHL.Affiliation.Standing", { … })`
  * declaration in `src/utils/constants.ts`, because that literal is *parsed out

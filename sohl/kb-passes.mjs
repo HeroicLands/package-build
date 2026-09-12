@@ -12,7 +12,7 @@
  */
 
 /**
- * The `sohl` knowledgebase's own body passes (#63).
+ * The `sohl` knowledgebase's own body passes.
  *
  * `content-build site` publishes a content tree as a website, and almost all of
  * that job is the same for every package. These two rewrites are not: they are
@@ -33,7 +33,7 @@
  * broken link or a failed build for a syntax example in prose would not be.
  *
  * Building the bundle is a different matter: a `symbolMap` that is configured
- * and cannot be used fails, loudly, before a page is rendered (#75). Degrading
+ * and cannot be used fails, loudly, before a page is rendered. Degrading
  * a tag the map does not know is a judgement about *prose*; degrading every tag
  * on the site because the map was never read is a build that lied.
  *
@@ -58,7 +58,7 @@ import log from "loglevel";
  * with no symbols: a bare `catch` returned `{}` for all five. Nothing then
  * compares an emitted page against what its source asked for, so the first
  * observer of a broken map was a reader who clicked nothing, because every
- * `{@link}` on the published site had quietly become a code span (#75).
+ * `{@link}` on the published site had quietly become a code span.
  *
  * The path is resolved against the **repository root**, never the process cwd.
  * `site.passOptions.symbolMap` is authored repo-relative, so a cwd-relative

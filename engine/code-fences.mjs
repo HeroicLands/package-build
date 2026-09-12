@@ -18,7 +18,7 @@
  * written. Every build-time rewriter that pattern-matches a body therefore has
  * to know where code is — otherwise a source listing that happens to contain
  * the rewriter's syntax is silently corrupted. Wikilink conversion met this as
- * `[[0]]` inside a fence being turned into a link (#1505), and it depended on
+ * `[[0]]` inside a fence being turned into a link, and it depended on
  * the surrounding literal's shape (`[[1,2],[3,4]]` survived), so the corruption
  * looked arbitrary.
  *
@@ -383,7 +383,7 @@ export function matchAllOutsideCode(markdown, pattern, options) {
  * with another paragraphs away and every span after it paired wrongly: prose was
  * masked as code while real spans were left exposed. And only three-backtick
  * fences were recognised, so a four-backtick example holding a three-backtick
- * block — the documented "fences of any length" case (#1505) — leaked its
+ * block — the documented "fences of any length" case — leaked its
  * contents.
  *
  * @param {string} body - The markdown body.

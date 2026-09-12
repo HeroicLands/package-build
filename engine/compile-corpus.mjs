@@ -12,7 +12,7 @@
  */
 
 /**
- * The corpus one compile runs over, and everything derived from it (#243).
+ * The corpus one compile runs over, and everything derived from it.
  *
  * **A compile read every note twenty times.** Measured over `sohl`'s 1,685
  * notes: 33,700 reads, exactly twenty per note. Four per pass — the
@@ -50,7 +50,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  * @param {object} opts - Options.
  * @param {string} opts.contentBase - Root of the content tree.
  * @param {readonly string[]} opts.skipDirectories - The scope, stated by the
- *   caller as every corpus read requires (#243).
+ *   caller as every corpus read requires.
  * @param {object} opts.router - The pack router this compile resolved. Shared
  *   by every pass, which is what makes one link index correct for all of them.
  * @param {object} [opts.config] - The resolved configuration.

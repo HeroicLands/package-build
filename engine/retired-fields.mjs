@@ -26,7 +26,7 @@
  * `aliases:`, `section:` and `traits:` have no such home — there is no
  * surviving concept any of them was part of — so they are refused here.
  *
- * **What `draft:` did (#69).** It excluded a note from the compiled packs, from
+ * **What `draft:` did.** It excluded a note from the compiled packs, from
  * the link manifest and from a consuming site build. Nothing reported the
  * consequence: `content-links.mjs`, `site-index.mjs` and `content-lint.mjs`
  * never read the field, so a link into a drafted note was indistinguishable
@@ -35,13 +35,13 @@
  * *unresolvable*, silently — and it also suppressed real build failures, since
  * a note the compilers never reached could not fail on the defects it carried.
  *
- * **What `aliases:` did (#180).** It fed the alias index, which is what a bare
+ * **What `aliases:` did.** It fed the alias index, which is what a bare
  * `[[Alias]]` was looked up in. That form resolved to nothing anywhere in the
  * corpus, while the collision rule guarding it folded in every note's
- * `name.full` and so decided what a note could be named (#179). The form and
+ * `name.full` and so decided what a note could be named. The form and
  * the index are retired together, leaving the field with no reader at all.
  *
- * **What `section:` did (#202).** It named the section a `collection` note
+ * **What `section:` did.** It named the section a `collection` note
  * headed, under the `collection` landing rule — its only reader anywhere. That
  * rule is retired, a section being landed by the `README.md` in its directory,
  * so the field has none. No schema or vocabulary ever declared it either, and
@@ -56,7 +56,7 @@
  * reserved.test.ts` pins that equivalence so a future reader cannot be added
  * by accident.
  *
- * **What `traits:` did (#291).** It held a being's own description — gender,
+ * **What `traits:` did.** It held a being's own description — gender,
  * species, age, birthday, height, weight, frame and `appearance.*` — at the
  * note's top level. The content format gives those a home: `data:`, the closed
  * container for a subject's type-specific facts, which `being` declares every
@@ -73,17 +73,17 @@
  * declares one, and the theme's gear sidebar reads it — so the refusal is
  * anchored at column 1 and never reaches inside a system block.
  *
- * **A field retired in favour of another is a third case (#142).** `draft:` and
+ * **A field retired in favour of another is a third case.** `draft:` and
  * `package:` were retired outright: nothing replaced them, so no value made
  * writing one right and refusal was the only honest answer. A *renamed* field
  * has a replacement, and the two spellings mean the same thing — so the note
  * still compiles, correctly, and refusing it would fail a build over a document
- * that is not wrong. Those retire in the three steps `package:` took (#56), and
+ * that is not wrong. Those retire in the three steps `package:` took, and
  * this module carries the **first**: both spellings are read, the current one
  * wins, and the retired one is *reported* rather than refused. See
  * {@link RETIRED_FIELD_ALIASES}.
  *
- * **The third step is deletion, and it needs no code (#149).** `image`, a map's
+ * **The third step is deletion, and it needs no code.** `image`, a map's
  * background art, is the first rename to have run all three: reported (#142),
  * swept (SoHL#1801 and the position move that followed), then dropped from the
  * table. Removing the entry is the whole of it — with no alias, the spelling is
@@ -93,7 +93,7 @@
  * the record, and a retirement that needed a standing refusal would mean the
  * replacement never arrived. Do not keep a tombstone for one.
  *
- * **A retired *position* is the same case, and reads the same (#305).** A field
+ * **A retired *position* is the same case, and reads the same.** A field
  * whose shared source moved under `data:` is not renamed — `data.species` and
  * `hm3.species` are one field written in two places — but the retirement has
  * the identical shape: both are read, the one the note carries wins, and the
@@ -102,7 +102,7 @@
  * {@link module:engine/system-block.resolveFieldValue}'s answer; this module
  * only says what an author is told about it.
  *
- * **A field has two retiring positions, not one (#332).** The in-block key is
+ * **A field has two retiring positions, not one.** The in-block key is
  * the obvious one; the other is the note's **top level**, because #128 did not
  * invent the facts `data:` holds — it gathered them from exactly there. So
  * `portrait:` beside `img:` is the pre-`data:` spelling of `data.portrait`,
@@ -184,11 +184,11 @@ export function assertNoDraftField(fm, { file, absPath } = {}) {
  * It says what the field fed and what to write instead, rather than which value
  * to correct: no value makes declaring it right.
  *
- * **What it did (#180).** It was the authored half of the alias index — the
+ * **What it did.** It was the authored half of the alias index — the
  * namespace a bare `[[Alias]]` was looked up in. Across the three content trees
  * not one bare link resolved through it, while the collision rule that kept it
  * unambiguous folded in every note's `name.full` and so dictated what a note
- * could be named (#179). The form is retired, so the list has no reader.
+ * could be named. The form is retired, so the list has no reader.
  *
  * **`name.aliases` is a different field and is not retired.** It fed the same
  * index, but unlike the top-level list it is being kept — reserved, unread,
@@ -275,10 +275,10 @@ export function declaresRetiredAliasesField(fm) {
  * It names what lands a section now rather than a value to correct: no value
  * makes declaring the field right.
  *
- * **What it did (#202).** It named the section a `collection` note headed,
+ * **What it did.** It named the section a `collection` note headed,
  * under the `collection` landing rule — the only reader it ever had, in the
  * second branch of `landingOf` (`engine/content-address.mjs`). That rule went
- * first, and the whole mechanism went with it (#204): a section is a Hugo
+ * first, and the whole mechanism went with it: a section is a Hugo
  * directory the note format does not carry, so no note lands one and a page
  * that introduces a type is an ordinary note addressed `doc-<type>`. Nothing
  * else read the field, and no schema or vocabulary declared it, so left in
@@ -438,7 +438,7 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * `relation` is retired on an affiliation — which declares `relations` — and
  * remains an unknown key anywhere else.
  *
- * **`templatePriority` (#266).** The number that decides which of several
+ * **`templatePriority`.** The number that decides which of several
  * competing templates the Create dialog offers was called `archetype`, and
  * `archetypes` — one letter apart — is a list of what *sort* a character is.
  * A priority and a taxonomy cannot be told apart by a plural `s`, so the
@@ -488,7 +488,7 @@ export function retiredAliasMessage(retired, current, file) {
  * What a note writing a field at its **legacy in-block position** is told.
  *
  * The same three-step retirement `retiredAliasMessage` announces, applied to a
- * *position* rather than a spelling (#305). A field whose shared source moved
+ * *position* rather than a spelling. A field whose shared source moved
  * under `data:` keeps reading the key its block still carries, that read wins,
  * and it is reported here so a sweep has something to count down — without it,
  * moving a field into `data:` would be a flag day across every repository that
@@ -518,7 +518,7 @@ export function legacyKeyMessage(block, field, file) {
 
 /**
  * What a note writing a field at the **top-level key `data:` gathered it off**
- * is told (#332).
+ * is told.
  *
  * {@link legacyKeyMessage}'s counterpart for the other retiring position. #128
  * did not invent the facts `data:` holds — it collected them out of the note's

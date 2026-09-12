@@ -6,7 +6,7 @@
  */
 
 /**
- * An empty label is not a label (#113).
+ * An empty label is not a label.
  *
  * `[[x|]]` is deliberately writable — `parseWikilink` says so in its own
  * docstring, "`null` and `""` differ: an author may write `[[x|]]`" — and it
@@ -74,7 +74,7 @@ describe("authoredLabel", () => {
     });
 });
 
-describe("the web resolver honours an empty label (#113)", () => {
+describe("the web resolver honours an empty label", () => {
     it("shows the target's name rather than an empty anchor", () => {
         expect(web("[[doc-shock|]]")).toBe("[Shock](/rules/sohl-shock/)");
     });
@@ -104,7 +104,7 @@ describe("the web resolver honours an empty label (#113)", () => {
         expect(web("[[doc-shock|Shock State]]")).toBe("[Shock State](/rules/sohl-shock/)");
     });
 
-    // An unlabelled link addresses nothing at all now (#180), so it renders
+    // An unlabelled link addresses nothing at all now, so it renders
     // marked rather than resolving — but the author's prose is still what it
     // shows, which is the half of #1409 that survives.
     it("keeps an unlabelled link showing the author's own prose", () => {

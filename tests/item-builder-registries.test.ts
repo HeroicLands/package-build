@@ -6,10 +6,10 @@
  */
 
 /**
- * `itemBuilders` as a **set** of registries rather than one (#58).
+ * `itemBuilders` as a **set** of registries rather than one.
  *
  * The type vocabulary is derived from the registry's keys, which is what makes
- * a type impossible to accept without a builder behind it (#1504). With one
+ * a type impossible to accept without a builder behind it. With one
  * registry that is also a ceiling: a repository shipping content for two
  * systems has types only one of them knows — `spell` and `invocation` are HM3's,
  * `mysticalability` is SoHL's — and a single registry can accept only one

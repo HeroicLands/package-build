@@ -13,7 +13,7 @@
 
 /**
  * What every SoHL content type may write under `sohl:` — the vocabulary the
- * frontmatter linter checks a note against (#19).
+ * frontmatter linter checks a note against.
  *
  * **Item types need no declaration here.** {@link ITEM_FIELDS} already is one,
  * and it is the same list the compiler obeys, so an item's schema and its
@@ -26,7 +26,7 @@
  * nothing here builds anything, and claiming an emitted path they do not
  * produce would be a lie in the one place a reader would trust it. When one of
  * those compilers becomes declarative, its entry here becomes the builder, the
- * way `ITEM_FIELDS` did (#22).
+ * way `ITEM_FIELDS` did.
  *
  * **Every consumer loads all of it.** An adventure module authors the full
  * vocabulary — a specific skill, a magic sword, an NPC, a custom beast is the
@@ -94,7 +94,7 @@ const MACRO_FIELDS = Object.freeze([
  * vehicle two `data` properties and no `sohl:` field of its own, and the
  * closed `data:` container is where `engine/note-vocabulary.mjs` holds them.
  * Declaring the type with no fields distinguishes a type with no vocabulary
- * from a type that is unknown, which are different findings (#231).
+ * from a type that is unknown, which are different findings.
  *
  * It is here rather than in the engine because a vehicle is a SoHL actor —
  * the specification maps it to `sohl` and marks it NA for hm3.
@@ -139,7 +139,7 @@ const BEING_FIELDS = Object.freeze([
 
 /**
  * A map note — one type whose `battlemap` / `localmap` / `regionalmap`
- * subType decides the derived canvas (#174). Compiled into a
+ * subType decides the derived canvas. Compiled into a
  * Foundry Scene.
  *
  * The three differ only in derived canvas defaults, which is the map compiler's
@@ -149,7 +149,7 @@ const BEING_FIELDS = Object.freeze([
  * `img` is the one required field — the compiler refuses a map note without it,
  * since a scene with no background is not a map. It was spelled `image` and
  * read from the `sohl:` block until #142, which read both while the trees were
- * swept; that retirement has since completed and `image` is gone (#149).
+ * swept; that retirement has since completed and `image` is gone.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
@@ -332,7 +332,7 @@ const PRESENTATION_FIELDS = Object.freeze({
  * one vocabulary rather than two. They are declared there rather than here
  * because they are note-format knowledge — a `homepage` carries no `system`
  * block and would mean the same thing for a game system that is not SoHL — and
- * because a package declaring no `itemBuilders` never reaches this file (#51).
+ * because a package declaring no `itemBuilders` never reaches this file.
  *
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */

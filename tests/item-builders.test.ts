@@ -51,18 +51,18 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
         expect([...itemTypes()].sort()).toEqual(Object.keys(BUILDERS).sort());
     });
 
-    it("does not advertise the retired `trait` type (#651)", () => {
+    it("does not advertise the retired `trait` type", () => {
         // `trait` was retired: it is absent from `documentTypes.Item` in
         // system.json, and world migration reports a surviving one as an
         // unrecognized type. Advertising it here made every `type: trait` note
-        // pass the whitelist and then die on a missing builder (#1504).
+        // pass the whitelist and then die on a missing builder.
         expect(itemTypes().has("trait")).toBe(false);
         expect(BUILDERS["trait"]).toBeUndefined();
         expect(DEFAULT_ITEM_ART).not.toHaveProperty("trait");
     });
 
     it("keeps the registry in step with the per-type default art", () => {
-        // The third list that could drift (#1504): default item artwork. The
+        // The third list that could drift: default item artwork. The
         // registry is keyed by the note type and the art map by the document
         // subtype since #78, so the comparison runs through SoHL's own map —
         // which is the only statement anywhere of what an `armor` becomes.
@@ -86,7 +86,7 @@ describe("itemBuilder (lookup that fails loudly)", () => {
     it("returns the registered builder for a known type", () => {
         // Resolved from configuration, which in this repository *is* this
         // registry — so the identity check proves the dispatch reaches the
-        // table the repository declared, not a copy of it (#1563).
+        // table the repository declared, not a copy of it.
         //
         // Compared against the registry as *Node* loads it, not the static
         // import above. The engine resolves the configuration with `require`
@@ -130,7 +130,7 @@ describe("the art a compiled sohl item actually gets (#7)", () => {
      * Anchored on *this package's* root rather than the configured one. Those
      * were the same directory until the development configuration moved into
      * `tests/fixtures/repo/` to have a `package.json` to derive its identity
-     * from (#50); where the fixtures live is a fact about this repository's
+     * from; where the fixtures live is a fact about this repository's
      * layout, not about whatever tree a configuration happens to point at.
      */
     function compiler() {

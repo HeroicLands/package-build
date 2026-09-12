@@ -6,7 +6,7 @@
  */
 
 /**
- * The `sohlKb` pass's TypeDoc symbol map (#75).
+ * The `sohlKb` pass's TypeDoc symbol map.
  *
  * The map is the only thing standing between a `{@link}` tag and a code span,
  * and it used to be read with a cwd-relative path inside a bare `catch` that

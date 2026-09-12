@@ -70,8 +70,7 @@ describe("map note types", () => {
     it("recognises the one map type, the three old names being subtypes now", () => {
         // The three differ only in derived canvas defaults, which is what a
         // subType is for; as types they made the router, the claims set and
-        // every consumer's section config carry three entries for one idea
-        // (#174).
+        // every consumer's section config carry three entries for one idea.
         expect([...MAP_TYPES]).toEqual(["map"]);
         expect(isMapType("map")).toBe(true);
         expect(isMapType("battlemap")).toBe(false);
@@ -116,7 +115,7 @@ describe("map note types", () => {
 
     it("is one of the doc-carrying types, so its prose gets a JournalEntry", () => {
         // A map note is the same one-note-two-documents shape as an item or a
-        // macro (#1514), so it goes through the shared set rather than a
+        // macro, so it goes through the shared set rather than a
         // parallel mechanism of its own.
         for (const type of MAP_TYPES) {
             expect(hasDocEntry(type), type).toBe(true);
@@ -263,7 +262,7 @@ describe("buildScene — the whole document", () => {
 
     it("carries the stats it is given, with no scene-only special case", () => {
         // The core-version stamp is the packs' business, not a map note's: it
-        // is derived once from the manifest's supported floor (#1533), so a
+        // is derived once from the manifest's supported floor, so a
         // scene has nothing to correct here.
         const stats = { systemId: "sohl", coreVersion: "14.359" };
         const scene = buildSceneDoc(makeNote(), makeCtx({ stats }));

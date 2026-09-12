@@ -6,8 +6,7 @@
  */
 
 /**
- * Which pack a note's document lands in, once a pack may declare a **system**
- * (#58).
+ * Which pack a note's document lands in, once a pack may declare a **system**.
  *
  * Two things follow from a note carrying a block per system:
  *

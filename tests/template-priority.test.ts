@@ -6,7 +6,7 @@
  */
 
 /**
- * `templatePriority`, the name that replaces `archetype` (#266).
+ * `templatePriority`, the name that replaces `archetype`.
  *
  * The number deciding which of several competing templates the Create dialog
  * offers was called `archetype`, one letter from `archetypes` — a list of what

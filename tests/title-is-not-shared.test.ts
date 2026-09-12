@@ -6,8 +6,7 @@
  */
 
 /**
- * **A field whose name collides with a note property that means something else**
- * (#218).
+ * **A field whose name collides with a note property that means something else**.
  *
  * A note's top-level `title` is *the title of the note* — the page heading, the
  * display name the site emitter reads. An `affiliation` item's `system.title`

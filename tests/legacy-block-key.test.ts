@@ -6,11 +6,10 @@
  */
 
 /**
- * **A field's shared source and its legacy in-block key are two declarations**
- * (#305).
+ * **A field's shared source and its legacy in-block key are two declarations**.
  *
  * `FieldSpec.name` carried both jobs, and they came apart the moment `data:`
- * (#128) put every type-specific fact under a container. The resolution order
+ * put every type-specific fact under a container. The resolution order
  * reads four positions, and steps 2 and 3 were both keyed on `name`:
  *
  * 1. `<block>.system.<to>`

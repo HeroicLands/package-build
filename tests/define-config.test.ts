@@ -87,11 +87,11 @@ describe("defineConfig", () => {
 
     it("defaults publishing to the floor", () => {
         // `kethira` publishes a homepage and no other page, and no manifest at
-        // all, while still consuming other packages' (#1385/#1446) — the shape
+        // all, while still consuming other packages' — the shape
         // must express exactly that. The site mode and the manifest switches
         // answer different questions: the homepage is one row in a routing
         // table, and a link manifest is the dependency edge that would stop the
-        // module being withdrawable (#55).
+        // module being withdrawable.
         const config = defineConfig({
             ...minimal(),
             publish: {},
@@ -179,7 +179,7 @@ describe("defineConfig", () => {
         ["a non-mapping packageBuild section", { ...minimal(), packageBuild: [] }],
         ["an unknown site mode", { ...minimal(), publish: { site: "yes" } }],
         // Refused rather than mapped onto the nearest mode: `false` read as
-        // "no web presence", which describes no package (#55).
+        // "no web presence", which describes no package.
         ["the retired `site: true`", { ...minimal(), publish: { site: true } }],
         ["the retired `site: false`", { ...minimal(), publish: { site: false } }],
         ["an unknown key", { ...minimal(), publishSite: true }],
@@ -197,7 +197,7 @@ describe("defineConfig", () => {
     });
 });
 
-describe("defineConfig — the layout a consumer supplies (#1508)", () => {
+describe("defineConfig — the layout a consumer supplies", () => {
     it("defaults every path to the conventional repository layout", () => {
         const config = defineConfig(minimal());
 
@@ -481,7 +481,7 @@ describe("the reserved `packageBuild` section", () => {
     });
 });
 
-describe("the address scheme a repository publishes at (#58)", () => {
+describe("the address scheme a repository publishes at", () => {
     const address = (value: unknown) =>
         defineConfig({
             ...minimal(),
@@ -518,7 +518,7 @@ describe("the address scheme a repository publishes at (#58)", () => {
     });
 });
 
-describe("the retired per-pack folder file (#260)", () => {
+describe("the retired per-pack folder file", () => {
     it("refuses a pack that still names one, saying where the folders went", () => {
         // Refused explicitly rather than left to the unknown-key check: the
         // useful thing to say to a tree that has not swept is not "no such
@@ -547,7 +547,7 @@ describe("the retired per-pack folder file (#260)", () => {
     });
 });
 
-describe("prebuilt packs and per-pack systems (#40)", () => {
+describe("prebuilt packs and per-pack systems", () => {
     it("accepts a pack whose JSON is already built, and records where it lives", () => {
         const config = defineConfig({
             ...minimal(),
@@ -607,7 +607,7 @@ describe("prebuilt packs and per-pack systems (#40)", () => {
 
     // `stats.systemId` was required, which forced one answer on every pack. A
     // package whose packs are not all for one system needs none at that level —
-    // and the key is derived rather than authored now (#48), so a module that
+    // and the key is derived rather than authored now, so a module that
     // declares no system simply has none.
     it("leaves a module that declares no system with none", () => {
         const config = defineConfig({

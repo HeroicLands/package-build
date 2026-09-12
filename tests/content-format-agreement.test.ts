@@ -12,8 +12,7 @@
  */
 
 /**
- * `docs/content-format.md` is the specification, and this makes it executable
- * (#231, #232).
+ * `docs/content-format.md` is the specification, and this makes it executable.
  *
  * The two had drifted, silently and in both directions. Five types the
  * specification declared — `place`, `lore`, `scenario`, `vehicle` and
@@ -65,7 +64,7 @@ function documentedTypes(): Map<string, string[]> {
 
 const DOCUMENTED = documentedTypes();
 
-describe("the specification and the implementation agree (#231, #232)", () => {
+describe("the specification and the implementation agree", () => {
     it("parses a specification that still has type sections to read", () => {
         // Guards the guard: a rename of the heading shape would otherwise make
         // every assertion below vacuously pass.
@@ -124,7 +123,7 @@ describe("the specification and the implementation agree (#231, #232)", () => {
 });
 
 /**
- * The other half of the same vocabulary entry (#345).
+ * The other half of the same vocabulary entry.
  *
  * The block above compares each type's documented `data` properties to the
  * declared ones. Its `subType` values — the genres an author picks from, and
@@ -138,7 +137,7 @@ describe("the specification and the implementation agree (#231, #232)", () => {
  * and that parser is where the shape is enforced: a marker it does not
  * recognise throws rather than yielding a section that declares nothing.
  */
-describe("the specification and the vocabulary agree about subTypes (#345)", () => {
+describe("the specification and the vocabulary agree about subTypes", () => {
     const FORMAT = loadContentFormat();
 
     it("reads values out of the specification, so the comparison is not vacuous", () => {

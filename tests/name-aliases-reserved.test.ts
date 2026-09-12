@@ -6,7 +6,7 @@
  */
 
 /**
- * `name.aliases` is **reserved**: kept, and read by nothing (#180).
+ * `name.aliases` is **reserved**: kept, and read by nothing.
  *
  * The top-level `aliases:` and the nested `name.aliases:` fed one reader
  * between them — the alias index a bare `[[Alias]]` was looked up in — and that
@@ -239,7 +239,7 @@ describe("a link into it resolves exactly as if the field were absent", () => {
 
 describe("it reaches no derived address", () => {
     // The index is what every other package resolves this one's addresses
-    // through (#239), so an address that moved because of this field would
+    // through, so an address that moved because of this field would
     // move for every consumer.
     //
     // Addresses rather than bytes: the index spreads the note's frontmatter, so

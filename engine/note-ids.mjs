@@ -20,7 +20,7 @@
  * says everything the id said, is readable, and is the identity `content-lint`
  * already guards: a duplicate address is a build error, while a duplicate `id`
  * was checked nowhere. So the derived id inherits a guarantee, where the
- * authored one had none (#270).
+ * authored one had none.
  *
  * **An authored `id` always wins.** That is the pattern the map compiler
  * already uses and documents — `regionDocId(sceneId, key, pinned)` returns
@@ -73,15 +73,15 @@ function text(value) {
  * the rule but an application of it.** A `Folder` is a document of its own
  * class, and its id is hashed under the `folder` namespace so that a folder and
  * an item sharing a shortcode cannot derive one id — a collision Foundry would
- * not report, since it keys folders and documents in separate collections
- * (#258). So the answer for a folder comes from
+ * not report, since it keys folders and documents in separate collections.
+ * So the answer for a folder comes from
  * {@link module:engine/folder-notes.folderDocId}, the pass that emits those
  * documents, rather than from a second derivation here.
  *
  * That this function ever answered differently was invisible from inside a
  * build — no pass reads a folder's id from here — and surfaced only in the
  * content index, which is read from outside and had no way to be checked
- * against what shipped (#310).
+ * against what shipped.
  *
  * Returns `undefined` for a file with **no address** — no `type`, or no
  * `shortcode`. Such a file is not an addressable note, so it has no document
@@ -94,7 +94,7 @@ function text(value) {
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {object} [opts]
  * @param {string} [opts.pkg] - The owning content package. Defaults to the
- *   configured one, which is the only package a tree's notes belong to (#56).
+ *   configured one, which is the only package a tree's notes belong to.
  * @param {readonly object[]} [opts.maps] - The document-subtype maps, which
  *   decide the address's `<system>` segment.
  * @returns {string|undefined} The document's `_id`, or `undefined` when the

@@ -12,7 +12,7 @@
  */
 
 /**
- * The one charset every segment of a canonical address is held to (#59).
+ * The one charset every segment of a canonical address is held to.
  *
  * An address is a hyphen-joined tuple — `package-system-type-shortcode`, so
  * `sohl-none-doc-gear` — and it is read back by **counting segments**, with a
@@ -43,7 +43,7 @@
  * digits only.
  *
  * Case *was* deliberately unconstrained, on the reasoning that case has no
- * bearing on the separator — which is true, and beside the point (#340).
+ * bearing on the separator — which is true, and beside the point.
  *
  * **Two names that differ only in case are two names nobody can tell apart.** A
  * shortcode is how a person names a thing when writing a reference —

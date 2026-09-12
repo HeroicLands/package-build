@@ -38,7 +38,7 @@ A note that exists only so the guard-order test has a tree to compile.
 
 const LIBRARY_URL = pathToFileURL(LIBRARY).href;
 // The configuration contract and the manifest reader, for the guard-order test
-// below: it induces package-id drift through configuration (#1508), since the
+// below: it induces package-id drift through configuration, since the
 // manifest is no longer located by the working directory.
 const CONFIG_URL = pathToFileURL(path.resolve(HERE, "../config.mjs")).href;
 const MANIFEST_URL = pathToFileURL(path.resolve(HERE, "../engine/package-manifest.mjs")).href;
@@ -100,7 +100,7 @@ describe("the compendium library is importable", () => {
     });
 
     it("imports from a tree with no Foundry package manifest", () => {
-        // The hardest edge (#1507): a *module* repository ships
+        // The hardest edge: a *module* repository ships
         // `module.json`, not `system.template.json`, and an empty directory
         // ships neither. Importing the library must not go looking for one in
         // the caller's tree — the eager `./assets/templates/system.template.json`
@@ -143,7 +143,7 @@ describe("the compendium library is importable", () => {
     });
 });
 
-describe("a prebuilt pack compiles without a content tree (#40)", () => {
+describe("a prebuilt pack compiles without a content tree", () => {
     /**
      * A package whose packs are already Foundry JSON has no `assets/content`.
      * Generation refuses an empty tree, so before #40 the compile threw before

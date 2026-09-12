@@ -6,7 +6,7 @@
  */
 
 /**
- * `publish.address.landing` is deleted (#215).
+ * `publish.address.landing` is deleted.
  *
  * It named which note addressed a whole section rather than a page within one.
  * #203 retired the second of its two values; #204 retired the concept the key
@@ -20,7 +20,7 @@
  * consumers still declared `landing: readme` the only two options were to break
  * them over a statement that was true when they wrote it, or to accept the key
  * in silence — and silent acceptance is what this codebase refuses everywhere
- * else. So the key took the three steps `package:` took (#56): retire the value,
+ * else. So the key took the three steps `package:` took: retire the value,
  * have consumers drop the key, delete the key. No consumer declares it now.
  *
  * These cases pin the three facts a deletion has to keep straight: a
@@ -68,7 +68,7 @@ function refusalFor(value: unknown): any {
     throw new Error("expected the configuration to be rejected");
 }
 
-describe("a configuration declaring `publish.address.landing` is refused (#215)", () => {
+describe("a configuration declaring `publish.address.landing` is refused", () => {
     it("says the rule is retired, rather than naming a value to correct", () => {
         const err = refusalFor({ prefix: "kb/", landing: "readme" });
 
@@ -78,7 +78,7 @@ describe("a configuration declaring `publish.address.landing` is refused (#215)"
         // Nothing replaces it — the one thing an author reading a refusal for a
         // key they inherited most needs to know.
         expect(err.message).toMatch(/[Nn]othing replaces it/);
-        // The dotted locator the loader resolves to a line and column (#95).
+        // The dotted locator the loader resolves to a line and column.
         expect(err.field).toBe("publish.address.landing");
     });
 
@@ -148,7 +148,7 @@ describe("a configuration declaring `publish.address.landing` is refused (#215)"
     });
 });
 
-describe("what the deletion leaves alone (#215)", () => {
+describe("what the deletion leaves alone", () => {
     it("loads a configuration that omits the key, and records no landing", () => {
         expect(address({ prefix: "kb/" })).toEqual({ prefix: "kb/" });
         expect(Object.hasOwn(address({}), "landing")).toBe(false);

@@ -6,7 +6,7 @@
  */
 
 /**
- * Naming an interface icon without drawing it (#378).
+ * Naming an interface icon without drawing it.
  *
  * The cases below turn on one decision: a note contains a **name**, never a
  * glyph. So the tests assert what that buys — the name survives the charset

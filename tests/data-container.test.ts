@@ -45,7 +45,7 @@ const messages = (findings: Array<{ message: string }>) =>
 
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
-describe("the `data:` container is closed (#128)", () => {
+describe("the `data:` container is closed", () => {
     it("accepts every key the type declares", () => {
         const findings = lintNote(
             note("weapongear", {
@@ -125,7 +125,7 @@ describe("the `data:` container is closed (#128)", () => {
     });
 });
 
-describe("the top level stays open (#128)", () => {
+describe("the top level stays open", () => {
     const stray = note("weapongear", {
         description: "A blade of no particular distinction",
         heroImage: "banners/sword.webp",
@@ -147,7 +147,7 @@ describe("the top level stays open (#128)", () => {
     });
 });
 
-describe("`subType` is top level, and only where a type declares one (#128)", () => {
+describe("`subType` is top level, and only where a type declares one", () => {
     it("accepts a declared value", () => {
         expect(
             lintNote(note("skill", { subType: "craft", sohl: { subType: "craft" } }), opts),
@@ -170,7 +170,7 @@ describe("`subType` is top level, and only where a type declares one (#128)", ()
 
     it("permits a subType whose values the specification has not yet enumerated", () => {
         // A being's document type is derived from its subType, but the values
-        // land with the note-type → subtype map (#79), so nothing here may
+        // land with the note-type → subtype map, so nothing here may
         // claim to know them.
         expect(subTypes("being")).toBeNull();
         expect(lintNote(note("being", { subType: "character" }), opts)).toEqual([]);
@@ -182,7 +182,7 @@ describe("`subType` is top level, and only where a type declares one (#128)", ()
     });
 });
 
-describe("the declared vocabulary (#128)", () => {
+describe("the declared vocabulary", () => {
     it("declares a data vocabulary for every type the package compiles", () => {
         for (const type of Object.keys(NOTE_SCHEMAS)) {
             expect(NOTE_VOCABULARY, type).toHaveProperty(type);
@@ -264,7 +264,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
 });
 
 /**
- * A folder's `parent` is a scalar **or** a map keyed by pack (#288).
+ * A folder's `parent` is a scalar **or** a map keyed by pack.
  *
  * The compiler has read both since #276 — a folder's identity is one thing and
  * its hierarchy another, and both large trees file the same folder under a
@@ -273,7 +273,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
  * note using the form the compiler is specified to accept: 46 findings against
  * `sohl-thalorna` and 3 here, none of them a content defect.
  */
-describe("a folder's `parent` is a scalar or a map keyed by pack (#288)", () => {
+describe("a folder's `parent` is a scalar or a map keyed by pack", () => {
     const folderOpts = {
         schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as any,
         vocabulary: NOTE_VOCABULARY,

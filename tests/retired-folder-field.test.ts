@@ -6,7 +6,7 @@
  */
 
 /**
- * `folder:` — the Foundry-id spelling, retired (#260).
+ * `folder:` — the Foundry-id spelling, retired.
  *
  * It named a compendium folder by the raw Foundry id declared in a per-pack
  * `*-folders.yaml`. Both halves go together: the id spelling has nothing left
@@ -159,7 +159,7 @@ describe("the frontmatter lint", () => {
 
 /**
  * The specification is the other place the model is stated, and prose is
- * checked by nothing (#358).
+ * checked by nothing.
  *
  * The epic's argument against `*-folders.yaml` was that a second, unchecked
  * statement of one fact drifts from the first. These assertions point that
@@ -173,10 +173,10 @@ describe("the frontmatter lint", () => {
  * the docblocks are held to review, and only the two mechanical claims below
  * are pinned.
  */
-describe("the specification states the address model (#358)", () => {
+describe("the specification states the address model", () => {
     const SPEC = fs.readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
 
-    /** The shared-mappings rows — `| shared source | → sohl | → hm3 |` (#275). */
+    /** The shared-mappings rows — `| shared source | → sohl | → hm3 |`. */
     function sharedMappingSources(): string[] {
         const table = SPEC.match(/^\|\s*shared source.*\n\|[-\s|]+\n((?:\|.*\n)+)/m);
         return (table?.[1] ?? "")

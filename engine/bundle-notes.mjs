@@ -21,9 +21,9 @@
  * world's collection already holds that `_id`, then creates or updates each.
  * Afterwards the documents live independently and the Adventure has no further
  * role. **It is an installer** — a set of document *copies* packaged for
- * one-shot import (#259).
+ * one-shot import.
  *
- * That is the whole difference from a folder (#256), which is a live grouping
+ * That is the whole difference from a folder, which is a live grouping
  * **by reference** that persists in the pack. A bundle carries copies and
  * exists to be imported once, so the two are not variations on one idea.
  *
@@ -269,7 +269,7 @@ export function buildAdventure({
         _id: id,
         _stats: stats,
         // The Foundry *collection* name, not the pack's: a pack directory may
-        // be called anything (#1566), and the key names the collection the
+        // be called anything, and the key names the collection the
         // record belongs to inside it.
         _key: `!adventures!${id}`,
     };

@@ -13,7 +13,7 @@
 
 /**
  * **The per-system frontmatter block** — how one note feeds more than one game
- * system (#58).
+ * system.
  *
  * A note is system-agnostic. The only system-specific things it carries are the
  * properties *named after a system*, and within one:
@@ -57,14 +57,14 @@
  * ## Steps 2 and 3 are two declarations, because they are two positions
  *
  * They used to be one: both were keyed on `name`, which was fine only while the
- * shared source and the in-block key were the same word. `data:` (#128) ended
+ * shared source and the in-block key were the same word. `data:` ended
  * that — a shared source is now a path *into* a container, so `data.species`
  * and `species` are two spellings of two different places, and no single value
  * of `name` reached both. `name: "species"` read `hm3.species` and could not
  * see `data.species`; `name: "data.species"` read the shared source and could
  * not see `hm3.species`. Each yielded the field's **default** wherever only the
  * other position was authored — silently, since the field compiles and the
- * document is emitted with the value simply gone (#305).
+ * document is emitted with the value simply gone.
  *
  * That made every move into `data:` a flag day. Each of this package's other
  * retirements — `package:`, `image`, `archetype`, `relation` — works because
@@ -77,7 +77,7 @@
  * that declares one is mid-sweep by construction, which is what
  * {@link module:engine/field-spec.readsLegacyKey} reports on.
  *
- * ## Step 3 has a retiring position too, and it is derived (#332)
+ * ## Step 3 has a retiring position too, and it is derived
  *
  * `legacyKey` retires the *in-block* position, and for a while that looked like
  * the whole of what `data:` left behind. It is not. The facts `data:` holds
@@ -112,7 +112,7 @@
  * It was not a harmless coincidence either, because step 3 answers **without**
  * applying `field.default` — only step 2 does — so an authored `title: null`
  * reached the field's coercion unguarded and shipped as the literal string
- * `"null"` in fifteen documents (#218).
+ * `"null"` in fifteen documents.
  *
  * So a field may declare `topLevelMeans`: what the top-level key of that name
  * means *instead*. Declaring it removes the whole shared level — step 3 and the
@@ -132,9 +132,8 @@
  *
  * A block is addressed by name, and the name arrives from the caller — a
  * system's own document-subtype map declares it (`DocumentSubtypeMap.block`).
- * That is the `engine/` ÷ `sohl/` line this package draws everywhere else
- * (#36): note-format knowledge here, game-system knowledge in the system's own
- * half.
+ * That is the `engine/` ÷ `sohl/` line this package draws everywhere else:
+ * note-format knowledge here, game-system knowledge in the system's own half.
  *
  * @module
  */
@@ -393,7 +392,7 @@ const DATA_PREFIX = "data.";
 /**
  * The bare top-level key a `data:`-sourced field is being swept off — step 3b.
  *
- * `data:` (#128) did not invent the facts it holds; it *gathered* them, out of
+ * `data:` did not invent the facts it holds; it *gathered* them, out of
  * the note's open top level where each was a sibling of `img` and `shortcode`.
  * So the retiring spelling of `data.portrait` is not a second declaration
  * anyone has to write — it is `portrait`, mechanically, and the same holds for
@@ -466,7 +465,7 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
 
     // 2. The legacy in-block position, keyed on `legacyKey` — the shared
     //    source is a path into `data:` and the in-block key is a bare word, so
-    //    the two are declared separately (#305). Every note in every tree
+    //    the two are declared separately. Every note in every tree
     //    writes here today, and will until #126 moves them; dropping it would
     //    be a corpus migration disguised as a mechanism change.
     const declared = systemBlock(fm, block);
@@ -482,14 +481,14 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
 
     // 3. The shared property this field declares as its source — unless the
     //    field declares that the top-level key of that name means something
-    //    else, in which case there is no shared position to read (#218).
+    //    else, in which case there is no shared position to read.
     if (field.topLevelMeans === undefined) {
         const shared = getFrontmatter(fm, field.name, undefined);
         if (shared !== undefined) return { value: shared, from: "shared" };
 
         // 3b. The bare top-level key the `data:` source was gathered off — the
         //     retiring *shared* position, exactly as `legacyKey` is the
-        //     retiring *in-block* one (#332). Without it a field declaring
+        //     retiring *in-block* one. Without it a field declaring
         //     `data.portrait` cannot see the `portrait:` every tree still
         //     writes, and the miss arrives at the caller's `?? default` as an
         //     ordinary absence: 646 `sohl-thalorna` beings compiled the generic
@@ -556,7 +555,7 @@ export function systemDataPaths(data, prefix = "") {
  *
  * It stayed invisible while those maps were authored *outside* `<system>.system`
  * and so were never walked. The moment the corpus moves them to the destination
- * (#126) every one of them lights up — 62 findings on `sohl-thalorna` alone,
+ * every one of them lights up — 62 findings on `sohl-thalorna` alone,
  * none of them a defect.
  *
  * So descent is conditional on the schema declaring something *beneath* the

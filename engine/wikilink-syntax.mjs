@@ -45,7 +45,7 @@
  * ({@link LINK_FINDING_REASONS}) and the message each one reports through
  * ({@link linkFindingMessage}). Three builds read one authored link; an author
  * meets whichever ran first, and a consumer switching on a `reason` should not
- * be switching on which build produced it (#184).
+ * be switching on which build produced it.
  *
  * @module
  */
@@ -72,7 +72,7 @@ export const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
  * @property {string|null} display - The text after `|`, or `null` when the link
  *   is unlabelled. `null` and `""` differ: an author may write `[[x|]]`.
  * @property {boolean} labelled - Whether a `|` was present at all. A link
- *   without one addresses nothing and is a finding (#180) — see
+ *   without one addresses nothing and is a finding — see
  *   {@link unlabelledLinkMessage} — so every reader has to be able to ask.
  */
 
@@ -111,12 +111,12 @@ export function parseWikilink(rawInner) {
  * `display: null` does. The two are still distinguishable through
  * {@link ParsedWikilink.labelled}, which is the thing that genuinely differs:
  * `[[x|]]` is labelled and `[[x]]` is not, and only the first addresses
- * anything (#180).
+ * anything.
  *
  * Stated here because the two resolvers had already drawn the line in two
  * places and drawn it differently: the packs tested falsiness and were right,
  * the web tested `??` — which falls through on `null` only — and emitted
- * `[](/url/)`, a link with no clickable text, through every build (#113). That
+ * `[](/url/)`, a link with no clickable text, through every build. That
  * is the same drift this module exists to prevent, in the case its own
  * {@link ParsedWikilink} docstring calls out. One reading, one place.
  *
@@ -136,12 +136,12 @@ export function authoredLabel({ display }) {
  * the form to write rather than a value to correct: there is no value that
  * makes an unlabelled link resolve.
  *
- * **Why there is nothing left for a bare link to mean** (#180). The pipe used
+ * **Why there is nothing left for a bare link to mean**. The pipe used
  * to select between two namespaces — address and alias — and the alias one was
  * empty in practice: across 8,305 wikilinks in three content trees, not one
  * bare `[[Alias]]` resolved to a note. What the index it looked up in *did* do
  * was fold every note's `name.full` into itself, which forbade two notes of a
- * type from sharing a display name (#179). So the namespace is gone, every
+ * type from sharing a display name. So the namespace is gone, every
  * link is an address, and an address needs the pipe that says so.
  *
  * The **link part may still be an anchor**: `[[#slug|Text]]` addresses a
@@ -160,7 +160,7 @@ export function unlabelledLinkMessage(target) {
 }
 
 /**
- * Every way a link can fail, named once for all three resolvers (#184).
+ * Every way a link can fail, named once for all three resolvers.
  *
  * A link is read in three places — the checker (`content-links.mjs`), the pack
  * compilers (`wikilinks.mjs`) and the web resolver (`web-wikilinks.mjs`) — and
@@ -169,7 +169,7 @@ export function unlabelledLinkMessage(target) {
  * consumer switching on a `reason` was switching on which build had produced
  * it. The set is closed and lives here, beside the syntax the three share.
  *
- * - `unlabelled` — no `|`, so the link addresses nothing (#180).
+ * - `unlabelled` — no `|`, so the link addresses nothing.
  * - `not-an-address` — labelled, but the target does not parse as an address.
  * - `unknown-type` — definitely qualified, but names no type this build knows.
  * - `unresolved` — parses as an address, and nothing publishes it.
@@ -201,9 +201,9 @@ export const LINK_FINDING_REASONS = Object.freeze(
  * This used to be a **warning** in the checker and, in the site build, nothing
  * at all until every linkable package's manifest was accounted for — on the
  * reasoning that a bare `[[Name]]` might be a placeholder for a note nobody had
- * written yet. That reasoning was a property of the bare form, which is retired
- * (#180); the intent behind it now has a real spelling, a `draft`-tagged note
- * that exists and resolves and renders marked (#183). So an address naming no
+ * written yet. That reasoning was a property of the bare form, which is retired;
+ * the intent behind it now has a real spelling, a `draft`-tagged note
+ * that exists and resolves and renders marked. So an address naming no
  * note is a typo or an omission, both want fixing, and all three builds say so.
  *
  * @param {string} target - The address as authored, named in the message.
@@ -226,7 +226,7 @@ export function unresolvedAddressMessage(target) {
  * message names the claimants so the author can choose between them without
  * going looking.
  *
- * **The correction is the canonical form**, all four segments (#59). Omission
+ * **The correction is the canonical form**, all four segments. Omission
  * runs strictly left to right, so there is no `package-type-shortcode` to offer
  * — naming a package means naming the system before the type. That used to be
  * the correction here, back when a written target could state three segments at

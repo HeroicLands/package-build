@@ -31,11 +31,11 @@
  * that drift: the builder had a default, runtime did not).
  *
  * It lives in this package rather than in the system's `src/` tree because the
- * pack pipeline is installed as a dependency (#1501): a relative path out of
+ * pack pipeline is installed as a dependency: a relative path out of
  * the package would resolve to garbage once the pipeline runs from
  * `node_modules`. The runtime imports it back through the package's
- * `./sohl/default-item-art` entry point, so there is still exactly one map
- * (#1510). Injecting the map through configuration instead would re-open #932,
+ * `./sohl/default-item-art` entry point, so there is still exactly one map.
+ * Injecting the map through configuration instead would re-open #932,
  * because the two sides would once more be free to disagree.
  *
  * Paths are fully resolved (`systems/sohl/...`) — the served path both layers

@@ -6,13 +6,13 @@
  */
 
 /**
- * Every wikilink is an address, and an unlabelled one is a finding (#180).
+ * Every wikilink is an address, and an unlabelled one is a finding.
  *
  * #131 gave the pipe two jobs: it chose between the address namespace and the
  * alias one. The alias namespace turned out to be empty — across 8,305
  * wikilinks in three content trees, not one bare `[[Alias]]` resolved to a note
  * — while the collision rule that kept it honest dictated what a note could be
- * named (#179). So the alias half is gone, the pipe no longer selects anything,
+ * named. So the alias half is gone, the pipe no longer selects anything,
  * and a link written without one cannot resolve at all.
  *
  * The correction is always the same, so the message always says it: write
@@ -167,7 +167,7 @@ describe("auditLinks reports an unlabelled link", () => {
     });
 
     // #179: five `doc` notes shared a `name.full` and every fix moved a URL.
-    it("passes two same-type notes sharing a display name (#179)", () => {
+    it("passes two same-type notes sharing a display name", () => {
         const r = audit({
             "Rules/Gear.md": note({ type: "doc", shortcode: "rgear", name: { full: "Gear" } }),
             "Guide/Gear.md": note({ type: "doc", shortcode: "ggear", name: { full: "Gear" } }),

@@ -36,7 +36,7 @@
  * @module
  */
 
-// The retirement window for a renamed note type (#78): an embedded reference
+// The retirement window for a renamed note type: an embedded reference
 // still spelling `armorgear` names the same gear group as `armor`.
 import { currentType } from "../engine/ids.mjs";
 

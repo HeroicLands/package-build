@@ -29,7 +29,7 @@ import { Actors } from "../sohl/actors.mjs";
 const LATEST =
     "https://github.com/HeroicLands/Song-of-Heroic-Lands-FoundryVTT/releases/latest/download/system.json";
 
-describe("pinning a dependency's manifest (#82)", () => {
+describe("pinning a dependency's manifest", () => {
     /*
      * A consumer publishes `releases/latest/…` because that is the right thing
      * for Foundry to follow. It is the wrong thing to *build* against: the
@@ -154,7 +154,7 @@ describe("reading the catalogue cache", () => {
      * A complete cache: the extracted packs, what each one is, and the stamp.
      *
      * `packs` names each pack and the system it was published for, as the
-     * dependency's own manifest declared it (#58); `null` is a pack that
+     * dependency's own manifest declared it; `null` is a pack that
      * declares none.
      */
     const cache = (version: string, packs: Record<string, string | null>) => {
@@ -211,7 +211,7 @@ describe("reading the catalogue cache", () => {
         ]);
     });
 
-    it("refuses a cache that does not say what its packs are (#58)", () => {
+    it("refuses a cache that does not say what its packs are", () => {
         // Stamped, but written before the pack manifest existed. Reading every
         // pack would resolve an `hm3` reference against a `sohl` document, and
         // reading none would fail a build that worked — so it is incomplete,
@@ -222,7 +222,7 @@ describe("reading the catalogue cache", () => {
         expect(() => foreignItemCatalogDirs(config(root))).toThrow(/deps fetch/);
     });
 
-    it("reads only the asked-for system's packs, and the neutral ones (#58)", () => {
+    it("reads only the asked-for system's packs, and the neutral ones", () => {
         // `skill:awar` is a real address in both vocabularies and means two
         // different documents. The local half of the catalogue is already
         // scoped by pack system; unscoped here, this dependency would answer
@@ -250,7 +250,7 @@ describe("reading the catalogue cache", () => {
 
     it("returns each extracted pack directory of a complete cache", () => {
         const dir = cache("0.8.2", { items: "sohl", extras: "sohl" });
-        // Each entry carries the package that published it (#334): a being's
+        // Each entry carries the package that published it: a being's
         // `model:` names the package its template comes from, and that cannot
         // be recovered from the path.
         expect(
@@ -271,7 +271,7 @@ describe("reading the catalogue cache", () => {
         ]);
     });
 
-    it("compares version segments numerically, so 0.8.10 beats 0.8.2 (#272)", () => {
+    it("compares version segments numerically, so 0.8.10 beats 0.8.2", () => {
         // A plain string sort puts `0.8.10` before `0.8.2`, and the build
         // would then resolve its embedded item references against the older
         // catalogue with nothing to report it: both caches are complete and

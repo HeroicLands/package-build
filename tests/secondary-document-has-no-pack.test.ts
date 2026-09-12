@@ -7,7 +7,7 @@
 
 /**
  * A note whose **secondary** document has no pack loses it silently, while its
- * primary document compiles (#152).
+ * primary document compiles.
  *
  * #146 asks one question of the whole configuration — does any pack claim this
  * type — and a note that compiles an Item into an Item pack answers yes, so the

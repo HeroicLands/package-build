@@ -49,8 +49,8 @@ describe("resolveImg (content → Foundry img path translation, #890)", () => {
         // Translation only — each builder applies its own per-type default
         // (actors → being, items → per-type / miscgear) to an *unset* path,
         // with `??`. The two empties are not one case: `null` and an absent
-        // key mean "no art named, use the default", `""` means "ship no art"
-        // (#218). The full rule, and every caller that pairs a default with
+        // key mean "no art named, use the default", `""` means "ship no art".
+        // The full rule, and every caller that pairs a default with
         // it, is pinned in `img-unset-vs-blank.test.ts`.
         expect(resolveImg("")).toBe("");
         expect(resolveImg(undefined)).toBeNull();
@@ -58,7 +58,7 @@ describe("resolveImg (content → Foundry img path translation, #890)", () => {
     });
 });
 
-describe("an asset path's first segment says which package owns it (#331)", () => {
+describe("an asset path's first segment says which package owns it", () => {
     // The rule the `img:`/`portrait:` field documentation states, asserted in
     // both directions so neither can regress into the other. It was inferred
     // from behaviour until #331: `sohl-thalorna` authoring `icons/…` and
@@ -116,7 +116,7 @@ describe("an asset path's first segment says which package owns it (#331)", () =
     });
 });
 
-describe("resolveImg for a non-`sohl` consumer (#1508)", () => {
+describe("resolveImg for a non-`sohl` consumer", () => {
     /** A module repository's configuration — the case the hoist exists for. */
     const moduleConfig = defineConfig({
         rootDir: "/tmp/sohl-thalorna",
@@ -147,7 +147,7 @@ describe("resolveImg for a non-`sohl` consumer (#1508)", () => {
         expect(resolveImg("", moduleConfig)).toBe("");
     });
 
-    it("obeys the same three-way ownership rule, only under a different root (#331)", () => {
+    it("obeys the same three-way ownership rule, only under a different root", () => {
         // The rule is one rule; the asset root it prefixes with is the only
         // thing configuration changes. A module citing the system's art gets
         // it verbatim — which is what makes the system's default art usable
@@ -165,7 +165,7 @@ describe("resolveImg for a non-`sohl` consumer (#1508)", () => {
 });
 
 /* -------------------------------------------------------------------- */
-/*  The rule as a compiled document sees it (#331)                       */
+/*  The rule as a compiled document sees it                       */
 /* -------------------------------------------------------------------- */
 
 /**
@@ -216,7 +216,7 @@ const beingNote = (sohl: Record<string, unknown>) => ({
     sohl: { archetype: null, ...sohl },
 });
 
-describe("an item note's art obeys the ownership rule (#331)", () => {
+describe("an item note's art obeys the ownership rule", () => {
     it("prefixes a bare relative path with this package's asset root", () => {
         expect(items().buildEntry(skillNote({ img: "artwork/awareness.webp" }), "").img).toBe(
             "systems/sohl/assets/artwork/awareness.webp",
@@ -236,11 +236,11 @@ describe("an item note's art obeys the ownership rule (#331)", () => {
     });
 });
 
-describe("an actor note's art obeys the ownership rule, on both fields (#331)", () => {
+describe("an actor note's art obeys the ownership rule, on both fields", () => {
     it("prefixes bare relative `img` and `portrait` alike", () => {
         // Both go through the translator, so both follow the rule — a check
         // keyed on `img` alone would miss the eleven `sohl-kethira-basic`
-        // beings that author only `portrait` (#218).
+        // beings that author only `portrait`.
         const doc = actors().buildBeing(
             new Map(),
             beingNote({ img: "artwork/folk-token.webp", portrait: "artwork/folk.webp" }),

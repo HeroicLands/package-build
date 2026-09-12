@@ -17,7 +17,7 @@
  * {@link slugify} reduces a piece of prose — a heading, a document name — to a
  * URL-safe token. It is **not** how a page is addressed: a note's URL is its
  * address, `type-shortcode`, derived in `engine/content-address.mjs` and
- * touching no display string at all (#181).
+ * touching no display string at all.
  *
  * That used to be the other way round. This module carried a `contentSlug` that
  * derived a page's URL from `name.full`, abbreviating it through a table of 200

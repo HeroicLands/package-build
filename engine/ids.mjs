@@ -40,8 +40,8 @@ export function makeId(namespace, value) {
 }
 
 /**
- * Every content type that compiles into a Foundry `Scene` — a **map note**
- * (#1525). The three differ only in derived canvas defaults, which is the map
+ * Every content type that compiles into a Foundry `Scene` — a **map note**.
+ * The three differ only in derived canvas defaults, which is the map
  * compiler's business; everything else treats them alike.
  *
  * Declared in this leaf module because several passes that must not depend on
@@ -95,7 +95,7 @@ export const JOURNAL_TYPES = Object.freeze(new Set(["doc", "place", "lore", "sce
  * building and not of the content: the same notes compiled by a different
  * repository belong to a different package. Baking the package into these
  * values is what made every link emitted by `sohl-thalorna` address the `sohl`
- * system (#1498) — correct here only by coincidence.
+ * system — correct here only by coincidence.
  *
  * @type {Readonly<Record<string, {pack: string, docType: string}>>}
  */
@@ -106,7 +106,7 @@ export const PACK_BY_TYPE = Object.freeze({
     macro: { pack: "macros", docType: "Macro" },
     being: { pack: "actors", docType: "Actor" },
     // A bundle is Foundry's `Adventure` — a set of document *copies* packaged
-    // for one-shot import (#259). The conventional name is `adventures`, which
+    // for one-shot import. The conventional name is `adventures`, which
     // is also what the scenes pass calls its **companion**; the two are
     // different packs and a repository shipping both names them apart, since
     // the router refuses a note that addresses a companion.
@@ -137,7 +137,7 @@ export const RETIRED_TYPES = Object.freeze({
     character: "being",
     creature: "being",
     // The three map spellings, retired in favour of the single `map` whose
-    // subType they became (#174). Recorded rather than deleted for the same
+    // subType they became. Recorded rather than deleted for the same
     // reason as the two above: an unnamed type falls through to the open item
     // set, so a note or link left on one would be routed to the items pack.
     battlemap: "map",
@@ -178,7 +178,7 @@ export function assertTypeNotRetired(type, where) {
  * old one compiles into exactly the document it always did: refusing it would
  * fail a build over a note that is not wrong.
  *
- * So these retire in the three steps `package:` took (#56), and this table is
+ * So these retire in the three steps `package:` took, and this table is
  * the **first**: both spellings resolve, the current one is canonical, and the
  * retired one is *reported* — never refused. The sweep of the content trees and
  * the refusal come after, once no tree writes the old name. That is the same
@@ -283,12 +283,12 @@ export const ITEM_PACK = Object.freeze({ pack: "items", docType: "Item" });
  * Item types are the open set — a new one is added whenever the system grows a
  * document type — so they are the **default** rather than an enumerated list. A
  * hand-maintained list is what made an entire content directory silently
- * unlinkable once (#1276); nothing to maintain, nothing to forget.
+ * unlinkable once; nothing to maintain, nothing to forget.
  *
  * The `docType` is the authority: it is a property of the *content type* and
  * holds however a repository names or splits its packs. The `pack` is the
  * conventional name only — a repository may rename its packs, or ship several
- * of one type (#1566), in which case the pack a particular note's document
+ * of one type, in which case the pack a particular note's document
  * lands in comes from `engine/pack-router.mjs` and is passed to
  * {@link compendiumUuid} explicitly. This module stays free of the
  * configuration so the link resolver above it can stay pure.
@@ -322,8 +322,8 @@ export function packForType(type) {
  * @param {string} id - The document's id.
  * @param {string} [packName] - The pack the document actually landed in, from
  *   the pack router. Supplied wherever the note is known, because a repository
- *   may ship several packs of one type and a UUID carries the pack name
- *   (#1566). Omitted only where there is no note to route — the conventional
+ *   may ship several packs of one type and a UUID carries the pack name.
+ * Omitted only where there is no note to route — the conventional
  *   name from {@link packForType} then stands in.
  * @returns {string} `Compendium.<packageId>.<pack>.<DocumentType>.<id>`
  */

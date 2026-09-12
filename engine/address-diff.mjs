@@ -12,7 +12,7 @@
  */
 
 /**
- * Diffing a package's published item addresses against a released one (#66).
+ * Diffing a package's published item addresses against a released one.
  *
  * A package's `(type, shortcode)` addresses are a **published interface**.
  * Every satellite that declares `itemCatalog: true` assembles its beings out of
@@ -91,7 +91,7 @@ import path from "node:path";
 import { formatDiagnostic, positionInFrontmatter } from "./diagnostics.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
 import { assertStatedScope } from "./helpers.mjs";
-// The corpus, read from the one pass that derives it (#243). Nothing in the
+// The corpus, read from the one pass that derives it. Nothing in the
 // index's import graph reaches this module — only `bin/` imports it — so this
 // is a plain static import, as in the link checker.
 import { indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
@@ -431,7 +431,7 @@ export function noteFilesById(contentBase, { skipDirectories, config, records, p
  * A **declared** rename knows its note without any lookup — the declaration is
  * how it was found — and is reported at the `renamedFrom:` line rather than the
  * `shortcode:` line, because that is the line the finding is about and the one
- * the author deletes once the declaration has done its work (#278).
+ * the author deletes once the declaration has done its work.
  *
  * @param {object} finding - One finding from {@link diffItemAddresses}.
  * @param {Map<string, string>} noteFiles - From {@link noteFilesById}.
@@ -480,7 +480,7 @@ export function locateAddressFinding(finding, noteFiles) {
  * known — and says so, rather than leaving the reader to wonder whether one was
  * looked for.
  *
- * **A declared rename says it is declared** (#278). The two claims are not
+ * **A declared rename says it is declared**. The two claims are not
  * equally checkable: an id match is a fact in the artefacts, while a
  * declaration is an author's word, and a reader deciding whether to trust the
  * successor needs to know which one they have. Saying "the same document" of a

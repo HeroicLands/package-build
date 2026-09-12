@@ -6,7 +6,7 @@
  */
 
 /**
- * The links a package homepage carries, and the ones that land nowhere (#54).
+ * The links a package homepage carries, and the ones that land nowhere.
  *
  * The page a reader arrives at is the one nothing was checking. SoHL's
  * hand-built landing pointed at `kb/creature/` and `kb/character/` from the day
@@ -193,7 +193,7 @@ describe("auditLinks — the homepage", () => {
         expect(found[0]).toContain("package-relative");
     });
 
-    it("reports a hardcoded absolute URL to this package's own landing (#87)", () => {
+    it("reports a hardcoded absolute URL to this package's own landing", () => {
         const found = messages({
             "homepage.md": homepage(
                 "",
@@ -210,7 +210,7 @@ describe("auditLinks — the homepage", () => {
     // because homepage-only mode never walks a content tree. The roster is what
     // makes the address reachable anyway — no `manifestDir` is passed here, and
     // the finding still names the package and its base.
-    it("reports a foreign package's landing with no manifest vendored (#87)", () => {
+    it("reports a foreign package's landing with no manifest vendored", () => {
         const found = messages({
             "homepage.md": homepage("", "See [Thalorna](https://www.heroiclands.org/thalorna/).\n"),
         });

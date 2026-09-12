@@ -28,13 +28,13 @@
  * keeps only a pointer to it. See `item-docs.mjs` for why, and for the ids the
  * two passes agree on. A macro note's `{#script}` page is compiled here like
  * any other: the macro pass reads the same page independently, and withholds
- * nothing from the journal (#1514).
+ * nothing from the journal.
  *
  * Folder placement is identical to the items pack: `sohl.packFolder` in
  * frontmatter is a folder **note's address**, resolved through the shared
- * address index by the constructor's `folderResolver` (#255, #260). A folder
+ * address index by the constructor's `folderResolver`. A folder
  * materialises in every pack holding a document that names it, so a journals
- * pack needs to declare nothing (#257) — which is what stopped this pass
+ * pack needs to declare nothing — which is what stopped this pass
  * filing documentation into folders its own pack had never heard of. A
  * documentation entry reuses its document's folder verbatim.
  *
@@ -43,7 +43,7 @@
  *
  * The walk itself — filtering by type, expanding tables, converting
  * wikilinks, writing the JSON and counting errors — belongs to {@link sohl.utils.packs.BasePackCompiler}; this module
- * states only what makes this pass its own (#1509).
+ * states only what makes this pass its own.
  */
 
 import log from "loglevel";
@@ -199,7 +199,7 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * doc's first page without having compiled it (see
  * {@link sohl.utils.packs.itemDocPointer}).
  *
- * **It takes no index** (#268). A page used to be keyed by position *and* name,
+ * **It takes no index**. A page used to be keyed by position *and* name,
  * so inserting a heading renumbered every page after it and a re-import created
  * new pages beside the old ones — while nothing about those pages had changed.
  * The anchored case above never took one, and is the shape this now shares.
@@ -275,7 +275,7 @@ export function buildPages(rawPages, entryId, noteName) {
  * @param {object} [params.stats] - The `_stats` block to stamp. Passed by the
  *   caller because it is a property of the *pack* being written, not of the
  *   entry: a module may ship the same content for two systems, and each pack's
- *   documents record the system version they were built against (#48). A
+ *   documents record the system version they were built against. A
  *   caller with no pack in hand gets the package-wide block.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
@@ -317,7 +317,7 @@ export class Journals extends BasePackCompiler {
     /**
      * **None.** A JournalEntry has no artwork — no `img` property, and no
      * nested place for one — so a note whose whole document is prose has
-     * nowhere to put an authored path (#349).
+     * nowhere to put an authored path.
      *
      * The emptiness is the declaration, in the sense `JOURNAL_ONLY_FIELDS` is:
      * it is what separates a pass that emits no art from one that has simply
@@ -338,9 +338,9 @@ export class Journals extends BasePackCompiler {
 
     /**
      * Journal notes, plus every doc-carrying note — an item's prose is its
-     * documentation, so it compiles here and the item keeps a pointer to it
-     * (#1348); a macro's is the same arrangement (#1514), and so is a map's,
-     * whose prose is the place description its pins point at (#1525).
+     * documentation, so it compiles here and the item keeps a pointer to it;
+     * a macro's is the same arrangement, and so is a map's,
+     * whose prose is the place description its pins point at.
      *
      * Two memberships, and they mean different things.
      * {@link module:engine/ids.JOURNAL_TYPES} is the types whose whole document
@@ -383,7 +383,7 @@ export class Journals extends BasePackCompiler {
      * the items pass wrote resolves to it (see
      * {@link sohl.utils.packs.itemDocPointer}). A macro's `{#script}` page is
      * compiled here like any other; nothing is withheld from the journal
-     * because the macro pass also reads it (#1514).
+     * because the macro pass also reads it.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} markdown - The body, tables expanded and wikilinks
@@ -404,7 +404,7 @@ export class Journals extends BasePackCompiler {
         // resolving it *here* is what cures the defect this comment used to
         // describe. A folder note has one definition and one address, so the
         // journals pack materialises the very folder the items pack does, by
-        // the same id (#257). There is no second folder file left to disagree
+        // the same id. There is no second folder file left to disagree
         // with the first, and so no arrangement to assume: the mirroring
         // failure is unrepresentable rather than merely reported.
         //

@@ -13,11 +13,11 @@
 
 /**
  * **SoHL's note-type → document-subtype map** — which Foundry document, and
- * which subtype of it, a note of each content type compiles into (#79).
+ * which subtype of it, a note of each content type compiles into.
  *
  * The mechanism is `engine/document-subtypes.mjs`; what a *game system* does
  * with it is here, which is the `engine/` ÷ `sohl/` line this package draws
- * everywhere else (#36). A second system declares its own map in its own half
+ * everywhere else. A second system declares its own map in its own half
  * and shares nothing but the mechanism.
  *
  * **Every row is written out, identity rows included.** `skill → skill` looks
@@ -31,7 +31,7 @@
  * **Three rows are no longer the identity, and that is what the map was for.**
  * `armor`, `concoction` and `projectile` were renamed from the `…gear`
  * spellings that named SoHL's *document* subtype rather than the thing the note
- * is about (#78); the subtypes themselves did not move, so those three rows now
+ * is about; the subtypes themselves did not move, so those three rows now
  * say two different words where they used to say one twice. Landing the rename
  * cost exactly what having the map first promised it would: a data change on
  * three lines here, and no mechanism change anywhere.

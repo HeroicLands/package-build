@@ -16,7 +16,7 @@
  *
  * The machinery is {@link module:engine/actor-compiler}'s and is shared with
  * the SoHL pass: the predefined-item catalogue, the note-vocabulary →
- * document-subtype translation each embedded reference goes through (#140), the
+ * document-subtype translation each embedded reference goes through, the
  * merge and the stable embedded ids. This module states HM3's data model and
  * nothing else.
  *
@@ -24,7 +24,7 @@
  * splits what a note calls a `being` into a `character` and a `creature`, and
  * nothing in the note's own vocabulary partitions cleanly onto that split — so
  * the note says which, by writing `hm3.type`. An absent one is an error naming
- * the note, never a default (#139).
+ * the note, never a default.
  *
  * **What is emitted, and what is deliberately not.** Four rows of the content
  * format's `being` mapping table give HM3 a destination — `data.portrait` →
@@ -57,7 +57,7 @@ import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
 // The retirement window's reports, shared with the frontmatter lint so the
-// two cannot say different things about the same key (#305, #332).
+// two cannot say different things about the same key.
 import {
     legacyKeyMessage,
     locateFrontmatterKey,
@@ -65,7 +65,7 @@ import {
 } from "../engine/retired-fields.mjs";
 // The note-level `hm3:` block: `hm3.system` onto the document's `system`
 // verbatim, and `hm3.img` / `hm3.items` / `hm3.effects` / `hm3.flags`
-// overriding their shared top-level forms for this system alone (#58).
+// overriding their shared top-level forms for this system alone.
 import { blockField, blockProperty, mergeSystemData } from "../engine/system-block.mjs";
 
 /**
@@ -73,11 +73,11 @@ import { blockField, blockProperty, mergeSystemData } from "../engine/system-blo
  *
  * Declared rather than read by hand, so a value resolves by the same order
  * every other declared field does — `hm3.system.<to>` first, then the in-block
- * position, then the shared source, then the default (#58) — and so the
+ * position, then the shared source, then the default — and so the
  * author-facing reference can be generated from the same statement the compiler
- * obeys (#22).
+ * obeys.
  *
- * **Both positions, named separately (#305).** The specification maps
+ * **Both positions, named separately.** The specification maps
  * `data.species` onto `system.species`, and every HM3 note in the corpus writes
  * `hm3.species`. Until #126 sweeps them those are two live positions for one
  * field, so the declaration names both: `name` is the shared source, `legacyKey`
@@ -107,12 +107,12 @@ const ACTOR_FIELDS = Object.freeze([
  * `data.species` was: read with `blockProperty(fm, block, "portrait")` it saw
  * the block and the note's top level and nothing else, so the `data.portrait`
  * the specification names never reached the document and the `?? defaultImg`
- * beside it dressed the miss up as "this note names no art" (#332).
+ * beside it dressed the miss up as "this note names no art".
  *
  * It is **not** in `ACTOR_FIELDS`, because `buildFromFields` has no seam for
  * the subtype default that has to follow it — the `?? defaultImg` is the whole
- * of what distinguishes an unnamed portrait from a deliberately blank one
- * (#218), and it needs a subtype the coercion is not handed.
+ * of what distinguishes an unnamed portrait from a deliberately blank one,
+ * and it needs a subtype the coercion is not handed.
  *
  * @type {import("../engine/field-spec.mjs").FieldSpec}
  */
@@ -270,7 +270,7 @@ export class Hm3Actors extends SystemActorCompiler {
         const id = fm.id;
         const ctx = `actor "${name}"`;
         // The document's own subtype, and the art that goes with it. Both are
-        // looked up from the note's `type` rather than spelled here (#79); for
+        // looked up from the note's `type` rather than spelled here; for
         // HM3 the row is one-to-many, so the note's `hm3.type` decides.
         const subType = /** @type {string} */ (
             documentSubtype(this.documentSubtypes, fm.type, fm, {
@@ -283,7 +283,7 @@ export class Hm3Actors extends SystemActorCompiler {
 
         // The sweep's progress signal, reported where an author meets it
         // soonest — every consumer runs the compile, and not every one runs the
-        // lint (#142). A warning: the note compiles to the correct document
+        // lint. A warning: the note compiles to the correct document
         // either way, and refusing the position comes once no tree writes it.
         const onLegacyKey = (field) =>
             this.noteWarn(
@@ -292,7 +292,7 @@ export class Hm3Actors extends SystemActorCompiler {
             );
 
         // The shared level's own retiring position — the top-level key `data:`
-        // gathered the field off (#332). Same signal, same severity, separate
+        // gathered the field off. Same signal, same severity, separate
         // callback: a note may have moved one position and not the other.
         // Anchored at column 1, because the two spellings coincide — `portrait`
         // names a block key and a top-level one — and a locator that took the
@@ -312,16 +312,16 @@ export class Hm3Actors extends SystemActorCompiler {
         // One spelling, as everywhere else: `packFolder` names a folder note
         // by its address. This pass once read only the Foundry id, so an HM3
         // tree could not file an actor by address at all — which its own sweep
-        // needs; the id spelling is retired outright (#251, #255, #260).
+        // needs; the id spelling is retired outright.
         const folder = this.folderResolver(blockField(fm, block, "packFolder", null), {
             isAddress: true,
         });
 
         const system = {
-            // Nullish, not `||` (#218): a note that names no portrait gets the
+            // Nullish, not `||`: a note that names no portrait gets the
             // subtype's default, one that writes `""` ships blank on purpose.
             // Resolved through the declaration so `data.portrait` is reached at
-            // all — see {@link BIO_IMAGE_FIELD} (#332).
+            // all — see {@link BIO_IMAGE_FIELD}.
             bioImage: readField(BIO_IMAGE_FIELD, fm, reports) ?? defaultImg,
             description: renderSection(body || "", "appearance"),
             biography: renderSection(body || "", "dossier"),
@@ -332,13 +332,13 @@ export class Hm3Actors extends SystemActorCompiler {
         };
 
         // Whatever the note authors under `hm3.system`, at the DataModel's own
-        // paths (#58). This pass has no field declaration, so it claims
+        // paths. This pass has no field declaration, so it claims
         // nothing: every authored path is the author's, and the fields above
         // are what a note that authors none still gets.
         mergeSystemData(system, fm, { block });
         this.reportUndeclaredSystemData(fm, block, "Actor", subType);
         // And what this pass wrote itself — there is no field declaration for a
-        // being at all, so every key above is a compiler emission (#155).
+        // being at all, so every key above is a compiler emission.
         this.reportEmittedSystemData(system, {
             fm,
             block,
@@ -385,7 +385,7 @@ export class Hm3Actors extends SystemActorCompiler {
      * template priority.
      *
      * The rule itself is {@link module:hm3/template-priority.templateFlags},
-     * because the Item pass writes the same flag from the same statement (#283)
+     * because the Item pass writes the same flag from the same statement
      * and two copies of it were one copy too many — this pass had the only one,
      * and the Item pass had none.
      *

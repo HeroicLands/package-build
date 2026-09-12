@@ -6,7 +6,7 @@
  */
 
 /**
- * A build reads the configuration of the tree it was run in (#364).
+ * A build reads the configuration of the tree it was run in.
  *
  * The defect these cases describe needs a shape no unit test can fake, so they
  * build it: a repository with the toolchain installed under it, and a second

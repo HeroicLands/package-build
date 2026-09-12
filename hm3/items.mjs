@@ -13,7 +13,7 @@
 
 /**
  * **HM3's Item pass** — the two things about compiling a note into an HM3 Item
- * that are facts about HM3 rather than about the note format (#139).
+ * that are facts about HM3 rather than about the note format.
  *
  * Everything else is {@link module:engine/item-compiler}'s, and is the same
  * code the SoHL pass runs: which notes are claimed, which subtype each becomes,
@@ -57,8 +57,7 @@ import { templateFlags } from "./template-priority.mjs";
 export class Hm3Items extends SystemItemCompiler {
     /**
      * HM3's note-type → document-subtype map — the one declaration that says
-     * which block this pass reads, which notes it claims, and what each becomes
-     * (#58/#79).
+     * which block this pass reads, which notes it claims, and what each becomes.
      *
      * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
      */
@@ -85,7 +84,7 @@ export class Hm3Items extends SystemItemCompiler {
      * The same statement the Actor pass records, through the same
      * {@link module:hm3/template-priority.templateFlags} — see that module for
      * why the priority lives in flags at all, and for what its absence here
-     * cost (#283).
+     * cost.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {object} The flags to emit.
