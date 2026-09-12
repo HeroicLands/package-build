@@ -340,8 +340,7 @@ export const ITEM_FIELDS = Object.freeze({
         },
         {
             // Plural because the field holds a map of many standings, one per
-            // affiliation — the singular was a misnomer every author read past
-            // (SoHL#1781).
+            // affiliation — the singular reads as a misnomer.
             name: "relations",
             to: "relations",
             ...RELATION,

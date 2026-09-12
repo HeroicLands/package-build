@@ -270,7 +270,7 @@ function namedPacks(folders, at) {
  * `HarnMaster-3-FoundryVTT` shipped the consequence: its folder named four
  * packs, three of which had not existed since the compendium was consolidated,
  * and omitted `items` — 1,577 of 1,597 documents, loose in Foundry's compendium
- * browser, with the build reporting nothing (HM3#420).
+ * browser, with the build reporting nothing.
  *
  * **The two findings are not the same finding**, and giving them one severity
  * gets one of them wrong:
@@ -343,8 +343,8 @@ export function packFolderFindings({ packFolders, packs = [] }) {
  *
  * `relationships` is the one manifest block with a second reader.
  * `@heroiclands/content-build` consumes it too, and v1.8.0 added
- * `itemCatalog: true` as an opt-in on a declared dependency
- * (content-build#82): it selects that package's Item packs as a resolution
+ * `itemCatalog: true` as an opt-in on a declared dependency: it selects that
+ * package's Item packs as a resolution
  * source for the actors pass. That is an instruction to the build, not a fact
  * about the shipped package — Foundry's relationship schema does not define
  * it, and someone reading a published manifest cannot tell a build directive

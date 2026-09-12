@@ -24,7 +24,7 @@
  *
  * **Where this map differs from SoHL's, and why that matters.**
  *
- * SoHL's map was the identity in every row until #78 renamed three of them,
+ * SoHL's map would be the identity in every row but for three renames,
  * which was a fact about SoHL rather than a rule — and while it stayed
  * true nothing proved the map was doing any work. HM3's was never close. Four
  * of its rows are one-to-many, one renames outright (`projectile` →
@@ -82,7 +82,7 @@ export const HM3_TYPE_KEY = "type";
  * map does not name — `affiliation`, `affliction`, `attribute`,
  * `concoction`, `mystery`, and every core type — compile into no HM3
  * document at all, silently and correctly: HM3 has no form of them, and a
- * finding on every such note would be the noise #79's rule exists to prevent.
+ * finding on every such note would be the noise the rule exists to prevent.
  *
  * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
  */

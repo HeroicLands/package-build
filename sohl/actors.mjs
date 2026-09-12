@@ -401,8 +401,8 @@ export class Actors extends SystemActorCompiler {
             // identity (the dedup/override key of the Create-dialog picker).
             shortcode: fm.shortcode || "",
             // Required nullable number: a priority, or `null` for a being that
-            // is not a template (#126 / archetype contract #604). The field was
-            // `system.archetype` until #266 / sohl#1836; the emitted key moves
+            // is not a template (the archetype contract). `system.archetype`
+            // is the legacy spelling; the emitted key moves
             // with the schema, since an undeclared `system` key is discarded at
             // construction without a warning.
             templatePriority: systemTemplatePriority(fm, ctx),

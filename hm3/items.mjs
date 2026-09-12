@@ -19,7 +19,7 @@
  * code the SoHL pass runs: which notes are claimed, which subtype each becomes,
  * which registry builds it, the authored `hm3.system` passthrough, the schema
  * check, and the compendium envelope. A second system is a map and a handful of
- * emitted keys, which is the arrangement #79 and #58 were building towards.
+ * emitted keys, which is the arrangement the mapping tables build towards.
  *
  * **What HM3's compiler writes on every item: one key, and only when there is
  * something to write.** The content format gives an item's `{#appearance}`
@@ -35,9 +35,9 @@
  * priority is a shared statement — a note declaring `data.templatePriority` says
  * the same thing to both systems — but HM3 declares no `system` field for it, so
  * it lands under this system's own flag scope as `flags.hm3.templatePriority`,
- * exactly as the Actor pass writes it. This pass wrote no such flag until #283:
- * an item note declaring the priority compiled into a SoHL item that knew it was
- * a template and an HM3 item that did not.
+ * exactly as the Actor pass writes it. Without it, an item note declaring the
+ * priority compiles into a SoHL item that knows it is a template and an HM3
+ * item that does not.
  *
  * **There is no HM3 equivalent of `docHtml`.** SoHL points an item at the
  * JournalEntry its prose compiled into, and HM3's data model has nowhere to put
