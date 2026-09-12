@@ -80,6 +80,57 @@ import path from "node:path";
 export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
 
 /**
+ * The icon families a registry entry may draw from.
+ *
+ * **Two, because the interface uses two.** The SoHL icon legend says so in its
+ * own prose: Font Awesome for most things, and Game-Icons.net *"for the arms,
+ * gear, and condition glyphs that Font Awesome does not cover"* — eighteen of
+ * them, `ginf-broadsword` and its kin (#391).
+ *
+ * They differ in more than a class prefix, which is why this is a family rather
+ * than a naming convention:
+ *
+ * - Font Awesome has **weights**, so an entry names a `style` and a filled and
+ *   hollow pair is one icon twice. Game-Icons has none, so a `style` on such an
+ *   entry names something that does not exist.
+ * - They resolve to **different fonts**. A PDF has to embed both, and find each
+ *   codepoint in its own table — Font Awesome's from the file it ships,
+ *   Game-Icons' from the `game-icons-codepoints.json` the consumer's own
+ *   `build-icon-font.mjs` writes.
+ *
+ * `class` is the prefix the web surfaces use. `styled` says whether a `style`
+ * belongs on the entry at all, which is what lets a mistake be reported rather
+ * than rendered as a class nobody defined.
+ *
+ * @type {Readonly<Record<string, {class: string, styled: boolean, describe: string}>>}
+ */
+export const ICON_FAMILIES = Object.freeze({
+    fontawesome: {
+        class: "fa",
+        styled: true,
+        describe: "Font Awesome Free",
+    },
+    "game-icons": {
+        class: "ginf",
+        styled: false,
+        describe: "the Game-Icons.net webfont a package builds for itself",
+    },
+});
+
+/** The family an entry that does not name one belongs to. */
+export const DEFAULT_ICON_FAMILY = "fontawesome";
+
+/**
+ * The family an entry draws from, named or defaulted.
+ *
+ * @param {{family?: string}} entry - A registry entry.
+ * @returns {string} The family name.
+ */
+export function familyOf(entry) {
+    return entry?.family ?? DEFAULT_ICON_FAMILY;
+}
+
+/**
  * The sizes a note may ask for, and what each means on a page.
  *
  * **A closed set, because size is content here rather than styling.** The icon
@@ -207,7 +258,14 @@ export const DEFAULT_ICONS = Object.freeze({
     affiliation: { style: "solid", icon: "certificate", label: "affiliation" },
     star: { style: "solid", icon: "star", label: "star" },
     "star-outline": { style: "regular", icon: "star", label: "hollow star" },
-    diamond: { style: "solid", icon: "diamond", label: "diamond" },
+    // The Success Value scale. `fa-diamond` is Font Awesome's playing-card
+    // suit and ships in solid only, so it can spell no hollow half of a
+    // filled/hollow pair; `fa-gem` is a gemstone, has both weights, and is what
+    // a quality scale actually means. `diamond` stays as an alias of it so a
+    // note that already says `:icon-diamond:` keeps working.
+    gem: { style: "solid", icon: "gem", label: "value gem" },
+    "gem-outline": { style: "regular", icon: "gem", label: "unearned value gem" },
+    diamond: { style: "solid", icon: "gem", label: "value gem" },
     edit: { style: "solid", icon: "pen-to-square", label: "edit" },
     delete: { style: "solid", icon: "trash", label: "delete" },
     add: { style: "solid", icon: "plus", label: "add" },
@@ -281,9 +339,22 @@ const attr = (value) =>
  * @returns {string} An `<i>` element.
  */
 export function iconHtml(entry, attrs = {}) {
-    const classes = [`fa-${attr(entry.style)}`, `fa-${attr(entry.icon)}`];
+    const family = ICON_FAMILIES[familyOf(entry)] ?? ICON_FAMILIES[DEFAULT_ICON_FAMILY];
+    const prefix = family.class;
+
+    // A styled family spells the weight and the name as two classes; an
+    // unstyled one has a single class and no weight to spell.
+    const classes =
+        family.styled ?
+            [`${prefix}-${attr(entry.style)}`, `${prefix}-${attr(entry.icon)}`]
+        :   [`${prefix}-${attr(entry.icon)}`];
+
+    // The size classes are Font Awesome's, and the Game-Icons stylesheet this
+    // toolchain's consumers generate mirrors its box metrics deliberately, so
+    // they apply to both families.
     const sized = attrs.size ? ICON_SIZES[attrs.size] : undefined;
     if (sized) classes.push(sized.class);
+
     return `<i class="${classes.join(" ")}" role="img" aria-label="${attr(entry.label)}"></i>`;
 }
 
@@ -410,13 +481,38 @@ export function checkIconRegistry(registry, where = "icons") {
             });
             continue;
         }
-        if (!ICON_STYLES.includes(entry.style)) {
+        const familyName = familyOf(entry);
+        const family = ICON_FAMILIES[familyName];
+        if (!family) {
+            findings.push({
+                severity: /** @type {const} */ ("warning"),
+                message:
+                    `${at} names family \`${familyName}\`, and the families there ` +
+                    `are: ${Object.keys(ICON_FAMILIES).join(", ")}`,
+            });
+            continue;
+        }
+
+        if (family.styled && !ICON_STYLES.includes(entry.style)) {
             findings.push({
                 severity: /** @type {const} */ ("warning"),
                 message:
                     `${at} names style \`${entry.style}\`, and Font Awesome Free ships ` +
                     `only ${ICON_STYLES.join(", ")} — a glyph in any other style is ` +
                     `absent from the font a book would embed`,
+            });
+        }
+
+        // A style on an unstyled family is not a harmless extra key: it says
+        // the author expected a weight, and the family has none, so what they
+        // get is not what they asked for.
+        if (!family.styled && entry.style !== undefined) {
+            findings.push({
+                severity: /** @type {const} */ ("warning"),
+                message:
+                    `${at} names style \`${entry.style}\`, and ${family.describe} has ` +
+                    `no weights — the style is ignored, so a filled and hollow pair ` +
+                    `cannot be spelled this way`,
             });
         }
         if (typeof entry.icon !== "string" || !entry.icon) {

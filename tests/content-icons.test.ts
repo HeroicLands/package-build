@@ -21,6 +21,7 @@
 import { describe, it, expect } from "vitest";
 import {
     checkIconRegistry,
+    familyOf,
     DEFAULT_ICONS,
     ICON_STYLES,
     iconHtml,
@@ -98,6 +99,76 @@ describe("the registry", () => {
         // `resolveIcon("constructor")` must miss, not return a function.
         expect(resolveIcon("constructor")).toBeNull();
         expect(resolveIcon("toString")).toBeNull();
+    });
+});
+
+describe("icon families", () => {
+    const GINF = {
+        broadsword: { family: "game-icons", icon: "broadsword", label: "weapon" },
+    } as never;
+
+    it("defaults an entry with no family to Font Awesome", () => {
+        expect(familyOf(DEFAULT_ICONS.star)).toBe("fontawesome");
+        expect(render(":icon-star:")).toContain('class="fa-solid fa-star"');
+    });
+
+    it("draws a Game-Icons entry with its own prefix and no weight", () => {
+        // The family has no weights, so there is no style class to emit.
+        const html = render(":icon-broadsword:", GINF);
+        expect(html).toContain('class="ginf-broadsword"');
+        expect(html).not.toContain("fa-solid");
+    });
+
+    it("still carries the accessible name across families", () => {
+        expect(render(":icon-broadsword:", GINF)).toContain('aria-label="weapon"');
+    });
+
+    it("applies a size to either family", () => {
+        // The generated Game-Icons stylesheet mirrors Font Awesome's box
+        // metrics deliberately, so the size classes work for both.
+        expect(render(":icon-broadsword:{size: 2x}", GINF)).toContain("fa-2x");
+        expect(render(":icon-star:{size: 2x}")).toContain("fa-2x");
+    });
+
+    it("accepts a Game-Icons entry that names no style", () => {
+        expect(checkIconRegistry(GINF)).toEqual([]);
+    });
+
+    it("reports a style on a family that has no weights", () => {
+        const findings = checkIconRegistry({
+            x: { family: "game-icons", style: "solid", icon: "broadsword", label: "w" },
+        } as never);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("no weights");
+    });
+
+    it("reports a family nobody declared", () => {
+        const findings = checkIconRegistry({
+            x: { family: "noto", icon: "star", label: "s" },
+        } as never);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("fontawesome, game-icons");
+    });
+
+    it("still requires a style on Font Awesome entries", () => {
+        const findings = checkIconRegistry({
+            x: { icon: "star", label: "s" },
+        } as never);
+        expect(findings.some((f) => f.message.includes("names style"))).toBe(true);
+    });
+});
+
+describe("the value gem", () => {
+    it("draws the pair from fa-gem, which has both weights", () => {
+        // fa-diamond is the playing-card suit and ships solid only, so it can
+        // spell no hollow half of a filled/hollow pair.
+        expect(resolveIcon("gem")!.icon).toBe("gem");
+        expect(resolveIcon("gem")!.style).toBe("solid");
+        expect(resolveIcon("gem-outline")!.style).toBe("regular");
+    });
+
+    it("keeps `diamond` working, pointing at the gem", () => {
+        expect(resolveIcon("diamond")!.icon).toBe("gem");
     });
 });
 
