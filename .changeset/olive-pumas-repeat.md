@@ -4,14 +4,9 @@
 
 Four rules, all of them about a note being renderable into a book.
 
-**A package declares its own icons.** A new `icons:` configuration key merges
-over the shipped table rather than replacing it, so a consumer adds one glyph
-without restating the shared vocabulary, and a declared name wins where it
-spells a shipped one. This is what makes a second family usable: the shipped
-table is Font Awesome throughout, and the Game-Icons glyphs an interface draws
-come from a webfont the consumer builds for itself, so only the consumer can
-name them. The registry is validated at configuration time — a bad table makes
-every finding downstream unreliable in the same way.
+**A package declares its own icons**, through a new `icons:` configuration key
+validated when the configuration resolves. See the entry below for the shape it
+settled on.
 
 **Raw HTML in a note's prose is reported.** There is no route from `<p>` to a
 PDF: the packs and the website pass HTML through, and Typst is handed markdown

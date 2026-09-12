@@ -63,12 +63,14 @@
  * @module
  */
 
+import fs from "node:fs";
 import path from "node:path";
+import YAML from "yaml";
 
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
-import { DEFAULT_ICONS, checkIconRegistry } from "./engine/content-icons.mjs";
+import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
@@ -591,9 +593,10 @@ export function publishesContentPages(config) {
  *                                     types. The one set the compilers and the
  *                                     link-manifest emitter both read.
  * @property {readonly string[]} skipDirectories
- * @property {Readonly<Record<string, object>>} icons  The shipped icon
- *                                     registry, with this package's own
- *                                     entries merged over it.
+ * @property {import("./engine/content-icons.mjs").IconRegistry} icons  The
+ *                                     fonts this package ships and the names it
+ *                                     draws from them; empty when it declares
+ *                                     none.
  * @property {readonly Readonly<ResolvedPackSpec>[]} packs
  * @property {readonly string[]} packDirectories  Derived: every pack directory
  *                                     the build produces, in compile order —
@@ -967,53 +970,125 @@ function normalizePack(value, where, nested = false) {
  * @returns {Readonly<ResolvedPaths>}
  */
 /**
- * A package's icon registry: the shipped table, plus whatever it declares.
+ * A package's icon registry — the fonts it ships and the names it draws from
+ * them.
  *
- * **Merged over the defaults rather than replacing them.** The shipped entries
- * are the interface vocabulary every consumer shares — `:icon-edit:` means the
- * same thing in two repositories — and a package that had to restate them to
- * add one of its own would carry a copy free to drift. A declared name with the
- * same spelling wins, which is what lets a consumer correct a glyph without
- * waiting for a release here.
+ * **Nothing is supplied by default.** A registry entry is a promise that a
+ * glyph will render, and only the package shipping the font can keep it: the
+ * Game-Icons webfont is built by a consumer from its own templates, and Font
+ * Awesome reaches neither the knowledgebase nor a printed page unless somebody
+ * puts it there. A toolchain that shipped a starter table would be promising on
+ * a consumer's behalf, and a name like `victory-star-tester` is one game
+ * system's vocabulary besides.
  *
- * **This is where a second family becomes usable.** The shipped table is Font
- * Awesome throughout, because that is what this package can promise ships.
- * Game-Icons glyphs come from a webfont a consumer builds for itself, so only
- * the consumer knows their names — and only here can it say so.
+ * So a package declares both halves, and a package that declares neither names
+ * no icons at all.
+ *
+ * **Two spellings, one shape.** The value is either the registry itself:
+ *
+ * ```yaml
+ * icons:
+ *     families:
+ *         fontawesome: { class: fa, styles: [solid, regular, brands], describe: Font Awesome Free }
+ *     icons:
+ *         being: { style: solid, icon: user, label: being }
+ * ```
+ *
+ * or a **path to a file holding it**, relative to this configuration:
+ *
+ * ```yaml
+ * icons: assets/icon-registry.yaml
+ * ```
+ *
+ * The file form is the one a real package wants. A registry is derived from
+ * what the interface actually draws, so it is generated rather than hand-kept —
+ * and a generated document inlined into a hand-edited configuration is a merge
+ * conflict on every regeneration. Kept beside it, the generator owns one file
+ * and the configuration owns the other.
  *
  * Validated with {@link module:engine/content-icons.checkIconRegistry}, whose
  * findings are warnings everywhere else and a **refusal** here: elsewhere the
  * question is whether one note is wrong, and here it is whether the table every
- * note is read against is. A registry that cannot be trusted makes every
- * finding downstream unreliable in the same way.
+ * note is read against is.
  *
- * @param {unknown} value - The authored `icons:` block.
- * @returns {Readonly<Record<string, object>>} The merged, frozen registry.
+ * @param {unknown} value - The authored `icons:` value.
+ * @param {string} rootDir - The configuration's own directory, which a relative
+ *   path is resolved against.
+ * @returns {import("./engine/content-icons.mjs").IconRegistry} The frozen
+ *   registry.
  */
-function normalizeIcons(value) {
-    if (value === undefined) return DEFAULT_ICONS;
-    if (!isPlainObject(value)) fail("icons", "must be a mapping of name to icon entry");
+function normalizeIcons(value, rootDir) {
+    if (value === undefined) return EMPTY_ICON_REGISTRY;
 
-    const declared = /** @type {Record<string, object>} */ (value);
-    for (const name of Object.keys(declared)) {
+    let declared = value;
+    let where = "icons";
+    if (typeof value === "string") {
+        if (!value.trim()) fail("icons", "is empty — name a file, or write the registry inline");
+        const file = path.resolve(rootDir, value);
+        let text;
+        try {
+            text = fs.readFileSync(file, "utf8");
+        } catch {
+            fail("icons", `names ${value}, which cannot be read from ${rootDir}`);
+        }
+        try {
+            declared = YAML.parse(text);
+        } catch (err) {
+            fail("icons", `names ${value}, which is not readable YAML: ${err.message}`);
+        }
+        // A finding says which *file* is wrong, not which key of this one.
+        where = value;
+        if (declared === null || declared === undefined) {
+            fail("icons", `names ${value}, which is empty`);
+        }
+    }
+
+    if (!isPlainObject(declared)) {
+        fail(
+            "icons",
+            "must be a registry — `families` and `icons` — or a path to a file holding one",
+        );
+    }
+
+    const families = declared.families ?? {};
+    const icons = declared.icons ?? {};
+    if (!isPlainObject(families)) fail(`${where}.families`, "must be a mapping of name to family");
+    if (!isPlainObject(icons)) fail(`${where}.icons`, "must be a mapping of name to icon entry");
+
+    for (const name of Object.keys(icons)) {
         // The name a note writes between the colons. Checked here rather than
-        // left to the note, because a registry entry nothing can name is a
-        // silent no-op: every use of it reports "no such icon" and the table
-        // says otherwise.
+        // left to the note, because an entry nothing can name is a silent
+        // no-op: every use of it reports "no such icon" and the table says
+        // otherwise.
         if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
             fail(
-                `icons.${name}`,
+                `${where}.icons.${name}`,
                 "is not a name a note can write — `:icon-…:` takes lowercase " +
                     "letters, digits and hyphens, the charset an address segment uses",
             );
         }
     }
 
-    const findings = checkIconRegistry(declared, "icons");
+    const defaultFamily = declared.defaultFamily;
+    if (defaultFamily !== undefined) {
+        if (typeof defaultFamily !== "string" || !(defaultFamily in families)) {
+            fail(
+                `${where}.defaultFamily`,
+                `names \`${defaultFamily}\`, which is not one of the declared families`,
+            );
+        }
+    }
+
+    const findings = checkIconRegistry({ families, icons, defaultFamily }, where);
     if (findings.length) {
         fail("icons", findings.map((finding) => finding.message).join("; "));
     }
-    return Object.freeze({ ...DEFAULT_ICONS, ...declared });
+
+    return Object.freeze({
+        families: Object.freeze(families),
+        defaultFamily,
+        icons: Object.freeze(icons),
+    });
 }
 
 function normalizePaths(value, rootDir) {
@@ -2144,7 +2219,7 @@ export function defineConfig(config) {
         itemTypes,
         docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
-        icons: normalizeIcons(input.icons),
+        icons: normalizeIcons(input.icons, rootDir),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),

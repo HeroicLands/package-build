@@ -69,65 +69,80 @@ import fs from "node:fs";
 import path from "node:path";
 
 /**
- * The Font Awesome styles a registry entry may name.
+ * A **family** is an icon font, and a consumer declares the ones it ships.
  *
- * Free ships these three and no others, so a `light` or `duotone` entry would
- * name a glyph the shipped font does not contain — refused here rather than
- * discovered as a blank space in a printed book.
+ * Nothing here names Font Awesome, or Game-Icons, or any other font. A registry
+ * entry is a promise that a glyph will render, and only the package that ships
+ * the font can keep it: the Game-Icons webfont is built by a consumer from its
+ * own templates, and even Font Awesome — which Foundry supplies in-app — is
+ * present on neither the knowledgebase nor the page of a book unless somebody
+ * puts it there. A toolchain that shipped a table would be promising on a
+ * consumer's behalf.
  *
- * @type {readonly string[]}
+ * The vocabulary is the consumer's for a second reason, independent of fonts. A
+ * name like `victory-star-tester` is one game system's concept; another system
+ * compiled by this same toolchain has different icons meaning different things.
+ * What is shared is the *mechanism* — the syntax, the resolution, the checks —
+ * and that is what lives here.
+ *
+ * A family declares:
+ *
+ * - `class` — the prefix its stylesheet uses (`fa`, `ginf`, `bi`).
+ * - `styles` — the weights it ships, in the spelling its classes use. An empty
+ *   list means the font has none, and then a `style` on an entry names
+ *   something that does not exist and is reported rather than rendered.
+ * - `describe` — one line, so a finding can say which font it means.
+ *
+ * @typedef {object} IconFamily
+ * @property {string} class - The stylesheet's class prefix.
+ * @property {readonly string[]} styles - The weights it ships; empty for none.
+ * @property {string} describe - One line, for a finding.
  */
-export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
 
 /**
- * The icon families a registry entry may draw from.
+ * A resolved registry: the families a package ships, and the icons it names.
  *
- * **Two, because the interface uses two.** The SoHL icon legend says so in its
- * own prose: Font Awesome for most things, and Game-Icons.net *"for the arms,
- * gear, and condition glyphs that Font Awesome does not cover"* — eighteen of
- * them, `ginf-broadsword` and its kin.
+ * `defaultFamily` is what an entry that names none belongs to. It is optional,
+ * and where a package declares exactly one family that one is it — so a
+ * single-font package writes no `family` anywhere.
  *
- * They differ in more than a class prefix, which is why this is a family rather
- * than a naming convention:
- *
- * - Font Awesome has **weights**, so an entry names a `style` and a filled and
- *   hollow pair is one icon twice. Game-Icons has none, so a `style` on such an
- *   entry names something that does not exist.
- * - They resolve to **different fonts**. A PDF has to embed both, and find each
- *   codepoint in its own table — Font Awesome's from the file it ships,
- *   Game-Icons' from the `game-icons-codepoints.json` the consumer's own
- *   `build-icon-font.mjs` writes.
- *
- * `class` is the prefix the web surfaces use. `styled` says whether a `style`
- * belongs on the entry at all, which is what lets a mistake be reported rather
- * than rendered as a class nobody defined.
- *
- * @type {Readonly<Record<string, {class: string, styled: boolean, describe: string}>>}
+ * @typedef {object} IconRegistry
+ * @property {Readonly<Record<string, IconFamily>>} families
+ * @property {string|undefined} defaultFamily
+ * @property {Readonly<Record<string, object>>} icons
  */
-export const ICON_FAMILIES = Object.freeze({
-    fontawesome: {
-        class: "fa",
-        styled: true,
-        describe: "Font Awesome Free",
-    },
-    "game-icons": {
-        class: "ginf",
-        styled: false,
-        describe: "the Game-Icons.net webfont a package builds for itself",
-    },
-});
 
-/** The family an entry that does not name one belongs to. */
-export const DEFAULT_ICON_FAMILY = "fontawesome";
+/**
+ * The registry a package that declares none gets: nothing at all.
+ *
+ * Empty rather than a starter set, because a starter set is a promise about
+ * fonts this package does not ship. A tree with no `icons:` configured names no
+ * icons, and `:icon-star:` in one of its notes renders as its own literal text
+ * and is reported — which is the visible failure, not a silent one.
+ *
+ * @type {IconRegistry}
+ */
+export const EMPTY_ICON_REGISTRY = Object.freeze({
+    families: Object.freeze({}),
+    defaultFamily: undefined,
+    icons: Object.freeze({}),
+});
 
 /**
  * The family an entry draws from, named or defaulted.
  *
  * @param {{family?: string}} entry - A registry entry.
- * @returns {string} The family name.
+ * @param {IconRegistry} [registry] - The registry it came from.
+ * @returns {string|undefined} The family name, or nothing when neither the
+ *   entry nor the registry says.
  */
-export function familyOf(entry) {
-    return entry?.family ?? DEFAULT_ICON_FAMILY;
+export function familyOf(entry, registry = EMPTY_ICON_REGISTRY) {
+    if (entry?.family) return entry.family;
+    if (registry?.defaultFamily) return registry.defaultFamily;
+    // One declared family is unambiguous, so a single-font package writes no
+    // `family` on any entry and states no default either.
+    const names = Object.keys(registry?.families ?? {});
+    return names.length === 1 ? names[0] : undefined;
 }
 
 /**
@@ -228,59 +243,6 @@ export function parseIconAttributes(raw) {
 }
 
 /**
- * The icons the user guide already depicts, under the names it should call them.
- *
- * Each entry is read off the interface it describes rather than invented, and
- * that is meant literally — the table was checked against the system's own
- * templates, which is how `delete` came to be `fa-trash` rather than the
- * `fa-trash-can` first written here. The sheets draw `fa-trash` twenty-five
- * times and `fa-trash-can` never, so the first spelling would have printed an
- * icon the reader has never seen on screen. A registry that is not checked
- * against the interface is just a second place to be wrong.
- *
- * The names are what a *writer* would reach for — `delete`, not `trash` —
- * because the writer is the one typing them; the Font Awesome spelling is this
- * table's business, not theirs.
- *
- * **Three entries share `xmark`, and that is the point of naming rather than
- * drawing.** A `✕` in the guide means "not applicable" in a Healing Rate
- * column, "remove this row" on a control, and "close" on a dialog's corner. One
- * glyph, three sentences, three different things for a reader who cannot see
- * it — so they are three names with three labels, and the fact that Font
- * Awesome happens to draw them identically stays in this table.
- *
- * `run` and `expand` are likewise distinct: `▶` runs an action, and its label
- * should say so. `fa-play` is what the sheets use for it.
- *
- * @type {Readonly<Record<string, {style: string, icon: string, label: string}>>}
- */
-export const DEFAULT_ICONS = Object.freeze({
-    affiliation: { style: "solid", icon: "certificate", label: "affiliation" },
-    star: { style: "solid", icon: "star", label: "star" },
-    "star-outline": { style: "regular", icon: "star", label: "hollow star" },
-    // The Success Value scale. `fa-diamond` is Font Awesome's playing-card
-    // suit and ships in solid only, so it can spell no hollow half of a
-    // filled/hollow pair; `fa-gem` is a gemstone, has both weights, and is what
-    // a quality scale actually means. `diamond` stays as an alias of it so a
-    // note that already says `:icon-diamond:` keeps working.
-    gem: { style: "solid", icon: "gem", label: "value gem" },
-    "gem-outline": { style: "regular", icon: "gem", label: "unearned value gem" },
-    diamond: { style: "solid", icon: "gem", label: "value gem" },
-    edit: { style: "solid", icon: "pen-to-square", label: "edit" },
-    delete: { style: "solid", icon: "trash", label: "delete" },
-    add: { style: "solid", icon: "plus", label: "add" },
-    remove: { style: "solid", icon: "xmark", label: "remove" },
-    "not-applicable": { style: "solid", icon: "xmark", label: "not applicable" },
-    close: { style: "solid", icon: "xmark", label: "close" },
-    menu: { style: "solid", icon: "ellipsis-vertical", label: "actions menu" },
-    run: { style: "solid", icon: "play", label: "run this action" },
-    expand: { style: "solid", icon: "caret-right", label: "expand" },
-    shield: { style: "solid", icon: "shield-halved", label: "armour" },
-    compass: { style: "solid", icon: "compass", label: "guided tour" },
-    flask: { style: "solid", icon: "flask", label: "under construction" },
-});
-
-/**
  * The shape a note writes, and the one this module claims.
  *
  * The `icon-` prefix is what keeps it out of the way of an emoji shortcode: a
@@ -315,12 +277,13 @@ export const ICON_PATTERN = /:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/g
  * Look one name up.
  *
  * @param {string} name - The name written between the colons, without `icon-`.
- * @param {Record<string, object>} [registry] - Defaults to {@link DEFAULT_ICONS}.
- * @returns {{style: string, icon: string, label: string}|null} The entry, or
- *   `null` when the registry does not declare it.
+ * @param {IconRegistry} [registry] - The package's registry.
+ * @returns {object|null} The entry, or `null` when the registry does not
+ *   declare it.
  */
-export function resolveIcon(name, registry = DEFAULT_ICONS) {
-    return Object.prototype.hasOwnProperty.call(registry, name) ? registry[name] : null;
+export function resolveIcon(name, registry = EMPTY_ICON_REGISTRY) {
+    const icons = registry?.icons ?? {};
+    return Object.prototype.hasOwnProperty.call(icons, name) ? icons[name] : null;
 }
 
 /** HTML-escape a value going into an attribute. */
@@ -335,19 +298,34 @@ const attr = (value) =>
  * an icon dropped into a sentence has no such parent, and "the ☆ toggles it"
  * read aloud as "the toggles it" is a sentence with a hole in it.
  *
- * @param {{style: string, icon: string, label: string}} entry - A registry entry.
+ * @param {object} entry - A registry entry.
+ * @param {Record<string, string>} [attrs] - The token's attributes.
+ * @param {IconRegistry} [registry] - The registry the entry came from, which is
+ *   what says how its family spells a class.
  * @returns {string} An `<i>` element.
  */
-export function iconHtml(entry, attrs = {}) {
-    const family = ICON_FAMILIES[familyOf(entry)] ?? ICON_FAMILIES[DEFAULT_ICON_FAMILY];
+export function iconHtml(entry, attrs = {}, registry = EMPTY_ICON_REGISTRY) {
+    const family = registry?.families?.[familyOf(entry, registry)];
+    // A family nothing declares is reported by `checkIconRegistry`, not
+    // invented here: guessing a prefix would put a class on the page that no
+    // stylesheet defines, which looks like a missing glyph rather than a
+    // configuration mistake.
+    if (!family) return "";
     const prefix = family.class;
+    const styles = family.styles ?? [];
 
-    // A styled family spells the weight and the name as two classes; an
-    // unstyled one has a single class and no weight to spell.
+    // A family with weights spells the weight and the name as two classes; one
+    // without has a single class and no weight to spell.
     const classes =
-        family.styled ?
+        styles.length ?
             [`${prefix}-${attr(entry.style)}`, `${prefix}-${attr(entry.icon)}`]
         :   [`${prefix}-${attr(entry.icon)}`];
+
+    // Fixed width, where the glyph needs it. This is the table's to say, not a
+    // note's: whether an ellipsis is too narrow to sit in a column of controls
+    // is a fact about that glyph, and the same everywhere it is drawn. A note
+    // names the meaning and the table owns how it is set.
+    if (styles.length && entry.fixedWidth) classes.push(`${prefix}-fw`);
 
     // The size classes are Font Awesome's, and the Game-Icons stylesheet this
     // toolchain's consumers generate mirrors its box metrics deliberately, so
@@ -382,11 +360,11 @@ export function iconsIn(text) {
  *
  * @param {string} text - The file's contents.
  * @param {string} file - Path to report.
- * @param {Record<string, object>} [registry] - Defaults to {@link DEFAULT_ICONS}.
+ * @param {IconRegistry} [registry] - The package's registry.
  * @returns {Array<{file: string, line: number, column: number,
  *   severity: "warning", message: string}>} The unknown names.
  */
-export function lintIcons(text, file, registry = DEFAULT_ICONS) {
+export function lintIcons(text, file, registry = EMPTY_ICON_REGISTRY) {
     const findings = [];
     for (const { name, index, raw, problems } of iconsIn(text)) {
         const before = text.slice(0, index);
@@ -397,7 +375,7 @@ export function lintIcons(text, file, registry = DEFAULT_ICONS) {
         if (!resolveIcon(name, registry)) {
             // Nearest declared name, when there is an obvious one: a typo is the
             // common case and the registry is short enough to say what was meant.
-            const suggestion = nearestName(name, Object.keys(registry));
+            const suggestion = nearestName(name, Object.keys(registry?.icons ?? {}));
             findings.push({
                 ...at,
                 message:
@@ -464,72 +442,117 @@ function editDistance(a, b) {
 }
 
 /**
- * Refuse a registry that names a style Font Awesome Free does not ship.
+ * What is wrong with a package's declared registry.
  *
- * @param {Record<string, object>} registry - A package's icon table.
+ * Both halves are checked, because either alone is unusable: an icon naming a
+ * family nothing declares has no class prefix, and a family nothing names is a
+ * font declared for no reason.
+ *
+ * A **style** is checked against the family's own `styles`, not against a list
+ * here. Font Awesome Free ships three weights and another font ships none or
+ * five, and only the declaration knows which — so a `duotone` entry is refused
+ * because the family that entry belongs to does not list `duotone`, which is a
+ * statement the consumer made about the font it actually ships.
+ *
+ * @param {{families?: object, icons?: object}} registry - A package's declared
+ *   registry, before it is resolved.
  * @param {string} [where="icons"] - Where to say the fault is.
  * @returns {Array<{severity: "warning", message: string}>} What is wrong with it.
  */
 export function checkIconRegistry(registry, where = "icons") {
     const findings = [];
-    for (const [name, entry] of Object.entries(registry ?? {})) {
-        const at = `\`${where}.${name}\``;
-        if (!entry || typeof entry !== "object") {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message: `${at} is not an icon entry — it takes \`style\`, \`icon\` and \`label\``,
-            });
+    const warn = (message) =>
+        findings.push({ severity: /** @type {const} */ ("warning"), message });
+
+    const families = registry?.families ?? {};
+    const icons = registry?.icons ?? {};
+
+    for (const [name, family] of Object.entries(families)) {
+        const at = `\`${where}.families.${name}\``;
+        if (!family || typeof family !== "object") {
+            warn(`${at} is not a family — it takes \`class\`, \`styles\` and \`describe\``);
             continue;
         }
-        const familyName = familyOf(entry);
-        const family = ICON_FAMILIES[familyName];
-        if (!family) {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message:
-                    `${at} names family \`${familyName}\`, and the families there ` +
-                    `are: ${Object.keys(ICON_FAMILIES).join(", ")}`,
-            });
-            continue;
+        if (typeof family.class !== "string" || !family.class) {
+            warn(`${at} declares no \`class\`, so nothing says how its glyphs are spelled`);
         }
-
-        if (family.styled && !ICON_STYLES.includes(entry.style)) {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message:
-                    `${at} names style \`${entry.style}\`, and Font Awesome Free ships ` +
-                    `only ${ICON_STYLES.join(", ")} — a glyph in any other style is ` +
-                    `absent from the font a book would embed`,
-            });
+        if (family.styles !== undefined && !Array.isArray(family.styles)) {
+            warn(
+                `${at} declares \`styles\` that is not a list — write \`[]\` for a font with no weights`,
+            );
         }
-
-        // A style on an unstyled family is not a harmless extra key: it says
-        // the author expected a weight, and the family has none, so what they
-        // get is not what they asked for.
-        if (!family.styled && entry.style !== undefined) {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message:
-                    `${at} names style \`${entry.style}\`, and ${family.describe} has ` +
-                    `no weights — the style is ignored, so a filled and hollow pair ` +
-                    `cannot be spelled this way`,
-            });
-        }
-        if (typeof entry.icon !== "string" || !entry.icon) {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message: `${at} declares no \`icon\`, so nothing names the glyph to draw`,
-            });
-        }
-        if (typeof entry.label !== "string" || !entry.label) {
-            findings.push({
-                severity: /** @type {const} */ ("warning"),
-                message:
-                    `${at} declares no \`label\`, and an icon with no accessible name ` +
-                    `is read aloud as a gap in the sentence`,
-            });
+        if (typeof family.describe !== "string" || !family.describe) {
+            warn(`${at} declares no \`describe\`, so a finding cannot say which font it means`);
         }
     }
+
+    for (const [name, entry] of Object.entries(icons)) {
+        const at = `\`${where}.icons.${name}\``;
+        if (!entry || typeof entry !== "object") {
+            warn(`${at} is not an icon entry — it takes \`icon\` and \`label\``);
+            continue;
+        }
+
+        const familyName = familyOf(entry, { families, defaultFamily: registry?.defaultFamily });
+        if (!familyName) {
+            warn(
+                `${at} names no family and the registry declares ${Object.keys(families).length} of ` +
+                    `them, so nothing says which font draws it — name one on the entry, or ` +
+                    `declare a \`defaultFamily\``,
+            );
+            continue;
+        }
+        const family = families[familyName];
+        if (!family) {
+            const declared = Object.keys(families);
+            warn(
+                `${at} names family \`${familyName}\`, and the families this package ` +
+                    `declares are: ${declared.length ? declared.join(", ") : "none"}`,
+            );
+            continue;
+        }
+
+        const styles = Array.isArray(family.styles) ? family.styles : [];
+        if (styles.length && !styles.includes(entry.style)) {
+            warn(
+                `${at} names style \`${entry.style}\`, and ${family.describe} ships ` +
+                    `only ${styles.join(", ")} — a glyph in any other style is absent ` +
+                    `from the font a book would embed`,
+            );
+        }
+
+        // A style on a font with no weights is not a harmless extra key: it
+        // says the author expected a weight, and what they get is not what
+        // they asked for.
+        if (!styles.length && entry.style !== undefined) {
+            warn(
+                `${at} names style \`${entry.style}\`, and ${family.describe} has no ` +
+                    `weights — the style is ignored, so a filled and hollow pair cannot ` +
+                    `be spelled this way`,
+            );
+        }
+
+        // The same rule `style` gets: a font with no weights ships no `-fw`
+        // class either, so asking for one asks for a width it cannot give.
+        if (!styles.length && entry.fixedWidth !== undefined) {
+            warn(
+                `${at} asks for fixed width, and ${family.describe} ships no such ` +
+                    `class — the request is ignored, so a glyph that needs the width ` +
+                    `will not get it`,
+            );
+        }
+
+        if (typeof entry.icon !== "string" || !entry.icon) {
+            warn(`${at} declares no \`icon\`, so nothing names the glyph to draw`);
+        }
+        if (typeof entry.label !== "string" || !entry.label) {
+            warn(
+                `${at} declares no \`label\`, and an icon with no accessible name is ` +
+                    `read aloud as a gap in the sentence`,
+            );
+        }
+    }
+
     return findings;
 }
 
@@ -543,7 +566,7 @@ export function checkIconRegistry(registry, where = "icons") {
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
- * @param {Record<string, object>} [opts.registry] - The package's icon table.
+ * @param {IconRegistry} [opts.registry] - The package's registry.
  * @returns {{findings: Array<{file: string, line: number, column: number,
  *   severity: "warning", message: string}>, files: number}} What it found.
  */
@@ -597,16 +620,16 @@ export function lintContentIcons(contentBase, { skipDirectories = [], registry }
  * without the module load order deciding whether that registry exists yet.
  *
  * @param {Record<string, object>|(() => Record<string, object>)} [registry] -
- *   The table, or something that returns it. Defaults to {@link DEFAULT_ICONS}.
+ *   The registry, or something that returns it.
  * @returns {(md: object) => void} A markdown-it plugin.
  */
-export function iconPlugin(registry = DEFAULT_ICONS) {
+export function iconPlugin(registry = EMPTY_ICON_REGISTRY) {
     const tableOf = () =>
-        typeof registry === "function" ? (registry() ?? DEFAULT_ICONS) : registry;
+        typeof registry === "function" ? (registry() ?? EMPTY_ICON_REGISTRY) : registry;
     return (md) => {
         /** @type {any} */ (md).inline.ruler.before("emphasis", "heroiclands_icon", iconRule);
         /** @type {any} */ (md).renderer.rules.heroiclands_icon = (tokens, idx) =>
-            iconHtml(tokens[idx].meta.entry, tokens[idx].meta.attrs);
+            iconHtml(tokens[idx].meta.entry, tokens[idx].meta.attrs, tableOf());
 
         /**
          * @param {any} state - markdown-it inline state.

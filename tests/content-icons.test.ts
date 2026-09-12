@@ -22,8 +22,7 @@ import { describe, it, expect } from "vitest";
 import {
     checkIconRegistry,
     familyOf,
-    DEFAULT_ICONS,
-    ICON_STYLES,
+    EMPTY_ICON_REGISTRY,
     iconHtml,
     iconPlugin,
     iconsIn,
@@ -34,16 +33,62 @@ import {
 import { isAllowedCodePoint } from "../engine/content-charset.mjs";
 import markdownit from "markdown-it";
 
-const render = (src: string, registry = DEFAULT_ICONS) =>
+/**
+ * A registry standing in for a consumer's own.
+ *
+ * Nothing ships one, so these tests supply the data the mechanism operates on.
+ * The entries are chosen to exercise the shape rather than to be anyone's real
+ * vocabulary: a filled and hollow pair, three names for one glyph, and both
+ * families.
+ */
+const REGISTRY = {
+    families: {
+        fontawesome: {
+            class: "fa",
+            styles: ["solid", "regular", "brands"],
+            describe: "Font Awesome Free",
+        },
+        "game-icons": {
+            class: "ginf",
+            styles: [],
+            describe: "the Game-Icons.net webfont a package builds for itself",
+        },
+    },
+    defaultFamily: "fontawesome",
+    icons: {
+        star: { style: "solid", icon: "star", label: "star" },
+        "star-outline": { style: "regular", icon: "star", label: "hollow star" },
+        gem: { style: "solid", icon: "gem", label: "value gem" },
+        "gem-outline": { style: "regular", icon: "gem", label: "unearned value gem" },
+        diamond: { style: "solid", icon: "gem", label: "value gem" },
+        edit: { style: "solid", icon: "pen-to-square", label: "edit" },
+        delete: { style: "solid", icon: "trash", label: "delete" },
+        add: { style: "solid", icon: "plus", label: "add" },
+        remove: { style: "solid", icon: "xmark", label: "remove" },
+        "not-applicable": { style: "solid", icon: "xmark", label: "not applicable" },
+        close: { style: "solid", icon: "xmark", label: "close" },
+        run: { style: "solid", icon: "play", label: "run this action" },
+        expand: { style: "solid", icon: "caret-right", label: "expand" },
+        "context-menu": {
+            style: "solid",
+            icon: "ellipsis-vertical",
+            fixedWidth: true,
+            label: "context menu",
+        },
+        broadsword: { family: "game-icons", icon: "broadsword", label: "weapon" },
+    },
+} as never;
+
+const render = (src: string, registry: never = REGISTRY) =>
     markdownit({ html: true }).use(iconPlugin(registry)).renderInline(src);
 
 describe("the registry", () => {
     it("declares only styles Font Awesome Free ships", () => {
-        expect(checkIconRegistry(DEFAULT_ICONS)).toEqual([]);
+        expect(checkIconRegistry(REGISTRY)).toEqual([]);
     });
 
     it("gives every icon an accessible label", () => {
-        for (const [name, entry] of Object.entries(DEFAULT_ICONS)) {
+        for (const [name, entry] of Object.entries(REGISTRY.icons)) {
             expect(entry.label, name).toBeTruthy();
         }
     });
@@ -52,63 +97,98 @@ describe("the registry", () => {
         // Same Font Awesome icon, different style — which is exactly why style
         // cannot be dropped from an entry, and why a codepoint alone would not
         // have distinguished them.
-        expect(resolveIcon("star")!.style).toBe("solid");
-        expect(resolveIcon("star-outline")!.style).toBe("regular");
-        expect(resolveIcon("star")!.icon).toBe(resolveIcon("star-outline")!.icon);
+        expect(resolveIcon("star", REGISTRY)!.style).toBe("solid");
+        expect(resolveIcon("star-outline", REGISTRY)!.style).toBe("regular");
+        expect(resolveIcon("star", REGISTRY)!.icon).toBe(
+            resolveIcon("star-outline", REGISTRY)!.icon,
+        );
     });
 
     it("names the three senses of ✕ separately, though one glyph draws them", () => {
         // "not applicable" in a column, "remove" on a control, "close" on a
         // dialog. Identical to look at, three different things to be told.
         const senses = ["not-applicable", "remove", "close"] as const;
-        for (const n of senses) expect(resolveIcon(n)!.icon, n).toBe("xmark");
-        const labels = senses.map((n) => resolveIcon(n)!.label);
+        for (const n of senses) expect(resolveIcon(n, REGISTRY)!.icon, n).toBe("xmark");
+        const labels = senses.map((n) => resolveIcon(n, REGISTRY)!.label);
         expect(new Set(labels).size).toBe(3);
     });
 
     it("gives the run control its own name rather than borrowing expand", () => {
         // `▶` runs an action; a screen reader saying "expand" would be wrong.
-        expect(resolveIcon("run")!.icon).toBe("play");
-        expect(resolveIcon("run")!.label).toContain("run");
-        expect(resolveIcon("expand")!.icon).toBe("caret-right");
+        expect(resolveIcon("run", REGISTRY)!.icon).toBe("play");
+        expect(resolveIcon("run", REGISTRY)!.label).toContain("run");
+        expect(resolveIcon("expand", REGISTRY)!.icon).toBe("caret-right");
     });
 
     it("spells delete the way the sheets do", () => {
         // The system draws fa-trash 25 times and fa-trash-can never. A registry
         // that disagrees with the interface prints an icon nobody has seen.
-        expect(resolveIcon("delete")!.icon).toBe("trash");
+        expect(resolveIcon("delete", REGISTRY)!.icon).toBe("trash");
     });
 
     it("refuses a style Font Awesome Free does not ship", () => {
-        const findings = checkIconRegistry({ x: { style: "duotone", icon: "star", label: "s" } });
+        const findings = checkIconRegistry({
+            families: {
+                fontawesome: {
+                    class: "fa",
+                    styles: ["solid", "regular", "brands"],
+                    describe: "Font Awesome Free",
+                },
+                "game-icons": { class: "ginf", styles: [], describe: "Game-Icons" },
+            },
+            defaultFamily: "fontawesome",
+            icons: { x: { style: "duotone", icon: "star", label: "s" } },
+        });
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("duotone");
-        expect(ICON_STYLES).not.toContain("duotone");
+        expect(REGISTRY.families.fontawesome.styles).not.toContain("duotone");
     });
 
     it("refuses an entry with no label, naming the consequence", () => {
-        const findings = checkIconRegistry({ x: { style: "solid", icon: "star", label: "" } });
+        const findings = checkIconRegistry({
+            families: {
+                fontawesome: {
+                    class: "fa",
+                    styles: ["solid", "regular", "brands"],
+                    describe: "Font Awesome Free",
+                },
+                "game-icons": { class: "ginf", styles: [], describe: "Game-Icons" },
+            },
+            defaultFamily: "fontawesome",
+            icons: { x: { style: "solid", icon: "star", label: "" } },
+        });
         expect(findings[0].message).toContain("read aloud");
     });
 
     it("refuses a value that is not an entry at all", () => {
-        expect(checkIconRegistry({ x: "fa-star" } as never)).toHaveLength(1);
+        expect(
+            checkIconRegistry({
+                families: {
+                    fontawesome: {
+                        class: "fa",
+                        styles: ["solid", "regular", "brands"],
+                        describe: "Font Awesome Free",
+                    },
+                    "game-icons": { class: "ginf", styles: [], describe: "Game-Icons" },
+                },
+                defaultFamily: "fontawesome",
+                icons: { x: "fa-star" },
+            } as never),
+        ).toHaveLength(1);
     });
 
     it("does not inherit names from the object prototype", () => {
-        // `resolveIcon("constructor")` must miss, not return a function.
-        expect(resolveIcon("constructor")).toBeNull();
-        expect(resolveIcon("toString")).toBeNull();
+        // `resolveIcon("constructor", REGISTRY)` must miss, not return a function.
+        expect(resolveIcon("constructor", REGISTRY)).toBeNull();
+        expect(resolveIcon("toString", REGISTRY)).toBeNull();
     });
 });
 
 describe("icon families", () => {
-    const GINF = {
-        broadsword: { family: "game-icons", icon: "broadsword", label: "weapon" },
-    } as never;
+    const GINF = REGISTRY;
 
     it("defaults an entry with no family to Font Awesome", () => {
-        expect(familyOf(DEFAULT_ICONS.star)).toBe("fontawesome");
+        expect(familyOf(REGISTRY.icons.star, REGISTRY)).toBe("fontawesome");
         expect(render(":icon-star:")).toContain('class="fa-solid fa-star"');
     });
 
@@ -131,12 +211,22 @@ describe("icon families", () => {
     });
 
     it("accepts a Game-Icons entry that names no style", () => {
-        expect(checkIconRegistry(GINF)).toEqual([]);
+        expect(
+            checkIconRegistry({
+                families: REGISTRY.families,
+                defaultFamily: "fontawesome",
+                icons: { broadsword: REGISTRY.icons.broadsword },
+            } as never),
+        ).toEqual([]);
     });
 
     it("reports a style on a family that has no weights", () => {
         const findings = checkIconRegistry({
-            x: { family: "game-icons", style: "solid", icon: "broadsword", label: "w" },
+            families: REGISTRY.families,
+            defaultFamily: "fontawesome",
+            icons: {
+                x: { family: "game-icons", style: "solid", icon: "broadsword", label: "w" },
+            },
         } as never);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("no weights");
@@ -144,7 +234,9 @@ describe("icon families", () => {
 
     it("reports a family nobody declared", () => {
         const findings = checkIconRegistry({
-            x: { family: "noto", icon: "star", label: "s" },
+            families: REGISTRY.families,
+            defaultFamily: "fontawesome",
+            icons: { x: { family: "noto", icon: "star", label: "s" } },
         } as never);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("fontawesome, game-icons");
@@ -152,7 +244,9 @@ describe("icon families", () => {
 
     it("still requires a style on Font Awesome entries", () => {
         const findings = checkIconRegistry({
-            x: { icon: "star", label: "s" },
+            families: REGISTRY.families,
+            defaultFamily: "fontawesome",
+            icons: { x: { icon: "star", label: "s" } },
         } as never);
         expect(findings.some((f) => f.message.includes("names style"))).toBe(true);
     });
@@ -162,13 +256,13 @@ describe("the value gem", () => {
     it("draws the pair from fa-gem, which has both weights", () => {
         // fa-diamond is the playing-card suit and ships solid only, so it can
         // spell no hollow half of a filled/hollow pair.
-        expect(resolveIcon("gem")!.icon).toBe("gem");
-        expect(resolveIcon("gem")!.style).toBe("solid");
-        expect(resolveIcon("gem-outline")!.style).toBe("regular");
+        expect(resolveIcon("gem", REGISTRY)!.icon).toBe("gem");
+        expect(resolveIcon("gem", REGISTRY)!.style).toBe("solid");
+        expect(resolveIcon("gem-outline", REGISTRY)!.style).toBe("regular");
     });
 
     it("keeps `diamond` working, pointing at the gem", () => {
-        expect(resolveIcon("diamond")!.icon).toBe("gem");
+        expect(resolveIcon("diamond", REGISTRY)!.icon).toBe("gem");
     });
 });
 
@@ -237,7 +331,8 @@ describe("rendering", () => {
 
     it("escapes a registry value rather than trusting it", () => {
         const html = render(":icon-x:", {
-            x: { style: "solid", icon: 'star" onload="x', label: "s" },
+            ...REGISTRY,
+            icons: { x: { style: "solid", icon: 'star" onload="x', label: "s" } },
         } as never);
         expect(html).not.toContain('onload="x"');
         expect(html).toContain("&quot;");
@@ -245,7 +340,8 @@ describe("rendering", () => {
 
     it("honours a package's own registry", () => {
         const html = render(":icon-anvil:", {
-            anvil: { style: "solid", icon: "hammer", label: "crafting" },
+            ...REGISTRY,
+            icons: { anvil: { style: "solid", icon: "hammer", label: "crafting" } },
         } as never);
         expect(html).toContain("fa-hammer");
     });
@@ -253,7 +349,7 @@ describe("rendering", () => {
 
 describe("attributes", () => {
     it("renders a size as the Font Awesome class", () => {
-        expect(render(":icon-affiliation:{size: 2x}")).toContain("fa-2x");
+        expect(render(":icon-star:{size: 2x}")).toContain("fa-2x");
     });
 
     it("tolerates spacing the way a writer would type it", () => {
@@ -284,19 +380,19 @@ describe("attributes", () => {
     });
 
     it("reports a size that is not in the vocabulary", () => {
-        const findings = lintIcons(":icon-star:{size: 9x}", "n.md");
+        const findings = lintIcons(":icon-star:{size: 9x}", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("lg, xl, 2x, 3x");
     });
 
     it("reports an attribute nobody declared, rather than ignoring it", () => {
-        const findings = lintIcons(":icon-star:{colour: red}", "n.md");
+        const findings = lintIcons(":icon-star:{colour: red}", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("not an icon attribute");
     });
 
     it("reports a pair written without its colon", () => {
-        const findings = lintIcons(":icon-star:{2x}", "n.md");
+        const findings = lintIcons(":icon-star:{2x}", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("`key: value`");
     });
@@ -309,7 +405,7 @@ describe("attributes", () => {
 
     it("says nothing about attributes when the name itself is unknown", () => {
         // One token, one rewrite, one finding.
-        expect(lintIcons(":icon-nope:{size: 9x}", "n.md")).toHaveLength(1);
+        expect(lintIcons(":icon-nope:{size: 9x}", "n.md", REGISTRY)).toHaveLength(1);
     });
 
     it("does not swallow a brace that is not ours", () => {
@@ -323,13 +419,13 @@ describe("severity", () => {
     // `reportFindings` fails on an error and not on a warning, so this is what
     // keeps an undeclared icon name from breaking a consumer's build.
     it("reports an undeclared name as a warning, never an error", () => {
-        const findings = lintIcons(":icon-nope:", "n.md");
+        const findings = lintIcons(":icon-nope:", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("warning");
     });
 
     it("reports a bad attribute as a warning too", () => {
-        const findings = lintIcons(":icon-star:{size: 9x}", "n.md");
+        const findings = lintIcons(":icon-star:{size: 9x}", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("warning");
     });
@@ -337,27 +433,82 @@ describe("severity", () => {
 
 describe("linting", () => {
     it("reports an undeclared name", () => {
-        const findings = lintIcons("the :icon-stra: button", "n.md");
+        const findings = lintIcons("the :icon-stra: button", "n.md", REGISTRY);
         expect(findings).toHaveLength(1);
         expect(findings[0].message).toContain("does not declare");
     });
 
     it("suggests the name that was probably meant", () => {
-        expect(lintIcons(":icon-stra:", "n.md")[0].message).toContain(":icon-star:");
+        expect(lintIcons(":icon-stra:", "n.md", REGISTRY)[0].message).toContain(":icon-star:");
     });
 
     it("offers no suggestion when nothing is close", () => {
-        const message = lintIcons(":icon-zzzzzzzzzz:", "n.md")[0].message;
+        const message = lintIcons(":icon-zzzzzzzzzz:", "n.md", REGISTRY)[0].message;
         expect(message).not.toContain("did you mean");
     });
 
     it("says nothing about a declared name", () => {
-        expect(lintIcons("the :icon-delete: control", "n.md")).toEqual([]);
+        expect(lintIcons("the :icon-delete: control", "n.md", REGISTRY)).toEqual([]);
     });
 
     it("locates the name it reports", () => {
-        const findings = lintIcons("ok\nok\nthe :icon-nope: here", "n.md");
+        const findings = lintIcons("ok\nok\nthe :icon-nope: here", "n.md", REGISTRY);
         expect(findings[0].line).toBe(3);
         expect(findings[0].column).toBe(5);
+    });
+});
+
+describe("what a package that declares nothing gets", () => {
+    it("is an empty registry, not a starter set", () => {
+        // A starter set would be a promise about fonts this package does not
+        // ship, and a vocabulary belonging to one game system besides.
+        expect(EMPTY_ICON_REGISTRY.icons).toEqual({});
+        expect(EMPTY_ICON_REGISTRY.families).toEqual({});
+    });
+
+    it("names no icon, so a note's token stays visible on the page", () => {
+        expect(resolveIcon("star", EMPTY_ICON_REGISTRY)).toBeNull();
+        expect(render(":icon-star:", EMPTY_ICON_REGISTRY)).toContain(":icon-star:");
+    });
+
+    it("reports the name rather than passing it through in silence", () => {
+        const findings = lintIcons(":icon-star:", "n.md", EMPTY_ICON_REGISTRY);
+
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("the registry does not declare");
+    });
+});
+
+describe("fixed width", () => {
+    it("is the table's to say, and rides on the entry", () => {
+        // Whether `fa-ellipsis-vertical` is too narrow to sit in a column of
+        // controls is a fact about that glyph, true everywhere it is drawn —
+        // not something a note asks for at one use site.
+        expect(iconHtml(resolveIcon("context-menu", REGISTRY) as never, {}, REGISTRY)).toContain(
+            "fa-fw",
+        );
+    });
+
+    it("is absent from a glyph that does not ask for it", () => {
+        expect(iconHtml(resolveIcon("star", REGISTRY) as never, {}, REGISTRY)).not.toContain(
+            "fa-fw",
+        );
+    });
+
+    it("is refused on a family with no such class", () => {
+        const findings = checkIconRegistry({
+            families: REGISTRY.families,
+            icons: {
+                sword: {
+                    family: "game-icons",
+                    icon: "broadsword",
+                    fixedWidth: true,
+                    label: "sword",
+                },
+            },
+        } as never);
+
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toMatch(/fixed width/);
     });
 });
