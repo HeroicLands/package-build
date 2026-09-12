@@ -19,7 +19,7 @@
  * single-sourced in the repository that ships it — so the package is a property
  * of the *repository*, not of the note, and no note declares it.
  *
- * It used to be a property of the note, and a **selector**: the compile loop
+ * It is not a property of the note, and not a **selector**: as one, the compile loop
  * read `package:` out of frontmatter and skipped anything that did not match
  * the configured value. That is the defect this module exists to remove.
  * The skip was silent and it was bucketed as "belongs to another pass",

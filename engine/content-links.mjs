@@ -29,7 +29,7 @@
  *    *several* notes is an ambiguity rather than a first match, and is reported
  *    naming every candidate.
  * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
- *    used to name is retired, and a shortcode is an address rather than
+ *    once named is retired, and a shortcode is an address rather than
  *    prose, so the link has neither a resolvable target nor text to show. The
  *    correction is always `[[type-shortcode|Text]]`.
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
@@ -578,7 +578,7 @@ function readAddress(url, packages) {
  * **What is checkable, stated plainly.** Only an address into this site is, and
  * only against facts this build already holds:
  *
- * - A **retired content type** in the path. The engine knows what used to exist
+ * - A **retired content type** in the path. The engine knows the retired names
  *   and what replaced it, so this is a fact rather than a guess — and it is
  *   exactly the SoHL defect.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a

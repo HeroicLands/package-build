@@ -135,7 +135,7 @@ export function isHomepage(fm) {
 /**
  * The top-level field a homepage refuses, and what it would decide.
  *
- * **One field, where there used to be three.** `name` and `shortcode` were
+ * **One field rather than three.** `name` and `shortcode` are
  * refused because a page's URL derived from `name.full` while a homepage's
  * destination was fixed, so the address a `shortcode` computed named a page the
  * site build never wrote. A page's URL is its address now and a homepage

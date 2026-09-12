@@ -227,7 +227,7 @@ packageBuild:
 ### The manifest is generated, not stamped
 
 `package-build manifest` writes `system.json` / `module.json` into the stage.
-**There is no template file.** A manifest used to be hand-authored JSON that the
+**There is no template file.** A hand-authored JSON manifest is one the
 build stamped a few fields into — the one build input still written by hand, per
 repository, with no schema and nothing checking it. It also declared facts the
 configuration already declared: the pack list twice, in two formats, with

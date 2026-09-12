@@ -202,7 +202,7 @@ describe("`contentPackage` must not be a note type", () => {
 
     it("reads the closed vocabulary, so the answer does not depend on configuration", () => {
         // The rule is about the *address* grammar, which is the same everywhere
-        // — but the registries it used to be checked against are the
+        // — but the registries it would be checked against are the
         // repository's own, so a package declaring no `itemBuilders` was told
         // `skill` was a fine name for it. It is a note type in every tree, and
         // `skill-clmb` addresses one, whatever this repository compiles: the

@@ -29,10 +29,8 @@
  * loader checks that the section is a mapping and hands it back frozen;
  * everything inside it is validated here.
  *
- * **That section used to be a reservation.** Until 3.0.0 these were two
- * packages, and `packageBuild:` was a block `@heroiclands/content-build`
- * carried on behalf of a toolchain it knew nothing about. One package now owns
- * the whole file, so it is an ordinary section — but the validation split is
+ * **That section is not a reservation.** One package owns the whole file, so
+ * `packageBuild:` is an ordinary section — but the validation split is
  * kept, because it is what stops a key being checked twice against two
  * disagreeing ideas of what it means.
  *

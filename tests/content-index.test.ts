@@ -417,7 +417,7 @@ describe("buildIndexRecord", () => {
      * `package` is on the derived list, but it is not a name collision — it is
      * a **retired field**, and the correction is to delete it rather than
      * to rename it. `assertNoDeclaredPackage` has always said so and, until
-     * #243 gave it this caller, had nobody to say it to. Two messages
+     * Without this caller it had nobody to say it to. Two messages
      * contradicting each other about the fix is worse than one.
      */
     it("tells a note authoring `package:` to delete it, not to rename it", () => {
@@ -446,7 +446,7 @@ describe("buildIndexRecord", () => {
 });
 
 /**
- * #243 asks whether the index should record a position for every frontmatter
+ * The question is whether the index should record a position for every frontmatter
  * key. It should not, and these are the terms the answer rests on: the index
  * says what a note *is*, and the file says where anything in it sits. So the
  * one thing a reader needs from a record in order to open the note — the
@@ -518,7 +518,7 @@ describe("collectContentIndex", () => {
     /*
      * A note the index cannot record used to abort whichever pass was building
      * it. That was the whole story while the only such pass was the emitter;
-     * since #243 the link check and the address diff build one too, and there
+     * the link check and the address diff build one too, and there
      * an abort reports *nothing* about the tree — one malformed note takes every
      * other finding with it, and the reader is handed a stack rather than a
      * line to open.
@@ -584,7 +584,7 @@ describe("emitContentIndex", () => {
         expect(path.basename(result.file)).toBe("sohl-metadata.jsonl");
         expect(result.notes).toBe(2);
         expect(result.bytes).toBeGreaterThan(0);
-        // Two notes, four records: since #337 a being publishes documentation
+        // Two notes, four records: a being publishes documentation
         // like every other system-bearing note, so it has an address for the
         // Actor *and* one for the page — the same pair an item has always had,
         // and what lets a prose link name a being at all.
@@ -653,7 +653,7 @@ describe("emitContentIndex", () => {
 });
 
 /**
- * #243's other open question — "not everything is a note" — as it actually
+ * The other open question — "not everything is a note" — as it actually
  * stands, which is not where the issue left it. `item-folders.yaml` is retired
  * and a folder is a note, so folders *are* recorded; a bundle is a
  * note too. What is genuinely absent from those records is a
@@ -730,9 +730,9 @@ describe("a note that is in no one pack, or in none", () => {
     /*
      * The positive control, and the reason the two cases above read as
      * decisions rather than as accidents: a note type that *does* name one
-     * document gets its UUID. A bundle is the other half of what #243 called
+     * document gets its UUID. A bundle is the other half of what was called
      * "not everything is a note" — it was configuration when the issue was
-     * written and has been a note since #263/#286 — and it is addressed like
+     * written and is a note — and it is addressed like
      * anything else, as an `Adventure`.
      */
     it("records a bundle with the Adventure it compiles into", () => {
@@ -772,7 +772,7 @@ describe("an item note is two records: the item, and its documentation", () => {
      * The two records a `Black_Death.md` compiles into, named rather than
      * unpacked positionally.
      *
-     * The file is ordered by canonical address, and #59 moved which of the two
+     * The file is ordered by canonical address, and the scheme decides which of the two
      * sorts first: the item is now keyed under `sohl` and its documentation
      * under `none`, so `none` sorts ahead of `sohl` and the journal leads. The
      * order is asserted deliberately in its own case below; every other case
@@ -794,7 +794,7 @@ describe("an item note is two records: the item, and its documentation", () => {
         const records = readIndex(result.file);
 
         // Ordered by canonical address, which is the only key the two records
-        // do not share — and since #59 the journal's `none` sorts ahead of the
+        // do not share — and the journal's `none` sorts ahead of the
         // item's `sohl`. The order is arbitrary but it must be *stable*, which
         // is what the determinism case below is really about.
         expect(records.map((r) => r.type)).toEqual(["docaffliction", "affliction"]);
@@ -840,7 +840,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 
     /*
-     * The rule #310 states in general: **for every entry the index gives an
+     * The rule in general: **for every entry the index gives an
      * identity to, it publishes both the `id` and the `uuid`.** The
      * documentation journal is a document with an id of its own — hashed from
      * the item's by `itemDocEntryId`, which is what the journals pass files it

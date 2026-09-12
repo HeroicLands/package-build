@@ -265,7 +265,7 @@ describe("a being's embedded items, end to end through the translation", () => {
 
     it("stamps a stand-alone entry with the subtype too, not the note type", async () => {
         // The half with no lookup to fail: an entry carrying no shortcode is
-        // built from the reference alone, so the note type used to become the
+        // built from the reference alone, so the note type would become the
         // document's subtype outright — a document of a subtype the system
         // does not define, and nothing said.
         await withDemoPass([], beingNote("{ type: armor, name: Scavenged Helm }"), (pass) => {

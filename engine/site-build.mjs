@@ -651,7 +651,7 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
  *
  * **Flat, under the mount, named by its address**. A content page's URL
  * is its address — `/<package>/<type>-<shortcode>/` — and the file is now named
- * the same way, so the two agree. It used to be filed into `<section>/` so that
+ * the same way, so the two agree. Filing it into `<section>/` so that
  * Hugo would read a section off its path; a section appears in no address, and
  * a directory chosen only to satisfy a rendering engine's idea of what a
  * section is has no business in the note format.
@@ -659,7 +659,7 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
  * The name is the *whole* address rather than a section-relative half of it, so
  * two types cannot fight over one file: a `doc` note's `subType` may be spelled
  * the same as another note's `type`, and `doc-gear.md` and `weapongear-gear.md`
- * are distinct whatever the sections used to be.
+ * are distinct whatever the sections.
  *
  * **A `trees` entry is the exception, and always was.** Those pages preserve
  * their source layout below a named section — they are a book with chapters,
@@ -712,7 +712,7 @@ export function renderPages(pages, options) {
     for (const page of pages) {
         // The page's path in the tree an author edits: below the content root
         // for a content note, below the tree's own root for a `trees` page. It
-        // used to be composed as `<section>/<basename>` for a content note,
+        // is not composed as `<section>/<basename>` for a content note,
         // which named a directory that was never the note's.
         const src = page.relPath ?? page.rel ?? page.base;
         const ctx = wikiContext(index, {

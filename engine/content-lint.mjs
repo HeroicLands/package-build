@@ -15,7 +15,7 @@
  * Linting a content tree's **addresses** — the rules every package's notes are
  * authored against, wherever those notes live.
  *
- * These rules used to live in the SoHL repository's `utils/`, which had two
+ * These rules do not live in a consumer's `utils/`, which has two
  * consequences and no upside. `thalorna` and `kethira` notes were checked
  * by nothing at all, so the packages most likely to carry authoring mistakes
  * were the ones nothing inspected. And one rule with two implementations can
@@ -35,23 +35,19 @@
  *    address, it needs no `site:` configuration to decide, and a package with
  *    no front page is misconfigured whether or not anyone runs a site build.
  * 4. **Vacated addresses** — a `renamedFrom:` entry names an address this note
- *    used to hold and nothing holds now. It is the same statement as
+ *    once held and nothing holds now. It is the same statement as
  *    rule 2 read backwards, and it needs the same whole-tree view: an entry can
  *    only be checked against every *other* note's address, and two notes
  *    claiming one predecessor is the uniqueness rule applied to the past.
  *
  * **Nothing here writes.** A check reports and an author fixes.
  *
- * **A third rule was retired.** Every note used to be required to repeat
- * its own `type-shortcode` address in the top-level `aliases:` list. That
- * served exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolved in
- * the editor — and nothing else ever read it: both resolvers parse the hyphen
- * qualifier themselves. The project no longer authors in Obsidian, so the rule
- * required a line of frontmatter per note for a reader that does not exist. The
- * field itself is retired now, refused from `retired-fields.mjs`. Removing it was
- * verified output-neutral beforehand: across 1,735 stripped notes,
- * `package compile` produced byte-identical `build/packs-json` and the site
- * build byte-identical `site/content`.
+ * **There is deliberately no third rule** requiring every note to repeat its
+ * own `type-shortcode` address in a top-level `aliases:` list. It would serve
+ * exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolves in the
+ * editor — and nothing in the build reads it: both resolvers parse the hyphen
+ * qualifier themselves. The field is retired, refused from
+ * `retired-fields.mjs`.
  *
  * **What is deliberately absent.** Corpus reachability — "every Rules document
  * is reachable from the book's root" — is a statement about what one package
@@ -355,7 +351,7 @@ export function lintContentTree(
     // thing this guard needs them to do. A tree holding notes is therefore a
     // tree; only a tree holding none is the absent one.
     //
-    // The homepage used to be the headline example, because it was addressed
+    // The homepage is not the headline example, though it was once addressed
     // by the package rather than by a slug — so a `publish.site: homepage`
     // package had a tree with exactly one note and no key at all. It carries an
     // address like every other note now; the guard is unchanged, because

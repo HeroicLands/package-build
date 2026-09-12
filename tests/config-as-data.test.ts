@@ -199,7 +199,7 @@ describe("a module's system version comes from its system relationship", () => {
         expect(resolveIn(repoDir(), none).stats.systemVersion).toBeNull();
     });
 
-    // This used to be settled by an authored `stats.systemId` picking one of
+    // This is not settled by an authored `stats.systemId` picking one of
     // several relationships. That selector is gone with the key, and
     // `requiresSystem` is what says which system the package-wide block takes —
     // which is the same question asked where it can also be validated.

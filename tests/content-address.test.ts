@@ -101,7 +101,7 @@ describe("a page's address is not its name", () => {
     it("is unique by construction, so two names may agree", () => {
         // `sohl` publishes a Rules page and a User Guide page both called
         // "Gear"; under a name-derived URL that needed a collision check and,
-        // once #180 lands, a rename. Two addresses cannot collide.
+        // or a rename. Two addresses cannot collide.
         const rules = { type: "doc", subType: "rules", shortcode: "gearrules" };
         const guide = { type: "doc", subType: "userguide", shortcode: "gearug" };
         expect(packageAddress(rules)).not.toBe(packageAddress(guide));
@@ -123,7 +123,7 @@ describe("there is no landing page, because there is no section", () => {
 
 describe("a note with no address is refused, never guessed", () => {
     it("publishes a `doc` with no subtype — nothing is left for it to lack", () => {
-        // It used to be refused for having "no section, so nowhere to file the
+        // It must not be refused for having "no section, so nowhere to file the
         // page". The directory was the only thing it lacked, and there is no
         // directory.
         expect(packageAddress({ type: "doc", shortcode: "homeless" })).toBe("doc-homeless/");

@@ -144,7 +144,7 @@ import { emittedArtFor, itemPackJsonDirs } from "../engine/generate.mjs";
  * The packs `unpack` extracts.
  *
  * From the configuration's own pack list, which is where the build already
- * knows them. It used to come out of the shipped manifest — a second
+ * knows them. It does not come out of the shipped manifest — a second
  * declaration of the same list, in a second format, with nothing checking that
  * the two agreed. The manifest is generated from this list now
  * (package-build#9), so reading it back would be a round trip through an
@@ -252,7 +252,7 @@ const argv = yargs(hideBin(process.argv))
     // Every invocation this CLI accepts must be one it performs. yargs
     // gives neither guarantee by default: without `demandCommand` a bare
     // `content-build` exits 0 in silence, and without `strict` an unknown
-    // command or option is ignored rather than reported. Both used to read as
+    // command or option is ignored rather than reported. Both would read as
     // success from a `run-s` chain, so a typo in a build script passed the step
     // it was meant to run. The sibling toolchain `@heroiclands/package-build`
     // opts into the same two.
@@ -288,7 +288,7 @@ function docsCommand() {
         command: "docs <action>",
         describe: "Generate documentation from the configured registries",
         builder: (yargs) => {
-            // Required and honoured. It used to be optional and never read:
+            // Required and honoured, not optional and unread:
             // the handler rendered the item-field reference whatever it was
             // given, so the positional constrained what could be typed and
             // selected nothing.
@@ -1357,7 +1357,7 @@ function contentIndexCommand() {
  * `content-build site` — publish the content tree as a website.
  *
  * The sibling of `package compile`: the same tree, rendered as pages instead of
- * compiled into packs. Everything a consumer used to write for itself —
+ * compiled into packs. Everything a consumer would otherwise write for itself —
  * the walk, the address derivation, the address index, table expansion,
  * wikilink resolution, code-fence protection, the foreign-manifest merge and
  * the section-landing backfill — happens here, from configuration.
@@ -1451,7 +1451,7 @@ function siteCommand() {
                 }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
-                // the message from the shared table. It used to be a
+                // the message from the shared table, not a
                 // `log.error` whose timestamp prefix sat where a parser reads
                 // the path from, and whose text named a `reason` code rather
                 // than saying what to do — so one authored link produced a

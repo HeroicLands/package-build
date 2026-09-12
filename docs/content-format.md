@@ -80,7 +80,7 @@ A tag that classifies the subject is different, because something queries it. A
 settlement tagged `village` appears in the list of villages and an untagged one
 does not, so `vilage` does not merely look wrong: it removes the note from an
 index, silently, and the index still renders. That is the same failure a
-misspelled `data:` key used to be, and it gets the same answer — the vocabulary
+misspelled `data:` key is, and it gets the same answer — the vocabulary
 is declared, so a near miss is a finding that names what you probably meant.
 
 | group               | applies to             | tags                                                                                                                                                                                                                                                                                                                 |
@@ -674,7 +674,7 @@ the journals pack having to declare anything. A folder nothing references
 materialises nowhere.
 
 That derivation is what makes a whole class of defect unrepresentable. The
-folder used to be declared twice, once per pack, in two files free to disagree:
+folder declared twice, once per pack, sits in two files free to disagree:
 `sohl-thalorna` was missing 57 of its item folders from its journal folder file
 and `sohl-kethira-basic` had no journal folder file at all, so both emitted
 documentation journals into folders their own pack never declared — silently.
@@ -873,7 +873,7 @@ There is one namespace, and the pipe is required:
 **A link written without a label addresses nothing**, and the correction
 is always the same: write `[[type-shortcode|Text]]`.
 
-The bare form used to name an **alias** — a note's own display name, or one of
+The bare form does not name an **alias** — a note's own display name, or one of
 the names it listed in `aliases:` — looked up within the citing note's type. It
 was measured before it was retired, and the namespace was empty in practice:
 across 8,305 wikilinks in three content trees, **not one** bare link resolved to
@@ -1148,7 +1148,7 @@ relational operations:
 | `_section` | Emits a headed table per distinct value, in the order the rows arrive. |
 
 `_section` is why one query replaces the forty near-identical blocks a grouped
-table used to need: the authored `ORDER BY` decides the section order too.
+table would otherwise need: the authored `ORDER BY` decides the section order too.
 
 **Beware `packFolder`.** It is a note's _pack_ folder, not its directory — the
 directory is `file.folder`. (The `folder` field it replaced is retired; a query
@@ -1391,7 +1391,7 @@ shortcode)` — compendium/world reconciliation, template shadowing, cohort
 membership, effect and expression references. A `name` cannot stand in: it is
 presentation, free to be localized or to diverge.
 
-**Reordering the list moves no id.** The key used to carry the entry's position,
+**Reordering the list moves no id.** A key carrying the entry's position
 so inserting an item renumbered every id after it and a re-import created new
 documents beside the old ones — while nothing about those documents had changed,
 only their neighbours. The same is now true of a note's journal pages: an

@@ -17,7 +17,7 @@ import { expandAddress, blockSystem } from "../engine/content-address.mjs";
 import { NO_SYSTEM } from "../engine/systems.mjs";
 
 /**
- * #336 — an omitted address segment **defaults from where the link is written**.
+ * An omitted address segment **defaults from where the link is written**.
  * It is not a wildcard and not a search: every short form expands to exactly one
  * canonical address before anything is looked up.
  *

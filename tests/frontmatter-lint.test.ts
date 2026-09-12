@@ -380,7 +380,7 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
 describe('an authored `img: ""`', () => {
     const schemas = { skill: [] as any[] };
 
-    it("is warned about, because it used to mean the opposite", () => {
+    it("is warned about, because it reads as the opposite", () => {
         // `""` was how a note said "no art authored" while `resolveImg`
         // conflated the two empties; it now says "ship no art". Forty-five
         // `sohl-thalorna` notes were written under the old reading and would

@@ -9,7 +9,7 @@
  * `publish.address.landing` is deleted.
  *
  * It named which note addressed a whole section rather than a page within one.
- * #203 retired the second of its two values; #204 retired the concept the key
+ * Both of its two values are retired, along with the concept the key
  * chose between, so a page emits flat and a section is a Hugo directory the note
  * format does not carry. What survived was the key itself — resolved, validated
  * against a one-element vocabulary, frozen into the configuration, and read by
@@ -92,7 +92,7 @@ describe("a configuration declaring `publish.address.landing` is refused", () =>
         expect(err.message).not.toMatch(/must be one of/);
     });
 
-    it("refuses it whatever its value, including the one #203 retired", () => {
+    it("refuses it whatever its value, including the retired one", () => {
         // Presence is the whole test, as it is for a retired frontmatter field:
         // no value makes declaring the key right. `collection` was refused by
         // name while the key lived; it is refused by the key's retirement now,

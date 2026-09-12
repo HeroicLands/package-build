@@ -199,7 +199,7 @@ export function assertUniqueAnchors(rawPages, noteName) {
  * doc's first page without having compiled it (see
  * {@link sohl.utils.packs.itemDocPointer}).
  *
- * **It takes no index**. A page used to be keyed by position *and* name,
+ * **It takes no index**. Keying a page by position *and* name,
  * so inserting a heading renumbered every page after it and a re-import created
  * new pages beside the old ones — while nothing about those pages had changed.
  * The anchored case above never took one, and is the shape this now shares.

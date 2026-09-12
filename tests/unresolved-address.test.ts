@@ -276,7 +276,7 @@ describe("the checker fails an address that resolves to no note", () => {
     });
 
     it("cannot be ambiguous across packages any more — the form names one", () => {
-        // Two packages publishing `creature-wolf` used to make a short form
+        // Two packages publishing `creature-wolf` would make a short form
         // ambiguous. Now the short form names *this* package and neither of
         // them, so the finding is a plain `unresolved` with the same fix the
         // ambiguity message used to ask for: write the qualified address.
@@ -329,7 +329,7 @@ describe("the pack build fails an address that resolves to no note", () => {
                 { name: "Grey Wolf", type: "creature", package: "kethira", uuid: "C.a.b.Item.d" },
             ],
         ]);
-        // Two packages publishing `creature-wolf` used to make the short form
+        // Two packages publishing `creature-wolf` would make the short form
         // ambiguous. An omitted package means *this* package, so the
         // short form names neither of them and the finding is a plain
         // `unresolved` — with the same fix the ambiguity message asked for.

@@ -16,7 +16,7 @@ import { DEFAULT_ITEM_ART, defaultItemArt } from "../sohl/default-item-art.mjs";
 // the expectation from it is what stops this map becoming a third list that
 // disagrees with the whitelist and the builder table.
 import { itemTypes } from "../engine/item-docs.mjs";
-// …translated through SoHL's own note-type → subtype map, because since #78 the
+// …translated through SoHL's own note-type → subtype map, because the
 // two vocabularies are no longer the same string: the registry is keyed by the
 // note type (`armor`) and this map by the document subtype (`armorgear`), which
 // is what the runtime reads off a Foundry Item.
@@ -33,7 +33,7 @@ const EXPECTED_TYPES = [...itemTypes()].map(
     (type) => documentSubtype(SOHL_DOCUMENT_SUBTYPES as never, type, {}) ?? type,
 );
 
-describe("default-item-art (single source of truth, #932)", () => {
+describe("default-item-art (single source of truth)", () => {
     it("maps every known item document subtype to a themed SoHL asset", () => {
         for (const type of EXPECTED_TYPES) {
             expect(ART[type]).toMatch(/^systems\/sohl\/assets\/icons\/.+\.svg$/);
@@ -57,7 +57,7 @@ describe("default-item-art (single source of truth, #932)", () => {
     });
 
     it("is keyed by the document subtype, not the renamed note type", () => {
-        // The three types #78 renamed. The map stays on the document side —
+        // The three renamed types. The map stays on the document side —
         // `SohlItem.getDefaultArtwork` reads it with a Foundry Item's own
         // `type` — and `sohl/item-builders.mjs` translates before asking.
         expect(defaultItemArt("armorgear")).toBe(

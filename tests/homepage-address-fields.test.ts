@@ -131,7 +131,7 @@ describe("a homepage is addressed, so `shortcode` is required", () => {
     });
 });
 
-describe("the one field a homepage still refuses (#53, narrowed by #182)", () => {
+describe("the one field a homepage refuses", () => {
     it("refuses `id` and nothing else", () => {
         expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["id"]);
     });

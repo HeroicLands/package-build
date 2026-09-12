@@ -186,7 +186,7 @@ describe("resolveWebWikilinks", () => {
     });
 
     it("fails an unresolved hyphen-qualified target", () => {
-        // The hyphen form used to be left as prose while any linkable package
+        // Leaving the hyphen form as prose while any linkable package
         // was invisible here: `[[creature-grkrahk]]` is a real note in the
         // `thalorna` package, and nothing in the syntax separated it from a
         // typo. The manifest settles it now, and the other two resolvers never

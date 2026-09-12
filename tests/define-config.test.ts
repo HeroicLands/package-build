@@ -279,7 +279,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
     });
 
     it("carries the Foundry core range, which it is now the source of", () => {
-        // This reverses a rule that held until #50: the configuration used to
+        // The direction of truth: the configuration does not
         // be forbidden from holding the floor, and pointed at the manifest
         // instead, because the manifest was hand-authored and moved with test
         // evidence. Now the manifest is generated *from* here, so pointing at
@@ -360,7 +360,7 @@ describe("defineConfig — an item type's default art (#7)", () => {
     });
 
     it("derives itemTypes from the keys whichever spelling declared them", () => {
-        // #1504's guarantee has to survive the wider entry: the whitelist is
+        // The registry guarantee has to survive the wider entry: the whitelist is
         // still the keys, so a type cannot be accepted without a builder.
         const config = defineConfig({
             ...minimal(),
@@ -508,7 +508,7 @@ describe("the address scheme a repository publishes at", () => {
     });
 
     it("rejects a package-absolute prefix", () => {
-        // A leading slash is the site-absolute shape #1465 removed: it would
+        // A leading slash is the site-absolute shape this refuses: it would
         // record where the package is mounted, which is the consumer's fact.
         expect(() => address({ prefix: "/kb/" })).toThrow(/must not begin with a slash/);
     });

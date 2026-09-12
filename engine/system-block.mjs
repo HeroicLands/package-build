@@ -56,7 +56,7 @@
  *
  * ## Steps 2 and 3 are two declarations, because they are two positions
  *
- * They used to be one: both were keyed on `name`, which was fine only while the
+ * They are not one: keying both on `name` holds only while the
  * shared source and the in-block key were the same word. `data:` ended
  * that — a shared source is now a path *into* a container, so `data.species`
  * and `species` are two spellings of two different places, and no single value

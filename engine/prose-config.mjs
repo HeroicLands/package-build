@@ -16,7 +16,7 @@
  * configuration and one markdownlint rule set, declared here so a note
  * formatted in one repository is formatted the same way in the next.
  *
- * These used to exist in exactly one consumer. The SoHL repository carried
+ * These belong in no single consumer. The SoHL repository carried
  * both; `sohl-thalorna` had Prettier but never ran it from `lint`; and
  * `sohl-kethira-basic` had neither, so the package least likely to have been
  * proofread was checked for addresses and nothing else. A rule set copied into

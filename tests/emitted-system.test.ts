@@ -10,13 +10,13 @@
  *
  * `compareFields` derives what a build emits from the `itemBuilders`
  * field declarations, so a key the compiler writes itself — `shortcode`,
- * `actionDefs`, `notes`, `docHtml`, and since #126 `archetype` — is in neither
- * the emitted set nor the declared one, and is never compared. #145's
+ * `actionDefs`, `notes`, `docHtml` and `archetype` — is in neither
+ * the emitted set nor the declared one, and is never compared. The
  * authored-`system` check does not reach them either: it reads
  * `<system>.system`, and these are written by the compiler rather than authored
  * under that path.
  *
- * That is the whole of the gap, and it is the failure #60 exists to make
+ * That is the whole of the gap, and it is the failure this exists to make
  * impossible: Foundry discards an unknown `system` key at construction without
  * a word, so the field is simply absent at load while the build reports
  * success.
@@ -266,7 +266,7 @@ describe("the two conditions are told apart, because the fixes differ", () => {
 
 describe("`templatePriority` — the key the check was blind to", () => {
     // The shape SoHL 0.8.2 publishes: everything a `skill` carries except the
-    // field #154 started writing.
+    // field the emitter writes.
     const withoutPriority = artifact({
         Item: {
             skill: {
@@ -282,7 +282,7 @@ describe("`templatePriority` — the key the check was blind to", () => {
         },
     });
 
-    /** The same, with the field declared on the shared base (SoHL#1785). */
+    /** The same, with the field declared on the shared base. */
     const withPriority = artifact({
         Item: {
             skill: {
@@ -386,7 +386,7 @@ describe("what a build does with it", () => {
 
     /**
      * A `skill` schema declaring exactly what a real compiled skill carries —
-     * optionally minus the field #154 started writing.
+     * optionally minus the field the emitter writes.
      *
      * Derived from the document rather than typed out, for the same reason the
      * check itself is: a hand-written list of a builder's output is a list that

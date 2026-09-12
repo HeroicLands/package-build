@@ -18,16 +18,13 @@
  * so there is one job here with two spellings: assemble the manifest from the
  * repository's configuration and write it into the build stage.
  *
- * **There is no template any more.** A manifest used to be a hand-authored
- * `system.template.json` that this module stamped a few fields into — which
- * made it the one build input still written as JSON, by hand, per repository,
- * with no schema and nothing checking it. Worse, it declared facts the
- * configuration also declared: the pack list twice, in two formats, with
- * nothing checking that the pairs agreed. `sohl-kethira-basic` hand-maintained
- * its whole `module.json`, and its `download` named an older version than the
- * module claimed.
+ * **There is no template.** A `system.template.json` this module stamped a few
+ * fields into would be the one build input written as JSON, by hand, per
+ * repository, with no schema and nothing checking it — and it would declare
+ * facts the configuration also declares, the pack list twice in two formats,
+ * with nothing checking that the pairs agree.
  *
- * So the manifest is generated (#9). Three kinds of key end up in it:
+ * So the manifest is generated. Three kinds of key end up in it:
  *
  * - **Declared** — the `packageBuild.manifest` block, emitted unchanged, so a
  *   key Foundry adds in a later version needs no release of this package.
@@ -183,7 +180,7 @@ const MANIFEST_KEY_ORDER = Object.freeze([
 /**
  * The manifest's `packs`, derived from the one pack list the build already has.
  *
- * The two used to be written separately — `package-build.config.yaml` declared
+ * The two are not written separately, with `package-build.config.yaml` declaring
  * a pack's name and type, and the manifest template declared them again beside
  * a label, a path and a system id, with nothing checking that the pairs agreed.
  * They are one list now.

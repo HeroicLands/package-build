@@ -30,7 +30,7 @@
  * declared item field whose default is `""` (`sohl/item-fields.mjs`, resolved
  * from the same shared top-level key the site emitter reads as the page title),
  * so `title: null` compiles the literal string `"null"` into the document. The
- * `title` half of #218 is a template and emitter question, not this one.
+ * `title` half is a template and emitter question, not this one.
  */
 
 import { describe, it, expect } from "vitest";

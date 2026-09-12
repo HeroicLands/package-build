@@ -23,7 +23,7 @@ import { Items } from "../sohl/items.mjs";
 
 /**
  * `character` and `creature` compiled to the same `being` and were retired
- * (SoHL#1580). Deleting them outright is the one change that fails quietly:
+ * Deleting them outright is the one change that fails quietly:
  * `packForType` routes every unlisted type to the items pack by design, so a
  * note or link left on the old spelling would be answered — wrongly — instead
  * of reported.

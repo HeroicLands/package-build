@@ -193,7 +193,7 @@ describe("every other shape resolves as it always did", () => {
     });
 
     it("reads it from a subdirectory too, since the walk climbs", () => {
-        // What #1508 bought was one tree per build however it was launched, and
+        // What this buys is one tree per build however it is launched, and
         // an upward walk from the working directory keeps exactly that.
         const deep = path.join(parent, "assets", "content", "Items");
         fs.mkdirSync(deep, { recursive: true });

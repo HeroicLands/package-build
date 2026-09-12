@@ -273,7 +273,7 @@ describe("a macro note carries documentation like an item does", () => {
 
     it("leaves `doc` notes alone — their single document IS the prose", () => {
         expect(hasDocEntry("doc")).toBe(false);
-        // Actors used to be excluded alongside `doc`, on the same "one document
+        // Excluding actors alongside `doc`, on the same "one document
         // each" reasoning. It never applied to them: a being carries prose a
         // reader wants a page for, and grouping it with `doc` left it the one
         // system-bearing note nothing could link to.

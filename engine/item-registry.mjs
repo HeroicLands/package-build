@@ -24,7 +24,7 @@
  * of them because it was declared first is the silent-wrong-output failure this
  * package spends its time removing. The Item compiler dispatches through {@link itemBuilder}, so the table a
  * consumer configured is the table its notes compile with — the whitelist and
- * the dispatch used to come from different places, and a consumer supplying its
+ * the dispatch would otherwise come from different places, and a consumer supplying its
  * own registry got the types it asked for and the builders it did not.
  *
  * **The registry itself is a consumer's, and stays a leaf.** SoHL's lives in
@@ -160,7 +160,7 @@ export function itemFields(type, system) {
  *
  * Read from the consuming repository's `itemBuilders` registry, the same place
  * the type itself is declared, so a consumer's own type can bring art a
- * SoHL-owned table could never hold. Art used to be looked up in
+ * SoHL-owned table could never hold. Art is not looked up in
  * `sohl/default-item-art.mjs` instead: a type was configurable while its
  * default art was not, so a second consumer's items compiled only if every one
  * of its notes set `img:` (#7).

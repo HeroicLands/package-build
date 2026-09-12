@@ -57,7 +57,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   a path into a shared container (`data.portrait`), which is now the ordinary
  *   case: `data:` puts every type-specific fact under one.
  *
- *   It used to mean "frontmatter key under `sohl:`", and that reading is the
+ *   Read as "frontmatter key under `sohl:`", that meaning is the
  *   degenerate case where the shared source and the system destination happen
  *   to share a name. They constantly do not — one shared `data.portrait` feeds
  *   `sohl.system.portrait` *and* `hm3.system.bioImage` — so the source is

@@ -9,7 +9,7 @@
  * A note whose **secondary** document has no pack loses it silently, while its
  * primary document compiles.
  *
- * #146 asks one question of the whole configuration — does any pack claim this
+ * The unclaimed check asks one question of the whole configuration — does any pack claim this
  * type — and a note that compiles an Item into an Item pack answers yes, so the
  * JournalEntry its prose was going to become could go missing without anything
  * noticing. The build succeeds, the compendium ships, and the absence is
@@ -155,7 +155,7 @@ describe("what it must not say", () => {
         ).toEqual([]);
     });
 
-    it("leaves a note nothing claims to #146's finding, not this one", () => {
+    it("leaves a note nothing claims to the unclaimed finding, not this one", () => {
         // The distinction the message has to carry: one is a pack to declare,
         // the other is a type nothing compiles. A `bundle` note with no
         // Adventure pack and no JournalEntry row produces nothing at all here.
@@ -191,7 +191,7 @@ describe("documentClassesFor", () => {
         expect(documentClassesFor("widget")).toEqual([]);
     });
 
-    it("says nothing per system, so #79's silence is kept by construction", () => {
+    it("says nothing per system, so the silence is kept by construction", () => {
         // A type one system maps and another does not must not be reported
         // against the system that declines it. There is nowhere for such a
         // report to come from here: the `Item` and `Actor` rows fold the maps

@@ -247,7 +247,7 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         // type and the document subtype are the same word on every row, so the
         // map returns what inferring it did.
         //
-        // #78 briefly broke that for three rows by renaming them off the
+        // A rename briefly broke that for three rows by moving them off the
         // `…gear` spellings; reversing it restores the property for all
         // fourteen, which is why this no longer needs an exception list.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {

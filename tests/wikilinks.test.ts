@@ -364,7 +364,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         // Body prose is under no system block, so the system defaults to
         // `none` — and a note's `none` address IS its `doc<type>` journal. From
         // prose it is almost always the written page a reader wants, not the
-        // Item's sheet. This used to emit the Item's UUID.
+        // Item's sheet, not the Item's UUID.
         expect(convert("[[skill/climb|Climbing]]").markdown).toMatch(
             /^@UUID\[Compendium\.sohl\.journals\.JournalEntry\./,
         );

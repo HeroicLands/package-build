@@ -25,7 +25,7 @@
  * systems' documents it compiles into, so there is nothing for the segment to
  * distinguish, and adding it would split one page's URL in two. The canonical
  * address names a *document*; this names a *page*. It
- * used to be derived from `name.full`, which made a display string load-bearing
+ * is not derived from `name.full`, which would make a display string load-bearing
  * in three separate ways: a rename moved the URL and nothing redirected, two
  * notes in one section could derive the same URL so a uniqueness check had to
  * run, and a long name had to be abbreviated through a word table to keep the

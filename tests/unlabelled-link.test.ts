@@ -8,7 +8,7 @@
 /**
  * Every wikilink is an address, and an unlabelled one is a finding.
  *
- * #131 gave the pipe two jobs: it chose between the address namespace and the
+ * The pipe has two jobs: it chooses between the address namespace and the
  * alias one. The alias namespace turned out to be empty — across 8,305
  * wikilinks in three content trees, not one bare `[[Alias]]` resolved to a note
  * — while the collision rule that kept it honest dictated what a note could be
@@ -166,7 +166,7 @@ describe("auditLinks reports an unlabelled link", () => {
         expect((r as any).aliasCollisions).toBeUndefined();
     });
 
-    // #179: five `doc` notes shared a `name.full` and every fix moved a URL.
+    // Several `doc` notes sharing a `name.full` means every fix moves a URL.
     it("passes two same-type notes sharing a display name", () => {
         const r = audit({
             "Rules/Gear.md": note({ type: "doc", shortcode: "rgear", name: { full: "Gear" } }),
@@ -292,7 +292,7 @@ describe("the web resolver requires a label", () => {
 
 describe("the compile warning path is gone", () => {
     // Every unresolved link now fails the note, so nothing reaches the warning
-    // that used to carry an unresolved alias through.
+    // that would carry an unresolved alias through.
     it("does not warn for an unlabelled link", () => {
         const index = buildWikilinkIndex(
             [{ type: "skill", id: "aaaaaaaaaaaaaaa1", shortcode: "clmb", name: "Climbing" }],

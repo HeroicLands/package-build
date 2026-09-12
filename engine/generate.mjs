@@ -485,7 +485,7 @@ async function generatePack(
         corpus,
         companionDests,
         // The actors pass resolves each being's embedded items against the items
-        // passes' output. That used to be an unwritten sibling-directory contract
+        // passes' output. An unwritten sibling-directory contract
         // (`path.resolve(dest, "..", "items")`); the configured pack list names
         // the Item packs, so the dependency is stated rather than assumed
         // — and it is every Item pack, since a repository may ship more

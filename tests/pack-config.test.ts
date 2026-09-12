@@ -23,7 +23,7 @@ import { supportedCoreVersion } from "../engine/helpers.mjs";
 // What is under test is the *resolution mechanism* — that configured paths are
 // absolute and anchored on the configured root — so the root it checks against
 // is this package's own, supplied by the development config at the repository
-// root. It used to be the system repository's root, which only resolved while
+// root, not the system repository's root, which only resolves while
 // this package was vendored inside it.
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 

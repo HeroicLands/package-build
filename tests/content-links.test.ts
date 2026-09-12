@@ -117,7 +117,7 @@ describe("buildLinkIndex", () => {
         ]);
     });
 
-    // The checker used to carry its own, laxer copy of the pattern, so it
+    // A laxer copy of the pattern in the checker means it
     // "checked" links the compilers would never make.
     it("does not read an unclosed bracket as a link", () => {
         const { index } = audit({
@@ -410,7 +410,7 @@ describe("the link index is read from the content index", () => {
         expect(scoped.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
     });
 
-    // The package a local address carries used to come from `contentPackage()`,
+    // The package a local address carries does not come from `contentPackage()`,
     // which reads whichever configuration the working directory resolves —
     // not the one the caller passed. The two are the same object in an ordinary
     // build and different ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or

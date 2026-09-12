@@ -8,7 +8,7 @@
 /**
  * A note's package is the repository's configured `contentPackage`.
  *
- * `package:` used to be a **selector**: a note compiled when its frontmatter
+ * `package:` is not a **selector**: as one, a note compiles when its frontmatter
  * matched the configured package, and was skipped — as `skippedOther`,
  * indistinguishable from the thousands of notes that legitimately belong to
  * another pass — when it did not. Every content tree is single-package, so the

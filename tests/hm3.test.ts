@@ -643,7 +643,7 @@ describe("one note carrying both blocks compiles a document in each system", () 
 
     it("compiles every note's prose into the one JournalEntry pack", () => {
         // One journals pack however many systems a note declares, and since
-        // #337 a being is in it too: an actor publishes documentation like
+        // A being is in it too: an actor publishes documentation like
         // every other system-bearing note, so its prose has a `none` address a
         // reader can arrive at.
         //
@@ -776,7 +776,7 @@ Seeing what is not there.
 
 describe("each system's documents are field-checked against its own schema", () => {
     /**
-     * The fourth acceptance criterion of #139, and the one a coincidence of
+     * The fourth acceptance criterion, and the one a coincidence of
      * names hides in: `containergear` exists in both systems with different
      * data models, so the only thing that can tell a right emission from a
      * wrong one is *whose* schema it is read against.
@@ -937,7 +937,7 @@ describe.each([
          * Deliberate, and the reason `harn-ensemble` is not fixed by this read
          * alone: it states the priority at `sohl.archetype` on 2,502 notes, and
          * those notes get their HM3 flag when the tree sweeps to `data:` (step 2 of
-         * #266's migration), not by this pass reaching into another system's block.
+         * the migration), not by this pass reaching into another system's block.
          */
         it("does not read the other system's block", () => {
             expect(flagsFor({ sohl: { archetype: 1 } }).hm3).toBeUndefined();

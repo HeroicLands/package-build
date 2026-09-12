@@ -377,7 +377,7 @@ pack: mysteries
   course: an item note an Item and the JournalEntry its prose becomes, a map
   note a Scene and a JournalEntry, an actor note an Actor and a JournalEntry
   too. Where the configuration declares no pack for one of them, that
-  document used to be dropped while the rest of the note compiled into a pack
+  document would be dropped while the rest of the note compiled into a pack
   that does exist — a build that succeeds and ships half of what was written.
   The finding names the note, the class with no pack, and the class that did
   compile, which is what distinguishes it from a note **nothing** claims: that
@@ -571,7 +571,7 @@ passes that had to move. When the two orders differ the build says so:
         another's output compiles after it, whatever order `packs:` declares.
 ```
 
-This used to be the author's problem, and a nasty one: an Actor pack declared
+This is not the author's problem, and it would be a nasty one: an Actor pack declaring
 first compiled only where an earlier run had already left `build/packs-json`
 populated. `build/` is gitignored, so it was green on every local tree that had
 built once and exit 1 on every fresh checkout and CI runner, over a message that
@@ -667,7 +667,7 @@ A note has two ways to leave `img:` empty, and they mean opposite things:
 `resolveImg` returns `null` for the first two and `""` for the third, and every
 caller pairs its default with **nullish** coalescing — `resolveImg(fm.img) ?? itemArt(type)`.
 Never `||`: that collapses a deliberate blank back into the default and takes the
-distinction away again, which is exactly what the function used to do.
+distinction away again.
 
 **`portrait` is the same field twice over.** A being carries `img` (its token
 art) and `portrait` (its sheet portrait) independently, and both resolve through
@@ -700,7 +700,7 @@ rather than two.
 > address, and every one of them was reported as publishing a blank heading
 > until the check honoured the declaration.
 
-Because `""` used to mean "unset", a note still carrying that spelling has
+Because `""` reads as "unset" elsewhere, a note carrying that spelling has
 quietly changed meaning, and the frontmatter lint says so — for either art
 field:
 
@@ -808,7 +808,7 @@ system `S` is:
    a **dotted path** (`data.portrait`) rather than a sibling key;
 4. the field's own default.
 
-`FieldSpec.name` is that declared source. It used to mean "frontmatter key under
+`FieldSpec.name` is that declared source. Read as "frontmatter key under
 `sohl:`", which is the degenerate case where source and destination happen to
 share a name.
 
@@ -967,7 +967,7 @@ is exactly what a tree that failed to check out produces.
 What that guard reports is an **empty walk**, not an empty set of addresses. A
 note may be keyless — a folder document carries no `shortcode` — so a tree of
 them is populated, correct and unkeyed. That tree passes; a tree holding no
-notes at all still fails. (The homepage used to be the headline example, because
+notes at all still fails. (The homepage is not the headline example, though it was once
 it was addressed by the package rather than by a slug. It carries an address
 like every other note now; the guard is unchanged, because what it reads
 was never the key count.)
@@ -1068,7 +1068,7 @@ the page's description.
 
 **`data:` is deliberately closed**, and that is the point of having it. The
 type-specific facts about a subject — a weapon's weight, an affliction's
-transmission, a being's species — used to sit at the top level, where the
+transmission, a being's species — do not sit at the top level, where the
 pass-through rule applied to them too. So a misspelled `wieght` became a theme
 parameter rather than a finding, indistinguishable from a weapon that weighs
 nothing. Under `data:` the same key is reported where it was written, with the
@@ -1083,10 +1083,10 @@ answer**. A package is held to the blocks named after the systems it
 declares it ships for, read from the three places that already declare them:
 `systems:`, a pack's own `system:`, and `stats.systemId` where neither is
 written. So a package shipping for HM3 has its `hm3:` block checked and a
-package shipping for SoHL its `sohl:`. It used to be a constant, and the
-constant was `sohl`: an `hm3:` block was never read at all, so every key in it
-was discarded at compile without a word, while the block that _was_ checked was
-named after a system the package does not ship for.
+package shipping for SoHL its `sohl:`. Held constant at `sohl`, an `hm3:` block
+would never be read at all: every key in it would be discarded at compile
+without a word, while the block that _was_ checked would be named after a system
+the package does not ship for.
 
 A pack's `system:` counts because it is already authoritative at compile — a
 note routed to a pack declaring one and carrying no such block fails the build —
@@ -1148,14 +1148,10 @@ taken from the content-format specification. It is note-format knowledge rather
 than any system's: `data:` holds what is true of the thing, and what a system
 makes of that value is declared in that system's own half.
 
-**A third rule was retired.** Every note used to be required to repeat its
-own `type-shortcode` address in `aliases:`. That served one reader — Obsidian,
-so `[[type-shortcode]]` resolved in the editor — and no build ever read it: both
-resolvers parse the hyphen qualifier themselves. The project no longer authors
-in Obsidian, so the rule cost a line of frontmatter per note for a reader that
-does not exist. Removing it was verified output-neutral first: across 1,735
-stripped notes, `package compile` produced byte-identical `build/packs-json` and
-the site build byte-identical `site/content`.
+**There is deliberately no third rule** requiring every note to repeat its own
+`type-shortcode` address in `aliases:`. It would serve one reader — Obsidian, so
+`[[type-shortcode]]` resolves in the editor — and no build reads it: both
+resolvers parse the hyphen qualifier themselves. The field is retired.
 
 **And the top-level field itself is now retired.** `aliases:` fed the
 alias index, which is what a bare `[[Alias]]` was looked up in. That form
@@ -1719,7 +1715,7 @@ names a _document_; a URL names a _page_. So a consumer deriving a page address
 from a manifest key drops the package **and** the system, not the package
 alone.
 
-It used to come from `name.full`. That made a display name load-bearing three
+It does not come from `name.full`. That would make a display name load-bearing three
 ways at once — a rename silently 404'd every inbound link, two notes in one
 section could derive the same URL so a uniqueness gate had to run, and long names
 had to be shortened through a table of 200 abbreviations. The header of the
@@ -1732,7 +1728,7 @@ package's fixed mounts (`/<package>/` for the landing page, `/<package>/api/` fo
 generated API docs), neither of which contains a hyphen or names a type. So the
 namespace is provably disjoint rather than conventionally so.
 
-**A page is written flat, named by its address**. It used to be filed
+**A page is written flat, named by its address**, not filed
 into `<section>/`, because Hugo derives a page's section from where the file is
 written and a section gave it a landing page, `.CurrentSection` and a per-section
 layout lookup. But a section appears in no address, so the note format was
@@ -1751,7 +1747,7 @@ it composes one**. They read as one quantity and are two:
 | A link-manifest `path`                      | `<type>-<shortcode>/`       | Measured against `site.base` and stripped; a consumer prefixes its own                  |
 
 `site.base` is the second and third of those and reaches the first not at all.
-It used to be written into the `url:` as well, so every consumer's Hugo prefixed
+Writing it into the `url:` as well makes every consumer's Hugo prefix
 its own base to a value that already carried one and published every content
 page a segment too deep — `/sohl/sohl/doc-rulesintro/`, 404 at the address the
 manifest, the sitemap and every inbound link named.

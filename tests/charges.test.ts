@@ -13,7 +13,7 @@ import {
     // eslint-disable-next-line
 } from "../engine/helpers.mjs";
 
-describe("resolveCharges (pack builder — a blank maximum means 'does not use charges', #1129)", () => {
+describe("resolveCharges (pack builder — a blank maximum means 'does not use charges')", () => {
     it("yields a null max when the frontmatter declares no charges block", () => {
         expect(resolveCharges({ sohl: {} })).toEqual({
             value: null,

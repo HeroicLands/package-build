@@ -34,7 +34,7 @@ function note(body: string, fm: Record<string, unknown>): string {
  * one becomes a document, and inherits the whole walk → filter → expand →
  * convert → build → write → count loop.
  *
- * This is the contract #1509 exists to establish — a consumer adds a pack by
+ * This is the contract this exists to establish — a consumer adds a pack by
  * writing this much, not by copying the loop.
  */
 class Probe extends BasePackCompiler {
@@ -207,7 +207,7 @@ describe("BasePackCompiler's per-pass switches", () => {
     });
 
     it("compiles a note that authors no id, deriving one from its address", async () => {
-        // `id:` used to be mandatory and is now optional: the document is filed
+        // `id:` is optional, not mandatory: the document is filed
         // under `makeId("document", <canonical address>)`, an identity the note
         // already had and `content-lint` already guards.
         const noId = path.join(tmp, "noid-derived");

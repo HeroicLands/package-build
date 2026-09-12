@@ -723,7 +723,7 @@ describe("the live Tabri → Taburi rename", () => {
  * The two tree reads are one read of the content index.
  *
  * `addresses diff` reads the tree twice — once for the declarations, once to
- * place its findings — and those used to be independent walks that each parsed
+ * place its findings — and those would otherwise be independent walks each parsing
  * every note and each answered "which files are the corpus?" for itself.
  */
 describe("reading the address corpus from the content index", () => {

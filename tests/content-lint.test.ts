@@ -160,7 +160,7 @@ describe("lintContentTree", () => {
         expect(dupes[1].message).toContain("One.md");
     });
 
-    // #1678: a note may declare `pack:`, so two same-address notes can be
+    // A note may declare `pack:`, so two same-address notes can be
     // routed to different packs — which does not make them distinct, because a
     // document is addressed across every pack of its document type.
     it("still reports a duplicate when the two notes route to different packs", () => {
@@ -214,7 +214,7 @@ describe("lintContentTree", () => {
         expect(r.notes).toBe(0);
     });
 
-    // #77: a package in `publish.site: homepage` mode may hold exactly one
+    // A package in `publish.site: homepage` mode may hold exactly one
     // note — its homepage. That is a populated tree, not an absent one, so the
     // vacuous guard must not fire. The homepage now carries an address of its
     // own, so the tree has one key rather than none; the guard is

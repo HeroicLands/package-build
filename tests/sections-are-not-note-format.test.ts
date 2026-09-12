@@ -106,7 +106,7 @@ shortcode: rulesintro
 name:
     full: The Rules`,
     );
-    // A `doc` with no subtype. It used to have "no section, so nowhere to file
+    // A `doc` with no subtype. Read as "no section, so nowhere to file
     // the page"; it is now an ordinary page.
     note(
         "Odds/Homeless.md",

@@ -9,7 +9,7 @@
  * A page's stated `url:` is **site-root relative**; every href is **site
  * absolute**.
  *
- * The two used to be one value. `site.base` is correctly where the package is
+ * The two are not one value. `site.base` is correctly where the package is
  * served — the prefix on every `href` this build writes into a page body, and
  * the base a link-manifest `path` is measured against — and it was also written
  * verbatim into each page's Hugo `url:` front matter. Hugo reads `url` as
@@ -119,7 +119,7 @@ function page(out: string, slug: string) {
 
 describe("a page states its address relative to the site root", () => {
     it("writes `url: /<slug>/`, whatever base the package is served at", () => {
-        // The whole defect: this used to be `page.url`, which already carried
+        // The whole defect: as `page.url` this already carries
         // the package base, and Hugo prefixes the base again.
         const data = pageFrontmatter(
             {
@@ -188,7 +188,7 @@ describe("end to end, the two quantities are written to the same page", () => {
         expect(result.wikiErrors).toEqual([]);
         const dagger = page("out", "weapongear-dagger");
         expect(dagger).toMatch(/^url: \/weapongear-dagger\/$/m);
-        // Nothing on the page states the doubled address that #217 published.
+        // Nothing on the page states a doubled address.
         expect(dagger).not.toContain("/demo/weapongear-dagger/");
         // The citing page's resolved wikilink is site-absolute.
         expect(page("out", "doc-combat")).toContain("](/demo/weapongear-dagger/)");

@@ -1346,7 +1346,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * The systems this package can stamp content against — declaration only.
  *
  * **Declaring is not requiring, and that separation is the whole point.** The
- * only place to state a system version used to be `relationships.systems`, and
+ * only other place to state a system version is `relationships.systems`, and
  * that list is a *restriction*: Foundry's `supportsSystem` drops a module from
  * any world whose system it does not name. So a module shipping content for two
  * systems — `harn-ensemble` ships an HM3 pack, a SoHL pack and a system-neutral
@@ -1380,7 +1380,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * exists to remove. Several entries have no single answer and get none.
  *
  * **Written once and read twice**, which is why it is a function rather than the
- * expression it used to be: the value stamped into `stats.systemId` and the
+ * expression: the value stamped into `stats.systemId` and the
  * value a pack's `system:` is validated against are the same fact, and two
  * spellings of it would be free to disagree about exactly the case that has no
  * answer.
@@ -1760,7 +1760,7 @@ function normalizeItemBuilders(value) {
 }
 
 /**
- * The publishing mode, refusing the boolean this setting used to be.
+ * The publishing mode, refusing a boolean.
  *
  * A boolean is refused rather than mapped onto the nearest mode, because the
  * reading `false` invited — *this package has no web presence* — is exactly the
@@ -1892,7 +1892,7 @@ export function defineConfig(config) {
     const packs = input.packs.map((pack, index) => normalizePack(pack, `packs[${index}]`));
 
     // One list, so the compile order and the directory list cannot disagree —
-    // they used to be `PACK_CONFIGS` and `SOURCE_PACKS`, maintained apart.
+    // as `PACK_CONFIGS` and `SOURCE_PACKS` they would be maintained apart.
     const packDirectories = packs.flatMap((pack) => [
         pack.name,
         ...pack.companions.map((companion) => companion.name),
@@ -1943,7 +1943,7 @@ export function defineConfig(config) {
         // verified version `statsForPack` reads, or this package's own
         // package-wide system, whose stats answer for every pack of it.
         //
-        // This used to be skipped entirely when `systems:` was empty or absent
+        // Skipping this entirely when `systems:` is empty or absent
         // — `declaredSystems.size &&` guarded it — which left the case the
         // comment above was written about wide open. `harn-ensemble` declares
         // `system: sohl` and `system: hm3` on its packs, no `systems:` block,

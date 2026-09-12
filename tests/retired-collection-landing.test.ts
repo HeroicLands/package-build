@@ -25,9 +25,9 @@
  * `package:` and `aliases:` are: a retired thing left
  * merely ignored reads to its author as though it still works.
  *
- * The rule's own refusal is no longer this file's: #204 retired the concept and
- * #215 deleted the key that chose between the rules, so any `landing:` at all is
- * now refused for being the retired key rather than the retired value — see
+ * The rule's own refusal is not this file's: the concept is retired and so is
+ * the key that chose between the rules, so any `landing:` at all is refused
+ * for being the retired key rather than the retired value — see
  * `tests/retired-address-landing.test.ts`. What is pinned here is the half that
  * outlived it, the `section:` frontmatter field.
  */

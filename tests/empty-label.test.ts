@@ -20,7 +20,7 @@
  * {@link authoredLabel} and both resolvers consult it.
  *
  * These tests pin the rule from both ends: the empty label falls back, and the
- * *presence* of the pipe still means what it meant, because #1409 depends on
+ * *presence* of the pipe still means what it meant, because the namespace choice depends on
  * `labelled` rather than on the label's contents.
  */
 
@@ -66,7 +66,7 @@ describe("authoredLabel", () => {
         expect(authoredLabel(parseWikilink("doc-shock|Shock State"))).toBe("Shock State");
     });
 
-    // The distinction the fallback must not erase: `labelled` is what #1409
+    // The distinction the fallback must not erase: `labelled` is what the rule
     // reads, and it still separates `[[x]]` from `[[x|]]`.
     it("leaves `labelled` distinguishing the two forms", () => {
         expect(parseWikilink("doc-shock").labelled).toBe(false);
@@ -79,8 +79,8 @@ describe("the web resolver honours an empty label", () => {
         expect(web("[[doc-shock|]]")).toBe("[Shock](/rules/sohl-shock/)");
     });
 
-    // It used to render identically to `[[doc-shock]]`, because both resolvers
-    // fell back from the address namespace to the alias one. Since #131 the
+    // It must not render identically to `[[doc-shock]]`, which happens when both resolvers
+    // fell back from the address namespace to the alias one. The
     // pipe *chooses* the namespace, so the empty label is the only way to
     // write an address that shows its target's name — which is what makes it
     // worth writing.
@@ -106,7 +106,7 @@ describe("the web resolver honours an empty label", () => {
 
     // An unlabelled link addresses nothing at all now, so it renders
     // marked rather than resolving — but the author's prose is still what it
-    // shows, which is the half of #1409 that survives.
+    // shows, which is the half that survives.
     it("keeps an unlabelled link showing the author's own prose", () => {
         const out = web("[[Shock State]]");
         expect(out).toContain("sohl-unresolved-link");

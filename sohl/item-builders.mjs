@@ -18,7 +18,7 @@
  * There is one list, not two. This repository hands {@link ITEM_BUILDERS} to
  * the build as `itemBuilders` in `package-build.config.yaml`, and `itemTypes()`
  * — the whitelist — is derived from that table's own keys, so a type cannot be
- * whitelisted for compilation without a builder to compile it. Previously the
+ * whitelisted for compilation without a builder to compile it. Split, the
  * whitelist and the builder table were maintained by hand and had already
  * drifted: `trait` — a **retired** item type, absent from
  * `documentTypes.Item` and reported by world migration as unrecognized — was

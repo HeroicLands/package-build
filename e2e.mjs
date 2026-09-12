@@ -19,7 +19,7 @@
  * of labour here. Standing a licensed Foundry up, seeding a world whose
  * Gamemaster password is known, waiting for that world to be *active* rather
  * than merely reachable, tearing it all down again — none of that is one
- * repository's problem, and all of it used to live in one. What runs against
+ * repository's problem, and none of it lives in one. What runs against
  * the served world is named in `packageBuild.e2e.suite`, the same way an asset
  * transform or a manifest-flags module is named: the repository's code, the
  * toolchain's plumbing.

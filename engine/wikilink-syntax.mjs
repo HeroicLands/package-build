@@ -164,7 +164,7 @@ export function unlabelledLinkMessage(target) {
  *
  * A link is read in three places — the checker (`content-links.mjs`), the pack
  * compilers (`wikilinks.mjs`) and the web resolver (`web-wikilinks.mjs`) — and
- * each used to name the failures in its own words. `unknown` in one was
+ * each would otherwise name the failures in its own words. `unknown` in one is
  * `unresolved` in another and `broken type/shortcode` in the third, so a
  * consumer switching on a `reason` was switching on which build had produced
  * it. The set is closed and lives here, beside the syntax the three share.
@@ -198,7 +198,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
  * package publishing it is not a declared dependency — or is one whose index
  * has not been fetched — and the link itself looks identical in every case.
  *
- * This used to be a **warning** in the checker and, in the site build, nothing
+ * As a **warning** in the checker and, in the site build, nothing
  * at all until every linkable package's manifest was accounted for — on the
  * reasoning that a bare `[[Name]]` might be a placeholder for a note nobody had
  * written yet. That reasoning was a property of the bare form, which is retired;
@@ -228,7 +228,7 @@ export function unresolvedAddressMessage(target) {
  *
  * **The correction is the canonical form**, all four segments. Omission
  * runs strictly left to right, so there is no `package-type-shortcode` to offer
- * — naming a package means naming the system before the type. That used to be
+ * — naming a package means naming the system before the type. That would be
  * the correction here, back when a written target could state three segments at
  * most; the grammar is positional now, and a three-segment target names a
  * *system*, not a package.

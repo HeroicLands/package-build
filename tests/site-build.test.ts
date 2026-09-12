@@ -271,7 +271,7 @@ name:
     });
 
     it("has no section gate, because a page is filed nowhere", () => {
-        // A `doc` with no subtype used to be refused: it had no section, and
+        // A `doc` with no subtype must not be refused for having no section, since
         // the section was the directory the file went into. Pages emit flat,
         // so there is nothing left for it to lack.
         note(
@@ -335,7 +335,7 @@ describe("what a page publishes with", () => {
     };
 
     it("carries the package the build derived", () => {
-        // #65: no note declares `package:` — it is retired — so a page
+        // No note declares `package:` — it is retired — so a page
         // that published only what the note carried would no longer be
         // self-describing. The theme's breadcrumb partial reads
         // `.Params.package` to build the middle crumb, which degrades from a
@@ -517,7 +517,7 @@ describe("buildSite end to end", () => {
     });
 
     it("writes the derived package into a swept note's page", () => {
-        // #65: end to end, because the defect is that the value the collect
+        // End to end, because the defect is that the value the collect
         // pass already resolved never reaches the file on disk.
         note(
             "Gear/Sling.md",

@@ -174,7 +174,7 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
         );
 
         expect(selected.relic).toBe(true);
-        // #1504's guarantee, from the other side: the whitelist is the keys of
+        // The registry guarantee, from the other side: the whitelist is the keys of
         // the table the consumer supplied, so SoHL's types are not in it.
         expect(selected.skill).toBe(false);
         expect(selected.types).toEqual(["relic"]);
@@ -265,7 +265,7 @@ describe("a consumer's own item type has default art of its own (#7)", () => {
     it("fails naming the consumer's own registry, not a SoHL module", () => {
         // The reported bug. It is still an error to have neither — the build
         // must not silently ship a mismatched icon — but the error has to point
-        // at a table the consumer can actually add to. It used to name
+        // at a table the consumer can actually add to, rather than naming
         // `@heroiclands/package-build/sohl/default-item-art`, which is SoHL's
         // runtime data and closed to consumers.
         const outcome = underConfig(

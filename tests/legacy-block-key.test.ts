@@ -265,7 +265,7 @@ describe("the format check, for a declaration whose source moved under `data:`",
     const format = () => parseContentFormat(SPEC, { file: "spec.md" });
 
     it("pairs a `data.`-named field with the row that states it", () => {
-        // The check strips `data.` off the specification's source; before #305
+        // The check strips `data.` off the specification's source; without it
         // no declaration could carry the prefix, so a field that now does has
         // to normalize on both sides or the row would read as unmapped.
         const declared = {

@@ -18,7 +18,7 @@ import { formatDiagnostic, positionOfYamlPath } from "../engine/diagnostics.mjs"
 const packs = (...names: string[]) => names.map((name) => ({ name }));
 
 describe("packFolderFindings", () => {
-    // The finding HM3#420 shipped: three of four names resolved to nothing.
+    // The finding: three of four names resolve to nothing.
     it("errors on a folder naming a pack the package does not ship", () => {
         const findings = packFolderFindings({
             packFolders: [
@@ -38,7 +38,7 @@ describe("packFolderFindings", () => {
         expect(errors[0].message).toContain("items, system-help");
     });
 
-    // The other half of HM3#420, and the half a strict rule would get wrong.
+    // The other half, and the half a strict rule would get wrong.
     it("warns on a pack no folder names", () => {
         const findings = packFolderFindings({
             packFolders: [{ name: "HârnMaster 3 System", packs: ["system-help"] }],

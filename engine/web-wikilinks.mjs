@@ -279,7 +279,7 @@ function isPlainMap(value) {
  * collected in `ctx.errors`, each carrying the authored `link` and its
  * `occurrence` so a caller can report the line and column it sits on.
  *
- * There used to be one exception: a hyphen-form address was let through while
+ * There is deliberately no exception letting a hyphen-form address through while
  * any linkable package had no vendored manifest, since a real cross-package
  * reference and a typo look identical from here. The pack compilers and the
  * link checker never made that allowance, so its only surviving effect was to

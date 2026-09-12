@@ -23,7 +23,7 @@ const buildStats = (systemVersion?: string, config?: unknown): any =>
 // Anchored on this file, not the working directory (see pack-config.test.ts).
 // This package owns its manifest fixture: what is under test is how a manifest's
 // supported floor becomes a `_stats.coreVersion`, which is package behaviour. It
-// used to read the *system repository's* real manifest, which only resolved
+// must not read the *system repository's* real manifest, which only resolves
 // while this package was vendored inside it.
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** The Foundry floor this repository's development configuration declares. */

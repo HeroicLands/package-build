@@ -78,7 +78,7 @@ const SPECIFIER = /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)
  * ```
  *
  * That reported `sohl/item-fields.mjs` as importing an undeclared package named
- * `this note does not set the phase`, and cost a debugging cycle in #329 before
+ * `this note does not set the phase`, and costs a debugging cycle before
  * anyone suspected the prose. A comment is not code, so nothing in one is an
  * import.
  *
@@ -156,7 +156,7 @@ describe("the package declares what it imports", () => {
     });
 
     it("declares runtime dependencies at all", () => {
-        // The state #1557 fixed: no `dependencies` block whatsoever.
+        // The state this refuses: no `dependencies` block whatsoever.
         expect(declared.length).toBeGreaterThan(0);
     });
 
@@ -198,7 +198,7 @@ describe("the package declares what it imports", () => {
 });
 
 /**
- * The comment that cost a debugging cycle in #329, verbatim, so the regression
+ * The comment that cost a debugging cycle, verbatim, so the regression
  * has a name. `sohl/item-fields.mjs` carries it again, reading naturally.
  */
 const PROSE_FROM_329 = [
@@ -207,7 +207,7 @@ const PROSE_FROM_329 = [
 ].join("\n");
 
 describe("the scanner reads code, not prose", () => {
-    it("finds no import in the line comment that cost a cycle in #329", () => {
+    it("finds no import in the line comment that cost a cycle", () => {
         // It was reported as `… → this note does not set the phase`, a package
         // name nothing in the message suggested was a sentence.
         expect(importsIn(PROSE_FROM_329)).toEqual([]);

@@ -104,12 +104,12 @@ describe("the compendium library is importable", () => {
         // `module.json`, not `system.template.json`, and an empty directory
         // ships neither. Importing the library must not go looking for one in
         // the caller's tree — the eager `./assets/templates/system.template.json`
-        // read used to throw here before the CLI took it over.
+        // read throws here unless the CLI owns it.
         //
         // (`helpers.mjs` still resolves that manifest by a *module*-relative
         // path, so this proves the caller's tree is untouched, not that the
         // pipeline is manifest-free. Hoisting that read into configuration is
-        // #1508.)
+        // )
         const { status, stdout, stderr } = importInEmptyCwd(
             `process.stdout.write(typeof lib.compilePacks);`,
         );
@@ -146,7 +146,7 @@ describe("the compendium library is importable", () => {
 describe("a prebuilt pack compiles without a content tree", () => {
     /**
      * A package whose packs are already Foundry JSON has no `assets/content`.
-     * Generation refuses an empty tree, so before #40 the compile threw before
+     * Generation refuses an empty tree, so an unguarded compile throws before
      * reaching the pack it was asked for. Here there is no tree at all.
      */
     it("compiles from the declared directory and never calls generation", async () => {

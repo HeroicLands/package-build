@@ -17,7 +17,7 @@ import { docEntryTypes, hasDocEntry, itemTypes } from "../engine/item-docs.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 
 /**
- * #337 — an actor note publishes documentation like every other system-bearing
+ * An actor note publishes documentation like every other system-bearing
  * note, so its prose has a `none` address a prose link can land on.
  *
  * The Actor keeps its own inline `appearance` / `dossier`: an item's pointer is

@@ -19,7 +19,7 @@
  * address, `type-shortcode`, derived in `engine/content-address.mjs` and
  * touching no display string at all.
  *
- * That used to be the other way round. This module carried a `contentSlug` that
+ * It is not the other way round: a `contentSlug` here that
  * derived a page's URL from `name.full`, abbreviating it through a table of 200
  * words so the result stayed short, and a `findSlugCollisions` to catch the two
  * notes that would then claim one URL. Its own header justified the readability

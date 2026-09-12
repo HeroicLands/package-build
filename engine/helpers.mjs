@@ -192,7 +192,7 @@ export function assertSuppliedCorpus(records, who) {
 }
 
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
-    // Stated by the caller, never resolved here. The default this used to carry
+    // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
     // resolved from the working directory rather than the one the caller was
     // working under. In an ordinary build those are the same object and nothing

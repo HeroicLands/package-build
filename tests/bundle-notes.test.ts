@@ -8,7 +8,7 @@
 /**
  * `type: bundle` → Foundry's `Adventure`.
  *
- * #263 specified and declared the type and left it uncompiled, recording the
+ * The specification declares the type and leaves it uncompiled, recording the
  * two decisions that had to come first. Both are evidenced here.
  *
  * **Which pack.** Not the `adventures` companion the scenes pass writes — a
@@ -67,7 +67,7 @@ describe("bundleContents — the addresses a bundle names", () => {
     });
 
     it("reads a top-level list too, as a folder note's `parent` is read", () => {
-        // #259's own example wrote `contents:` under `data:`, and an author
+        // The shipped example writes `contents:` under `data:`, and an author
         // following the issue rather than the specification should still get a
         // bundle rather than a silently empty one.
         expect(bundleContents({ contents: ["doc-combat"] })).toEqual(["doc-combat"]);

@@ -116,7 +116,7 @@ describe("a command whose action decides the work", () => {
     });
 
     it("rejects `docs` with no action", () => {
-        // It used to render the item-field reference regardless of what was
+        // It must not render the item-field reference regardless of what is
         // asked for, because the handler never read `argv.action`.
         const { code } = run("docs");
         expect(code).not.toBe(0);

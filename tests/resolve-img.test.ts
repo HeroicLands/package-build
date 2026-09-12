@@ -19,7 +19,7 @@ import { loadPackConfig } from "../engine/pack-config.mjs";
 /** This package's own root — where its test fixtures live. */
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-describe("resolveImg (content → Foundry img path translation, #890)", () => {
+describe("resolveImg (content → Foundry img path translation)", () => {
     it("prefixes a bundled `icons/` path with the system asset root", () => {
         expect(resolveImg("icons/game-icons/lorc/monkey.svg")).toBe(
             "systems/sohl/assets/icons/game-icons/lorc/monkey.svg",
@@ -61,7 +61,7 @@ describe("resolveImg (content → Foundry img path translation, #890)", () => {
 describe("an asset path's first segment says which package owns it", () => {
     // The rule the `img:`/`portrait:` field documentation states, asserted in
     // both directions so neither can regress into the other. It was inferred
-    // from behaviour until #331: `sohl-thalorna` authoring `icons/…` and
+    // from behaviour: `sohl-thalorna` authoring `icons/…` and
     // getting `modules/sohl-thalorna/assets/icons/…` was the only evidence it
     // held, and a regression either way would have surfaced as a 404 in
     // Foundry rather than as a failing test.
@@ -171,7 +171,7 @@ describe("resolveImg for a non-`sohl` consumer", () => {
 /**
  * The unit assertions above pin the translator. These pin the *compilers* that
  * call it, because the acceptance the rule is really about is what lands in
- * `build/packs-json` — which was, until #331, the only place the rule could be
+ * `build/packs-json` — the only place the rule could otherwise be
  * observed at all. One item type and one actor type, since those are the two
  * shapes: an Item carries a single `img`, an Actor carries `img` and
  * `portrait` independently.

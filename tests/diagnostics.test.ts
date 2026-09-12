@@ -334,7 +334,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
      * are indistinguishable unless each is reported at its own position.
      *
      * Both are addresses that resolve nowhere. A compile fails the note on the
-     * first one it meets, so each is compiled on its own here — what #17 is
+     * first one it meets, so each is compiled on its own here — what this is
      * about is that the position reported is the *link's*, not the note's.
      */
     const line = (n: number) =>
