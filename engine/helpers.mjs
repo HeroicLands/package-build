@@ -31,6 +31,7 @@ import path from "path";
 import yaml from "yaml";
 import unidecode from "unidecode";
 import markdownit from "markdown-it";
+import { iconPlugin } from "./content-icons.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
@@ -68,7 +69,15 @@ export {
     parseValueDesc,
 } from "./frontmatter.mjs";
 
-export const md = markdownit({ html: true });
+/**
+ * The markdown renderer every surface shares.
+ *
+ * `html: true` is long-standing and load-bearing — notes carry raw blocks — and
+ * it is also why {@link module:engine/content-icons} exists rather than an
+ * instruction to write `<i class="fa-solid …">` by hand: that would render on
+ * the two HTML surfaces and be silently dropped by the third (#378).
+ */
+export const md = markdownit({ html: true }).use(iconPlugin());
 
 /**
  * Parses a markdown file with YAML frontmatter.
