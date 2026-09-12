@@ -57,13 +57,15 @@ const declaredDev = Object.keys(manifest.devDependencies ?? {});
  * package, which is plain ESM with no computed specifiers.
  *
  * The lookbehind keeps the keyword from matching inside a string literal:
- * `["from", "to"]` would otherwise read as importing `", "`.
+ * `["from", "to"]` would otherwise read as importing `", "`. A hyphen counts
+ * for the same reason — `"file-import", label: "` is a Font Awesome glyph name
+ * beside the next key, not an import of `, label: `.
  *
  * It cannot do the same for a **comment**, where the keyword is a real word and
  * the quotes are real quotes — so comments are removed before this ever runs
  * (see {@link blankComments}).
  */
-const SPECIFIER = /(?<!["'\w$.])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
+const SPECIFIER = /(?<!["'\w$.-])\b(?:from|import|require)\b\s*\(?\s*["']([^"']+)["']/g;
 
 /**
  * The source with every comment's characters replaced by spaces.

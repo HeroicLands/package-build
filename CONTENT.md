@@ -65,15 +65,34 @@ itemBuilders: sohl
 # Directory names the content walk ignores wherever they appear.
 skipDirectories: [Templates]
 
-# Optional. This package's own icons, merged over the shipped table rather than
-# replacing it, so `:icon-edit:` keeps working without being restated. A name is
-# what a note writes between the colons, in the charset an address segment uses.
-# `family` names the font: omitted it is Font Awesome Free, whose entries take a
-# `style`; `game-icons` is the webfont a package builds for itself, which has no
-# weights and so takes none.
-icons:
-  broadsword: { family: game-icons, icon: broadsword, label: broadsword }
-  affiliation: { style: solid, icon: certificate, label: affiliation }
+# Optional. The icon fonts this package ships and the names its notes draw from
+# them. Nothing is supplied by default: an entry is a promise that a glyph will
+# render, and only the package shipping the font can keep it.
+#
+# Either the registry itself, or a path to a file holding it — the file form is
+# what a real package wants, because a registry is generated from what the
+# interface draws and a generated document inlined here conflicts on every
+# regeneration.
+icons: assets/icon-registry.yaml
+#
+# The same, written inline:
+#
+# icons:
+#   families:
+#     # `class` is the stylesheet prefix; `styles` are the weights the font
+#     # ships, and `[]` means it has none.
+#     fontawesome: { class: fa, styles: [solid, regular, brands], describe: Font Awesome Free }
+#     game-icons: { class: ginf, styles: [], describe: the Game-Icons webfont }
+#   # Which family an entry with no `family` belongs to. Optional where exactly
+#   # one is declared, since then there is nothing to choose between.
+#   defaultFamily: fontawesome
+#   icons:
+#     # A name is what a note writes between the colons, in the charset an
+#     # address segment uses. `fixedWidth` asks for a full advance, which a
+#     # glyph like an ellipsis needs to sit in a column of controls.
+#     being: { style: solid, icon: user, label: being }
+#     context-menu: { style: solid, icon: ellipsis-vertical, fixedWidth: true, label: context menu }
+#     vehicle: { family: game-icons, icon: old-wagon, label: vehicle }
 
 # Optional; each path is relative to this file's directory and defaults to the
 # conventional layout shown here.
