@@ -64,8 +64,17 @@ jobs:
             # OIDC Trusted Publishing needs npm >= 11.5; the runner ships older.
             # `changeset publish` shells out to this npm, so it must be upgraded
             # before the action runs, not inside it.
+            #
+            # Bounded to 11, not `latest`. npm 12 stopped putting
+            # `node_modules/.bin` on the PATH of a run-script's shell, so the
+            # next step's `changeset` became `sh: 1: changeset: not found` and
+            # every release from 2026-09-11 exited 127 without publishing —
+            # while nothing in this repository had changed. The requirement
+            # above is a floor of 11.5 and was never a reason to track the
+            # newest major; an unbounded upgrade here means an npm release can
+            # break the publish path on a day nobody touched it (#381).
             - name: Upgrade npm for OIDC
-              run: npm install -g npm@latest
+              run: npm install -g "npm@^11.5"
 
             # With changesets pending: opens or updates the Version Packages PR
             # and stops. With none pending — the state right after that PR
