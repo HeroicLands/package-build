@@ -17,7 +17,7 @@
  * Each re-read went through `sohlField`, which sees `sohl.<key>` and the note's
  * top level — and **not** `sohl.system.<key>`. That was equivalent while every
  * note authored in the block. Once a note authors at the destination instead
- * (#126's corpus move) those five read as unset and ship their empty value: no
+ * (the corpus move) those five read as unset and ship their empty value: no
  * `subType` is a thrown build error, and `charges`, `skillAptitudes` and
  * `relations` silently ship empty.
  *

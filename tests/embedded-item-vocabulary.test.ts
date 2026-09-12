@@ -17,7 +17,7 @@
  * the identity.
  *
  * These tests hold the translation in place. They run against a **fixture
- * system**, not SoHL: every SoHL row is the identity — #78 briefly made three
+ * system**, not SoHL: every SoHL row is the identity — a rename briefly made three
  * of them otherwise and that rename is reversed — so SoHL alone cannot exercise
  * the translation. HM3's `projectilegear` → `missilegear` is the real
  * non-identity row, and the fixture stands in for that shape.
@@ -41,7 +41,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /**
  * A **fixture system** whose item rows are deliberately not the identity.
  *
- * `armorgear` → `armorgear` is the row #78 will add to SoHL; declaring it here
+ * `armorgear` → `armorgear` is the row SoHL takes; declaring it here
  * exercises the mechanism without moving a single compiled byte. It reads the
  * `sohl:` block so the frontmatter readers (`sohlField`) still find a being's
  * `items:` — the block a system writes and the vocabulary its types speak are
@@ -111,7 +111,7 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
     });
 
     it("is the identity for every SoHL row", () => {
-        // #78 briefly broke this for three rows; reversing that rename restores
+        // A rename briefly broke this for three rows; reversing it restores
         // it for all of them, so there is no exception list to carry.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
             const row = SOHL_DOCUMENT_SUBTYPES.types[type];
@@ -232,7 +232,7 @@ describe("a being's embedded items, end to end through the translation", () => {
             beingNote("{ model: armor-hlmt }"),
             (pass) => {
                 // Loaded from the compiled tree, keyed by the subtype the
-                // document carries — and, since #334, under this package's name
+                // document carries — and under this package's name
                 // as well, so a `model:` that states the package resolves to
                 // the same item and nothing local can shadow it.
                 expect([...pass.itemsMap.keys()].sort()).toEqual([
@@ -392,7 +392,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                 expect(finding).toContain("Ancient Warrior");
                 // The reference as authored. SoHL's note and document
                 // vocabularies spell every row the same word again now that
-                // #78's rename is reversed, so there is no second spelling to
+                // The rename is reversed, so there is no second spelling to
                 // show here; HM3's `projectilegear` → `missilegear` is where
                 // the two still differ.
                 expect(finding).toContain("armorgear:brst");

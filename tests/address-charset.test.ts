@@ -123,7 +123,7 @@ describe("the address-segment charset", () => {
     });
 
     it("is the one rule shortcodes are already held to", () => {
-        // The shortcode guarantee (SoHL#1397) and the package guarantee are the
+        // The shortcode guarantee and the package guarantee are the
         // same statement about the same address, so they are one pattern rather
         // than two free to drift apart.
         for (const value of ["aconite", "self-pro", "B&CFl", "", "two words"]) {

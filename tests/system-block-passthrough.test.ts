@@ -14,7 +14,7 @@
  * DataModel's own paths, with no renaming layer between the note and the
  * document.
  *
- * The corpus does not use it yet (that is #126, in other repositories), which
+ * The corpus does not use it yet (the move is in other repositories), which
  * is why every existing tree still compiles byte-identically. These cases
  * describe what happens when it does.
  */

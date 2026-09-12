@@ -11,7 +11,7 @@
  * The tolerance was a property of the **bare** form. `[[Sunless Vault]]` was
  * read as a worldbuilding placeholder — a note somebody meant to write — so an
  * address landing nowhere was softened to a warning in one place and to nothing
- * at all in another. #180 retired that form, and #183 gave the intent it stood
+ * at all in another. That form is retired, and the intent it stood
  * for a real spelling: a `draft`-tagged note, which exists, resolves, and
  * renders marked. Nothing is left for the softening to protect.
  *
@@ -330,7 +330,7 @@ describe("the pack build fails an address that resolves to no note", () => {
             ],
         ]);
         // Two packages publishing `creature-wolf` used to make the short form
-        // ambiguous. Since #336 an omitted package means *this* package, so the
+        // ambiguous. An omitted package means *this* package, so the
         // short form names neither of them and the finding is a plain
         // `unresolved` — with the same fix the ambiguity message asked for.
         const { unresolved } = convertWikilinks("[[creature-wolf|a wolf]]", from(foreign));
@@ -397,7 +397,7 @@ describe("the site build fails an address that resolves to no note", () => {
     });
 
     it("fails even with no manifest vendored — the softening is gone", () => {
-        // This is the promotion #184 asks for. The gate used to be
+        // This is the promotion the rule asks for. A softer gate would be
         // `manifestsComplete`: while any linkable package was invisible, a dead
         // address was indistinguishable from a legitimate cross-package one, so
         // the site build let both through. The other two builds never did.

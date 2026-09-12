@@ -55,7 +55,7 @@ describe("assertUniquePages", () => {
 
     it("accepts several pages with no anchor at all", () => {
         // Each still has its own heading, which is what identifies it since
-        // #268 took the index out of the key. `splitPages` never yields a page
+        // The index is not part of the key. `splitPages` never yields a page
         // without a name, so this is the shape the compiler actually passes.
         expect(() =>
             assertUniquePages(

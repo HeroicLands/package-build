@@ -369,7 +369,7 @@ describe("the shared conventions say when they are not in force", () => {
     });
 
     it("names the markdown override a spread of the base drops", async () => {
-        // The first half of #133: a config that carries every shared value and
+        // The first half: a config that carries every shared value and
         // loses the one that only reaches markdown, so notes reindent at 4 —
         // the reindentation the override exists to prevent.
         write(
@@ -390,7 +390,7 @@ describe("the shared conventions say when they are not in force", () => {
     it("names every convention a partial config discards, and the one it keeps", async () => {
         // `{"tabWidth": 2}` is not "the shared configuration plus one change":
         // declaring anything discards everything not restated, which is the
-        // half of #133 nothing reported.
+        // half nothing reported.
         write(".prettierrc", '{ "tabWidth": 2 }\n');
 
         const r = await checkPrettierConventions(root);
@@ -422,7 +422,7 @@ describe("the shared conventions say when they are not in force", () => {
         expect(r.findings[0].message).toContain(
             'export { default } from "@heroiclands/package-build/prettier";',
         );
-        // No file: there is none, and #17's rule is to drop a field rather
+        // No file: there is none, and the rule is to drop a field rather
         // than invent one.
         expect(r.findings[0].file).toBeUndefined();
     });

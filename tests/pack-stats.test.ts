@@ -72,7 +72,7 @@ describe("the compiled-pack `_stats` stamp", () => {
     });
 
     it("is never older than the newest v14 migration shim", () => {
-        // The regression test for #1533: a document stamped below this is
+        // A document stamped below this is
         // rewritten by Foundry on load, silently, and no build check can see it.
         const stamped = buildStats().coreVersion;
         expect(

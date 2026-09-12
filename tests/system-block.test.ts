@@ -17,7 +17,7 @@
  * common, so a name-matched fallback between them never fires.
  *
  * These tests hold the mechanism. The corpus migration that exercises it is
- * #126, in other repositories.
+ * the corpus move, in other repositories.
  */
 
 import { describe, it, expect } from "vitest";
@@ -361,7 +361,7 @@ describe("a field declaration reads through the block", () => {
         { to: "weightBase", name: "weight", ...NUMBER, default: 0, describe: "" },
         { to: "material", name: "material", ...STRING, default: "", describe: "" },
     ];
-    // How #128's `data:` container makes it read: every type-specific source is
+    // How the `data:` container makes it read: every type-specific source is
     // a path into a shared container, so every such row is dotted.
     const contained = [
         { to: "weightBase", name: "data.weight", ...NUMBER, default: 0, describe: "" },

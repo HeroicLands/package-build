@@ -157,7 +157,7 @@ describe("foreign packages", () => {
 
     it("drops the short form when two packages claim it", () => {
         // The short form is `<type>/<shortcode>` and takes no system segment,
-        // so #59 does not disambiguate this case: two packages publishing a
+        // so the scheme does not disambiguate this case: two packages publishing a
         // `polity/x` still collide on the bare key however each one's document
         // is keyed. Only the qualified addresses tell them apart.
         const both = new Map([

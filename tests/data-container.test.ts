@@ -266,7 +266,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
 /**
  * A folder's `parent` is a scalar **or** a map keyed by pack.
  *
- * The compiler has read both since #276 — a folder's identity is one thing and
+ * The compiler reads both — a folder's identity is one thing and
  * its hierarchy another, and both large trees file the same folder under a
  * different parent in the items pack and the journals pack. The vocabulary
  * typed the field as a bare wikilink, so `content-build lint` rejected every

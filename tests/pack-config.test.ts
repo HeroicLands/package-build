@@ -80,7 +80,7 @@ describe("this repository's resolved pack configuration", () => {
     });
 });
 
-describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", () => {
+describe("the one pack list (SOURCE_PACKS and PACK_CONFIGS merged)", () => {
     it("declares every pack directory the build compiles, in compile order", () => {
         // The actors pass reads the items pass's output, so order is load-bearing.
         expect(packConfig.packDirectories).toEqual([

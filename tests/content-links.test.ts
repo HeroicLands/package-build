@@ -433,7 +433,8 @@ describe("the link index is read from the content index", () => {
 });
 
 /*
- * A note the index cannot record must not silence the check. Before #243 the
+ * A note the index cannot record must not silence the check. Without a shared
+ * index the
  * link check walked the tree itself, so such a note was simply an ordinary note
  * to it; after the conversion it aborted the whole pass, losing every finding
  * in the tree to one malformed file.

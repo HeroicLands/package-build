@@ -143,7 +143,7 @@ describe("the five failure classes", () => {
         // `type-shortcode` is an address by construction — the field supplies
         // the type — and it is the whole of what the resolver is handed. Asked
         // for anything less, every reference in every tree lands nowhere, which
-        // is what #176 was.
+        // is the failure.
         const asked: string[] = [];
         const index = {
             notes: [],
@@ -499,7 +499,7 @@ describe("a system field that merely shares a note-level field's name", () => {
         // declares a system field of either name today — which is why
         // `sohl.img: ""` still answers for the art check, the emitter reading
         // the block first — so the exemption is exercised with a declaration of
-        // its own. A map's art was `sohl.image` until #142, and the next such
+        // its own. `sohl.image` is a map's legacy art key, and the next such
         // collision must not need this fixed a second time.
         const schemas = {
             widget: [

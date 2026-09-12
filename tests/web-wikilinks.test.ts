@@ -64,7 +64,7 @@ const unresolved = (text: string, target: string) =>
 /**
  * A finding's identity, without the fields that only locate it.
  *
- * Since #184 every error also carries the authored `link`, its `occurrence` and
+ * Every error also carries the authored `link`, its `occurrence` and
  * the page's `src`, so a diagnostic can name a line and column. Those are
  * asserted where they are the subject (`unresolved-address.test.ts`); here what
  * matters is which note, which target, and which class.
@@ -351,7 +351,7 @@ describe("cross-package addresses (link manifest)", () => {
     });
 
     it("fails the same address with no manifest vendored at all", () => {
-        // The pre-#184 behaviour was to tolerate this: with `thalorna`
+        // Tolerating this would mean: with `thalorna`
         // invisible, a correct cross-package link is indistinguishable from a
         // typo. But the pack compilers and the link checker failed it anyway,
         // so the tolerance only meant one authored link got two verdicts. The

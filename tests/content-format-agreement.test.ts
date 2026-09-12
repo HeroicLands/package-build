@@ -129,7 +129,7 @@ describe("the specification and the implementation agree", () => {
  * declared ones. Its `subType` values — the genres an author picks from, and
  * the values a note's `subType` is closed against — were compared to nothing,
  * so the specification and `note-vocabulary.mjs` were free to disagree about
- * which genres exist, in either direction. That is the drift #231 and #232
+ * which genres exist, in either direction. That is the drift the two gaps
  * were filed about, on the half they did not reach.
  *
  * Read through the shared specification parser rather than a second regex
@@ -150,7 +150,7 @@ describe("the specification and the vocabulary agree about subTypes", () => {
     });
 
     it("declares exactly the values the specification lists, in its order", () => {
-        // Folds in the `lore`-only assertion #333 added: every declared genre
+        // Folds in the `lore`-only assertion: every declared genre
         // is defined in the specification, and the specification names no genre
         // the vocabulary has not declared — now asked of every type.
         //

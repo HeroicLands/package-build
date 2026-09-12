@@ -21,7 +21,7 @@ import {
 } from "../engine/actor-compiler.mjs";
 
 /**
- * #334 — a being's items entry names the item it copies with `model:`, an
+ * A being's items entry names the item it copies with `model:`, an
  * address, instead of a top-level `shortcode:` that meant something different
  * from the `system.shortcode` beside it and could not say which package the
  * template came from.
