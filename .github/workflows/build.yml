@@ -43,22 +43,20 @@ jobs:
             # sharper reason: what it guards against breaks the *release*, which
             # no pull request check would otherwise see.
             #
-            # `node_modules` was committed once as a symlink to a developer's
-            # absolute path. `.gitignore` said `/node_modules/`, and the
-            # trailing slash matches a directory rather than a symlink, so
-            # nothing stopped it. Every release for the next day failed: the job
+            # A `node_modules` symlink to an absolute path defeats a
+            # `.gitignore` of `/node_modules/`, whose trailing slash matches a
+            # directory rather than a symlink. It breaks every release: the job
             # installs, and the changesets action's `git reset --hard` then
             # restores the symlink over the install, leaving every module
-            # unresolvable — `changeset: not found` (#381).
+            # unresolvable — `changeset: not found`.
             #
-            # The .gitignore is fixed, so this is the second lock rather than
-            # the first. It is here because the first one was also thought
-            # sufficient.
+            # This is the second lock, not the first. It is here because the
+            # first one was also thought sufficient.
             - name: No dependency tree is tracked
               run: |
                   TRACKED="$(git ls-files | grep -E '(^|/)node_modules(/|$)' || true)"
                   if [ -n "$TRACKED" ]; then
-                      echo "::error::A node_modules path is tracked. Installed dependencies must never be committed — a symlink here broke every release for a day (#381). Run: git rm -r --cached <path>" >&2
+                      echo "::error::A node_modules path is tracked. Installed dependencies must never be committed — a symlink here breaks every release. Run: git rm -r --cached <path>" >&2
                       printf '%s\n' "$TRACKED" >&2
                       exit 1
                   fi
@@ -76,17 +74,16 @@ jobs:
             # failing one is named in the checks UI. `npm run lint` exists for
             # running them all locally in one command.
             #
-            # This repository *provides* `content-build markdown`, and until now
-            # was the one repository that never ran it (#92).
+            # This repository *provides* `content-build markdown`, so it runs
+            # it too.
             - name: Markdown
               run: npm run lint:markdown
             # Every `system.*` target docs/content-format.md names, against a
-            # published schema.json (#130). Run against a committed fixture
-            # rather than a real system's artifact: this package ships no
-            # system, and SoHL's own schema has three gaps already tracked as
-            # Song-of-Heroic-Lands-FoundryVTT#1780, #1781 and #1782 — pointing
-            # CI at it would fail this build for a reason that is not this
-            # repository's. The fixture says so at the top of the file.
+            # published schema.json. Run against a committed fixture rather
+            # than a real system's artifact: this package ships no system, and
+            # a consuming system's schema carries its own tracked gaps —
+            # pointing CI at one would fail this build for a reason that is not
+            # this repository's. The fixture says so at the top of the file.
             - name: Content format
               run: npm run lint:content-format
             - name: Tests
@@ -110,11 +107,10 @@ jobs:
     # being skipped, because a skipped job reports a skipped check and a required
     # context wants a passing one.
     #
-    # It was previously left to not run at all there, on the assumption that a
-    # branch pushed with GITHUB_TOKEN starts no workflow runs. That assumption
-    # did not hold — build.yml ran on #43 and failed it — and a gate whose
-    # correctness depends on a workflow *not* triggering is one bad assumption
-    # away from blocking every release.
+    # Leaving it to not run at all there rests on the assumption that a branch
+    # pushed with GITHUB_TOKEN starts no workflow runs. That assumption does not
+    # hold, and a gate whose correctness depends on a workflow *not* triggering
+    # is one bad assumption away from blocking every release.
     changeset:
         name: Changeset declared
         if: github.event_name == 'pull_request'

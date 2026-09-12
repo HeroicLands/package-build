@@ -22,19 +22,16 @@
 # grouped housekeeping pull request would hide which dependency caused a
 # regression; an isolated one puts it in the diff.
 #
-# One `ignore` entry, added the day it was needed (#100 left the slot open for
-# exactly this). `typescript` majors are held at 6 because TypeScript 7 removes
-# the JavaScript compiler API this package parses with — see the entry's own
-# comment below for the evidence.
+# One `ignore` entry. `typescript` majors are held at 6 because TypeScript 7
+# removes the JavaScript compiler API this package parses with — see the entry's
+# own comment below for the evidence.
 #
-# The prediction that stood here before it is worth keeping, because it was
-# wrong in an instructive way. It said `build.yml`'s "Declaration emit" step
-# already gates a breaking `typescript` bump, so no ceiling was needed. That
-# step passes clean under 7.0.2: `tsc` still emits every `.d.mts` file. The
-# break is in `coverage.mjs`, which uses `typescript` as a *parser* rather than
-# as a compiler, and it was `npm test` that caught it — 11 failures in
-# `tests/coverage.test.ts`. A dependency can be load-bearing in two unrelated
-# ways at once, and naming only one of them names the wrong gate.
+# **`build.yml`'s "Declaration emit" step does not gate that bump.** It passes
+# clean under 7.0.2, because `tsc` still emits every `.d.mts` file. The break is
+# in `coverage.mjs`, which uses `typescript` as a *parser* rather than as a
+# compiler, and `npm test` is what catches it. A dependency can be load-bearing
+# in two unrelated ways at once, and naming only one of them names the wrong
+# gate.
 version: 2
 updates:
     - package-ecosystem: npm
