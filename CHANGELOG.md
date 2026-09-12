@@ -1,5 +1,62 @@
 # @heroiclands/package-build
 
+## 20.3.0
+
+### Minor Changes
+
+- 6be4a7e: An icon can now carry attributes, and `affiliation` joins the registry.
+  
+  `:icon-affiliation:{size: 2x}` — `key: value` pairs in a trailing brace, the
+  shape `markdown-it-attrs` and remark-directive already use. Attributes rather
+  than a bare size because `size` is only the first one anybody needed: a
+  fixed-width flag, a rotation, a title override are the same shape of thing, and
+  a syntax that could only express size would have to be replaced to gain any of
+  them.
+  
+  Size is a closed vocabulary — `lg`, `xl`, `2x`, `3x` — mapping to Font Awesome's
+  own classes on the web and the same multiples in a PDF. It exists because the
+  icon legend enlarges its glyphs so a reader can tell them apart, which makes the
+  size part of what that page says rather than styling applied to it. A free-form
+  `font-size` would have been CSS, which reaches two surfaces of three.
+  
+  An attribute that cannot be honoured is reported rather than ignored, and the
+  icon still renders: hiding a good icon over a bad size would be the worse answer.
+  
+  `affiliation` is `fa-certificate` — a charter under seal. It replaces a
+  `fa-duotone fa-handshake` that was reaching for Font Awesome Pro because the
+  interlocking hands washed out at small sizes; the fix for a silhouette problem
+  is a bolder silhouette, not a paid tier.
+- e209110: Add `close` and `run` to the icon registry, and correct `delete`.
+  
+  Converting the SoHL user guide turned up two controls with no name to convert
+  to. A `✕` there means three different things — "not applicable" in a Healing
+  Rate column, "remove" on a control, and **close** on a dialog's corner — and a
+  `▶` **runs** an action, where the nearest existing entry was `expand`, whose
+  accessible label would have told a screen reader the wrong thing. Both now have
+  their own name and their own label; that Font Awesome draws the three `xmark`
+  senses identically is this table's business rather than the reader's.
+  
+  `delete` was written as `fa-trash-can` and is now `fa-trash`, which is what the
+  system's templates actually draw — twenty-five times, against no `fa-trash-can`
+  at all. A registry checked against the interface is the whole point of having
+  one; unchecked, it is just a second place to be wrong.
+
+### Patch Changes
+
+- 1d8e289: The charset and icon checks now report warnings rather than errors, so neither
+  can fail a build.
+  
+  Both emitted `severity: "error"`, and `reportFindings` fails a run on an error —
+  so adopting the charset check turned consumers' builds red for content that was
+  already correct. A character outside the charset does not make a note wrong: it
+  compiles to the same document and publishes the same page, and only a book that
+  does not exist yet cares. An undeclared icon name is the same shape of thing,
+  visible on the page as literal text.
+  
+  The NFC rule is a warning too, despite having the best claim to being an error,
+  because a lint that fails a build for one of its rules and not the others is one
+  nobody can predict.
+
 ## 20.2.1
 
 ### Patch Changes
