@@ -27,6 +27,7 @@ import {
     iconPlugin,
     iconsIn,
     lintIcons,
+    parseIconAttributes,
     resolveIcon,
 } from "../engine/content-icons.mjs";
 import { isAllowedCodePoint } from "../engine/content-charset.mjs";
@@ -176,6 +177,74 @@ describe("rendering", () => {
             anvil: { style: "solid", icon: "hammer", label: "crafting" },
         } as never);
         expect(html).toContain("fa-hammer");
+    });
+});
+
+describe("attributes", () => {
+    it("renders a size as the Font Awesome class", () => {
+        expect(render(":icon-affiliation:{size: 2x}")).toContain("fa-2x");
+    });
+
+    it("tolerates spacing the way a writer would type it", () => {
+        for (const src of [
+            ":icon-star:{size: lg}",
+            ":icon-star:{size:lg}",
+            ":icon-star:{ size : lg }",
+        ]) {
+            expect(render(src), src).toContain("fa-lg");
+        }
+    });
+
+    it("takes more than one pair, comma-separated", () => {
+        // Only `size` exists today; the parser must not assume that.
+        const { attrs, problems } = parseIconAttributes("size: xl");
+        expect(attrs).toEqual({ size: "xl" });
+        expect(problems).toEqual([]);
+    });
+
+    it("renders the bare form with no size class", () => {
+        const html = render(":icon-star:");
+        expect(html).toContain("fa-star");
+        expect(html).not.toMatch(/fa-(lg|xl|2x|3x)/);
+    });
+
+    it("keeps the accessible name whatever the size", () => {
+        expect(render(":icon-delete:{size: 3x}")).toContain('aria-label="delete"');
+    });
+
+    it("reports a size that is not in the vocabulary", () => {
+        const findings = lintIcons(":icon-star:{size: 9x}", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("lg, xl, 2x, 3x");
+    });
+
+    it("reports an attribute nobody declared, rather than ignoring it", () => {
+        const findings = lintIcons(":icon-star:{colour: red}", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("not an icon attribute");
+    });
+
+    it("reports a pair written without its colon", () => {
+        const findings = lintIcons(":icon-star:{2x}", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`key: value`");
+    });
+
+    it("still renders when an attribute cannot be honoured", () => {
+        // The icon is right and the size is wrong; hiding the icon would be a
+        // worse answer than drawing it and reporting the size.
+        expect(render(":icon-star:{size: 9x}")).toContain("fa-star");
+    });
+
+    it("says nothing about attributes when the name itself is unknown", () => {
+        // One token, one rewrite, one finding.
+        expect(lintIcons(":icon-nope:{size: 9x}", "n.md")).toHaveLength(1);
+    });
+
+    it("does not swallow a brace that is not ours", () => {
+        const html = render("plain :icon-star: then {not: mine}");
+        expect(html).toContain("fa-star");
+        expect(html).toContain("{not: mine}");
     });
 });
 
