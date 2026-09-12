@@ -15,9 +15,9 @@
  * Adventure pack compiler — `type: bundle` notes → Foundry `Adventure`
  * documents.
  *
- * The specification and the vocabulary landed in #263, which left the type
+ * The specification and the vocabulary leave the type
  * declared and uncompiled: authoring one said so, in as many words. This is the
- * pass, and the two decisions #263 recorded are settled here.
+ * pass, and the two decisions it records are settled here.
  *
  * **Which pack.** Not the `adventures` **companion**. The scenes pass already
  * writes one Adventure per pinned place into that pack, and a companion is
@@ -225,7 +225,7 @@ export class Bundles extends BasePackCompiler {
             throw new Error(
                 `bundle "${bundleName}" lists the folder "${address}". A ` +
                     `folder is not a member: it materialises in every pack ` +
-                    `holding something filed in it (#257), so it belongs to no ` +
+                    `holding something filed in it, so it belongs to no ` +
                     `one pack and there is no single copy to bundle. List the ` +
                     `documents instead`,
             );

@@ -20,7 +20,7 @@
  * — the whitelist — is derived from that table's own keys, so a type cannot be
  * whitelisted for compilation without a builder to compile it. Previously the
  * whitelist and the builder table were maintained by hand and had already
- * drifted: `trait` — an item type **retired in #651**, absent from
+ * drifted: `trait` — a **retired** item type, absent from
  * `documentTypes.Item` and reported by world migration as unrecognized — was
  * still advertised as compilable, so a `type: trait` note passed the gate and
  * then died on `BUILDERS[type] is not a function`, swallowed as a per-file

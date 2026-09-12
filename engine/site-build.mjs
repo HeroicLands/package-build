@@ -372,7 +372,7 @@ export function collectHomepages(contentBase, ctx) {
  * for, and would make homepage-only mode depend on the index, the foreign
  * manifests and the table universe that mode exists to not build.
  *
- * **Verbatim is the answer to #54, not a gap left by it.** A landing's links
+ * **Verbatim is the answer, not a gap.** A landing's links
  * could not be *resolved* here without giving `homepage` mode the index its
  * licensing fence exists to not build, so they are **checked** instead:
  * {@link auditHomepageLinks} reads the `landing:` addresses and the body's
@@ -546,7 +546,7 @@ export function tableUniverse(pages) {
  *   a value YAML can carry, and would abort the serializer.
  *
  * Everything else the section declared is passed through. That is the point of
- * the function: before #91 both writers transcribed `title` and `banner` by
+ * the function: two writers transcribing `title` and `banner` by
  * name, so the vocabulary lived in three places — the schema that admits a key
  * and the two writers that copy it — and a key added to the schema alone
  * validated cleanly and then reached no page. The *schema* is the bound worth

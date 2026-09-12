@@ -24,10 +24,9 @@
  * to all of them.
  *
  * So they are derived **once**, here, and every pass is handed the result. That
- * is #243's claim stated at the point where it costs the most: not that
+ * is the claim stated at the point where it costs the most: not that
  * re-deriving is wasteful, but that N passes each answering "which files are
- * the corpus?" is N answers that can differ — which is what #241 was, and what
- * the twenty reads were paying for.
+ * the corpus?" is N answers that can differ.
  *
  * **This module exists apart from the compilers for an import reason.**
  * Deriving the index reaches the pack router and the manifest emitter, and

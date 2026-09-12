@@ -31,7 +31,7 @@
  *
  * It was two content types — `character` and `creature` — which compiled to the
  * same `being` with no branch anywhere between them; they were retired in
- * SoHL#1580 and are now reported by `assertTypeNotRetired` in
+ * retired, and are reported by `assertTypeNotRetired` in
  * `engine/ids.mjs`.
  *
  * Attributes (`sohl.attributes` map) become embedded attribute items with
@@ -365,13 +365,13 @@ export class Actors extends SystemActorCompiler {
         const { value: authoredFolder, isAddress } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress });
 
-        // The two retiring positions a declared field may be read from (#305,
-        // #332). **Warnings**, on the pattern every retirement in this package
+        // The two retiring positions a declared field may be read from.
+        // **Warnings**, on the pattern every retirement in this package
         // follows: the note compiles to the correct document either way, so
         // reddening a tree over one would refuse before the sweep rather than
-        // after it. What they buy is a count — the whole reason #332 was
-        // invisible for so long is that nothing said which position a value
-        // had come from, and a default is indistinguishable from a miss.
+        // after it. What they buy is a count — without one, nothing says which
+        // position a value came from, and a default is indistinguishable from
+        // a miss.
         const portraitReports = {
             block: SYSTEM,
             onLegacyKey: (field) =>

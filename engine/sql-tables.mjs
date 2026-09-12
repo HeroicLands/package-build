@@ -432,7 +432,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * @param {readonly string[]} [opts.skipDirectories] - The walk's scope.
  * @param {object[]} [opts.records] - Index records the caller already derived.
  *   A command that also builds a link index holds them already, and deriving
- *   them twice is the duplicated-corpus failure #243 is closing.
+ *   them twice is the duplicated-corpus failure this closes.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */

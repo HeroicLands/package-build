@@ -177,12 +177,13 @@ export function resolveItemDocType(qualifier, types) {
  * **Parsing is plain positional counting**, the same rule
  * {@link readCanonicalKey} follows, and it is sound for the same reason: every
  * segment is `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced on
- * shortcodes by `content-lint.mjs` since #1397), so the hyphen is purely a
+ * shortcodes by `content-lint.mjs`), so the hyphen is purely a
  * separator and the count alone determines every field. Verified across the
  * four content trees: 138,204 authored shortcodes, none carrying a separator.
  *
  * That replaced a first-hyphen split which let a shortcode contain a hyphen
- * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates #1397 and
+ * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates the
+ * charset rule and
  * outlived it; no tree has used it, and keeping it would make a three-segment
  * target ambiguous between a system and a hyphenated shortcode.
  *
@@ -362,7 +363,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
         throw new Error(
             "buildWikilinkIndex: packageId is required — it is the first " +
                 "segment of every emitted UUID, and defaulting it is how links " +
-                "came to address the wrong package (#1498).",
+                "came to address the wrong package.",
         );
     }
 

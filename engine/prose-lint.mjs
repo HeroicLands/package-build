@@ -220,7 +220,7 @@ export async function checkFormatting(root, opts = {}) {
                         file,
                         severity: "error",
                         // No line or column: the verdict is about the whole
-                        // file, and #17's rule is to drop a field rather than
+                        // file, and the rule is to drop a field rather than
                         // invent one.
                         message:
                             `did not converge after ${MAX_FORMAT_PASSES} formatting passes; ` +
@@ -241,7 +241,7 @@ export async function checkFormatting(root, opts = {}) {
                     file,
                     severity: "error",
                     // No line or column: Prettier's answer is about the whole
-                    // file, and #17's rule is to drop a field rather than
+                    // file, and the rule is to drop a field rather than
                     // invent one.
                     message: "is not formatted; run `content-build format --write` to fix it",
                 });
@@ -271,7 +271,7 @@ export async function checkFormatting(root, opts = {}) {
  *
  * The two cases read differently on purpose. A key set to something else is a
  * choice someone made and can defend; a key that is simply absent is the
- * silent half of #133 — the consumer did not choose Prettier's default, it
+ * silent half — a consumer does not choose Prettier's default, it
  * arrived because declaring one option discards every option not restated.
  *
  * @param {{key: string, shared: unknown, local: unknown}} divergence - From
@@ -311,7 +311,7 @@ function divergenceMessage({ key, shared, local }, scope = "") {
  * @returns {Promise<{findings: Array<{file?: string, severity: string,
  *   message: string}>, configFile: string|null}>} The findings and the config
  *   file they are about, which is `null` when the repository declares none. A
- *   finding about a missing file carries no `file`: #17's rule is to drop a
+ *   finding about a missing file carries no `file`: the rule is to drop a
  *   field rather than invent one.
  */
 export async function checkPrettierConventions(root, opts = {}) {

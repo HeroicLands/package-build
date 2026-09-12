@@ -315,7 +315,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  *
  * There is deliberately **no `manifestsComplete`**. It used to let a resolver
  * soften an unresolved cross-package address while any package's manifest was
- * missing; #184 retired the softening, since the pack compilers and the link
+ * missing; the softening is retired, since the pack compilers and the link
  * checker never had it and one authored link must not get two verdicts. A
  * caller still passing it is ignored rather than obeyed.
  */

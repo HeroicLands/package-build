@@ -75,7 +75,7 @@
  * `node_modules`. `PACKAGE_BUILD_CONFIG` names the file explicitly and skips
  * both walks, which is why it was the workaround.
  *
- * What #1508 removed stays removed. The property it bought was not "resolve
+ * What was removed stays removed. The property it bought was not "resolve
  * from the module"; it was that a build reads one tree however it was launched,
  * and an upward walk from the working directory keeps that — every directory
  * inside a repository resolves that repository's single configuration.
@@ -179,7 +179,7 @@ export function findConfigFile(from) {
  *
  * Kept separate from {@link loadPackConfig} because the *choice* is worth being
  * able to ask about without loading anything: the two walks disagreeing is the
- * observable form of #364, and a caller that wants to report it — or a test
+ * observable form of that, and a caller that wants to report it — or a test
  * that wants to describe it — should not have to reproduce the resolution and
  * risk disagreeing with the loader about it. It performs I/O, and is named for
  * it, like the {@link findConfigFile} it calls twice.
@@ -309,7 +309,7 @@ function foundryPackageId(rootDir) {
  * the whole point:
  *
  * - A **system** ships itself, so its own `package.json` version *is* the
- *   system version. That is the read #1548 introduced after a transcribed copy
+ *   system version. That is the read to make, because a transcribed copy
  *   froze at `0.6.0` for four releases.
  * - A **module** ships content *for* someone else's system. Its own version is
  *   the module's — `sohl-thalorna` sits at `0.0.1` — so deriving from it would
@@ -539,7 +539,7 @@ export function configFromData(data, configPath) {
 
     // Transcribed from `package.json`, and therefore free to disagree with it.
     // Every consumer's copy matched exactly, which is what a transcription
-    // looks like right up until it does not (#1548 froze one at `0.6.0` for
+    // looks like right up until it does not (a transcribed one freezes
     // four releases while nothing said so).
     if (input.foundryPackage !== undefined) {
         throw new Error(
@@ -691,7 +691,7 @@ export function loadPackConfig() {
     }
 
     // Two different files, one of which is about to be ignored. Said out loud
-    // because the alternative is what #364 was: a build that reads the parent
+    // because the alternative is a build that reads the parent
     // checkout's configuration, compiles the parent's tree, and reports it only
     // in absolute paths nobody rereads. A warning rather than an error — the
     // shape is legitimate, and the working directory's answer is the right one

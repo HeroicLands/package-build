@@ -73,7 +73,7 @@ export const KB_PREFIX = "kb/";
  * key's **last two segments** — which is what makes a manifest entry's `path`
  * derivable from the key it is filed under rather than transported beside it.
  *
- * It was once the key's whole tail, and #59 ended that: the key gained a
+ * It is not the key's whole tail: the key carries a
  * `<system>` segment, so its tail is now `system-type-shortcode` and a slug is
  * the tail with that segment dropped. The behaviour here is unchanged, and
  * deliberately — a page has no system to name (see the module note above), so
@@ -133,7 +133,7 @@ export function addressSlug(fm) {
  * about the file the note was read from reaches it: the `README.md` convention
  * that made one note address a whole section is retired with the section itself,
  * so every note is addressed alike and there is one rule and no branch.
- * It took an address scheme until #215, to validate a `landing` rule it then
+ * It takes no address scheme; the `landing` rule it once validated is
  * discarded; with that key retired, `prefix` was the only thing left in the
  * scheme and the paragraph above is the reason it never applied.
  *

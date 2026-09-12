@@ -391,7 +391,7 @@ function docsCommand() {
  * - `fields` compares the per-type tables against the field declarations that
  *   compile them, so the hand-written half cannot drift from the generated one.
  * - `notes` measures a content tree against the vocabulary the document
- *   declares per type. During #127 it is the migration's progress bar rather
+ *   declares per type. During the migration it is the progress bar rather
  *   than a gate, so it **reports** by default and `--strict` makes it fatal —
  *   turned on one class at a time as each slice lands.
  *
@@ -565,7 +565,7 @@ function contentFormatFieldsCommand() {
             });
             yargs.option("coverage", {
                 describe:
-                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until #127 lands.",
+                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until the corpus moves.",
                 type: "boolean",
                 default: false,
             });
@@ -626,8 +626,8 @@ function contentFormatFieldsCommand() {
  *
  * **A report, not a gate.** Every authored note predates the format, so a
  * failing check would be red in every repository from the day it lands and
- * would stay red for the length of #127 — which is a check nobody can act on.
- * `--strict` raises the findings to errors, and #127 turns it on slice by
+ * would stay red for the length of the migration — which is a check nobody
+ * can act on. `--strict` raises the findings to errors, turned on slice by
  * slice as each class of finding reaches zero.
  *
  * @returns {object} The yargs command module.
@@ -648,7 +648,7 @@ function contentFormatNotesCommand() {
             });
             yargs.option("strict", {
                 describe:
-                    "Fail on the findings instead of reporting them. Turned on per slice of #127, as each class reaches zero.",
+                    "Fail on the findings instead of reporting them. Turned on per slice, as each class reaches zero.",
                 type: "boolean",
                 default: false,
             });
@@ -899,7 +899,7 @@ function lintCommand() {
                         artifact: schema.artifact,
                         // A schema is keyed by document subtype and a field
                         // declaration by note type. Those were one string until
-                        // #78 renamed three of them, and joining them by name
+                        // Three are renamed, and joining them by name
                         // after that would drop `armorgear`'s findings without
                         // saying so — the seam exists for exactly this.
                         subtypeOf: (type) => schemaSubtypeOf(config.stats?.systemId, type),
@@ -952,7 +952,7 @@ function lintCommand() {
                     ...icons.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
-                // until #142, so this changed nothing on the day it landed —
+                // by then, so this changes nothing on its own —
                 // but a field retired in favour of another is reported while
                 // both spellings still compile, and failing a build over a note
                 // that produces the correct document would red a tree that has
@@ -1264,7 +1264,7 @@ function linksCommand() {
                 // The package homepage. Its addresses are markdown links and
                 // `landing:` url/href fields rather than wikilinks — it is
                 // published verbatim, so nothing resolves a wikilink on it —
-                // and until #54 nothing looked at them at all.
+                // and nothing else looks at them.
                 for (const h of homepageLinks) {
                     emitDiagnostic({
                         file: h.note.file,
