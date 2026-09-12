@@ -1,5 +1,432 @@
 # @heroiclands/package-build
 
+## 20.2.0
+
+### Minor Changes
+
+- 85fffd6: **The frontmatter lint checks the system blocks a package ships for, instead of
+  a block named `sohl`.**
+  
+  A system block is a closed region: a key the system's vocabulary does not
+  declare is an error, because the compiler's builders are an allow-list and drop
+  it without a word. That held for exactly one block, `sohl:`, and it held whatever
+  system the package shipped for — the linter takes the blocks its caller names,
+  and the only caller named none, so every tree fell back to the same constant.
+  
+  Both directions of that are wrong once a second system exists, and the second is
+  the costlier:
+  
+  |                               | before                                                    | now                                  |
+  | ----------------------------- | --------------------------------------------------------- | ------------------------------------ |
+  | a package shipping for `sohl` | `sohl:` checked                                           | unchanged                            |
+  | a package shipping for `hm3`  | `sohl:` checked — a block it does not carry               | `hm3:` checked                       |
+  | an `hm3:` block               | **never read**, every key discarded at compile in silence | checked against HM3's own vocabulary |
+  | a tree feeding both           | one of two blocks checked                                 | each block against its own system    |
+  
+  **Which systems a package ships for is already declared**, so this reads that
+  rather than asking for it again — in all three places it is written:
+  
+  - `systems:`, which declares them without requiring one;
+  - a **pack's** `system:`, which is the same statement per pack and the only one
+    some trees make. It is already authoritative at compile, where a note routed
+    to such a pack and carrying no such block fails the build, so a lint blind to
+    it would refuse a note for want of a block it never checked;
+  - `stats.systemId` where neither is written, which has already absorbed every
+    remaining spelling: a system package is its own system, and a module takes
+    `requiresSystem`, its lone `systems:` entry, or its lone system relationship.
+  
+  **Each block is held to its own system's vocabulary**, and that has two sources.
+  A system's `itemBuilders` registry covers its item types — `skill` is one name
+  over two data models, so a key SoHL's `skill` declares is not thereby a key
+  HM3's. The note schemas cover the rest, `being` above all, which is an actor type
+  sitting in no item registry; they are SoHL's, because that is the vocabulary
+  `content-build` is built with.
+  
+  A type neither source names is a type that system says nothing about, and its
+  block is left alone on such a note rather than reported wholesale. A package
+  naming no system anywhere is system-agnostic on purpose — its packs are core
+  document types carrying no system data — so it has no system block, and none is
+  invented for it.
+  
+  **A block whose vocabulary nothing states is said out loud.** A package
+  declaring a system other than SoHL and no `itemBuilders` registry for it has
+  nothing that can say what that block may carry, so the block goes unchecked and
+  `content-build lint` reports that once, naming the system and the registry to
+  declare. A check that quietly does nothing is indistinguishable from one that
+  passed, which is the whole subject here.
+  
+  For `harn-ensemble` — the tree this issue is about, declaring both systems
+  through its packs — that means its `sohl:` block is checked exactly as before,
+  its 2,512 `being` notes included, and its `hm3:` block waits on
+  `itemBuilders: [hm3, sohl]`, which the lint now asks for by name.
+  
+  **Nothing changes for a package shipping for SoHL**, which is every consumer
+  today: one system, one registry, and the derivation is the identity on it.
+- e084547: The e2e harness no longer reports a run that never started as green.
+  
+  Observed against a licensed container: a concurrent `npm ci` removed
+  `node_modules` out from under a run in progress, Cypress died with
+  `Cannot find package '.../cypress/index.js'`, and `package-build e2e run`
+  **exited 0**. The concurrency was an operator's mistake; the exit code was not.
+  A scripted caller, or anyone reading the tail of a log, would have recorded the
+  suite as passing when nothing was executed — and the suite is what moves
+  `compatibility.verified`, so an exit code that says green when nothing ran makes
+  that evidence unfalsifiable in the one direction that matters.
+  
+  The suite is now bracketed rather than trusted on its exit status:
+  
+  | When   | Check                              | What it catches                                                                          |
+  | ------ | ---------------------------------- | ---------------------------------------------------------------------------------------- |
+  | Before | Every executable the command names | The runner is not installed — an error naming it, before a container and a world.        |
+  | Before | The tool behind a package runner   | `npx cypress run` resolves **`cypress`**; `npx` is never missing, so it answers nothing. |
+  | After  | Those executables again            | The runner disappeared mid-run, which is the failure reported above.                     |
+  | After  | Results written since the spawn    | The suite started and produced nothing. Needs the new `results` key.                     |
+  
+  **New: `packageBuild.e2e.results`.** One path, or a list of them, relative to
+  the repository root, naming where the suite writes its results:
+  
+  ```yaml
+  e2e:
+    suite:
+      run: [npx, cypress, run]
+    results: [cypress/results]
+  ```
+  
+  Existence is not the test — a directory the _previous_ run left behind exists,
+  and reading that as evidence would make the check agree with exactly the thing
+  it was built to catch. What counts is a file modified since the suite was
+  spawned. Declaring nothing keeps the previous contract, in which the exit status
+  is taken at its word; declaring a path is what buys the distinction between _the
+  suite ran and passed_ and _the suite did not run_.
+  
+  **What a consumer may notice.** A `run`, `fast` or `sweep` whose suite is not
+  installed now fails immediately with a diagnostic naming the missing program,
+  where before it stood a container up and failed later — or, in the reported
+  case, did not fail at all. The check only ever makes a verdict _worse_: a suite
+  that failed keeps its own exit status, so there is no new way for the harness to
+  report a result that did not happen. `open` is untouched, because a person
+  decides what to execute there and a session that ran no specs is not a fault.
+  
+  Also exported from `@heroiclands/package-build/e2e`, for a repository that wants
+  the same rules elsewhere: `suiteExecutables`, `findExecutable`,
+  `missingExecutables`, `freshResults` and the pure `suiteVerdict`.
+- d72c4b2: A note can now name an interface icon instead of drawing one. `:icon-star:`
+  renders as the same Font Awesome element the system's own sheets emit, and an
+  undeclared name is reported rather than published as literal text.
+  
+  The user guide described Foundry's interface by pasting Unicode lookalikes of
+  icons the sheets actually draw — `☆` for the improve flag, `✎` for the formula
+  editor — so the note and the screen it described were drifting apart. Those
+  characters are also the worst in the corpus to typeset: of eight candidate book
+  faces, none carries them.
+  
+  A registry maps a writer's name to a style and a Font Awesome icon, because the
+  three surfaces need different artefacts from one name: the journals and the
+  website want an `<i class="fa-solid fa-star">`, and a PDF wants a font file and
+  a glyph. It also means an icon renamed between Font Awesome major versions costs
+  one line rather than a sweep of the corpus.
+  
+  Codepoints are deliberately absent: a renderer embedding the font has to read it
+  to subset it, and the font's own `cmap` is the only trustworthy source for which
+  glyph a name resolves to.
+  
+  Part of #378.
+- 15fb41f: **A pack's `system:` must resolve to the version its documents are stamped with,
+  and a configuration where it resolves to nothing is now refused.**
+  
+  Every document in a pack carries `_stats.systemId` and `_stats.systemVersion`,
+  and for a pack declaring `system:` those come from one of exactly two places:
+  the `systems:` entry for that system, which carries the verified version, or the
+  package-wide stats, which answer for a package whose packs are all for its own
+  system.
+  
+  A pack naming a system that resolves to **neither** used to fall through to the
+  package-wide value — and a module that declares no system does not have one, so
+  both fields were stamped `null`. That is the plausible lie #43 was about,
+  reached by the one path the guard did not cover:
+  
+  ```
+  _stats: { systemId: null, systemVersion: null, … }
+  ```
+  
+  on 2,513 compiled actors in a pack whose configuration says `system: sohl` on
+  the line above.
+  
+  **The check existed; it was skipped in exactly this case.** `packs.<n>.system`
+  was validated against `systems:` only when that block was non-empty — the guard
+  read `declaredSystems.size && …` — so an absent block meant no check at all. Its
+  sibling ten lines up refuses the same thing for `requiresSystem` and says "the
+  `systems:` block is empty or absent" in as many words, and the comment above
+  both already described this failure. The suite was green throughout because its
+  `harn-ensemble`-shaped fixture declares the `systems:` block the repository does
+  not: the fixture was more complete than the configuration it stood for.
+  
+  **What a consumer sees.** A configuration in this shape now fails with the pack
+  named and the entry to add:
+  
+  > `packs.actors-hm3.system` names `hm3`, which `systems:` does not declare — the
+  > `systems:` block is empty or absent, and this package has no package-wide
+  > system either. Every document in the pack is stamped `_stats.systemId` and
+  > `systemVersion` from one of those two, so with neither it would be stamped
+  > null. Add `systems:` naming `hm3` with a `compatibility.verified` version.
+  
+  **Nothing changes for a package whose packs name no system**, or whose packs name
+  its own system — the package-wide stats answer for those exactly as before,
+  which is every single-system tree. The package-wide derivation itself is now a
+  named function read by both the stamp and the check, so the value validated
+  against and the value stamped cannot come to disagree about the case that has no
+  answer.
+- c9e7a5a: **A pack default is resolved per system, so one note compiles into one pack per
+  system without declaring anything.**
+  
+  This is the routing half of #58, and until now it made the documented
+  two-system layout impossible to build. A default was computed per document
+  _type_: a type with exactly one pack is that type's default implicitly, and a
+  type with several designates one with `default: true`. A tree shipping one Actor
+  pack per system has two, so it had neither — and a note feeding both systems
+  declares no `pack:` by design, since a block's `pack:` exists to say where one
+  system's document goes only when that _differs_.
+  
+  So every note routed nowhere. On `harn-ensemble` that was all 2,519 of them, the
+  build failing on each in turn with a message saying the configuration was wrong
+  when it was the question being asked that was.
+  
+  |                                              | before                                                                                                    | now                                                             |
+  | -------------------------------------------- | --------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+  | one Actor pack per system, no flag           | every note routes nowhere; build fails                                                                    | each system's document routes to its own pack                   |
+  | a type-wide `default: true` on `actors-sohl` | returned to the HM3 pass too, which saw a name that was not its own and **skipped every note in silence** | the HM3 pass gets `actors-hm3`                                  |
+  | `hm3.pack:` naming a SoHL pack               | routed there, and the HM3 document was lost without a word                                                | refused, naming the note and the pack                           |
+  | a shared `pack:` naming a SoHL pack          | the HM3 document was lost without a word                                                                  | does not answer for HM3, which falls through to its own default |
+  
+  **A system is never answered with another system's pack.** That is the rule the
+  four rows share, and the second is the one worth stating twice: it failed
+  silently. The pack compiled zero entries, which a build reports only because a
+  pack that compiles nothing from a non-empty tree is itself an error.
+  
+  **Marking a default still means what it says** — it designates that _system's_
+  default where a system has several packs of one type — and every single-system
+  configuration is untouched, since a pack declaring no system belongs to all of
+  them and the type-wide default answers exactly as before.
+  
+  On `harn-ensemble` this takes `actors-sohl` from 0 compiled actors to 2,497, and
+  `actors-hm3` from routing nothing to claiming every note and reporting what each
+  still needs: `hm3.type`, which `being` requires because it is one-to-many into
+  `character` and `creature`.
+- 0418fa8: `content-build lint` now holds a content tree to a character allowlist, so a
+  book can choose its typeface without discovering at print time that no font
+  carries what the notes are written in.
+  
+  Typst does not warn when a glyph is missing — it falls back to whatever system
+  font has one and exits 0, so a rules table can set in three unrelated faces and
+  the build still reports success. The check moves that failure back to where the
+  character is written.
+  
+  The tiers are measured rather than chosen: eight candidate book faces were
+  probed over every non-ASCII character in the five content trees, and what is
+  admitted is what enough of them carry. Letters and typography are universal;
+  Latin Extended Additional is carried by seven of eight; IPA was considered and
+  refused at five of eight, because requiring it would cost font freedom rather
+  than buy it.
+  
+  Two rules ride along that an allowlist cannot express. Content must be NFC — a
+  decomposed letter is a different string to every byte comparison, including
+  DuckDB's `=`, so a filter typed one way silently misses a note stored the other.
+  And box-drawing, geometric and arrow characters are permitted inside a fenced
+  code block only, where the mono face sets them.
+  
+  Part of #377.
+- 571d5bc: **`content-build format` now says which shared Prettier conventions your
+  repository is not using.**
+  
+  A consumer's own Prettier config wins **wholesale** — that is Prettier's own
+  behaviour and it is not changing — so the conventions this package publishes held
+  by convention alone, and lapsed silently in two opposite directions (#133):
+  
+  | what a repository declares                                      | what it actually formatted to                                                           |
+  | --------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+  | `export { default } from "@heroiclands/package-build/prettier"` | the shared conventions                                                                  |
+  | `{ ...PRETTIER_BASE }`, without the `**/*.md` override          | markdown at `tabWidth: 4` — every note reindenting away from the form it was written in |
+  | a partial `.prettierrc`, e.g. `{"tabWidth": 2}`                 | Prettier's defaults for `printWidth`, `trailingComma`, `experimentalTernaries`, …       |
+  | nothing at all                                                  | the shared conventions here, Prettier's own in your editor and in `npx prettier`        |
+  
+  Every `format` run now reports each disagreement by name, before the per-file
+  report:
+  
+  ```text
+  prettier.config.mjs: warning: markdown `tabWidth` is 4 here; the shared configuration says 2
+  .prettierrc: warning: `printWidth` is not set here, so Prettier's own default applies; the shared configuration says 100
+  ```
+  
+  A repository with no Prettier config is warned too, with the one line that fixes
+  it — that case is the sharper one, because the shared conventions then reach this
+  command and nothing else, so a bare `npx prettier --check .` and the lint chain
+  take turns rewriting the same lines.
+  
+  **Nothing here fails a build.** Every finding is a `warning`, the exit code is
+  untouched, and a deliberate local override keeps working exactly as before — it
+  just stops being silent.
+  
+  New export: `checkPrettierConventions(root)` from
+  `@heroiclands/package-build/engine/prose-lint`, and the pure comparison behind it,
+  `sharedPrettierDivergence(resolved, file)` from
+  `@heroiclands/package-build/engine/prose-config`.
+- 9f638fa: **A note whose secondary document has no pack is now a finding, instead of
+  losing that document in silence.**
+  
+  A note produces more than one document as a matter of course: an item note an
+  Item and the JournalEntry its prose becomes, a map note a Scene and a
+  JournalEntry, an actor note an Actor and a JournalEntry since #337. Where the
+  configuration declares no pack for one of them, that document was dropped while
+  the rest of the note compiled into a pack that does exist. The build succeeded,
+  the compendium shipped, and the missing half was discoverable only by noticing
+  it was not there.
+  
+  #146 already reports a note **nothing** claims, and could not see this: it asks
+  one question of the whole configuration — does any pack claim this type — and a
+  note that compiles its Item into an Item pack answers yes.
+  
+  > a note of type "being" compiles into a JournalEntry as well as an Actor, and
+  > `packs:` declares no JournalEntry pack — so the JournalEntry is dropped with
+  > no error while the rest of the note compiles. Declare a JournalEntry pack in
+  > package-build.config.yaml, or accept the loss deliberately by not authoring
+  > what it would have carried.
+  
+  The message names the note, the class with no pack, and the class that did
+  compile — the last because it is what tells the two findings apart at a glance:
+  one is a `type:` to correct, this one a pack to declare.
+  
+  **Asked per note, not per type**, which is the difference between a useful
+  finding and a useless one. `Journals` declines a doc-carrying note whose body is
+  empty — an item with no prose gets no doc — so whether an item note produces a
+  JournalEntry is decided by the note. `sohl-kethira-basic` declares no
+  JournalEntry pack and ships 393 notes whose descriptions are _deliberately_
+  empty under the Fan Material Guidelines its configuration explains at length; a
+  type-level answer would report every one of them for losing a document none of
+  them produces. It reports none.
+  
+  **It names no system**, so a type one system maps and another does not stays
+  silent for the system that declines it, per #79. That holds by construction: the
+  `Item` and `Actor` rows fold the systems' maps together before this sees them,
+  so a type appears once or not at all and no system is ever named.
+  
+  **What it finds today.** `Song-of-Heroic-Lands-FoundryVTT` and `sohl-thalorna`
+  report nothing — every document their notes produce already has a pack.
+  `harn-ensemble` reports 2,512: it declares two Actor packs and no JournalEntry
+  pack, so every one of its beings has been losing the `{#appearance}` and
+  `{#dossier}` prose it carries. When the issue was filed no tree authored the
+  affected combination; one does now.
+
+### Patch Changes
+
+- 6499109: **A build now reads the configuration of the tree it was run in.**
+  
+  The configuration was located by walking up from the installed package's own
+  directory. That is the same file as the working directory's in every ordinary
+  install — and a different one in a git worktree nested under its parent checkout
+  with no `node_modules` of its own. Node's resolution walks parent directories,
+  so such a worktree resolves `@heroiclands/package-build` out of the _parent's_
+  `node_modules`; the walk started inside the parent and landed on the parent's
+  `package-build.config.yaml`. The build then compiled the parent's content tree
+  into the parent's `build/`, said so only in absolute paths that are easy to read
+  past, and exited 0.
+  
+  Resolution now starts at `process.cwd()` and falls back to the installed
+  package's directory only when that finds nothing.
+  
+  | running `content-build package compile` in   | before                  | after            |
+  | -------------------------------------------- | ----------------------- | ---------------- |
+  | a repository, or any directory below it      | that repository         | unchanged        |
+  | a nested worktree that has had `npm ci` run  | the worktree            | unchanged        |
+  | a nested worktree with **no `node_modules`** | _the parent checkout_   | **the worktree** |
+  | a directory outside any repository           | the installed package's | unchanged        |
+  | anywhere, with `PACKAGE_BUILD_CONFIG` set    | the file it names       | unchanged        |
+  
+  Nothing about "a build reads one tree however it was launched" changes: the walk
+  climbs, so every directory inside a repository still resolves that repository's
+  single configuration.
+  
+  When both walks find a configuration and they disagree, the working directory's
+  is read and the ignored one is named in a warning on stderr. The disagreement is
+  worth hearing on its own — it is the cheapest signal that this tree is building
+  on another checkout's `node_modules`, which is also a masked missing dependency.
+  `npm ci` in the worktree silences it properly.
+  
+  **Why this was worth a fix rather than a note.** A silent wrong-tree build does
+  not merely fail to prove what was wanted, it produces confident evidence for the
+  wrong tree — and on an output-preserving sweep there is no observation that
+  distinguishes success from it. The usual tell is a zero diff where a change was
+  expected; a sweep that expects zero differences has no tell at all.
+  
+  `resolveConfigFile()` is exported from
+  `@heroiclands/package-build/engine/pack-config`, reporting the chosen file and
+  each walk's own answer, so a caller can ask which tree it is about to compile
+  without re-deriving the resolution and risking disagreement with the loader.
+- c229f2b: Stop shipping a `node_modules` symlink, which had broken every release for a
+  day.
+  
+  A worktree's `node_modules` symlink — a 120000 blob holding one developer's
+  absolute path — was committed on 2026-09-11. `.gitignore` said
+  `/node_modules/`, and a trailing slash matches a directory rather than a
+  symlink, so nothing refused it.
+  
+  The release job installs, runs the tests, and then hands over to the changesets
+  action, which does `git reset --hard` before versioning. That reset restored the
+  symlink over the top of the install, pointing at a path no runner has, so every
+  module became unresolvable and the release died on `changeset: not found`. The
+  tests had already passed, because they run before the reset.
+  
+  The symlink is untracked, the ignore rule now matches a symlink at any depth,
+  and CI refuses a tracked `node_modules` path outright — the release is the only
+  thing this breaks, and no pull request check would otherwise notice.
+- 80f40b2: Unblock releasing. Every run of the release workflow had failed at
+  `changeset version` with `sh: 1: changeset: not found` since 2026-09-11, so
+  nothing reached the registry past 20.0.0 while `main` went on believing itself
+  released.
+  
+  The workflow installed `npm@latest` before publishing, to clear an OIDC floor of
+  11.5. That was written when Node 24.0–24.4 bundled npm 11.3–11.4; since 24.5 the
+  bundled npm has cleared the floor on its own, and the step became a no-op that
+  nobody removed. On 2026-09-11 `latest` became npm 12, which stopped putting
+  `node_modules/.bin` on the PATH of a run-script's shell, and a release path
+  nobody had touched broke.
+  
+  The install is gone rather than pinned: the npm that publishes is now the one
+  Node brings, so its version follows `node-version` instead of a number kept in
+  step by hand. A check in its place asserts the floor and fails loudly if a
+  future Node pin ever drops below it — an assertion cannot go quietly stale the
+  way the comment it replaces did. The version script also resolves its binary
+  through `npx`, as the publish script already did.
+- 12061da: Release again. Since 2026-09-11 every run of the release workflow had died at
+  `changeset version` with `sh: 1: changeset: not found`, so nothing reached the
+  registry past 20.0.0.
+  
+  The workflow set `version-script`, which replaces the action's own invocation of
+  the changesets CLI with a shell command run through its exec — and under that
+  exec a bare `changeset` does not resolve on a runner. Left unset, the action
+  resolves the installed package with `require.resolve` and runs it with `node`,
+  depending on no PATH at all. The override is removed.
+  
+  The fault was never in this repository's install. A diagnostic run confirmed
+  that after `npm ci` a runner has the package, has the bin linked, puts
+  `node_modules/.bin` first on a run-script's PATH, and resolves the bare name
+  through `npm run` — all in the same job that then failed.
+  
+  The one thing the override bought, refreshing `package-lock.json`'s root
+  `version`, is now #385 rather than a reason to keep a step that does not run.
+- 9572517: Finish unblocking the release. Removing the stale `npm install -g npm@latest`
+  fixed the npm-12 half, but the same change also swapped the version script's
+  bare `changeset` for `npx changeset`, and that turned the failure into `npm
+  error could not determine executable to run`.
+  
+  The npx form was belt-and-braces and it was wrong. `npm run` already puts
+  `node_modules/.bin` on the PATH — the same mechanism `npm test` uses to reach
+  `vitest` earlier in the same job — so the bare name resolves the pinned local
+  copy with no lookup. npx instead consults the registry, which this job
+  configures for OIDC publishing rather than for reads.
+  
+  The script is back to the bare binary, and the reasoning is recorded beside it
+  so the asymmetry with `publish-script` is not mistaken for an oversight again.
+
 ## 20.1.0
 
 ### Minor Changes
