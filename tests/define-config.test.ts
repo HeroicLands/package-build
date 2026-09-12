@@ -572,9 +572,37 @@ describe("prebuilt packs and per-pack systems (#40)", () => {
     it("records a per-pack system", () => {
         const config = defineConfig({
             ...minimal(),
+            // Declared, because the pack's `system:` is what its documents are
+            // stamped from and `hm3` is not this package's own system.
+            systems: { hm3: { compatibility: { verified: "1.6.3" } } },
             packs: [{ name: "actors-hm3", type: "Actor", system: "hm3" }],
         });
         expect(config.packs[0].system).toBe("hm3");
+    });
+
+    it("refuses a pack naming a system nothing declares a version for", () => {
+        // The stamp needs a version, and there are two places one can come
+        // from: a `systems:` entry, or this package's own system. With neither,
+        // every document in the pack was stamped `_stats.systemId: null` —
+        // `harn-ensemble` shipped 2,513 compiled actors that way, in a pack
+        // whose configuration says `system: sohl` on the line above.
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                packs: [{ name: "actors-hm3", type: "Actor", system: "hm3" }],
+            }),
+        ).toThrow(/`packs\.actors-hm3\.system` names `hm3`.*stamped null/s);
+    });
+
+    it("accepts a pack naming this package's own system without a `systems:` entry", () => {
+        // The package-wide stats answer for it, so nothing is missing and
+        // nothing need be restated — which is every single-system tree.
+        const config = defineConfig({
+            ...minimal(),
+            packs: [{ name: "actors", type: "Actor", system: "sohl" }],
+        });
+        expect(config.packs[0].system).toBe("sohl");
+        expect(config.stats.systemId).toBe("sohl");
     });
 
     // `stats.systemId` was required, which forced one answer on every pack. A

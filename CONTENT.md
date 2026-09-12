@@ -349,6 +349,21 @@ pack: mysteries
   that type's default implicitly; a type with several designates one with
   `default: true`. Where several exist and none is marked, a declaration is
   **mandatory** and an undeclared note fails the build.
+- **A default is per system, not merely per type** (#58). The rule above counts
+  every pack of a type together, so a tree shipping one Actor pack per system has
+  two and would need a flag — except that asked _per system_ the layout is
+  unambiguous, one pack each, for the same reason a single-pack type needs no
+  flag. And a system is never answered with another system's pack: a type-wide
+  default declaring `system: sohl` does not route the HM3 document, which
+  otherwise had that pass see a pack name that was not its own and skip every
+  note in the tree without a word.
+- **A `pack:` naming another system's pack** is refused where the _block_
+  declares it — `hm3.pack` says where the HM3 document goes, so naming a SoHL
+  pack is a contradiction, reported naming the note and the pack. At the top
+  level it is no contradiction: the shared position is the value a note states
+  once for every system, and a system-specific pack cannot be that value, so it
+  simply does not answer for the other system, which falls through to its own
+  default.
 - **A `pack:` naming no configured pack is a build error**, not a fall-through to
   the default. A typo'd name that quietly landed content in the wrong compendium
   would be silent partial compilation — the failure mode this toolchain's guards
@@ -357,12 +372,43 @@ pack: mysteries
 - **A note's `pack:` names where its _own_ document goes.** Anything derived from
   it — an item's or a macro's prose, which compiles into a JournalEntry of its
   own — lands in the default pack of _that_ type.
+- **Every document a note produces needs a pack, and one that has none is a
+  finding** (#152). A note produces more than one document as a matter of
+  course: an item note an Item and the JournalEntry its prose becomes, a map
+  note a Scene and a JournalEntry, an actor note an Actor and a JournalEntry
+  since #337. Where the configuration declares no pack for one of them, that
+  document used to be dropped while the rest of the note compiled into a pack
+  that does exist — a build that succeeds and ships half of what was written.
+  The finding names the note, the class with no pack, and the class that did
+  compile, which is what distinguishes it from a note **nothing** claims: that
+  one is a `type:` to correct, this one a pack to declare.
 
-**The configuration is found by walking up, not from the working directory.**
-`engine/pack-config.mjs` climbs from itself — so it works from `packages/` and
-from `node_modules/` alike, and does not depend on the directory the build was
-launched from. Set `PACKAGE_BUILD_CONFIG` to point at the file explicitly if a
-consumer keeps it somewhere else.
+  It is asked **per note, not per type**, because documentation is: `Journals`
+  declines a doc-carrying note whose body is empty — an item with no prose gets
+  no doc — so a tree of deliberately description-less items loses nothing by
+  having no JournalEntry pack, and is told nothing. And it names no system, so a
+  type one system maps and another does not stays silent for the system that
+  declines it, per #79.
+
+**The configuration is found by walking up from the working directory, and from
+the installed package only if that finds nothing.** `engine/pack-config.mjs`
+climbs from `process.cwd()` first, so a build reads the tree it was run in —
+from the repository root, from `packages/`, from anywhere below, since the walk
+climbs. Climbing from the module itself is the fallback, for an invocation from
+outside any repository.
+
+The order matters in one shape: a git worktree nested under its parent checkout
+with **no `node_modules` of its own** resolves `@heroiclands/package-build` out
+of the parent's, because Node's resolution walks parent directories. Climbing
+from the module then landed on the _parent's_ configuration, and the build
+compiled the parent's content tree into the parent's `build/` and exited 0
+(#364). When both walks find a configuration and they disagree, the working
+directory's is read and the ignored one is named in a warning — that
+disagreement is also the cheapest signal that this tree is building on another
+checkout's `node_modules`. Run `npm ci` in the worktree to give it its own.
+
+Set `PACKAGE_BUILD_CONFIG` to point at the file explicitly if a consumer keeps
+it somewhere else; it skips both walks.
 
 **The configuration is resolved on first read, never at import.** Every module
 here can be imported — and `content-build --version` and `--help` answered — in a
@@ -456,11 +502,26 @@ systems:
   sohl: { compatibility: { verified: "0.9.0" } }
   hm3: { compatibility: { verified: "1.6.3" } }
 packs:
-  - { name: items-sohl, type: Item, system: sohl, default: true }
+  - { name: items-sohl, type: Item, system: sohl }
   - { name: items-hm3, type: Item, system: hm3 }
-  - { name: actors-sohl, type: Actor, system: sohl, default: true }
+  - { name: actors-sohl, type: Actor, system: sohl }
   - { name: actors-hm3, type: Actor, system: hm3 }
 ```
+
+**The `systems:` block is required here, not decorative.** A pack's `system:` is
+what its documents are stamped `_stats.systemId` and `systemVersion` from, and
+the version can only come from that block — or, for a package whose packs are
+all for its own system, from the package-wide stats. A pack naming a system that
+resolves to neither is refused at configuration time, naming the pack and the
+entry to add. It used to fall through and stamp `null` for both, which is the
+plausible lie #43 was about arriving by the one path the check did not cover:
+`harn-ensemble` shipped 2,513 compiled actors that way, out of a pack whose
+configuration says `system: sohl` on the line above.
+
+No `default: true` anywhere, because each system has exactly one pack of each
+type and a default is resolved per system. Marking one is still allowed and
+still means what it says — it designates that _system's_ default where a system
+has several packs of a type.
 
 A note carrying both a `sohl:` and an `hm3:` block then compiles **one document
 in each system**, each shaped by its own builders and stamped with its own
@@ -1020,6 +1081,44 @@ key it was probably meant to be, drawn from that type's own vocabulary:
 assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a weapongear; the container is closed, so unlike a top-level key it is not passed through to the page. Did you mean "weight"?
 ```
 
+**A system block is closed too, and which blocks exist is the configuration's
+answer** (#58). A package is held to the blocks named after the systems it
+declares it ships for, read from the three places that already declare them:
+`systems:`, a pack's own `system:`, and `stats.systemId` where neither is
+written. So a package shipping for HM3 has its `hm3:` block checked and a
+package shipping for SoHL its `sohl:`. It used to be a constant, and the
+constant was `sohl`: an `hm3:` block was never read at all, so every key in it
+was discarded at compile without a word, while the block that _was_ checked was
+named after a system the package does not ship for.
+
+A pack's `system:` counts because it is already authoritative at compile — a
+note routed to a pack declaring one and carrying no such block fails the build —
+so a lint blind to it would refuse a note for want of a block it never checked.
+`harn-ensemble` declares its two systems that way and no other.
+
+**Each block is checked against its own system's vocabulary**, and that has two
+sources. A system's **`itemBuilders` registry** covers its item types: `skill` is
+one name over two data models, so a key SoHL's `skill` declares is not thereby a
+key HM3's declares, and a block that borrowed its neighbour's field names would
+accept the one mistake this check exists to report. The **note schemas** cover
+the rest — `being` above all, which is an actor type and sits in no item
+registry — and they belong to one system, SoHL, because that is the vocabulary
+`content-build` is built with.
+
+A type neither source names — `mysticalability` is SoHL's, `invocation` is
+HM3's — is a type that system says nothing about, and its block is left alone on
+such a note rather than reported wholesale. A package that names no system at all
+is system-agnostic on purpose: its packs are core document types carrying no
+system data, so it has no system block and none is invented for it.
+
+**A block whose vocabulary nothing states is said out loud.** A package
+declaring a system other than SoHL and no `itemBuilders` registry for it has
+nothing that can say what that block may carry, so the block goes unchecked — and
+`content-build lint` reports that once, naming the system and the registry to
+declare, because a check that quietly does nothing is indistinguishable from one
+that passed. `harn-ensemble` is the tree that gets it today: its `sohl:` block is
+checked, and its `hm3:` waits on `itemBuilders: [hm3, sohl]`.
+
 **`subType` stays at the top level**, and is closed in its own way: a type
 either declares a `subType` or does not, and a type that does declares its
 values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strike
@@ -1412,6 +1511,28 @@ its own `.prettierignore` and `.gitignore` — both honoured, as Prettier and
 markdownlint honour them natively. The one exception is `CHANGELOG.md`, which
 `changeset version` regenerates in every repository here: linting it reports on
 the generator, so it is skipped by default.
+
+**A default that says when it is not in force.** Because a local config wins
+wholesale rather than merging, the conventions above otherwise hold by convention
+alone: a `prettier.config.mjs` that spreads `PRETTIER_BASE` without the `**/*.md`
+override reindents every note at 4, and a partial `.prettierrc` such as
+`{"tabWidth": 2}` silently discards `printWidth: 100`, `trailingComma` and the
+rest. So every `format` run first names, as warnings, each shared convention this
+repository resolves differently (#133):
+
+```text
+prettier.config.mjs: warning: markdown `tabWidth` is 4 here; the shared configuration says 2
+.prettierrc: warning: `printWidth` is not set here, so Prettier's own default applies; the shared configuration says 100
+```
+
+A repository with **no** Prettier config is warned too, and it is the sharper
+case: the shared conventions then reach this command and nothing else, so an
+editor's format-on-save and a bare `npx prettier --check .` apply Prettier's own
+defaults to the same tree and the two take turns rewriting the same lines. The
+fix is the one-line re-export below.
+
+None of this fails a run. A deliberate local choice still wins — it just stops
+being silent.
 
 Neither tool's file discovery is reimplemented, so `content-build format --check`
 and a bare `prettier --check .` report the same thing. A file Prettier cannot
@@ -2369,10 +2490,20 @@ one that keeps "resolved on first read, never at import" honest. It copies the
 files the package ships into a temporary directory outside this repository and
 imports each shipped module on its own, in a process whose environment has
 `PACKAGE_BUILD_CONFIG` deleted. Outside is load-bearing: the config walk climbs
-from the module's own directory, so a copy left inside the tree could reach a
-configuration above it and prove nothing — which is why the first case asserts
-that none is reachable from the copy before the rest run. A module that hoisted
-a configured value to import time fails there, and only there.
+from the working directory and from the module's own directory, and the copy is
+both — so one left inside the tree could reach a configuration above it and
+prove nothing, which is why the first case asserts that none is reachable from
+the copy before the rest run. A module that hoisted a configured value to import
+time fails there, and only there.
+
+`tests/config-from-working-directory.test.ts` describes the resolution order
+itself (#364). It builds the shape no unit test can fake — a repository with the
+toolchain installed under it, and a second checkout nested inside that
+repository with its own configuration and no `node_modules` — and asserts which
+configuration a build run in each place reads. The nested case is the one that
+was wrong, and it is untestable any other way: the tell of a wrong-tree build is
+normally an unexpected zero diff, and the sweeps that provoke this shape expect
+zero differences, so only "which file was read" separates the outcomes.
 
 ## Releasing
 

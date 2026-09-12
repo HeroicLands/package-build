@@ -79,7 +79,9 @@ import {
 } from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
-import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
+import { lintContentCharset } from "../engine/content-charset.mjs";
+import { lintContentIcons } from "../engine/content-icons.mjs";
+import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
     checkDeclaredFields,
@@ -105,7 +107,7 @@ import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
-import { checkFormatting, lintMarkdown } from "../engine/prose-lint.mjs";
+import { checkFormatting, checkPrettierConventions, lintMarkdown } from "../engine/prose-lint.mjs";
 import {
     authoredFrontmatter,
     emitContentIndex,
@@ -787,6 +789,38 @@ function lintCommand() {
                         skipDirectories: config.skipDirectories,
                     }),
                 });
+                // Which system blocks this tree carries, derived from what it
+                // declares it ships for (#58). Read before the lint so the
+                // systems it will *not* check can be said out loud below.
+                // `schemaSystem` names whose vocabulary the `schemas` below
+                // are. They are `sohl/note-schemas.mjs`, imported here
+                // unconditionally, so this states a fact about this file rather
+                // than introducing one — and it is what lets a type no item
+                // registry declares, `being` above all, be checked at all.
+                const systemBlocks = systemBlocksFor(config, { schemaSystem: "sohl" });
+                const uncheckedSystems = declaredSystems(config).filter(
+                    (system) => !(system in systemBlocks),
+                );
+                if (uncheckedSystems.length) {
+                    // Said out loud for the reason the missing schema artifact
+                    // is: a check that quietly does nothing is indistinguishable
+                    // from one that passed, and the thing going unchecked here
+                    // is a closed region whose unknown keys the compiler drops
+                    // without a word. `harn-ensemble` is the tree this names —
+                    // two systems declared through its packs and an
+                    // `itemBuilders` registry for neither.
+                    log.info(
+                        `No \`itemBuilders\` registry declares the vocabulary of ` +
+                            `${uncheckedSystems.map((s) => `\`${s}\``).join(" or ")}, so ` +
+                            `${
+                                uncheckedSystems.length === 1 ?
+                                    "that system's block is"
+                                :   "those systems' blocks are"
+                            } unchecked — a key inside one is discarded at ` +
+                            `compile with no warning. Declare ` +
+                            `\`itemBuilders: [${declaredSystems(config).join(", ")}]\`.`,
+                    );
+                }
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
                     // The closed frontmatter regions (#128). Passed in rather
@@ -805,6 +839,13 @@ function lintCommand() {
                     // it is where the derivation is handed over — the linter
                     // states no list of iconless types of its own.
                     emittedArt: emittedArtFor,
+                    // Handed over for the same reason the vocabulary is: the
+                    // linter checks the blocks it is given and names no system
+                    // itself. Until this it was given none, so every tree was
+                    // held to a `sohl:` whatever system it ships for — and an
+                    // `hm3:` block went unread, which is a key discarded at
+                    // compile in silence.
+                    systems: systemBlocks,
                     references: argv.references,
                 });
 
@@ -883,10 +924,33 @@ function lintCommand() {
                     }
                 }
 
+                // The charset the tree is held to, so a book can pick its face
+                // (#377). Run over the raw files rather than the parsed notes:
+                // the subject is every character authored, including the ones
+                // that stopped a note parsing at all.
+                const charset = lintContentCharset(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
+                // The names the charset check leaves room for (#378). An icon
+                // the registry does not declare renders as its own literal
+                // text, which is visible but easy to publish, so it is reported
+                // here rather than left for a reader to notice.
+                //
+                // The shipped registry, with no per-package override yet: an
+                // `icons:` configuration key is a change to the configuration
+                // contract and belongs with its own validation, rather than
+                // being read here before anything declares it.
+                const icons = lintContentIcons(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
                     ...schemaFindings,
+                    ...charset.findings,
+                    ...icons.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // until #142, so this changed nothing on the day it landed —
@@ -934,6 +998,13 @@ function lintCommand() {
  * which paths a repository skips is knowledge about that repository's layout,
  * and it stays there.
  *
+ * It is a default that **says when it is not in force**, though. Every run first
+ * reports, as warnings, each shared convention the repository's own
+ * configuration resolves differently — or that it declares no configuration at
+ * all, which guarantees an editor and a bare `npx prettier` disagree with this
+ * command about the same tree (#133). Nothing there fails the run: the point is
+ * that a local choice is deliberate rather than silent.
+ *
  * @returns {object} The yargs command module.
  */
 // eslint-disable-next-line
@@ -967,6 +1038,20 @@ function formatCommand() {
                     return;
                 }
                 const root = process.cwd();
+                // Before the per-file report, because it is the context for it:
+                // which rules this run applied, and whether anything else in
+                // the repository applies the same ones (#133). Warnings only —
+                // a consumer's config wins by design, so none of this touches
+                // the exit code.
+                const conventions = await checkPrettierConventions(root);
+                for (const finding of conventions.findings) emitDiagnostic(finding);
+                if (conventions.findings.length && conventions.configFile) {
+                    log.warn(
+                        `${conventions.findings.length} shared Prettier convention(s) are not ` +
+                            "what this repository resolves; a deliberate local choice wins on " +
+                            "purpose, so this is a warning and not a failure.",
+                    );
+                }
                 const { findings, checked, written } = await checkFormatting(root, {
                     paths: argv.paths,
                     write: argv.write,

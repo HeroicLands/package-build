@@ -40,6 +40,7 @@
  */
 
 import crypto from "node:crypto";
+import { readdirSync, statSync } from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import process from "node:process";
@@ -558,6 +559,253 @@ function captureContainerLog(container) {
 }
 
 /**
+ * Programs a package runner is only a way of *naming*.
+ *
+ * `npx cypress run` does not fail when Cypress is gone. `npx` is a way of
+ * saying "find `cypress`", and what it does when it cannot find one is fetch
+ * some other copy from the registry — so the executable the harness checks has
+ * to be the tool, not the runner, or the only thing it ever verifies is the one
+ * program that is never missing.
+ *
+ * @type {readonly string[]}
+ */
+const DIRECT_RUNNERS = Object.freeze(["npx", "pnpx", "bunx"]);
+
+/**
+ * The same idea spelled as a subcommand: `pnpm dlx cypress`, `npm exec
+ * cypress`. The subcommand matters — `npm run e2e` names a *script*, not a
+ * program, and there is nothing there for the harness to resolve.
+ *
+ * @type {Readonly<Record<string, readonly string[]>>}
+ */
+const SUBCOMMAND_RUNNERS = Object.freeze({
+    npm: ["exec"],
+    pnpm: ["dlx", "exec"],
+    yarn: ["dlx"],
+    bun: ["x"],
+});
+
+/**
+ * Runner flags that name the package themselves instead of taking it from the
+ * first bare word. Meeting one means the harness cannot read this command, and
+ * a guess would put the wrong name in the diagnostic — which is worse than
+ * checking the runner alone.
+ *
+ * @type {readonly string[]}
+ */
+const OPAQUE_RUNNER_FLAGS = Object.freeze(["-p", "--package", "-c", "--call"]);
+
+/**
+ * A program's lookup name: its basename, minus a Windows executable extension,
+ * lower-cased. `C:\\…\\npx.cmd` and `npx` are the same question.
+ *
+ * @param {string} program - The program as the command line spells it.
+ * @returns {string} The name to compare against the runner tables.
+ */
+function executableName(program) {
+    return path
+        .basename(program)
+        .replace(/\.(cmd|exe|bat|ps1)$/i, "")
+        .toLowerCase();
+}
+
+/**
+ * Every executable that must exist for a suite command to run at all.
+ *
+ * One name for a plain command, two when a package runner is standing in for a
+ * tool. This is deliberately a *reading* of the command rather than a guess:
+ * anything it cannot read reduces to the program alone, because naming the
+ * wrong missing thing would send someone after a dependency they already have.
+ *
+ * @param {readonly string[]} command - The program and its arguments.
+ * @returns {string[]} The executables to resolve, in the order to report them.
+ */
+export function suiteExecutables(command) {
+    const [program, ...rest] = command;
+    if (!program) return [];
+    const name = executableName(program);
+
+    let args = rest;
+    const subcommands = SUBCOMMAND_RUNNERS[name];
+    if (subcommands) {
+        if (args.length === 0 || !subcommands.includes(args[0])) return [program];
+        args = args.slice(1);
+    } else if (!DIRECT_RUNNERS.includes(name)) return [program];
+
+    for (let i = 0; i < args.length; i += 1) {
+        const arg = args[i];
+        if (arg === "--") return args[i + 1] ? [program, args[i + 1]] : [program];
+        if (OPAQUE_RUNNER_FLAGS.includes(arg)) return [program];
+        if (arg.startsWith("--package=") || arg.startsWith("--call=")) return [program];
+        if (arg.startsWith("-")) continue;
+        return [program, arg];
+    }
+    return [program];
+}
+
+/**
+ * @param {string} candidate - An absolute path.
+ * @returns {boolean} Whether it is there and is a file.
+ */
+function isExecutableFile(candidate) {
+    return statSync(candidate, { throwIfNoEntry: false })?.isFile() ?? false;
+}
+
+/**
+ * Find an executable the way the child process will: a path is a path, and a
+ * bare name is looked for in the repository's `node_modules/.bin` first, then
+ * along `PATH`.
+ *
+ * @param {string} name - The program, as the command line spells it.
+ * @param {object} [opts]
+ * @param {string} [opts.cwd] - The repository root, for `node_modules/.bin`.
+ * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read `PATH` from.
+ * @returns {string|null} Where it is, or `null` if it is nowhere.
+ */
+export function findExecutable(name, { cwd, env = process.env } = {}) {
+    if (name.includes("/") || name.includes(path.sep)) {
+        const candidate = path.resolve(cwd ?? process.cwd(), name);
+        return isExecutableFile(candidate) ? candidate : null;
+    }
+    const directories = cwd ? [path.join(cwd, "node_modules", ".bin")] : [];
+    directories.push(...(env.PATH ?? "").split(path.delimiter).filter(Boolean));
+    const extensions =
+        process.platform === "win32" ? (env.PATHEXT ?? ".COM;.EXE;.BAT;.CMD").split(";") : [""];
+    for (const directory of directories) {
+        for (const extension of extensions) {
+            const candidate = path.join(directory, `${name}${extension}`);
+            if (isExecutableFile(candidate)) return candidate;
+        }
+    }
+    return null;
+}
+
+/**
+ * Which of a suite command's executables are not there.
+ *
+ * Asked twice per run, and the second asking is the point: an install running
+ * alongside the suite can take the runner out from under it mid-flight, which
+ * is precisely the failure that reported itself as green (#153).
+ *
+ * @param {object} opts
+ * @param {readonly string[]} opts.command - The program and its arguments.
+ * @param {string} [opts.cwd] - The repository root.
+ * @param {NodeJS.ProcessEnv} [opts.env] - Environment to read.
+ * @returns {string[]} The names that resolve to nothing.
+ */
+export function missingExecutables({ command, cwd, env = process.env }) {
+    return suiteExecutables(command).filter((name) => findExecutable(name, { cwd, env }) === null);
+}
+
+/**
+ * Names, quoted, for a diagnostic.
+ *
+ * @param {readonly string[]} names - What to list.
+ * @returns {string} A comma-separated list, back-quoted.
+ */
+function quotedList(names) {
+    return names.map((name) => `\`${name}\``).join(", ");
+}
+
+/**
+ * Filesystem timestamps are not all millisecond-precise, and a suite can write
+ * its first result in the same tick the harness spawned it. A second of slack
+ * costs nothing: a *stale* result is one from a previous run, minutes or days
+ * old, not one written a moment early.
+ */
+const RESULT_MTIME_SLACK_MS = 1000;
+
+/**
+ * Which declared result paths the suite actually wrote to during this run.
+ *
+ * Existence is not the test. A results directory left behind by the previous
+ * run exists, and reading that as evidence would make the check agree with
+ * exactly the thing it was built to catch. What counts is a file modified since
+ * the spawn.
+ *
+ * @param {object} opts
+ * @param {readonly string[]} opts.paths - Declared result paths, repo-relative.
+ * @param {number} opts.since - Milliseconds since the epoch, at spawn time.
+ * @param {string} [opts.cwd] - The repository root.
+ * @returns {string[]} The declared paths carrying something new.
+ */
+export function freshResults({ paths, since, cwd }) {
+    const floor = since - RESULT_MTIME_SLACK_MS;
+
+    /**
+     * @param {string} candidate - An absolute path.
+     * @returns {boolean} Whether it, or anything under it, is newer than the floor.
+     */
+    const touched = (candidate) => {
+        const stats = statSync(candidate, { throwIfNoEntry: false });
+        if (!stats) return false;
+        if (stats.isFile()) return stats.mtimeMs >= floor;
+        if (!stats.isDirectory()) return false;
+        return readdirSync(candidate, { withFileTypes: true }).some((entry) =>
+            touched(path.join(candidate, entry.name)),
+        );
+    };
+
+    return paths.filter((declared) => touched(path.resolve(cwd ?? process.cwd(), declared)));
+}
+
+/**
+ * What the harness reports for a finished suite.
+ *
+ * @typedef {object} SuiteVerdict
+ * @property {number} status        The exit status to hand back.
+ * @property {string|null} message  What to say about it, if anything.
+ */
+
+/**
+ * Decide what a finished suite is worth, given what it exited with and what it
+ * left behind.
+ *
+ * The point of the e2e suite is to be *evidence*: `compatibility.verified`
+ * moves on a green run, and a sweep exists to produce a citable result. So an
+ * exit status on its own cannot call a run green, because every way of stopping
+ * a runner before it starts — a corrupt install, a missing browser, a killed
+ * process, the concurrent `npm ci` that surfaced this — produces a run that
+ * executed nothing, and nothing is not a pass (#153).
+ *
+ * This can only ever make a verdict worse. A suite that failed keeps its own
+ * status; a suite that passed on no evidence loses the claim. Never the other
+ * way round — a harness that could *upgrade* a result would be a second way to
+ * report a green that did not happen.
+ *
+ * @param {object} opts
+ * @param {number} opts.status - What the suite process exited with.
+ * @param {readonly string[]} [opts.vanished] - Executables gone since it started.
+ * @param {readonly string[]} [opts.declared] - Result paths the repository declares.
+ * @param {readonly string[]} [opts.fresh] - Those of them it wrote to.
+ * @returns {SuiteVerdict} The status to report, and why.
+ */
+export function suiteVerdict({ status, vanished = [], declared = [], fresh = [] }) {
+    if (vanished.length > 0) {
+        return {
+            status: status || 1,
+            message:
+                `✗ ${quotedList(vanished)} disappeared while the suite was ` +
+                `running, so it cannot have finished. Something reinstalled ` +
+                `\`node_modules\` underneath it — \`npm ci\` removes the tree ` +
+                `before it rebuilds it. Reporting the run as failed: whatever ` +
+                `status it exited with, it ran nothing to completion.`,
+        };
+    }
+    if (declared.length > 0 && fresh.length === 0) {
+        return {
+            status: status || 1,
+            message:
+                `✗ The suite exited ${status} but wrote nothing to ` +
+                `${quotedList(declared)} while it ran, so there is no evidence ` +
+                `it executed anything. Reporting the run as failed: a run that ` +
+                `produced no results is not a pass.`,
+        };
+    }
+    return { status, message: null };
+}
+
+/**
  * Run the repository's suite.
  *
  * `ELECTRON_RUN_AS_NODE` is stripped from the child environment. Editor
@@ -565,19 +813,51 @@ function captureContainerLog(container) {
  * runner launches as plain Node, rejects its own flags, and dies with a
  * `MODULE_NOT_FOUND` naming nothing relevant.
  *
+ * The suite is bracketed by checks rather than trusted on its exit status,
+ * because a run that never started used to report as green (#153):
+ *
+ * - **Before.** Every executable the command needs is resolved, and a missing
+ *   one is an error naming it — rather than a container stood up, a world
+ *   seeded, and a failure three minutes later that names nothing.
+ * - **After.** The same question again, because the reported failure was an
+ *   install pulling the runner out from under a run already in progress; and,
+ *   where the repository declares where its results land, whether anything was
+ *   written there while the suite ran.
+ *
  * @param {object} opts
- * @param {string[]} opts.command - The program and its arguments.
+ * @param {readonly string[]} opts.command - The program and its arguments.
  * @param {string[]} [opts.args] - Extra arguments, appended verbatim.
  * @param {string} opts.cwd - The repository root.
+ * @param {readonly string[]} [opts.results] - Declared result paths to check.
  * @param {NodeJS.ProcessEnv} [opts.env] - Environment for the child.
  * @param {(message: string) => void} [opts.log] - Progress reporting.
  * @returns {number} The suite's exit status.
+ * @throws {Error} When the command names an executable that is not installed.
  */
-export function runSuite({ command, args = [], cwd, env = process.env, log = () => {} }) {
+export function runSuite({
+    command,
+    args = [],
+    cwd,
+    results = [],
+    env = process.env,
+    log = () => {},
+}) {
+    const missing = missingExecutables({ command, cwd, env });
+    if (missing.length > 0) {
+        throw new Error(
+            `The end-to-end suite cannot start: ${quotedList(missing)} ` +
+                `${missing.length === 1 ? "is" : "are"} not installed — ` +
+                `nothing of that name is in \`node_modules/.bin\` or on ` +
+                `\`PATH\`. The declared command is \`${command.join(" ")}\`. ` +
+                `Install the repository's dependencies and run again.`,
+        );
+    }
+
     const [program, ...rest] = command;
     const childEnv = { ...env };
     delete childEnv.ELECTRON_RUN_AS_NODE;
     log(`▸ ${[...command, ...args].join(" ")}`);
+    const startedAt = Date.now();
     const result = spawnSync(/** @type {string} */ (program), [...rest, ...args], {
         stdio: "inherit",
         cwd,
@@ -585,7 +865,15 @@ export function runSuite({ command, args = [], cwd, env = process.env, log = () 
         shell: process.platform === "win32",
     });
     if (result.error) throw result.error;
-    return result.status ?? 1;
+
+    const verdict = suiteVerdict({
+        status: result.status ?? 1,
+        vanished: missingExecutables({ command, cwd, env }),
+        declared: results,
+        fresh: freshResults({ paths: results, since: startedAt, cwd }),
+    });
+    if (verdict.message) log(verdict.message);
+    return verdict.status;
 }
 
 /**
@@ -696,6 +984,11 @@ export async function e2eRun({
             command,
             args: suiteArgs,
             cwd: config.rootDir,
+            // Only a headless run makes a claim worth checking. `open` hands
+            // the runner to a person, who decides what to execute and when to
+            // close it; "it wrote no results" is a description of that session,
+            // not a fault in it.
+            results: mode === "run" ? config.e2eResults : [],
             env: runEnv,
             log,
         });
@@ -781,6 +1074,7 @@ export async function e2eFast({ config, argv = [], env = process.env, log = () =
         command,
         args: suiteArgs,
         cwd: config.rootDir,
+        results: config.e2eResults,
         env,
         log,
     });

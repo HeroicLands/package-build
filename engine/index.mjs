@@ -116,6 +116,12 @@ export * as siteBuild from "./site-build.mjs";
 /** Address rules every content tree is linted against: shape, uniqueness, alias. */
 export * as contentLint from "./content-lint.mjs";
 
+/** The charset authored content is held to, so a book can choose its face. */
+export * as contentCharset from "./content-charset.mjs";
+
+/** Naming an interface icon in a note, without drawing one there. */
+export * as contentIcons from "./content-icons.mjs";
+
 /** Resolving every link in a tree, and the ones that land nowhere. */
 export * as contentLinks from "./content-links.mjs";
 

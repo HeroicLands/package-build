@@ -68,7 +68,15 @@ const ACTORS_ONLY = [
 ];
 
 /** A complete configuration with the given packs, rooted anywhere. */
-function baseConfig({ packs, rootDir = os.tmpdir() }: any) {
+function baseConfig({ packs, rootDir = os.tmpdir(), systems }: any) {
+    // A pack's `system:` must resolve to the version its documents are stamped
+    // with, so a complete configuration declares every system its packs name.
+    // Derived here rather than written at each call site, which is what keeps
+    // these fixtures about the note types they are testing.
+    const named = [...new Set(packs.map((p: any) => p.system).filter(Boolean))] as string[];
+    const declared =
+        systems ??
+        Object.fromEntries(named.map((id) => [id, { compatibility: { verified: "1.0.0" } }]));
     return defineConfig({
         compatibility: { minimum: "14.359", verified: "14.359" },
         rootDir,
@@ -76,6 +84,7 @@ function baseConfig({ packs, rootDir = os.tmpdir() }: any) {
         foundryPackage: "sohl",
         packageKind: "systems",
         stats: { lastModifiedBy: "sohltestbuild0000" },
+        ...(Object.keys(declared).length ? { systems: declared } : {}),
         packs,
     } as any);
 }
@@ -219,7 +228,14 @@ describe("a type one system maps and another does not", () => {
     });
 
     const maps = [ALPHA, BETA];
+    // Declared, because a pack's `system:` must resolve to the version its
+    // documents are stamped with — neither fixture system is this package's own.
+    const FIXTURE_SYSTEMS = {
+        alpha: { compatibility: { verified: "1.0.0" } },
+        beta: { compatibility: { verified: "1.0.0" } },
+    };
     const config = baseConfig({
+        systems: FIXTURE_SYSTEMS,
         packs: [
             { name: "items-alpha", type: "Item", system: "alpha" },
             { name: "items-beta", type: "Item", system: "beta" },

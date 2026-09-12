@@ -126,7 +126,7 @@ const CONTAINER_KEYS = ["image", "name", "stages"];
  */
 const CONTAINER_NAME = /^[a-zA-Z0-9][a-zA-Z0-9_.-]*$/;
 const CONTAINER_STAGE_KEYS = ["port", "world", "version"];
-const E2E_KEYS = ["stage", "suite", "build", "world", "gm", "documents"];
+const E2E_KEYS = ["stage", "suite", "results", "build", "world", "gm", "documents"];
 const E2E_SUITE_KEYS = ["run", "open"];
 const E2E_WORLD_KEYS = ["id", "title", "description"];
 const E2E_GM_KEYS = ["name", "password"];
@@ -557,6 +557,8 @@ function normalizeExceptions(value, field, where) {
  * @property {string} e2eStage       Which stage the suite runs against.
  * @property {Readonly<{run: readonly string[], open: readonly string[]|null}>|null} e2eSuite
  *   What to run against the served world; `null` when the repository has none.
+ * @property {readonly string[]} e2eResults  Where the suite writes its results,
+ *   so a run that wrote none is not mistaken for one that passed.
  * @property {Readonly<Record<string, Readonly<{script: string, recreate: boolean}>>>} e2eBuild
  *   Build targets the fast loop can produce, in declaration order.
  * @property {Readonly<Record<string, string>>} e2eWorld  Declared world identity.
@@ -798,6 +800,12 @@ export function resolvePackageBuildConfig(shared) {
                 "test"
             :   requireNonEmptyString(e2eInput.stage, "packageBuild.e2e.stage"),
         e2eSuite: normalizeE2ESuite(e2eInput.suite),
+        // Declaring nothing keeps the old contract — the suite's exit status is
+        // taken at its word. Declaring where results land is what lets the
+        // harness tell "the suite ran and passed" from "the suite did not run"
+        // (#153); a repository that wants that distinction has to say where to
+        // look for it, because the harness does not know what the suite is.
+        e2eResults: normalizeGlobs(e2eInput.results, [], "packageBuild.e2e.results"),
         e2eBuild,
         e2eWorld: normalizeStringMap(e2eInput.world, "packageBuild.e2e.world", E2E_WORLD_KEYS),
         e2eGm: normalizeStringMap(e2eInput.gm, "packageBuild.e2e.gm", E2E_GM_KEYS),
