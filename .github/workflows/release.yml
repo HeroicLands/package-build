@@ -61,11 +61,37 @@ jobs:
             - run: npm test
             - run: npm run build:types
 
-            # OIDC Trusted Publishing needs npm >= 11.5; the runner ships older.
-            # `changeset publish` shells out to this npm, so it must be upgraded
-            # before the action runs, not inside it.
-            - name: Upgrade npm for OIDC
-              run: npm install -g npm@latest
+            # OIDC Trusted Publishing needs npm >= 11.5, and the Node this job
+            # sets up already brings one: `node-version: 24` resolves to the
+            # highest 24.x, which has bundled npm >= 11.5 since 24.5.0 and
+            # ships 11.19.0 today. So nothing is installed here — the npm that
+            # publishes is the one that came with Node, and its version is a
+            # consequence of the line above rather than a number kept in step
+            # by hand.
+            #
+            # This step used to run `npm install -g npm@latest`, written when
+            # Node 24.0–24.4 did bundle 11.3–11.4. That premise expired without
+            # anything noticing, and on 2026-09-11 `latest` became npm 12, which
+            # stopped putting `node_modules/.bin` on the PATH of a run-script's
+            # shell. The next step's `changeset` became `sh: 1: changeset: not
+            # found` and every release exited 127 without publishing, while
+            # nothing in this repository had changed (#381).
+            #
+            # The check is here rather than the install because a floor is what
+            # the requirement actually is, and an assertion cannot go stale the
+            # way the comment above it did: it fails loudly the day it stops
+            # being true, instead of being quietly wrong for months.
+            - name: Confirm npm can use OIDC
+              run: |
+                  VERSION="$(npm --version)"
+                  MAJOR="${VERSION%%.*}"
+                  REST="${VERSION#*.}"
+                  MINOR="${REST%%.*}"
+                  if [ "$MAJOR" -lt 11 ] || { [ "$MAJOR" -eq 11 ] && [ "$MINOR" -lt 5 ]; }; then
+                      echo "::error::npm $VERSION cannot use OIDC Trusted Publishing, which needs >= 11.5. Raise node-version so its bundled npm clears the floor." >&2
+                      exit 1
+                  fi
+                  echo "npm $VERSION satisfies the OIDC floor of 11.5."
 
             # With changesets pending: opens or updates the Version Packages PR
             # and stops. With none pending — the state right after that PR
