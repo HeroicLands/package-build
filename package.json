@@ -174,7 +174,7 @@
         "lint:content-format:fields": "node bin/content-build.mjs content-format fields --fields sohl && node bin/content-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
         "changeset:check": "changeset status --since=origin/main",
-        "changeset:version": "npx changeset version && npm install --package-lock-only",
+        "changeset:version": "changeset version && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true"
     },
     "engines": {
