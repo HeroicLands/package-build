@@ -56,6 +56,12 @@
  * 1.1, so a distributed PDF may embed the subset it uses. Attribution belongs
  * in the book's colophon, not in every note.
  *
+ * **Every finding here is a `warning`**, so nothing this module says can fail a
+ * build — `reportFindings` fails on an error and not on a warning. An
+ * undeclared name renders as its own literal text, which is visible on the page
+ * and wrong in a way a reader will notice; that deserves to be reported and
+ * does not deserve to stop a build that is otherwise correct.
+ *
  * @module
  */
 
@@ -307,7 +313,7 @@ export function iconsIn(text) {
  * @param {string} file - Path to report.
  * @param {Record<string, object>} [registry] - Defaults to {@link DEFAULT_ICONS}.
  * @returns {Array<{file: string, line: number, column: number,
- *   severity: "error", message: string}>} The unknown names.
+ *   severity: "warning", message: string}>} The unknown names.
  */
 export function lintIcons(text, file, registry = DEFAULT_ICONS) {
     const findings = [];
@@ -315,7 +321,7 @@ export function lintIcons(text, file, registry = DEFAULT_ICONS) {
         const before = text.slice(0, index);
         const line = before.split("\n").length;
         const column = index - (before.lastIndexOf("\n") + 1) + 1;
-        const at = { file, line, column, severity: /** @type {const} */ ("error") };
+        const at = { file, line, column, severity: /** @type {const} */ ("warning") };
 
         if (!resolveIcon(name, registry)) {
             // Nearest declared name, when there is an obvious one: a typo is the
@@ -391,7 +397,7 @@ function editDistance(a, b) {
  *
  * @param {Record<string, object>} registry - A package's icon table.
  * @param {string} [where="icons"] - Where to say the fault is.
- * @returns {Array<{severity: "error", message: string}>} What is wrong with it.
+ * @returns {Array<{severity: "warning", message: string}>} What is wrong with it.
  */
 export function checkIconRegistry(registry, where = "icons") {
     const findings = [];
@@ -399,14 +405,14 @@ export function checkIconRegistry(registry, where = "icons") {
         const at = `\`${where}.${name}\``;
         if (!entry || typeof entry !== "object") {
             findings.push({
-                severity: /** @type {const} */ ("error"),
+                severity: /** @type {const} */ ("warning"),
                 message: `${at} is not an icon entry — it takes \`style\`, \`icon\` and \`label\``,
             });
             continue;
         }
         if (!ICON_STYLES.includes(entry.style)) {
             findings.push({
-                severity: /** @type {const} */ ("error"),
+                severity: /** @type {const} */ ("warning"),
                 message:
                     `${at} names style \`${entry.style}\`, and Font Awesome Free ships ` +
                     `only ${ICON_STYLES.join(", ")} — a glyph in any other style is ` +
@@ -415,13 +421,13 @@ export function checkIconRegistry(registry, where = "icons") {
         }
         if (typeof entry.icon !== "string" || !entry.icon) {
             findings.push({
-                severity: /** @type {const} */ ("error"),
+                severity: /** @type {const} */ ("warning"),
                 message: `${at} declares no \`icon\`, so nothing names the glyph to draw`,
             });
         }
         if (typeof entry.label !== "string" || !entry.label) {
             findings.push({
-                severity: /** @type {const} */ ("error"),
+                severity: /** @type {const} */ ("warning"),
                 message:
                     `${at} declares no \`label\`, and an icon with no accessible name ` +
                     `is read aloud as a gap in the sentence`,
@@ -443,7 +449,7 @@ export function checkIconRegistry(registry, where = "icons") {
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
  * @param {Record<string, object>} [opts.registry] - The package's icon table.
  * @returns {{findings: Array<{file: string, line: number, column: number,
- *   severity: "error", message: string}>, files: number}} What it found.
+ *   severity: "warning", message: string}>, files: number}} What it found.
  */
 export function lintContentIcons(contentBase, { skipDirectories = [], registry } = {}) {
     const skip = new Set(skipDirectories);
