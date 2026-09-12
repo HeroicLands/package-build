@@ -29,7 +29,7 @@
  * The web side's pattern omitted `\n` from the excluded set, so an unclosed
  * bracket consumed everything up to the next `]]` anywhere in the document —
  * the same shape of corruption a hand-rolled code-fence regex caused on the one
- * page whose subject is link syntax (SoHL#1665). It was also internally
+ * page whose subject is link syntax. It was also internally
  * inconsistent: its *frontmatter* scan excluded newlines while its body scan did
  * not.
  *

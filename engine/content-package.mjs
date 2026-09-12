@@ -35,13 +35,11 @@ import { loadPackConfig } from "./pack-config.mjs";
  * repository's identity in the address space, not a switch — and never dead
  * configuration, whatever else changes.
  *
- * It was also, until #56, a **selector**: a note declared the same value in its
- * `package:` frontmatter and the compilers kept the ones that matched. Every
- * content tree is single-package — each is single-sourced in the repository that
- * ships it — so the field restated this constant once per note while a value
- * that matched nothing filtered the whole tree out in silence. That field is
- * retired and declaring it now fails the build; this value stays, here, where
- * it is declared once.
+ * It is not a **selector**. Every content tree is single-package — each is
+ * single-sourced in the repository that ships it — so a `package:` field on a
+ * note would restate this constant once per note, and a value matching nothing
+ * would filter the whole tree out in silence. That field is refused, and this
+ * value stays here, declared once.
  *
  * Stable across compilation targets. If this content were ever compiled for a
  * second game system, it would still be published as `sohl` — only the Foundry
@@ -65,7 +63,7 @@ export function contentPackage() {
  * here: a note is published under `sohl` and its documents are addressed as
  * `Compendium.sohl.<pack>.<Type>.<id>`. In `sohl-thalorna` the two differ
  * (`thalorna` vs `sohl-thalorna`), which is why they are separate values rather
- * than one — treating them as interchangeable is what #1498 was.
+ * than one — treating them as interchangeable is the mistake.
  *
  * Configured rather than read from the manifest so the link resolver stays
  * filesystem-free and unit-testable. `assertPackageIdMatchesManifestFile` in

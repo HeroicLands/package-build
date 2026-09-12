@@ -16,7 +16,7 @@
  *
  * A `Folder` is a real Foundry document, and it was the last kind this package
  * compiled from bespoke configuration — `*-folders.yaml`, five files per tree —
- * rather than from a note. That was the one hole in the rule #243 establishes,
+ * rather than from a note. That is the one hole in the rule,
  * *the compiler follows the index*: a pass cannot follow the index for things
  * the index does not contain.
  *
@@ -44,7 +44,7 @@
  *
  * **A folder note carries no prose.** It is structure, not content, so it wants
  * no documentation journal and takes no part in `docEntryTypes` — the one
- * decision #256 left open, settled the way it recommended.
+ * open decision, settled the way it recommended.
  *
  * @module
  */
@@ -109,7 +109,8 @@ export const DEFAULT_PARENT = "default";
  * `parent` and `color` are `data:` properties, which is where the
  * specification's `### type: folder` table puts them — the closed container,
  * so a misspelled `colour` is a finding rather than a theme parameter. They are
- * accepted at the top level too, because that is where #256's own example wrote
+ * accepted at the top level too, because that is where the canonical example
+ * writes
  * them and an author following the issue rather than the specification should
  * get a folder, not a silent default.
  *

@@ -47,7 +47,7 @@
 
 // The one charset, read rather than restated — a system id is an address
 // segment like any other, and a second spelling of the pattern is how the
-// disagreements in #202/#203 happened.
+// disagreements between them arise.
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 
 /**

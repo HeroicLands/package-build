@@ -23,11 +23,11 @@
  * every sheet change.
  *
  * They are also the worst characters in the corpus to typeset. Of the eight
- * book faces probed for #377, **none** carries `✕ ✗ ✎ ☆ ⚗ ➕`; in a Libertinus
+ * book faces probed, **none** carries `✕ ✗ ✎ ☆ ⚗ ➕`; in a Libertinus
  * setting `✕` resolves to macOS LastResort, which draws a tofu box.
  *
  * **Neither obvious fix works.** Keeping the dingbats pins the book to some
- * icon-capable font forever, which is the coupling #377 exists to remove.
+ * icon-capable font forever, which is the coupling this exists to remove.
  * Pasting Font Awesome's own codepoints is worse: they live in the Private Use
  * Area, which is unassigned by definition, so they break search, copy-paste and
  * screen readers, and no charset check can validate them.

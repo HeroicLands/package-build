@@ -108,7 +108,7 @@ export const HOMEPAGE_SHORTCODE = "root";
  * The file a homepage is written to, relative to the package's site root.
  *
  * Its **address**, flat at the package root, and stated in the page's own `url`
- * — the same separation every other page has since #181, where the directory
+ * — the same separation every other page has, where the directory
  * decides the Hugo section and the front matter decides the URL. Flat rather
  * than inside a `homepage/` section directory, because a homepage is not one of
  * a kind: a section holding exactly one page would publish a landing at
@@ -244,13 +244,11 @@ export function checkHomepageAddressFields(fm, { isAuthored } = {}) {
  * one defect: a package whose front page is not the page a person chose.
  *
  * - _None_ and the package serves nothing at `/<package>/`. That is the failure
- *   #50 exists to prevent, and it is silent — the site build reports `wrote 0
+ *   this exists to prevent, and it is silent — the site build reports `wrote 0
  *   homepage(s)` and exits 0.
  * - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
- *   since #182 it is only that.** It used to rest on the fixed destination
- *   every homepage shared — the second overwrote the first — so the address
- *   rule enforced it as a side effect. A homepage is written at its own address
- *   now, so two of them publish two pages and collide over nothing; the
+ *   only that.** A homepage is written at its own address, so two of them
+ *   publish two pages and collide over nothing; the
  *   duplicate-address check catches only the pair that happen to share a
  *   shortcode, and says nothing at all about a `homepage-root` beside a
  *   `homepage-front`. Which of the two the redirect at `/<package>/` should

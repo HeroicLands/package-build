@@ -68,7 +68,7 @@ import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from ".
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
 // than repeated, because a linter holding its own copy of what the compiler
-// reads is exactly the disagreement #288 was.
+// reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
 import {
@@ -569,30 +569,29 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
  * but it is not open like the rest of that region: a type either declares a
  * `subType` or does not, and a type that does declares its values.
  *
- * **It is a genre, and only a genre.** #197 gave the field a second reading: a
- * `README.md` was its section's landing page, and the segment it landed at was
- * its `subType`, so the value had to be checked against the sections that could
- * exist — every content type, plus whatever a repository configured — rather
+ * **It is a genre, and only a genre.** A second reading of the field — a
+ * `README.md` as its section's landing page, whose `subType` is the segment it
+ * lands at — would mean checking the value against the sections that could
+ * exist (every content type, plus whatever a repository configured) rather
  * than against the genres its type declares. Two vocabularies in one field is
- * what #198, #200 and #201 were each spent on, and #204 removed the cause rather
- * than the symptom: a section is a Hugo directory the note format does not
+ * the cause, and it is removed rather than the symptom: a section is a Hugo
+ * directory the note format does not
  * carry, and a page introducing a type is an ordinary note addressed
  * `doc-<type>`. So the closed list answers for every note, whatever it is
  * called, and `rules`, `userguide`, `reference` mean three genres and nothing
  * else.
  *
- * **Two checks, in this order** — the charset, then the closed set (#206,
- * #204). The charset is first because it is the more general statement about
+ * **Two checks, in this order** — the charset, then the closed set. The
+ * charset is first because it is the more general statement about
  * the same value: a value outside `^[A-Za-z0-9]+$` is refused whatever the type
  * declares, and only once it is a well-formed term is the type's own list the
  * reason to refuse it.
  *
- * There were three. #206 ran a retired-spelling check ahead of both, accepting
- * `user-guide` as a warning naming `userguide`, so the 43 `sohl` notes
- * authoring it were not invalidated by the release that renamed it. Every
- * consumer tree has swept, so the acceptance guarded nothing and is gone: the
- * old spelling now falls through to the charset check, which refuses it for the
- * reason that always applied — it contains a hyphen.
+ * There is deliberately no third, retired-spelling check ahead of them
+ * accepting `user-guide` as a warning naming `userguide`. Every consumer tree
+ * has swept, so it would guard nothing: the old spelling falls through to the
+ * charset check, which refuses it for the reason that always applied — it
+ * contains a hyphen.
  *
  * @param {object} note - The note.
  * @param {object} opts

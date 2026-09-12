@@ -113,7 +113,7 @@ export const MAP_SUBTYPE_PROFILES = Object.freeze({
 /**
  * The canvas profile for a map subType.
  *
- * Keyed on the subType rather than the type since #174: every map note is
+ * Keyed on the subType rather than the type: every map note is
  * `type: map`, and which canvas it derives is the one thing the three
  * spellings ever decided.
  *
@@ -619,7 +619,7 @@ export const BANNED_REGION_BEHAVIOR_TYPES = Object.freeze(
         [
             "executeMacro",
             "its target Macro must ship in the same Adventure to resolve, and " +
-                "Adventure-bundled macros are not built yet (deferred from #1525).",
+                "Adventure-bundled macros are not built yet.",
         ],
     ]),
 );

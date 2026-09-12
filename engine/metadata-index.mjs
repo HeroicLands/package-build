@@ -94,7 +94,7 @@ export function metadataFileName(pkg) {
  * `itemCatalog: true` says a dependency supplies *items*; citing its
  * *addresses* is a separate edge, and a package may have either without the
  * other. `harn-ensemble` cites no foreign address and carries 324,016 embedded
- * item references (`HeroicLands/harn-ensemble#42`); a package citing addresses
+ * item references; a package citing addresses
  * and needing no items is the mirror of it. Gating the index on the catalogue
  * flag would serve neither.
  *

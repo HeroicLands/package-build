@@ -69,9 +69,9 @@ export const DERIVED_KEYS = Object.freeze([
  * the machine that built the index, would differ between two checkouts of the
  * same tree, and would put someone's home directory in a published artifact. So
  * every pass that reads the index and then needs to open a note has to compose
- * the absolute form, and each of the readers converted for #243 had written its
+ * the absolute form, and each converted reader had written its
  * own `path.join(base, ...record.file.path.split("/"))`. Four copies of one
- * rule is what #243 exists to remove, so here it is once.
+ * rule is what this exists to remove, so here it is once.
  *
  * The split is on `"/"` rather than `path.sep` because the recorded path is
  * always POSIX — that is what makes the index identical on every platform.

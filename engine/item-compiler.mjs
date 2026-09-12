@@ -225,7 +225,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * subtype of. That is an authored statement in the consumer's own
      * configuration, not a coincidence inside this package's source — and
      * refusing it here would silently drop every document of a type this system
-     * has no opinion about (#7/#1563).
+     * has no opinion about.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {string} The document's `type`.

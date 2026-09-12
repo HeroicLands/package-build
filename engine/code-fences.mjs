@@ -378,7 +378,7 @@ export function matchAllOutsideCode(markdown, pattern, options) {
  * **Which runs count as code is {@link codeRegions}' rule, not a second copy of
  * it.** The knowledgebase build carried its own regex once, and it was weaker in
  * two ways that both corrupted the one page whose subject *is* link syntax — so
- * its examples were exactly the input a looser rule mangles (SoHL#1665). A
+ * its examples are exactly the input a looser rule mangles. A
  * single-backtick span was allowed to cross newlines, so one odd backtick paired
  * with another paragraphs away and every span after it paired wrongly: prose was
  * masked as code while real spans were left exposed. And only three-backtick

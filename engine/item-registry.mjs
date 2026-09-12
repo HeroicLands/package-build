@@ -17,7 +17,7 @@
  *
  * Both are read from the one resolved configuration, so they are literally the
  * same object's keys and values: a type cannot be whitelisted for compilation
- * without the builder that compiles it, which is the guarantee #1504 exists
+ * without the builder that compiles it, which is the guarantee this exists
  * for. Where a consumer declares **several** registries, one per system,
  * the vocabulary is their union and every lookup below takes the system that is
  * asking — a type both systems declare has two builders, and answering with one

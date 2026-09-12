@@ -55,10 +55,10 @@
  * `sohl-sohl-weapongear-clb` and its `_id` derived from that. The authored name
  * and its address disagreed, and everything downstream keys on the address —
  * which left two notes differing only in case sharing one address, one `_id` and
- * one URL, with nothing to report it. It also forced two exceptions elsewhere:
- * #336 had to exempt the shortcode from the lowercase rule it pinned on every
- * other segment, and #346 had to fold the shortcode's case in the item catalogue
- * because an address is lowercased when read.
+ * one URL, with nothing to report it. It also forces two exceptions elsewhere:
+ * the shortcode has to be exempted from the lowercase rule pinned on every
+ * other segment, and its case has to be folded in the item catalogue because
+ * an address is lowercased when read.
  *
  * One case, one spelling, no exceptions. Every tree already complies but two,
  * and nothing in any of them collides when folded.

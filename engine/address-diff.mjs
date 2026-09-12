@@ -48,10 +48,10 @@
  * mean" from string similarity would be worse than saying nothing, because a
  * wrong one sends the reader to the wrong fix.
  *
- * **#270 narrowed that match, and a declaration is what makes up the
+ * **That match is narrow, and a declaration is what makes up the
  * difference.** The join rested on the id being independent of the shortcode: a
  * note authored its `_id`, so the `Tabri` → `Taburi` commit changed the
- * shortcode alone and left the id to join the two sides. Since #270 an id is
+ * shortcode alone and left the id to join the two sides. An id is
  * *derived from the canonical address*, which carries the shortcode — so
  * renaming a shortcode moves the id too, both sides of the join move together,
  * and the match finds nothing. It stays exact for a note that **pins** an `id`,
@@ -74,7 +74,7 @@
  *
  * **Severity is decided per case.** A withdrawal is legitimate — content is
  * allowed to be retired — so it is reported and does not fail a build. A rename
- * is equally legitimate as a decision (#1397's charset rule forces some), which
+ * is equally legitimate as a decision (the charset rule forces some), which
  * is why it does not fail one either; what it must not do is happen in silence.
  * A caller that wants a gate passes `error` and treats any finding as one.
  *
@@ -218,14 +218,15 @@ export function readItemAddresses(dirs) {
  * The corpus both reads below share, as content-index records.
  *
  * **One walk, not two.** `addresses diff` reads the tree twice — once for the
- * declarations and once to place its findings — and until #243 those were two
+ * declarations and once to place its findings — and those would otherwise be
+ * two
  * independent walks that each parsed every note. They are now one derivation,
  * shared: the caller derives the records and hands them to both, so the two
  * halves of a single command cannot disagree about which files the corpus is,
  * or about the ids in it.
  *
  * **The id is why it matters, and not only tidiness.** `noteFilesById` joins
- * tree-side ids against ids read out of the *compiled packs*. Since #270 an id
+ * tree-side ids against ids read out of the *compiled packs*. An id
  * is derived from the canonical address, whose first segment is the content
  * package — and the tree side used to derive it through `resolveNoteId(fm)`
  * with no package, which falls back to `contentPackage()` and so to whichever

@@ -62,7 +62,7 @@
  * to every player, and a build artifact has no business there.
  *
  * **What it deliberately does not carry: the note's text, and positions within
- * it.** #243 asks whether the index should record a position for every
+ * it.** The question is whether the index should record a position for every
  * frontmatter key, so that a pass reading the index could report a field defect
  * without opening the file. It should not, and the numbers are not close: over
  * `sohl`'s 1,685 notes the index is 3.0 MB and holds 50,598 leaf values, so a
@@ -339,7 +339,7 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
  * shipped map produced and said nothing about the other.
  *
  * Only `sohl` can appear today, because `KNOWN_DOCUMENT_SUBTYPE_MAPS` holds one
- * map and #139 tracks the missing `hm3/` half. The shape is system-keyed now so
+ * map, the `hm3/` half being separate. The shape is system-keyed so
  * that adding it is one more key rather than a second breaking change to an
  * artifact consumers have already started reading.
  *
@@ -369,7 +369,7 @@ function foundryBlock(entry, system) {
  * Refuse a note that authors a key the index derives, and say where.
  *
  * **Located, because every reader of the index is now a reporter of this.**
- * Until #243 the only pass that built a record was the emitter, so aborting
+ * With the emitter the only pass building a record, aborting
  * with a bare message was the whole story. Now the link check and the address
  * diff read the index too, and a bare abort in one of them reports *nothing*
  * about the tree — the one malformed note takes every other finding with it,
@@ -637,7 +637,7 @@ export function serializeContentIndex(records) {
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
  * pass that needs the corpus in memory — a SQL content table, the link check,
- * and in time every reader #243 converts — builds it the same way the artifact
+ * and in time every converted reader — builds it the same way the artifact
  * is built, rather than by walking and parsing again with its own idea of the
  * scope.
  *

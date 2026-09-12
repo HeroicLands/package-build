@@ -60,7 +60,7 @@
  * species, age, birthday, height, weight, frame and `appearance.*` — at the
  * note's top level. The content format gives those a home: `data:`, the closed
  * container for a subject's type-specific facts, which `being` declares every
- * one of them in. #128 moved all 2,533 notes that carried one, across four
+ * one of them in. Every note that carried one has been moved, across four
  * repositories, and this is the third step of that retirement.
  *
  * Refusing it matters more than refusing an ordinary dead key, because top
@@ -85,7 +85,7 @@
  *
  * **The third step is deletion, and it needs no code.** `image`, a map's
  * background art, is the first rename to have run all three: reported (#142),
- * swept (SoHL#1801 and the position move that followed), then dropped from the
+ * swept, then dropped from the
  * table. Removing the entry is the whole of it — with no alias, the spelling is
  * an ordinary unknown key in the `sohl:` block, which the frontmatter lint
  * already refuses as an error alongside the required field it failed to supply.
@@ -103,7 +103,8 @@
  * only says what an author is told about it.
  *
  * **A field has two retiring positions, not one.** The in-block key is
- * the obvious one; the other is the note's **top level**, because #128 did not
+ * the obvious one; the other is the note's **top level**, because the sweep
+ * did not
  * invent the facts `data:` holds — it gathered them from exactly there. So
  * `portrait:` beside `img:` is the pre-`data:` spelling of `data.portrait`,
  * read for the same reason and reported by {@link retiredTopLevelMessage}. Both
@@ -445,7 +446,7 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * priority takes the name that says what it is. The specification already
  * called it `templatePriority` on two of its three sides.
  *
- * **`relations` (SoHL#1781).** The field holds a *map* of standings, one per
+ * **`relations`.** The field holds a *map* of standings, one per
  * affiliation — its own description says so, and `resolveRelation` has always
  * read it that way. `relation` named the many as one, which every author had to
  * read past. Only `affiliation` declares the field, so the alias is reported
@@ -520,7 +521,8 @@ export function legacyKeyMessage(block, field, file) {
  * What a note writing a field at the **top-level key `data:` gathered it off**
  * is told.
  *
- * {@link legacyKeyMessage}'s counterpart for the other retiring position. #128
+ * {@link legacyKeyMessage}'s counterpart for the other retiring position. The
+ * sweep
  * did not invent the facts `data:` holds — it collected them out of the note's
  * open top level — so `portrait:` beside `img:` is the *pre-`data:`* spelling
  * of `data.portrait`, and both are read for the same reason both in-block

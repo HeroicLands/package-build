@@ -223,7 +223,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
  */
 export function resolveRelation(fm, ctx = "item") {
     // `relations` is the field's name; `relation` is the retired spelling, read
-    // underneath it so a tree converts on its own schedule (SoHL#1781). The
+    // underneath it so a tree converts on its own schedule. The
     // current name wins wherever a note writes both, and the lint reports the
     // old one through {@link RETIRED_FIELD_ALIASES}.
     // Probed at the destination too: a note that has moved to

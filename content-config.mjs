@@ -58,7 +58,7 @@
  * shipped manifest is generated *from* this file. That reverses an older rule —
  * configuration named where the manifest was and read the floor back out of it —
  * which was right while the manifest was hand-authored and became a round trip
- * through a generated artifact once it was not (#50, package-build#9).
+ * through a generated artifact once it was not.
  *
  * @module
  */
@@ -112,7 +112,7 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
 /**
  * The Foundry document types a compendium pack may hold. This is the set the
  * toolchain is able to compile a pack of; a document type Foundry supports but
- * this toolchain does not compile is deliberately absent (see #1501 — playlists
+ * this toolchain does not compile is deliberately absent (playlists
  * and roll tables are out of scope).
  *
  * @satisfies {readonly PackDocumentType[]}
@@ -139,15 +139,11 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
  * key is **refused**, at the line it was written on, with a message that says
  * the mechanism is gone rather than naming a value to correct.
  *
- * **What `landing` did.** It named which note addressed a whole section
+ * **`landing` is one such key.** It named which note addressed a whole section
  * rather than a page within one — a *landing page*, which therefore had no slug
- * of its own. #203 retired the second of its two rules and #204 retired the
- * concept both rules chose between: a section is a Hugo content directory that
- * the note format does not carry, a page's address names no directory, and so
- * no note lands anything. The key outlived its mechanism by one release only
- * because both publishing consumers still declared the then-true
- * `landing: readme`, and neither breaking them over a correct statement nor
- * accepting the key in silence was acceptable. Neither declares it now.
+ * of its own. There are no sections to address: a section is a Hugo content
+ * directory the note format does not carry, a page's address names no
+ * directory, and so no note lands anything.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -690,7 +686,7 @@ function isPlainObject(value) {
  * The dotted path is carried on the error as `field` as well as spelled into
  * the message, because the message alone is a good description and a bad
  * locator: the loader that read the file can resolve that path to a line and
- * column, and does (`locateConfigError` in `engine/pack-config.mjs`, #95).
+ * column, and does (`locateConfigError` in `engine/pack-config.mjs`).
  * Attaching it here rather than formatting here is what keeps this module
  * free of I/O — it is the leaf an `.mjs` configuration imports, so it may not
  * reach for the file it is validating.
@@ -737,7 +733,7 @@ function requireNonEmptyString(value, field) {
  * It is the first segment of every canonical address this repository publishes
  * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), and an address is
  * read by counting hyphen-separated segments. So the value carries two
- * obligations that the rest of the configuration does not, and #59 asks for
+ * obligations that the rest of the configuration does not, and asks for
  * both to be **enforced rather than assumed** — the alternative is a package
  * whose addresses are simply unreadable, reported nowhere and discovered as
  * links that resolve to nothing.
@@ -752,9 +748,9 @@ function requireNonEmptyString(value, field) {
  *    by asking whether the name is a known package, and a name in both
  *    vocabularies makes one target readable two ways with no defensible pick.
  *    Keeping the two disjoint is what lets a name be taken at face value; that
- *    the package and the type are no longer *adjacent* segments (#59 put the
- *    system between them) changes nothing, because the hazard was never
- *    adjacency — it is that a short form omits the slots in between.
+ *    the package and the type are not *adjacent* segments, the system sitting
+ *    between them, changes nothing: the hazard is not adjacency, it is that a
+ *    short form omits the slots in between.
  *    One such collision is structural and cannot be fixed — `sohl` is both a
  *    content package and a system id, because Foundry requires a system
  *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
@@ -1113,7 +1109,7 @@ function normalizeDocs(value) {
  * One section's landing metadata — what a section says about itself on the
  * `_index.md` this build generates for it.
  *
- * A generated landing is the *only* place a section can speak, and since #204 it
+ * A generated landing is the *only* place a section can speak, and it
  * is the only place a section **exists**: a content page is addressed
  * `(type, shortcode)` and written flat under the mount, so no page creates a
  * directory and nothing else makes `<prefix><section>/` answer. This is
@@ -1125,7 +1121,7 @@ function normalizeDocs(value) {
  * written fourteen to twenty times per build against a contract every package
  * and every section shares. Unbounded there, a mistyped `descrption:` publishes
  * into front matter, is read by nobody, and says nothing to anyone — which is
- * the failure #91 was filed about, moved one step downstream where no build can
+ * the same failure, moved one step downstream where no build can
  * see it. So the keys are named here, and the writers emit what this produced
  * rather than transcribing a second list of their own.
  *
@@ -1134,9 +1130,9 @@ function normalizeDocs(value) {
  * add to its title. Each is left off entirely rather than written as
  * `undefined`, which is not a value YAML can carry.
  *
- * **`listType` / `listSubType` say what the section lists**
- * (heroiclands-hugo-theme#50). Since #204 a section's directory holds nothing
- * but the `_index.md` written here, so a layout reading Hugo's `.Pages` finds
+ * **`listType` / `listSubType` say what the section lists.** A section's
+ * directory holds nothing but the `_index.md` written here, so a layout
+ * reading Hugo's `.Pages` finds
  * no members and renders an empty landing. The membership survives in this map
  * and nowhere a theme can reach it, so the landing states it and a layout
  * substitutes the equivalent `site.RegularPages` query — the same one `sohl`'s
@@ -1843,7 +1839,7 @@ function normalizePublish(value) {
     }
     if (prefix.startsWith("/")) {
         // A leading slash would make the recorded address package-absolute,
-        // which is exactly the site-absolute shape #1465 removed.
+        // which is exactly the site-absolute shape this avoids.
         fail("publish.address.prefix", "must not begin with a slash");
     }
 
@@ -1930,7 +1926,7 @@ export function defineConfig(config) {
     // A name that resolves to nothing is a build error rather than a
     // fall-through, in the spirit the rest of this file already follows: a pack
     // stamping a system nobody declared would stamp `undefined`, which is the
-    // plausible lie #43 was about.
+    // plausible lie.
     if (requiresSystem !== null && !declaredSystems.has(requiresSystem)) {
         fail(
             "requiresSystem",
@@ -1954,7 +1950,7 @@ export function defineConfig(config) {
         // and no package-wide system, so every pack fell through to a
         // package-wide stat that is null: 2,513 compiled actors stamped
         // `_stats.systemId: null` in a pack that says `system: sohl` on the
-        // line above. That is the plausible lie #43 was about, reached by the
+        // line above. That is the plausible lie, reached by the
         // one path this check did not cover, and the `requiresSystem` check ten
         // lines up already refuses its own version of it in as many words.
         if (!declaredSystems.has(pack.system) && pack.system !== packageWide) {

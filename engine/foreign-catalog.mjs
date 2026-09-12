@@ -219,7 +219,7 @@ function cachedItemPacks(dir) {
  * Whether a dependency's cache is present and complete.
  *
  * **A cache without its pack manifest is incomplete**, not merely unlabelled.
- * One written before #58 holds the items and not what they are, and the two
+ * An older one holds the items and not what they are, and the two
  * ways of proceeding without it are both wrong: reading every pack resolves an
  * `hm3` reference against `sohl` documents — the silent-wrong-output failure
  * this scoping exists to remove — and reading none fails a build that was

@@ -141,7 +141,7 @@ export function splitPages(body, leadName = "Introduction") {
  * on an identity alone:
  *
  * - **An anchor**, declared twice, has always collided.
- * - **A name**, repeated among the unanchored pages, collides since #268 took
+ * - **A name**, repeated among the unanchored pages, collides once
  *   the index out of the key. `MD024` with `siblings_only` already makes two
  *   sibling headings with the same text a lint error, so this is the same rule
  *   restated where the build can enforce it — a lint is a separate command, and
@@ -344,7 +344,7 @@ export class Journals extends BasePackCompiler {
      *
      * Two memberships, and they mean different things.
      * {@link module:engine/ids.JOURNAL_TYPES} is the types whose whole document
-     * *is* a journal — `doc`, and since #241 `place`, `lore` and `scenario`,
+     * *is* a journal — `doc`, `place`, `lore` and `scenario`,
      * which the content format has always described and nothing compiled.
      * {@link sohl.utils.packs.docEntryTypes}, read through
      * {@link sohl.utils.packs.hasDocEntry}, is the types whose prose becomes a
@@ -409,7 +409,7 @@ export class Journals extends BasePackCompiler {
         // failure is unrepresentable rather than merely reported.
         //
         // The id spelling used to cross packs verbatim here, on the assumption
-        // both declared it — the arrangement #260 retires with the YAML.
+        // both declared it — the arrangement retired with the YAML.
         const { value: authoredFolder } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress: true });
 

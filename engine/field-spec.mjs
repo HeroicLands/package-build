@@ -50,7 +50,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
 /**
  * @typedef {object} FieldSpec
  * @property {string} to - Dotted path in the emitted `system` block — and,
- *   since #58, the path a note authors the field at directly:
+ *   the path a note authors the field at directly:
  *   `<system>.system.<to>`.
  * @property {string} [name] - The **shared, top-level property this field draws
  *   from** when the note authors no value at `<system>.system.<to>`. Dotted for
@@ -62,7 +62,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   to share a name. They constantly do not — one shared `data.portrait` feeds
  *   `sohl.system.portrait` *and* `hm3.system.bioImage` — so the source is
  *   declared rather than matched by spelling. The in-block position is
- *   still read, second, until #126 moves the corpus off it — keyed on
+ *   still read, second, until the corpus moves off it — keyed on
  *   `legacyKey` where the two spellings differ.
  *
  *   Absent means the value is not authored at all — see `value`.
@@ -70,7 +70,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   the system block** — the second position of the resolution order — when
  *   that is not `name`. Absent, the position is keyed on `name`.
  *
- *   The two were one property until #305, which held only while a field's
+ *   As one property the two would hold only while a field's
  *   shared source and its in-block key were the same word. `data:` ended
  *   that: a shared source is a path into a container, so `data.species` and
  *   `species` name two different places and no single value reached both.
@@ -114,7 +114,7 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   if the two positions hold unrelated quantities then the *in-block* position
  *   is not the note-level field either, so a check about the note-level field
  *   reads past it. `engine/frontmatter-lint.mjs` resolves that through
- *   `collidingBlockKeys`. Read for the emitted field alone until #312, which is
+ *   `collidingBlockKeys`. Reading it for the emitted field alone is
  *   how an affiliation's office style came to answer for its page heading.
  * @property {string} [shape] - Human-readable shape, for documentation. Comes
  *   paired with `read` from one of the coercion constants below.
@@ -294,7 +294,7 @@ export const BLANK_IS_DEFAULT = Object.freeze({
  *
  * **Only for a field that declares a `legacyKey`.** Every other field's
  * in-block position is simply where it lives; reporting those would put a
- * finding on every field of every note in every tree, which is #126's corpus
+ * finding on every field of every note in every tree, which is the corpus
  * migration rather than a signal anyone could act on.
  *
  * @param {FieldSpec} field - The declaration.
