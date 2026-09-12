@@ -8,8 +8,20 @@ types/
 # Compressed packages
 *.tgz
 
-# Dependency directories
-/node_modules/
+# Dependency directories.
+#
+# No trailing slash, and not anchored to the root. The trailing slash matched a
+# *directory* only, so when a worktree carried `node_modules` as a **symlink**
+# to another checkout, git did not ignore it and a `git add -A` committed it —
+# a 120000 blob holding one developer's absolute path. Every release from
+# 2026-09-11 then failed, because the release job installs, and the changesets
+# action's `git reset --hard` afterwards restores the symlink over the top of
+# the install, leaving every module unresolvable on a machine where that path
+# does not exist (#381).
+#
+# Unanchored so the same thing cannot happen one directory down, which is where
+# the symlink came from: a nested worktree of the kind #364 is about.
+node_modules
 
 # dotenv environment variables file
 /.env
