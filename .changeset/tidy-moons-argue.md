@@ -1,5 +1,5 @@
 ---
-"@heroiclands/package-build": major
+"@heroiclands/package-build": minor
 ---
 
 **The icon registry belongs to the consumer, not to the toolchain.**
