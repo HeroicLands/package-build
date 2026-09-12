@@ -122,7 +122,7 @@ export function releaseUrls({ repoUrl, version, artifact }) {
 }
 
 /**
- * Where this release publishes its content index (#239).
+ * Where this release publishes its content index.
  *
  * **Pinned to this version, like `download` and unlike `manifest`.** A
  * consumer reaches this URL by reading the dependency's manifest, so the
@@ -265,7 +265,7 @@ function namedPacks(folders, at) {
  * `styles`, `languages`), and a staged file is a different relation, checked
  * against the stage rather than against configuration. So this is the one place
  * a declaration can go stale against a value the build already computed — and
- * until now nothing compared them (#81).
+ * until now nothing compared them.
  *
  * `HarnMaster-3-FoundryVTT` shipped the consequence: its folder named four
  * packs, three of which had not existed since the compendium was consolidated,
@@ -350,7 +350,7 @@ export function packFolderFindings({ packFolders, packs = [] }) {
  * it, and someone reading a published manifest cannot tell a build directive
  * from a declaration about what the package needs.
  *
- * So the block is filtered rather than copied whole (#29). The rule is the
+ * So the block is filtered rather than copied whole. The rule is the
  * distinction, not the name: a key listed here answers *how is this built?*,
  * and every key that survives answers *what does this package depend on?*.
  * `itemCatalog` is the first build-time key to land on a relationship and is
@@ -441,7 +441,7 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     };
     if (config.compatibility) derived.compatibility = config.compatibility;
 
-    // `requiresSystem` is the gate half of the declare/require split (#48). It
+    // `requiresSystem` is the gate half of the declare/require split. It
     // emits the `relationships.systems` entry Foundry's `supportsSystem` reads,
     // reusing the `systems:` declaration rather than restating it — a second
     // transcription is free to disagree with what it copied, which is how
@@ -476,8 +476,8 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
 
     const merged = { ...declared, ...derived };
 
-    // The index every consumer resolves this package's addresses through
-    // (#239). Written unconditionally, because a package that publishes no
+    // The index every consumer resolves this package's addresses through.
+    // Written unconditionally, because a package that publishes no
     // index is one nothing can link into — and the failure of an absent one is
     // a dead link in somebody else's build, which is exactly the kind of
     // silence this replaced the vendored manifest to end.
@@ -562,7 +562,7 @@ function reportPackFolders(findings, configFile) {
  * The declared `packFolders` is checked against the derived `packs[]` first,
  * and an unresolvable name **stops the write**: a manifest already known to
  * describe packs the package does not ship should not reach the stage, where
- * the next command would deploy it (#81). See {@link packFolderFindings} for
+ * the next command would deploy it. See {@link packFolderFindings} for
  * the rule and why its two findings carry different severities.
  *
  * @param {object} options - As {@link buildManifest}, plus where to write.

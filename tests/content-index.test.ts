@@ -662,7 +662,7 @@ describe("emitContentIndex", () => {
  *
  * - a **homepage** compiles into no document at all (`NEVER_PACKED_TYPES`);
  * - a **folder** materialises in *every* pack holding a document that
- *   references it (`DERIVED_PACKED_TYPES`, #276), so no one UUID identifies it,
+ *   references it (`DERIVED_PACKED_TYPES`), so no one UUID identifies it,
  *   and emitting one would publish an `Item` UUID for a `Folder` at an id no
  *   document carries.
  *

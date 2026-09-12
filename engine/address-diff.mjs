@@ -61,7 +61,7 @@
  * one.
  *
  * So an author who has just renamed a shortcode **says so**, with
- * `renamedFrom:` on the note that made the change (#278, and see
+ * `renamedFrom:` on the note that made the change (and see
  * `engine/note-renames.mjs`). That is neither a guess nor an identity match but
  * testimony from the only party that knows, and the diagnostic reports which of
  * the two it had rather than blending them — a reader can verify a matched id
@@ -315,7 +315,7 @@ export function declaredPredecessors(
  * @param {Map<string, {to: string, file: string}>} [opts.predecessors] - The
  *   declared renames, from {@link declaredPredecessors}. Omitted, the diff
  *   falls back to the id join alone and reports an unpinned rename as a
- *   withdrawal, which is what it did before #278.
+ *   withdrawal, which is what it did before.
  * @returns {Array<object>} One finding per departed address, in address order
  *   so two runs read the same. `kind` is `"renamed"` (with `to`, and `declared`
  *   when it was the note's word rather than an id match) or `"withdrawn"`.

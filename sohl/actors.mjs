@@ -398,7 +398,7 @@ export class Actors extends SystemActorCompiler {
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`
             // key — and, for a being that is an archetype, its archetype
-            // identity (the dedup/override key of the Create-dialog picker, #604).
+            // identity (the dedup/override key of the Create-dialog picker).
             shortcode: fm.shortcode || "",
             // Required nullable number: a priority, or `null` for a being that
             // is not a template (#126 / archetype contract #604). The field was
@@ -448,7 +448,7 @@ export class Actors extends SystemActorCompiler {
         this.reportUndeclaredSystemData(fm, SYSTEM, "Actor", subType);
         // And what this pass wrote itself. There is no field declaration for a
         // being at all, so *every* key here is a compiler emission — including
-        // `templatePriority`, which nothing compared until #155.
+        // `templatePriority`, which nothing compared until.
         this.reportEmittedSystemData(system, {
             fm,
             block: SYSTEM,

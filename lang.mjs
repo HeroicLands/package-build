@@ -29,13 +29,13 @@
  *   `expandObject` **throws**: it cannot create a `Note` property on the string
  *   `"The Pall"`. Foundry catches that throw and discards the **entire** file,
  *   so one colliding pair drops every translation in it and each string renders
- *   as its raw key (#636). A key must be a leaf **or** a branch, never both.
+ *   as its raw key. A key must be a leaf **or** a branch, never both.
  * - **A Handlebars placeholder.** Foundry interpolates with `format()` and
  *   SINGLE braces, so a `{{…}}` value renders literally unless some call site
- *   happens to hand it to a Handlebars pass (#1353).
+ *   happens to hand it to a Handlebars pass.
  * - **Data baked into a key segment.** A segment carrying anything but
  *   `[A-Za-z0-9_-]` is a path or a UUID in a key, and a dotted payload is how
- *   the collision above gets in (#636, #1351).
+ *   the collision above gets in.
  *
  * Every function here is pure — it takes source text and returns findings, and
  * touches no filesystem and emits nothing. The caller owns discovery and

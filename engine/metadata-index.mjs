@@ -182,7 +182,7 @@ export function cachedMetadataFiles(config) {
  * The same fetched indexes, each paired with the package that published it.
  *
  * The id is what a SQL content table addresses a dependency's notes by
- * (`FROM sohl.notes`, #246), so the pairing has to survive the lookup —
+ * (`FROM sohl.notes`), so the pairing has to survive the lookup —
  * {@link cachedMetadataFiles} drops it, and a caller reconstructing the id from
  * the file name would be parsing a path to recover something the declaration
  * already stated.

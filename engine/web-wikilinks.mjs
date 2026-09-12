@@ -130,7 +130,7 @@ function lookupRead(index, read, contentPackage) {
  * of detail — matching markup is what keeps a reader's cue the same in
  * a journal and on the page. Duplicated rather than imported only because the
  * function is not exported from `@heroiclands/package-build`; hoisting it there
- * is HeroicLands/content-build#13.
+ * is.
  *
  * The knowledgebase renders with `unsafe = true` (`kb/hugo.toml`), so raw HTML
  * in generated markdown reaches the page. That makes escaping obligatory: this
@@ -174,7 +174,7 @@ function unresolvedLink(text, target) {
  * class name and the `title` wording — one authored link renders on two
  * surfaces, and the two builds have drifted before over exactly this kind of
  * detail. Duplicated rather than imported for the same reason
- * {@link unresolvedLink} is; hoisting both is HeroicLands/content-build#13.
+ * {@link unresolvedLink} is; hoisting both is.
  *
  * The argument is already-built markup and is deliberately not escaped; the
  * *authored* text inside it was escaped, or made into a link, by the caller.

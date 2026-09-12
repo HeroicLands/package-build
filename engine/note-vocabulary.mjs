@@ -418,7 +418,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     being: Object.freeze({
         // Derived from the note's `(type, subType)` by each system's map, which
-        // lands with #79. Declared open until it does, because inventing the
+        // lands with. Declared open until it does, because inventing the
         // values here would put a second, weaker answer beside the real one.
         subTypes: null,
         data: Object.freeze([

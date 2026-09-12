@@ -324,7 +324,7 @@ export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
- * (the archetype contract, #604). The property is a nullable number that
+ * (the archetype contract). The property is a nullable number that
  * authors must state explicitly:
  *   - a number → the document is a template of that priority.
  *   - `null`   → the document is not a template.
@@ -371,7 +371,7 @@ export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * The value a document's `system.templatePriority` carries, from the required
- * `templatePriority` frontmatter (#126, sohl#1780, renamed off `archetype` by
+ * `templatePriority` frontmatter (sohl#1780, renamed off `archetype` by
  * #266 / sohl#1836).
  *
  * A **schema field**, so the tri-state is written out in full rather than
@@ -515,7 +515,7 @@ function addressesAnotherPackage(s) {
  * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
  * key the site emitter reads as the page title — so `title: null` stringifies
  * into the compiled document as the literal `"null"`. One key, two destinations
- * that disagree about what empty means; see #218.
+ * that disagree about what empty means; see.
  *
  * This is translation only: the default for an unset path is domain-specific
  * (actors default differently from items, and gear differently again), so each

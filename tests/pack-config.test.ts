@@ -121,7 +121,7 @@ describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", (
 });
 
 describe("the core version is configuration, and the config is its source", () => {
-    // This reverses what this file asserted until #50. The rule *was* that
+    // This reverses what this file asserted until. The rule *was* that
     // configuration may say only where the manifest is, never what it holds,
     // because the manifest was hand-authored and moved with test evidence — a
     // captured copy would silently stop following it.

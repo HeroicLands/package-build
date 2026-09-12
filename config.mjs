@@ -150,7 +150,7 @@ const ARTIFACT_OF_KIND = Object.freeze({
  *
  * The dotted path rides on the error as `field` as well as appearing in the
  * message, so {@link loadPackageBuildConfig} — the half that knows which file
- * was read — can resolve it to a line and column (#95). This half stays pure.
+ * was read — can resolve it to a line and column. This half stays pure.
  *
  * @param {string} where - Dotted path of the offending key.
  * @param {string} problem - What is wrong with it.
@@ -802,8 +802,8 @@ export function resolvePackageBuildConfig(shared) {
         e2eSuite: normalizeE2ESuite(e2eInput.suite),
         // Declaring nothing keeps the old contract — the suite's exit status is
         // taken at its word. Declaring where results land is what lets the
-        // harness tell "the suite ran and passed" from "the suite did not run"
-        // (#153); a repository that wants that distinction has to say where to
+        // harness tell "the suite ran and passed" from "the suite did not run";
+        // a repository that wants that distinction has to say where to
         // look for it, because the harness does not know what the suite is.
         e2eResults: normalizeGlobs(e2eInput.results, [], "packageBuild.e2e.results"),
         e2eBuild,
@@ -831,7 +831,7 @@ export function loadPackageBuildConfig() {
     } catch (err) {
         // The pure half names the offending key and nothing else; this half
         // knows the file it was read from, so the position is attached here
-        // (#95) — the same boundary `configFromData` is for the rest of the
+        // — the same boundary `configFromData` is for the rest of the
         // configuration.
         throw locateConfigError(err, packConfigPath());
     }

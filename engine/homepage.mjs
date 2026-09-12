@@ -375,7 +375,7 @@ export function homepageTitle(fm, config) {
  *
  * The note's own, plus the derived values every emitted page carries: the
  * resolved `title`, the package the build derived — no note declares one
- * (`package:` is retired, #56) and the theme's breadcrumb partial reads
+ * (`package:` is retired) and the theme's breadcrumb partial reads
  * `.Params.package` — and its **address**.
  *
  * The address is stated as `url` for the same reason every other page states

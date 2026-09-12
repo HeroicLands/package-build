@@ -6,7 +6,7 @@
  */
 
 /**
- * `traits:` is a retired frontmatter block (#291, following #128).
+ * `traits:` is a retired frontmatter block (following #128).
  *
  * A being's description — gender, species, age, birthday, height, weight, frame
  * and the `appearance.*` keys — was authored in a top-level `traits:` block.

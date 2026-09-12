@@ -590,7 +590,7 @@ const BEHAVIOR_SPECS = Object.freeze({
 });
 
 /**
- * The behaviour types a map note may carry (issue #1525, v1).
+ * The behaviour types a map note may carry (v1).
  *
  * @type {ReadonlySet<string>}
  */

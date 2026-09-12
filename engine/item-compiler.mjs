@@ -170,7 +170,7 @@ export class SystemItemCompiler extends BasePackCompiler {
      * The whitelist is the consuming repository's `itemBuilders` keys,
      * and the system's own map is a second filter on top of it: a type this
      * system maps onto some *other* document class is not an item however a
-     * registry spells it, which is the "no wrongly-typed document" half of #79.
+     * registry spells it, which is the "no wrongly-typed document" half of.
      * A type the map does not name at all is left to the registry — see
      * {@link SystemItemCompiler#itemSubtype}.
      *

@@ -74,7 +74,7 @@ export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap
  * addressed as `<type>` and `doc<type>`. These are one, so there is no
  * `docplace` and nothing synthesizes one.
  *
- * `doc` was the only member until #241. `place`, `lore` and `scenario` are in
+ * `doc` was the only member until. `place`, `lore` and `scenario` are in
  * the published content format and were declared for validation in #233, but
  * nothing routed them: a note of one lint-ed clean and then compiled into
  * nothing, because {@link PACK_BY_TYPE} did not name it and the open-set

@@ -211,7 +211,7 @@ describe("every other shape resolves as it always did", () => {
 
     it("still lets PACKAGE_BUILD_CONFIG override both walks, without a warning", () => {
         // An explicit name is not a search result, so there is no disagreement
-        // to report — which is what made it the workaround for #364.
+        // to report — which is what made it the workaround for.
         const named = path.join(parent, `${CONFIG_BASENAME}.yaml`);
         const { config, stderr } = loadFrom(nested, { PACKAGE_BUILD_CONFIG: named });
         expect(config.rootDir).toBe(parent);

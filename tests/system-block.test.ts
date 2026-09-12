@@ -356,7 +356,7 @@ describe("unknownBlockKeys", () => {
 describe("a field declaration reads through the block", () => {
     // How today's corpus is declared and authored: a bare shared key, which the
     // notes write inside the block. Both positions still resolve, so nothing
-    // moves until #126.
+    // moves until.
     const today = [
         { to: "weightBase", name: "weight", ...NUMBER, default: 0, describe: "" },
         { to: "material", name: "material", ...STRING, default: "", describe: "" },

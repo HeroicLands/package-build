@@ -488,7 +488,7 @@ own to call a run green. Every way of stopping a runner before it starts — a
 corrupt install, a missing browser, a killed process, an `npm ci` racing the
 run and taking `node_modules` with it — produces a run that executed nothing,
 and a harness that reports that as 0 makes the evidence unfalsifiable in the
-one direction that matters (#153).
+one direction that matters.
 
 So the suite is bracketed rather than trusted:
 

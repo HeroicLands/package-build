@@ -10,7 +10,7 @@ import { describe, it, expect } from "vitest";
 // build-time pack builder (`packages/content-build/sohl/items.mjs`) and the runtime
 // `SohlItem.getDefaultArtwork` override. Plain ESM, living in the build package
 // and imported here through the same leaf entry point both of them use, so this
-// suite exercises the map they actually read. See issues #890, #932, #1510.
+// suite exercises the map they actually read. See issues.
 import { DEFAULT_ITEM_ART, defaultItemArt } from "../sohl/default-item-art.mjs";
 // The item-type registry — the one place a type is declared. Deriving
 // the expectation from it is what stops this map becoming a third list that

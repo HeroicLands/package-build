@@ -611,7 +611,7 @@ describe("every declared note type is routed, or excused for a stated reason", (
 
     /*
      * The teeth. A guard that cannot fail is not a guard, and this one is only
-     * worth its lines if it would have caught #241.
+     * worth its lines if it would have caught.
      *
      * `place` is the witness, because it is the type that was broken: it is in
      * the configured vocabulary, no system map declares it (a journal type has
