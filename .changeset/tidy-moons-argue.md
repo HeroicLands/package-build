@@ -32,6 +32,3 @@ with five weights or none is describable. An entry may declare `fixedWidth`,
 which emits `fa-fw`: whether a glyph needs a full advance to sit in a column of
 controls is a fact about that glyph, so it belongs to the table rather than to a
 note's use of it.
-
-**Migrating.** Move your icon names into `icons:`, declaring the families they
-draw from. A tree that names no icons needs no change.
