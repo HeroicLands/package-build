@@ -193,7 +193,7 @@ describe("a module's system version comes from its system relationship", () => {
         expect(() => resolveIn(repoDir(), data)).toThrow(/relationships\.systems/);
 
         // A module declaring *nothing* is system-agnostic on purpose and stamps
-        // null — that is #43, and it is now the only reading available, since
+        // null — the plausible lie, and it is the only reading available, since
         // `stats.systemId` can no longer be authored to say otherwise.
         const none = { ...minimal(), packageKind: "modules" };
         expect(resolveIn(repoDir(), none).stats.systemVersion).toBeNull();
@@ -338,7 +338,7 @@ describe("a system-agnostic module stamps no system version", () => {
         expect(config.stats.systemVersion).toBeNull();
     });
 
-    // #1548 guarded "named a system but no relationship" by reading an
+    // "Named a system but no relationship" is guarded by reading an
     // *authored* `stats.systemId`. That key is derived now, so the signal
     // it carried has moved: a module says which system it is for by declaring
     // it under `systems:`, and a declaration with no `verified` is the mistake.

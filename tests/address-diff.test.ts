@@ -129,7 +129,7 @@ describe("diffing this build's addresses against a published release", () => {
     /*
      * The strongest of the three joins: the id is the same on both sides, so
      * this is an identity match rather than a guess at a similar-looking
-     * string. Since #270 an id is derived from the address and moves with the
+     * string. An id is derived from the address and moves with the
      * shortcode, so what this now describes is a note that **pins** its `id` —
      * still the exact case, and no longer the common one. The unpinned note is
      * `renamedFrom:`, below.
@@ -396,7 +396,7 @@ describe("the `addresses` command's own guards", () => {
 });
 
 /*
- * #270 keyed a document's id on its canonical address, which carries the
+ * A document's id is keyed on its canonical address, which carries the
  * shortcode — so renaming one moves the id too, both sides of the id join move
  * together, and an unpinned rename went back to reading as a withdrawal. A note
  * that has just been renamed says so instead.
@@ -548,7 +548,7 @@ describe("a rename the note declares", () => {
                 ],
             ]);
 
-        it("was a withdrawal with nothing declared, and that is #278", () => {
+        it("is a withdrawal with nothing declared", () => {
             const [finding] = diffItemAddresses(baseline(), current(), { baseline: "sohl@0.8.2" });
             expect(finding.kind).toBe("withdrawn");
             expect(finding.to).toBeUndefined();
@@ -655,8 +655,8 @@ describe("a rename the note declares", () => {
     });
 
     /*
-     * End to end on the case #278 was raised about: the same rename the module
-     * exists for, with the **derived** ids #270 gave it, joined only by the
+     * End to end on the awkward case: the same rename the module exists for,
+     * with **derived** ids, joined only by the
      * note's declaration and read off a real tree.
      */
     it("reports the derived-id Tabri → Taburi rename, joined only by the declaration", () => {
@@ -690,7 +690,7 @@ describe("a rename the note declares", () => {
     });
 });
 
-describe("the live Tabri → Taburi rename (#66, sohl#1239)", () => {
+describe("the live Tabri → Taburi rename", () => {
     /*
      * The case the issue was raised from, reproduced from the real values: the
      * note kept `id: s5D6QJbw7ZbETxdN` and changed only `shortcode`, two days

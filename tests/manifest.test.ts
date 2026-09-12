@@ -227,7 +227,7 @@ describe("buildManifest", () => {
             flags,
         });
 
-    // #239: this URL is how every consumer finds the index it resolves this
+    // This URL is how every consumer finds the index it resolves this
     // package's addresses through, so it is derived, version-pinned, and not
     // something a repository is asked to write down.
     it("advertises the content index, pinned to this version", () => {
@@ -251,7 +251,7 @@ describe("buildManifest", () => {
     });
 
     // `contentPackage` is required of a resolved configuration, so in a real
-    // build the URL is always written — which is what #239 asks for. The guard
+    // build the URL is always written. The guard
     // is for a caller holding a partial config, and is asserted so that a later
     // change making the flag unconditional is a deliberate one.
     it("advertises no index when the config names no content package", () => {

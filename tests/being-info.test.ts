@@ -14,8 +14,8 @@
  *
  * The cases about {@link isBeing} are the ones that matter most: this
  * derivation lived in two repositories, each with its own idea of what a being
- * *is*, and one of them still said `character`/`creature` long after #1580
- * merged them (SoHL#1696).
+ * *is*, and one of them said `character`/`creature` long after those were
+ * merged into `being`.
  */
 
 import { describe, it, expect } from "vitest";

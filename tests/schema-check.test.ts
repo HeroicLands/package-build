@@ -80,7 +80,7 @@ describe("declaredFields separates own from inherited", () => {
 });
 
 describe("emitted but not declared — the field evaporates at load", () => {
-    // #35. `mysticalability` emitted `assocMysteryCode` while 0.8.x had already
+    // `mysticalability` emitted `assocMysteryCode` while 0.8.x had already
     // replaced it with `assocAffiliationCode`. It compiled clean and the value
     // was gone at load.
     it("catches the assocMysteryCode case", () => {
@@ -103,7 +103,7 @@ describe("emitted but not declared — the field evaporates at load", () => {
         expect(undeclared[0].systemVersion).toBe("0.8.2");
     });
 
-    // sohl-kethira-basic#30. `affiliation.subType` is authored on all 21 deities
+    // `affiliation.subType` is authored on all 21 deities
     // and *is* defined on sohl `main` — but not at 0.8.2, which is what the
     // module pins. A check against `main` passes and the field still evaporates
     // for every user, which is why the comparison is against the declared

@@ -8,7 +8,7 @@
 /**
  * Exactly one `type: homepage` note per package.
  *
- * #51 gave every package an authored page at `/<package>/` and #55 made it the
+ * Every package has an authored page at `/<package>/`, and it is the
  * floor rather than an extra, but nothing required a package to have one — so
  * the failure mode of the whole arrangement was a package that builds green and
  * serves nothing at its own address. Two is the same defect wearing a page:

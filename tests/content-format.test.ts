@@ -149,7 +149,7 @@ describe("parsing the specification", () => {
  * A type's `data` properties were read from its table and compared to the
  * declaration; its `subType` values were prose that nothing read, free to
  * disagree with `NOTE_VOCABULARY` in either direction — the same silent drift
- * #231 and #232 were filed about, on the half they did not cover.
+ * the two known gaps were about, on the half they did not cover.
  *
  * The specification wrote them five ways (`subType`, `subType:`,
  * `**subType**`, `**subType**:`, `**subTypes**:`), so the shapes converged

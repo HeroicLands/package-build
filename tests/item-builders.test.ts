@@ -34,7 +34,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const BUILDERS = ITEM_BUILDERS as Record<string, unknown>;
 
-describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
+describe("ITEM_BUILDERS (the one registry keyed by item type)", () => {
     it("maps every registered type to a builder paired with its art", () => {
         expect(Object.keys(BUILDERS).length).toBeGreaterThan(0);
         for (const [type, entry] of Object.entries(BUILDERS)) {
@@ -64,7 +64,7 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
     it("keeps the registry in step with the per-type default art", () => {
         // The third list that could drift: default item artwork. The
         // registry is keyed by the note type and the art map by the document
-        // subtype since #78, so the comparison runs through SoHL's own map —
+        // subtype, so the comparison runs through SoHL's own map —
         // which is the only statement anywhere of what an `armor` becomes.
         expect(Object.keys(DEFAULT_ITEM_ART).sort()).toEqual([...itemTypes()].map(subtype).sort());
     });
@@ -74,7 +74,7 @@ describe("ITEM_BUILDERS (the one registry keyed by item type, #1504)", () => {
         // bring art of its own. For *this* registry that must change nothing:
         // every entry's `img` is still the value `DEFAULT_ITEM_ART` holds, which
         // is what keeps this build and `SohlItem.getDefaultArtwork` reading one
-        // map (SoHL#932/#1510).
+        // map.
         const art = DEFAULT_ITEM_ART as Record<string, string>;
         for (const [type, entry] of Object.entries(BUILDERS)) {
             expect((entry as { img: string }).img, type).toBe(art[subtype(type)]);

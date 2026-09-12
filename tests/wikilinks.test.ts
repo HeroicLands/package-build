@@ -394,7 +394,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         // *is* the prose — so there is no separate documentation to address,
         // and `docdoc` names nothing.
         //
-        // `docbeing` is deliberately not tested here any more: since #337 an
+        // `docbeing` is deliberately not tested here: an
         // actor publishes documentation like every other system-bearing note,
         // so it is a valid qualifier. See the case below.
         for (const [link, text, target] of [["[[docdoc/shock|Shock]]", "Shock", "docdoc/shock"]]) {
@@ -428,7 +428,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
 
     it("ignores an anchor applied to an Item — an Item has no pages", () => {
         // Only a JournalEntry has pages. Rather than forge a JournalEntryPage id
-        // onto a document that can never hold one (the #1362 defect), the anchor
+        // onto a document that can never hold one, the anchor
         // is simply dropped and the link addresses the item.
         //
         // Reaching the Item from prose means stating the system; the
@@ -545,12 +545,12 @@ describe("convertWikilinks — the `type-shortcode` separator", () => {
     });
 
     // This used to split at the *first* hyphen so a shortcode could contain one
-    // (`self-pro`). #1397 made every segment `^[A-Za-z0-9]+$`, and #59 made the
+    // (`self-pro`). Every segment is `^[A-Za-z0-9]+$`, and the
     // grammar positional — three segments is `<system>-<type>-<shortcode>` —
     // so the two rules cannot both hold. The charset rule wins: it is enforced,
     // and no tree has ever used the tolerance (138,204 authored shortcodes
     // across four trees, none carrying a separator).
-    it("does not read a hyphenated shortcode, which #1397 forbids", () => {
+    it("does not read a hyphenated shortcode, which the charset forbids", () => {
         const withHyphenCode = buildWikilinkIndex(
             [...DOCS, { type: "trauma", id: "99999999999999a1", shortcode: "self-pro" }],
             "sohl",

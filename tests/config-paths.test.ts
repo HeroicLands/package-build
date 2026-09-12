@@ -6,7 +6,7 @@
  */
 
 /**
- * What #1508 made configurable, asserted from a consumer's point of view: a
+ * What is configurable, asserted from a consumer's point of view: a
  * repository that does **not** use the conventional layout, built from a
  * throwaway tree that is nobody's working directory.
  *
@@ -152,7 +152,7 @@ describe("the core version is configuration, and the stamp follows it", () => {
     });
 
     it("ignores what the manifest in the tree happens to say", () => {
-        // The direction of truth reversed in #50: package-build generates the
+        // The direction of truth: package-build generates the
         // manifest *from* the configuration, so reading it back would be a
         // round trip through an artifact that need not exist yet — `build:db`
         // can run before it is written. Here the sandbox's manifest says

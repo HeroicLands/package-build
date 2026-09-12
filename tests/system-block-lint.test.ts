@@ -10,7 +10,7 @@
  * vocabulary.
  *
  * The frontmatter lint knew one block, `sohl:`, and one vocabulary, the note
- * type's field names. Two things follow from #58 and neither was expressible:
+ * type's field names. Two things follow from the mapping tables:
  * the block now carries the shared vocabulary any system's block may
  * (`system`, `type`, `img`, …), and a note may carry a second system's block
  * whose keys were not looked at at all — dropped in silence, which is the

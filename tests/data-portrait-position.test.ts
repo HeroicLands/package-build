@@ -11,7 +11,7 @@
  * `data:` did not invent the facts it holds — it gathered them out of
  * the note's open top level, where `portrait:` sat beside `img:` and
  * `shortcode:`. So a field declaring `data.portrait` has *two* shared
- * spellings, and #305 taught the resolver only about the retiring **in-block**
+ * spellings, and the resolver knows only about the retiring **in-block**
  * one. Step 3 read the declared source and stopped.
  *
  * The being emitter never went through the resolver at all: it read
@@ -33,7 +33,7 @@
  *
  * So the resolver gained step 3b, and it is **derived** rather than declared:
  * the retiring spelling of `data.<key>` is `<key>`, because that is precisely
- * what #128 did. A `protection.blunt` was never a `blunt:`, so it has none.
+ * what the sweep did. A `protection.blunt` was never a `blunt:`, so it has none.
  */
 
 import { describe, it, expect, vi } from "vitest";
@@ -109,7 +109,7 @@ describe("resolving a `data:`-sourced field", () => {
     });
 
     it("reads the retiring top-level key, which `data:` gathered the fact off", () => {
-        // The whole of #332: this is what `sohl`'s bestiary writes, on every
+        // The whole point: this is what `sohl`'s bestiary writes, on every
         // note, and it reached the resolver as an absence.
         expect(
             resolveFieldValue(PORTRAIT, { portrait: "images/b.webp" }, { block: "sohl" }),
@@ -176,7 +176,7 @@ describe("resolving a `data:`-sourced field", () => {
     });
 
     it("leaves a non-`data:` shared source resolving exactly as it did", () => {
-        // The guard on the whole change: every field declared before #332 has a
+        // The guard on the whole change: every declared field has a
         // bare or non-`data.` source, so none of them gained a position.
         const blunt = { name: "protection.blunt", to: "protection.blunt", ...STRING, default: "" };
         expect(resolveFieldValue(blunt, { blunt: "5" }, { block: "sohl" })).toEqual({
@@ -360,7 +360,7 @@ describe("an HM3 actor's `system.bioImage`", () => {
 /*  The lint reads the same positions the compiler does                    */
 /* --------------------------------------------------------------------- */
 
-describe('the `""`-means-blank warning sees a portrait under `data:` (#218 + #332)', () => {
+describe('the `""`-means-blank warning sees a portrait under `data:`', () => {
     const lintOptions = { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY } as never;
 
     const findings = (fm: Record<string, unknown>) =>
