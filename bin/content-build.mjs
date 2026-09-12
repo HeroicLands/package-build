@@ -79,6 +79,7 @@ import {
 } from "../engine/metadata-index.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
+import { lintContentCharset } from "../engine/content-charset.mjs";
 import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
@@ -922,10 +923,19 @@ function lintCommand() {
                     }
                 }
 
+                // The charset the tree is held to, so a book can pick its face
+                // (#377). Run over the raw files rather than the parsed notes:
+                // the subject is every character authored, including the ones
+                // that stopped a note parsing at all.
+                const charset = lintContentCharset(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
                     ...schemaFindings,
+                    ...charset.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // until #142, so this changed nothing on the day it landed —
