@@ -43,6 +43,34 @@ jobs:
                   node-version: 24
                   cache: npm
             - run: npm ci
+
+            # TEMPORARY DIAGNOSTIC for #381 — remove before this PR merges.
+            #
+            # The release workflow fails at `changeset version` with `sh: 1:
+            # changeset: not found`, while `npm test` reaches `vitest` by bare
+            # name in the same job. A clean `npm ci` from `main` links
+            # `node_modules/.bin/changeset` locally and `npm run` finds it, so
+            # the question this answers is which of those two is untrue on a
+            # runner. Every line is read-only.
+            - name: Diagnose changeset resolution
+              run: |
+                  echo "--- npm and node ---"
+                  npm --version; node --version
+                  echo "--- is the package installed? ---"
+                  ls -l node_modules/@changesets/cli/bin.js || echo "MISSING: package file"
+                  echo "--- is the bin linked? ---"
+                  ls -l node_modules/.bin/changeset || echo "MISSING: .bin/changeset"
+                  echo "--- for contrast, the one that works ---"
+                  ls -l node_modules/.bin/vitest || echo "MISSING: .bin/vitest"
+                  echo "--- does require.resolve find it? (the action's own method) ---"
+                  node -e "console.log(require.resolve('@changesets/cli/bin.js', { paths: [process.cwd()] }))" || echo "FAILED: require.resolve"
+                  echo "--- what PATH does an npm run-script actually get? ---"
+                  # `env` is npm's own built-in script, so this needs no
+                  # temporary entry in package.json.
+                  npm run --silent env | tr ':' '\n' | grep -n "node_modules/.bin" || echo "node_modules/.bin is NOT on the run-script PATH"
+                  echo "--- does a bare changeset resolve inside a run-script? ---"
+                  npm run changeset -- --version || echo "FAILED: bare changeset via npm run"
+
             - name: Formatting
               run: npm run format:check
             # Separate steps rather than folded into `npm run lint`, which
