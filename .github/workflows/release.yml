@@ -122,6 +122,19 @@ jobs:
                   # looking fine, because the step is skipped entirely when the
                   # only pending changesets are empty. An npm script is the
                   # seam that does get a shell.
+                  #
+                  # `changeset:version` calls a **bare** `changeset`, and the
+                  # asymmetry with `publish-script` below is deliberate — do not
+                  # "fix" it with npx. `npm run` puts `node_modules/.bin` on the
+                  # PATH, which is the same mechanism `npm test` uses to reach
+                  # `vitest` two steps up, so the bare name resolves the pinned
+                  # local copy with no lookup at all. Swapping it for `npx
+                  # changeset version` turned the release red with `npm error
+                  # could not determine executable to run`: npx consults the
+                  # registry, and this job's registry is configured for OIDC
+                  # publishing rather than for reads (#381). `npx --no-install`
+                  # passes locally precisely because it skips that lookup, so a
+                  # local check of the npx form proves nothing about this job.
                   version-script: npm run changeset:version
                   publish-script: npx changeset publish
                   commit-message: "chore(release): version packages"
