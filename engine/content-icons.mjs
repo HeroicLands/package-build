@@ -74,6 +74,103 @@ import path from "node:path";
 export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
 
 /**
+ * The sizes a note may ask for, and what each means on a page.
+ *
+ * **A closed set, because size is content here rather than styling.** The icon
+ * legend exists to let a reader tell one glyph from another, and several of
+ * them genuinely cannot be told apart at the size of running text — so the
+ * enlargement is part of what that page *says*, not decoration applied to it.
+ * That is the one case worth a size at all.
+ *
+ * Closed rather than free-form for the usual reason: `font-size: 2em` in a note
+ * is CSS, which reaches two of the three surfaces and means nothing to the
+ * third. A name means the same thing everywhere, and the multiples below are
+ * Font Awesome's own, so the web class and the PDF scale cannot drift.
+ *
+ * @type {Readonly<Record<string, {class: string, scale: number}>>}
+ */
+export const ICON_SIZES = Object.freeze({
+    lg: { class: "fa-lg", scale: 1.25 },
+    xl: { class: "fa-xl", scale: 1.5 },
+    "2x": { class: "fa-2x", scale: 2 },
+    "3x": { class: "fa-3x", scale: 3 },
+});
+
+/**
+ * The attribute names a note may write, and how each is validated.
+ *
+ * One entry today. It is a table rather than an `if (key === "size")` because
+ * the next attribute — a fixed-width flag, a rotation, a title override — should
+ * cost a line here and nothing else, and because an unknown key has to be
+ * *reported*: silently ignoring `{sixe: 2x}` would leave the author looking at a
+ * page that is not what they asked for, with nothing to say why.
+ *
+ * @type {Readonly<Record<string, {values: readonly string[], describe: string}>>}
+ */
+export const ICON_ATTRIBUTES = Object.freeze({
+    size: {
+        values: Object.freeze(Object.keys(ICON_SIZES)),
+        describe: "how much larger than running text to draw the icon",
+    },
+});
+
+/**
+ * Read the brace of an icon token.
+ *
+ * Values are validated against {@link ICON_ATTRIBUTES} here rather than at the
+ * point of rendering, so a mistake is one finding with a position rather than a
+ * silently different page.
+ *
+ * @param {string} [raw] - The text between the braces, without them.
+ * @returns {{attrs: Record<string, string>, problems: string[]}} What was
+ *   written, and what cannot be honoured.
+ */
+export function parseIconAttributes(raw) {
+    /** @type {Record<string, string>} */
+    const attrs = {};
+    const problems = [];
+    if (!raw || !raw.trim()) return { attrs, problems };
+
+    // Split on commas, not whitespace: `size: 2x` is one pair with a space in
+    // it, and the space after the colon is the whole point of the spelling.
+    for (const part of raw
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean)) {
+        const colon = part.indexOf(":");
+        if (colon === -1) {
+            problems.push(
+                `\`${part}\` is not a \`key: value\` attribute — an icon takes ` +
+                    `${Object.keys(ICON_ATTRIBUTES).join(", ")}`,
+            );
+            continue;
+        }
+        const key = part.slice(0, colon).trim();
+        const value = part.slice(colon + 1).trim();
+        const spec =
+            Object.prototype.hasOwnProperty.call(ICON_ATTRIBUTES, key) ?
+                ICON_ATTRIBUTES[key]
+            :   undefined;
+        if (!spec) {
+            problems.push(
+                `\`${key}\` is not an icon attribute — the ones there are: ` +
+                    `${Object.keys(ICON_ATTRIBUTES).join(", ")}`,
+            );
+            continue;
+        }
+        if (!spec.values.includes(value)) {
+            problems.push(
+                `\`${key}: ${value}\` is not one of ${spec.values.join(", ")} — ` +
+                    `${key} says ${spec.describe}`,
+            );
+            continue;
+        }
+        attrs[key] = value;
+    }
+    return { attrs, problems };
+}
+
+/**
  * The icons the user guide already depicts, under the names it should call them.
  *
  * Each entry is read off the interface it describes rather than invented, and
@@ -101,6 +198,7 @@ export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
  * @type {Readonly<Record<string, {style: string, icon: string, label: string}>>}
  */
 export const DEFAULT_ICONS = Object.freeze({
+    affiliation: { style: "solid", icon: "certificate", label: "affiliation" },
     star: { style: "solid", icon: "star", label: "star" },
     "star-outline": { style: "regular", icon: "star", label: "hollow star" },
     diamond: { style: "solid", icon: "diamond", label: "diamond" },
@@ -130,9 +228,24 @@ export const DEFAULT_ICONS = Object.freeze({
  * Not `:name[content]`. That is remark-directive syntax, and this toolchain
  * parses with markdown-it; a directive would render as its own literal text.
  *
+ * An optional trailing brace carries **attributes**:
+ *
+ *     :icon-affiliation:{size: 2x}
+ *
+ * `key: value` pairs, comma-separated, in the shape `markdown-it-attrs` and
+ * remark-directive already use — so it is a convention a reader may recognise
+ * rather than one this module invented. Attributes rather than a bare value
+ * because `size` is merely the first one anybody needed: a fixed-width flag, a
+ * rotation, a title override are the same shape of thing, and a syntax that
+ * could only ever express size would have to be replaced to gain any of them.
+ *
+ * One inline rule consumes the token **and** its brace, so there is no state in
+ * which the icon resolves and the brace is left stranded on the page. An
+ * unhandled token degrades whole, exactly as the bare form does.
+ *
  * @type {RegExp}
  */
-export const ICON_PATTERN = /:icon-([a-z0-9]+(?:-[a-z0-9]+)*):/g;
+export const ICON_PATTERN = /:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/g;
 
 /**
  * Look one name up.
@@ -161,11 +274,11 @@ const attr = (value) =>
  * @param {{style: string, icon: string, label: string}} entry - A registry entry.
  * @returns {string} An `<i>` element.
  */
-export function iconHtml(entry) {
-    return (
-        `<i class="fa-${attr(entry.style)} fa-${attr(entry.icon)}" ` +
-        `role="img" aria-label="${attr(entry.label)}"></i>`
-    );
+export function iconHtml(entry, attrs = {}) {
+    const classes = [`fa-${attr(entry.style)}`, `fa-${attr(entry.icon)}`];
+    const sized = attrs.size ? ICON_SIZES[attrs.size] : undefined;
+    if (sized) classes.push(sized.class);
+    return `<i class="${classes.join(" ")}" role="img" aria-label="${attr(entry.label)}"></i>`;
 }
 
 /**
@@ -177,7 +290,8 @@ export function iconHtml(entry) {
 export function iconsIn(text) {
     const out = [];
     for (const m of text.matchAll(ICON_PATTERN)) {
-        out.push({ name: m[1], index: m.index ?? 0, raw: m[0] });
+        const { attrs, problems } = parseIconAttributes(m[2]);
+        out.push({ name: m[1], index: m.index ?? 0, raw: m[0], attrs, problems });
     }
     return out;
 }
@@ -197,24 +311,34 @@ export function iconsIn(text) {
  */
 export function lintIcons(text, file, registry = DEFAULT_ICONS) {
     const findings = [];
-    for (const { name, index, raw } of iconsIn(text)) {
-        if (resolveIcon(name, registry)) continue;
+    for (const { name, index, raw, problems } of iconsIn(text)) {
         const before = text.slice(0, index);
         const line = before.split("\n").length;
         const column = index - (before.lastIndexOf("\n") + 1) + 1;
-        // Nearest declared name, when there is an obvious one: a typo is the
-        // common case and the registry is short enough to say what was meant.
-        const suggestion = nearestName(name, Object.keys(registry));
-        findings.push({
-            file,
-            line,
-            column,
-            severity: /** @type {const} */ ("error"),
-            message:
-                `\`${raw}\` names an icon the registry does not declare` +
-                (suggestion ? `; did you mean \`:icon-${suggestion}:\`?` : "") +
-                ` — an undeclared name renders as its own literal text`,
-        });
+        const at = { file, line, column, severity: /** @type {const} */ ("error") };
+
+        if (!resolveIcon(name, registry)) {
+            // Nearest declared name, when there is an obvious one: a typo is the
+            // common case and the registry is short enough to say what was meant.
+            const suggestion = nearestName(name, Object.keys(registry));
+            findings.push({
+                ...at,
+                message:
+                    `\`${raw}\` names an icon the registry does not declare` +
+                    (suggestion ? `; did you mean \`:icon-${suggestion}:\`?` : "") +
+                    ` — an undeclared name renders as its own literal text`,
+            });
+            // The name is the bigger fault; reporting its attributes as well
+            // would be two findings for one token the author has to rewrite.
+            continue;
+        }
+
+        // A bad attribute on a good name is its own finding: the icon renders,
+        // and renders differently from what was asked for, which is the case
+        // nobody notices without being told.
+        for (const problem of problems) {
+            findings.push({ ...at, message: `\`${raw}\`: ${problem}` });
+        }
     }
     return findings;
 }
@@ -372,7 +496,7 @@ export function iconPlugin(registry = DEFAULT_ICONS) {
     return (md) => {
         /** @type {any} */ (md).inline.ruler.before("emphasis", "heroiclands_icon", iconRule);
         /** @type {any} */ (md).renderer.rules.heroiclands_icon = (tokens, idx) =>
-            iconHtml(tokens[idx].meta.entry);
+            iconHtml(tokens[idx].meta.entry, tokens[idx].meta.attrs);
 
         /**
          * @param {any} state - markdown-it inline state.
@@ -384,7 +508,7 @@ export function iconPlugin(registry = DEFAULT_ICONS) {
             if (state.src.charCodeAt(start) !== 0x3a /* : */) return false;
             // Anchored at the cursor, so the scan is O(token) rather than a
             // search of the remaining source at every colon in the paragraph.
-            const re = /^:icon-([a-z0-9]+(?:-[a-z0-9]+)*):/;
+            const re = /^:icon-([a-z0-9]+(?:-[a-z0-9]+)*):(?:\{([^}]*)\})?/;
             const m = re.exec(state.src.slice(start));
             if (!m) return false;
 
@@ -393,9 +517,14 @@ export function iconPlugin(registry = DEFAULT_ICONS) {
             // unrecognised name visible on the page instead of vanishing.
             if (!entry) return false;
 
+            // An attribute that cannot be honoured is reported by the lint, not
+            // enforced here: refusing to render would hide a good icon over a
+            // bad size, and the page is the place the author is looking.
+            const { attrs } = parseIconAttributes(m[2]);
+
             if (!silent) {
                 const token = state.push("heroiclands_icon", "", 0);
-                token.meta = { name: m[1], entry };
+                token.meta = { name: m[1], entry, attrs };
                 token.markup = m[0];
             }
             state.pos += m[0].length;
