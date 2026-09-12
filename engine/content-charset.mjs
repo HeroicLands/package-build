@@ -64,8 +64,21 @@
  *   embeds: it carries the box-drawing, geometric and arrow repertoire that no
  *   candidate serif reliably has.
  *
- * **This module reports and does not exit**, as every gate in this engine does.
- * The command decides what a finding is worth.
+ * **Every finding here is a `warning`, and that is deliberate.** `reportFindings`
+ * fails a run on an error and not on a warning, so nothing this module says can
+ * break a build.
+ *
+ * A character outside the charset does not make a note wrong. It compiles to
+ * the same document, publishes the same page, and reads correctly everywhere
+ * except a book that does not exist yet — so failing a consumer's build over it
+ * would stop work that is already correct in order to serve a renderer that is
+ * still being written. The trees this shipped against had 112 findings between
+ * them on the day it landed, all of them real and none of them urgent.
+ *
+ * The NFC rule is the one with a claim to being an error, since a decomposed
+ * name is silently invisible to an exact-match filter. It is a warning too,
+ * because a lint that fails a build for one of its rules and not the others is
+ * a lint nobody can predict.
  *
  * @module
  */
@@ -295,7 +308,7 @@ export function decomposedRuns(text) {
  * @param {string} text - The file's contents.
  * @param {string} file - Path to report, relative to the tree.
  * @returns {Array<{file: string, line: number, column: number,
- *   severity: "error", message: string}>} What is wrong, in file order.
+ *   severity: "warning", message: string}>} What is wrong, in file order.
  */
 export function checkText(text, file) {
     const findings = [];
@@ -347,7 +360,7 @@ export function checkText(text, file) {
                 file,
                 line: i + 1,
                 column,
-                severity: /** @type {const} */ ("error"),
+                severity: /** @type {const} */ ("warning"),
                 message: `\`${ch}\` ${hex(cp)} is ${refusalFor(cp)}`,
             });
         }
@@ -364,7 +377,7 @@ export function checkText(text, file) {
             file,
             line,
             column,
-            severity: /** @type {const} */ ("error"),
+            severity: /** @type {const} */ ("warning"),
             message:
                 `\`${run.sequence}\` is written decomposed as ${points}; write the ` +
                 `precomposed \`${run.composed}\` (${[...run.composed]
@@ -391,13 +404,13 @@ export function checkText(text, file) {
  *   in addition to the dot-directories always skipped.
  * @param {readonly string[]} [opts.extensions] - File extensions to read.
  * @returns {{findings: Array<{file: string, line: number, column: number,
- *   severity: "error", message: string}>, files: number}} The findings, and how
+ *   severity: "warning", message: string}>, files: number}} The findings, and how
  *   many files produced them.
  */
 export function lintContentCharset(contentBase, { skipDirectories = [], extensions } = {}) {
     const exts = new Set(extensions ?? [".md", ".markdown", ".yaml", ".yml", ".json"]);
     const skip = new Set(skipDirectories);
-    /** @type {Array<{file: string, line: number, column: number, severity: "error", message: string}>} */
+    /** @type {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} */
     const findings = [];
     let files = 0;
 

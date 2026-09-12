@@ -206,6 +206,35 @@ describe("normalization", () => {
     });
 });
 
+describe("severity", () => {
+    // `reportFindings` fails a run on an error and not on a warning, so this is
+    // the assertion that keeps the check from ever breaking a consumer's build.
+    it("reports every charset finding as a warning, never an error", () => {
+        const findings = checkText('the vowel /ə/, an ✕, a ━ and a "ý"', "n.md");
+        expect(findings.length).toBeGreaterThan(2);
+        for (const f of findings) expect(f.severity, f.message).toBe("warning");
+    });
+
+    it("reports a normalization finding as a warning too", () => {
+        // The one rule with a claim to being an error. A lint that fails a build
+        // for one of its rules and not the others is one nobody can predict.
+        // Built from codepoints: a decomposed literal in this file would be
+        // composed on save, and the test would silently assert nothing.
+        const findings = checkText("full: Fývria", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("precomposed");
+        expect(findings[0].severity).toBe("warning");
+    });
+
+    it("reports warnings from a whole tree walk", () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "charset-sev-"));
+        fs.writeFileSync(path.join(root, "N.md"), "the vowel /ə/\n");
+        const { findings } = lintContentCharset(root);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("warning");
+    });
+});
+
 describe("reporting", () => {
     it("reports one finding per character per line, not one per occurrence", () => {
         // Sixty box-drawing cells are one mistake made once.

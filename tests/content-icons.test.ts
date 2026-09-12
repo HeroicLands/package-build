@@ -248,6 +248,22 @@ describe("attributes", () => {
     });
 });
 
+describe("severity", () => {
+    // `reportFindings` fails on an error and not on a warning, so this is what
+    // keeps an undeclared icon name from breaking a consumer's build.
+    it("reports an undeclared name as a warning, never an error", () => {
+        const findings = lintIcons(":icon-nope:", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("warning");
+    });
+
+    it("reports a bad attribute as a warning too", () => {
+        const findings = lintIcons(":icon-star:{size: 9x}", "n.md");
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("warning");
+    });
+});
+
 describe("linting", () => {
     it("reports an undeclared name", () => {
         const findings = lintIcons("the :icon-stra: button", "n.md");
