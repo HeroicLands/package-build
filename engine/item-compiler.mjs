@@ -67,6 +67,7 @@ import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
 import { blockField, blockProperty, claimedPaths, mergeSystemData } from "./system-block.mjs";
 // The other direction of the same declaration: a field the *document* writes in
 // play, which a note may not author and the builder does not emit.
+import { assertNoDerivedFields } from "./derived-fields.mjs";
 import { assertNoRuntimeOnlyFields } from "./runtime-only-fields.mjs";
 
 /**
@@ -188,16 +189,36 @@ export class SystemItemCompiler extends BasePackCompiler {
     }
 
     /**
-     * Refuse a note authoring one of its type's **runtime-only** fields.
+     * The `system` keys this pass writes for itself, and where each is read
+     * from.
      *
-     * A schema declares fields the document writes for itself — an affliction's
-     * `onsetDate` is the world time its onset fired at — and a note authoring
-     * one used to compile, because `<system>.system` is a verbatim passthrough
-     * and the field really is in the schema. The result was shipped content
-     * carrying one world's play state, with the build reporting success.
+     * A note authoring one is refused, because the compiler writes the key
+     * unconditionally: the authored value is overwritten, or survives as the
+     * wrong type in a shipped document. Declared here rather than named in the
+     * refusal so that a second system states its own — see
+     * {@link module:engine/derived-fields}.
      *
-     * The declaration says which, so nothing here knows a field name; see
-     * {@link module:engine/runtime-only-fields}.
+     * @type {readonly {key: string, from: string}[]}
+     */
+    static derivedSystemKeys = Object.freeze([]);
+
+    /**
+     * Refuse a note authoring a field it may not write.
+     *
+     * Two rules, which differ in where the value would have come from:
+     *
+     * - **Runtime-only.** A schema declares fields the document writes for
+     *   itself — an affliction's `onsetDate` is the world time its onset fired
+     *   at. A note authoring one compiles, because `<system>.system` is a
+     *   verbatim passthrough and the field really is in the schema, and the
+     *   result is shipped content carrying one world's play state with the
+     *   build reporting success.
+     * - **Derived.** This pass writes some keys from the note itself, so an
+     *   authored one is overwritten or ships the wrong type.
+     *
+     * Both declarations say which fields, so nothing here knows a field name;
+     * see {@link module:engine/runtime-only-fields} and
+     * {@link module:engine/derived-fields}.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {void}
@@ -208,6 +229,11 @@ export class SystemItemCompiler extends BasePackCompiler {
             block: this.system,
             absPath: this.currentNote?.absPath,
         });
+        assertNoDerivedFields(
+            fm,
+            /** @type {typeof SystemItemCompiler} */ (this.constructor).derivedSystemKeys,
+            { block: this.system, absPath: this.currentNote?.absPath },
+        );
     }
 
     /**

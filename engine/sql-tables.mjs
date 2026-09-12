@@ -303,6 +303,11 @@ function cellText(value, column) {
  * authored `ORDER BY` decides the section order too, and one query replaces the
  * forty near-identical blocks the language used to require.
  *
+ * **A result selecting nothing still renders its header and rule.** The finding
+ * is the point, not withholding the output: an authored heading with an empty
+ * table under it says the query ran and matched nothing, where a heading with
+ * *nothing* under it reads as a page that failed to build.
+ *
  * @param {{columns: string[], rows: object[]}} result - From
  *   {@link runSqlQuery}.
  * @param {object} [opts]
@@ -315,7 +320,9 @@ export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2
     const { columns, rows } = result;
     if (!columns.length) throw new Error("query selects no rendered column");
 
-    const groups = [];
+    // One group with no rows, so the header and the alignment rule are emitted
+    // for a result that selects nothing.
+    const groups = rows.length ? [] : [{ section: null, rows: [] }];
     for (const row of rows) {
         const section =
             Object.hasOwn(row, RENDER_ALIASES.section) ?

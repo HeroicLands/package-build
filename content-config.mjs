@@ -68,6 +68,7 @@ import path from "node:path";
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
+import { DEFAULT_ICONS, checkIconRegistry } from "./engine/content-icons.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
@@ -590,6 +591,9 @@ export function publishesContentPages(config) {
  *                                     types. The one set the compilers and the
  *                                     link-manifest emitter both read.
  * @property {readonly string[]} skipDirectories
+ * @property {Readonly<Record<string, object>>} icons  The shipped icon
+ *                                     registry, with this package's own
+ *                                     entries merged over it.
  * @property {readonly Readonly<ResolvedPackSpec>[]} packs
  * @property {readonly string[]} packDirectories  Derived: every pack directory
  *                                     the build produces, in compile order —
@@ -612,6 +616,7 @@ const CONFIG_KEYS = [
     "itemBuilders",
     "paths",
     "skipDirectories",
+    "icons",
     "packs",
     "docs",
     "site",
@@ -961,6 +966,56 @@ function normalizePack(value, where, nested = false) {
  * @param {string} rootDir
  * @returns {Readonly<ResolvedPaths>}
  */
+/**
+ * A package's icon registry: the shipped table, plus whatever it declares.
+ *
+ * **Merged over the defaults rather than replacing them.** The shipped entries
+ * are the interface vocabulary every consumer shares — `:icon-edit:` means the
+ * same thing in two repositories — and a package that had to restate them to
+ * add one of its own would carry a copy free to drift. A declared name with the
+ * same spelling wins, which is what lets a consumer correct a glyph without
+ * waiting for a release here.
+ *
+ * **This is where a second family becomes usable.** The shipped table is Font
+ * Awesome throughout, because that is what this package can promise ships.
+ * Game-Icons glyphs come from a webfont a consumer builds for itself, so only
+ * the consumer knows their names — and only here can it say so.
+ *
+ * Validated with {@link module:engine/content-icons.checkIconRegistry}, whose
+ * findings are warnings everywhere else and a **refusal** here: elsewhere the
+ * question is whether one note is wrong, and here it is whether the table every
+ * note is read against is. A registry that cannot be trusted makes every
+ * finding downstream unreliable in the same way.
+ *
+ * @param {unknown} value - The authored `icons:` block.
+ * @returns {Readonly<Record<string, object>>} The merged, frozen registry.
+ */
+function normalizeIcons(value) {
+    if (value === undefined) return DEFAULT_ICONS;
+    if (!isPlainObject(value)) fail("icons", "must be a mapping of name to icon entry");
+
+    const declared = /** @type {Record<string, object>} */ (value);
+    for (const name of Object.keys(declared)) {
+        // The name a note writes between the colons. Checked here rather than
+        // left to the note, because a registry entry nothing can name is a
+        // silent no-op: every use of it reports "no such icon" and the table
+        // says otherwise.
+        if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(name)) {
+            fail(
+                `icons.${name}`,
+                "is not a name a note can write — `:icon-…:` takes lowercase " +
+                    "letters, digits and hyphens, the charset an address segment uses",
+            );
+        }
+    }
+
+    const findings = checkIconRegistry(declared, "icons");
+    if (findings.length) {
+        fail("icons", findings.map((finding) => finding.message).join("; "));
+    }
+    return Object.freeze({ ...DEFAULT_ICONS, ...declared });
+}
+
 function normalizePaths(value, rootDir) {
     if (value !== undefined && !isPlainObject(value)) {
         fail("paths", "must be an object");
@@ -2089,6 +2144,7 @@ export function defineConfig(config) {
         itemTypes,
         docEntryTypes,
         skipDirectories: Object.freeze(skipDirectories),
+        icons: normalizeIcons(input.icons),
         packs: Object.freeze(packs),
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),

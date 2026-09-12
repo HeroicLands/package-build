@@ -72,6 +72,9 @@ export * as retiredFields from "./retired-fields.mjs";
 /** Schema fields a note may never declare, because play writes them. */
 export * as runtimeOnlyFields from "./runtime-only-fields.mjs";
 
+/** `system` keys a note may never declare, because the compiler derives them. */
+export * as derivedFields from "./derived-fields.mjs";
+
 /** The package homepage: the note type that compiles to a page, not a document. */
 export * as homepage from "./homepage.mjs";
 
@@ -121,6 +124,9 @@ export * as contentCharset from "./content-charset.mjs";
 
 /** Naming an interface icon in a note, without drawing one there. */
 export * as contentIcons from "./content-icons.mjs";
+
+/** Raw HTML in a note's prose, which no book renderer can read. */
+export * as contentHtml from "./content-html.mjs";
 
 /** Resolving every link in a tree, and the ones that land nowhere. */
 export * as contentLinks from "./content-links.mjs";

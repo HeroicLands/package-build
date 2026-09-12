@@ -591,10 +591,18 @@ export function lintContentIcons(contentBase, { skipDirectories = [], registry }
  * is reported by {@link lintIcons}, and a rendered page that still shows
  * `:icon-stra:` is how the author finds it without reading a log.
  *
- * @param {Record<string, object>} [registry] - Defaults to {@link DEFAULT_ICONS}.
+ * **A function is accepted as well as a table**, and resolved per render. The
+ * shared markdown-it instance is a module-level constant, so it is built before
+ * any configuration is read; a getter lets it draw the package's own registry
+ * without the module load order deciding whether that registry exists yet.
+ *
+ * @param {Record<string, object>|(() => Record<string, object>)} [registry] -
+ *   The table, or something that returns it. Defaults to {@link DEFAULT_ICONS}.
  * @returns {(md: object) => void} A markdown-it plugin.
  */
 export function iconPlugin(registry = DEFAULT_ICONS) {
+    const tableOf = () =>
+        typeof registry === "function" ? (registry() ?? DEFAULT_ICONS) : registry;
     return (md) => {
         /** @type {any} */ (md).inline.ruler.before("emphasis", "heroiclands_icon", iconRule);
         /** @type {any} */ (md).renderer.rules.heroiclands_icon = (tokens, idx) =>
@@ -614,7 +622,7 @@ export function iconPlugin(registry = DEFAULT_ICONS) {
             const m = re.exec(state.src.slice(start));
             if (!m) return false;
 
-            const entry = resolveIcon(m[1], registry);
+            const entry = resolveIcon(m[1], tableOf());
             // Not ours to consume: leaving the source untouched is what makes an
             // unrecognised name visible on the page instead of vanishing.
             if (!entry) return false;
