@@ -21,7 +21,7 @@
  * `sohl-kethira-basic` had neither, so the package least likely to have been
  * proofread was checked for addresses and nothing else. A rule set copied into
  * three repositories is one rule with three implementations, which is the drift
- * #20 exists to remove — so it is declared once, here, and every consumer
+ * this exists to remove — so it is declared once, here, and every consumer
  * invokes it.
  *
  * **Neither of these is an override.** A consumer that declares its own

@@ -140,7 +140,7 @@ export function bareAddress(value) {
  * `### type: bundle` table puts it — the closed container, so a misspelled
  * `content` is a finding rather than a silently empty Adventure. It is accepted
  * at the top level too, exactly as a folder note's `parent` is: an author
- * following #259's own example rather than the specification should get a
+ * following the shipped example rather than the specification should get a
  * bundle, not a silent default.
  *
  * **Order is the author's**, and it is kept: an Adventure's `SetField` attaches

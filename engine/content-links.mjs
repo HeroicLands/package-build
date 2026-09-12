@@ -88,7 +88,7 @@ import { readQualifier } from "./wikilinks.mjs";
  * Every `{#anchor}` a note declares on a heading.
  *
  * **Read from the content index's reader, not a second one.** This module kept
- * its own until #243, and the two disagreed: it matched `{#([a-z0-9-]+)}` while
+ * its own, and the two disagreed: it matched `{#([a-z0-9-]+)}` while
  * {@link module:engine/content-index.collectAnchors} matches `{#([^}]+)}`, so
  * an anchor with a capital in it — `{#CalendarFormat}` — existed for the index
  * and for the compiler and did not exist for the link checker. Nothing links to
@@ -118,7 +118,7 @@ export function anchorsOf(body) {
  * anchors it resolves against are the ones every other pass will emit — rather
  * than a second derivation that agrees with them only by inspection. That was
  * not hypothetical: this module carried its own anchor reader until the anchor
- * half of #243, and the two disagreed about which anchors existed.
+ * anchor half, and the two disagreed about which anchors existed.
  *
  * **The file is opened for its bytes and nothing else.** The index deliberately
  * carries no note *body*, and a link lives in the body — so each note is read
@@ -162,8 +162,8 @@ export function buildLinkIndex(
 
     // The one package every note in this tree belongs to. Taken from the
     // configuration this build resolved — never from a note (`package:` is
-    // retired, so there is no second source an address could disagree with,
-    // #56) and never from the ambient one, which is a different configuration
+    // retired, so there is no second source an address could disagree with)
+    // and never from the ambient one, which is a different configuration
     // whenever a test injects one, `PACKAGE_BUILD_CONFIG` names one, or the
     // command runs from a worktree.
     const resolved = config ?? loadPackConfig();
@@ -197,7 +197,7 @@ export function buildLinkIndex(
         notes.push(note);
 
         // The anchors the index recorded, rather than a second reading of the
-        // same headings — the disagreement #243's anchor half removed.
+        // same headings — the disagreement the anchor half removes.
         anchors.set(note, new Set((record.anchors ?? []).map((a) => a.slug)));
 
         if (typeof fm.shortcode === "string" && fm.shortcode) {
@@ -316,7 +316,7 @@ export function buildLinkIndex(
      * Every indexed entry an address names, matching only the segments it
      * supplies.
      *
-     * This is the whole of #59's resolution rule in one place: a written
+     * This is the whole resolution rule in one place: a written
      * address is a *partial* one, unsupplied segments are wildcards, and the
      * caller requires exactly one hit. Nothing here decides an ambiguity — zero
      * and many are different findings with different fixes, so the count is

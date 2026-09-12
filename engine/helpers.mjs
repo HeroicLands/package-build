@@ -139,7 +139,7 @@ export function parseMarkdownFile(filePath) {
 /**
  * Refuse a corpus read whose scope its caller did not state.
  *
- * The rule of #243 in one place, so every reader of the tree refuses the same
+ * The rule in one place, so every reader of the tree refuses the same
  * way and says so in the same words. It is shared rather than repeated because
  * the corpus is no longer read only by {@link walkMarkdownTree}: a pass that
  * reads the content index instead is making the identical claim about which
@@ -172,7 +172,7 @@ export function assertStatedScope(skipDirectories, who) {
  * cycle. They take the records their caller already holds.
  *
  * That is not a workaround dressed up as a rule. A compile runs several passes
- * over one tree, and the whole of #243 is that they must not each answer "which
+ * over one tree, and the whole point is that they must not each answer "which
  * files are the corpus?" for themselves. Requiring the answer to be handed in
  * makes the sharing structural rather than remembered.
  *
@@ -200,9 +200,9 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // `PACKAGE_BUILD_CONFIG` names one, or when the command runs from a
     // worktree. Six of this function's twelve callers were on that default, so
     // "which files are the corpus?" had two answers depending on who asked
-    // — the same defect class as `entriesForNote` reading
-    // `docEntryTypes` from the ambient config, fixed in #240 after a fixture
-    // had been passing on the leak for as long as it existed.
+    // — the same defect class as `entriesForNote` reading `docEntryTypes` from
+    // the ambient config rather than the passed one, which a fixture can pass
+    // on indefinitely.
     assertStatedScope(skipDirectories, "walkMarkdownTree");
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
@@ -371,8 +371,7 @@ export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * The value a document's `system.templatePriority` carries, from the required
- * `templatePriority` frontmatter (sohl#1780, renamed off `archetype` by
- * #266 / sohl#1836).
+ * `templatePriority` frontmatter (`archetype` is the legacy spelling).
  *
  * A **schema field**, so the tri-state is written out in full rather than
  * expressed by a key's presence: a number is a template at that priority, and
@@ -628,7 +627,7 @@ export function buildStats(systemVersion = undefined, config = loadPackConfig())
  * **`systemId` travels with `systemVersion`.** They are one decision, so where
  * one is omitted both are. Stamping a per-pack version against a package-wide
  * id would emit `systemId: sohl, systemVersion: 1.6.3` on HM3 documents — a
- * *plausible lie*, which is worse than the missing value #43 fixed, because
+ * *plausible lie*, which is worse than a missing value, because
  * nothing about it looks wrong.
  *
  * Resolution, in order:
@@ -711,7 +710,7 @@ import { collectAnchors } from "./anchors.mjs";
  * declaration is unroutable is indexed against the conventional name and left
  * for the compile pass to report — the index has no business failing a build,
  * and the pass fails it with a far better message. The one exception is a
- * **retired** content type (SoHL#1580): this walk is the first to see every
+ * **retired** content type: this walk is the first to see every
  * note together with its path, and unlike an unroutable declaration there is
  * no pass that would ever claim such a note and report it.
  *
@@ -751,7 +750,7 @@ export function buildContentLinkIndex(
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note
         // left on a retired type is reported here, by name, rather than
-        // several frames deeper with nothing to go on (SoHL#1580).
+        // several frames deeper with nothing to go on.
         assertTypeNotRetired(fm.type, absPath);
         const base = String(record.file.name).replace(/_/g, " ");
         docs.push({

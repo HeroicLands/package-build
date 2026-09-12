@@ -56,7 +56,7 @@ export const MAP_TYPES = Object.freeze(new Set(["map"]));
 /**
  * The map subTypes, which differ only in the canvas defaults derived for them.
  *
- * They were three *types* until #174, which cost three entries in the pack
+ * As three *types* they would cost three entries in the pack
  * router, three in the claims set and three in every consumer's section config
  * — for one idea that the specification had always described as one type.
  *
@@ -75,7 +75,7 @@ export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap
  * `docplace` and nothing synthesizes one.
  *
  * `doc` was the only member until. `place`, `lore` and `scenario` are in
- * the published content format and were declared for validation in #233, but
+ * the published content format and are declared for validation, but
  * nothing routed them: a note of one lint-ed clean and then compiled into
  * nothing, because {@link PACK_BY_TYPE} did not name it and the open-set
  * default sent it to the items pack. `sohl-thalorna` could not compile a single
@@ -120,7 +120,7 @@ export const PACK_BY_TYPE = Object.freeze({
  * Content types that no longer exist, and what replaced each one.
  *
  * `character` and `creature` were retired in favour of the single `being` they
- * had always compiled into (SoHL#1580). They are recorded here rather than
+ * had always compiled into. They are recorded here rather than
  * simply deleted because deleting them is the one change that fails *quietly*:
  * every type not named in {@link PACK_BY_TYPE} falls through to the open item
  * set below, so a note or a link left on the old spelling would be routed to
@@ -186,7 +186,7 @@ export function assertTypeNotRetired(type, where) {
  * reason: a consumer must be able to adopt the new toolchain before its content
  * moves, and there are some 31,000 references to move.
  *
- * **Why these three, and why the other way round now.** #78 renamed
+ * **Why these three, and why this way round.** The specification renamed
  * `armorgear`, `concoctiongear` and `projectilegear` to `armor`, `concoction`
  * and `projectile`, on the argument that the suffix named the *SoHL document
  * subtype* a note compiled into rather than the thing the note is about. That

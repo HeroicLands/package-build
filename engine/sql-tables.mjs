@@ -140,7 +140,7 @@ export function findSqlBlocks(markdown) {
  * It is `FROM` rather than a fence property naming a file, for two reasons. A
  * path in authored content is a build artifact's name written into the corpus,
  * so renaming the artifact means sweeping every note that cites it — the
- * coupling #126 exists to undo. And *which dataset a query reads* is what
+ * coupling the corpus move exists to undo. And *which dataset a query reads* is what
  * `FROM` is for: the same rule that keeps `_ref` and `_section` ordinary SQL,
  * visible where an author is already looking, rather than fence options.
  *
@@ -362,7 +362,7 @@ export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2
  * {@link module:engine/content-tables.expandContentTables} is not — nor should
  * it become so: two of its three callers are synchronous, and one of those,
  * `renderPages`, is exported. Preparing the results first keeps every one of
- * those signatures intact, and it is the shape #243 is heading for anyway —
+ * those signatures intact, and it is the shape the index is heading for anyway —
  * the corpus enumerated once, each pass reading the answer rather than
  * deriving it again.
  *
@@ -417,7 +417,8 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * Answer every `sql` directive in a content tree.
  *
  * The one entry point each pass uses, so the compiler, the link checker and the
- * site build cannot disagree about what a table selects — the failure mode #243
+ * site build cannot disagree about what a table selects — the failure mode the
+ * shared index
  * describes, where N passes each derive the corpus their own way.
  *
  * **Nothing is opened for a tree with no `sql` directive.** The corpus is still

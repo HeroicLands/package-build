@@ -21,7 +21,7 @@
  * | property | maps to |
  * | --- | --- |
  * | `<system>.system` | `document.system` — the DataModel schema, verbatim paths |
- * | `<system>.type` | `document.type` — the subtype (#79's discriminator) |
+ * | `<system>.type` | `document.type` — the subtype discriminator          |
  * | `<system>.img` | `document.img` |
  * | `<system>.items` | `document.items` — actors only |
  * | `<system>.effects` | `document.effects` |
@@ -47,7 +47,7 @@
  *
  * 1. `S.system.<to>` — authored directly, wins outright;
  * 2. `S.<legacyKey>` — the legacy in-block position the corpus still writes,
- *    kept until #126 moves it;
+ *    kept until the corpus moves it;
  * 3. the shared top-level property the field **declares** as its source, which
  *    may be a dotted path (`data.portrait`) rather than a sibling key;
  * 3b. for a `data.` source, the bare top-level key that container gathered it
@@ -81,7 +81,7 @@
  *
  * `legacyKey` retires the *in-block* position, and for a while that looked like
  * the whole of what `data:` left behind. It is not. The facts `data:` holds
- * were not invented by it — #128 **gathered** them out of the note's open top
+ * were not invented by it — the sweep **gathered** them out of the note's open top
  * level, where `portrait:` sat beside `img:` and `shortcode:` — so a field that
  * declares `data.portrait` has two shared spellings to read, not one, and
  * reading only the current one is the same silent miss `legacyKey` exists to
@@ -466,7 +466,7 @@ export function resolveFieldValue(field, fm, { block = "sohl" } = {}) {
     // 2. The legacy in-block position, keyed on `legacyKey` — the shared
     //    source is a path into `data:` and the in-block key is a bare word, so
     //    the two are declared separately. Every note in every tree
-    //    writes here today, and will until #126 moves them; dropping it would
+    //    writes here today, and will until the corpus moves them; dropping it would
     //    be a corpus migration disguised as a mechanism change.
     const declared = systemBlock(fm, block);
     const legacyKey = legacyKeyOf(field);
@@ -620,7 +620,7 @@ function declaresChildren(declared, path) {
  * @param {object} options - Options.
  * @param {Iterable<string>} options.known - The keys this system declares on
  *   top of the shared vocabulary: its generators, its toolchain keys, and —
- *   until #126 moves them — the field names its notes still author in the
+ *   until the corpus moves them — the field names its notes still author in the
  *   block.
  * @returns {string[]} The unrecognized keys, in authored order.
  */

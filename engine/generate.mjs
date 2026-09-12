@@ -672,7 +672,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // silence had no owner. Asked once, of the whole configuration, because
     // that is the only place it can be answered: a per-pass check would report
     // every type a system deliberately does not map, which is exactly the
-    // silence #79 requires. Independent of `only`, since it is a fact about the
+    // silence the rule requires. Independent of `only`, since it is a fact about the
     // configured pack list rather than about which passes this run executes.
     const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
     for (const finding of unclaimed) emitDiagnostic(finding);
@@ -684,7 +684,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     //
     // A **prebuilt** pack has no pass either, and for a plainer reason: its
     // per-document JSON is checked in. Passed over rather than compiled — which
-    // it could not be before #259, since the only prebuilt pack in the wild
+    // it could not be otherwise, since the only prebuilt pack in the wild
     // holds Adventures and no compiler was registered for that document type,
     // so the pack failed the build with "no compiler for document type". Now
     // one is registered, and running it would wipe `build/packs-json/<name>/`
@@ -714,7 +714,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                 // which wins over the id it derives under the folder namespace.
                 // A record's `id` is not that: the index fills it in for every
                 // addressable note, so handing records straight over
-                // would make every folder look pinned. Since #310 the *value*
+                // would make every folder look pinned. The *value*
                 // would be right either way — the index derives a folder's id
                 // under the folder namespace, so the two agree — but `derivedId`
                 // would not, and it is what tells an author whether a duplicate

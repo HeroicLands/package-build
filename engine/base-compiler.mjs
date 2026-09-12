@@ -212,7 +212,7 @@ export class BasePackCompiler {
      * legal on every note whatever its type, because
      * `BLOCK_DOCUMENT_PROPERTIES` maps it onto `document.img` — so a note whose
      * document has no such property authors it, validates, compiles, and loses
-     * the value with nothing said. That is #349: `Parrot` in `sohl-thalorna`
+     * the value with nothing said: `Parrot` in `sohl-thalorna`
      * had declared `img:` since long before the art rule existed and compiled
      * `img: null` exactly as a note declaring nothing does. Naming the fields
      * here is what lets the lint tell an inert key from a live one.
@@ -410,8 +410,7 @@ export class BasePackCompiler {
      * routed *here* and carries nothing for this pack's system is an authoring
      * mistake with a hollow document at the end of it, not a note that belongs
      * to another pass. Skipping it quietly is how a whole tree compiles to
-     * documents nobody can use — the failure mode #1502 and #56 are both
-     * instances of.
+     * documents nobody can use.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True when the note may be compiled here; `false` when
@@ -733,7 +732,7 @@ export class BasePackCompiler {
     /**
      * Emit the collected emitted-`system` findings, once each.
      *
-     * An **error**, for the reason #60 made its sibling one: the value is gone
+     * An **error**, for the reason its sibling is one: the value is gone
      * at load and the build says nothing, and severity that varied by *which
      * part of the build wrote the key* would make the less fixable half the
      * quieter one. What varies is the message, which says whose fix it is —

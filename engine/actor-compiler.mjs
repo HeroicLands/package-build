@@ -16,10 +16,10 @@
  * Foundry Actor that belong to the note format rather than to a game system.
  *
  * The whole of it lived in `sohl/actors.mjs`, where the system-specific facts
- * were already funnelled through one map (`static documentSubtypes`, added by
- * #79) and one block constant. A second system needs everything except the
- * shape of the `system` block itself, so that everything moved here and each
- * half declares what differs:
+ * were already funnelled through one map (`static documentSubtypes`) and one
+ * block constant. A second system needs everything except the shape of the
+ * `system` block itself, so all of it lives here and each half declares what
+ * differs:
  *
  * | stated by the subclass | what it decides |
  * | --- | --- |
@@ -63,7 +63,7 @@ import { contentPackage } from "./content-package.mjs";
 import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 // An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
-// document by a path no field declaration sits on — including, until #330, the
+// document by a path no field declaration sits on — including the
 // fields the document is supposed to write for itself in play.
 import { itemFields } from "./item-registry.mjs";
 import { runtimeOnlyIn, runtimeOnlyMessage } from "./runtime-only-fields.mjs";
@@ -177,7 +177,8 @@ export function packagedItemAddress(pkg, subType, shortcode) {
  * `system.shortcode` is `Clb`, and an exact match cannot.
  *
  * Folding is safe because the fold is already the address: no two items in any
- * published tree differ only by the case of their shortcode, and #340 will make
+ * published tree differ only by the case of their shortcode, and the rule
+ * makes
  * that impossible rather than merely true.
  *
  * **This is not {@link itemAddress}, and must not become it.** That one seeds
@@ -686,7 +687,7 @@ export class SystemActorCompiler extends BasePackCompiler {
 
         // The entry's `system:` overlay is merged verbatim, so it reaches the
         // document without passing a single field declaration — which left it
-        // the one position a runtime-only field stayed authorable at once #330
+        // the one position a runtime-only field would stay authorable at once
         // closed the item note's own. Asked of the **overlay** rather than of
         // the merged result: the template it merges onto is a compiled
         // document, which by then carries none, and a finding has to name what

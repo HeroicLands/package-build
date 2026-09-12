@@ -39,7 +39,7 @@
  *
  * **The rest of the emission is only observable.** A compiler writes keys of
  * its own alongside the declared fields — `shortcode`, `actionDefs`, `notes`,
- * `docHtml`, and since #126 `templatePriority` — and those appear in neither set
+ * `docHtml` and `templatePriority` — and those appear in neither set
  * {@link compareFields} compares, so nothing compared them at all. They
  * cannot be listed here without the list going stale the next time a compiler
  * grows a key, so they are read off the `system` object the compiler produced:
@@ -77,7 +77,7 @@ import { runtimeOnlyFields } from "./field-spec.mjs";
  *
  * A mismatch stops the check rather than resolving anyway: a schema read under
  * the wrong shape would report confident nonsense in both directions, and a
- * silently skipped check is the state #60 exists to leave.
+ * silently skipped check is the state this exists to leave.
  *
  * @type {number}
  */
@@ -482,7 +482,7 @@ export function compareEmittedSystem({
  * for two systems has no package-wide answer — it is deliberately `null` there,
  * because a module feeding both `sohl` and `hm3` targets neither. Left at that,
  * every schema check in such a build would be skipped in silence, which is the
- * state #60 exists to remove: the five type names the two systems *share* are
+ * state this exists to remove: the five type names the two systems *share* are
  * exactly the ones a wrong-system emission hides in. So a pass supplies the
  * system its pack declares, and the version comes from that system's own
  * `systems:` entry rather than from a package-wide stamp.
@@ -606,7 +606,7 @@ const artifacts = new WeakMap();
  * The per-note check below runs thousands of times in a build and an artifact
  * never changes inside one, so reading and parsing it per note would be a
  * megabyte of JSON per hundred documents for an answer that is already known.
- * Keyed by system as well as by configuration since #139: a build with two
+ * Keyed by system as well as by configuration: a build with two
  * systems has two artifacts, and caching one of them under the configuration
  * alone would hand every pass whichever system asked first.
  *

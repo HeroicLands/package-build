@@ -36,7 +36,7 @@
  * no uniqueness check stands between the two. The system segment goes with the
  * package because a note publishes one page however many systems' documents it
  * compiles into. Every entry is
- * derivable that way since #204 retired the section landing, which was the one
+ * derivable that way, sections being retired — the section landing was the one
  * that was not. The field is still written rather than left for a consumer to
  * compute, because an absent `path` already means something else entirely (a
  * package that publishes no pages).
@@ -165,7 +165,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
     const uuidFor = (type, id, routeFm) =>
         // A type this cannot name a single compendium document for has no UUID
         // to publish, whatever id it derives. That used to follow from such a
-        // note authoring no `id:`; since #270 every addressable note derives
+        // note authoring no `id:`; every addressable note derives
         // one, so "has an id" stopped being evidence a document exists and the
         // rule is stated where it belongs — beside the addresses — rather than
         // resting on an absent field. `collectFoundryEntries` skips such a note
@@ -293,7 +293,7 @@ export function collectFoundryEntries(contentBase, ctx) {
         assertNoSectionField(fm, { file: rel, absPath });
         assertNoTraitsField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
-        // A homepage is addressed like every other note since #182, and a
+        // A homepage is addressed like every other note, and a
         // shortcode alone would now put it here. It stays out for the reason it
         // always did, which that change does not touch: a manifest entry is how
         // another package resolves a **document**, and a homepage compiles into

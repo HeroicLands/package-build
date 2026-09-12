@@ -17,7 +17,7 @@
  * A package's `(type, shortcode)` addresses are a published interface, and
  * `addresses diff` reports what a build stopped publishing — telling a
  * **rename** from a **withdrawal** by matching document ids across two
- * releases. #270 removed the property that rested on. An id is now derived from
+ * releases. The property that rested on is gone: an id is derived from
  * the canonical address, which carries the shortcode, so renaming a shortcode
  * moves the id too: both sides of the join move together, the match finds
  * nothing, and a rename is reported as a withdrawal with no successor named.
