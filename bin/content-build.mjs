@@ -80,6 +80,7 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
+import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
 import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
@@ -936,11 +937,19 @@ function lintCommand() {
                 // text, which is visible but easy to publish, so it is reported
                 // here rather than left for a reader to notice.
                 //
-                // The shipped registry, with no per-package override yet: an
-                // `icons:` configuration key is a change to the configuration
-                // contract and belongs with its own validation, rather than
-                // being read here before anything declares it.
+                // The configured registry — the shipped table with this
+                // package's own entries merged over it, which is where a
+                // Game-Icons glyph becomes a name a note may write.
                 const icons = lintContentIcons(root, {
+                    skipDirectories: config.skipDirectories,
+                    registry: config.icons,
+                });
+
+                // The markup the charset check cannot see. Class names are
+                // ASCII, so a page of `<i class="fa-…">` is allowlist-clean and
+                // still unrenderable in a book — the character rule one level
+                // up.
+                const html = lintContentHtml(root, {
                     skipDirectories: config.skipDirectories,
                 });
 
@@ -950,6 +959,7 @@ function lintCommand() {
                     ...schemaFindings,
                     ...charset.findings,
                     ...icons.findings,
+                    ...html.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —

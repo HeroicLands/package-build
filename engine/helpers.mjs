@@ -77,7 +77,19 @@ export {
  * instruction to write `<i class="fa-solid …">` by hand: that would render on
  * the two HTML surfaces and be silently dropped by the third.
  */
-export const md = markdownit({ html: true }).use(iconPlugin());
+export const md = markdownit({ html: true }).use(
+    // Resolved per render, not at import: this constant is built before any
+    // configuration is read, and a package's own icons live in the
+    // configuration. A tree with none — or a caller with no configuration to
+    // find — falls back to the shipped table.
+    iconPlugin(() => {
+        try {
+            return loadPackConfig().icons;
+        } catch {
+            return undefined;
+        }
+    }),
+);
 
 /**
  * Parses a markdown file with YAML frontmatter.

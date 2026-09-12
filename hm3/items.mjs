@@ -64,6 +64,19 @@ export class Hm3Items extends SystemItemCompiler {
     static documentSubtypes = HM3_DOCUMENT_SUBTYPES;
 
     /**
+     * The `system` keys this pass derives from the note.
+     *
+     * `description` is the note's `{#appearance}` section, rendered. A note
+     * authoring it writes into a key the compiler overwrites from prose that
+     * may say something else.
+     *
+     * @type {readonly {key: string, from: string}[]}
+     */
+    static derivedSystemKeys = Object.freeze([
+        { key: "description", from: "the note's `{#appearance}` section" },
+    ]);
+
+    /**
      * The `system.*` field HM3 writes on an item from the note's prose.
      *
      * @param {object} fm - The note's frontmatter.

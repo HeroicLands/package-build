@@ -51,6 +51,21 @@ export class Items extends SystemItemCompiler {
     static documentSubtypes = SOHL_DOCUMENT_SUBTYPES;
 
     /**
+     * The `system` keys this pass derives from the note.
+     *
+     * `docHtml` holds the `@UUID` of the JournalEntry the note's prose compiled
+     * into, so a note writing prose there ships a string where every reader
+     * expects a pointer. `notes` is a play-time scratchpad the compiler writes
+     * empty, so an authored one ships a note's content as a GM's jottings.
+     *
+     * @type {readonly {key: string, from: string}[]}
+     */
+    static derivedSystemKeys = Object.freeze([
+        { key: "docHtml", from: "the note's own body" },
+        { key: "notes", from: "the note's own body" },
+    ]);
+
+    /**
      * The `system.*` fields SoHL writes on every item, whatever its type:
      * shortcode, templatePriority, actionDefs, notes, docHtml.
      *

@@ -65,6 +65,16 @@ itemBuilders: sohl
 # Directory names the content walk ignores wherever they appear.
 skipDirectories: [Templates]
 
+# Optional. This package's own icons, merged over the shipped table rather than
+# replacing it, so `:icon-edit:` keeps working without being restated. A name is
+# what a note writes between the colons, in the charset an address segment uses.
+# `family` names the font: omitted it is Font Awesome Free, whose entries take a
+# `style`; `game-icons` is the webfont a package builds for itself, which has no
+# weights and so takes none.
+icons:
+  broadsword: { family: game-icons, icon: broadsword, label: broadsword }
+  affiliation: { style: solid, icon: certificate, label: affiliation }
+
 # Optional; each path is relative to this file's directory and defaults to the
 # conventional layout shown here.
 paths:

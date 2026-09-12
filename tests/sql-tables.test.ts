@@ -278,6 +278,29 @@ describe("preparing directives ahead of expansion", () => {
         expect(await errs(dead.replace("```sql", "```sql :allow-empty"))).toEqual([]);
     });
 
+    it("renders the header and rule for a result selecting nothing", async () => {
+        // The finding is the point, not withholding the output. A heading with
+        // an empty table under it says the query ran and matched nothing; a
+        // heading with nothing under it reads as a page that failed to build.
+        const dead =
+            "```sql :allow-empty\nSELECT name.full AS \"Name\" FROM notes WHERE type = 'creature'\n```\n";
+        const prepared = await prepareSqlTables(db, [{ source: "N.md", markdown: dead }]);
+        const { markdown, errors } = expandContentTables(dead, {
+            source: "N.md",
+            sqlTables: prepared.get("N.md"),
+        });
+
+        expect(errors).toEqual([]);
+        expect(markdown).toContain("| Name |");
+        expect(markdown).toContain("| --- |");
+    });
+
+    it("renders a header per selected column when nothing is selected", () => {
+        expect(renderSqlTable({ columns: ["Name", "Cost"], rows: [] })).toBe(
+            "| Name | Cost |\n| --- | --- |",
+        );
+    });
+
     it("finds each of a note's directives by its ordinal, not its line", async () => {
         // The passes disagree about a body: `walkMarkdownTree` trims it, while
         // the link checker strips the frontmatter fence and keeps the newlines
