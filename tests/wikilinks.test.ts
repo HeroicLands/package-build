@@ -443,8 +443,8 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
     it("carries the anchor when prose names the documentation", () => {
         // The same anchor, on the same authored link, now lands on a real page:
         // a bare prose link names the note's `none` address, which is its
-        // documentation journal, and a journal does have pages. It used to be
-        // dropped because the link addressed the Item.
+        // documentation journal, and a journal does have pages. Addressed to
+        // the Item it would be dropped.
         const page = anchorPageId(climbDoc, "crafting");
         expect(convert("[[skill-climb#crafting|Climbing]]").markdown).toBe(
             "@UUID[Compendium.sohl.journals.JournalEntry." +

@@ -535,12 +535,12 @@ note says which by writing `hm3.type`. Nothing is inferred from the note's own
 `subType`, and a note that says nothing is an error naming the note and listing
 the permitted values.
 
-**Configuration is the source, and the manifest is generated from it.** That
-arrow used to point the other way: `paths.packageManifest` said where a
-hand-authored `system.template.json` lived, and the package-id guard and the
-`_stats.coreVersion` stamp both read out of it. Both are gone — the floor is the
-top-level `compatibility.minimum`, the id is derived from `package.json`
-`name`, and `@heroiclands/package-build` writes the manifest from this file.
+**Configuration is the source, and the manifest is generated from it.** The
+floor is the top-level `compatibility.minimum`, the id is derived from
+`package.json` `name`, and `@heroiclands/package-build` writes the manifest from
+this file. There is no `paths.packageManifest` pointing at a hand-authored
+`system.template.json` for a package-id guard or a `_stats.coreVersion` stamp to
+read out of.
 
 ### Declaration order is presentation, not compile order
 
@@ -680,13 +680,11 @@ rather than two.
 > **The rule is `img`'s, and does not extend to `title`.** `title` is not art
 > and never reaches `resolveImg`, so nothing here applies to it.
 >
-> The reason used to be sharper, and is no longer true: a note's top-level
-> `title` was _also_ the shared source for an `affiliation` item's `system.title`
-> (`sohl/item-fields.mjs`, "the style of address the office carries"), so one
-> authored key fed two unrelated destinations that disagreed about what empty
-> means — and `title: null` stringified into the compiled document as the literal
-> `"null"`. The field declares `topLevelMeans` now, so the top-level key is no
-> longer a source for it.
+> The field declares `topLevelMeans`, so the top-level key is not a source for
+> an `affiliation` item's `system.title`. Were it one, a single authored key
+> would feed two unrelated destinations that disagree about what empty means,
+> and `title: null` would stringify into the compiled document as the literal
+> `"null"`.
 >
 > So `title: null` is a note declining to state a heading, and the site emitter's
 > `fm.title ?? name` falls back to `name.full`. `title: ""` publishes a

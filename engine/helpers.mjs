@@ -739,10 +739,10 @@ export function buildContentLinkIndex(
         const absPath = noteFile(contentBase, record);
         // The id a note's document is filed under: its authored pin, or the
         // one derived from its canonical address. Derived by the index
-        // against the configuration this build resolved — it used to be
-        // derived here through `resolveNoteId(fm)` with no package, which falls
-        // back to the ambient `contentPackage()` and so to whichever
-        // configuration the working directory answers with.
+        // against the configuration this build resolved — never here through
+        // `resolveNoteId(fm)` with no package, which falls back to the ambient
+        // `contentPackage()` and so to whichever configuration the working
+        // directory answers with.
         // What is left after that is a file with **no address** — no type, or
         // no shortcode — which is not an addressable note and has no document
         // to link to.
