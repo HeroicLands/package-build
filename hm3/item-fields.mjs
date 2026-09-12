@@ -33,16 +33,16 @@
  * **One shared source, two destinations.** `name` is the shared property a
  * field draws from and `to` is where it lands, so a single authored `weight`
  * feeds `sohl.system.weightBase` *and* `hm3.system.weight` — one authored fact,
- * two documents (#58). That is the whole reason the two are declared
+ * two documents. That is the whole reason the two are declared
  * separately.
  *
  * The specification writes those sources as `data.weight`, and the sources here
- * are written bare, exactly as SoHL's are: the `data:` region is #128's
+ * are written bare, exactly as SoHL's are: the `data:` region is the sweep's
  * migration and neither half has moved to it. Spelling HM3's differently would
  * make a note feeding both systems author the same fact twice for no gain, and
  * would take these rows out of reach of `content-build content-format fields`,
  * which pairs a `data.<key>` claim with a bare declared `<key>`. Both halves
- * move together when #128 lands.
+ * move together when the sweep lands.
  *
  * **What a note authors under `hm3.system` is not declared here.** HM3 fields
  * that no shared `data:` property feeds — a skill's `type`, an armour's

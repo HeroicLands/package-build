@@ -22,10 +22,10 @@
  * runtime bridge from drifting apart.
  *
  * It sits in this package rather than in the system's `src/` tree because the
- * map-note compiler that reads it is installed as a dependency (#1501), and a
+ * map-note compiler that reads it is installed as a dependency, and a
  * relative path out of the package would resolve to garbage from
  * `node_modules`. The runtime reaches it back through the package's
- * `./engine/region-events` entry point (#1510). It is engine-side, not
+ * `./engine/region-events` entry point. It is engine-side, not
  * SoHL-side, because any content module that authors a scene region — an
  * adventure module included — needs this vocabulary.
  *

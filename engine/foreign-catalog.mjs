@@ -120,7 +120,7 @@ export function catalogDir(config, id, version) {
 const itemsDir = (dir) => path.join(dir, "items");
 
 /**
- * The file a system publishes its `system` field sets as (#60).
+ * The file a system publishes its `system` field sets as.
  *
  * @type {string}
  */
@@ -166,7 +166,7 @@ function cacheSchemaArtifact(root, dir) {
 
 /**
  * What each extracted pack is, written beside the items rather than inferred
- * from the directory it landed in (#58).
+ * from the directory it landed in.
  *
  * A dependency may ship a pack per system — `items-sohl` and `items-hm3` — and
  * the two hold documents of the *same* `(type, shortcode)` addresses with
@@ -219,7 +219,7 @@ function cachedItemPacks(dir) {
  * Whether a dependency's cache is present and complete.
  *
  * **A cache without its pack manifest is incomplete**, not merely unlabelled.
- * One written before #58 holds the items and not what they are, and the two
+ * An older one holds the items and not what they are, and the two
  * ways of proceeding without it are both wrong: reading every pack resolves an
  * `hm3` reference against `sohl` documents — the silent-wrong-output failure
  * this scoping exists to remove — and reading none fails a build that was
@@ -309,7 +309,7 @@ async function extractItemPacks(id, version, manifest, root, dir) {
         );
     }
     // What each pack is, from the only place that knows: the manifest that
-    // declared it (#58). Written before the stamp, so the stamp continues to
+    // declared it. Written before the stamp, so the stamp continues to
     // mean the cache is whole.
     fs.writeFileSync(
         path.join(dir, ITEM_PACKS),
@@ -519,7 +519,7 @@ export async function fetchCatalogFromPath(config, rel, source) {
 }
 
 /**
- * Fetch one dependency's published content index (#239).
+ * Fetch one dependency's published content index.
  *
  * **The chain is entirely declared.** The relationship names the dependency's
  * manifest, the manifest advertises `flags.metadataUrl`, and that URL is the
@@ -720,7 +720,7 @@ export async function fetchAllCatalogs(config) {
  * Reads the cache only. A cold cache is an error naming the command that fills
  * it, rather than a download nobody asked for.
  *
- * **Scoped to one system when the caller compiles for one (#58)**, exactly as
+ * **Scoped to one system when the caller compiles for one**, exactly as
  * {@link module:engine/generate.itemPackJsonDirs} scopes the local half. The
  * two halves answer the same lookup — `loadItemsMap` merges them into one
  * address space keyed by `subType:shortcode` — so scoping only the local one
@@ -759,8 +759,7 @@ export function foreignItemCatalogDirs(config, system = null) {
         // the currently declared one, so that is the one to use. The
         // comparison is the content-index cache's, shared rather than
         // rewritten: a plain string sort would put `0.8.10` before `0.8.2` and
-        // silently resolve every embedded item against the older catalogue
-        // (#272).
+        // silently resolve every embedded item against the older catalogue.
         const newest = newestVersionDir(cached);
         const packSystems = cachedItemPacks(newest);
         const items = itemsDir(newest);
@@ -768,7 +767,7 @@ export function foreignItemCatalogDirs(config, system = null) {
             if (!entry.isDirectory()) continue;
             const packSystem = packSystems.get(entry.name) ?? null;
             if (system != null && packSystem != null && packSystem !== system) continue;
-            // The dependency's own id travels with its directory (#334): a
+            // The dependency's own id travels with its directory: a
             // being's `model:` names the package its template comes from, and
             // the address cannot be built from the path.
             dirs.push({ dir: path.join(items, entry.name), package: rel.id });

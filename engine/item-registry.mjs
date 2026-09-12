@@ -17,15 +17,15 @@
  *
  * Both are read from the one resolved configuration, so they are literally the
  * same object's keys and values: a type cannot be whitelisted for compilation
- * without the builder that compiles it, which is the guarantee #1504 exists
- * for. Where a consumer declares **several** registries, one per system (#58),
+ * without the builder that compiles it, which is the guarantee this exists
+ * for. Where a consumer declares **several** registries, one per system,
  * the vocabulary is their union and every lookup below takes the system that is
  * asking — a type both systems declare has two builders, and answering with one
  * of them because it was declared first is the silent-wrong-output failure this
  * package spends its time removing. The Item compiler dispatches through {@link itemBuilder}, so the table a
  * consumer configured is the table its notes compile with — the whitelist and
- * the dispatch used to come from different places, and a consumer supplying its
- * own registry got the types it asked for and the builders it did not (#1563).
+ * the dispatch would otherwise come from different places, and a consumer supplying its
+ * own registry got the types it asked for and the builders it did not.
  *
  * **The registry itself is a consumer's, and stays a leaf.** SoHL's lives in
  * `@heroiclands/package-build/sohl/item-builders`; the consumer names it in
@@ -52,9 +52,9 @@ import { resolveImg } from "./helpers.mjs";
  * **Derived, never authored.** These are the keys of the consuming
  * repository's `itemBuilders` registry, so the whitelist and the builder table
  * are the same list and cannot drift apart. They already had: `trait` was
- * whitelisted long after the item type was retired (#651), with no builder
+ * whitelisted long after the item type was retired, with no builder
  * behind it, so every `type: trait` note passed the gate and then failed to
- * compile (#1504).
+ * compile.
  *
  * An accessor rather than a hoisted constant, so that importing this module
  * needs no configuration (#2).
@@ -73,7 +73,7 @@ export function itemTypes() {
  * two systems declare the type. So a contested type without a system **throws**
  * rather than resolving: the alternative is a document built by one system's
  * builder and stamped with another's, which is exactly the shape of defect the
- * document-subtype map exists to stop (#79).
+ * document-subtype map exists to stop.
  *
  * @param {string} what - What is being looked up, for the message.
  * @param {"itemBuilders"|"itemArt"|"itemFields"} table - Which table.
@@ -87,7 +87,7 @@ function lookup(what, table, type, system) {
     // The registry is keyed by the current spelling of a note type, and a note
     // still on a renamed one resolves through it unchanged. One place, because
     // every type-keyed table this module reaches — builders, art, fields — is
-    // indexed here (#78).
+    // indexed here.
     type = currentType(type);
     if (system !== undefined) {
         const perSystem = /** @type {Record<string, Record<string, unknown>>} */ (
@@ -112,7 +112,7 @@ function lookup(what, table, type, system) {
  *
  * Unreachable through the compiler — its whitelist *is* this registry's keys —
  * so a throw here means a caller invented a type. It names the type rather than
- * failing as an anonymous `is not a function` (#1504).
+ * failing as an anonymous `is not a function`.
  *
  * @param {string} type - The note's `type` frontmatter.
  * @param {string} [system] - The system compiling it, where a build declares
@@ -139,9 +139,9 @@ export function itemBuilder(type, system) {
  * The frontmatter fields a type's registry entry declares, if any.
  *
  * Sparse by design: a type whose entry declares none compiles normally and is
- * simply undocumented (#22). What reads it is the `system`-block passthrough,
+ * simply undocumented. What reads it is the `system`-block passthrough,
  * which has to know which paths a declared field already writes before it
- * writes the rest (#58).
+ * writes the rest.
  *
  * @param {string} type - The item type.
  * @param {string} [system] - The system compiling it, where a build declares
@@ -160,7 +160,7 @@ export function itemFields(type, system) {
  *
  * Read from the consuming repository's `itemBuilders` registry, the same place
  * the type itself is declared, so a consumer's own type can bring art a
- * SoHL-owned table could never hold. Art used to be looked up in
+ * SoHL-owned table could never hold. Art is not looked up in
  * `sohl/default-item-art.mjs` instead: a type was configurable while its
  * default art was not, so a second consumer's items compiled only if every one
  * of its notes set `img:` (#7).
@@ -195,7 +195,7 @@ export function itemArt(type, system) {
         );
     }
     // `art` is non-empty by the guard above, so the translation never returns
-    // the `null` a note's unset `img:` would (#218); the coalesce states that
+    // the `null` a note's unset `img:` would; the coalesce states that
     // rather than leaving the declared `string` return a half-truth.
     return resolveImg(art) ?? "";
 }

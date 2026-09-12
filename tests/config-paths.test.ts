@@ -6,7 +6,7 @@
  */
 
 /**
- * What #1508 made configurable, asserted from a consumer's point of view: a
+ * What is configurable, asserted from a consumer's point of view: a
  * repository that does **not** use the conventional layout, built from a
  * throwaway tree that is nobody's working directory.
  *
@@ -91,7 +91,7 @@ function sandbox(coreVersion: string): string {
  * floor it supports.
  *
  * The floor is declared here rather than read out of the manifest in the
- * sandbox (#50). The sandbox still writes one, because the package-id guard
+ * sandbox. The sandbox still writes one, because the package-id guard
  * reads it — but it no longer feeds the stamp, and the two are deliberately
  * allowed to disagree in the cases below.
  */
@@ -104,7 +104,7 @@ function configFor(root: string, coreVersion = "14.359") {
         packageKind: "modules",
         // The identity is declared under `systems:` and selected by
         // `requiresSystem` now; `stats.systemId`/`systemVersion` are derived
-        // and may not be authored (#48).
+        // and may not be authored.
         systems: { sohl: { compatibility: { verified: "3.2.1" } } },
         requiresSystem: "sohl",
         stats: {
@@ -115,7 +115,7 @@ function configFor(root: string, coreVersion = "14.359") {
     });
 }
 
-describe("a consumer that moves a directory is honoured (#1508)", () => {
+describe("a consumer that moves a directory is honoured", () => {
     const root = sandbox("14.412");
     const config = configFor(root);
 
@@ -152,7 +152,7 @@ describe("the core version is configuration, and the stamp follows it", () => {
     });
 
     it("ignores what the manifest in the tree happens to say", () => {
-        // The direction of truth reversed in #50: package-build generates the
+        // The direction of truth: package-build generates the
         // manifest *from* the configuration, so reading it back would be a
         // round trip through an artifact that need not exist yet — `build:db`
         // can run before it is written. Here the sandbox's manifest says

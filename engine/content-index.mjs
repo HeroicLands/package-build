@@ -12,7 +12,7 @@
  */
 
 /**
- * Emitting this package's content index (#224).
+ * Emitting this package's content index.
  *
  * Every content build already walks the whole note tree and parses every note's
  * frontmatter — the pack compilers, the site build, and the content-table
@@ -21,7 +21,7 @@
  * "which beings carry no `kbcat`?", "what does this table actually select?",
  * "did that type rename leave anything behind?" have no answer short of writing
  * a throwaway script that re-walks the tree. Eight dead Bestiary tables shipped
- * for weeks behind exactly that gap (#223).
+ * for weeks behind exactly that gap.
  *
  * This module publishes the walk. One line of JSON per note, in
  * [JSON Lines](https://jsonlines.org/) — the whole frontmatter, plus where the
@@ -62,7 +62,7 @@
  * to every player, and a build artifact has no business there.
  *
  * **What it deliberately does not carry: the note's text, and positions within
- * it.** #243 asks whether the index should record a position for every
+ * it.** The question is whether the index should record a position for every
  * frontmatter key, so that a pass reading the index could report a field defect
  * without opening the file. It should not, and the numbers are not close: over
  * `sohl`'s 1,685 notes the index is 3.0 MB and holds 50,598 leaf values, so a
@@ -94,7 +94,7 @@ import unidecode from "unidecode";
 import { metadataFileName } from "./metadata-index.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
-// builds that emit a link (#243). Re-exported because this is where callers
+// builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
 import { collectAnchors } from "./anchors.mjs";
 import { subtypeRow, NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
@@ -105,7 +105,7 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
  *
  * The specification's word, not this module's: the canonical address carries it
  * in the same position — `harnadventures-none-being-grod` — so the index and
- * the address say "no system" the same way (#59).
+ * the address say "no system" the same way.
  *
  * @type {string}
  */
@@ -115,12 +115,12 @@ import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 // The retired-field refusal and the key locator, so a note authoring a derived
-// key is reported where it is rather than as a bare abort (#243).
+// key is reported where it is rather than as a bare abort.
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 // The record accessors, which live apart so that a module the compilers load
-// can read a record without importing this one and closing a cycle (#243).
+// can read a record without importing this one and closing a cycle.
 // Re-exported because this is where callers have always addressed them.
 import { authoredFrontmatter, DERIVED_KEYS, isNoteRecord, noteFile } from "./index-records.mjs";
 
@@ -281,7 +281,7 @@ export function asciiAliases(aliases) {
  * plus the pack router — frontmatter and configuration, nothing from a compiled
  * pack — so the index's frontmatter walk already has every input. Deriving it
  * twice is how two artifacts describing one note start disagreeing, which is
- * the failure the merge is meant to end (#239).
+ * the failure the merge is meant to end.
  *
  * The shape flattens the manifest's *two* entries for an item note onto the one
  * record the index keeps per note. An item compiles into a document **and** a
@@ -339,7 +339,7 @@ function foundryEntries({ frontmatter, address, body, manifest }) {
  * shipped map produced and said nothing about the other.
  *
  * Only `sohl` can appear today, because `KNOWN_DOCUMENT_SUBTYPE_MAPS` holds one
- * map and #139 tracks the missing `hm3/` half. The shape is system-keyed now so
+ * map, the `hm3/` half being separate. The shape is system-keyed so
  * that adding it is one more key rather than a second breaking change to an
  * artifact consumers have already started reading.
  *
@@ -369,7 +369,7 @@ function foundryBlock(entry, system) {
  * Refuse a note that authors a key the index derives, and say where.
  *
  * **Located, because every reader of the index is now a reporter of this.**
- * Until #243 the only pass that built a record was the emitter, so aborting
+ * With the emitter the only pass building a record, aborting
  * with a bare message was the whole story. Now the link check and the address
  * diff read the index too, and a bare abort in one of them reports *nothing*
  * about the tree — the one malformed note takes every other finding with it,
@@ -378,7 +378,7 @@ function foundryBlock(entry, system) {
  * can emit `file:line:column: error: …` like any other finding.
  *
  * **`package:` keeps its own words.** It is not a name collision but a *retired
- * field* (#56), and the correction is to delete it, not to rename it — which is
+ * field*, and the correction is to delete it, not to rename it — which is
  * what {@link module:engine/note-package.assertNoDeclaredPackage} has always
  * said, and had no caller to say it to. Deferring to it means one message for
  * one mistake rather than two that contradict each other about the fix.
@@ -517,7 +517,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // The journal's own `_id`, taken from the entry rather than
             // re-derived: every entry the index gives an identity to publishes
             // both the id and the UUID, computed once by whatever owns that
-            // entry's derivation (#310).
+            // entry's derivation.
             id: entry.id,
             nameAscii: asciiName(frontmatter?.name?.full),
             address: { slug: address.slug, canonical: entry.key },
@@ -537,7 +537,7 @@ export function collectContentIndex(
 ) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
-    // caller's omission, and `walkMarkdownTree` says so (#243).
+    // caller's omission, and `walkMarkdownTree` says so.
     const walkOpts = { skipDirectories };
 
     for (const { frontmatter, body, bodyLine, absPath } of walkMarkdownTree(
@@ -545,7 +545,7 @@ export function collectContentIndex(
         walkOpts,
     )) {
         const fm = frontmatter ?? {};
-        // The id the note's document is filed under (#270), resolved before
+        // The id the note's document is filed under, resolved before
         // the record is built so the index publishes the address *and* the id
         // that address derives.
         resolveNoteId(fm, { pkg: contentPackage });
@@ -579,7 +579,7 @@ export function collectContentIndex(
         }
         records.push(record);
 
-        // An item note is two documents, so it is two records (#239).
+        // An item note is two documents, so it is two records.
         const doc = foundryEntries({
             frontmatter: fm,
             address: record.address,
@@ -637,7 +637,7 @@ export function serializeContentIndex(records) {
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
  * pass that needs the corpus in memory — a SQL content table, the link check,
- * and in time every reader #243 converts — builds it the same way the artifact
+ * and in time every converted reader — builds it the same way the artifact
  * is built, rather than by walking and parsing again with its own idea of the
  * scope.
  *
@@ -648,7 +648,7 @@ export function serializeContentIndex(records) {
  *   caller that resolved one of its own; defaults to the resolved
  *   configuration's. Stated separately from `config` because a caller that was
  *   *handed* a scope must be able to pass it on rather than have it silently
- *   replaced by the one its configuration happens to carry (#243).
+ *   replaced by the one its configuration happens to carry.
  * @param {object[]} [opts.problems] - Supplied by a **reader**: a note that
  *   cannot be recorded is pushed here as a diagnostic and skipped, instead of
  *   aborting the derivation. Omitted, the note throws — which is the contract

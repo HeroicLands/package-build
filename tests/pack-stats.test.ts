@@ -23,7 +23,7 @@ const buildStats = (systemVersion?: string, config?: unknown): any =>
 // Anchored on this file, not the working directory (see pack-config.test.ts).
 // This package owns its manifest fixture: what is under test is how a manifest's
 // supported floor becomes a `_stats.coreVersion`, which is package behaviour. It
-// used to read the *system repository's* real manifest, which only resolved
+// must not read the *system repository's* real manifest, which only resolves
 // while this package was vendored inside it.
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 /** The Foundry floor this repository's development configuration declares. */
@@ -36,7 +36,7 @@ const CORE_FLOOR = loadPackConfig().compatibility.minimum;
  * both `migrateLevels` and `migrateFogExploration` at 14.353. A record stamped
  * older than this is eligible for all of them, and `migrateLevels` in
  * particular is an unconditional `levels = [synthesised]` that never checks
- * whether the record already has one (#1533).
+ * whether the record already has one.
  */
 const NEWEST_V14_SHIM = "14.353";
 
@@ -72,7 +72,7 @@ describe("the compiled-pack `_stats` stamp", () => {
     });
 
     it("is never older than the newest v14 migration shim", () => {
-        // The regression test for #1533: a document stamped below this is
+        // A document stamped below this is
         // rewritten by Foundry on load, silently, and no build check can see it.
         const stamped = buildStats().coreVersion;
         expect(
@@ -94,7 +94,7 @@ describe("the compiled-pack `_stats` stamp", () => {
     });
 });
 
-describe("the `_stats` stamp is configuration, not a literal (#1508)", () => {
+describe("the `_stats` stamp is configuration, not a literal", () => {
     it("takes every stamped identity from the resolved configuration", () => {
         // Four call sites used to pass the same frozen "0.6.0" literal; the
         // version now has one home, and so do the other two stamped fields.
@@ -111,7 +111,7 @@ describe("the `_stats` stamp is configuration, not a literal (#1508)", () => {
             contentPackage: "thalorna",
             foundryPackage: "sohl-thalorna",
             packageKind: "modules",
-            // Declared and required rather than authored into `stats` (#48).
+            // Declared and required rather than authored into `stats`.
             systems: { sohl: { compatibility: { verified: "0.1.0" } } },
             requiresSystem: "sohl",
             stats: {

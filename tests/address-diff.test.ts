@@ -52,7 +52,7 @@ afterEach(() => {
     fs.rmSync(tmp, { recursive: true, force: true });
 });
 
-describe("reading an address space out of compiled item JSON (#66)", () => {
+describe("reading an address space out of compiled item JSON", () => {
     it("indexes every item by `(type, shortcode)`, carrying its document id", () => {
         write("items/Taburi_s5D6QJbw7ZbETxdN.json", {
             ...itemDoc("weapongear", "Tabri", "s5D6QJbw7ZbETxdN", "Tabûri"),
@@ -89,7 +89,7 @@ describe("reading an address space out of compiled item JSON (#66)", () => {
     });
 });
 
-describe("diffing this build's addresses against a published release (#66)", () => {
+describe("diffing this build's addresses against a published release", () => {
     const baseline = () =>
         new Map(
             Object.entries({
@@ -129,7 +129,7 @@ describe("diffing this build's addresses against a published release (#66)", () 
     /*
      * The strongest of the three joins: the id is the same on both sides, so
      * this is an identity match rather than a guess at a similar-looking
-     * string. Since #270 an id is derived from the address and moves with the
+     * string. An id is derived from the address and moves with the
      * shortcode, so what this now describes is a note that **pins** its `id` —
      * still the exact case, and no longer the common one. The unpinned note is
      * `renamedFrom:`, below.
@@ -208,7 +208,7 @@ describe("diffing this build's addresses against a published release (#66)", () 
     });
 });
 
-describe("locating an address finding in the source it came from (#66)", () => {
+describe("locating an address finding in the source it came from", () => {
     it("indexes content notes by the document id their frontmatter authors", () => {
         write(
             "content/Weapons/Taburi.md",
@@ -284,7 +284,7 @@ describe("locating an address finding in the source it came from (#66)", () => {
     });
 });
 
-describe("the diagnostic an address finding prints (#66)", () => {
+describe("the diagnostic an address finding prints", () => {
     it("names the rename, the identity it matched on, and where it went", () => {
         const line = formatAddressFinding(
             {
@@ -345,7 +345,7 @@ describe("the diagnostic an address finding prints (#66)", () => {
     });
 });
 
-describe("the `addresses` command's own guards (#66)", () => {
+describe("the `addresses` command's own guards", () => {
     /*
      * Driven as a subprocess, and from a directory with no configuration at or
      * above it: every guard here must fire while parsing argv, before any
@@ -396,12 +396,12 @@ describe("the `addresses` command's own guards (#66)", () => {
 });
 
 /*
- * #270 keyed a document's id on its canonical address, which carries the
+ * A document's id is keyed on its canonical address, which carries the
  * shortcode — so renaming one moves the id too, both sides of the id join move
  * together, and an unpinned rename went back to reading as a withdrawal. A note
- * that has just been renamed says so instead (#278).
+ * that has just been renamed says so instead.
  */
-describe("a rename the note declares (#278)", () => {
+describe("a rename the note declares", () => {
     /** A content note, with a `renamedFrom:` written as raw YAML. */
     function noteFile(
         rel: string,
@@ -503,7 +503,7 @@ describe("a rename the note declares (#278)", () => {
         });
 
         /*
-         * The scope is the caller's to state (#243), like every other walk of
+         * The scope is the caller's to state, like every other walk of
          * the tree. This read and `noteFilesById` run over one corpus in one
          * command, so a default here would let them disagree about which files
          * are in it — and `addresses diff` was already shipping the other half
@@ -548,7 +548,7 @@ describe("a rename the note declares (#278)", () => {
                 ],
             ]);
 
-        it("was a withdrawal with nothing declared, and that is #278", () => {
+        it("is a withdrawal with nothing declared", () => {
             const [finding] = diffItemAddresses(baseline(), current(), { baseline: "sohl@0.8.2" });
             expect(finding.kind).toBe("withdrawn");
             expect(finding.to).toBeUndefined();
@@ -655,8 +655,8 @@ describe("a rename the note declares (#278)", () => {
     });
 
     /*
-     * End to end on the case #278 was raised about: the same rename the module
-     * exists for, with the **derived** ids #270 gave it, joined only by the
+     * End to end on the awkward case: the same rename the module exists for,
+     * with **derived** ids, joined only by the
      * note's declaration and read off a real tree.
      */
     it("reports the derived-id Tabri → Taburi rename, joined only by the declaration", () => {
@@ -690,7 +690,7 @@ describe("a rename the note declares (#278)", () => {
     });
 });
 
-describe("the live Tabri → Taburi rename (#66, sohl#1239)", () => {
+describe("the live Tabri → Taburi rename", () => {
     /*
      * The case the issue was raised from, reproduced from the real values: the
      * note kept `id: s5D6QJbw7ZbETxdN` and changed only `shortcode`, two days
@@ -720,13 +720,13 @@ describe("the live Tabri → Taburi rename (#66, sohl#1239)", () => {
 });
 
 /**
- * The two tree reads are one read of the content index (#243).
+ * The two tree reads are one read of the content index.
  *
  * `addresses diff` reads the tree twice — once for the declarations, once to
- * place its findings — and those used to be independent walks that each parsed
+ * place its findings — and those would otherwise be independent walks each parsing
  * every note and each answered "which files are the corpus?" for itself.
  */
-describe("reading the address corpus from the content index (#243)", () => {
+describe("reading the address corpus from the content index", () => {
     /** A note with no authored `id`, so the id has to be derived. */
     function derivedNote(rel: string, type: string, shortcode: string): string {
         return write(

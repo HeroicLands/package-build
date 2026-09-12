@@ -18,8 +18,7 @@
  * in "The Capital Nome"` — has told the author what is wrong and not where it
  * is. A name is not an address: finding it means searching the tree for a note
  * whose `name.full` matches and then searching that file for the link, and
- * four identical warnings on one note are indistinguishable from one another
- * (#17).
+ * four identical warnings on one note are indistinguishable from one another.
  *
  * So every diagnostic about a note is emitted in the form every C-family
  * compiler, `tsc` and ESLint already use:
@@ -185,7 +184,7 @@ export function positionInBody(body, offset, { bodyLine = 1, bodyColumn = 1, lin
  * same name answers when no top-level one is present — which is usually what a
  * reader wants, the key being unique in nearly every note. Pass `topLevel` where
  * it is not: `aliases` is both a retired top-level field and a **permitted**
- * `name.aliases` (#180), and a finding about the first must never open on the
+ * `name.aliases`, and a finding about the first must never open on the
  * second, which would tell an author to delete a field they are allowed to
  * write.
  *
@@ -387,7 +386,7 @@ export function yamlKeyPath(field) {
  * the same name is legal in two regions — `data.weight` and a top-level
  * `weight` are different keys, and a search finds whichever comes first.
  *
- * So this is the located form for the closed regions (#128). It reuses
+ * So this is the located form for the closed regions. It reuses
  * {@link positionOfYamlPath} rather than repeating its parse, which is what
  * keeps a finding about `data.weight` pointing at `data.weight`.
  *

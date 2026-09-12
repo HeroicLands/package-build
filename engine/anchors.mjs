@@ -12,7 +12,7 @@
  */
 
 /**
- * The anchors a note declares on its headings — read in one place (#243).
+ * The anchors a note declares on its headings — read in one place.
  *
  * **A leaf, deliberately.** This is asked by the link checker, by the content
  * index, and by the builds that emit a link, and they cannot all import one

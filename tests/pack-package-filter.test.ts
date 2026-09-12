@@ -15,7 +15,7 @@ import path from "node:path";
 // configuration to a package that is not "sohl" is what tells a configured read
 // apart from a hard-coded literal.
 //
-// Since #56 there is no frontmatter field at all: a note declares nothing and
+// There is no frontmatter field at all: a note declares nothing and
 // compiles, and one that still declares `package:` is an error naming the file
 // — never the silent skip that let a whole tree be filtered out at exit 0.
 vi.mock("../engine/content-package.mjs", () => ({
@@ -55,7 +55,7 @@ A skill belonging to the configured content package.
 /**
  * A second note, likewise declaring no package. Every note in every tree has
  * this shape now: the package a note belongs to is the repository's, not the
- * note's (#56).
+ * note's.
  */
 const UNDECLARED_SKILL = `---
 name:
@@ -80,7 +80,7 @@ A skill that leaves its package to the configuration.
 /**
  * The control: a note still declaring the retired field. It must be **refused**
  * — a compiler that let everything through would pass the tests above for the
- * wrong reason, and one that skipped it quietly is the defect #56 removes. The
+ * wrong reason, and one that skipped it quietly is the defect removed. The
  * value is beside the point; the field is.
  */
 const OTHER_SKILL = `---
@@ -213,8 +213,8 @@ beforeAll(async () => {
         contentBase: content,
         dest: dest("actors"),
         // Stated, not inferred from the destination's siblings: where the items
-        // passes wrote their JSON is configuration (#1508), and there may be
-        // more than one Item pack (#1566).
+        // passes wrote their JSON is configuration, and there may be
+        // more than one Item pack.
         itemsSourceDirs: [dirs.items],
     });
     await compilers.actors.compile();
@@ -311,7 +311,7 @@ describe("a note still declaring `package:` is refused, not skipped", () => {
              * file mocks. In a real repository the two are the same value (the
              * accessor *is* `loadPackConfig().contentPackage`); they differ
              * here only because the mock replaces one of them, which is the
-             * divergence #243 exists to make impossible. Asserting the mocked
+             * divergence the shared corpus makes impossible. Asserting the mocked
              * value would be asserting the ambient read.
              */
             expect(lines.some((l) => /configured `contentPackage` \("sohl"/.test(l))).toBe(true);

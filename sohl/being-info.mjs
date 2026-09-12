@@ -24,9 +24,9 @@
  * **It lives here because it was living in two places.** Both
  * `Song-of-Heroic-Lands-FoundryVTT` and `sohl-thalorna` carried a copy, and the
  * copies drifted: SoHL's caller still gated the derivation on `character` and
- * `creature`, the two types #1580 merged into `being`, so it had matched
+ * `creature`, the two legacy spellings of `being`, so it had matched
  * nothing since the merge and all 95 of its being pages published with empty
- * sidebar sections (SoHL#1696). thalorna's copy checked `being` and was right.
+ * sidebar sections. thalorna's copy checked `being` and was right.
  * Nothing failed in either repository; the pages built and shipped.
  *
  * {@link isBeing} exists for that reason. The bug was not in the derivation —
@@ -36,14 +36,14 @@
  * @module
  */
 
-// The retirement window for a renamed note type (#78): an embedded reference
+// The retirement window for a renamed note type: an embedded reference
 // still spelling `armorgear` names the same gear group as `armor`.
 import { currentType } from "../engine/ids.mjs";
 
 /**
  * The note `type` whose pages carry a being info block.
  *
- * One name, since #1580 merged `character` and `creature` into the `being` they
+ * One name: `character` and `creature` are the `being` they
  * had always compiled into. The retired names are deliberately **not** accepted
  * as aliases: they throw elsewhere in the system, and tolerating them here
  * would hide the next drift of this kind rather than surface it.
@@ -68,7 +68,7 @@ export function isBeing(fm) {
  * added in a single place rather than in each consumer's site build.
  *
  * Keyed by **note** type, which is what a being's embedded `(type, shortcode)`
- * references spell — and since #78 three of those are no longer the document
+ * references spell — and three of those are not the document
  * subtype they compile into. A reference still on a renamed spelling is
  * normalised at the lookup below rather than given a second row here.
  *

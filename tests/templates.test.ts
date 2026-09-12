@@ -60,7 +60,7 @@ describe("findHardcodedText", () => {
     });
 
     // Handlebars substitutions change length, so an offset taken in the
-    // stripped text cannot be carried back to the source (SoHL #1668).
+    // stripped text cannot be carried back to the source.
     it("locates a literal that follows a longer expression", () => {
         const source = [
             "<div>",

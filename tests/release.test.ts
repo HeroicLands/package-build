@@ -66,7 +66,7 @@ describe("packRelease", () => {
         expect(JSON.parse(fs.readFileSync(result.manifest, "utf8")).id).toBe("sohl");
     });
 
-    // #239: a consumer resolves this package's addresses by fetching the index
+    // A consumer resolves this package's addresses by fetching the index
     // the manifest advertises, so a release that ships the manifest without it
     // publishes a promise it does not keep.
     it("publishes the content index the manifest advertises", async () => {

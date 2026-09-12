@@ -101,7 +101,6 @@
         "CHANGELOG-content-build.md",
         "CHANGELOG.md",
         "CONTENT.md",
-        "MIGRATING.md",
         "README.md",
         "bin",
         "bundle.mjs",

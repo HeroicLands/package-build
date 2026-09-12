@@ -7,7 +7,7 @@
 
 /**
  * Compile order is derived from what each pass reads, not from the order
- * `packs:` happens to declare (#73).
+ * `packs:` happens to declare.
  *
  * The actors pass resolves each being's embedded items against the *output* of
  * the item passes, so a package declaring its Actor pack first used to compile

@@ -13,7 +13,7 @@
 
 /**
  * The package homepage — a note that compiles to a **page** rather than to a
- * compendium document (#51).
+ * compendium document.
  *
  * Every HeroicLands package is reachable at `https://www.heroiclands.org/<contentPackage>/`,
  * and what a reader finds there is one markdown file in the content tree,
@@ -49,11 +49,11 @@
  *
  * **Addressed like every other note.** A homepage declares a `shortcode` —
  * conventionally {@link HOMEPAGE_SHORTCODE} — and publishes at its address,
- * `/<package>/<type>-<shortcode>/`, written by the same rule as everything else
- * (#182). It used to publish at `/<package>/` from a fixed destination, and
+ * `/<package>/<type>-<shortcode>/`, written by the same rule as everything else.
+ * It used to publish at `/<package>/` from a fixed destination, and
  * that is why it refused `name` and `shortcode`: a URL derived from `name.full`
  * while the destination did not, so `[[homepage-<shortcode>]]` resolved *green*
- * to a page nothing wrote. A page's URL is its address now (#181), so the
+ * to a page nothing wrote. A page's URL is its address now, so the
  * computed address is the published one and there is nothing left to refuse.
  * The package's own `/<package>/` becomes a redirect its repository authors —
  * see `CONTENT.md` — rather than a page this build writes.
@@ -108,7 +108,7 @@ export const HOMEPAGE_SHORTCODE = "root";
  * The file a homepage is written to, relative to the package's site root.
  *
  * Its **address**, flat at the package root, and stated in the page's own `url`
- * — the same separation every other page has since #181, where the directory
+ * — the same separation every other page has, where the directory
  * decides the Hugo section and the front matter decides the URL. Flat rather
  * than inside a `homepage/` section directory, because a homepage is not one of
  * a kind: a section holding exactly one page would publish a landing at
@@ -133,14 +133,14 @@ export function isHomepage(fm) {
 }
 
 /**
- * The top-level field a homepage refuses, and what it would decide (#53).
+ * The top-level field a homepage refuses, and what it would decide.
  *
- * **One field, where there used to be three.** `name` and `shortcode` were
+ * **One field rather than three.** `name` and `shortcode` are
  * refused because a page's URL derived from `name.full` while a homepage's
  * destination was fixed, so the address a `shortcode` computed named a page the
- * site build never wrote. A page's URL is its address now (#181) and a homepage
+ * site build never wrote. A page's URL is its address now and a homepage
  * publishes at its own, so both fields decide exactly what they decide
- * everywhere else and are permitted (#182).
+ * everywhere else and are permitted.
  *
  * `id` is untouched by that, and stays: it is the Foundry document id a
  * compendium UUID is built from, and a homepage compiles into no document.
@@ -153,7 +153,7 @@ export function isHomepage(fm) {
  * package-build release.
  *
  * `aliases` is deliberately not in the class: it is a **retired** field, refused
- * on every note whatever its type (#180), so it is answered there rather than
+ * on every note whatever its type, so it is answered there rather than
  * here.
  *
  * @type {ReadonlyMap<string, string>}
@@ -195,8 +195,8 @@ export const HOMEPAGE_REFUSED_FIELDS = Object.freeze(
  * **A refused field must be one the note *wrote*.** `resolveNoteId` fills
  * `fm.id` **in place** so every downstream reader sees one derived value —
  * deliberately, and documented as such — and this ran over the same object, so
- * a homepage that authors no `id` was told to delete one that is not there
- * (#319). Since the caller already owns the raw note text, it also answers
+ * a homepage that authors no `id` was told to delete one that is not there.
+ * Since the caller already owns the raw note text, it also answers
  * which keys the note actually declared; without an answer every key in `fm`
  * counts, which is the old behaviour and right for a caller holding authored
  * frontmatter only.
@@ -238,19 +238,17 @@ export function checkHomepageAddressFields(fm, { isAuthored } = {}) {
 }
 
 /**
- * Require exactly one homepage note in a content tree (#52).
+ * Require exactly one homepage note in a content tree.
  *
  * "Exactly one" is two rules, and they are **one severity** because they are
  * one defect: a package whose front page is not the page a person chose.
  *
  * - _None_ and the package serves nothing at `/<package>/`. That is the failure
- *   #50 exists to prevent, and it is silent — the site build reports `wrote 0
+ *   this exists to prevent, and it is silent — the site build reports `wrote 0
  *   homepage(s)` and exits 0.
  * - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
- *   since #182 it is only that.** It used to rest on the fixed destination
- *   every homepage shared — the second overwrote the first — so the address
- *   rule enforced it as a side effect. A homepage is written at its own address
- *   now, so two of them publish two pages and collide over nothing; the
+ *   only that.** A homepage is written at its own address, so two of them
+ *   publish two pages and collide over nothing; the
  *   duplicate-address check catches only the pair that happen to share a
  *   shortcode, and says nothing at all about a `homepage-root` beside a
  *   `homepage-front`. Which of the two the redirect at `/<package>/` should
@@ -375,17 +373,17 @@ export function homepageTitle(fm, config) {
  *
  * The note's own, plus the derived values every emitted page carries: the
  * resolved `title`, the package the build derived — no note declares one
- * (`package:` is retired, #56) and the theme's breadcrumb partial reads
+ * (`package:` is retired) and the theme's breadcrumb partial reads
  * `.Params.package` — and its **address**.
  *
  * The address is stated as `url` for the same reason every other page states
- * one (#181): Hugo publishes a page where its file sits unless told otherwise,
+ * one: Hugo publishes a page where its file sits unless told otherwise,
  * and a homepage's file sits at the package's site root. `slug` is written
  * beside it because it is the last segment of that address and Hugo's own key
  * for one; it decides nothing while `url` is present, but a page carrying only
  * `url` would report a slug Hugo had inferred from the filename.
  *
- * **Site-root relative, and so carrying no package base** (#217), exactly as
+ * **Site-root relative, and so carrying no package base**, exactly as
  * `pageFrontmatter` states a content page's: Hugo resolves a `url`
  * against `baseURL`, whose path is already where the package is served, so a
  * stated base was written twice and published the landing at
@@ -394,7 +392,7 @@ export function homepageTitle(fm, config) {
  *
  * An authored `aliases` is dropped for the same reason it is on every other
  * page: Hugo reads it as URL redirects, so passing it through would publish a
- * redirect stub at each one. The field is retired (#180) and refused before a
+ * redirect stub at each one. The field is retired and refused before a
  * build reaches here, which makes this a guard rather than a working path.
  *
  * @param {object} fm - The note's frontmatter.

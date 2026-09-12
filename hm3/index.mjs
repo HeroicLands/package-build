@@ -13,7 +13,7 @@
 
 /**
  * The HM3-specific half of the toolchain: the knowledge of the HârnMaster 3
- * data model that a generic content module must never receive (#139).
+ * data model that a generic content module must never receive.
  *
  * The second half, and the first evidence that `engine/` ÷ system is a real
  * line rather than an aspiration: HM3's item-type registry and its builders,
@@ -39,7 +39,7 @@ export * as itemBuilders from "./item-builders.mjs";
 /** The `hm3:` frontmatter vocabulary of every HM3 item type. */
 export * as itemFields from "./item-fields.mjs";
 
-/** This system's note-type → document-subtype map, one-to-many rows and all (#139). */
+/** This system's note-type → document-subtype map, one-to-many rows and all. */
 export * as documentSubtypes from "./document-subtypes.mjs";
 
 /** The Item compiler. */

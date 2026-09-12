@@ -6,7 +6,7 @@
  */
 
 /**
- * `<system>.system` reaching the compiled document (#58).
+ * `<system>.system` reaching the compiled document.
  *
  * Nothing read a note-level `sohl.system` block before: an item's `system` was
  * assembled field by field and an actor's by hand, so a key the format's own
@@ -14,7 +14,7 @@
  * DataModel's own paths, with no renaming layer between the note and the
  * document.
  *
- * The corpus does not use it yet (that is #126, in other repositories), which
+ * The corpus does not use it yet (the move is in other repositories), which
  * is why every existing tree still compiles byte-identically. These cases
  * describe what happens when it does.
  */
@@ -266,7 +266,7 @@ describe("a key the system's schema does not declare", () => {
     });
 
     it("says nothing about a subtype the artifact does not name", () => {
-        // Which subtypes exist is a routing question (#79), not a field one —
+        // Which subtypes exist is a routing question, not a field one —
         // the same stance `compareFields` takes on a builder for a type the
         // system does not define.
         const fm = { sohl: { system: { anything: 1 } } };

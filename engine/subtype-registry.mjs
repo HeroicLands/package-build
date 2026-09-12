@@ -16,7 +16,8 @@
  * questions asked of the *list* rather than of any one map.
  *
  * One frozen list, and the two lookups that need to choose among its members
- * before a map can be consulted at all. It lived in `note-claims.mjs` until #270,
+ * before a map can be consulted at all. It sits here rather than in
+ * `note-claims.mjs`,
  * which is where the *questions* asked of it live — but that module imports
  * half the engine, so anything needing the bare list had to take all of it, and
  * `helpers.mjs` could not take it at all: `note-claims.mjs` imports
@@ -42,7 +43,7 @@ import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 /**
  * The note-type → document-subtype maps this toolchain ships.
  *
- * Two, since `hm3/` landed (#139) — and it joined this list rather than the
+ * Two, since `hm3/` landed — and it joined this list rather than the
  * claim table growing a second copy of the same fact, which is what the list
  * was for.
  *
@@ -72,7 +73,7 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
  * {@link KNOWN_DOCUMENT_SUBTYPE_MAPS} exists rather than a hand-kept table.
  *
  * It exists because an actor note publishes documentation like every other
- * system-bearing note (#337). `docEntryTypes` was `itemTypes` plus `macro` and
+ * system-bearing note. `docEntryTypes` was `itemTypes` plus `macro` and
  * the map types, which left a being as the one system-bearing note with no
  * `none` address — nothing a prose link could land on, since its only address
  * named the Actor. Composing that set needs to know which types are actors, and
@@ -111,7 +112,7 @@ export function subtypeMapFor(system) {
  * translation the *schema* check needs, and the reason it needs one.
  *
  * A schema artifact is keyed by document subtype; a field declaration is keyed
- * by note type. Those were the same string until #78 renamed three of them, and
+ * by note type. Those would be the same string but for three renames, and
  * a check that went on joining them by name simply stopped reporting on
  * `armorgear` — a warning that vanishes is worse than one that fires, because
  * nothing says it went.

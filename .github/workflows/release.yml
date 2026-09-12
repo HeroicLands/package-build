@@ -75,7 +75,7 @@ jobs:
             # stopped putting `node_modules/.bin` on the PATH of a run-script's
             # shell. The next step's `changeset` became `sh: 1: changeset: not
             # found` and every release exited 127 without publishing, while
-            # nothing in this repository had changed (#381).
+            # nothing in this repository had changed.
             #
             # The check is here rather than the install because a floor is what
             # the requirement actually is, and an assertion cannot go stale the
@@ -109,7 +109,7 @@ jobs:
                   # previous release's number — this repository and
                   # content-build were each one release behind before the script
                   # existed, and 20.2.0 shipped that way again while it was
-                  # briefly removed (#385). The action offers no hook between
+                  # briefly removed. The action offers no hook between
                   # versioning and committing, so this input is the only seam
                   # where the refresh lands in the same commit.
                   #
@@ -129,7 +129,7 @@ jobs:
                   # to an absolute path, and the action's `git reset --hard`
                   # restored it over the install, so nothing resolved by any
                   # mechanism — with the override or without it, by PATH or by
-                  # `require.resolve` (#381). The symlink is gone and the tree
+                  # `require.resolve`. The symlink is gone and the tree
                   # survives the reset, so the seam works again.
                   version-script: npm run changeset:version
                   publish-script: npx changeset publish

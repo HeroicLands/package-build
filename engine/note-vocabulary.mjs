@@ -13,7 +13,7 @@
 
 /**
  * The **closed** half of a note's frontmatter: the `data:` container, and the
- * `subType` each note type declares (#128).
+ * `subType` each note type declares.
  *
  * A note's frontmatter has three regions, and only one of them is open. The
  * **top level** describes the note as a published artefact, every key of it is
@@ -42,17 +42,17 @@
  * transmission — and is true of it whichever system is reading. What each
  * system makes of that value is declared elsewhere, in that system's own half.
  *
- * **The type names here are the specification's**, since #78 renamed `armor`,
+ * **The type names here are the specification's**, which renamed `armor`,
  * `projectile` and `concoction` off the `…gear` spellings that named a SoHL
  * document subtype rather than the thing the note is about. `weapon` is the one
  * the specification and this registry still spell differently: both systems
  * call that document a `weapongear`, so the name says nothing system-specific
- * and #78's table has no row for it. A note left on a renamed spelling still
+ * and the table has no row for it. A note left on a renamed spelling still
  * reaches its entry — every type-keyed lookup normalises through
  * `RENAMED_TYPES` — and is reported rather than refused until the content trees
  * have swept.
  *
- * **A type name and a subType value are held to the address charset** (#206), so
+ * **A type name and a subType value are held to the address charset**, so
  * both are `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states
  * and the shortcode is already held to. For a type that is literal: it is a
  * segment of every address — the first of the short form an author writes
@@ -63,7 +63,7 @@
  * about why.
  *
  * A subType reaches no address of its own. It did when this rule was written —
- * a `doc`'s was its section, a path segment — and #204 retired sections from
+ * a `doc`'s was its section, a path segment — and sections are retired from
  * the note format one release later. It keeps the rule regardless, and the
  * reason is not inertia: a subType is a vocabulary term the whole toolchain
  * keys on, it is one closed set away from being an address again, and a charset
@@ -76,11 +76,11 @@
  */
 
 // The one charset, read rather than restated. A second spelling of the pattern
-// is how the three disagreements found in #202/#203 happened.
+// is how a disagreement between the three arises.
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
-// of an unswept note as unknown (#78).
+// of an unswept note as unknown.
 import { currentType } from "./ids.mjs";
 
 /**
@@ -88,7 +88,7 @@ import { currentType } from "./ids.mjs";
  *
  * A deliberate subset of {@link import("./field-spec.mjs").FieldSpec}: no `to`,
  * because nothing here builds anything yet. Reading `data.*` through into a
- * document's `system` block is the passthrough slice (#126), and claiming an
+ * document's `system` block is the passthrough slice, and claiming an
  * emitted path this does not produce would be a lie in the one place a reader
  * would trust it.
  *
@@ -155,9 +155,9 @@ const LINKS = Object.freeze({ shape: "list of wikilinks", kind: "list" });
  * the scalar cannot, that the answer *differs by pack*. A folder's `parent` is
  * the case it exists for — a folder's identity is one thing and its hierarchy
  * another, and both large trees file the same folder under a different parent
- * in the items pack and the journals pack (#276).
+ * in the items pack and the journals pack.
  *
- * Typing it as a bare {@link LINK} is what #288 was: the compiler read both
+ * Typing it as a bare {@link LINK} makes the compiler read both
  * forms and the lint rejected one of them, so every note using the form the
  * specification prescribes was a finding and no note using it was not.
  */
@@ -235,7 +235,7 @@ const CHARGES = Object.freeze([
  * @type {Readonly<Record<string, TypeVocabulary>>}
  */
 /**
- * The tags that **classify** a note, grouped by what they classify (#172).
+ * The tags that **classify** a note, grouped by what they classify.
  *
  * `tags:` lives at the open top level and most tags belong there: a theme, a
  * region, a working state is the author's own and this build has no opinion
@@ -261,7 +261,7 @@ const CHARGES = Object.freeze([
  * this replaced had to spell it `Fishing Village` as a value of its own.
  */
 /**
- * The declared tag that marks a note as **unfinished** (#183).
+ * The declared tag that marks a note as **unfinished**.
  *
  * Named once and referenced from the declaration below, because a second
  * spelling is how the two come apart: rename the tag in `DECLARED_TAGS` and a
@@ -399,7 +399,7 @@ export function hasTag(fm, tag) {
 }
 
 /**
- * Whether a note is tagged as an unfinished **draft** (#183).
+ * Whether a note is tagged as an unfinished **draft**.
  *
  * The one reader of {@link DRAFT_TAG}, so both builds ask the same question of
  * the same field. Presentation only: a draft note is in the packs, in the
@@ -418,7 +418,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     being: Object.freeze({
         // Derived from the note's `(type, subType)` by each system's map, which
-        // lands with #79. Declared open until it does, because inventing the
+        // lands with. Declared open until it does, because inventing the
         // values here would put a second, weaker answer beside the real one.
         subTypes: null,
         data: Object.freeze([
@@ -794,10 +794,10 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     doc: Object.freeze({
         // `userguide`, not `user-guide`: a subType is held to the address
-        // charset, and a segment carries no hyphen (#206). The old spelling was
+        // charset, and a segment carries no hyphen. The old spelling was
         // accepted transitionally for one release so the consumer trees could
         // sweep; they have, so it is refused by the charset check now, with no
-        // retirement-specific code left over (#210).
+        // retirement-specific code left over.
         subTypes: Object.freeze(["rules", "userguide", "reference"]),
         data: Object.freeze([]),
     }),
@@ -805,12 +805,12 @@ export const NOTE_VOCABULARY = Object.freeze({
     macro: Object.freeze({ data: Object.freeze([]) }),
 
     // Foundry's `Folder`, and the last document this package compiled from
-    // bespoke configuration rather than from a note (#256). It declares no
+    // bespoke configuration rather than from a note. It declares no
     // system-block fields, like a bundle: a `Folder` is a core Foundry
     // document, so its address carries the `none` system segment and
     // everything it says is a `data` property.
     //
-    // It carries **no prose**, which is the decision #256 left open: a folder
+    // It carries **no prose**: a folder
     // is structure, not content, so it wants no documentation journal and takes
     // no part in `docEntryTypes`.
     folder: Object.freeze({
@@ -836,7 +836,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // calls it: a set of documents taken as a unit. The document is an
     // installer — it carries copies, and importing one creates or updates each
     // document in the world — which is what separates a bundle from a folder,
-    // a live grouping that persists in the pack (#259).
+    // a live grouping that persists in the pack.
     //
     // How many Adventures a bundle makes is decided by its system blocks, as
     // for every other type, and not by a property: an `Adventure` has no
@@ -940,12 +940,12 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     map: Object.freeze({
         // One type, three subTypes: they differ only in the canvas defaults
-        // derived for them, which is precisely what a subType decides (#174).
+        // derived for them, which is precisely what a subType decides.
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),
         data: Object.freeze([
             // `img`, as every other note type spells its artwork. A map alone
             // read `image` out of its `sohl:` block; that spelling is retired
-            // and gone (#149), so the two names are one again.
+            // and gone, so the two names are one again.
             {
                 name: "img",
                 ...TEXT,
@@ -1001,10 +1001,11 @@ export const NOTE_VOCABULARY = Object.freeze({
 /**
  * What a note carrying a subType outside the address charset is told.
  *
- * **Why the charset holds for a subType, which reaches no address.** #206 said
+ * **Why the charset holds for a subType, which reaches no address.** The rule
+ * said
  * "the hyphen separates the segments of an address", and that was true of a
  * subType when it shipped: `sectionOf` returned a `doc`'s subType, so the value
- * was a URL path segment. #204 retired sections and it is not one now. The rule
+ * was a URL path segment. Sections are retired and it is not one. The rule
  * stays, on its own footing: a subType is a vocabulary term the whole toolchain
  * keys on, and it is one closed set away from being an address segment again —
  * so the reason to spell it in the address charset is that a charset holding
@@ -1054,8 +1055,8 @@ export function typeCharsetMessage(type) {
  *
  * The message states the reason **per key**, as {@link typeCharsetMessage} and
  * {@link subTypeCharsetMessage} do: a type is an address segment, and a subType
- * has not been one since #204 retired sections, so a single claim covering both
- * would be half wrong (#210).
+ * is not one, since sections are retired, so a single claim covering both
+ * would be half wrong.
  *
  * @param {Readonly<Record<string, TypeVocabulary>>} vocabulary - The registry.
  * @param {string} [where] - What declares it, for the message.
@@ -1077,7 +1078,7 @@ export function assertVocabularyCharset(vocabulary, where = "the note vocabulary
         `${where} declares ${bad.join(", ")}, which ${bad.length === 1 ? "is" : "are"} ` +
             `not ${ADDRESS_SEGMENT_PATTERN.source}. A type is an address segment, ` +
             `and the hyphen separates segments rather than occurring inside one. ` +
-            `A subType reaches no address since #204 retired sections, and is ` +
+            `A subType reaches no address, and is ` +
             `held to the same charset anyway: it is a vocabulary term the whole ` +
             `toolchain keys on, one closed set away from being a segment again, ` +
             `and a charset holding for every term but that one would be a rule ` +

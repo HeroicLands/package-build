@@ -13,7 +13,7 @@ import {
     // eslint-disable-next-line
 } from "../engine/helpers.mjs";
 
-describe("resolveCharges (pack builder — a blank maximum means 'does not use charges', #1129)", () => {
+describe("resolveCharges (pack builder — a blank maximum means 'does not use charges')", () => {
     it("yields a null max when the frontmatter declares no charges block", () => {
         expect(resolveCharges({ sohl: {} })).toEqual({
             value: null,
@@ -59,7 +59,7 @@ describe("resolveCharges (pack builder — a blank maximum means 'does not use c
     });
 
     it("ignores a legacy usesCharges flag entirely", () => {
-        // The flag was inert and has been dropped from the schema (#1129);
+        // The flag was inert and has been dropped from the schema;
         // authored content that still carries it must not resurrect it.
         const charges = resolveCharges({
             sohl: { charges: { usesCharges: true, value: 1, max: 2 } },

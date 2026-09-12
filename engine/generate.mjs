@@ -22,18 +22,18 @@
  *
  * Each `*` compiler walks the whole content tree and selects its own entries by
  * the note's `type` — every note in the tree belongs to this repository's
- * `contentPackage` (#56) — so routing is directory-agnostic: a file lands in a
+ * `contentPackage` — so routing is directory-agnostic: a file lands in a
  * pack because of its `type`, not its location. Which packs exist is declared
  * in `package-build.config.yaml`; the **folder hierarchy is not declared
- * anywhere**. A folder is a note like any other (#256), named by `packFolder`
+ * anywhere**. A folder is a note like any other, named by `packFolder`
  * — its address — and it materialises in every pack that holds a document
- * naming it, its ancestors with it (#257). So no pack loads a folder list, and
+ * naming it, its ancestors with it. So no pack loads a folder list, and
  * two packs can no longer disagree about a folder they both hold.
  *
  * **The order the passes run in is derived, not declared** — see
  * {@link orderPassesByDependency}. The declared list is the manifest's `packs`
  * array as well, so it is ordered for a reader; a pass that reads another's
- * output states that on its compiler and is scheduled after it (#73).
+ * output states that on its compiler and is scheduled after it.
  *
  * This replaces the retired `packs:export` (vault → committed `_source/`); the
  * HeroicLands vault is no longer a build input for SoHL content.
@@ -62,15 +62,15 @@ import {
 } from "./folder-notes.mjs";
 import { countContentNotes } from "./content-tree.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
-// The corpus every pass runs over, derived once (#243).
+// The corpus every pass runs over, derived once.
 import { buildCompileCorpus } from "./compile-corpus.mjs";
-// The record accessors only — see `engine/index-records.mjs` (#243).
+// The record accessors only — see `engine/index-records.mjs`.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { NEVER_PACKED_TYPES, unclaimedNoteFindings } from "./note-claims.mjs";
 // Which document a content type compiles into, so the art declaration below is
-// answered from the same routing the compile uses (#349).
+// answered from the same routing the compile uses.
 import { RETIRED_TYPES, currentType, packForType } from "./ids.mjs";
 import { contentPackage } from "./content-package.mjs";
 
@@ -90,7 +90,7 @@ import { contentPackage } from "./content-package.mjs";
  * system-neutral passes have one implementation because a JournalEntry, a
  * Macro, a Scene and an Adventure are Foundry's documents rather than any
  * system's — an `Adventure` does not even have a `system` field, which is why a
- * bundle spanning two systems is two documents (#259).
+ * bundle spanning two systems is two documents.
  */
 const COMPILERS = {
     Item: Items,
@@ -102,7 +102,7 @@ const COMPILERS = {
 };
 
 /**
- * The system-specific compilers, by the system a pack declares (#139).
+ * The system-specific compilers, by the system a pack declares.
  *
  * A repository feeding two systems declares one Item pack and one Actor pack
  * per system — `harn-ensemble` has `actors-hm3` and `actors-sohl` — and each
@@ -138,7 +138,7 @@ export function compilerFor(docType, system = null) {
 
 /**
  * The art fields a note of one content type reaches its document through, and
- * the document it reaches (#349).
+ * the document it reaches.
  *
  * **Derived, never listed.** A note's type routes to a document type
  * ({@link packForType}), a document type routes to the pass that compiles it
@@ -201,7 +201,7 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * The generated JSON of **every** configured Item pack — what the actors pass
  * reads its predefined items from.
  *
- * All of them, not the first: a repository may ship several Item packs (#1566),
+ * All of them, not the first: a repository may ship several Item packs,
  * and an actor's embedded items may be sourced from any of them. Finding one
  * pack and stopping is how embedded-item resolution would silently miss every
  * item that landed in another. Returned in configured order, which is also the
@@ -209,7 +209,7 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * order among packs of one type — and every one of them is written before the
  * actors pass that reads them.
  *
- * **Scoped to one system when the caller has one (#58).** A being addresses an
+ * **Scoped to one system when the caller has one.** A being addresses an
  * item by `(type, shortcode)`, and that address is unique within one system and
  * not across two: `skill:sword` is an HM3 skill *and* a SoHL skill, with
  * different data models behind them. The reference itself is unambiguous — it
@@ -227,7 +227,7 @@ export const packJsonDir = (name, config = loadPackConfig()) =>
  * @returns {string[]} Each Item pack's JSON directory. Empty when the
  *   repository ships no items at all, which is a legitimate package: the actors
  *   pass accepts an empty list and reports an item it cannot resolve per
- *   `(type, shortcode)` instead, naming the being (#49).
+ *   `(type, shortcode)` instead, naming the being.
  */
 export function itemPackJsonDirs(config = loadPackConfig(), system = null) {
     return config.packs
@@ -242,7 +242,7 @@ export function itemPackJsonDirs(config = loadPackConfig(), system = null) {
  * An `Adventure` carries **copies**, not references, so a bundle resolves its
  * `contents` against compiled output rather than against the content tree — the
  * same arrangement the actors pass has for `itemsSourceDirs`, generalised to
- * every document class an Adventure can hold (#259).
+ * every document class an Adventure can hold.
  *
  * Two kinds of pack are left out, each because it holds nothing a note
  * addresses. A **prebuilt** pack's JSON is checked in rather than compiled, so
@@ -294,7 +294,7 @@ function readsOutputOf(type) {
 /**
  * The passes to run, ordered so that each one follows the output it reads.
  *
- * **Declaration order is presentation, not compile order (#73).** The same
+ * **Declaration order is presentation, not compile order.** The same
  * `packs:` list is the manifest's `packs` array, which a consumer orders for a
  * reader browsing compendiums; the actors pass, meanwhile, resolves each
  * being's embedded items against the item passes' *output*. Making one list
@@ -431,7 +431,7 @@ async function generatePack(
     // Which folder notes this pack turned out to hold something for. A folder
     // materialises in every pack holding a document that references it, so the
     // set is not knowable until the pass has compiled, which is why these
-    // documents are written after `compile()` (#257).
+    // documents are written after `compile()`.
     /** @type {Set<import("./folder-notes.mjs").FolderNote>} */
     const referencedFolders = new Set();
 
@@ -441,7 +441,7 @@ async function generatePack(
      * There is one spelling. `packFolder` names a folder **note**, resolved
      * through the address index shared by the whole build; the `folder:`
      * Foundry-id spelling and the per-pack `*-folders.yaml` it resolved
-     * against are retired together (#260), so there is no second source left
+     * against are retired together, so there is no second source left
      * for a value to come from.
      *
      * @param {string|null|undefined} value - As authored.
@@ -481,38 +481,38 @@ async function generatePack(
     const pack = new packClass({
         contentBase,
         dest,
-        // The corpus this compile derived once, shared by every pass (#243).
+        // The corpus this compile derived once, shared by every pass.
         corpus,
         companionDests,
         // The actors pass resolves each being's embedded items against the items
-        // passes' output. That used to be an unwritten sibling-directory contract
+        // passes' output. An unwritten sibling-directory contract
         // (`path.resolve(dest, "..", "items")`); the configured pack list names
         // the Item packs, so the dependency is stated rather than assumed
-        // (#1508) — and it is every Item pack, since a repository may ship more
-        // than one (#1566).
+        // — and it is every Item pack, since a repository may ship more
+        // than one.
         // Scoped to this pack's system, so a being resolves `(type, shortcode)`
-        // against its own system's catalogue and the neutral one (#58).
+        // against its own system's catalogue and the neutral one.
         itemsSourceDirs: itemPackJsonDirs(config, system ?? null),
         // The catalogue of a package this repository depends on but does
         // not contain, for a repository that authors beings without
         // holding the items they are assembled from. Cache-only: a cold
         // cache throws naming `content-build deps fetch` rather than
         // downloading inside a compile. Scoped to this pack's system for the
-        // reason the local half is (#58): both halves answer one lookup, so a
+        // reason the local half is: both halves answer one lookup, so a
         // dependency shipping two systems' items would otherwise supply the
         // wrong vocabulary's document for an address that exists in both.
         foreignSourceDirs: foreignItemCatalogDirs(config, system ?? null),
         // The bundles pass resolves each Adventure's members against the output
         // of every pass that produces one. Stated from the configured pack list
-        // for the same reason `itemsSourceDirs` is (#1508), and scoped to this
+        // for the same reason `itemsSourceDirs` is, and scoped to this
         // pack's system so a bundle holds the catalogue it is compiled for.
         bundleSourceDirs: bundleSourceJsonDirs(config, system ?? null),
         folderResolver: resolver,
         // One answer to "which files are the corpus?", from the configuration
-        // this build resolved rather than from the working directory (#243).
+        // this build resolved rather than from the working directory.
         skipDirectories: config.skipDirectories,
         packName: name,
-        // Which system this pack's documents are stamped for (#48).
+        // Which system this pack's documents are stamped for.
         packSystem: system ?? null,
         docType: type,
         router,
@@ -525,7 +525,7 @@ async function generatePack(
     // journals pack both hold it when both hold something filed in it — and
     // every copy carries the same `_id`, which is what files a documentation
     // journal beside the item it describes rather than in a folder that merely
-    // looks alike (#257).
+    // looks alike.
     writeFolderNoteDocs(
         referencedFolders,
         folderNotes,
@@ -579,7 +579,7 @@ function writeFolderNoteDocs(referenced, folderNotes, stats, dest, documentType,
  *
  * A pack ships blank whenever every note in a full tree was rejected — by a
  * `selects` that claims nothing, or a `pack:` that routes everything elsewhere
- * — and the build then exits 0 (#1502). The empty-tree guard in
+ * — and the build then exits 0. The empty-tree guard in
  * {@link generatePacksJson} cannot see that: the tree is full, it is the
  * *output* that is empty.
  *
@@ -644,11 +644,11 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // goes, and the first pack of each document type owns the error message for
     // a note of that type that goes nowhere. Resolved here because the corpus
     // below is derived against it, and the corpus is what every reader from
-    // this point on reads (#243).
+    // this point on reads.
     const router = routerFor(config);
 
     // The corpus every pass runs over, and the three whole-tree indexes built
-    // over it, derived **once** for the whole compile (#243). Each is a pure
+    // over it, derived **once** for the whole compile. Each is a pure
     // function of (tree, scope, router), none of which varies between passes —
     // `router` is one object, handed to all of them — so the passes were
     // deriving the same answers over and over. Compiling `sohl` read every note
@@ -668,11 +668,11 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     for (const problem of corpusProblems) emitDiagnostic(problem);
 
     // A note whose `type:` no configured pack claims compiles into nothing, and
-    // used to say nothing (#146) — no pass got far enough to reject it, so the
+    // used to say nothing — no pass got far enough to reject it, so the
     // silence had no owner. Asked once, of the whole configuration, because
     // that is the only place it can be answered: a per-pass check would report
     // every type a system deliberately does not map, which is exactly the
-    // silence #79 requires. Independent of `only`, since it is a fact about the
+    // silence the rule requires. Independent of `only`, since it is a fact about the
     // configured pack list rather than about which passes this run executes.
     const unclaimed = unclaimedNoteFindings(config, undefined, { records: corpus.records });
     for (const finding of unclaimed) emitDiagnostic(finding);
@@ -684,7 +684,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     //
     // A **prebuilt** pack has no pass either, and for a plainer reason: its
     // per-document JSON is checked in. Passed over rather than compiled — which
-    // it could not be before #259, since the only prebuilt pack in the wild
+    // it could not be otherwise, since the only prebuilt pack in the wild
     // holds Adventures and no compiler was registered for that document type,
     // so the pack failed the build with "no compiler for document type". Now
     // one is registered, and running it would wipe `build/packs-json/<name>/`
@@ -700,12 +700,12 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
     // definition with one address, and every pass resolves against the same
     // index. A dangling `parent` or a parent cycle is therefore reported once,
     // as a fact about the tree, rather than once per pass that happened to walk
-    // it (#256).
+    // it.
     let folderNotes;
     try {
         folderNotes = buildFolderNoteIndex(
             collectFolderNotes(
-                // The corpus this compile derived picks the notes (#243); the
+                // The corpus this compile derived picks the notes; the
                 // file supplies their frontmatter, and this is one of the few
                 // places where that distinction is load-bearing rather than
                 // incidental.
@@ -713,8 +713,8 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                 // `collectFolderNotes` treats `fm.id` as an **authored pin**,
                 // which wins over the id it derives under the folder namespace.
                 // A record's `id` is not that: the index fills it in for every
-                // addressable note (#270), so handing records straight over
-                // would make every folder look pinned. Since #310 the *value*
+                // addressable note, so handing records straight over
+                // would make every folder look pinned. The *value*
                 // would be right either way — the index derives a folder's id
                 // under the folder namespace, so the two agree — but `derivedId`
                 // would not, and it is what tells an author whether a duplicate
@@ -734,7 +734,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                 // The package this build resolved, not the ambient accessor:
                 // they are the same value in a real repository and different
                 // ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or in a
-                // test (#243).
+                // test.
                 config.contentPackage,
             ),
         );
@@ -754,7 +754,7 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
 
     // Compile order is derived from what each pass reads, not from the order
     // `packs:` declares — that list is also the manifest's, which a consumer
-    // orders for a reader (#73).
+    // orders for a reader.
     const ordered = orderPassesByDependency(packs);
     if (ordered.some((pack, index) => pack !== packs[index])) {
         log.info(

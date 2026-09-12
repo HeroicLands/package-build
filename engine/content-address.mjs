@@ -19,13 +19,13 @@
  * address other packages link to. Stating it twice is how a manifest comes to
  * assert a URL that resolves at build time and 404s for the reader.
  *
- * **A page's URL is its address** — `<package>/<type>-<shortcode>/` (#181), and
- * it carries **no `<system>` segment** even though the canonical address does
- * (#59). That is not an omission: a note publishes one page however many
+ * **A page's URL is its address** — `<package>/<type>-<shortcode>/`, and
+ * it carries **no `<system>` segment** even though the canonical address does.
+ * That is not an omission: a note publishes one page however many
  * systems' documents it compiles into, so there is nothing for the segment to
  * distinguish, and adding it would split one page's URL in two. The canonical
  * address names a *document*; this names a *page*. It
- * used to be derived from `name.full`, which made a display string load-bearing
+ * is not derived from `name.full`, which would make a display string load-bearing
  * in three separate ways: a rename moved the URL and nothing redirected, two
  * notes in one section could derive the same URL so a uniqueness check had to
  * run, and a long name had to be abbreviated through a word table to keep the
@@ -62,7 +62,7 @@ export { DEFAULT_ADDRESS_SCHEME };
  */
 export { NO_SYSTEM };
 
-/** The knowledgebase's mount within this package's site (#1470). */
+/** The knowledgebase's mount within this package's site. */
 export const KB_PREFIX = "kb/";
 
 /**
@@ -73,7 +73,7 @@ export const KB_PREFIX = "kb/";
  * key's **last two segments** — which is what makes a manifest entry's `path`
  * derivable from the key it is filed under rather than transported beside it.
  *
- * It was once the key's whole tail, and #59 ended that: the key gained a
+ * It is not the key's whole tail: the key carries a
  * `<system>` segment, so its tail is now `system-type-shortcode` and a slug is
  * the tail with that segment dropped. The behaviour here is unchanged, and
  * deliberately — a page has no system to name (see the module note above), so
@@ -131,9 +131,9 @@ export function addressSlug(fm) {
  *
  * **It is a pure function of the frontmatter**, and takes no options. Nothing
  * about the file the note was read from reaches it: the `README.md` convention
- * that made one note address a whole section is retired with the section itself
- * (#204), so every note is addressed alike and there is one rule and no branch.
- * It took an address scheme until #215, to validate a `landing` rule it then
+ * that made one note address a whole section is retired with the section itself,
+ * so every note is addressed alike and there is one rule and no branch.
+ * It takes no address scheme; the `landing` rule it once validated is
  * discarded; with that key retired, `prefix` was the only thing left in the
  * scheme and the paragraph above is the reason it never applied.
  *
@@ -169,9 +169,9 @@ export function packageAddress(fm) {
  * merge is a real conflict rather than an artefact of two packages sharing a
  * namespace. `(type, shortcode)` alone is unique only *within* a package, and
  * two independently authored packages reaching for the same short string is a
- * matter of time (#1499).
+ * matter of time.
  *
- * **The system segment (#59).** A package may ship content for more than one
+ * **The system segment.** A package may ship content for more than one
  * system, and one note then compiles into a document per system — an actor in
  * `actors-sohl` *and* an actor in `actors-hm3`. Without a system segment both
  * land on one key, so the address cannot name either of them. `harn-ensemble`
@@ -234,7 +234,7 @@ export function blockSystem(keyPath) {
 /**
  * Expand a written address to the one canonical address it names.
  *
- * **An omitted segment defaults from where the link is written** (#336) — it is
+ * **An omitted segment defaults from where the link is written** — it is
  * not a wildcard, and resolution is not a search. Package omitted means the
  * citing note's own; system omitted means {@link blockSystem} of the key path it
  * was written under. So every short form has exactly one expansion, computed
@@ -315,8 +315,8 @@ export const CANONICAL_KEY_SEGMENTS = 4;
  * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN` in `engine/address-charset.mjs`),
  * so the hyphen is purely a separator and the count alone determines every
  * field. That is enforced at each of the three sources rather than assumed of
- * the data: shortcodes by `content-lint.mjs` (#1397), `contentPackage` by
- * `defineConfig` (#59), and types are bare words. Were any of them free to
+ * the data: shortcodes by `content-lint.mjs`, `contentPackage` by
+ * `defineConfig`, and types are bare words. Were any of them free to
  * carry a hyphen, no amount of counting would recover the fields and the reader
  * would need a vocabulary to match against instead.
  *
@@ -440,7 +440,7 @@ export const DOCUMENT_ID_NAMESPACE = "document";
 
 /**
  * The Foundry `_id` of the document a note compiles into, derived from its
- * canonical address (#270).
+ * canonical address.
  *
  * A note used to author this — an opaque 16-character string, one per note,
  * that said nothing its address did not and that no check guaranteed. The

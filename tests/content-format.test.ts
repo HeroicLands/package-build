@@ -61,7 +61,7 @@ const MINI = [
 
 /**
  * The same miniature, with the shared mapping tables the real document opens
- * with — two of them, one for every type and one for the actor types (#275).
+ * with — two of them, one for every type and one for the actor types.
  */
 const SHARED_MINI = [
     "## Content format",
@@ -81,7 +81,7 @@ const SHARED_MINI = [
     MINI.split("\n").slice(2).join("\n"),
 ].join("\n");
 
-describe("parsing the specification (#130)", () => {
+describe("parsing the specification", () => {
     it("reads a type's `data` vocabulary from its own table", () => {
         const format = parseContentFormat(MINI, { file: "spec.md" });
         expect([...format.types.keys()].sort()).toEqual(["place", "weapon"]);
@@ -144,12 +144,12 @@ describe("parsing the specification (#130)", () => {
 });
 
 /**
- * The other half of a type's vocabulary (#345).
+ * The other half of a type's vocabulary.
  *
  * A type's `data` properties were read from its table and compared to the
  * declaration; its `subType` values were prose that nothing read, free to
  * disagree with `NOTE_VOCABULARY` in either direction — the same silent drift
- * #231 and #232 were filed about, on the half they did not cover.
+ * the two known gaps were about, on the half they did not cover.
  *
  * The specification wrote them five ways (`subType`, `subType:`,
  * `**subType**`, `**subType**:`, `**subTypes**:`), so the shapes converged
@@ -157,7 +157,7 @@ describe("parsing the specification (#130)", () => {
  * every spelling would keep accepting the sixth, and each variant is another
  * way for a section to be read as declaring nothing.
  */
-describe("reading a type's `subType` values (#345)", () => {
+describe("reading a type's `subType` values", () => {
     /** A miniature section, given its body lines. */
     const spec = (...body: string[]) =>
         ["## Content format", "", "### type: trauma", "", ...body, ""].join("\n");
@@ -243,7 +243,7 @@ describe("reading a type's `subType` values (#345)", () => {
     });
 });
 
-describe("the shipped specification (#130)", () => {
+describe("the shipped specification", () => {
     const format = loadContentFormat();
 
     it("is the committed document", () => {
@@ -256,7 +256,7 @@ describe("the shipped specification (#130)", () => {
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
-    it("states the shared rows the per-type tables are written against (#275)", () => {
+    it("states the shared rows the per-type tables are written against", () => {
         // The section promises rows the per-type tables omit "on the stated
         // grounds that they appear here", so an empty table specifies those
         // fields nowhere at all — which is what it did from the first commit.
@@ -274,7 +274,7 @@ describe("the shipped specification (#130)", () => {
         ]);
     });
 
-    it("omits a shared row from the per-type tables that share it (#275)", () => {
+    it("omits a shared row from the per-type tables that share it", () => {
         // `data.portrait` and `data.templatePriority` were stated in `being`'s
         // and `vehicle`'s tables as well, which is the duplication the section
         // exists to remove.
@@ -291,7 +291,7 @@ describe("the shipped specification (#130)", () => {
     });
 });
 
-describe("checking a claim against a published schema (#130)", () => {
+describe("checking a claim against a published schema", () => {
     const format = parseContentFormat(MINI, { file: "spec.md" });
     const artifact = (own: string[]) => ({
         version: 1,
@@ -353,7 +353,7 @@ describe("checking a claim against a published schema (#130)", () => {
     });
 });
 
-describe("the specification against the committed fixture schema (#130)", () => {
+describe("the specification against the committed fixture schema", () => {
     it("names no SoHL field the fixture does not declare", () => {
         const format = loadContentFormat();
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
@@ -363,7 +363,7 @@ describe("the specification against the committed fixture schema (#130)", () => 
     });
 });
 
-describe("measuring a note against the declared vocabulary (#130)", () => {
+describe("measuring a note against the declared vocabulary", () => {
     const format = parseContentFormat(MINI, { file: "spec.md" });
     const note = (fm: object) => ({
         file: "/tree/note.md",
@@ -433,7 +433,7 @@ describe("measuring a note against the declared vocabulary (#130)", () => {
     });
 });
 
-describe("the specification against the declarations that compile it (#136)", () => {
+describe("the specification against the declarations that compile it", () => {
     /** A declaration set in the shape `itemBuilders` entries carry. */
     const DECLARED = {
         weapon: [
@@ -569,7 +569,7 @@ describe("the specification against the declarations that compile it (#136)", ()
     });
 });
 
-describe("the shipped specification against the shipped declarations (#136)", () => {
+describe("the shipped specification against the shipped declarations", () => {
     it("contradicts none of the SoHL item-field declarations", () => {
         const format = loadContentFormat();
         const result = checkDeclaredFields({ format, itemFields: ITEM_FIELDS, system: "sohl" });
@@ -583,7 +583,7 @@ describe("the shipped specification against the shipped declarations (#136)", ()
     });
 });
 
-describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
+describe("a doc's subtype is a genre, and routes nothing", () => {
     // It used to pick the URL *section* a `doc` published under, and the
     // directory its page was written into — the address engine read `category`
     // for it until the content format retired that key, at which point every
@@ -604,7 +604,7 @@ describe("a doc's subtype is a genre, and routes nothing (#204)", () => {
     });
 });
 
-describe("lore declares a genre for a scheduled public occasion (#333)", () => {
+describe("lore declares a genre for a scheduled public occasion", () => {
     // A tournament, a great market or fair, a religious festival, a ceremony or
     // rite: something that happens at a place and a time, on a cycle, and that
     // people travel to. Neither neighbour fitted. `calendar` covers the
@@ -632,6 +632,6 @@ describe("lore declares a genre for a scheduled public occasion (#333)", () => {
     // tell which of the three neighbours a note belongs to. That is what the
     // specification is for, and holding the two together is no longer `lore`'s
     // own business: `content-format-agreement.test.ts` compares every type's
-    // documented genres to its declared ones, in both directions and in order
-    // (#345), which is where this type's assertion now lives.
+    // documented genres to its declared ones, in both directions and in order,
+    // which is where this type's assertion now lives.
 });

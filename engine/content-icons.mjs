@@ -12,7 +12,7 @@
  */
 
 /**
- * Naming an interface icon in a note, without drawing it there (#378).
+ * Naming an interface icon in a note, without drawing it there.
  *
  * The user guide describes Foundry's interface, and it did so by pasting
  * Unicode lookalikes of the icons the sheets actually draw: `☆` for the improve
@@ -23,11 +23,11 @@
  * every sheet change.
  *
  * They are also the worst characters in the corpus to typeset. Of the eight
- * book faces probed for #377, **none** carries `✕ ✗ ✎ ☆ ⚗ ➕`; in a Libertinus
+ * book faces probed, **none** carries `✕ ✗ ✎ ☆ ⚗ ➕`; in a Libertinus
  * setting `✕` resolves to macOS LastResort, which draws a tofu box.
  *
  * **Neither obvious fix works.** Keeping the dingbats pins the book to some
- * icon-capable font forever, which is the coupling #377 exists to remove.
+ * icon-capable font forever, which is the coupling this exists to remove.
  * Pasting Font Awesome's own codepoints is worse: they live in the Private Use
  * Area, which is unassigned by definition, so they break search, copy-paste and
  * screen readers, and no charset check can validate them.
@@ -85,7 +85,7 @@ export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
  * **Two, because the interface uses two.** The SoHL icon legend says so in its
  * own prose: Font Awesome for most things, and Game-Icons.net *"for the arms,
  * gear, and condition glyphs that Font Awesome does not cover"* — eighteen of
- * them, `ginf-broadsword` and its kin (#391).
+ * them, `ginf-broadsword` and its kin.
  *
  * They differ in more than a class prefix, which is why this is a family rather
  * than a naming convention:
@@ -287,7 +287,7 @@ export const DEFAULT_ICONS = Object.freeze({
  * surface that also renders `:smile:` can tell the two apart without a lookup,
  * and a reader can tell what `:icon-star:` is without knowing this module
  * exists. Names are lowercase, digits and hyphens — the charset an address
- * segment already uses (#59), so nothing new has to be explained.
+ * segment already uses, so nothing new has to be explained.
  *
  * Not `:name[content]`. That is remark-directive syntax, and this toolchain
  * parses with markdown-it; a directive would render as its own literal text.

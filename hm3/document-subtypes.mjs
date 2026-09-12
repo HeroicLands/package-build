@@ -14,18 +14,18 @@
 /**
  * **HM3's note-type → document-subtype map** — which Foundry document, and
  * which subtype of it, a note of each content type compiles into for HârnMaster
- * 3 (#139).
+ * 3.
  *
  * The mechanism is `engine/document-subtypes.mjs`, the same one SoHL's
  * declaration uses; the two halves share it and share nothing else. That is the
- * `engine/` ÷ system line this package draws everywhere (#36), and this file is
+ * `engine/` ÷ system line this package draws everywhere, and this file is
  * the first evidence that the line holds: a second system declared its map
  * without a line of the mechanism changing.
  *
  * **Where this map differs from SoHL's, and why that matters.**
  *
- * SoHL's map was the identity in every row until #78 renamed three of them,
- * which was a fact about SoHL rather than a rule (#79) — and while it stayed
+ * SoHL's map would be the identity in every row but for three renames,
+ * which was a fact about SoHL rather than a rule — and while it stayed
  * true nothing proved the map was doing any work. HM3's was never close. Four
  * of its rows are one-to-many, one renames outright (`projectile` →
  * `missilegear`), and five of its type names are SoHL's own with a *different
@@ -82,7 +82,7 @@ export const HM3_TYPE_KEY = "type";
  * map does not name — `affiliation`, `affliction`, `attribute`,
  * `concoction`, `mystery`, and every core type — compile into no HM3
  * document at all, silently and correctly: HM3 has no form of them, and a
- * finding on every such note would be the noise #79's rule exists to prevent.
+ * finding on every such note would be the noise the rule exists to prevent.
  *
  * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
  */

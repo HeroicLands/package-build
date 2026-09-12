@@ -349,7 +349,7 @@ pack: mysteries
   that type's default implicitly; a type with several designates one with
   `default: true`. Where several exist and none is marked, a declaration is
   **mandatory** and an undeclared note fails the build.
-- **A default is per system, not merely per type** (#58). The rule above counts
+- **A default is per system, not merely per type**. The rule above counts
   every pack of a type together, so a tree shipping one Actor pack per system has
   two and would need a flag — except that asked _per system_ the layout is
   unambiguous, one pack each, for the same reason a single-pack type needs no
@@ -373,11 +373,11 @@ pack: mysteries
   it — an item's or a macro's prose, which compiles into a JournalEntry of its
   own — lands in the default pack of _that_ type.
 - **Every document a note produces needs a pack, and one that has none is a
-  finding** (#152). A note produces more than one document as a matter of
+  finding**. A note produces more than one document as a matter of
   course: an item note an Item and the JournalEntry its prose becomes, a map
   note a Scene and a JournalEntry, an actor note an Actor and a JournalEntry
-  since #337. Where the configuration declares no pack for one of them, that
-  document used to be dropped while the rest of the note compiled into a pack
+  too. Where the configuration declares no pack for one of them, that
+  document would be dropped while the rest of the note compiled into a pack
   that does exist — a build that succeeds and ships half of what was written.
   The finding names the note, the class with no pack, and the class that did
   compile, which is what distinguishes it from a note **nothing** claims: that
@@ -388,7 +388,7 @@ pack: mysteries
   no doc — so a tree of deliberately description-less items loses nothing by
   having no JournalEntry pack, and is told nothing. And it names no system, so a
   type one system maps and another does not stays silent for the system that
-  declines it, per #79.
+  declines it.
 
 **The configuration is found by walking up from the working directory, and from
 the installed package only if that finds nothing.** `engine/pack-config.mjs`
@@ -402,7 +402,7 @@ with **no `node_modules` of its own** resolves `@heroiclands/package-build` out
 of the parent's, because Node's resolution walks parent directories. Climbing
 from the module then landed on the _parent's_ configuration, and the build
 compiled the parent's content tree into the parent's `build/` and exited 0
-(#364). When both walks find a configuration and they disagree, the working
+. When both walks find a configuration and they disagree, the working
 directory's is read and the ignored one is named in a warning — that
 disagreement is also the cheapest signal that this tree is building on another
 checkout's `node_modules`. Run `npm ci` in the worktree to give it its own.
@@ -435,7 +435,7 @@ resolved set at runtime; the compilers and the link-manifest emitter cannot come
 to disagree about which notes carry documentation.
 
 **Every note compiling into a system-bearing document carries documentation, and
-that includes actors** (#337). `docEntryTypes` is `itemTypes` plus the actor
+that includes actors**. `docEntryTypes` is `itemTypes` plus the actor
 types the shipped subtype maps declare (`ACTOR_TYPES`, derived from them rather
 than listed again), plus `macro` and the map types. Only `doc` is outside it, for
 the reason that actually applies to it: its single document _is_ the prose.
@@ -487,7 +487,7 @@ than one registry declares, **throws** rather than answering with whichever was
 declared first.
 
 **`hm3` is a real registry, and the rest of the pipeline follows the same
-field.** Since #139 this package ships two system halves, `sohl/` and `hm3/`,
+field.** This package ships two system halves, `sohl/` and `hm3/`,
 each with its own builders, its own default art and its own note-type →
 document-subtype map; they share the engine between them and import nothing from
 each other. A pack's `system:` is what selects among them — the Item and Actor
@@ -513,10 +513,9 @@ what its documents are stamped `_stats.systemId` and `systemVersion` from, and
 the version can only come from that block — or, for a package whose packs are
 all for its own system, from the package-wide stats. A pack naming a system that
 resolves to neither is refused at configuration time, naming the pack and the
-entry to add. It used to fall through and stamp `null` for both, which is the
-plausible lie #43 was about arriving by the one path the check did not cover:
-`harn-ensemble` shipped 2,513 compiled actors that way, out of a pack whose
-configuration says `system: sohl` on the line above.
+entry to add. Falling through and stamping `null` for both is a plausible lie:
+a pack whose configuration says `system: sohl` on the line above ships every
+compiled actor with no system at all.
 
 No `default: true` anywhere, because each system has exactly one pack of each
 type and a default is resolved per system. Marking one is still allowed and
@@ -536,12 +535,12 @@ note says which by writing `hm3.type`. Nothing is inferred from the note's own
 `subType`, and a note that says nothing is an error naming the note and listing
 the permitted values.
 
-**Configuration is the source, and the manifest is generated from it.** That
-arrow used to point the other way: `paths.packageManifest` said where a
-hand-authored `system.template.json` lived, and the package-id guard and the
-`_stats.coreVersion` stamp both read out of it. Both are gone — the floor is the
-top-level `compatibility.minimum`, the id is derived from `package.json`
-`name`, and `@heroiclands/package-build` writes the manifest from this file.
+**Configuration is the source, and the manifest is generated from it.** The
+floor is the top-level `compatibility.minimum`, the id is derived from
+`package.json` `name`, and `@heroiclands/package-build` writes the manifest from
+this file. There is no `paths.packageManifest` pointing at a hand-authored
+`system.template.json` for a package-id guard or a `_stats.coreVersion` stamp to
+read out of.
 
 ### Declaration order is presentation, not compile order
 
@@ -572,11 +571,11 @@ passes that had to move. When the two orders differ the build says so:
         another's output compiles after it, whatever order `packs:` declares.
 ```
 
-This used to be the author's problem, and a nasty one: an Actor pack declared
+This is not the author's problem, and it would be a nasty one: an Actor pack declaring
 first compiled only where an earlier run had already left `build/packs-json`
 populated. `build/` is gitignored, so it was green on every local tree that had
 built once and exit 1 on every fresh checkout and CI runner, over a message that
-named a missing directory rather than the ordering that caused it (#73). A
+named a missing directory rather than the ordering that caused it. A
 consumer registering a compiler of its own declares its dependencies the same
 way; a type no pack of which is declared is simply not waited for.
 
@@ -654,7 +653,7 @@ address different places — `img:` a file Foundry serves, `banner:` a file the
 CDN serves — so they are stated apart rather than reconciled. See the
 [content format specification](docs/content-format.md#banner-addresses-the-cdn-not-the-foundry-install).
 
-#### "Names no art" and "wants no art" are different (#218)
+#### "Names no art" and "wants no art" are different
 
 A note has two ways to leave `img:` empty, and they mean opposite things:
 
@@ -668,7 +667,7 @@ A note has two ways to leave `img:` empty, and they mean opposite things:
 `resolveImg` returns `null` for the first two and `""` for the third, and every
 caller pairs its default with **nullish** coalescing — `resolveImg(fm.img) ?? itemArt(type)`.
 Never `||`: that collapses a deliberate blank back into the default and takes the
-distinction away again, which is exactly what the function used to do.
+distinction away again.
 
 **`portrait` is the same field twice over.** A being carries `img` (its token
 art) and `portrait` (its sheet portrait) independently, and both resolve through
@@ -681,13 +680,11 @@ rather than two.
 > **The rule is `img`'s, and does not extend to `title`.** `title` is not art
 > and never reaches `resolveImg`, so nothing here applies to it.
 >
-> The reason used to be sharper, and is no longer true: a note's top-level
-> `title` was _also_ the shared source for an `affiliation` item's `system.title`
-> (`sohl/item-fields.mjs`, "the style of address the office carries"), so one
-> authored key fed two unrelated destinations that disagreed about what empty
-> means — and `title: null` stringified into the compiled document as the literal
-> `"null"`. The field declares `topLevelMeans` now, so the top-level key is no
-> longer a source for it (#218).
+> The field declares `topLevelMeans`, so the top-level key is not a source for
+> an `affiliation` item's `system.title`. Were it one, a single authored key
+> would feed two unrelated destinations that disagree about what empty means,
+> and `title: null` would stringify into the compiled document as the literal
+> `"null"`.
 >
 > So `title: null` is a note declining to state a heading, and the site emitter's
 > `fm.title ?? name` falls back to `name.full`. `title: ""` publishes a
@@ -699,9 +696,9 @@ rather than two.
 > not answer for the page's heading. Twenty-eight `sohl-kethira-basic`
 > affiliations write `sohl.title: ""`, meaning an office with no style of
 > address, and every one of them was reported as publishing a blank heading
-> until the check honoured the declaration (#312).
+> until the check honoured the declaration.
 
-Because `""` used to mean "unset", a note still carrying that spelling has
+Because `""` reads as "unset" elsewhere, a note carrying that spelling has
 quietly changed meaning, and the frontmatter lint says so — for either art
 field:
 
@@ -736,7 +733,7 @@ one failed the build with an error naming a module in someone else's package.
 
 Widening that map was not the fix. It is deliberately SoHL data, shared with the
 runtime's `SohlItem.getDefaultArtwork` so that the build-time and runtime
-defaults are one list and cannot drift (SoHL#932/#1510). Pairing art with the
+defaults are one list and cannot drift. Pairing art with the
 builder instead moves it onto the seam a type is _already_ declared through, and
 costs the `sohl` package nothing: `ITEM_BUILDERS` reads each entry's image out of
 that same map, so there is still exactly one map — and the drift a test used to
@@ -770,7 +767,7 @@ to be written at.
 reaches `sohl.system.templatePriority` and `hm3.flags.hm3.templatePriority` —
 exactly as `portrait` reaches two differently-named fields from one shared
 property. A number is a template at that priority, `null` is not a template, and
-absent is an authoring error (#126, #266). The legacy in-block and top-level
+absent is an authoring error. The legacy in-block and top-level
 positions are still read, in that order after `data:`, so a tree sweeps on its
 own schedule; `archetype` is the retiring spelling of the same field, still read
 last but **refused by the frontmatter linter** — a priority and the `archetypes`
@@ -809,7 +806,7 @@ system `S` is:
    a **dotted path** (`data.portrait`) rather than a sibling key;
 4. the field's own default.
 
-`FieldSpec.name` is that declared source. It used to mean "frontmatter key under
+`FieldSpec.name` is that declared source. Read as "frontmatter key under
 `sohl:`", which is the degenerate case where source and destination happen to
 share a name.
 
@@ -821,7 +818,7 @@ is _the title of the note_ — the heading its page publishes under, which the
 site emitter reads. An `affiliation` item's `system.title` is _the style of
 address the office carries_ — Ajaw, Warden, a person's style within the body.
 They are unrelated quantities, and step 3 used to feed the second from the first
-(#218).
+.
 
 That was not merely untidy, because **step 3 answers without applying
 `field.default`** — only step 2 does — so an authored `title: null` reached the
@@ -841,7 +838,7 @@ side too.** If the two positions hold unrelated quantities, then the _in-block_
 position is not the note-level field either — so a check about a note-level field
 (the page's heading, an art path) reads past a block key the note's own type
 claims for something else. Declaring `topLevelMeans` settles both directions at
-once; it was read for the emitted field alone until #312, which is how an
+once. Reading it for the emitted field alone is how an
 affiliation's office style came to answer for its page heading.
 
 **An exempted field is still authorable**, at the two positions that describe the
@@ -968,14 +965,14 @@ is exactly what a tree that failed to check out produces.
 What that guard reports is an **empty walk**, not an empty set of addresses. A
 note may be keyless — a folder document carries no `shortcode` — so a tree of
 them is populated, correct and unkeyed. That tree passes; a tree holding no
-notes at all still fails. (The homepage used to be the headline example, because
+notes at all still fails. (The homepage is not the headline example, though it was once
 it was addressed by the package rather than by a slug. It carries an address
-like every other note now (#182); the guard is unchanged, because what it reads
+like every other note now; the guard is unchanged, because what it reads
 was never the key count.)
 
 ### Exactly one homepage
 
-A content tree declares **exactly one** `type: homepage` note (#52). Zero is an
+A content tree declares **exactly one** `type: homepage` note. Zero is an
 error and two is an error, at the same severity, because they are one defect: a
 package whose front page is not the page a person chose.
 
@@ -983,10 +980,8 @@ package whose front page is not the page a person chose.
   authored homepage exists to prevent, and a silent one: the site build reports
   `wrote 0 homepage(s)` and exits 0.
 - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
-  since #182 it is only that.** It used to rest on the fixed destination every
-  homepage shared — the second overwrote the first — so the address rule
-  enforced it as a side effect. A homepage is written at its own address now, so
-  two of them publish two pages and collide over nothing: the duplicate-address
+  only that.** A homepage is written at its own address, so two of them publish
+  two pages and collide over nothing: the duplicate-address
   check catches only the pair that happen to share a shortcode, and says nothing
   at all about a `homepage-root` beside a `homepage-front`. Which of the two the
   redirect at `/<package>/` should name is a question nothing here can answer,
@@ -1022,7 +1017,7 @@ assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also dec
 ### Frontmatter, against the schema its type declares
 
 The same command also checks that each note's `sohl:` block is what its **type**
-allows (#19). Five classes, all of them mistakes that were previously reported
+allows. Five classes, all of them mistakes that were previously reported
 somewhere other than where they were made, or not at all:
 
 - **Unknown or retired type** — a note on a retired spelling is told what
@@ -1055,7 +1050,7 @@ Nothing here writes. A check reports and an author fixes.
 
 ### The `data:` container is closed; the top level is not
 
-A note's frontmatter has three regions, and only one of them is open (#128):
+A note's frontmatter has three regions, and only one of them is open:
 
 | region           | describes                                    | an unknown key is  |
 | ---------------- | -------------------------------------------- | ------------------ |
@@ -1071,7 +1066,7 @@ the page's description.
 
 **`data:` is deliberately closed**, and that is the point of having it. The
 type-specific facts about a subject — a weapon's weight, an affliction's
-transmission, a being's species — used to sit at the top level, where the
+transmission, a being's species — do not sit at the top level, where the
 pass-through rule applied to them too. So a misspelled `wieght` became a theme
 parameter rather than a finding, indistinguishable from a weapon that weighs
 nothing. Under `data:` the same key is reported where it was written, with the
@@ -1082,14 +1077,14 @@ assets/content/Gear/Axe.md:14:5: error: "wieght" is not a `data:` property of a 
 ```
 
 **A system block is closed too, and which blocks exist is the configuration's
-answer** (#58). A package is held to the blocks named after the systems it
+answer**. A package is held to the blocks named after the systems it
 declares it ships for, read from the three places that already declare them:
 `systems:`, a pack's own `system:`, and `stats.systemId` where neither is
 written. So a package shipping for HM3 has its `hm3:` block checked and a
-package shipping for SoHL its `sohl:`. It used to be a constant, and the
-constant was `sohl`: an `hm3:` block was never read at all, so every key in it
-was discarded at compile without a word, while the block that _was_ checked was
-named after a system the package does not ship for.
+package shipping for SoHL its `sohl:`. Held constant at `sohl`, an `hm3:` block
+would never be read at all: every key in it would be discarded at compile
+without a word, while the block that _was_ checked would be named after a system
+the package does not ship for.
 
 A pack's `system:` counts because it is already authoritative at compile — a
 note routed to a pack declaring one and carrying no such block fails the build —
@@ -1125,12 +1120,12 @@ values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strik
 mode rather than by kind — so `subType` on one is a finding; a `skill` declares
 ten, so `subType: crafte` is a finding naming `craft`.
 
-**A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** (#206) — the same
+**A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** — the same
 constant a `shortcode` is held to, read rather than restated. A type is a
 segment of every address — the first of the short form an author writes, the
 third of the canonical `package-system-type-shortcode` — so a hyphen in one is
 read back as a segment boundary nobody wrote. A `subType` reaches no address
-since #204 retired sections, and keeps the rule anyway: it is a vocabulary term the toolchain keys
+— sections are retired — and keeps the rule anyway: it is a vocabulary term the toolchain keys
 on, and one charset that holds for every term is a rule an author can state. The
 rule is checked ahead of the closed-set check, which is what makes it reach a
 type whose values are declared but not yet enumerated:
@@ -1143,7 +1138,7 @@ One declared value broke that rule: a `doc`'s `user-guide`, now **`userguide`**.
 The old spelling was accepted for one transitional release, as a warning naming
 the replacement, because an error would have redded every tree that took the
 release before it had a chance to sweep. Every tree has swept, so the acceptance
-is gone (#210): `user-guide` is refused by the charset check like any other
+is gone: `user-guide` is refused by the charset check like any other
 hyphenated value, and nothing retirement-specific was left to remove.
 
 The vocabulary lives in `engine/note-vocabulary.mjs`, one entry per note type,
@@ -1151,20 +1146,16 @@ taken from the content-format specification. It is note-format knowledge rather
 than any system's: `data:` holds what is true of the thing, and what a system
 makes of that value is declared in that system's own half.
 
-**A third rule was retired (#79).** Every note used to be required to repeat its
-own `type-shortcode` address in `aliases:`. That served one reader — Obsidian,
-so `[[type-shortcode]]` resolved in the editor — and no build ever read it: both
-resolvers parse the hyphen qualifier themselves. The project no longer authors
-in Obsidian, so the rule cost a line of frontmatter per note for a reader that
-does not exist. Removing it was verified output-neutral first: across 1,735
-stripped notes, `package compile` produced byte-identical `build/packs-json` and
-the site build byte-identical `site/content`.
+**There is deliberately no third rule** requiring every note to repeat its own
+`type-shortcode` address in `aliases:`. It would serve one reader — Obsidian, so
+`[[type-shortcode]]` resolves in the editor — and no build reads it: both
+resolvers parse the hyphen qualifier themselves. The field is retired.
 
-**And the top-level field itself is now retired (#180).** `aliases:` fed the
+**And the top-level field itself is now retired.** `aliases:` fed the
 alias index, which is what a bare `[[Alias]]` was looked up in. That form
 resolved to nothing anywhere in the corpus, while the collision rule guarding it
 folded in every note's `name.full` and so decided what a note could be named
-(#179). Both are gone: every wikilink is an address, written
+. Both are gone: every wikilink is an address, written
 `[[type-shortcode|Text]]`, and declaring `aliases:` is refused naming the file
 and the line.
 
@@ -1220,12 +1211,12 @@ nothing today will read it.
 
 A homepage declares a `shortcode` — conventionally `root` — and publishes at its
 address, `/<package>/homepage-root/`, written by the same rule as everything
-else (#182). So `[[homepage-root|Read the introduction]]` is an ordinary
+else. So `[[homepage-root|Read the introduction]]` is an ordinary
 wikilink, resolving to the page the build actually writes.
 
 It did not use to be. A page's URL derived from `name.full` while a homepage's
 destination was fixed at `_index.md`, so `content-build lint` **refused** `name`
-and `shortcode` on one (#53) — not out of tidiness, but because they were not
+and `shortcode` on one — not out of tidiness, but because they were not
 inert. A `shortcode` put the note in the address index, so
 `[[homepage-<shortcode>]]` resolved _green_ to a page the site build never
 wrote, and a build reporting a live link to a 404 is worse than one saying
@@ -1274,7 +1265,7 @@ is emitted into the published page, so an unrecognised key is a Hugo or theme
 parameter this build has never heard of and has no standing to reject; a closed
 list would make every new theme parameter wait on a package-build release.
 `aliases` is not in the class either — it is a retired field now, refused on
-every note whatever its type (#180).
+every note whatever its type.
 
 **Where it fires: `content-build lint` only.** Unlike a rule about the shape of
 the _tree_, which the site build has its own reason to gate on, this is a
@@ -1348,7 +1339,7 @@ serves.
 
 ### The homepage's own links
 
-The homepage is the page a reader arrives at, and until #54 it was the one page
+The homepage is the page a reader arrives at, and it is the one page
 nothing checked. SoHL's landing pointed at `kb/creature/` and `kb/character/`
 from the day those two types merged into `being` — two 404s on the package's
 front page, through every build, because a landing's links went through no
@@ -1484,7 +1475,7 @@ npx content-build markdown --fix     # apply the fixes markdownlint can make
 ```
 
 Two conventions every content repository writes to, declared once here so a note
-formatted in one is formatted the same way in the next (#69):
+formatted in one is formatted the same way in the next:
 
 - **`format`** runs Prettier. Same values SoHL has always used, so a module or a
   note moving between repositories does not reformat on arrival.
@@ -1518,7 +1509,7 @@ alone: a `prettier.config.mjs` that spreads `PRETTIER_BASE` without the `**/*.md
 override reindents every note at 4, and a partial `.prettierrc` such as
 `{"tabWidth": 2}` silently discards `printWidth: 100`, `trailingComma` and the
 rest. So every `format` run first names, as warnings, each shared convention this
-repository resolves differently (#133):
+repository resolves differently:
 
 ```text
 prettier.config.mjs: warning: markdown `tabWidth` is 4 here; the shared configuration says 2
@@ -1722,20 +1713,20 @@ names a _document_; a URL names a _page_. So a consumer deriving a page address
 from a manifest key drops the package **and** the system, not the package
 alone.
 
-It used to come from `name.full`. That made a display name load-bearing three
+It does not come from `name.full`. That would make a display name load-bearing three
 ways at once — a rename silently 404'd every inbound link, two notes in one
 section could derive the same URL so a uniqueness gate had to run, and long names
 had to be shortened through a table of 200 abbreviations. The header of the
 module doing it justified the cost by promising redirects "every change appends
 to the legacy-URL map" — and no such map was ever written, here or in any
-consumer. All of it is gone (#181).
+consumer. All of it is gone.
 
 The `type-` half earns its place: it keeps every content address clear of the
 package's fixed mounts (`/<package>/` for the landing page, `/<package>/api/` for
 generated API docs), neither of which contains a hyphen or names a type. So the
 namespace is provably disjoint rather than conventionally so.
 
-**A page is written flat, named by its address** (#204). It used to be filed
+**A page is written flat, named by its address**, not filed
 into `<section>/`, because Hugo derives a page's section from where the file is
 written and a section gave it a landing page, `.CurrentSection` and a per-section
 layout lookup. But a section appears in no address, so the note format was
@@ -1745,7 +1736,7 @@ order to satisfy a rendering engine's directory semantics. The file is now
 the package root, one level above.
 
 **A page states its address without the package base; everything pointing _at_
-it composes one** (#217). They read as one quantity and are two:
+it composes one**. They read as one quantity and are two:
 
 | Written                                     | Form                        | Because                                                                                 |
 | ------------------------------------------- | --------------------------- | --------------------------------------------------------------------------------------- |
@@ -1754,7 +1745,7 @@ it composes one** (#217). They read as one quantity and are two:
 | A link-manifest `path`                      | `<type>-<shortcode>/`       | Measured against `site.base` and stripped; a consumer prefixes its own                  |
 
 `site.base` is the second and third of those and reaches the first not at all.
-It used to be written into the `url:` as well, so every consumer's Hugo prefixed
+Writing it into the `url:` as well makes every consumer's Hugo prefix
 its own base to a value that already carried one and published every content
 page a segment too deep — `/sohl/sohl/doc-rulesintro/`, 404 at the address the
 manifest, the sitemap and every inbound link named.
@@ -1763,7 +1754,7 @@ manifest, the sitemap and every inbound link named.
 addressed the section itself; that is retired with the section. A page that
 introduces the notes of a type is an ordinary note addressed `doc-<type>`, with
 no build path of its own — exactly as the package's own front page is
-`homepage-root` (#182).
+`homepage-root`.
 
 **Sections stay, as configuration.** `site.sections` still writes an `_index.md`
 per section, and that is now the _only_ thing that makes one exist — see
@@ -1794,13 +1785,12 @@ publish:
   never recorded here.
 
 `prefix` is the whole scheme. The `collection` subtype and the top-level
-`section:` key are refused by name (#202).
+`section:` key are refused by name.
 
 A note's `subType` is checked against the values its type declares, and only
 those. It briefly had a second reading — a `README` landing's `subType` was the
-_address_ it landed at, so the closed genre list could not answer for it (#197,
-#198, #200, #201) — and #204 removed the cause rather than widening the
-vocabulary again.
+_address_ it landed at, so the closed genre list could not answer for it. The
+cause is removed rather than the vocabulary widened again.
 
 The only note the scheme yields no address for is one carrying no `shortcode`.
 It is **reported and omitted**, never guessed: the command prints one located
@@ -2046,7 +2036,7 @@ That is the whole envelope. A homepage **compiles into no compendium
 document**, and so appears in no pack and in no link manifest — which is why it
 still refuses `id`. Everything else about its address is ordinary: it declares a
 `shortcode`, publishes at `/<contentPackage>/homepage-root/`, and is cited as
-`[[homepage-root|Text]]` (#182 — see
+`[[homepage-root|Text]]` (see
 [The homepage is addressed like every other note](#the-homepage-is-addressed-like-every-other-note)).
 `/<contentPackage>/` itself is a redirect the package authors, not a page this
 build writes. It is dispatched on `type` like every other note, not on a
@@ -2068,8 +2058,8 @@ note-format knowledge against game-system knowledge, and a homepage carries no
 | `content`  | The homepage plus every page the content tree compiles to, and its extra trees. |
 
 There is no value meaning "no web presence": every package publishes its
-homepage. It was a boolean until 5.0.0, and both spellings are now refused
-naming the mode to write instead — see [MIGRATING.md](MIGRATING.md).
+homepage. A boolean is refused, with a message naming the mode to write
+instead.
 
 **Homepage-only is a first-class mode, not an accommodation.**
 `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
@@ -2094,7 +2084,7 @@ site root, one level above the content mount, which is where
 `publish.address.prefix` puts everything else — under the name its address gives
 it, `homepage-root.md`. As with every other page, the front matter's `url`
 decides where it publishes, and states it relative to the site root — `site.base`
-does not reach it (#217).
+does not reach it.
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the content index reads, so a page and its index record cannot
@@ -2140,7 +2130,7 @@ site:
 
 ### What a section may declare
 
-**`sections` is what a section _is_ now** (#204). A content page is addressed
+**`sections` is what a section _is_ now**. A content page is addressed
 `(type, shortcode)` and written flat under the mount, so no page creates a
 directory and nothing else makes `/<package>/<prefix><section>/` answer at all.
 A site that wants that address says so here, and this build writes the
@@ -2209,7 +2199,7 @@ Three things about the spelling, each of them load-bearing:
   site chose; a type and a subType are addresses. They need not agree, and on
   `sohl` they do not: the section is `user-guide`, because that is a published
   URL, while the subType is `userguide` because an address segment is
-  alphanumeric (#207). Both values are checked against that charset here, so
+  alphanumeric. Both values are checked against that charset here, so
   copying the section's name in is refused rather than quietly matching nothing.
 - **`listSubType` needs a `listType`.** A subType only tells pages apart within
   a type — `rules`, `userguide` and `reference` are all `doc` — so alone it
@@ -2263,8 +2253,8 @@ to a code span.
 Leaving it unset is the legitimate empty case — every `{@link}` degrades, and
 nothing is reported. Setting it to a path that cannot be read, cannot be parsed,
 or does not hold a name → page object **fails the build**, naming the file and
-the reason: those were all indistinguishable from "no symbols" until #75, so a
-site could publish 224 dead `{@link}` tags at exit 0. A map that is read reports
+the reason. Left unreported they are indistinguishable from "no symbols", and
+a site publishes dead `{@link}` tags at exit 0. A map that is read reports
 its symbol count at info level, which is the only way to tell a map that loaded
 from one that loaded empty without reading the emitted HTML.
 
@@ -2442,7 +2432,7 @@ affiliation standings. Each has its own entry point —
 `.../engine/region-events`, `.../sohl/affiliation-standings` — so a client bundle
 reaches the constant without importing a barrel that grows to hold compilers
 reading the filesystem. Keeping one copy of each is the point: the build-time and
-runtime values cannot disagree, which is the drift that produced #932.
+runtime values cannot disagree.
 
 `@heroiclands/package-build/content-config` exposes the configuration contract's own
 module, so a consumer can name its types (`ContentBuildConfig`, `PackSpec`) from
@@ -2479,7 +2469,7 @@ was the system repository, because the package was vendored inside it (#1).
 shipping side. This package spent its first six changes as a workspace inside
 the Song of Heroic Lands repository, where npm hoisted the root's
 `devDependencies` into the workspace root: an import this package never declared
-still resolved, and failed nowhere but a consumer's install (#1557). The test
+still resolved, and failed nowhere but a consumer's install. The test
 walks every module named by the `files` field and holds each bare specifier to
 one of three cases — a Node builtin, this package addressing itself, or a
 declared `dependency` — and checks the converse: nothing shipped may import a
@@ -2497,7 +2487,7 @@ the copy before the rest run. A module that hoisted a configured value to import
 time fails there, and only there.
 
 `tests/config-from-working-directory.test.ts` describes the resolution order
-itself (#364). It builds the shape no unit test can fake — a repository with the
+itself. It builds the shape no unit test can fake — a repository with the
 toolchain installed under it, and a second checkout nested inside that
 repository with its own configuration and no `node_modules` — and asserts which
 configuration a build run in each place reads. The nested case is the one that
@@ -2522,7 +2512,7 @@ bump and the rewritten `CHANGELOG.md`. That pull request _is_ the pending
 release: as long as something is merged but unpublished, there is an open pull
 request saying so. This is the whole point of the pipeline — the previous,
 hand-driven process failed by leaving _nothing_ behind when the final step was
-forgotten, and on 2026-08-21 it did exactly that for two versions (#15).
+forgotten, and on 2026-08-21 it did exactly that for two versions.
 
 **Merging that publishes.** `changeset publish` puts the version on npm through
 Trusted Publishing (OIDC — there is no `NPM_TOKEN`), tags the commit `v<version>`

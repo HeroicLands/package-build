@@ -95,7 +95,7 @@ function expand(markdown: string, opts: Record<string, unknown> = {}) {
 function table(query: string, opts: Record<string, unknown> = {}) {
     const { markdown, errors } = expand(block(query), opts);
     // A selection test may legitimately match nothing — that is often the
-    // assertion. The empty-table finding (#223) is a statement about a
+    // assertion. The empty-table finding is a statement about a
     // *directive*, checked in its own describe below, so it is not a failure
     // here; anything else still is.
     expect(errors.filter((e: any) => !/selects no notes/.test(e.reason))).toEqual([]);
@@ -493,7 +493,7 @@ describe("expandContentTables — errors", () => {
         // A zero-row table is almost always a stale query — a renamed type, a
         // retired category, a typo'd path. Eight tables in `sohl`'s
         // `Rules/Bestiary.md` published as a bare header for months after the
-        // `creature` → `being` rename and no build said a word (#223). The
+        // `creature` → `being` rename and no build said a word. The
         // table is still emitted: the finding is the point, not withholding
         // the output.
         const { markdown, errors } = expand(

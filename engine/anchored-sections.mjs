@@ -19,7 +19,7 @@
  * `{#dossier}` and `{#spoilers}`. *Which field* each lands in is a system's
  * business — SoHL writes the first to an actor's `appearance`, HM3 to an
  * actor's and an item's `description` — but *finding* it is not, so the
- * extraction lives here where every compiler reaches it (#139).
+ * extraction lives here where every compiler reaches it.
  *
  * It was a pair of private functions inside the SoHL actors pass, which is
  * where the convention was first needed and not where it belongs: the anchors

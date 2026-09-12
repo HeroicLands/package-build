@@ -6,7 +6,7 @@
  */
 
 /**
- * A folder is a note (#256), addressed like every other note, and the defects
+ * A folder is a note, addressed like every other note, and the defects
  * that made it worth changing are asserted here as *unrepresentable* rather
  * than merely fixed:
  *
@@ -14,7 +14,7 @@
  *   `Unknown folder id`;
  * - a parent cycle is refused, at index time, whether or not anything
  *   references the folder carrying it;
- * - an id is derived from the address when none is authored (#258), and an
+ * - an id is derived from the address when none is authored, and an
  *   authored one still wins, so a world already holding these folders keeps
  *   resolving them.
  */
@@ -74,7 +74,7 @@ describe("collectFolderNotes", () => {
     });
 
     it("refuses a shortcode carrying the address separator", () => {
-        // #256's own example wrote `possessions-cooking`, which cannot be an
+        // The canonical example writes `possessions-cooking`, which cannot be an
         // address: parsing counts separators, so it would read as two segments
         // and resolve to nothing.
         expect(() =>
@@ -89,7 +89,7 @@ describe("collectFolderNotes", () => {
     });
 
     it("accepts parent and color at the top level as well as under `data:`", () => {
-        // The specification puts them under `data:`; #256's example wrote them
+        // The specification puts them under `data:`; the canonical example writes them
         // at the top level. An author following either should get a folder.
         const [folder] = collectFolderNotes(
             [note({ shortcode: "cooking", parent: "miscgear", color: "#123456" })],
@@ -100,7 +100,7 @@ describe("collectFolderNotes", () => {
     });
 });
 
-describe("a folder's Foundry id (#258)", () => {
+describe("a folder's Foundry id", () => {
     it("is derived from the canonical address when none is authored", () => {
         const [possessions] = collectFolderNotes(TREE, "sohl");
         expect(possessions.derivedId).toBe(true);
@@ -228,7 +228,7 @@ describe("folderDocument", () => {
     });
 
     it("shares one id across the packs it materialises in", () => {
-        // The whole point of #257: a documentation journal filed beside its
+        // The whole point: a documentation journal filed beside its
         // item must land in the *same* folder, not one that looks alike.
         const idx = buildFolderNoteIndex(collectFolderNotes(TREE, "sohl"));
         const cooking = idx.resolve("cooking");

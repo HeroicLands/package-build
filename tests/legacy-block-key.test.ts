@@ -6,11 +6,10 @@
  */
 
 /**
- * **A field's shared source and its legacy in-block key are two declarations**
- * (#305).
+ * **A field's shared source and its legacy in-block key are two declarations**.
  *
  * `FieldSpec.name` carried both jobs, and they came apart the moment `data:`
- * (#128) put every type-specific fact under a container. The resolution order
+ * put every type-specific fact under a container. The resolution order
  * reads four positions, and steps 2 and 3 were both keyed on `name`:
  *
  * 1. `<block>.system.<to>`
@@ -266,7 +265,7 @@ describe("the format check, for a declaration whose source moved under `data:`",
     const format = () => parseContentFormat(SPEC, { file: "spec.md" });
 
     it("pairs a `data.`-named field with the row that states it", () => {
-        // The check strips `data.` off the specification's source; before #305
+        // The check strips `data.` off the specification's source; without it
         // no declaration could carry the prefix, so a field that now does has
         // to normalize on both sides or the row would read as unmapped.
         const declared = {

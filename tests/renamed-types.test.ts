@@ -26,7 +26,7 @@ import { GEAR_TYPE_TO_KEY, deriveBeingInfo } from "../sohl/being-info.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 
 /**
- * #78 renamed three note types off the `…gear` spellings that named the SoHL
+ * Three note types are renamed off the `…gear` spellings that named the SoHL
  * *document* subtype rather than the thing the note is about. The renames land
  * as a retirement **window**, not a refusal: both spellings resolve, the
  * current one is canonical, the retired one is reported. The sweep of the four
@@ -38,7 +38,7 @@ import { lintNote } from "../engine/frontmatter-lint.mjs";
  * references inside a being's `items:` list, so a toolchain release that
  * refused them would red every consumer's build until it had swept.
  */
-describe("renamed content types (#78)", () => {
+describe("renamed content types", () => {
     it("names the current spelling of each renamed type", () => {
         expect(RENAMED_TYPES).toEqual({
             armor: "armorgear",
@@ -155,7 +155,7 @@ describe("the tables themselves carry only the current spelling", () => {
     });
 
     it("declares `armorlocation`, which has no SoHL counterpart at all", () => {
-        // The other half of #78: the markdown vocabulary is system-agnostic, so
+        // The other half: the markdown vocabulary is system-agnostic, so
         // it is not limited to what SoHL happens to define.
         expect(NOTE_VOCABULARY).toHaveProperty("armorlocation");
         expect(NOTE_SCHEMAS).toHaveProperty("armorlocation");

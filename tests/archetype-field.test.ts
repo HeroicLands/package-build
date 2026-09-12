@@ -6,7 +6,7 @@
  */
 
 /**
- * `archetype` is a **schema field**, not a flag (#126, sohl#1780).
+ * `archetype` is a **schema field**, not a flag.
  *
  * The authored form is unchanged — a required nullable number at the top level
  * of a note's system block — and only the emission target moves, from
@@ -78,7 +78,7 @@ const beingNote = (sohl: Record<string, unknown>) => ({
     sohl,
 });
 
-describe("resolveTemplatePriority (build:compiledb archetype contract, #640)", () => {
+describe("resolveTemplatePriority (build:compiledb archetype contract)", () => {
     it("returns the number when sohl.archetype is a number", () => {
         expect(resolveTemplatePriority({ sohl: { archetype: 0 } }, "x")).toBe(0);
         expect(resolveTemplatePriority({ sohl: { archetype: 3 } }, "x")).toBe(3);
@@ -90,7 +90,7 @@ describe("resolveTemplatePriority (build:compiledb archetype contract, #640)", (
 
     it("throws when neither spelling is present", () => {
         // The message names `templatePriority`, the spelling to write — not
-        // `archetype`, which is retiring (#266).
+        // `archetype`, which is retiring.
         expect(() => resolveTemplatePriority({ sohl: {} }, "widget")).toThrow(/templatePriority/i);
         expect(() => resolveTemplatePriority({}, "widget")).toThrow(/templatePriority/i);
     });
@@ -110,7 +110,7 @@ describe("resolveTemplatePriority (build:compiledb archetype contract, #640)", (
     });
 });
 
-describe("systemTemplatePriority (the `system.templatePriority` value, #126, #266)", () => {
+describe("systemTemplatePriority (the `system.templatePriority` value)", () => {
     it("is the number when sohl.archetype is a number", () => {
         expect(systemTemplatePriority({ sohl: { archetype: 3 } }, "x")).toBe(3);
     });
@@ -156,13 +156,13 @@ describe("systemTemplatePriority (the `system.templatePriority` value, #126, #26
     });
 });
 
-describe("withArchetypeFlag is gone (#126)", () => {
+describe("withArchetypeFlag is gone", () => {
     it("is exported by nothing", () => {
         expect("withArchetypeFlag" in helpers).toBe(false);
     });
 });
 
-describe("where the ordering constraint actually binds (sohl#1780)", () => {
+describe("where the ordering constraint actually binds", () => {
     // `templatePriority` must be declared by the receiving system before a builder
     // emits it, and it is worth being exact about what enforces that. Neither
     // schema check does: `compareFields` derives the emitted set from the
@@ -191,7 +191,7 @@ describe("where the ordering constraint actually binds (sohl#1780)", () => {
     });
 
     it("says nothing about it against a schema that declares it, either", () => {
-        // The shape sohl#1780 publishes: one declaration on the shared base, so
+        // The published shape: one declaration on the shared base, so
         // every subtype inherits it.
         const { undeclared, unemitted } = compareFields({
             builders,

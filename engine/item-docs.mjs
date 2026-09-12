@@ -18,13 +18,13 @@
  * An item note's body describes what the thing *is*. That is documentation, and
  * documentation belongs in the journals pack, so each item note compiles into a
  * JournalEntry and the item's `system.docHtml` becomes nothing but a `@UUID`
- * link to that entry's first page — the description-as-pointer convention
- * (#1356), which {@link sohl.utils.descriptionLinkTarget} recognises and
+ * link to that entry's first page — the description-as-pointer convention,
+ * which {@link sohl.utils.descriptionLinkTarget} recognises and
  * Display Description follows.
  *
  * The prose then exists once. Previously every actor carrying an item carried
  * its own copy of that item's description: 7.59 MB across the actors pack, of
- * which only 133 KB was distinct text (#1348). Nothing about actors changes —
+ * which only 133 KB was distinct text. Nothing about actors changes —
  * they embed whatever the item carries, and what the item carries is now a link.
  *
  * **Two passes, no shared state.** The items pass writes the pointer; the
@@ -34,9 +34,9 @@
  *
  * **The shape generalises.** A `macro` note is the same arrangement: it
  * compiles into a Macro, and its prose into a JournalEntry addressed
- * `docmacro/<shortcode>` (#1514). So is a **map note**, which compiles into a
- * Scene and whose prose becomes the place description its map pins point at
- * (#1525). {@link docEntryTypes} is the one set both the compilers and the
+ * `docmacro/<shortcode>`. So is a **map note**, which compiles into a
+ * Scene and whose prose becomes the place description its map pins point at.
+ * {@link docEntryTypes} is the one set both the compilers and the
  * link manifest read to know which types work this way.
  *
  * Plain ESM with no Foundry and no filesystem access, so it is unit-testable.
@@ -56,8 +56,7 @@ import { packRouter } from "./pack-router.mjs";
  *
  * It is the consuming repository's `itemBuilders` keys, resolved once in
  * `item-registry.mjs` alongside the builder lookup the Item compiler dispatches
- * through — one object, so the whitelist and the table cannot disagree
- * (#1504/#1563).
+ * through — one object, so the whitelist and the table cannot disagree.
  */
 export { itemTypes };
 
@@ -66,7 +65,7 @@ export { itemTypes };
  * addressed by the virtual `doc<type>` qualifier.
  *
  * Every item type, plus `macro` — a macro note's body documents the script the
- * note also compiles into a Macro (#1514), which is the same shape as an item
+ * note also compiles into a Macro, which is the same shape as an item
  * and its description: one note, two documents, the prose living in the
  * journals pack.
  *
@@ -102,7 +101,7 @@ export function hasDocEntry(type) {
     // registry's keys and those are the *current* spelling of a note type. A
     // note still on a renamed one carries its documentation journal exactly as
     // before — this is the one lookup between an item compiling and its prose
-    // silently compiling into nothing (#78).
+    // silently compiling into nothing.
     return docEntryTypes().has(String(currentType(type)));
 }
 
@@ -136,7 +135,7 @@ export function itemDocEntryId(itemId) {
  * happens to contain a link, which the runtime would then show verbatim.
  *
  * @param {string} packageId - The Foundry package shipping the journals pack.
- *   Supplied rather than assumed (#1498).
+ *   Supplied rather than assumed.
  * @param {string} itemId - The item note's `id` frontmatter.
  * @param {string} name - The item's name, used as the link's label. It shows
  *   only if the target ever fails to resolve, where a broken link naming the
@@ -147,8 +146,7 @@ export function itemDocEntryId(itemId) {
  */
 export function itemDocPointer(packageId, itemId, name, firstPageId) {
     // An item doc is a *derived* document: it lands in the default
-    // JournalEntry pack whatever Item pack the item itself was routed to
-    // (#1566).
+    // JournalEntry pack whatever Item pack the item itself was routed to.
     const entryUuid = compendiumUuid(
         packageId,
         "doc",

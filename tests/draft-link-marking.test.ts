@@ -9,7 +9,7 @@
  */
 
 /**
- * A link to a note tagged `draft` renders marked, on both surfaces (#183).
+ * A link to a note tagged `draft` renders marked, on both surfaces.
  *
  * A draft note is a note that exists so a link is not dead, and nothing else.
  * Left unmarked, a reader follows a promising link into an empty page and an
@@ -85,7 +85,7 @@ function functionSource(code: string, name: string): string {
 }
 
 describe("the `draft` tag is read from where it is declared", () => {
-    // The tag vocabulary (#172) is the single declaration. Spelling "draft" a
+    // The tag vocabulary is the single declaration. Spelling "draft" a
     // second time here is how the two come apart: rename the declared tag and
     // a private copy keeps matching the old spelling, silently.
     it("is the tag the vocabulary declares", () => {
@@ -314,7 +314,7 @@ name:
 
 describe("the two builds emit the same markup", () => {
     // One authored link renders on two surfaces, and the two builds have
-    // drifted before over exactly this kind of detail (#1409). The wrapper is
+    // drifted before over exactly this kind of detail. The wrapper is
     // duplicated rather than imported — the pack resolver is not reachable from
     // the site resolver — so identity is asserted rather than assumed.
     it("wraps a draft link identically in both resolvers", () => {

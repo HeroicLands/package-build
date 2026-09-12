@@ -6,7 +6,7 @@
  */
 
 /**
- * `traits:` is a retired frontmatter block (#291, following #128).
+ * `traits:` is a retired frontmatter block.
  *
  * A being's description — gender, species, age, birthday, height, weight, frame
  * and the `appearance.*` keys — was authored in a top-level `traits:` block.
@@ -14,8 +14,8 @@
  * type-specific facts, so they live in the closed `data:` container, where
  * `being` declares every one of them.
  *
- * The block is *refused* rather than ignored, for the reason `draft:` (#69),
- * `package:` (#56), `aliases:` (#180) and `section:` (#202) are: top level is
+ * The block is *refused* rather than ignored, for the reason `draft:`,
+ * `package:`, `aliases:` and `section:` are: top level is
  * deliberately open, so a key nothing reads is not ignored loudly there — it is
  * passed straight through to Hugo as a theme parameter. Left in place it would
  * read to its author as though it still worked, with the note saying one thing
@@ -35,7 +35,7 @@ import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import { assertNoTraitsField, traitsRetiredMessage } from "../engine/retired-fields.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 
-describe("`traits:` is a retired frontmatter block (#291)", () => {
+describe("`traits:` is a retired frontmatter block", () => {
     let tmp: string;
 
     beforeAll(() => {

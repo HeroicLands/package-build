@@ -6,7 +6,7 @@
  */
 
 /**
- * Declaring a field whose **absence** is meaningful (#329).
+ * Declaring a field whose **absence** is meaningful.
  *
  * The defect these pin: an affliction's and a trauma's timed phases are stored
  * as `{…DurationFormula, …DurationBase, …Date}`, and the two authored thirds
@@ -154,7 +154,7 @@ describe("SoHL declares both authored thirds of every phase it stores", () => {
     });
 
     it("leaves the `…Date` third refused, not merely optional", () => {
-        // #330's row of the same table. The three thirds are three different
+        // The matching row of the same table. The three thirds are three different
         // answers, and declaring two of them must not soften the third.
         expect(runtimeOnlyFields((ITEM_FIELDS as any).affliction).map((f: any) => f.to)).toEqual([
             "contractDate",

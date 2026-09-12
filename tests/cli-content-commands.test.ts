@@ -11,7 +11,7 @@
  * This repository ships no content, so nothing here had ever *run*
  * `content-build lint` or `content-build site` over a tree — every test called
  * the engine functions directly, with arguments a test supplies. So when
- * `walkMarkdownTree` stopped defaulting its scope (#243), two CLI callers that
+ * `walkMarkdownTree` stopped defaulting its scope, two CLI callers that
  * had been living on that default broke, and the whole suite stayed green:
  * `lint` and `site` failed on the first note for every consumer.
  *
@@ -100,8 +100,8 @@ describe("a content command reaches the content", () => {
     });
 
     /*
-     * `content-format notes` was the last check reading the tree for itself
-     * (#243). A report measuring the corpus against the declared vocabulary has
+     * `content-format notes` was the last check reading the tree for itself.
+     * A report measuring the corpus against the declared vocabulary has
      * to be looking at the tree the compile will, or its counts describe a
      * corpus nobody builds.
      */
@@ -117,7 +117,7 @@ describe("a content command reaches the content", () => {
 
 /*
  * Every check reads the content index now, so every one of them meets the note
- * the index cannot record — and none of them may be silenced by it (#243).
+ * the index cannot record — and none of them may be silenced by it.
  */
 describe("a note the content index cannot record", () => {
     let bad: string;

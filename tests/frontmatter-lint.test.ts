@@ -29,10 +29,10 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
 
 /** An index that resolves exactly the addresses it is given. */
 // Faithful to the real resolver on the point that matters: it resolves an
-// **address** and takes the target alone (#180). The stub once mirrored a
+// **address** and takes the target alone. The stub once mirrored a
 // namespace argument, and ignoring it is what let every `ref:` field be
 // resolved through the alias namespace — and so reported dead — with the suite
-// green (#176). There is no second namespace to get wrong now.
+// green. There is no second namespace to get wrong now.
 const indexOf = (...addresses: string[]) => ({
     notes: [],
     resolve: (target: string) => (addresses.includes(target) ? {} : undefined),
@@ -42,7 +42,7 @@ const indexOf = (...addresses: string[]) => ({
 const messages = (findings: Array<{ message: string }>) =>
     findings.map((f) => f.message).join("\n");
 
-describe("matchesKind (#19)", () => {
+describe("matchesKind", () => {
     it("accepts a number however YAML spelled it, and rejects a word", () => {
         expect(matchesKind(12, "number")).toBe(true);
         // Quoted scalars are how a number arrives from several editors.
@@ -64,7 +64,7 @@ describe("matchesKind (#19)", () => {
     });
 });
 
-describe("the five failure classes (#19)", () => {
+describe("the five failure classes", () => {
     const schemas = {
         skill: [
             {
@@ -143,7 +143,7 @@ describe("the five failure classes (#19)", () => {
         // `type-shortcode` is an address by construction — the field supplies
         // the type — and it is the whole of what the resolver is handed. Asked
         // for anything less, every reference in every tree lands nowhere, which
-        // is what #176 was.
+        // is the failure.
         const asked: string[] = [];
         const index = {
             notes: [],
@@ -179,7 +179,7 @@ describe("the five failure classes (#19)", () => {
 
     it("reports a retired top-level `package:`, at its own position", () => {
         // The lint is where an author meets the whole list at once; the compile
-        // refuses one note at a time (#56). Reported whatever it says — the
+        // refuses one note at a time. Reported whatever it says — the
         // value is the repository's `contentPackage` and no note restates it.
         const declaring = {
             file: "/tree/skill.md",
@@ -203,7 +203,7 @@ describe("keys every type accepts", () => {
         // One is rejected, and only one: `archetype` is the retiring spelling
         // of `templatePriority`, and both are universal keys during the window,
         // so a note naming every universal key necessarily names the old
-        // spelling too (#266). Every other universal key passes.
+        // spelling too. Every other universal key passes.
         expect(findings).toHaveLength(1);
         expect(findings[0].severity).toBe("error");
         expect(findings[0].message).toMatch(/write `templatePriority:` instead/);
@@ -282,7 +282,7 @@ describe("lintFrontmatter over an index", () => {
     });
 });
 
-describe("checkTags — a classifying tag is queried, so a near miss is a finding (#172)", () => {
+describe("checkTags — a classifying tag is queried, so a near miss is a finding", () => {
     /** A note carrying tags, as the index hands one over. */
     const tagged = (tags: string[]) => ({
         file: "/tree/place.md",
@@ -374,13 +374,13 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
 });
 
 /* -------------------------------------------------------------------- */
-/*  `img: ""` — the old spelling of "unset" (#218)                       */
+/*  `img: ""` — the old spelling of "unset"                       */
 /* -------------------------------------------------------------------- */
 
-describe('an authored `img: ""` (#218)', () => {
+describe('an authored `img: ""`', () => {
     const schemas = { skill: [] as any[] };
 
-    it("is warned about, because it used to mean the opposite", () => {
+    it("is warned about, because it reads as the opposite", () => {
         // `""` was how a note said "no art authored" while `resolveImg`
         // conflated the two empties; it now says "ship no art". Forty-five
         // `sohl-thalorna` notes were written under the old reading and would
@@ -446,10 +446,10 @@ describe('an authored `img: ""` (#218)', () => {
 });
 
 /* -------------------------------------------------------------------- */
-/*  A system field that merely shares a note-level field's name (#312)   */
+/*  A system field that merely shares a note-level field's name   */
 /* -------------------------------------------------------------------- */
 
-describe("a system field that merely shares a note-level field's name (#312)", () => {
+describe("a system field that merely shares a note-level field's name", () => {
     /** The blank-heading finding, whichever position provoked it. */
     const blankHeading = (findings: Array<{ message: string }>) =>
         findings.filter((f) => /publishes a page with no heading/.test(f.message));
@@ -499,7 +499,7 @@ describe("a system field that merely shares a note-level field's name (#312)", (
         // declares a system field of either name today — which is why
         // `sohl.img: ""` still answers for the art check, the emitter reading
         // the block first — so the exemption is exercised with a declaration of
-        // its own. A map's art was `sohl.image` until #142, and the next such
+        // its own. `sohl.image` is a map's legacy art key, and the next such
         // collision must not need this fixed a second time.
         const schemas = {
             widget: [
@@ -521,7 +521,7 @@ describe("a system field that merely shares a note-level field's name (#312)", (
     });
 });
 
-describe("two embedded items denoting one entity (#228)", () => {
+describe("two embedded items denoting one entity", () => {
     /** `lintNote` returns early on a type no schema declares, so give it one. */
     const BEING_SCHEMA = { being: [] } as any;
 

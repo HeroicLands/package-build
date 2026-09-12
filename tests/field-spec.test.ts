@@ -24,7 +24,7 @@ import {
     setPath,
 } from "../engine/field-spec.mjs";
 
-describe("setPath — declaration order is emission order (#22)", () => {
+describe("setPath — declaration order is emission order", () => {
     it("writes a leaf", () => {
         expect(setPath({}, "a", 1)).toEqual({ a: 1 });
     });

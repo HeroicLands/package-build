@@ -12,7 +12,7 @@
  */
 
 /**
- * **Scene ↔ Level integrity** for a compiled compendium pack (issue #1538).
+ * **Scene ↔ Level integrity** for a compiled compendium pack.
  *
  * A v14 Scene keeps its map image on an embedded `Level`, and a compiled pack
  * stores the two in *separate* LevelDB keys: the Scene at `!scenes!<id>`

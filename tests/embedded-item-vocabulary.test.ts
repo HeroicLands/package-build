@@ -6,7 +6,7 @@
  */
 
 /**
- * **Which vocabulary an embedded-item reference speaks** (#140).
+ * **Which vocabulary an embedded-item reference speaks**.
  *
  * A being addresses its embedded items by `(type, shortcode)`, where `type` is
  * the *note's* type — the thing an author writes. The predefined items those
@@ -17,7 +17,7 @@
  * the identity.
  *
  * These tests hold the translation in place. They run against a **fixture
- * system**, not SoHL: every SoHL row is the identity — #78 briefly made three
+ * system**, not SoHL: every SoHL row is the identity — a rename briefly made three
  * of them otherwise and that rename is reversed — so SoHL alone cannot exercise
  * the translation. HM3's `projectilegear` → `missilegear` is the real
  * non-identity row, and the fixture stands in for that shape.
@@ -41,7 +41,7 @@ const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 /**
  * A **fixture system** whose item rows are deliberately not the identity.
  *
- * `armorgear` → `armorgear` is the row #78 will add to SoHL; declaring it here
+ * `armorgear` → `armorgear` is the row SoHL takes; declaring it here
  * exercises the mechanism without moving a single compiled byte. It reads the
  * `sohl:` block so the frontmatter readers (`sohlField`) still find a being's
  * `items:` — the block a system writes and the vocabulary its types speak are
@@ -99,7 +99,7 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
     it("refuses a retired type by name, rather than letting it resolve as its own", () => {
         // Without this a reference in a retired spelling would take the
         // unmapped fallback and address a document of that name — which is
-        // exactly what a rename leaves behind (#78).
+        // exactly what a rename leaves behind.
         const { subType, problem } = referencedSubtype(DEMO, "creature", "Item");
         expect(subType).toBeUndefined();
         expect(problem).toMatch(/being/);
@@ -111,7 +111,7 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
     });
 
     it("is the identity for every SoHL row", () => {
-        // #78 briefly broke this for three rows; reversing that rename restores
+        // A rename briefly broke this for three rows; reversing it restores
         // it for all of them, so there is no exception list to carry.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
             const row = SOHL_DOCUMENT_SUBTYPES.types[type];
@@ -122,7 +122,7 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
         }
     });
 
-    it("resolves a reference still on a renamed type's retired spelling (#78)", () => {
+    it("resolves a reference still on a renamed type's retired spelling", () => {
         // The half of the window that matters most: the old names occur ~1,000
         // times as often inside a being's `(type, shortcode)` items list as
         // they do as a note's own `type:`. A window that resolved notes but not
@@ -232,7 +232,7 @@ describe("a being's embedded items, end to end through the translation", () => {
             beingNote("{ model: armor-hlmt }"),
             (pass) => {
                 // Loaded from the compiled tree, keyed by the subtype the
-                // document carries — and, since #334, under this package's name
+                // document carries — and under this package's name
                 // as well, so a `model:` that states the package resolves to
                 // the same item and nothing local can shadow it.
                 expect([...pass.itemsMap.keys()].sort()).toEqual([
@@ -265,7 +265,7 @@ describe("a being's embedded items, end to end through the translation", () => {
 
     it("stamps a stand-alone entry with the subtype too, not the note type", async () => {
         // The half with no lookup to fail: an entry carrying no shortcode is
-        // built from the reference alone, so the note type used to become the
+        // built from the reference alone, so the note type would become the
         // document's subtype outright — a document of a subtype the system
         // does not define, and nothing said.
         await withDemoPass([], beingNote("{ type: armor, name: Scavenged Helm }"), (pass) => {
@@ -290,7 +290,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         });
     });
 
-    it("refuses a retired top-level `shortcode`, naming `model` (#334)", async () => {
+    it("refuses a retired top-level `shortcode`, naming `model`", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -318,7 +318,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("refuses `type` beside a `model` — the address already names it (#334)", async () => {
+    it("refuses `type` beside a `model` — the address already names it", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -342,7 +342,7 @@ describe("a being's embedded items, end to end through the translation", () => {
         );
     });
 
-    it("reports a `model` that is not an address at all (#334)", async () => {
+    it("reports a `model` that is not an address at all", async () => {
         await withDemoPass(
             [compiledItem("armorgear", "hlmt")],
             beingNote("{ model: armor-hlmt }"),
@@ -392,7 +392,7 @@ describe("a being's embedded items, end to end through the translation", () => {
                 expect(finding).toContain("Ancient Warrior");
                 // The reference as authored. SoHL's note and document
                 // vocabularies spell every row the same word again now that
-                // #78's rename is reversed, so there is no second spelling to
+                // The rename is reversed, so there is no second spelling to
                 // show here; HM3's `projectilegear` → `missilegear` is where
                 // the two still differ.
                 expect(finding).toContain("armorgear:brst");

@@ -12,10 +12,9 @@
  */
 
 /**
- * A section is a Hugo directory concept, and the note format does not carry one
- * (#204).
+ * A section is a Hugo directory concept, and the note format does not carry one.
  *
- * Since #181 a page's URL **is** its address, `/<package>/<type>-<shortcode>/`,
+ * A page's URL **is** its address, `/<package>/<type>-<shortcode>/`,
  * so a section appears in no address at all. Its only remaining job was to pick
  * the directory a page was written into, and the only reason that mattered was
  * Hugo's rule about what counts as a section. So the note format carried a
@@ -30,7 +29,7 @@
  * - **A `doc` with no `subType` publishes**, because there is no directory left
  *   to have nowhere to file it into.
  * - **A `doc`'s `subType` is a genre again**, closed to the values the type
- *   declares — the vocabulary #197 had to widen for a landing address.
+ *   declares — the vocabulary a landing address would have to widen.
  * - **Every page's `url:` is unchanged**, because a URL comes from the address
  *   and never from the directory. That invariant is the whole claim, so it is
  *   asserted against the emitted tree rather than reasoned about.
@@ -107,7 +106,7 @@ shortcode: rulesintro
 name:
     full: The Rules`,
     );
-    // A `doc` with no subtype. It used to have "no section, so nowhere to file
+    // A `doc` with no subtype. Read as "no section, so nowhere to file
     // the page"; it is now an ordinary page.
     note(
         "Odds/Homeless.md",
@@ -231,7 +230,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
     });
 
     it("refuses a content type as a `doc` subtype, even in a README", () => {
-        // #197 widened this check so a `README` landing could name the section
+        // Widening this check so a `README` landing could name the section
         // it addressed. With no landings there is no address in this field, so
         // the closed genre list answers for every note — README or not.
         for (const file of ["/tree/Weapons/README.md", "/tree/Weapons/Weapons.md"]) {
@@ -264,14 +263,12 @@ describe("a `doc`'s `subType` is a genre again", () => {
         });
     });
 
-    it("leaves the charset check ahead of it (#206)", () => {
-        // The two changes are complementary and land in one function: #206 put
-        // a charset error ahead of the closed-set check, and #204 removed the
-        // section branch from underneath it. Both survive, in that order. #206
-        // also put a retired-spelling warning ahead of the charset check, for
-        // `user-guide`; the consumer trees have swept and #210 removed it, so
-        // the old spelling is refused by the charset check like any other
-        // hyphenated value.
+    it("leaves the charset check ahead of it", () => {
+        // The two rules are complementary and land in one function: a charset
+        // error runs ahead of the closed-set check, and there is no section
+        // branch underneath it. Nothing accepts the retired `user-guide`
+        // spelling ahead of the charset check — the consumer trees have swept
+        // — so it is refused like any other hyphenated value.
         const retired = lintNote(
             asNote("/tree/Guide/Actions.md", {
                 type: "doc",
@@ -320,7 +317,7 @@ describe("a `doc`'s `subType` is a genre again", () => {
 
 describe("every page's `url:` survives the move, byte for byte", () => {
     it("publishes each page at `/<type>-<shortcode>/`, wherever the file lands", () => {
-        // The core claim of #204: the emitted *paths* move, and no emitted
+        // The core claim: the emitted *paths* move, and no emitted
         // address does. Read back off the tree the build actually wrote.
         const out = path.join(root, "out");
         const result = buildSite({ config: configFor() });
@@ -346,7 +343,7 @@ describe("every page's `url:` survives the move, byte for byte", () => {
         for (const name of files) {
             const { data } = matter(fs.readFileSync(path.join(mount, name), "utf8"));
             // Site-root relative: the package base is Hugo's own `baseURL`,
-            // and stating it here published the page inside it twice (#217).
+            // and stating it here published the page inside it twice.
             expect(data.url, name).toBe(`/${name.replace(/\.md$/, "")}/`);
         }
     });

@@ -20,7 +20,7 @@
  * types, each with a shape, a default and a requiredness, is exactly the kind of
  * prose that drifts silently from the code it describes. The declarations
  * (`fields` on each `itemBuilders` entry) already *are* that table, so the page
- * is rendered from them rather than transcribed (#22).
+ * is rendered from them rather than transcribed.
  *
  * **It ships here, not in the consumer.** Any repository can define an item
  * type of its own, so "what frontmatter does this type accept?" is a question
@@ -104,7 +104,7 @@ function fieldTable(fields) {
             `\`${field.name}\``,
             cell(field.shape ?? "as authored"),
             field.required ? "**yes**" : "no",
-            // Three different answers, and the third is not a value (#329). A
+            // Three different answers, and the third is not a value. A
             // required field has no default because omitting it fails the
             // build; an `omitWhenAbsent` field has none because omitting it
             // omits the *key*, leaving the data model to answer. Rendering
@@ -128,7 +128,7 @@ function fieldTable(fields) {
  * the note level the fallback is off, and an author has no way to tell from the
  * table — the field is there, the value is written, and the document ships the
  * default. So the reason each such field declares is rendered beside its table
- * rather than left in the source (#218).
+ * rather than left in the source.
  *
  * Below the table, not inside it: the reason is a sentence or two, and
  * {@link padTable} pads every column to its widest cell, so a cell holding it
@@ -148,7 +148,7 @@ function sharedExemptions(fields) {
 }
 
 /**
- * The fields of one type that a note may **never** write (#330).
+ * The fields of one type that a note may **never** write.
  *
  * A type's table lists what an author writes, and says nothing about the rest
  * of its schema — which is right for a constant or a derived value, since
@@ -208,15 +208,15 @@ function workedExample(type, fields) {
         `type: ${type}`,
         "shortcode: xmpl",
         // No `package:`. A note's package is the repository's configured
-        // `contentPackage`, and declaring the field is a build error (#56) —
+        // `contentPackage`, and declaring the field is a build error —
         // this example is the smallest note that compiles.
         //
         // No `id:` either, for the same reason it is not shown optional-first:
-        // a note's document `_id` derives from its canonical address (#270,
-        // #277), and the authored field is the escape hatch for keeping a
+        // a note's document `_id` derives from its canonical address, and the
+        // authored field is the escape hatch for keeping a
         // document's identity across a shortcode rename, not part of the
         // envelope. This block is the one an author copies as a template, so
-        // showing the field taught every note in the tree to write it (#314).
+        // showing the field taught every note in the tree to write it.
         "sohl:",
         "  templatePriority: null",
     ];

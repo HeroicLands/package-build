@@ -13,7 +13,7 @@ import {
     // eslint-disable-next-line
 } from "../engine/helpers.mjs";
 
-describe("resolveRelation (pack builder — affiliation standing map, #1404)", () => {
+describe("resolveRelation (pack builder — affiliation standing map)", () => {
     it("returns an empty map when the affiliation authors no relations", () => {
         expect(resolveRelation({})).toEqual({});
         expect(resolveRelation({ sohl: {} })).toEqual({});
@@ -65,7 +65,7 @@ describe("resolveRelation (pack builder — affiliation standing map, #1404)", (
     });
 });
 
-describe("resolveRelation — `relation` is the retired spelling of `relations` (SoHL#1781)", () => {
+describe("resolveRelation — `relation` is the retired spelling of `relations`", () => {
     it("reads the current name", () => {
         expect(resolveRelation({ sohl: { relations: { peoni: "nemesis" } } })).toEqual({
             peoni: "nemesis",

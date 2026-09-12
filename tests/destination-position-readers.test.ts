@@ -6,8 +6,7 @@
  */
 
 /**
- * **The five declarations that re-read the note must see the destination**
- * (#126).
+ * **The five declarations that re-read the note must see the destination**.
  *
  * Most fields take the value {@link resolveFieldValue} hands them, so they
  * resolve at `<system>.system.<to>` for free. Five do not: `subType`,
@@ -18,13 +17,13 @@
  * Each re-read went through `sohlField`, which sees `sohl.<key>` and the note's
  * top level — and **not** `sohl.system.<key>`. That was equivalent while every
  * note authored in the block. Once a note authors at the destination instead
- * (#126's corpus move) those five read as unset and ship their empty value: no
+ * (the corpus move) those five read as unset and ship their empty value: no
  * `subType` is a thrown build error, and `charges`, `skillAptitudes` and
  * `relations` silently ship empty.
  *
  * The impact die is the one whose two positions are spelled differently —
  * authored `impact.die`, stored `impactBase.die` — so the reader takes both,
- * the same shape `FieldSpec.name`/`legacyKey` takes (#305).
+ * the same shape `FieldSpec.name`/`legacyKey` takes.
  */
 
 import { describe, it, expect } from "vitest";

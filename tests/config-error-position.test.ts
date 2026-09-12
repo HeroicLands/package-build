@@ -18,7 +18,7 @@
  * `fail()`, which knew the offending key's dotted path and nothing about where
  * that path was written. The position is resolvable — the source is YAML and
  * the loader knows which file it read — so it is attached once, at the loader,
- * for all of them (#95).
+ * for all of them.
  *
  * These cases assert the two halves that matter: that the emitted line is the
  * `file:line:column: severity: message` form the rest of the build already

@@ -25,13 +25,13 @@
  *
  * **This module has no import-time side effects.** It creates no directories,
  * reads no manifest, configures no logger, and parses no argv — every path and
- * pack list is a parameter, defaulted from the resolved build configuration
- * (#1508), which a caller may replace wholesale to compile another package's
+ * pack list is a parameter, defaulted from the resolved build configuration,
+ * which a caller may replace wholesale to compile another package's
  * tree. Those side effects belong to the command
  * line that drives it (`bin/build-compendiums.mjs`), so the library can be
  * imported by another repository's build, or by a test, without a stray
  * `build/` tree appearing or the shared `loglevel` singleton being
- * reconfigured (#1507). In particular, a *module* repository ships
+ * reconfigured. In particular, a *module* repository ships
  * `module.json` rather than `system.template.json`, so importing must not
  * depend on the latter existing.
  *
@@ -64,7 +64,7 @@ import { loadPackConfig } from "./pack-config.mjs";
  * @param {object} opts
  * @param {object} [opts.config]         The resolved build configuration, which
  *     the two path arguments below default from. Supplying one is how a caller
- *     compiles a package other than this repository's (#1508).
+ *     compiles a package other than this repository's.
  * @param {string[]} [opts.sourcePacks]  Every pack compiled from the content
  *     tree, in compile order. Defaults to the configured pack directories.
  * @param {string} [opts.stageDest]      Directory the LevelDB packs are built
@@ -73,10 +73,10 @@ import { loadPackConfig } from "./pack-config.mjs";
  * @throws {Error} If pack JSON generation reported any error. Packs compiled
  *     from incomplete or empty JSON ship blank or short compendiums, and the
  *     omission is invisible until a player looks for content that is not there
- *     (#1502) — so this is fatal, not a warning, and the caller is expected to
+ * — so this is fatal, not a warning, and the caller is expected to
  *     turn it into a failing exit code.
  * @throws {Error} If a compiled pack ships a Scene that has lost its embedded
- *     Level (#1538). Fatal for the same reason: Foundry reads a missing Level
+ *     Level. Fatal for the same reason: Foundry reads a missing Level
  *     record as "no levels" and persists that on the next world launch, so the
  *     map image is gone before anyone notices it was ever at risk. See
  *     {@link verifyPackSceneLevels}.
@@ -137,7 +137,7 @@ export async function compilePacks({
         // LevelDB key. Nothing in Foundry ties the two together on read: a
         // missing Level record only warns, and the next world launch persists
         // the emptied `levels` array — so the map is lost for good and the
-        // only symptom is a blank battlemap (#1538). Assert it on the bytes
+        // only symptom is a blank battlemap. Assert it on the bytes
         // just written, which is the one place the compendium CLI's write path
         // is observable.
         const problems = await verifyPackSceneLevels(stage);
@@ -164,7 +164,7 @@ export async function compilePacks({
  * @param {number} [options.ownership=0]          Value to reset default ownership to.
  * @param {string} [options.lastModifiedBy]       The stamped author id. Defaults to
  *     the configured one — the same value `buildStats` stamps, so a compiled
- *     entry and a re-cleaned one never disagree (#1508).
+ *     entry and a re-cleaned one never disagree.
  */
 function cleanPackEntry(
     data,

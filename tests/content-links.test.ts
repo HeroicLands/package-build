@@ -87,7 +87,7 @@ describe("buildLinkIndex", () => {
     });
 
     // An address is the only namespace, so it resolves the same wherever it is
-    // cited — and a note's *name* is not one (#180).
+    // cited — and a note's *name* is not one.
     it("resolves an address from any note, and a name from none", () => {
         const { index } = audit({
             "Skills/Climbing.md": note({
@@ -117,7 +117,7 @@ describe("buildLinkIndex", () => {
         ]);
     });
 
-    // The checker used to carry its own, laxer copy of the pattern, so it
+    // A laxer copy of the pattern in the checker means it
     // "checked" links the compilers would never make.
     it("does not read an unclosed bracket as a link", () => {
         const { index } = audit({
@@ -311,7 +311,7 @@ describe("walkReachability", () => {
     });
 });
 
-describe("one anchor reader, not two (#243)", () => {
+describe("one anchor reader, not two", () => {
     it("reads an anchor the narrower pattern could not see", () => {
         // `{#CalendarFormat}` is a heading anchor in `sohl`'s own content. This
         // module matched `{#([a-z0-9-]+)}` and so did not see it, while the
@@ -348,7 +348,7 @@ describe("one anchor reader, not two (#243)", () => {
  * It reads the content index, which is the same derivation the published
  * artifact, the `sql` tables and the compilers run on — so the corpus, the
  * addresses and the anchors it resolves against are one answer rather than
- * N that agree only by inspection (#243).
+ * N that agree only by inspection.
  */
 describe("the link index is read from the content index", () => {
     it("enumerates the corpus from the records it is handed, not from the tree", () => {
@@ -410,7 +410,7 @@ describe("the link index is read from the content index", () => {
         expect(scoped.notes.map((n: any) => n.rel)).toEqual(["Skills/Climbing.md"]);
     });
 
-    // The package a local address carries used to come from `contentPackage()`,
+    // The package a local address carries does not come from `contentPackage()`,
     // which reads whichever configuration the working directory resolves —
     // not the one the caller passed. The two are the same object in an ordinary
     // build and different ones under `PACKAGE_BUILD_CONFIG`, in a worktree, or
@@ -433,12 +433,13 @@ describe("the link index is read from the content index", () => {
 });
 
 /*
- * A note the index cannot record must not silence the check. Before #243 the
+ * A note the index cannot record must not silence the check. Without a shared
+ * index the
  * link check walked the tree itself, so such a note was simply an ordinary note
  * to it; after the conversion it aborted the whole pass, losing every finding
  * in the tree to one malformed file.
  */
-describe("a note the content index cannot record (#243)", () => {
+describe("a note the content index cannot record", () => {
     it("is reported, and every other note is still checked", () => {
         const root = tree({
             "Skills/Climbing.md": note(

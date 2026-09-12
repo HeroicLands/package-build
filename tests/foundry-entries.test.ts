@@ -6,7 +6,7 @@
  */
 
 /**
- * Emitting a link manifest from configuration (#58).
+ * Emitting a link manifest from configuration.
  *
  * `writeManifests` could always write one; nothing could *derive* one, so every
  * publishing repository wrote the walk itself and the two that did drifted. The
@@ -88,7 +88,7 @@ name:
         "Opening.\n\n## Melee {#melee}\n\nSwinging.\n",
     );
 
-    // A note that happens to be called `README.md`. Since #204 the filename
+    // A note that happens to be called `README.md`. The filename
     // decides nothing: it is addressed by `(type, shortcode)` like any other.
     note(
         "Rules/README.md",
@@ -112,8 +112,8 @@ name:
     full: Creatures`,
     );
 
-    // A `doc` with no subtype. It used to have no section and so no address;
-    // there is no section left for it to lack (#204).
+    // A `doc` with no subtype. Read as having no section it has no address;
+    // there is no section left for it to lack.
     note(
         "Rules/Homeless.md",
         `type: doc
@@ -153,9 +153,9 @@ function configFor(publish: Record<string, unknown>) {
 /**
  * The entries a tree yields, keyed by canonical address.
  *
- * These are the entries the link manifest used to be written from, so every
+ * These are the entries the link manifest is written from, so every
  * case below still asserts the same derivation — only the artifact they were
- * once read back out of is gone (#239). `path` is derived here rather than
+ * once read back out of is gone. `path` is derived here rather than
  * carried, because that is what the manifest did: an entry's page address is
  * its slug, and the slug is the address minus its package and system.
  */
@@ -182,7 +182,7 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
     it("addresses a page by `(type, shortcode)`, whatever the tree mounts at", () => {
         // The prefix says where the content *tree* sits inside the package, so
         // it addresses the section landings; an ordinary page is addressed by a
-        // package-wide identity and takes no mount at all (#181).
+        // package-wide identity and takes no mount at all.
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         expect(doc.entries["demo-sohl-weapongear-dagger"].path).toBe("weapongear-dagger/");
         expect(doc.entries["demo-none-doc-combat"].path).toBe("doc-combat/");
@@ -193,9 +193,9 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
         expect(doc.entries["demo-sohl-weapongear-dagger"].path).toBe("weapongear-dagger/");
     });
 
-    it("addresses a `README.md` as an ordinary page (#204)", () => {
+    it("addresses a `README.md` as an ordinary page", () => {
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
-        // It used to be its section's landing, recorded at `kb/rules/`. There
+        // Read as its section's landing it is recorded at `kb/rules/`. There
         // is no section, so there is no landing and no second rule.
         expect(doc.entries["demo-none-doc-rulesidx"].path).toBe("doc-rulesidx/");
         expect(doc.entries["demo-none-doc-creatures"].path).toBe("doc-creatures/");
@@ -205,15 +205,15 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
 describe("what is published, and what is not", () => {
     it("publishes a note that declares no subtype", () => {
         // It was skipped for having no section to be filed under; a page is
-        // filed nowhere now, so nothing is missing (#204).
+        // filed nowhere now, so nothing is missing.
         const doc = emit({ ...WEB });
         expect(doc.entries["demo-none-doc-homeless"].path).toBe("doc-homeless/");
     });
 
     it("refuses a note declaring `package:`, rather than skipping it", () => {
-        // It used to be filtered out in silence, which is how a whole tree
+        // Filtering it out in silence is how a whole tree
         // could be excluded from a manifest that then claimed the package
-        // publishes nothing (#56). `tests/note-package.test.ts` owns the rest
+        // publishes nothing. `tests/note-package.test.ts` owns the rest
         // of that contract; here it only has to be loud in this pipeline.
         note(
             "Gear/Declares.md",
@@ -232,9 +232,9 @@ name:
     });
 
     it("refuses a note declaring `draft:`, rather than skipping it", () => {
-        // It used to be dropped in silence, which left every wikilink into it
+        // Dropping it in silence leaves every wikilink into it
         // indistinguishable from a link to a note that does not exist — the
-        // one state the manifest exists to prevent (#69).
+        // one state the manifest exists to prevent.
         note(
             "Gear/Drafted.md",
             `type: weapongear
@@ -276,7 +276,7 @@ name:
     });
 
     it("gives an item note two entries, the item pointing at its docs", () => {
-        // The two entries carry two *different* system segments (#59), which
+        // The two entries carry two *different* system segments, which
         // is the segment doing real work here. The item is a document `sohl`
         // defines, so it is keyed under `sohl`; its documentation is a
         // JournalEntry, which no game system defines, so it is keyed under
@@ -287,7 +287,7 @@ name:
         const item = doc.entries["demo-sohl-weapongear-dagger"];
         expect(item.doc).toBe("demo-none-docweapongear-dagger");
         // The doc entry owns the documentation UUID; the item does not repeat
-        // it (#1499).
+        // it.
         expect(item.uuid).toBe("Compendium.demo-module.items.Item.aaaaaaaaaaaaaaaa");
         expect(doc.entries["demo-none-docweapongear-dagger"].uuid).toMatch(
             /^Compendium\.demo-module\.journals\.JournalEntry\./,
@@ -330,23 +330,22 @@ describe("anchors are computed, never approximated", () => {
     });
 });
 
-describe("both addresses are optional, independently (#1516)", () => {
+describe("both addresses are optional, independently", () => {
     // A homepage-only package still *addresses* its notes — the address is a
-    // package-wide identity, not a statement that a page is served at it. What
-    // used to suppress the web half here has moved to the consuming side
-    // (#239): a URL is produced only where that consumer has a `PACKAGE_BASE`
-    // for the package, which is the side that actually knows where it serves
-    // things. See `metadata-index.test.ts`, "still resolves a package it has no
+    // package-wide identity, not a statement that a page is served at it. The
+    // web half is suppressed on the consuming side: a URL is produced only
+    // where that consumer has a `PACKAGE_BASE` for the package, which is the
+    // side that actually knows where it serves things. See `metadata-index.test.ts`, "still resolves a package it has no
     // base for, without a URL".
     it("addresses its notes even when the build publishes only a homepage", () => {
         const doc = emit({ site: "homepage" });
         expect(doc.entries["demo-sohl-weapongear-dagger"].uuid).toBeDefined();
     });
 
-    it("addresses a note that authors no `id`, deriving one (#270)", () => {
+    it("addresses a note that authors no `id`, deriving one", () => {
         // This note used to publish an address and no UUID, because a document
         // id was a thing an author wrote and this one had not written it. Since
-        // #270 the id *is* the address, so there is no such state: every
+        // The id *is* the address, so there is no such state: every
         // addressable note compiles into a document and publishes its UUID.
         note(
             "Gear/Idless.md",
@@ -412,14 +411,14 @@ describe("the emitted address is the one the site publishes", () => {
         );
     });
 
-    it("is derivable from the key it is filed under (#181)", () => {
+    it("is derivable from the key it is filed under", () => {
         // The manifest still writes `path` — an absent one already means
         // something else — but a consumer can compute it from the key alone,
         // with no knowledge of the emitting repository's scheme.
         //
         // Computed from the key's *parsed parts*, never by stripping a prefix
         // off the key's text. It used to amount to the same thing — the
-        // address was the key minus its package segment — and since #59 it
+        // address was the key minus its package segment — and it
         // does not: the key carries a `<system>` segment between the package
         // and the type, which the address does not, so a consumer that
         // stripped one segment would put `sohl-weapongear-dagger/` in an href.
@@ -434,7 +433,7 @@ describe("the emitted address is the one the site publishes", () => {
             // onto one page, not an exception to the rule.
             const type = parts.type.replace(/^doc(?=.)/, "");
             expect(entry.path, key).toBe(`${type}-${parts.shortcode}/`);
-            // And the identity that used to make the derivation look like
+            // And the identity that makes the derivation look like
             // string surgery is now false, stated so a regression to it fails
             // here rather than in a consumer's 404 log.
             expect(key, key).not.toBe(`${parts.package}-${entry.path!.replace(/\/$/, "")}`);

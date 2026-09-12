@@ -27,9 +27,9 @@
  *    written target is a *partial* address — the segments it omits are
  *    wildcards, and the package it omits is this one — so a target resolving to
  *    *several* notes is an ambiguity rather than a first match, and is reported
- *    naming every candidate (#59).
+ *    naming every candidate.
  * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
- *    used to name is retired (#180), and a shortcode is an address rather than
+ *    once named is retired, and a shortcode is an address rather than
  *    prose, so the link has neither a resolvable target nor text to show. The
  *    correction is always `[[type-shortcode|Text]]`.
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
@@ -49,7 +49,7 @@
  * document is reachable from the book's root" — is a statement about what one
  * package publishes, not about the note format, so it belongs with the
  * publishing it describes; so does a retired hostname. Both are served by the
- * link graph returned here rather than implemented here (#20).
+ * link graph returned here rather than implemented here.
  *
  * @module
  */
@@ -61,7 +61,7 @@ import { matchAllOutsideCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { collectAnchors } from "./anchors.mjs";
 // The corpus, and everything derived from it, read from the one place that
-// derives it (#243). Nothing in the index's own import graph reaches this
+// derives it. Nothing in the index's own import graph reaches this
 // module, so this is a plain static import rather than the deferred one
 // `sql-tables` needs to keep out of the compilers' cycle.
 import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
@@ -88,7 +88,7 @@ import { readQualifier } from "./wikilinks.mjs";
  * Every `{#anchor}` a note declares on a heading.
  *
  * **Read from the content index's reader, not a second one.** This module kept
- * its own until #243, and the two disagreed: it matched `{#([a-z0-9-]+)}` while
+ * its own, and the two disagreed: it matched `{#([a-z0-9-]+)}` while
  * {@link module:engine/content-index.collectAnchors} matches `{#([^}]+)}`, so
  * an anchor with a capital in it — `{#CalendarFormat}` — existed for the index
  * and for the compiler and did not exist for the link checker. Nothing links to
@@ -110,7 +110,7 @@ export function anchorsOf(body) {
  * Read a content tree into the index a link resolves against.
  *
  * **The corpus comes from the content index, not from a walk of this module's
- * own** (#243). Every pass used to answer "which files are the content?" for
+ * own**. Every pass used to answer "which files are the content?" for
  * itself and throw the answer away; this one now reads
  * {@link module:engine/content-index.indexRecordsFor}, which is the same
  * derivation the published artifact and the compilers are driven from. So a
@@ -118,7 +118,7 @@ export function anchorsOf(body) {
  * anchors it resolves against are the ones every other pass will emit — rather
  * than a second derivation that agrees with them only by inspection. That was
  * not hypothetical: this module carried its own anchor reader until the anchor
- * half of #243, and the two disagreed about which anchors existed.
+ * anchor half, and the two disagreed about which anchors existed.
  *
  * **The file is opened for its bytes and nothing else.** The index deliberately
  * carries no note *body*, and a link lives in the body — so each note is read
@@ -138,7 +138,7 @@ export function anchorsOf(body) {
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {object} [opts.config] - The resolved build configuration, whose
- *   fetched dependency indexes foreign addresses resolve through (#239), and
+ *   fetched dependency indexes foreign addresses resolve through, and
  *   whose `contentPackage` every local address is built from. Omitted, the
  *   ambient configuration is resolved and no cross-package address resolves.
  * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, passed
@@ -162,10 +162,10 @@ export function buildLinkIndex(
 
     // The one package every note in this tree belongs to. Taken from the
     // configuration this build resolved — never from a note (`package:` is
-    // retired, so there is no second source an address could disagree with,
-    // #56) and never from the ambient one, which is a different configuration
+    // retired, so there is no second source an address could disagree with)
+    // and never from the ambient one, which is a different configuration
     // whenever a test injects one, `PACKAGE_BUILD_CONFIG` names one, or the
-    // command runs from a worktree (#243).
+    // command runs from a worktree.
     const resolved = config ?? loadPackConfig();
     const pkg = resolved.contentPackage;
 
@@ -197,12 +197,12 @@ export function buildLinkIndex(
         notes.push(note);
 
         // The anchors the index recorded, rather than a second reading of the
-        // same headings — the disagreement #243's anchor half removed.
+        // same headings — the disagreement the anchor half removes.
         anchors.set(note, new Set((record.anchors ?? []).map((a) => a.slug)));
 
         if (typeof fm.shortcode === "string" && fm.shortcode) {
             // Canonical addresses only. Every written target expands to one
-            // before lookup (#336), so there is nothing left for a short key to
+            // before lookup, so there is nothing left for a short key to
             // answer — and the short key was harmful: `type/shortcode` is
             // system-blind, set with a plain `Map.set`, so two notes in one
             // package sharing a `(type, shortcode)` across systems silently
@@ -245,7 +245,7 @@ export function buildLinkIndex(
     /** The searchable universe a `dataview` table draws its rows from. */
     const tableDocs = notes.map((n) => ({
         // Package present for a `WHERE … package = "…"` clause, synthesised
-        // rather than authored — see {@link searchableFrontmatter} (#56).
+        // rather than authored — see {@link searchableFrontmatter}.
         fm: searchableFrontmatter(n.fm, pkg),
         path: n.rel,
         tld: n.rel.split("/")[0],
@@ -259,14 +259,14 @@ export function buildLinkIndex(
      * @returns {Array<{target: string, anchor: string, text: string,
      *   occurrence: number, labelled: boolean}>} `target` is `""` for a
      *   same-page `[[#anchor]]`; `labelled` says whether the link carries the
-     *   `|` every link must have (#180).
+     *   `|` every link must have.
      */
     function linksOf(note) {
         let body = note.body;
         if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) {
             body = expandContentTables(body, {
                 // Unfiltered: every note in the tree is this package's, so
-                // there is no other package's note to exclude (#56).
+                // there is no other package's note to exclude.
                 docs: tableDocs,
                 linkable: (d) => Boolean(d.fm.shortcode),
                 source: note.file,
@@ -316,7 +316,7 @@ export function buildLinkIndex(
      * Every indexed entry an address names, matching only the segments it
      * supplies.
      *
-     * This is the whole of #59's resolution rule in one place: a written
+     * This is the whole resolution rule in one place: a written
      * address is a *partial* one, unsupplied segments are wildcards, and the
      * caller requires exactly one hit. Nothing here decides an ambiguity — zero
      * and many are different findings with different fixes, so the count is
@@ -354,7 +354,7 @@ export function buildLinkIndex(
     function resolveAddress(target, keyPath) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
-        // Every omitted segment defaults from where the link is written (#336),
+        // Every omitted segment defaults from where the link is written,
         // so the target expands to exactly one canonical address and this is a
         // plain lookup. There is no candidate set, and therefore no single-hit
         // rule and no ambiguity to report.
@@ -370,13 +370,13 @@ export function buildLinkIndex(
      * Every foreign manifest entry an address names, in package order.
      *
      * A written target is a **partial** address, so this matches on the
-     * segments it supplies and wildcards the rest (#59). A target naming a
+     * segments it supplies and wildcards the rest. A target naming a
      * package necessarily names its system too — omission runs left to right —
      * so the fully qualified form matches at most one entry; a shorter one
      * names no package, and resolves against any foreign package that
      * publishes it. Either way only exactly one hit resolves. Two claimants make it ambiguous, which is a different finding
      * from resolving nowhere and has a different fix, so the count is returned
-     * rather than collapsed here (#184).
+     * rather than collapsed here.
      *
      * @param {string} target - The link target.
      * @returns {object[]} The foreign entries, each carrying its `package`.
@@ -384,7 +384,7 @@ export function buildLinkIndex(
     function foreignHits(target, keyPath) {
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return [];
-        // An omitted package means *this* package (#336), so a short form
+        // An omitted package means *this* package, so a short form
         // addresses nothing foreign and never reaches a dependency's index.
         // Reaching another package is the fully qualified form's job, and
         // saying so is the whole point: a link that resolved into `sohl` only
@@ -428,7 +428,7 @@ export function buildLinkIndex(
         /**
          * Resolve a link target the way both builds do, or `undefined`. Every
          * link is an address, so this is {@link resolveAddress} under the name
-         * the walkers use (#180).
+         * the walkers use.
          */
         resolve: resolveAddress,
         resolveAddress,
@@ -453,7 +453,7 @@ export function buildLinkIndex(
 const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
 
 /**
- * Every package landing this build can name, as `package` → base (#87).
+ * Every package landing this build can name, as `package` → base.
  *
  * **A landing needs no manifest, and that is what makes it work.** The link
  * manifest indexes content notes, and a homepage is deliberately not one — it
@@ -578,13 +578,13 @@ function readAddress(url, packages) {
  * **What is checkable, stated plainly.** Only an address into this site is, and
  * only against facts this build already holds:
  *
- * - A **retired content type** in the path. The engine knows what used to exist
+ * - A **retired content type** in the path. The engine knows the retired names
  *   and what replaced it, so this is a fact rather than a guess — and it is
  *   exactly the SoHL defect.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
  *   a fetched index names. Every one of them has a better form to write, which
  *   is why every one is reported — including a bare `/<package>/`, which names
- *   another package's landing (#87).
+ *   another package's landing.
  *
  *   That last case was exempt until the better form was identified, on the
  *   reasoning that a landing is in no link manifest so nothing could resolve it.
@@ -658,7 +658,7 @@ export function auditHomepageLinks(index) {
             // Landings first, and by the roster rather than by the manifest
             // package set: a landing is addressable in a repository that
             // has fetched no index at all, which is the case the fence creates
-            // and the case this rule exists for (#87).
+            // and the case this rule exists for.
             const landing = landingTarget(url, bases);
             if (landing) {
                 report(
@@ -749,7 +749,7 @@ export function auditHomepageLinks(index) {
  *
  * **How the link is *written* is a separate finding from where it points**, and
  * the two are kept apart because the corrections differ. An unlabelled link
- * (#180) has to become `[[type-shortcode|Text]]`; a labelled one whose target
+ * has to become `[[type-shortcode|Text]]`; a labelled one whose target
  * resolves nowhere has a shortcode to fix. Reporting a bare `[[Name]]` as a
  * dead address would send an author hunting for a note that was never named.
  *
@@ -761,7 +761,7 @@ export function auditHomepageLinks(index) {
  *   carries a `reason` from {@link LINK_FINDING_REASONS} —
  *   `"not-an-address"`, `"unknown-type"`, `"ambiguous"` (with the claiming
  *   `packages`), or `"unresolved"` — and every one of them is an **error**:
- *   the three resolvers agree on severity for every class (#184).
+ *   the three resolvers agree on severity for every class.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
@@ -792,7 +792,7 @@ export function auditLinks(index) {
     for (const note of notes) {
         for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
             // The label is required whatever the link part is, an anchor
-            // included — so this is tested before the same-page form (#180).
+            // included — so this is tested before the same-page form.
             if (!labelled) {
                 unlabelledLinks.push({
                     note,
@@ -824,7 +824,7 @@ export function auditLinks(index) {
                 // Two packages publish the short address, so it names neither.
                 // Reported as its own class: "no document has that identity" is
                 // false here — two do — and the fix is the qualified form
-                // rather than a corrected shortcode (#184).
+                // rather than a corrected shortcode.
                 deadAddresses.push({
                     ...at,
                     reason: "ambiguous",

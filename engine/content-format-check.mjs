@@ -12,7 +12,7 @@
  */
 
 /**
- * The things the content format asserts that can be checked (#130, #136).
+ * The things the content format asserts that can be checked.
  *
  * `content-format.mjs` reads the specification as data; this compares it
  * against the three worlds it makes claims about — the systems it maps onto,
@@ -22,7 +22,7 @@
  *
  * **The format does not define the `sohl:` or `hm3:` schemas.** Each system
  * defines its own, and its published `schema.json` is the authoritative
- * statement of it (#127). So a mapping row is a *claim*: `data.weight` reaches
+ * statement of it. So a mapping row is a *claim*: `data.weight` reaches
  * `system.weightBase` in SoHL. If SoHL declares no such field the two disagree,
  * and which of them is wrong is a question for a person — but that they
  * disagree is a fact a build can establish.
@@ -34,17 +34,16 @@
  *
  * **A target is resolved against the union of the system's subtypes.** The
  * mapping tables say which system field a shared source reaches; *which
- * document subtype receives it* is the note-type → subtype map, which is #79's
- * to declare and does not exist yet. Resolving per subtype before that map
- * exists would mean inferring it from the prose around each table, which is
- * precisely the transcription this whole module avoids. So the question asked
- * here is the one #130 states — "does any schema declare this field?" — and it
- * narrows to the subtype when #79 lands.
+ * document subtype receives it* is the note-type → subtype map, which does not
+ * exist yet. Resolving per subtype before that map exists would mean inferring
+ * it from the prose around each table, which is precisely the transcription
+ * this whole module avoids. So the question asked here is "does any schema
+ * declare this field?", and it narrows to the subtype once the map lands.
  *
  * ## The corpus against the declared vocabulary
  *
  * Every authored note is measured against the per-type `data` tables. Three
- * classes of finding come out of them, and each corresponds to a slice of #127:
+ * classes of finding come out of them, one per slice of the migration:
  *
  * | class | what it means |
  * | --- | --- |
@@ -57,8 +56,8 @@
  * format, so a failing check would be red on day one in every repository and
  * would stay red for the length of the epic — which is a check nobody can act
  * on and everybody learns to skip. The counts are the migration's progress bar
- * instead, and `--strict` turns them fatal. #127 turns the flag on slice by
- * slice, as each class reaches zero.
+ * instead, and `--strict` turns them fatal — turned on slice by slice, as each
+ * class reaches zero.
  *
  * **What it deliberately does not check.** A key inside a `sohl:` or `hm3:`
  * block that the format says nothing about is left alone: those regions are
@@ -71,7 +70,7 @@
  * The specification hand-writes a `data` table under most of its type sections,
  * which is the ground {@link module:engine/field-reference} already generates
  * from the `fields` on each `itemBuilders` entry — the duplication that module's
- * docstring exists to prevent, one document over (#136).
+ * docstring exists to prevent, one document over.
  *
  * **Checked rather than generated, because a merge is not available.** The
  * document's vocabulary spans note types that produce Scenes, Macros and
@@ -89,7 +88,7 @@
  * set and are not meant to be: the document names the *shared* source a field is
  * written as, while a declaration names every key the system's own block accepts
  * — including the system-specific ones (`heft`, `strikeModes`) that the document
- * correctly never maps. Until #127 has moved the corpus into `data:`, holding the
+ * correctly never maps. Until the corpus has moved into `data:`, holding the
  * sets equal would report the migration itself as a defect on every run. So the
  * fields only one side names come back as *coverage*, and the types only one side
  * describes come back **named** rather than skipped in silence — a check that
@@ -138,7 +137,7 @@ export function declaredPaths(artifact) {
  *
  * A shared row names no type, so it is placed rather than typed: "in the shared
  * mappings" instead of "on a `weapongear`". Reading `on a \`the shared
- * mappings\`` would be the alternative, and a diagnostic is prose (#275).
+ * mappings\`` would be the alternative, and a diagnostic is prose.
  *
  * @param {object} finding - `{system, systemVersion, noteType, source, target, shared}`.
  * @returns {string} The message.
@@ -342,8 +341,8 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
 
     // The specification's sections are headed by the current spelling of a note
     // type, so a note still on a renamed one is measured against the section it
-    // will move to rather than reported as a type the format does not declare
-    // (#78). The rename itself is the frontmatter lint's finding.
+    // will move to rather than reported as a type the format does not declare.
+    // The rename itself is the frontmatter lint's finding.
     const spec = format.types.get(currentType(type));
     if (!spec) {
         add(
@@ -403,16 +402,16 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
 /**
  * Measure a corpus, and count what it finds by class.
  *
- * The counts are the point as much as the findings: #127 promotes a class to
- * fatal when its count reaches zero, so a run that prints them is the epic's
- * progress bar.
+ * The counts are the point as much as the findings: a class is promoted to
+ * fatal when its count reaches zero, so a run that prints them is the
+ * migration's progress bar.
  *
  * @param {Iterable<object>} notes - `{file, raw, fm}` for each authored note.
  * @param {import("./content-format.mjs").ContentFormat} format - The parsed
  *   specification.
  * @param {object} [opts]
  * @param {boolean} [opts.strict=false] - Report the findings as errors rather
- *   than warnings. #127 turns this on one slice at a time.
+ *   than warnings. Turned on one slice at a time.
  * @returns {{findings: object[], notes: number, byClass: Record<string, number>}}
  */
 export function measureCorpus(notes, format, { strict = false } = {}) {
@@ -475,9 +474,9 @@ export function fieldDriftMessage({ noteType, source, target, name, to }) {
  * A shared source, as the two sides spell it.
  *
  * The specification writes every type-specific row `data.<key>` — the container
- * `data:` (#128) put those facts in — while a declaration writes either: the
+ * `data:` put those facts in — while a declaration writes either: the
  * bare key it has always named, or the same dotted path now that a field can
- * declare its shared source and its legacy in-block key separately (#305).
+ * declare its shared source and its legacy in-block key separately.
  * Both are the same source, so both are normalized before they are compared;
  * matching one spelling against the other would report every moved field as
  * unmapped, which is the opposite of what this check is for.
@@ -507,7 +506,7 @@ function claimsFor(format, noteType, system) {
 
 /**
  * Check the specification's per-type tables against the field declarations that
- * compile them (#136).
+ * compile them.
  *
  * @param {object} opts
  * @param {import("./content-format.mjs").ContentFormat} opts.format - The
@@ -563,7 +562,7 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
             }
             // No declaration names it. That is coverage, not a contradiction —
             // the specification maps fields no builder emits yet, which is the
-            // ordinary mid-migration state (#127) and what `schema-check.mjs`
+            // ordinary mid-migration state and what `schema-check.mjs`
             // already reports as unemitted.
             if (!match) continue;
             fields += 1;
@@ -587,7 +586,7 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
         // The two vocabularies, side by side. Reported rather than asserted
         // equal: the document names the *shared* source a field is written as,
         // and a declaration names every key the system's own block accepts, so
-        // the sets legitimately differ until #127 has moved the corpus.
+        // the sets legitimately differ until the corpus has moved.
         const registryKeys = new Set(
             authored.map((field) => sharedSource(field.name).split(".")[0]),
         );

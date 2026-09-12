@@ -125,7 +125,7 @@ describe("the worked example is the smallest note that compiles", () => {
         expect(examples.length).toBeGreaterThan(0);
     });
 
-    it("authors no `id:` (#314)", () => {
+    it("authors no `id:`", () => {
         // A note's document `_id` derives from its canonical address, and `id:`
         // is the escape hatch for keeping identity across a shortcode rename —
         // not part of the envelope. This page is the reference an author reads

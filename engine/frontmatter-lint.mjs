@@ -12,8 +12,7 @@
  */
 
 /**
- * Checking a note's **frontmatter** against the schema its `type` declares
- * (#19).
+ * Checking a note's **frontmatter** against the schema its `type` declares.
  *
  * Until now nothing did. A note's type decides which properties are required,
  * what shape each value has, and which name another note — but that knowledge
@@ -43,7 +42,7 @@
  * The two rules that are not schema-driven sit on the *note format* side of
  * that line, which is why they are here and not in `sohl/`: the retired
  * top-level fields, and the address-bearing fields a `type: homepage` note
- * refuses (#53). Each supplies its own message from the module that owns the
+ * refuses. Each supplies its own message from the module that owns the
  * knowledge — `retired-fields.mjs` and `homepage.mjs` — and this module only
  * locates it in the file.
  *
@@ -69,7 +68,7 @@ import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from ".
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
 // than repeated, because a linter holding its own copy of what the compiler
-// reads is exactly the disagreement #288 was.
+// reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
 import {
@@ -95,7 +94,7 @@ import {
  *
  * - `folder` — the compendium folder the document is filed in.
  * - `pack` — which compendium of the note's document type receives it, for a
- *   repository shipping several (#1566).
+ *   repository shipping several.
  * - `archetype` — the archetype flag, read for any note by the walk itself.
  * - `kbcat` — the knowledgebase category a note is grouped under.
  *
@@ -162,13 +161,13 @@ export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
  */
 
 /**
- * Every system a configuration says its tree carries (#58).
+ * Every system a configuration says its tree carries.
  *
  * **Which systems a package ships for is already declared**, in three places
  * that answer different questions, so this reads all three rather than asking a
  * new one:
  *
- * - `systems:` (#48) declares them without requiring one, which is how a
+ * - `systems:` declares them without requiring one, which is how a
  *   package ships for several;
  * - a **pack's** `system:` is the same statement made per pack, and it is the
  *   one some trees make: `harn-ensemble` declares an `actors-sohl` and an
@@ -204,7 +203,7 @@ export function declaredSystems(config) {
 
 /**
  * The system blocks a configuration says its tree carries, and what each
- * accepts (#58).
+ * accepts.
  *
  * The lint checks the blocks its caller names, and for as long as there was one
  * system the only caller named none — so every tree took the `sohl:` of
@@ -406,7 +405,7 @@ function dataBlock(fm) {
 
 /**
  * Check a note's `data:` container against the closed vocabulary its type
- * declares (#128).
+ * declares.
  *
  * Unlike the top level, which is passed through to the published page and so
  * cannot be refused, `data:` holds the type-specific facts about the subject
@@ -526,7 +525,7 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
 
         // `default` is the map's own key for "every pack not named", not a
         // pack — spelled out rather than left as an absent key, so a map
-        // stating only exceptions still reads as a complete answer (#276).
+        // stating only exceptions still reads as a complete answer.
         if (known && key !== DEFAULT_PARENT && !known.has(key)) {
             const guess = nearest(key, known);
             findings.push({
@@ -563,38 +562,36 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
 }
 
 /**
- * Check a note's top-level `subType` against the values its type declares
- * (#128).
+ * Check a note's top-level `subType` against the values its type declares.
  *
  * `subType` stays at the top level — it is what each system's map reads to
  * derive a document type, so it describes the note rather than the subject —
  * but it is not open like the rest of that region: a type either declares a
  * `subType` or does not, and a type that does declares its values.
  *
- * **It is a genre, and only a genre.** #197 gave the field a second reading: a
- * `README.md` was its section's landing page, and the segment it landed at was
- * its `subType`, so the value had to be checked against the sections that could
- * exist — every content type, plus whatever a repository configured — rather
+ * **It is a genre, and only a genre.** A second reading of the field — a
+ * `README.md` as its section's landing page, whose `subType` is the segment it
+ * lands at — would mean checking the value against the sections that could
+ * exist (every content type, plus whatever a repository configured) rather
  * than against the genres its type declares. Two vocabularies in one field is
- * what #198, #200 and #201 were each spent on, and #204 removed the cause rather
- * than the symptom: a section is a Hugo directory the note format does not
+ * the cause, and it is removed rather than the symptom: a section is a Hugo
+ * directory the note format does not
  * carry, and a page introducing a type is an ordinary note addressed
  * `doc-<type>`. So the closed list answers for every note, whatever it is
  * called, and `rules`, `userguide`, `reference` mean three genres and nothing
  * else.
  *
- * **Two checks, in this order** — the charset, then the closed set (#206,
- * #204). The charset is first because it is the more general statement about
+ * **Two checks, in this order** — the charset, then the closed set. The
+ * charset is first because it is the more general statement about
  * the same value: a value outside `^[A-Za-z0-9]+$` is refused whatever the type
  * declares, and only once it is a well-formed term is the type's own list the
  * reason to refuse it.
  *
- * There were three. #206 ran a retired-spelling check ahead of both, accepting
- * `user-guide` as a warning naming `userguide`, so the 43 `sohl` notes
- * authoring it were not invalidated by the release that renamed it. Every
- * consumer tree has swept, so the acceptance guarded nothing and is gone: the
- * old spelling now falls through to the charset check, which refuses it for the
- * reason that always applied — it contains a hyphen (#210).
+ * There is deliberately no third, retired-spelling check ahead of them
+ * accepting `user-guide` as a warning naming `userguide`. Every consumer tree
+ * has swept, so it would guard nothing: the old spelling falls through to the
+ * charset check, which refuses it for the reason that always applied — it
+ * contains a hyphen.
  *
  * @param {object} note - The note.
  * @param {object} opts
@@ -658,7 +655,7 @@ function checkSubType(note, { type, entry }) {
 }
 
 /**
- * Check a note's `tags` for near misses against the tags that classify (#172).
+ * Check a note's `tags` for near misses against the tags that classify.
  *
  * `tags:` is top-level and the top level is open, so an unrecognised tag is
  * **not** a finding: a theme, a region or a working state is the author's own
@@ -717,13 +714,13 @@ function checkTags(note, { type }) {
  * empty value belongs to the translator, not to whichever key happens to be
  * more common. Eleven `sohl-kethira-basic` beings write `portrait: ""` and no
  * note in any tree writes `img: ""` on a being; a check keyed on `img` alone
- * would have called that tree clean (#218).
+ * would have called that tree clean.
  *
  * **Each carries where it is authored**, because the two no longer agree. The
  * specification puts an actor's portrait under `data:` and leaves its token art
  * at the note's top level, so `portrait` has a third position to read and `img`
  * does not — and a check that read only the two they share would pass a
- * `data.portrait: ""` it could not see (#332).
+ * `data.portrait: ""` it could not see.
  *
  * @type {readonly {key: string, inData: boolean}[]}
  */
@@ -749,7 +746,7 @@ const ART_FIELDS = Object.freeze([
  * "Ajaw", "Warden". Twenty-eight `sohl-kethira-basic` affiliations author
  * `sohl.title: ""` — an office with no style of address, which is ordinary —
  * and every one of them was reported as publishing a page with no heading. None
- * of them does; their pages take `name.full` exactly as intended (#312).
+ * of them does; their pages take `name.full` exactly as intended.
  *
  * Keyed on the **in-block** key — `legacyKey` where a field declares one, and
  * its first segment where that is dotted — because that is the position a note
@@ -764,13 +761,13 @@ const ART_FIELDS = Object.freeze([
  *
  * The first segment of each field's in-block key: `impact.die` is authored as
  * `impact`, and a field whose shared source moved under `data:` is authored at
- * the `legacyKey` it declares rather than at its dotted name (#305). Keying on
+ * the `legacyKey` it declares rather than at its dotted name. Keying on
  * the name instead would report `sohl.species` as a property no `being` has,
  * against exactly the notes the sweep has not reached yet.
  *
  * Written once and read twice: the note type's own declaration answers for the
  * system whose vocabulary the caller's `schemas` are, and a second system's
- * registry answers for its block (#58). Two derivations of one thing would be
+ * registry answers for its block. Two derivations of one thing would be
  * free to disagree about which position a note authors.
  *
  * @param {readonly object[]|null|undefined} schema - A type's declarations.
@@ -798,12 +795,11 @@ function collidingBlockKeys(schema) {
  * restated here rather than imported so this module stays a leaf the linter can
  * load without a resolved build configuration. Unlike that resolver it
  * distinguishes the two empties — an authored `""` comes back as `""` and an
- * authored `null` as `null` — which is the whole point of the caller below
- * (#218).
+ * authored `null` as `null` — which is the whole point of the caller below.
  *
  * **`blockCollides` drops the first position**, where the note's type declares
  * a system field of that name meaning something else — the resolver's
- * `topLevelMeans` exemption, applied from the note-level side (#312). See
+ * `topLevelMeans` exemption, applied from the note-level side. See
  * {@link collidingBlockKeys}. The caller decides per key rather than this
  * function deciding for itself, because this module knows no type's vocabulary:
  * the declarations arrive from the caller, as `schemas` and `vocabulary` do.
@@ -831,7 +827,7 @@ function authoredValue(fm, key, { inData = false, blockCollides = false } = {}) 
 }
 
 /**
- * Two embedded items on one actor may not share `(type, shortcode)` (#228).
+ * Two embedded items on one actor may not share `(type, shortcode)`.
  *
  * SoHL treats `(type, shortcode)` as a **logical identity**, not a lookup
  * convenience: two documents of one type bearing one shortcode denote *the same
@@ -916,7 +912,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {object} [opts.index] - The link index, for the reference check. Its
  *   absence skips that check rather than reporting every reference as dead.
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
- *   it declares, as `engine/note-vocabulary.mjs` states them (#128). Supplied
+ *   it declares, as `engine/note-vocabulary.mjs` states them. Supplied
  *   by the caller for the same reason `schemas` is: this module validates a
  *   note against whatever its type declares and knows no type names of its
  *   own. Its absence skips the `data:` and `subType` checks rather than
@@ -926,7 +922,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   declaration, asked through `engine/generate.mjs`'s `emittedArtFor`.
  *   Supplied by the caller like `schemas`, so this module states no list of
  *   iconless types of its own; absent it, an inert `img:` goes unreported
- *   rather than every note's being (#349).
+ *   rather than every note's being.
  * @param {Readonly<Record<string, SystemBlockSpec>>} [opts.systems]
  *   The system blocks to check, and what each accepts. Supplied by the caller
  *   for the same reason `schemas` is — a build derives them from its
@@ -950,7 +946,7 @@ export function lintNote(
     /**
      * The in-block keys this note's own type claims for something other than
      * the note-level field of that name, which every note-level check below
-     * reads past (#312). Resolved once: the type is fixed for the note, and
+     * reads past. Resolved once: the type is fixed for the note, and
      * each check would otherwise ask the same question of the same
      * declarations.
      */
@@ -959,7 +955,7 @@ export function lintNote(
     // The retired top-level fields, checked before the type: a note may carry
     // one whatever its type is, and each finding stands on its own. Reported
     // here as well as refused at compile because this is where an author meets
-    // every finding in the tree at once, rather than one note at a time (#56).
+    // every finding in the tree at once, rather than one note at a time.
     if (Object.hasOwn(fm, "package")) {
         findings.push({
             file: note.file,
@@ -973,7 +969,7 @@ export function lintNote(
         });
     }
     // `folder:` named a compendium folder by the raw Foundry id declared in a
-    // per-pack `*-folders.yaml`. Both halves are retired together (#260): the
+    // per-pack `*-folders.yaml`. Both halves are retired together: the
     // id spelling has nothing left to resolve against once the YAML is gone.
     //
     // Checked here as well as refused at compile because this is where an
@@ -1002,7 +998,7 @@ export function lintNote(
     }
     // `img: ""` was how a note said "I name no art" while `resolveImg`
     // conflated the two empties and every caller defaulted with `||`. It now
-    // says the opposite — "ship no art, and do not default me" (#218) — so a
+    // says the opposite — "ship no art, and do not default me" — so a
     // note carrying the old spelling has quietly changed meaning. Forty-five
     // `sohl-thalorna` notes were written under the old reading and would have
     // lost their default art with no error and no warning; this is the guard
@@ -1038,14 +1034,14 @@ export function lintNote(
     // reads; it says nothing about which position a *check* reads, and
     // `authoredValue` went on resolving through the block regardless — so an
     // office with no style of address answered for its note's heading, in
-    // twenty-eight `sohl-kethira-basic` affiliations (#312). Hence
+    // twenty-eight `sohl-kethira-basic` affiliations. Hence
     // `blockCollisions`: a note-level check reads past a block key its type
     // claims for something else.
 
     // The template priority is a *shared source* — the specification states it
     // once for every type, as it does `pack` — so its retirement is reported
     // here rather than by the per-type loop below, which only reaches a field
-    // some type's vocabulary declares (#266).
+    // some type's vocabulary declares.
     if (declaresRetiredAlias(fm, "templatePriority")) {
         findings.push({
             file: note.file,
@@ -1065,7 +1061,7 @@ export function lintNote(
         });
     }
 
-    // An art field a note's own type never emits (#349). `img` is a *shared
+    // An art field a note's own type never emits. `img` is a *shared
     // top-level* field — `BLOCK_DOCUMENT_PROPERTIES` maps it onto
     // `document.img`, so it is legal on every note whatever the type — and a
     // note whose document has no such property authors it, validates, compiles,
@@ -1084,7 +1080,7 @@ export function lintNote(
     // `index` and `vocabulary` set.
     //
     // **Only an authored value, never `null`.** `null` is the blessed spelling
-    // for "this note names no art" (#218), and on a type with no art that is a
+    // for "this note names no art", and on a type with no art that is a
     // true and harmless thing to say — it compiles identically to writing
     // nothing. Twenty-six `sohl-thalorna` place notes are in exactly that
     // state, and telling each of them to delete a key that already means
@@ -1140,7 +1136,7 @@ export function lintNote(
                 "meant to have no image",
         });
     }
-    // `title: ""` publishes a blank heading (#218). The rule the art fields
+    // `title: ""` publishes a blank heading. The rule the art fields
     // follow — `null` falls back, `""` is blank on purpose — reads the same way
     // here, and for a *page heading* the deliberate blank is almost never what
     // anyone wants: the emitter is `fm.title ?? name`, so `""` survives, the
@@ -1154,7 +1150,7 @@ export function lintNote(
     // **The emitter reads `fm.title`, so this reads the note level.** On an
     // `affiliation` `sohl.title` is the office's style of address, which the
     // heading has nothing to do with — and `blockCollisions` is what keeps the
-    // two apart (#312). On every other type nothing claims the block key, so the
+    // two apart. On every other type nothing claims the block key, so the
     // resolution is the unchanged one.
     if (authoredValue(fm, "title", { blockCollides: blockCollisions.has("title") }) === "") {
         findings.push({
@@ -1179,7 +1175,7 @@ export function lintNote(
     }
     // Anchored at column 1 for the same reason `aliases` is: `section` names a
     // configuration key too (`site.trees[].section`), and a nested one under
-    // some other block is not this field (#202).
+    // some other block is not this field.
     if (Object.hasOwn(fm, "section")) {
         findings.push({
             file: note.file,
@@ -1191,7 +1187,7 @@ export function lintNote(
     // Anchored at column 1 for the same reason `section` is, and with more at
     // stake: `sohl.traits` is a *different field that shares the name* —
     // `projectilegear` declares one and the theme's gear sidebar reads it — so
-    // a finding about the retired top-level block must never open on it (#291).
+    // a finding about the retired top-level block must never open on it.
     if (Object.hasOwn(fm, "traits")) {
         findings.push({
             file: note.file,
@@ -1202,7 +1198,7 @@ export function lintNote(
     }
     // Only the top-level `aliases` is retired. `name.aliases` writes the same
     // key indented under `name:` and is **permitted** — reserved and unread —
-    // so both the test and the locator are anchored at column 1 (#180).
+    // so both the test and the locator are anchored at column 1.
     if (declaresRetiredAliasesField(fm)) {
         findings.push({
             file: note.file,
@@ -1213,7 +1209,7 @@ export function lintNote(
     }
 
     // What the address rule says about a homepage's top-level fields: the
-    // `shortcode` it owes, and the `id` it may not write (#53, #182). Reported
+    // `shortcode` it owes, and the `id` it may not write. Reported
     // beside the retired fields above because it is the same kind of statement
     // about the same note, and, like them, it must survive the two early
     // returns below: the finding stands whatever else the type is.
@@ -1224,7 +1220,7 @@ export function lintNote(
 
     // A refused field must be one the note *wrote*: `resolveNoteId` fills
     // `fm.id` in place, so the parsed frontmatter carries a derived id the
-    // author never typed (#319). The raw text is the only place that
+    // author never typed. The raw text is the only place that
     // distinguishes them, and `positionInFrontmatter` already answers it —
     // `topLevel` so a nested `id:` under some other key is not mistaken for the
     // note's own.
@@ -1242,7 +1238,7 @@ export function lintNote(
         });
     }
 
-    // The type's charset, before anything that looks the type up (#206). A
+    // The type's charset, before anything that looks the type up. A
     // hyphenated type is unaddressable, and every lookup below would report it
     // as a type nobody declared — true, but not the reason, and it would send
     // the author to declare one rather than to rename it.
@@ -1278,7 +1274,7 @@ export function lintNote(
     // A **renamed** type is the opposite case, and the opposite answer: the
     // note compiles into exactly the document it always did, so refusing it
     // would fail a build over a note that is not wrong. It is reported, and
-    // every lookup below reads the current spelling (#78).
+    // every lookup below reads the current spelling.
     const renamedTo = RENAMED_TYPES[type];
     if (renamedTo) {
         findings.push({
@@ -1286,7 +1282,7 @@ export function lintNote(
             ...at("type", type),
             // A warning, for the reason the retired *field* alias below is one:
             // the sweep is the content trees' work and the refusal comes after
-            // it, as `package:`'s did (#56).
+            // it, as `package:`'s did.
             severity: "warning",
             message: renamedTypeMessage(type, renamedTo),
         });
@@ -1308,7 +1304,7 @@ export function lintNote(
         return findings;
     }
 
-    // The closed frontmatter regions (#128), checked beside the `sohl:` block
+    // The closed frontmatter regions, checked beside the `sohl:` block
     // because they are the same statement about the same note: this key is not
     // one this type may write. Skipped entirely when the caller declares no
     // vocabulary — reporting every key as unknown because nothing was loaded
@@ -1326,7 +1322,7 @@ export function lintNote(
     // The retired spelling of a field this type declares → what to write now.
     // Built from the type's own vocabulary, so a renamed field is retired
     // exactly where its replacement exists and the old name stays an unknown
-    // key everywhere else (#142).
+    // key everywhere else.
     const renamed = new Map();
     for (const name of declared) {
         const retired = RETIRED_FIELD_ALIASES[name];
@@ -1344,13 +1340,13 @@ export function lintNote(
             // A warning, not an error: the note compiles to the correct
             // document, so failing a build over it would red a tree that has
             // done nothing wrong yet. The refusal comes after the sweep, as
-            // `package:`'s did (#56).
+            // `package:`'s did.
             severity: "warning",
             message: retiredAliasMessage(retired, current),
         });
     }
 
-    // Every declared system's block, each against its own vocabulary (#58). A
+    // Every declared system's block, each against its own vocabulary. A
     // block carries the shared keys any system's does — `system`, `type`,
     // `img`, `effects`, `flags`, `pack` — plus whatever that system declares:
     // the note type's own field names for the system those schemas describe,
@@ -1358,7 +1354,7 @@ export function lintNote(
     // here is the configuration's answer, not this module's; see
     // {@link systemBlocksFor}.
     for (const [blockName, spec] of Object.entries(systems ?? {})) {
-        // Two embedded items denoting one entity (#228). Per block, because
+        // Two embedded items denoting one entity. Per block, because
         // `items` is a block key and a second system's actor carries its own.
         // Before the `continue` below, because it is a statement about the
         // block's *shape* and holds whether or not this system declares a
@@ -1406,7 +1402,7 @@ export function lintNote(
         // reached through its parent, and reporting the parent twice — once as
         // itself and once as its child — helps nobody.
         const [head] = field.name.split(".");
-        // Resolved exactly as the compiler resolves it (#58): the system path
+        // Resolved exactly as the compiler resolves it: the system path
         // first, then the block, then the declared shared source. A lint that
         // read only one of the three would report a note's own field as missing
         // the moment it moved to another of them. A **shared** field needs
@@ -1416,7 +1412,7 @@ export function lintNote(
         // A **renamed** field may still be written under its retired spelling,
         // which that order knows nothing about. It resolves through the reader
         // the compiler uses, so the lint cannot disagree with the build about
-        // which value a note carries (#142).
+        // which value a note carries.
         if ((from === "default" || value == null) && RETIRED_FIELD_ALIASES[field.name]) {
             const aliased = readAliasedField(fm, field.name);
             if (aliased !== undefined) {
@@ -1424,7 +1420,7 @@ export function lintNote(
                 from = "block";
             }
         }
-        // The sweep's progress signal (#305). A **warning**, for the reason a
+        // The sweep's progress signal. A **warning**, for the reason a
         // retired spelling is one: the note compiles to the correct document,
         // so failing a build over it would red a tree that has done nothing
         // wrong yet. The refusal comes once no tree writes the position.
@@ -1441,7 +1437,7 @@ export function lintNote(
         // under `sohl:`, so telling an author to write `sohl.img` would send
         // them to the wrong region. Nor is a field whose shared source is a
         // path into `data:` — `sohl.data.species` is a region that does not
-        // exist, and the home of that field is the container it names (#305).
+        // exist, and the home of that field is the container it names.
         const label =
             field.shared || (field.name.includes(".") && field.legacyKey !== undefined) ?
                 `\`${field.name}\``
@@ -1476,11 +1472,10 @@ export function lintNote(
         // would — rather than through a second, subtly different rule.
         //
         // **As an address, always** — which is now the only namespace there
-        // is (#180). A frontmatter reference is a bare address by construction:
+        // is. A frontmatter reference is a bare address by construction:
         // there is no pipe to read intent from, and the field supplies the
         // type. The resolver once took a namespace argument, and omitting it
-        // read every `ref:` value as an alias, which `type-shortcode` never was
-        // (#176).
+        // read every `ref:` value as an alias, which `type-shortcode` never was.
         if (field.ref && index && typeof value === "string" && value) {
             const target = `${field.ref}-${value}`;
             if (!index.resolve(target) && !index.manifestHit(target)) {
@@ -1506,7 +1501,7 @@ export function lintNote(
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
- *   it declares (#128); see {@link lintNote}.
+ *   it declares; see {@link lintNote}.
  * @param {boolean} [opts.references=true] - Whether to check references.
  * @param {Readonly<Record<string, SystemBlockSpec>>} [opts.systems]
  *   The system blocks to check; see {@link lintNote} and

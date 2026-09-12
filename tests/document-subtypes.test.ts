@@ -6,7 +6,7 @@
  */
 
 /**
- * The note-type → document-subtype map (#79).
+ * The note-type → document-subtype map.
  *
  * The two vocabularies — what a markdown note calls its `type`, and what
  * Foundry calls the document's subtype — were the same identifier because a
@@ -247,7 +247,7 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         // type and the document subtype are the same word on every row, so the
         // map returns what inferring it did.
         //
-        // #78 briefly broke that for three rows by renaming them off the
+        // A rename briefly broke that for three rows by moving them off the
         // `…gear` spellings; reversing it restores the property for all
         // fourteen, which is why this no longer needs an exception list.
         for (const type of Object.keys(SOHL_DOCUMENT_SUBTYPES.types)) {
@@ -255,7 +255,7 @@ describe("SOHL_DOCUMENT_SUBTYPES (the declaration this system ships)", () => {
         }
     });
 
-    it("still answers to a renamed type's retired spelling (#78)", () => {
+    it("still answers to a renamed type's retired spelling", () => {
         // The retirement window: a tree that has not swept its `(type,
         // shortcode)` references compiles into the document it always did, so
         // the packs cannot move while the sweep is outstanding.

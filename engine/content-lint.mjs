@@ -15,8 +15,8 @@
  * Linting a content tree's **addresses** — the rules every package's notes are
  * authored against, wherever those notes live.
  *
- * These rules used to live in the SoHL repository's `utils/`, which had two
- * consequences and no upside (#20). `thalorna` and `kethira` notes were checked
+ * These rules do not live in a consumer's `utils/`, which has two
+ * consequences and no upside. `thalorna` and `kethira` notes were checked
  * by nothing at all, so the packages most likely to carry authoring mistakes
  * were the ones nothing inspected. And one rule with two implementations can
  * disagree without anything detecting it, which the canonical-separator
@@ -30,28 +30,24 @@
  *    being the only hyphen in the string.
  * 2. **Uniqueness** — `(type, shortcode)` names one note.
  * 3. **The package's own address** — exactly one note claims `/<package>/`,
- *    which is {@link checkHomepageCount} (#52). It belongs here for the same
+ *    which is {@link checkHomepageCount}. It belongs here for the same
  *    reason the other two do: it is a statement about which note holds which
  *    address, it needs no `site:` configuration to decide, and a package with
  *    no front page is misconfigured whether or not anyone runs a site build.
  * 4. **Vacated addresses** — a `renamedFrom:` entry names an address this note
- *    used to hold and nothing holds now (#278). It is the same statement as
+ *    once held and nothing holds now. It is the same statement as
  *    rule 2 read backwards, and it needs the same whole-tree view: an entry can
  *    only be checked against every *other* note's address, and two notes
  *    claiming one predecessor is the uniqueness rule applied to the past.
  *
  * **Nothing here writes.** A check reports and an author fixes.
  *
- * **A third rule was retired (#79).** Every note used to be required to repeat
- * its own `type-shortcode` address in the top-level `aliases:` list. That
- * served exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolved in
- * the editor — and nothing else ever read it: both resolvers parse the hyphen
- * qualifier themselves. The project no longer authors in Obsidian, so the rule
- * required a line of frontmatter per note for a reader that does not exist. The
- * field itself is retired now (#180), refused from `retired-fields.mjs`. Removing it was
- * verified output-neutral beforehand: across 1,735 stripped notes,
- * `package compile` produced byte-identical `build/packs-json` and the site
- * build byte-identical `site/content`.
+ * **There is deliberately no third rule** requiring every note to repeat its
+ * own `type-shortcode` address in a top-level `aliases:` list. It would serve
+ * exactly one reader — **Obsidian**, so `[[type-shortcode]]` resolves in the
+ * editor — and nothing in the build reads it: both resolvers parse the hyphen
+ * qualifier themselves. The field is retired, refused from
+ * `retired-fields.mjs`.
  *
  * **What is deliberately absent.** Corpus reachability — "every Rules document
  * is reachable from the book's root" — is a statement about what one package
@@ -67,7 +63,7 @@ import path from "node:path";
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { assertStatedScope } from "./helpers.mjs";
-// The corpus, read from the one pass that derives it (#243).
+// The corpus, read from the one pass that derives it.
 import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
 import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-renames.mjs";
@@ -78,7 +74,7 @@ import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-ren
  * This is {@link ADDRESS_SEGMENT_PATTERN}, not a second copy of it. A shortcode
  * is the last segment of a canonical address, and the rule it is held to is the
  * rule *every* segment is held to — so the two are one constant rather than two
- * free to drift apart (#59). The name survives because this is where the rule
+ * free to drift apart. The name survives because this is where the rule
  * is applied to a note.
  *
  * Case is deliberately **not** constrained: hundreds of authored shortcodes are
@@ -112,7 +108,7 @@ export function isValidShortcode(value) {
  * `Templates/`, a `README`, a repository's own `CLAUDE.md` — has no type, is
  * neither addressed nor addressable, and would fail rules it can never satisfy.
  *
- * **Read from the index, not from a walk of this pass's own** (#243). The
+ * **Read from the index, not from a walk of this pass's own**. The
  * `lint` command already derives the index — its link check and its `sql`
  * tables are built from it — and then walked the tree a second time to get
  * here, so one command held two answers to "which files are the corpus?" and
@@ -162,7 +158,7 @@ function collectNotes(contentBase, { skipDirectories, config, records, problems 
 }
 
 /**
- * What one note's `renamedFrom:` says, checked against itself (#278).
+ * What one note's `renamedFrom:` says, checked against itself.
  *
  * The entries a note can be wrong about on its own: a value that is not a
  * shortcode, one naming the address the note holds *now*, one written twice.
@@ -276,7 +272,7 @@ function checkRenamedFrom({ fm, file }, raw) {
  * @param {object} [opts.config] - The resolved build configuration, which the
  *   corpus is derived against.
  * @param {readonly object[]} [opts.records] - Index records the caller already
- *   derived, so a command reads one corpus (#243).
+ *   derived, so a command reads one corpus.
  * @param {object[]} [opts.problems] - Collects the notes the index cannot
  *   record, instead of letting one of them silence the lint.
  * @returns {{findings: Array<{file: string, line?: number, column?: number,
@@ -348,17 +344,17 @@ export function lintContentTree(
     // what a tree that failed to check out produces — so the lint would go
     // green on the one state it most needs to catch.
     //
-    // The state that catches is an **empty walk**, not an empty key set (#77).
+    // The state that catches is an **empty walk**, not an empty key set.
     // Notes may be keyless: a folder document carries no `shortcode`, and a
     // tree of them is populated, correct, and unkeyed. Reporting that as a
     // missing checkout trains its author to stop reading the output — the one
     // thing this guard needs them to do. A tree holding notes is therefore a
     // tree; only a tree holding none is the absent one.
     //
-    // The homepage used to be the headline example, because it was addressed
+    // The homepage is not the headline example, though it was once addressed
     // by the package rather than by a slug — so a `publish.site: homepage`
     // package had a tree with exactly one note and no key at all. It carries an
-    // address like every other note now (#182); the guard is unchanged, because
+    // address like every other note now; the guard is unchanged, because
     // what it reads was never the key count.
     if (notes.length === 0) {
         findings.push({
@@ -401,8 +397,8 @@ export function lintContentTree(
         }
     }
 
-    // The two questions about a declared rename that need the whole tree
-    // (#278). Both are the uniqueness rule above, applied to the past: an
+    // The two questions about a declared rename that need the whole tree.
+    // Both are the uniqueness rule above, applied to the past: an
     // address has one holder, so it has one successor and it cannot be both
     // vacated and occupied.
     for (const [claim, claimants] of claimedPredecessors) {

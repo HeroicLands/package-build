@@ -12,7 +12,7 @@
  * `item-builders.test.ts` covers the registry this repository ships. This file
  * covers the half only a foreign registry can prove — that the builder the
  * compiler dispatches to is the one the consumer configured, not the table the
- * package happens to hold (#1563). In this repository the two are the same
+ * package happens to hold. In this repository the two are the same
  * object, so nothing but a foreign configuration can tell them apart.
  *
  * Out of process, because the resolved configuration is loaded once per module
@@ -144,7 +144,7 @@ const RELIC_FM = `{
     sohl: { power: 7, archetype: null },
 }`;
 
-describe("a consumer's own itemBuilders table is the one that compiles (#1563)", () => {
+describe("a consumer's own itemBuilders table is the one that compiles", () => {
     const configPath = consumerRepo();
 
     it("dispatches to the builder the consumer configured", () => {
@@ -174,7 +174,7 @@ describe("a consumer's own itemBuilders table is the one that compiles (#1563)",
         );
 
         expect(selected.relic).toBe(true);
-        // #1504's guarantee, from the other side: the whitelist is the keys of
+        // The registry guarantee, from the other side: the whitelist is the keys of
         // the table the consumer supplied, so SoHL's types are not in it.
         expect(selected.skill).toBe(false);
         expect(selected.types).toEqual(["relic"]);
@@ -265,7 +265,7 @@ describe("a consumer's own item type has default art of its own (#7)", () => {
     it("fails naming the consumer's own registry, not a SoHL module", () => {
         // The reported bug. It is still an error to have neither — the build
         // must not silently ship a mismatched icon — but the error has to point
-        // at a table the consumer can actually add to. It used to name
+        // at a table the consumer can actually add to, rather than naming
         // `@heroiclands/package-build/sohl/default-item-art`, which is SoHL's
         // runtime data and closed to consumers.
         const outcome = underConfig(

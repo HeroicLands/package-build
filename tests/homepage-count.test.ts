@@ -6,9 +6,9 @@
  */
 
 /**
- * Exactly one `type: homepage` note per package (#52).
+ * Exactly one `type: homepage` note per package.
  *
- * #51 gave every package an authored page at `/<package>/` and #55 made it the
+ * Every package has an authored page at `/<package>/`, and it is the
  * floor rather than an extra, but nothing required a package to have one — so
  * the failure mode of the whole arrangement was a package that builds green and
  * serves nothing at its own address. Two is the same defect wearing a page:
@@ -78,7 +78,7 @@ function homepage(title = "The Demo Module", shortcode = "root"): string {
     ].join("\n");
 }
 
-describe("checkHomepageCount — the rule itself (#52)", () => {
+describe("checkHomepageCount — the rule itself", () => {
     it("passes exactly one", () => {
         expect(
             checkHomepageCount([{ file: "assets/content/homepage.md" }], {
@@ -142,7 +142,7 @@ describe("checkHomepageCount — the rule itself (#52)", () => {
 
     // The rule used to rest on the fixed destination every homepage shared:
     // the second silently overwrote the first. A homepage is written at its own
-    // address now (#182), so two of them publish two pages — and the rule is a
+    // address now, so two of them publish two pages — and the rule is a
     // cardinality rule, stated as one, rather than a consequence of a
     // collision that no longer happens.
     it("does not justify itself by a shared destination any more", () => {
@@ -171,7 +171,7 @@ describe("checkHomepageCount — the rule itself (#52)", () => {
     });
 });
 
-describe("`content-build lint` enforces it (#52)", () => {
+describe("`content-build lint` enforces it", () => {
     const lint = (files: Record<string, string>) =>
         lintContentTree(tree(files), {
             skipDirectories: [],
@@ -214,13 +214,13 @@ describe("`content-build lint` enforces it (#52)", () => {
     });
 
     it("is not conditional on a shortcode, so a homepage-only tree passes", () => {
-        // The one note in the tree is keyless by design (#77).
+        // The one note in the tree is keyless by design.
         const r = lint({ "homepage.md": homepage() });
         expect(r.findings).toEqual([]);
     });
 });
 
-describe("the site build enforces it, in both publishing modes (#52)", () => {
+describe("the site build enforces it, in both publishing modes", () => {
     function sandbox(files: Record<string, string>): string {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-home-site-"));
         fs.writeFileSync(
@@ -287,13 +287,13 @@ describe("the site build enforces it, in both publishing modes (#52)", () => {
         const result = buildSite({ config: configFor(root, "content") });
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
-        // Written at its address, not at a destination of its own (#182).
+        // Written at its address, not at a destination of its own.
         expect(fs.existsSync(path.join(root, "out/homepage-root.md"))).toBe(true);
     });
 
     it("fails a homepage that declares no shortcode, before the wipe", () => {
         // The address rule reaches homepage-only mode too, which runs no other
-        // gate at all — so it is reported here, beside the count (#182).
+        // gate at all — so it is reported here, beside the count.
         const root = sandbox({
             "homepage.md": ["---", `type: ${HOMEPAGE_TYPE}`, "---", "", "Prose.", ""].join("\n"),
             "Gear/Dagger.md": note(),

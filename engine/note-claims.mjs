@@ -13,8 +13,8 @@
 
 /**
  * **Which note types a configuration compiles at all** — the finding for a note
- * whose type nothing claims (#146), and the one for a note that loses a
- * document while the rest of it compiles (#152).
+ * whose type nothing claims, and the one for a note that loses a
+ * document while the rest of it compiles.
  *
  * Every compile pass answers one question about a note: _is this mine?_ A note
  * every pass answers "no" to is skipped as quietly as the thousands that
@@ -29,7 +29,7 @@
  *
  * This module supplies the missing complaint, and it is asked **once per
  * build** rather than once per pass. That is not an optimisation: it is the
- * only place the question can be answered correctly. #79's rule is that a
+ * only place the question can be answered correctly. The rule is that a
  * markdown type with no mapping in a given system produces no document *for
  * that system*, silently and correctly — so a per-pass check would report
  * `armorlocation` against every system that does not map it, which is precisely
@@ -51,13 +51,13 @@
  * who invented a word. Collapsing the two would send `harn-ensemble` to correct
  * five perfectly good notes.
  *
- * ## The partial case is a third condition, and it was invisible (#152)
+ * ## The partial case is a third condition, and it was invisible
  *
  * The table above asks whether a note is compiled *at all*, and a note that
  * compiles one of its two documents answers yes. But a note produces more than
  * one document as a matter of course — an item note an Item and the
  * JournalEntry its prose becomes, a map note a Scene and a JournalEntry, an
- * actor note an Actor and a JournalEntry since #337 — so a configuration
+ * actor note an Actor and a JournalEntry — so a configuration
  * missing a pack for *one* of them dropped that document while the rest of the
  * note compiled into a pack that does exist. The build succeeded and shipped
  * half of what was written.
@@ -85,7 +85,7 @@
 
 import { assertSuppliedCorpus, parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only: this module is imported by the content index, so
-// importing the index back would close a cycle (#243).
+// importing the index back would close a cycle.
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
@@ -124,11 +124,11 @@ export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
  * correctly and is worthless, because the configured vocabulary is *derived
  * from the routing*. Take a type's route away and it leaves the vocabulary too,
  * so the inference excuses precisely the mistake it was meant to catch. That is
- * not hypothetical: it is #241, where `place`, `lore` and `scenario` were
- * declared, validated and unrouted, and every gate reported success until a
- * downstream repository failed on 450 notes.
+ * not hypothetical: `place`, `lore` and `scenario` were declared, validated
+ * and unrouted, and every gate reported success until a downstream repository
+ * failed on the notes carrying them.
  *
- * A type leaves this set when it is implemented, the way `bundle` did in #259.
+ * A type leaves this set when it is implemented.
  * The membership is asserted, so it cannot be forgotten in either direction.
  *
  * @type {ReadonlySet<string>}
@@ -141,7 +141,7 @@ export const UNIMPLEMENTED_TYPES = Object.freeze(new Set(["vehicle"]));
  * A folder is the only one, and it is not unclaimed: it compiles to a real
  * `Folder` document. What it has no answer to is *which* pack claims it, because
  * that is not a property of the note — a folder materialises in every pack
- * holding a document that references it, and its ancestors with it (#257). So
+ * holding a document that references it, and its ancestors with it. So
  * it is exempt from the claim check for the opposite reason a homepage is:
  * a homepage is in no pack, and a folder may be in several.
  *
@@ -153,7 +153,7 @@ export const DERIVED_PACKED_TYPES = Object.freeze(new Set([FOLDER_TYPE]));
  * The note-type → document-subtype maps this toolchain ships.
  *
  * Declared in {@link module:engine/subtype-registry} and re-exported here,
- * where it has always been read from. It moved to a leaf in #270 so that
+ * where it is read from. It sits on a leaf so that
  * `helpers.mjs` could reach it: this module imports `walkMarkdownTree` from
  * there, so a dependency the other way would have closed a cycle.
  *
@@ -232,7 +232,7 @@ function mappingSystems(maps, type) {
  * @param {ClaimSources} [sources] - What to answer from.
  * @param {object} [opts] - Options.
  * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above (#243). Defaults to the
+ *   compile and handed in — required, for the reason above. Defaults to the
  *   configured registries and the systems this toolchain ships.
  * @returns {ReadonlySet<string>} The note types such a pass would claim.
  */
@@ -263,8 +263,8 @@ export function noteTypesClaimedBy(docType, sources) {
             return Object.freeze(new Set(["macro"]));
         case "Scene":
             return Object.freeze(new Set(MAP_TYPES));
-        // The bundles pass: an Adventure is what a `bundle` note compiles into
-        // (#259). A **prebuilt** Adventure pack still claims nothing —
+        // The bundles pass: an Adventure is what a `bundle` note compiles into.
+        // A **prebuilt** Adventure pack still claims nothing —
         // {@link claimedNoteTypes} passes over it, because no note is routed
         // into a pack whose JSON is checked in rather than compiled.
         case "Adventure":
@@ -297,13 +297,13 @@ export const CLAIMABLE_DOCUMENT_TYPES = Object.freeze([
 ]);
 
 /**
- * Every document class a note of one type compiles into (#152).
+ * Every document class a note of one type compiles into.
  *
  * **A note produces more than one document, and that is the ordinary case.** An
  * item note compiles an Item *and* the JournalEntry its prose becomes; a map
- * note a Scene and a JournalEntry; since #337 an actor note an Actor and a
+ * note a Scene and a JournalEntry; an actor note an Actor and a
  * JournalEntry too. {@link claimedNoteTypes} unions over the configured packs
- * and so answers "is this note compiled *at all*", which is #146's question and
+ * and so answers "is this note compiled *at all*", and
  * cannot see a note that compiles one of its two documents and loses the other.
  *
  * Asked of the **claim table** rather than of a list of its own, so the set of
@@ -314,7 +314,7 @@ export const CLAIMABLE_DOCUMENT_TYPES = Object.freeze([
  * **Union across systems, never per system.** A type one system maps and
  * another does not appears once, because the `Item` and `Actor` rows already
  * fold the maps together — so this cannot report a document class a system
- * deliberately declines to produce, which is the silence #79 requires.
+ * deliberately declines to produce, which is the silence the rule requires.
  *
  * ## The JournalEntry row is the one that is per *note*
  *
@@ -361,7 +361,7 @@ export function documentClassesFor(type, sources, { hasProse } = {}) {
 
 /**
  * Whether a note carries a body at all — the condition `Journals.skipNote`
- * applies, asked from the outside (#152).
+ * applies, asked from the outside.
  *
  * Read from the file rather than from the index record, because a record
  * carries a note's frontmatter and its derived address and not its prose. The
@@ -388,13 +388,14 @@ function noteHasProse(absPath) {
  *
  * The union across the configured pack list, so a type claimed by any one pack
  * is claimed — which is what keeps a type deliberately unmapped for one system,
- * and claimed for another, silent (#79).
+ * and claimed for another, silent.
  *
  * **A prebuilt pack claims nothing.** Its per-document JSON is checked in
  * rather than compiled, so it has no pass and no note is routed into one —
  * which `content-config.mjs` already states by refusing `default: true`
  * alongside `prebuilt`. Counting it would tell an author their note is claimed
- * by a pack that will never look at it. Before #259 the point could not arise:
+ * by a pack that will never look at it. With no unimplemented type declared,
+ * the point cannot arise:
  * the only prebuilt pack in the wild is `harn-adventures`'s Adventure pack, and
  * no compiler was registered for that document type, so the row answered for
  * nothing whatever it was asked. Now one is.
@@ -404,7 +405,7 @@ function noteHasProse(absPath) {
  * @param {ClaimSources} [sources] - What to answer from.
  * @param {object} [opts] - Options.
  * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above (#243).
+ *   compile and handed in — required, for the reason above.
  * @returns {ReadonlySet<string>} The claimed note types.
  */
 export function claimedNoteTypes(config = loadPackConfig(), sources) {
@@ -428,7 +429,7 @@ export function claimedNoteTypes(config = loadPackConfig(), sources) {
  * @param {ClaimSources} [sources] - What to answer from.
  * @param {object} [opts] - Options.
  * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above (#243).
+ *   compile and handed in — required, for the reason above.
  * @returns {ReadonlySet<string>} The vocabulary.
  */
 export function noteTypeVocabulary(sources) {
@@ -483,7 +484,7 @@ function article(word) {
 function configurationMessage(type, config, sources) {
     // Every table below is keyed by the current spelling of a note type; the
     // message quotes the authored one, which is what the reader has in front of
-    // them (#78).
+    // them.
     const current = currentType(type);
     const documents = mappedDocuments(sources.maps, type);
     if (!documents.length && sources.itemTypes.has(current)) documents.push("Item");
@@ -550,10 +551,10 @@ function specifiedMessage(type) {
 }
 
 /**
- * The **partial** finding: the note compiles, and one of its documents does not
- * (#152).
+ * The **partial** finding: the note compiles, and one of its documents does not.
  *
- * #146's question is "does anything claim this note", and the answer is yes —
+ * The unclaimed check asks "does anything claim this note", and the answer is
+ * yes —
  * which is exactly why this went unreported. A note produces more than one
  * document, and a configuration missing a pack for one of them drops that
  * document while the rest of the note compiles into a pack that does exist. The
@@ -562,7 +563,8 @@ function specifiedMessage(type) {
  *
  * The message names the note, the document class with no pack, and the class
  * that *did* compile — the last because it is what distinguishes this from
- * #146's finding at a glance: the note is not unclaimed, it is half-claimed, and
+ * the unclaimed finding at a glance: the note is not unclaimed, it is
+ * half-claimed, and
  * the fix is a pack rather than a `type:`.
  *
  * @param {string} type - The note's declared `type`.
@@ -618,7 +620,7 @@ function authoringMessage(type) {
  * @param {ClaimSources} [sources] - What to answer from.
  * @param {object} [opts] - Options.
  * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above (#243).
+ *   compile and handed in — required, for the reason above.
  * @returns {Array<{file: string, line?: number, column?: number,
  *   severity: "error", message: string, type: string}>} One finding per note.
  */
@@ -632,7 +634,7 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
     // and no note is routed into it.
     const configured = new Set((config.packs ?? []).filter((p) => !p.prebuilt).map((p) => p.type));
 
-    // The corpus this compile derived once (#243), required rather than
+    // The corpus this compile derived once, required rather than
     // derived here: this module is imported *by* the content index, so it
     // could not derive one without closing a cycle — and the caller that wants
     // this answer is running a compile and already holds it.
@@ -651,13 +653,13 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         // A **renamed** spelling is a live type, not an unknown one: it resolves
         // to the same row, the same registry entry and the same pack. So the
         // claim is asked of the current spelling while the finding quotes the
-        // authored one (#78). The rename itself is reported by the frontmatter
+        // authored one. The rename itself is reported by the frontmatter
         // lint, which can say what to write instead.
         const current = currentType(type);
 
         // Every document this note produces, against the classes this
         // configuration has a pack for. Three outcomes, and the middle one is
-        // #152's — it was invisible while the question was only "is anything
+        // the half-claimed one — invisible while the question is only "is anything
         // claiming this note", because the answer there is yes.
         const produces = documentClassesFor(current, resolved, {
             // Lazy: only a doc-carrying type whose JournalEntry has nowhere to
@@ -673,7 +675,7 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
 
         // Some do and some do not: the note compiles, and one of its documents
         // is dropped in silence. A type nothing produces at all falls past this
-        // to the #146 messages below, where `produces` being empty is itself
+        // to the unclaimed messages below, where `produces` being empty is itself
         // part of the answer.
         if (compiled.length) {
             findings.push({

@@ -18,11 +18,11 @@ import { authoredFields } from "../engine/field-spec.mjs";
 const build = (type: string, sohl: object = {}, fm: object = {}) =>
     (ITEM_BUILDERS as any)[type].system({ sohl, ...fm });
 
-describe("ITEM_FIELDS is the one list (#22, #1504)", () => {
+describe("ITEM_FIELDS is the one list", () => {
     it("declares exactly the types the registry and the art map cover", () => {
         const declared = Object.keys(ITEM_FIELDS).sort();
         expect(Object.keys(ITEM_BUILDERS).sort()).toEqual(declared);
-        // The art map is keyed by the *document* subtype, which since #78 is
+        // The art map is keyed by the *document* subtype, which is
         // no longer the note type for three of these — so the comparison runs
         // through SoHL's own map rather than assuming the two vocabularies
         // still spell everything the same.
@@ -202,12 +202,12 @@ describe("association codes reach the emitted document (#3)", () => {
 
 // The inverse of #3, from the same root cause: an emitted key no DataModel
 // declares. `MysticalAbilityDataModel` dropped `assocMysteryCode` in
-// HeroicLands/Song-of-Heroic-Lands-FoundryVTT#973 — nothing read the mystery it
-// resolved to — and `assocAffiliationCode` arrived later and separately (#1012)
+// Nothing read the mystery it
+// resolved to — and `assocAffiliationCode` arrived later and separately
 // as the granting faction, so the two are unrelated rather than a rename.
 // Foundry discards an undeclared key when the document is constructed, so every
 // compiled ability shipped a value that was thrown away at load.
-describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => {
+describe("a compiled mystical ability carries no assocMysteryCode", () => {
     it("omits the key when no note authors it", () => {
         expect(build("mysticalability", { subType: "arcane" })).not.toHaveProperty(
             "assocMysteryCode",
@@ -235,7 +235,7 @@ describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => 
 
 // The same inverse again, and from the same root cause. `isEquipped` was never
 // a rename or a version skew: the worn/equipped concept was deliberately made
-// armour-only in HeroicLands/Song-of-Heroic-Lands-FoundryVTT#662, which removed
+// armour-only, which removed
 // `system.isEquipped` from the shared gear data model and gave
 // `ArmorGearDataModel` its own `isWorn`. That shipped in SoHL 0.8.0, so no
 // released system has read the key since — yet `GEAR_COMMON` kept emitting it,
@@ -245,7 +245,7 @@ describe("a compiled mystical ability carries no assocMysteryCode (#35)", () => 
 // no `name`, so `readField` never consulted the frontmatter and no note could
 // set it. There is nothing to migrate — only an emitted constant to stop
 // emitting.
-describe("a compiled gear item carries no isEquipped (#68)", () => {
+describe("a compiled gear item carries no isEquipped", () => {
     const GEAR_TYPES = [
         "armorgear",
         "concoctiongear",
@@ -281,7 +281,7 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
     // The armour-only replacement is `isWorn`, which `GEAR_COMMON` must not
     // acquire in its place: it belongs to `ArmorGearDataModel` alone, and
     // whether an `armorgear` note should be able to author one is a separate
-    // content question (see #68).
+    // content question.
     it("does not substitute isWorn for it", () => {
         for (const [type, fields] of Object.entries(ITEM_FIELDS as any)) {
             expect(
@@ -297,7 +297,7 @@ describe("a compiled gear item carries no isEquipped (#68)", () => {
 // `initial: true`), `containerId` (`DocumentIdField`) and
 // `sharedWithCohortIds` (`ArrayField`) — so each survives document
 // construction and is read by the system.
-describe("the surviving gear possession constants (#68)", () => {
+describe("the surviving gear possession constants", () => {
     it("layers all three onto every gear type", () => {
         for (const type of [
             "armorgear",
@@ -315,7 +315,7 @@ describe("the surviving gear possession constants (#68)", () => {
     });
 });
 
-describe("affiliation references (SoHL#1781)", () => {
+describe("affiliation references", () => {
     it("emits `system.relations`, not the retired singular", () => {
         const system = build("affiliation", {
             subType: "guild",

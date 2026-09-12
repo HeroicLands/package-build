@@ -16,7 +16,7 @@
  *
  * A generated section landing is the only place a section can describe itself:
  * `sohl` has no authored `_index.md` for `weapongear` or `affliction`, so the
- * file the theme reads is the one this build writes. Until #91 the vocabulary
+ * file the theme reads is the one this build writes. Unpinned, the vocabulary
  * was two keys — `title` and `banner` — declared in *two* places that had to be
  * kept in step by hand: `SECTION_META_KEYS`, which decides what a configuration
  * may say, and the two writers, which each named the keys they transcribed.
@@ -66,7 +66,7 @@ describe("a section can describe itself", () => {
         // `partials/hero-banner.html` already renders `description` as the hero
         // standfirst on any page that has one, so before this every generated
         // section landing rendered a hero with a heading and no standfirst —
-        // and could not be given one, at any level, by any consumer (#91).
+        // and could not be given one, at any level, by any consumer.
         const out = mount();
         writeSectionLandings(out, {
             sections: {
@@ -111,7 +111,7 @@ describe("a section can describe itself", () => {
     });
 
     it("says nothing about a content page, whatever it is called", () => {
-        // A content note has no section to describe (#204): it is addressed
+        // A content note has no section to describe: it is addressed
         // `(type, shortcode)` and emitted flat, so a `README.md` in the content
         // tree is an ordinary page and takes an ordinary page's front matter.
         const data = pageFrontmatter(
@@ -173,7 +173,7 @@ describe("the writers emit what the section declared", () => {
 
 describe("a section that declares nothing new emits what it always did", () => {
     // The proof that this is additive. These are the exact bytes the build
-    // wrote before #91, for the only two shapes any of the six consuming
+    // writes, for the only two shapes any of the six consuming
     // packages declares today.
     it("writes a title-and-banner section byte for byte as before", () => {
         const out = mount();
@@ -238,7 +238,7 @@ describe("the configuration is where the vocabulary is bounded", () => {
     });
 
     it("still refuses a key it does not recognise, naming its path", () => {
-        // Deliberate, and unchanged by #91. The writers are now a passthrough,
+        // Deliberate. The writers are a passthrough,
         // so this is the *only* thing standing between a mistyped `descrption:`
         // and a key that publishes into front matter and is read by nobody —
         // which is the failure this issue was filed about, one step downstream.
@@ -257,7 +257,7 @@ describe("the configuration is where the vocabulary is bounded", () => {
 });
 
 describe("a section can declare what it lists", () => {
-    // heroiclands-hugo-theme#50. Since #204 a content page is written flat under
+    // A content page is written flat under
     // the mount, so a section's directory holds nothing but its own `_index.md`
     // and a layout reading `.Pages` renders "Nothing here yet." on every landing
     // the theme serves. The relationship survives in exactly one place — this

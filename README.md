@@ -14,13 +14,6 @@ The content half is documented separately in **[CONTENT.md](CONTENT.md)** — th
 note format, the pack pipeline, and the configuration contract a content tree
 declares itself with.
 
-> **This package was two.** Until 3.0.0 the content half shipped as
-> `@heroiclands/content-build`. No consumer ever installed one without the
-> other, and the packaging half depended on the content half besides, so the
-> boundary bought nothing and cost a configuration file with two owners and a
-> two-repository dance for single changes. See
-> [MIGRATING.md](MIGRATING.md) to move a consumer from 1.x.
-
 ## Install
 
 ```
@@ -234,7 +227,7 @@ packageBuild:
 ### The manifest is generated, not stamped
 
 `package-build manifest` writes `system.json` / `module.json` into the stage.
-**There is no template file.** A manifest used to be hand-authored JSON that the
+**There is no template file.** A hand-authored JSON manifest is one the
 build stamped a few fields into — the one build input still written by hand, per
 repository, with no schema and nothing checking it. It also declared facts the
 configuration already declared: the pack list twice, in two formats, with
@@ -495,7 +488,7 @@ own to call a run green. Every way of stopping a runner before it starts — a
 corrupt install, a missing browser, a killed process, an `npm ci` racing the
 run and taking `node_modules` with it — produces a run that executed nothing,
 and a harness that reports that as 0 makes the evidence unfalsifiable in the
-one direction that matters (#153).
+one direction that matters.
 
 So the suite is bracketed rather than trusted:
 

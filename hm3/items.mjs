@@ -13,13 +13,13 @@
 
 /**
  * **HM3's Item pass** — the two things about compiling a note into an HM3 Item
- * that are facts about HM3 rather than about the note format (#139).
+ * that are facts about HM3 rather than about the note format.
  *
  * Everything else is {@link module:engine/item-compiler}'s, and is the same
  * code the SoHL pass runs: which notes are claimed, which subtype each becomes,
  * which registry builds it, the authored `hm3.system` passthrough, the schema
  * check, and the compendium envelope. A second system is a map and a handful of
- * emitted keys, which is the arrangement #79 and #58 were building towards.
+ * emitted keys, which is the arrangement the mapping tables build towards.
  *
  * **What HM3's compiler writes on every item: one key, and only when there is
  * something to write.** The content format gives an item's `{#appearance}`
@@ -35,9 +35,9 @@
  * priority is a shared statement — a note declaring `data.templatePriority` says
  * the same thing to both systems — but HM3 declares no `system` field for it, so
  * it lands under this system's own flag scope as `flags.hm3.templatePriority`,
- * exactly as the Actor pass writes it. This pass wrote no such flag until #283:
- * an item note declaring the priority compiled into a SoHL item that knew it was
- * a template and an HM3 item that did not.
+ * exactly as the Actor pass writes it. Without it, an item note declaring the
+ * priority compiles into a SoHL item that knows it is a template and an HM3
+ * item that does not.
  *
  * **There is no HM3 equivalent of `docHtml`.** SoHL points an item at the
  * JournalEntry its prose compiled into, and HM3's data model has nowhere to put
@@ -57,8 +57,7 @@ import { templateFlags } from "./template-priority.mjs";
 export class Hm3Items extends SystemItemCompiler {
     /**
      * HM3's note-type → document-subtype map — the one declaration that says
-     * which block this pass reads, which notes it claims, and what each becomes
-     * (#58/#79).
+     * which block this pass reads, which notes it claims, and what each becomes.
      *
      * @type {import("../engine/document-subtypes.mjs").DocumentSubtypeMap}
      */
@@ -85,7 +84,7 @@ export class Hm3Items extends SystemItemCompiler {
      * The same statement the Actor pass records, through the same
      * {@link module:hm3/template-priority.templateFlags} — see that module for
      * why the priority lives in flags at all, and for what its absence here
-     * cost (#283).
+     * cost.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {object} The flags to emit.

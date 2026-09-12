@@ -13,14 +13,13 @@
 
 /**
  * **The Actor pass, for any system** — the parts of compiling a note into a
- * Foundry Actor that belong to the note format rather than to a game system
- * (#139).
+ * Foundry Actor that belong to the note format rather than to a game system.
  *
  * The whole of it lived in `sohl/actors.mjs`, where the system-specific facts
- * were already funnelled through one map (`static documentSubtypes`, added by
- * #79) and one block constant. A second system needs everything except the
- * shape of the `system` block itself, so that everything moved here and each
- * half declares what differs:
+ * were already funnelled through one map (`static documentSubtypes`) and one
+ * block constant. A second system needs everything except the shape of the
+ * `system` block itself, so all of it lives here and each half declares what
+ * differs:
  *
  * | stated by the subclass | what it decides |
  * | --- | --- |
@@ -35,7 +34,7 @@
  * - **Reference translation.** A being addresses its embedded items in the
  *   *note* vocabulary and the catalogue is keyed in the *document's*, so
  *   {@link SystemActorCompiler#embeddedSubtype} translates each reference
- *   forward through this system's map before the lookup (#140).
+ *   forward through this system's map before the lookup.
  * - **Embedding.** Merging a note's overlay onto a catalogue entry, deriving a
  *   stable embedded id from the owning actor and the address, and re-keying the
  *   embedded document and its effects for the LevelDB flattening.
@@ -60,15 +59,15 @@ import { BasePackCompiler } from "./base-compiler.mjs";
 import { contentPackage } from "./content-package.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into, and which note
 // types are actors at all. Looked up in the system's declared map, never
-// inferred from the type itself (#79).
+// inferred from the type itself.
 import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtypes.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 // An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
-// document by a path no field declaration sits on — including, until #330, the
+// document by a path no field declaration sits on — including the
 // fields the document is supposed to write for itself in play.
 import { itemFields } from "./item-registry.mjs";
 import { runtimeOnlyIn, runtimeOnlyMessage } from "./runtime-only-fields.mjs";
-// A `model:` is an address, read by the same grammar every wikilink is (#336),
+// A `model:` is an address, read by the same grammar every wikilink is,
 // so an author writes one form and meets one set of messages.
 import { readQualifier } from "./wikilinks.mjs";
 
@@ -132,7 +131,7 @@ export function deepMerge(base, overlay) {
  * vocabulary, so a reference is translated forward through the system's map
  * before it reaches this function; see
  * {@link SystemActorCompiler#embeddedSubtype} for why the translation goes that
- * way and not the other (#140).
+ * way and not the other.
  *
  * @param {string} subType - The Foundry Item subtype.
  * @param {string} shortcode - The item's `system.shortcode`.
@@ -144,7 +143,7 @@ export function itemAddress(subType, shortcode) {
 
 /**
  * The key one predefined item is held under **for the package that publishes
- * it** — the address a `model:` naming that package resolves through (#334).
+ * it** — the address a `model:` naming that package resolves through.
  *
  * The unqualified {@link itemAddress} stays beside it, and the two answer
  * different questions. A `model` that names no package means *this* one and
@@ -174,11 +173,12 @@ export function packagedItemAddress(pkg, subType, shortcode) {
  * A shortcode is case-sensitive and routinely mixed — `Clb`, `LtShoe`,
  * `HsTunic` — while an **address** is not: `readQualifier` normalises what it
  * reads, and every canonical address is lowercase. So the moment a `model:` is
- * read as an address (#334), `weapongear-clb` has to find the document whose
- * `system.shortcode` is `Clb`, and an exact match cannot (#346).
+ * read as an address, `weapongear-clb` has to find the document whose
+ * `system.shortcode` is `Clb`, and an exact match cannot.
  *
  * Folding is safe because the fold is already the address: no two items in any
- * published tree differ only by the case of their shortcode, and #340 will make
+ * published tree differ only by the case of their shortcode, and the rule
+ * makes
  * that impossible rather than merely true.
  *
  * **This is not {@link itemAddress}, and must not become it.** That one seeds
@@ -229,13 +229,13 @@ export function embeddedIdentity(item) {
  * four corpora holds 180 items, at which 64 bits collide with probability
  * around 10⁻¹⁵.
  *
- * **It takes no index** (#268). Keying on a position meant reordering a being's
+ * **It takes no index**. Keying on a position meant reordering a being's
  * item list renumbered every id after the change, so a re-import created new
  * documents beside the old ones — while nothing about those documents had
  * changed, only their neighbours. The identity always exists or must be stated;
  * see {@link embeddedIdentity}.
  *
- * Keyed by the **document subtype**, so renaming a note type (#78) leaves every
+ * Keyed by the **document subtype**, so renaming a note type leaves every
  * embedded id where it was.
  *
  * @param {string} actorId - The owning actor's id.
@@ -277,7 +277,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
     const shadowed = [];
     for (const itemsSourceDir of itemsSourceDirs) {
         if (!fs.existsSync(itemsSourceDir)) {
-            // The generator orders the actors pass after every Item pass (#73),
+            // The generator orders the actors pass after every Item pass,
             // so a whole-package build cannot reach this. What can is a run
             // restricted to this one pack, or a caller constructing the
             // compiler itself — neither of which reordering a pack list fixes,
@@ -321,13 +321,13 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             const { _key, ...rest } = doc;
             map.set(address, rest);
             // And under this package's own name, so a `model:` that names this
-            // package explicitly resolves to the same item (#334).
+            // package explicitly resolves to the same item.
             map.set(catalogueKey(doc.type, shortcode, contentPackage()), rest);
         }
     }
     for (const foreignEntry of foreignSourceDirs) {
         // Each dependency's directory arrives with the package that published
-        // it (#334), so a foreign template gets its own canonical address
+        // it, so a foreign template gets its own canonical address
         // rather than sharing the local address space.
         const foreignDir = typeof foreignEntry === "string" ? foreignEntry : foreignEntry.dir;
         const foreignPackage = typeof foreignEntry === "string" ? null : foreignEntry.package;
@@ -352,7 +352,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
             // eslint-disable-next-line no-unused-vars
             const { _key, ...rest } = doc;
             // Its own package-qualified address, which a `model:` naming that
-            // package resolves through and nothing local can shadow (#334).
+            // package resolves through and nothing local can shadow.
             if (foreignPackage) {
                 map.set(catalogueKey(doc.type, shortcode, foreignPackage), rest);
             }
@@ -411,8 +411,8 @@ export class SystemActorCompiler extends BasePackCompiler {
      * because {@link SystemActorCompiler#resolveEmbedded} is called per entry
      * and has no note lifecycle of its own.
      *
-     * `frontmatter-lint.mjs` makes the same finding from frontmatter alone
-     * (#228), and this does not replace it — the lint is a separate command, so
+     * `frontmatter-lint.mjs` makes the same finding from frontmatter alone,
+     * and this does not replace it — the lint is a separate command, so
      * without a check here a colliding pair would compile to two documents with
      * one `_id` and reach the LevelDB packer as an opaque duplicate key.
      *
@@ -422,12 +422,12 @@ export class SystemActorCompiler extends BasePackCompiler {
 
     // An actor's embedded items are resolved against the *output* of the item
     // passes, so every Item pack compiles before this one. Declared rather than
-    // left to the order `packs:` happens to list (#73).
+    // left to the order `packs:` happens to list.
     static readsPackOutputOf = Object.freeze(["Item"]);
 
     /**
      * An Actor **is** a system's data, so this pack takes only notes carrying
-     * this system's block (#58).
+     * this system's block.
      */
     static requiresSystemBlock = true;
 
@@ -449,7 +449,7 @@ export class SystemActorCompiler extends BasePackCompiler {
 
     /**
      * Every package a `model:` may name besides this one — the dependencies
-     * whose item catalogues were supplied (#334).
+     * whose item catalogues were supplied.
      *
      * @returns {Set<string>} The dependency package ids.
      */
@@ -465,10 +465,10 @@ export class SystemActorCompiler extends BasePackCompiler {
         super(options);
         // Where the items passes wrote their JSON. Stated by the caller rather
         // than assumed to be this pack's sibling: the packs' locations are
-        // configuration, and a consumer may put them anywhere (#1508). Every
-        // Item pack, because a repository may ship more than one (#1566).
+        // configuration, and a consumer may put them anywhere. Every
+        // Item pack, because a repository may ship more than one.
         //
-        // **Optional, and empty is a legitimate package (#49).** This used to
+        // **Optional, and empty is a legitimate package.** This used to
         // throw unless at least one Item pack was declared, which asked a
         // package to declare the very thing it may exist not to have. An Item
         // pack is system-bound by construction — Foundry requires `system` on
@@ -560,7 +560,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      * The Foundry Item subtype an embedded reference's `type` addresses.
      *
      * **The reference is in the note vocabulary; the address is in the
-     * document's** (#140). An actor writes `(type, shortcode)` with the type an
+     * document's**. An actor writes `(type, shortcode)` with the type an
      * author authors, while {@link itemAddress} keys the predefined items by
      * the subtype each compiled document carries — so exactly one of the two
      * sides has to translate, and it is this one. The system's map is a
@@ -583,7 +583,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      * descriptor must carry enough fields to stand alone. The embedded
      * item's `_id` is regenerated deterministically from
      * `(actorId, subType, shortcode, indexKey)` so re-exports are stable —
-     * from the **document subtype**, so that renaming a note type (#78) leaves
+     * from the **document subtype**, so that renaming a note type leaves
      * every embedded id exactly where it was.
      * Returns null if the descriptor cannot be resolved.
      *
@@ -594,7 +594,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      *   `null` for a stand-alone entry.
      * @param {object} [overlay] - The entry's remaining properties.
      * @param {string} indexKey - Where the reference sits, for a diagnostic.
-     *   It no longer reaches the id (#268) — it names the entry in a message.
+     *   It no longer reaches the id — it names the entry in a message.
      * @param {string} ctx - Diagnostic context (the actor's label).
      * @param {object} [at] - Where to locate a finding.
      * @param {string} [at.fmKey] - The frontmatter key the reference sits
@@ -606,7 +606,7 @@ export class SystemActorCompiler extends BasePackCompiler {
     /**
      * Read an entry's `model:` — the address of the item it is a copy of.
      *
-     * The address grammar is the wikilink one (#336), so a `model` is written at
+     * The address grammar is the wikilink one, so a `model` is written at
      * whatever length says what it means: `skill-wpnc` within this package,
      * `sohl-sohl-skill-wpnc` to reach another. The system segment defaults from
      * the block the entry sits in — `<system>.items` — which is what makes the
@@ -615,7 +615,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      *
      * It replaced a top-level `shortcode:` that meant something different from
      * the `system.shortcode` beside it and could not say which package a
-     * template came from (#334).
+     * template came from.
      *
      * @param {unknown} model - The authored value.
      * @param {number} index - The entry's position, for the message.
@@ -675,7 +675,7 @@ export class SystemActorCompiler extends BasePackCompiler {
             this.errorCount++;
             return null;
         }
-        // A `model:` may name the package its template comes from (#334). Where
+        // A `model:` may name the package its template comes from. Where
         // it does, the packaged address is used and nothing local can shadow
         // it; where it does not, the unqualified one is, and a local definition
         // still wins over a dependency's as it always has.
@@ -687,7 +687,7 @@ export class SystemActorCompiler extends BasePackCompiler {
 
         // The entry's `system:` overlay is merged verbatim, so it reaches the
         // document without passing a single field declaration — which left it
-        // the one position a runtime-only field stayed authorable at once #330
+        // the one position a runtime-only field would stay authorable at once
         // closed the item note's own. Asked of the **overlay** rather than of
         // the merged result: the template it merges onto is a compiled
         // document, which by then carries none, and a finding has to name what

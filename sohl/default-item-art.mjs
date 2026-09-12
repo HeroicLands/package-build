@@ -27,15 +27,15 @@
  * runtime can both import it. A `.ts` module could not be required by the build
  * scripts (they run under bare `node`, without the bundler that resolves the
  * `@src` alias and strips types). Keeping one map here is what prevents the
- * build-time and runtime defaults from drifting apart (issue #932 was exactly
+ * build-time and runtime defaults from drifting apart (which is exactly
  * that drift: the builder had a default, runtime did not).
  *
  * It lives in this package rather than in the system's `src/` tree because the
- * pack pipeline is installed as a dependency (#1501): a relative path out of
+ * pack pipeline is installed as a dependency: a relative path out of
  * the package would resolve to garbage once the pipeline runs from
  * `node_modules`. The runtime imports it back through the package's
- * `./sohl/default-item-art` entry point, so there is still exactly one map
- * (#1510). Injecting the map through configuration instead would re-open #932,
+ * `./sohl/default-item-art` entry point, so there is still exactly one map.
+ * Injecting the map through configuration instead would re-open that drift,
  * because the two sides would once more be free to disagree.
  *
  * Paths are fully resolved (`systems/sohl/...`) — the served path both layers
@@ -44,7 +44,7 @@
  * **The keys are SoHL *document* subtypes, not markdown note types.** The
  * runtime reads this with `itemData.type`, which is a Foundry Item subtype, and
  * that is the vocabulary a compendium document carries. The two vocabularies
- * were the same string until #78 renamed three note types (`armorgear` →
+ * would be the same string but for three renamed note types (`armorgear` →
  * `armor`, and its two siblings), and this map stayed on the document side
  * because that is the side the runtime cannot translate: `sohl/item-builders.mjs`
  * asks SoHL's own note-type → subtype map before it looks art up here, so the

@@ -23,7 +23,7 @@ import { supportedCoreVersion } from "../engine/helpers.mjs";
 // What is under test is the *resolution mechanism* — that configured paths are
 // absolute and anchored on the configured root — so the root it checks against
 // is this package's own, supplied by the development config at the repository
-// root. It used to be the system repository's root, which only resolved while
+// root, not the system repository's root, which only resolves while
 // this package was vendored inside it.
 const PKG_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -63,7 +63,7 @@ describe("this repository's resolved pack configuration", () => {
     it("resolves every path against the configured root, not the cwd", () => {
         // The configured root is the fixture repository, not this package's
         // own: the development configuration moved there to have a
-        // `package.json` to derive its identity from (#50).
+        // `package.json` to derive its identity from.
         for (const [key, value] of Object.entries(packConfig.paths)) {
             expect(path.isAbsolute(value as string), key).toBe(true);
             expect(String(value).startsWith(PKG_ROOT), key).toBe(true);
@@ -80,7 +80,7 @@ describe("this repository's resolved pack configuration", () => {
     });
 });
 
-describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", () => {
+describe("the one pack list (SOURCE_PACKS and PACK_CONFIGS merged)", () => {
     it("declares every pack directory the build compiles, in compile order", () => {
         // The actors pass reads the items pass's output, so order is load-bearing.
         expect(packConfig.packDirectories).toEqual([
@@ -107,8 +107,8 @@ describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", (
     });
 
     it("names no folder-hierarchy file, there being none to name", () => {
-        // The per-pack `*-folders.yaml` — five files per tree — is retired
-        // (#260). A folder is a note, and a pack materialises the folders its
+        // The per-pack `*-folders.yaml` — five files per tree — is retired.
+        // A folder is a note, and a pack materialises the folders its
         // documents reference through `packFolder`.
         expect(packConfig.packs.every((p) => !("folders" in p))).toBe(true);
     });
@@ -121,7 +121,7 @@ describe("the one pack list (#1508 — SOURCE_PACKS and PACK_CONFIGS merged)", (
 });
 
 describe("the core version is configuration, and the config is its source", () => {
-    // This reverses what this file asserted until #50. The rule *was* that
+    // This reverses what this file asserted until. The rule *was* that
     // configuration may say only where the manifest is, never what it holds,
     // because the manifest was hand-authored and moved with test evidence — a
     // captured copy would silently stop following it.
@@ -144,7 +144,7 @@ describe("the core version is configuration, and the config is its source", () =
     it("throws rather than falling back when none is declared", () => {
         // The loud failure is the feature, and survives the reversal above. A
         // silent fallback is how every pack came to ship `coreVersion: "14"`,
-        // which sorts below every v14 build (#1533).
+        // which sorts below every v14 build.
         expect(() => supportedCoreVersion({ compatibility: null })).toThrow(
             /compatibility\.minimum/,
         );

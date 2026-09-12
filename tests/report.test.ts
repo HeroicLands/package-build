@@ -15,7 +15,7 @@
  * The rules themselves are pure and return findings; the binary is the caller
  * that owns reporting. These cases pin the two decisions that ownership
  * carries — the shape a finding is emitted in, and the exit code a run earns —
- * because every consumer used to make them separately and differently.
+ * because every consumer would otherwise make them separately and differently.
  */
 
 import { describe, it, expect } from "vitest";

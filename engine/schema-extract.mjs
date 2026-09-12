@@ -17,7 +17,7 @@
  * The consuming half of this contract already lives in `schema-check.mjs`: a
  * content build subtracts what its builders emit from what a document will
  * actually receive, because Foundry discards an unknown `system` key at
- * construction and says nothing about it (#60). What was missing is the
+ * construction and says nothing about it. What was missing is the
  * producing half — until now each system carried its own extractor, and the
  * first one to exist hardcoded {@link SCHEMA_ARTIFACT_VERSION}, a constant this
  * package owns. Two producers stamping a third repository's constant by hand is

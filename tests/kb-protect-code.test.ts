@@ -26,7 +26,7 @@ describe("protectCode", () => {
         expect(protectCode(body, mangle)).toBe("`one` then MANGLED then `two`");
     });
 
-    it("keeps a span safe even when an odd backtick precedes it (#1665)", () => {
+    it("keeps a span safe even when an odd backtick precedes it", () => {
         // A real regression guard: this returned "`MANGLED`" before the fix.
         // A single-backtick span was allowed to cross newlines, so the stray
         // backtick paired with the *opening* backtick of the span below it.
@@ -37,7 +37,7 @@ describe("protectCode", () => {
         expect(protectCode(body, mangle)).toContain("`[[kept]]`");
     });
 
-    it("hides a fence longer than three backticks (#1505)", () => {
+    it("hides a fence longer than three backticks", () => {
         // The second real regression guard: this mangled `grid[[0]]` before the
         // fix. Only ``` fences were recognised, so a ````-fenced example
         // wrapping a ```js block leaked its contents — which is exactly how the

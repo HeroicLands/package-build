@@ -45,7 +45,7 @@ afterEach(() => {
     fs.rmSync(root, { recursive: true, force: true });
 });
 
-describe("the shared configuration (#69)", () => {
+describe("the shared configuration", () => {
     it("states the emphasis convention rather than inheriting it", () => {
         // The whole point of declaring MD049/MD050: without them the
         // convention holds only as a side effect of Prettier's default.
@@ -67,7 +67,7 @@ describe("the shared configuration (#69)", () => {
     });
 });
 
-describe("content-build format (#69)", () => {
+describe("content-build format", () => {
     it("reports an unformatted file and leaves it alone", () => {
         const file = write("a.md", "Some   *emphasis*    here.\n");
         return checkFormatting(root).then((r) => {
@@ -122,7 +122,7 @@ describe("content-build format (#69)", () => {
     // *file*; options handed to it directly keep the global values. So the
     // shared configuration's markdown override was silently dropped in exactly
     // the repositories the command exists for — the ones declaring no config of
-    // their own — and markdown indented at 4 (#76). It went unseen because a
+    // their own — and markdown indented at 4. It went unseen because a
     // repository with a config resolves it correctly, and every markdown
     // fixture here was a single line with nothing to indent.
     it("indents markdown at 2 with no local config, as the shared override says", async () => {
@@ -170,7 +170,7 @@ describe("content-build format (#69)", () => {
 /**
  * A stand-in Prettier whose `format` is deliberately not idempotent.
  *
- * The reported symptom (#125) is a `--write` pass that leaves a file its own
+ * The reported symptom is a `--write` pass that leaves a file its own
  * next pass would still change. Whatever produced it in the wild, the shape is
  * this: `format` applied once does not reach a fixpoint. Injecting that shape
  * is the only way to test the guarantee rather than the accident — a fixture
@@ -193,7 +193,7 @@ const stripOneBang = (source: string) => source.replace(/!(\n)$/, "$1");
 /** Adds a `!` before the final newline on every pass — never converges. */
 const addOneBang = (source: string) => source.replace(/(\n)$/, "!$1");
 
-describe("content-build format --write converges (#125)", () => {
+describe("content-build format --write converges", () => {
     it("leaves nothing for a second pass to write", async () => {
         // The regression test the issue asks for: format a tree once, then
         // assert an immediately following pass writes nothing at all.
@@ -234,7 +234,7 @@ describe("content-build format --write converges (#125)", () => {
         expect(finding).toBeDefined();
         expect(finding.severity).toBe("error");
         expect(finding.message).toMatch(/did not converge/);
-        // A whole-file verdict carries no line or column (#17).
+        // A whole-file verdict carries no line or column.
         expect((finding as any).line).toBeUndefined();
         expect((finding as any).column).toBeUndefined();
         // And the file is left as it was: a formatting the command cannot
@@ -244,7 +244,7 @@ describe("content-build format --write converges (#125)", () => {
     });
 });
 
-describe("content-build format --write reports what it could not do (#125)", () => {
+describe("content-build format --write reports what it could not do", () => {
     /** The real binary, because the exit code is half of what is under test. */
     const bin = fileURLToPath(new URL("../bin/content-build.mjs", import.meta.url));
 
@@ -268,7 +268,7 @@ describe("content-build format --write reports what it could not do (#125)", () 
     });
 });
 
-describe("content-build format agrees with Prettier itself (#125)", () => {
+describe("content-build format agrees with Prettier itself", () => {
     /**
      * Prettier's own CLI, resolved from this package's dependency tree.
      *
@@ -341,7 +341,7 @@ describe("content-build format agrees with Prettier itself (#125)", () => {
     });
 });
 
-describe("the shared conventions say when they are not in force (#133)", () => {
+describe("the shared conventions say when they are not in force", () => {
     /**
      * The shipped configuration, by file URL.
      *
@@ -369,9 +369,9 @@ describe("the shared conventions say when they are not in force (#133)", () => {
     });
 
     it("names the markdown override a spread of the base drops", async () => {
-        // The first half of #133: a config that carries every shared value and
+        // The first half: a config that carries every shared value and
         // loses the one that only reaches markdown, so notes reindent at 4 —
-        // the reindentation the override exists to prevent (#76).
+        // the reindentation the override exists to prevent.
         write(
             "prettier.config.mjs",
             `import { PRETTIER_BASE } from ${JSON.stringify(proseConfig)};\n` +
@@ -390,7 +390,7 @@ describe("the shared conventions say when they are not in force (#133)", () => {
     it("names every convention a partial config discards, and the one it keeps", async () => {
         // `{"tabWidth": 2}` is not "the shared configuration plus one change":
         // declaring anything discards everything not restated, which is the
-        // half of #133 nothing reported.
+        // half nothing reported.
         write(".prettierrc", '{ "tabWidth": 2 }\n');
 
         const r = await checkPrettierConventions(root);
@@ -422,7 +422,7 @@ describe("the shared conventions say when they are not in force (#133)", () => {
         expect(r.findings[0].message).toContain(
             'export { default } from "@heroiclands/package-build/prettier";',
         );
-        // No file: there is none, and #17's rule is to drop a field rather
+        // No file: there is none, and the rule is to drop a field rather
         // than invent one.
         expect(r.findings[0].file).toBeUndefined();
     });
@@ -445,7 +445,7 @@ describe("the shared conventions say when they are not in force (#133)", () => {
     });
 });
 
-describe("content-build markdown (#69)", () => {
+describe("content-build markdown", () => {
     it("reports the emphasis marker the convention does not use", async () => {
         write("a.md", "Some *emphasis* here.\n");
         const r = await lintMarkdown(root);

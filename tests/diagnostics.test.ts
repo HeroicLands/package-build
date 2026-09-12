@@ -334,7 +334,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
      * are indistinguishable unless each is reported at its own position.
      *
      * Both are addresses that resolve nowhere. A compile fails the note on the
-     * first one it meets, so each is compiled on its own here — what #17 is
+     * first one it meets, so each is compiled on its own here — what this is
      * about is that the position reported is the *link's*, not the note's.
      */
     const line = (n: number) =>
@@ -393,7 +393,7 @@ describe("an unresolved wikilink names the file, line and column", () => {
         const [only] = await compile(line(1));
         // The message names the **address**, not the whole authored link: the
         // label is not at fault, and it is the same message the link checker
-        // and the site build report through (#184). The position, already
+        // and the site build report through. The position, already
         // asserted above, is what locates the exact link on the line.
         expect(only).toContain("resolves to no note");
         expect(only).toContain("[[probe-nosuch]]");

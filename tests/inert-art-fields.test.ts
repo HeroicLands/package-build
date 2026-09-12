@@ -12,7 +12,7 @@
  */
 
 /**
- * An `img:` authored on a type that emits none is dropped in silence (#349).
+ * An `img:` authored on a type that emits none is dropped in silence.
  *
  * The defect these pin: `img` is a **shared top-level** field —
  * `BLOCK_DOCUMENT_PROPERTIES` maps it onto `document.img`, so it is legal on

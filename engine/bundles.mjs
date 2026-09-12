@@ -13,11 +13,11 @@
 
 /**
  * Adventure pack compiler — `type: bundle` notes → Foundry `Adventure`
- * documents (#259).
+ * documents.
  *
- * The specification and the vocabulary landed in #263, which left the type
+ * The specification and the vocabulary leave the type
  * declared and uncompiled: authoring one said so, in as many words. This is the
- * pass, and the two decisions #263 recorded are settled here.
+ * pass, and the two decisions it records are settled here.
  *
  * **Which pack.** Not the `adventures` **companion**. The scenes pass already
  * writes one Adventure per pinned place into that pack, and a companion is
@@ -32,7 +32,7 @@
  * the router's rule for `pack:`, so there is one answer and not two. One note
  * can compile into two documents — an item and the JournalEntry its prose
  * became — and the second is bundled only when the note names it by its own
- * `doc…` address, which is the address that already exists for it (#1362).
+ * `doc…` address, which is the address that already exists for it.
  * Nothing is inferred: naming `miscgear-bowlcer` puts the *item* in the bundle
  * and not its description page.
  *
@@ -41,7 +41,7 @@
  * a reader of every other one, which it states in
  * {@link Bundles.readsPackOutputOf} rather than leaving to the order a
  * consumer happened to write its pack list in — the generator derives the
- * compile order from that declaration (#73).
+ * compile order from that declaration.
  *
  * **A pack's `system:` constrains what its Adventures may hold.** An
  * `Adventure` has no `system` field, so a bundle spanning two systems cannot be
@@ -83,7 +83,7 @@ import { readQualifier } from "./wikilinks.mjs";
  * the first.
  *
  * A **folder** document is skipped. It is emitted into every pack that holds
- * something filed in it (#257), so it is not one pack's document and has no
+ * something filed in it, so it is not one pack's document and has no
  * single note behind it; a bundle that wants folders is a question this pass
  * refuses rather than guesses at — see {@link Bundles#resolveAddress}.
  *
@@ -126,7 +126,7 @@ export class Bundles extends BasePackCompiler {
     /**
      * Every document type a bundle can hold a copy of.
      *
-     * The declaration the generator orders passes by (#73): an Adventure holds
+     * The declaration the generator orders passes by: an Adventure holds
      * *compiled* documents, so every pass that produces one runs first. Stated
      * here, in the class that does the reading, rather than in each consuming
      * repository's pack list.
@@ -225,7 +225,7 @@ export class Bundles extends BasePackCompiler {
             throw new Error(
                 `bundle "${bundleName}" lists the folder "${address}". A ` +
                     `folder is not a member: it materialises in every pack ` +
-                    `holding something filed in it (#257), so it belongs to no ` +
+                    `holding something filed in it, so it belongs to no ` +
                     `one pack and there is no single copy to bundle. List the ` +
                     `documents instead`,
             );

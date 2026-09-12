@@ -6,7 +6,7 @@
  */
 
 /**
- * `(type, shortcode)` resolves inside **one system's** catalogue (#58).
+ * `(type, shortcode)` resolves inside **one system's** catalogue.
  *
  * A being names its embedded items by `(type, shortcode)` and never by the pack
  * they ship in, so the Item packs are read as one address space. With two

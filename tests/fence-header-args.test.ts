@@ -6,7 +6,7 @@
  */
 
 /**
- * **Org-babel header arguments on a fence info string** (#246).
+ * **Org-babel header arguments on a fence info string**.
  *
  * A content-table fence carries statements *about the directive* that are not
  * part of the query — whether an empty result is intended, what heading level a

@@ -86,7 +86,7 @@ describe("hasDocEntry (whose prose becomes a JournalEntry of its own)", () => {
         expect(hasDocEntry("macro")).toBe(true);
     });
 
-    it("accepts an actor — a being's prose is a page like any other (#337)", () => {
+    it("accepts an actor — a being's prose is a page like any other", () => {
         // An actor note publishes documentation exactly as an item note does.
         // It also keeps its prose inline in `system.appearance` / `dossier`:
         // an item's `@UUID` pointer is a compendium-bloat measure, paid because

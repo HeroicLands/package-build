@@ -55,7 +55,7 @@ describe("assertUniquePages", () => {
 
     it("accepts several pages with no anchor at all", () => {
         // Each still has its own heading, which is what identifies it since
-        // #268 took the index out of the key. `splitPages` never yields a page
+        // The index is not part of the key. `splitPages` never yields a page
         // without a name, so this is the shape the compiler actually passes.
         expect(() =>
             assertUniquePages(
@@ -68,7 +68,7 @@ describe("assertUniquePages", () => {
         ).not.toThrow();
     });
 
-    it("rejects two unanchored pages sharing a heading (#268)", () => {
+    it("rejects two unanchored pages sharing a heading", () => {
         // They derive one page id, so the two compile to a single document —
         // reported here, where the note and the heading can be named, rather
         // than by the LevelDB packer as an opaque key collision.

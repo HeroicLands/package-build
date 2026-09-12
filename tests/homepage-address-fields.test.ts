@@ -7,13 +7,13 @@
 
 /**
  * A homepage is addressed like every other note, so it **requires** a
- * `shortcode` and refuses only the field that still decides nothing (#182).
+ * `shortcode` and refuses only the field that still decides nothing.
  *
- * It used to refuse `name`, `shortcode` and `id` alike (#53), and the reason
+ * It used to refuse `name`, `shortcode` and `id` alike, and the reason
  * for two of the three was that a page's URL derived from `name.full` while a
  * homepage's destination was fixed — so a `shortcode` put the note in the
  * address index and `[[homepage-<shortcode>]]` resolved *green* to a page the
- * site build never wrote. A page's URL is now its address (#181), which makes
+ * site build never wrote. A page's URL is now its address, which makes
  * that address the one the build publishes. `id` stays refused on its own
  * unaffected ground: a homepage compiles into no compendium document.
  */
@@ -45,7 +45,7 @@ function lint(lines: string[], fm: Record<string, unknown>) {
     return lintNote(note(lines, fm), { schemas: ENGINE_NOTE_SCHEMAS }) as any[];
 }
 
-describe("a homepage is addressed, so `shortcode` is required (#182)", () => {
+describe("a homepage is addressed, so `shortcode` is required", () => {
     it("conventionally addresses the package landing as `homepage-root`", () => {
         expect(HOMEPAGE_SHORTCODE).toBe("root");
     });
@@ -131,7 +131,7 @@ describe("a homepage is addressed, so `shortcode` is required (#182)", () => {
     });
 });
 
-describe("the one field a homepage still refuses (#53, narrowed by #182)", () => {
+describe("the one field a homepage refuses", () => {
     it("refuses `id` and nothing else", () => {
         expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["id"]);
     });
@@ -212,7 +212,7 @@ describe("what a homepage may still write", () => {
 });
 
 /* --------------------------------------------------------------------- */
-/*  A derived id is not an authored one (#319)                            */
+/*  A derived id is not an authored one                            */
 /* --------------------------------------------------------------------- */
 
 describe("the refusal tests what the note wrote, not what the pipeline added", () => {

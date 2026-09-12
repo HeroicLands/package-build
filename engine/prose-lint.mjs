@@ -13,13 +13,13 @@
 
 /**
  * Running the shared prose conventions over a repository — Prettier for
- * formatting, markdownlint for the structure Prettier is indifferent to (#69).
+ * formatting, markdownlint for the structure Prettier is indifferent to.
  *
  * Both are thin: the rules live in `./prose-config.mjs` and the tools are
  * Prettier and markdownlint themselves. What this module adds is the two things
  * a consumer would otherwise have to get right on its own — supplying the
  * shared configuration *as a default a local one overrides*, and reporting
- * findings in the one parseable form every check in this package emits (#17).
+ * findings in the one parseable form every check in this package emits.
  *
  * **Neither tool's own file discovery is reimplemented.** Prettier decides what
  * it formats and what an ignore file excludes, through `getFileInfo`;
@@ -68,7 +68,7 @@ const IGNORE_FILES = Object.freeze([".gitignore", ".prettierignore"]);
  * `format` is *assumed* idempotent and is not guaranteed to be: a single pass
  * can leave text the next pass would still change, and a `--write` run that
  * takes one pass then reports success has called such a file formatted while
- * `prettier --check` still rejects it (#125). Formatting to a fixpoint removes
+ * `prettier --check` still rejects it. Formatting to a fixpoint removes
  * the assumption — the file lands on the value repeated formatting converges
  * to, whatever it took to get there.
  *
@@ -86,7 +86,7 @@ const MAX_FORMAT_PASSES = 3;
  * configured to do means asking about a file. These are the two answers that
  * differ: markdown carries the shared `tabWidth` override and everything else
  * does not, so a single probe would check half the conventions and miss the one
- * most worth checking (#133).
+ * most worth checking.
  *
  * Ordinary names at the repository root, and neither has to exist —
  * `resolveConfig` reads the path to walk up from it and to match `overrides`
@@ -147,8 +147,7 @@ function walkFiles(root) {
  * @param {boolean} [opts.write=false] - Rewrite unformatted files in place
  *   rather than reporting them. Each file is formatted to a fixpoint (up to
  *   {@link MAX_FORMAT_PASSES} passes), so a written tree is one a second run
- *   leaves alone; a file that will not converge is reported and left unchanged
- *   (#125).
+ *   leaves alone; a file that will not converge is reported and left unchanged.
  * @param {object} [opts.prettier] - The Prettier module, for tests.
  * @returns {Promise<{findings: Array<{file: string, severity: string,
  *   message: string}>, checked: number, written: string[]}>} The findings, how
@@ -185,7 +184,7 @@ export async function checkFormatting(root, opts = {}) {
         });
         // `resolveConfig` has already applied any `overrides` the consumer's
         // own config declares. The shared fallback has to apply its own, since
-        // Prettier ignores an `overrides` block passed inline (#76).
+        // Prettier ignores an `overrides` block passed inline.
         const options = {
             ...(local ?? sharedPrettierOptionsFor(file)),
             filepath: file,
@@ -199,7 +198,7 @@ export async function checkFormatting(root, opts = {}) {
         try {
             if (write) {
                 // Format to a fixpoint rather than once, so what lands on disk
-                // is what a second run would have produced (#125).
+                // is what a second run would have produced.
                 let formatted = source;
                 let converged = false;
                 for (let pass = 0; pass < MAX_FORMAT_PASSES; pass += 1) {
@@ -221,7 +220,7 @@ export async function checkFormatting(root, opts = {}) {
                         file,
                         severity: "error",
                         // No line or column: the verdict is about the whole
-                        // file, and #17's rule is to drop a field rather than
+                        // file, and the rule is to drop a field rather than
                         // invent one.
                         message:
                             `did not converge after ${MAX_FORMAT_PASSES} formatting passes; ` +
@@ -242,7 +241,7 @@ export async function checkFormatting(root, opts = {}) {
                     file,
                     severity: "error",
                     // No line or column: Prettier's answer is about the whole
-                    // file, and #17's rule is to drop a field rather than
+                    // file, and the rule is to drop a field rather than
                     // invent one.
                     message: "is not formatted; run `content-build format --write` to fix it",
                 });
@@ -272,7 +271,7 @@ export async function checkFormatting(root, opts = {}) {
  *
  * The two cases read differently on purpose. A key set to something else is a
  * choice someone made and can defend; a key that is simply absent is the
- * silent half of #133 — the consumer did not choose Prettier's default, it
+ * silent half — a consumer does not choose Prettier's default, it
  * arrived because declaring one option discards every option not restated.
  *
  * @param {{key: string, shared: unknown, local: unknown}} divergence - From
@@ -291,7 +290,7 @@ function divergenceMessage({ key, shared, local }, scope = "") {
 
 /**
  * Report where a repository's own Prettier configuration parts from the shared
- * one — or that it has none at all (#133).
+ * one — or that it has none at all.
  *
  * **Warnings, every one of them.** A consumer's config wins by design and this
  * does not change that; it only refuses to let the divergence be silent, which
@@ -312,7 +311,7 @@ function divergenceMessage({ key, shared, local }, scope = "") {
  * @returns {Promise<{findings: Array<{file?: string, severity: string,
  *   message: string}>, configFile: string|null}>} The findings and the config
  *   file they are about, which is `null` when the repository declares none. A
- *   finding about a missing file carries no `file`: #17's rule is to drop a
+ *   finding about a missing file carries no `file`: the rule is to drop a
  *   field rather than invent one.
  */
 export async function checkPrettierConventions(root, opts = {}) {

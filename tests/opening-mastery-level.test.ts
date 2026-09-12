@@ -162,7 +162,7 @@ describe("openingMasteryLevel — Skill Base × initSkillMult", () => {
  * after the attribute items exist — a correct evaluator called at the wrong
  * point in the pass looks exactly like one that was never called.
  */
-describe("the actors pass bakes an unopened skill's mastery level (#46)", () => {
+describe("the actors pass bakes an unopened skill's mastery level", () => {
     const catalogue = () =>
         new Map<string, any>([
             [

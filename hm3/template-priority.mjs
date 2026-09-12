@@ -13,7 +13,7 @@
 
 /**
  * **Where HM3 records the template priority** — one statement, read by both of
- * this system's passes (#283).
+ * this system's passes.
  *
  * `data.templatePriority` is the shared fact that a note is a *starting
  * template*, and the specification states it as a row every type maps:
@@ -48,7 +48,7 @@ import { blockProperty } from "../engine/system-block.mjs";
  * A note that is not a template — or states nothing — writes nothing, rather
  * than a `null` nothing reads.
  *
- * **Read through the shared resolver, not a field declaration** (#266). A
+ * **Read through the shared resolver, not a field declaration**. A
  * `FieldSpec`'s shared source is a single position, and this value has five:
  * `data:`, this block, the top level, and the retiring `archetype` spelling in
  * the latter two. The resolver is the single implementation of what a note said,

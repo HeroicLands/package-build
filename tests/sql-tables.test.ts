@@ -158,7 +158,7 @@ describe("rendering a result", () => {
     });
 
     it("splits into a headed table per `_section`, in the query's own order", async () => {
-        // The forty near-identical blocks `Rules/Gear.md` used to need are one
+        // The near-identical blocks `Rules/Gear.md` would otherwise need are one
         // query: the authored ORDER BY decides the section order too.
         const md = await render(
             `SELECT sohl.kbcat AS _section, name.full AS "Name" FROM notes
@@ -323,6 +323,6 @@ describe("the retiring language", () => {
 
         expect(errors).toEqual([]);
         expect(warnings).toHaveLength(1);
-        expect(warnings[0].reason).toMatch(/#246/);
+        expect(warnings[0].reason).toMatch(/`dataview`.*replaced by `sql`/);
     });
 });

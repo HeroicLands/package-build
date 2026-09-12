@@ -12,7 +12,7 @@
  */
 
 /**
- * **Map notes** — the markdown → Foundry `Scene` translation (issue #1525).
+ * **Map notes** — the markdown → Foundry `Scene` translation.
  *
  * A map note carries an *essence*: a curated, hand-owned subset of what a Scene
  * record holds, exactly as a weapon note carries a weapon's essence rather than
@@ -57,7 +57,7 @@ import { compendiumUuid, makeId, MAP_SUBTYPES, MAP_TYPES } from "./ids.mjs";
 // exactly one the bridge forwards.
 import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.mjs";
 // A map's background art is `img`, as every other note type's art is. `image`,
-// the spelling a map alone once used, is retired and gone (#149).
+// the spelling a map alone once used, is retired and gone.
 import { sohlField } from "./frontmatter.mjs";
 
 /* -------------------------------------------------------------------- */
@@ -113,7 +113,7 @@ export const MAP_SUBTYPE_PROFILES = Object.freeze({
 /**
  * The canvas profile for a map subType.
  *
- * Keyed on the subType rather than the type since #174: every map note is
+ * Keyed on the subType rather than the type: every map note is
  * `type: map`, and which canvas it derives is the one thing the three
  * spellings ever decided.
  *
@@ -556,7 +556,7 @@ const SCROLLING_TEXT_EVENTS = Object.freeze([
  * @type {Readonly<Record<string, {fields: string[], events?: readonly string[]}>>}
  */
 const BEHAVIOR_SPECS = Object.freeze({
-    // The SoHL bridge (#593).
+    // The SoHL bridge.
     trigger: { fields: ["events", "action"], events: CURATED_REGION_EVENTS },
     adjustDarknessLevel: { fields: ["mode", "modifier"] },
     applyActiveEffect: { fields: ["effects"] },
@@ -590,7 +590,7 @@ const BEHAVIOR_SPECS = Object.freeze({
 });
 
 /**
- * The behaviour types a map note may carry (issue #1525, v1).
+ * The behaviour types a map note may carry (v1).
  *
  * @type {ReadonlySet<string>}
  */
@@ -619,7 +619,7 @@ export const BANNED_REGION_BEHAVIOR_TYPES = Object.freeze(
         [
             "executeMacro",
             "its target Macro must ship in the same Adventure to resolve, and " +
-                "Adventure-bundled macros are not built yet (deferred from #1525).",
+                "Adventure-bundled macros are not built yet.",
         ],
     ]),
 );

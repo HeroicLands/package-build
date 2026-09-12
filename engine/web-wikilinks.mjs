@@ -22,7 +22,7 @@
  *   `[[type-shortcode#slug|Text]]`  → `[Text](/section/slug/#slug)`
  *   `[[#slug|Text]]`                → `[Text](#slug)`
  *
- * **Every link is an address and carries a label** (#180). One written without
+ * **Every link is an address and carries a label**. One written without
  * a label addresses nothing and is reported — see
  * {@link unlabelledLinkMessage}, which states the rule for this build and the
  * pack build together.
@@ -34,22 +34,22 @@
  * Lives here rather than in a consumer so every package resolves a link the
  * same way. `sohl-thalorna` carried a forked copy of this as
  * `utils/site-wikilinks.mjs`, already 3 KB adrift from the original, which is
- * exactly the drift one rule with two implementations produces (#20).
+ * exactly the drift one rule with two implementations produces.
  */
 
 // How an address *parses* is the pack build's own rule, so the two builds
 // cannot drift apart on it: they disagreed once over the unlabelled hyphen
 // form, which the packs showed as a raw shortcode and the knowledgebase as a
-// name (#1409).
+// name.
 import { readQualifier } from "./wikilinks.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-system-type-shortcode` key, so a package-qualified
 // address is matched the way a vendored manifest publishes it — by the
-// segments the target supplies, with the system wildcarded unless stated (#59).
+// segments the target supplies, with the system wildcarded unless stated.
 import { canonicalKey, expandAddress, readCanonicalKey } from "./content-address.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 // The one rule about a link's shape both builds share: it carries a label, and
-// {@link unlabelledLinkMessage} is the one place that says so (#180).
+// {@link unlabelledLinkMessage} is the one place that says so.
 import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
 // One slug rule for the whole build — see `./content-slug.mjs`. This module
 // carried a copy that dropped non-ASCII letters rather than transliterating
@@ -68,7 +68,7 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  * parse as an address at all.
  *
  * The KB index is keyed by the canonical `type/shortcode`, so a target written
- * in the hyphen separator — which is what the content tree authors (#1398) —
+ * in the hyphen separator — which is what the content tree authors —
  * has to be rewritten to it before lookup. The target is read by the pack
  * build's own {@link readQualifier}, so recognising an address and resolving
  * one can never disagree: the two separators and the optional leading package
@@ -77,7 +77,7 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  * It takes the **parsed** qualifier rather than the raw target because the
  * caller needs the parse for a second purpose: `unknown-type` and
  * `not-an-address` are different findings with different fixes, and only the
- * `reason` tells them apart (#184). Reading the target twice would let the two
+ * `reason` tells them apart. Reading the target twice would let the two
  * readings drift.
  *
  * The build indexes an item note under both `skill/climb` and `docskill/climb`,
@@ -88,7 +88,7 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  */
 function lookupRead(index, read, contentPackage) {
     if (!read || read.reason) return undefined;
-    // Every omitted segment defaults from where the link is written (#336) —
+    // Every omitted segment defaults from where the link is written —
     // package from the citing package, system from the block, which on a page
     // body is `none` — so the target expands to exactly one canonical address
     // and this is a plain lookup. No filter, no single-hit rule, and no
@@ -104,7 +104,7 @@ function lookupRead(index, read, contentPackage) {
     // A local target may also be keyed by its short form. On the KB that is not
     // a second answer: an item note renders as **one page** which is its own
     // documentation, so `skill/climb`, `docskill/climb` and both canonical
-    // addresses are all the same value (#1362) — the fallback cannot pick
+    // addresses are all the same value — the fallback cannot pick
     // differently, only earlier. It stays because an index built before the
     // canonical documentation key was added still carries the short one, and
     // because a page collision here is caught by the site index's own
@@ -127,10 +127,10 @@ function lookupRead(index, read, contentPackage) {
  * This is deliberately identical to the pack compiler's own `unresolvedLink`,
  * down to the class name and the `title` wording. One authored link renders on
  * two surfaces, and the two builds have drifted before over exactly this kind
- * of detail (#1409) — matching markup is what keeps a reader's cue the same in
+ * of detail — matching markup is what keeps a reader's cue the same in
  * a journal and on the page. Duplicated rather than imported only because the
  * function is not exported from `@heroiclands/package-build`; hoisting it there
- * is HeroicLands/content-build#13.
+ * is.
  *
  * The knowledgebase renders with `unsafe = true` (`kb/hugo.toml`), so raw HTML
  * in generated markdown reaches the page. That makes escaping obligatory: this
@@ -154,7 +154,7 @@ function unresolvedLink(text, target) {
 }
 
 /**
- * How a link to a **draft** note renders (#183).
+ * How a link to a **draft** note renders.
  *
  * A note tagged `draft` exists so a link into it is not dead, and nothing more.
  * Unmarked, a reader follows a promising link into an empty page and an author
@@ -173,8 +173,8 @@ function unresolvedLink(text, target) {
  * **Byte-identical with the pack build's copy** in `wikilinks.mjs`, down to the
  * class name and the `title` wording — one authored link renders on two
  * surfaces, and the two builds have drifted before over exactly this kind of
- * detail (#1409). Duplicated rather than imported for the same reason
- * {@link unresolvedLink} is; hoisting both is HeroicLands/content-build#13.
+ * detail. Duplicated rather than imported for the same reason
+ * {@link unresolvedLink} is; hoisting both is.
  *
  * The argument is already-built markup and is deliberately not escaped; the
  * *authored* text inside it was escaped, or made into a link, by the caller.
@@ -198,7 +198,7 @@ function draftLink(inner) {
 const FRONTMATTER_WIKILINK = new RegExp(WIKILINK.source, "g");
 
 /**
- * Every wikilink authored inside a frontmatter value (#1428).
+ * Every wikilink authored inside a frontmatter value.
  *
  * Wikilinks are resolved in a note's **body** — by {@link resolveWebWikilinks}
  * here, and by the pack compilers' `convertWikilinks` for Foundry. Frontmatter
@@ -267,19 +267,19 @@ function isPlainMap(value) {
  * `section/slug`), then in the vendored `ctx.foreign` manifests. A target is a
  * *partial* address: an omitted package means this package, an omitted system
  * is a wildcard, and exactly one match resolves — two are `ambiguous`. A link written
- * without a label addresses nothing at all and is reported as such (#180) —
+ * without a label addresses nothing at all and is reported as such —
  * there is no second namespace left for it to name.
  *
  * Only a slash-qualified target reaches the raw key, which is what keeps
  * `section/slug` addressable without a page's own slug answering for it.
  *
- * **Every target that resolves nowhere fails the build** (#184), and is
+ * **Every target that resolves nowhere fails the build**, and is
  * classified into the vocabulary all three resolvers share — `unlabelled`,
  * `not-an-address`, `unknown-type`, `ambiguous`, `unresolved`. Failures are
  * collected in `ctx.errors`, each carrying the authored `link` and its
  * `occurrence` so a caller can report the line and column it sits on.
  *
- * There used to be one exception: a hyphen-form address was let through while
+ * There is deliberately no exception letting a hyphen-form address through while
  * any linkable package had no vendored manifest, since a real cross-package
  * reference and a typo look identical from here. The pack compilers and the
  * link checker never made that allowance, so its only surviving effect was to
@@ -287,13 +287,13 @@ function isPlainMap(value) {
  * instead.
  *
  * A target that resolves nowhere still renders through {@link unresolvedLink}
- * rather than as bare prose (#1665): the author's text is kept, marked so a
+ * rather than as bare prose: the author's text is kept, marked so a
  * reader can see a link was intended. The marking and the failure are separate
  * jobs and always were — the mark is for whoever reads the page a *previous*
  * build emitted, the failure is for the author of this one.
  *
  * A target that **resolved** to an entry with no page is not this case and is
- * not marked: a pack-only package (#1516) publishes Foundry addresses and no
+ * not marked: a pack-only package publishes Foundry addresses and no
  * web pages, so the author wrote a real address and there is simply nothing to
  * link to.
  *
@@ -302,7 +302,7 @@ function isPlainMap(value) {
  *   foreign, type, errors, src, file }`.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type; `foreign`
- *   is the cross-package manifest index (#1446). `src` is the page's display
+ *   is the cross-package manifest index. `src` is the page's display
  *   path and `file` the source file a diagnostic should name — absent, `src`
  *   stands in.
  * @returns {string} The body with wikilinks rewritten.
@@ -311,7 +311,7 @@ export function resolveWebWikilinks(body, ctx) {
     // How many times each authored link has been seen, so two identical links
     // on one page are located at their own positions in the source file — the
     // same counting the checker does, and what turns a finding into a
-    // `file:line:column:` diagnostic rather than a note-wide one (#17, #184).
+    // `file:line:column:` diagnostic rather than a note-wide one.
     const seen = new Map();
     /**
      * Records a finding, and returns the marked-up link it renders as.
@@ -338,16 +338,16 @@ export function resolveWebWikilinks(body, ctx) {
     };
 
     // Code is verbatim: a `[[…]]` inside a code fence, an indented block or an
-    // inline span is source text, not a link (#1505).
+    // inline span is source text, not a link.
     return replaceOutsideCode(body, WIKILINK, (all, rawInner) => {
         const parsed = parseWikilink(rawInner);
         const { target, anchor, display } = parsed;
         // An empty label is not a label: `[[x|]]` addresses the target and
-        // shows its name, so `""` falls through to the same place `null` does
-        // (#113). One reading, from {@link authoredLabel}.
+        // shows its name, so `""` falls through to the same place `null` does.
+        // One reading, from {@link authoredLabel}.
         const label = authoredLabel({ display });
 
-        // **Every link carries a label** (#180). Without one there is nothing
+        // **Every link carries a label**. Without one there is nothing
         // to resolve against — the alias namespace a bare `[[Text]]` named is
         // retired — and nothing to show either, a shortcode being an address
         // rather than prose. Reported before the same-page form, because the
@@ -362,7 +362,7 @@ export function resolveWebWikilinks(body, ctx) {
             return `[${label ?? anchor}](#${slugify(anchor)})`;
         }
 
-        // The canonical separator (#1398) has to be resolved, not merely
+        // The canonical separator has to be resolved, not merely
         // recognised. `null` here means the target is not an address at all,
         // which is a defect: there is no other namespace to try.
         const read = readQualifier(target, ctx.contentTypes ?? new Set(), ctx.packages);
@@ -374,10 +374,10 @@ export function resolveWebWikilinks(body, ctx) {
             // a page's bare slug cannot answer for an address.
             (rawKey.includes("/") ? ctx.index.get(rawKey) : undefined) ??
             // A manifest entry carries the same `{ url, name }` shape as a
-            // local one (#1446), so a cross-package hit needs no special case
+            // local one, so a cross-package hit needs no special case
             // below. Local wins: a live build is authoritative and a vendored
             // manifest can only be staler.
-            // A short form names *this* package (#336), so it never reaches a
+            // A short form names *this* package, so it never reaches a
             // vendored manifest; only a fully qualified address does.
             (ctx.foreign && read?.package ?
                 lookupRead(ctx.foreign, read, ctx.contentPackage)
@@ -387,8 +387,8 @@ export function resolveWebWikilinks(body, ctx) {
             // shortcode is not display text), so the document's **current**
             // name stands in and a rename shows at every citation.
             const text = label ?? hit.name;
-            // A pack-only package publishes Foundry addresses and no pages
-            // (#1516), so its entries carry no `path` and resolve to no URL.
+            // A pack-only package publishes Foundry addresses and no pages,
+            // so its entries carry no `path` and resolve to no URL.
             // The address is real — this is not a typo and must not fail the
             // build — but there is nothing on the web to point at, so the
             // reader gets the text and no href. Emitting the href anyway is
@@ -396,8 +396,8 @@ export function resolveWebWikilinks(body, ctx) {
             // as a link and goes nowhere.
             const link =
                 hit.url ? `[${text}](${anchor ? `${hit.url}#${slugify(anchor)}` : hit.url})` : text;
-            // A link into a note that exists but is not written renders marked
-            // (#183). Presentation only — the href above is unchanged, and a
+            // A link into a note that exists but is not written renders marked.
+            // Presentation only — the href above is unchanged, and a
             // `[[#anchor]]` self-link is not marked because the reader is
             // already on the page it would be telling them about.
             return hit.draft ? draftLink(link) : link;
@@ -413,7 +413,7 @@ export function resolveWebWikilinks(body, ctx) {
         // it parses as an address.)
         const siteAddress = prefix !== null && ctx.sections.has(prefix);
 
-        // **An address resolving nowhere is a failure, unconditionally** (#184).
+        // **An address resolving nowhere is a failure, unconditionally**.
         //
         // It was gated on a manifest-completeness check — while any linkable package was
         // invisible here, `Rules/Bestiary.md` addressing `being-grkrahk` in the
@@ -443,7 +443,7 @@ export function resolveWebWikilinks(body, ctx) {
             : read?.reason === "unknown-type" ? "unknown-type"
                 // Every link is an address, and this is not one. Distinct from
                 // a dead address, because the fix is different: a name has to
-                // become an address, not be corrected (#180).
+                // become an address, not be corrected.
             : "not-an-address";
 
         // Whether or not it failed the build, the link renders marked: the

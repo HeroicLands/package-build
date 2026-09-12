@@ -19,7 +19,7 @@
  * advertises, so a release publishes `<artifact>.zip`, the whole staged tree,
  * and `<artifact>.json` beside it, which is what an already installed package
  * re-fetches to notice a new version. A package that ships content publishes a
- * third: the content index other packages resolve its addresses through (#239),
+ * third: the content index other packages resolve its addresses through,
  * named by the `flags.metadataUrl` the manifest advertises. Every name is fixed
  * by what the manifest says, not chosen here — see `manifest.mjs`.
  *
@@ -37,7 +37,7 @@ import path from "node:path";
 // archiver 8 is pure ESM and exports **classes**, with no default export. The
 // old `import archiver from "archiver"` factory call throws at import —
 // `does not provide an export named 'default'` — which is how this repository's
-// release job came to fail before a single byte was written (#1683).
+// release job came to fail before a single byte was written.
 import { ZipArchive } from "archiver";
 
 /**
@@ -122,7 +122,7 @@ export async function packRelease({
 }
 
 /**
- * Place the content index the manifest advertises beside the archive (#239).
+ * Place the content index the manifest advertises beside the archive.
  *
  * **The asset's name comes from the manifest, not from here.** `flags.metadataUrl`
  * is the URL every consumer fetches, so its basename is by definition the name

@@ -6,7 +6,7 @@
  */
 
 /**
- * Publishing a content tree as a website (#63).
+ * Publishing a content tree as a website.
  *
  * The two consumer scripts this replaces had **no test between them**: every
  * integrity check was an inline `process.exit`, which cannot be driven from a
@@ -57,7 +57,7 @@ beforeAll(() => {
     );
     fs.mkdirSync(path.join(root, "build/cache/metadata"), { recursive: true });
 
-    // Every package publishes exactly one homepage (#52), so a sandbox that
+    // Every package publishes exactly one homepage, so a sandbox that
     // builds a site has to carry one.
     note("homepage.md", "type: homepage\nshortcode: root", "The module, in its own words.\n");
     note(
@@ -119,7 +119,7 @@ function configFor(site: Record<string, unknown> = {}) {
 const ctx = {
     packages: new Set(["demo"]),
     // The package every note in the tree belongs to. Read from the
-    // configuration, never from a note (#56).
+    // configuration, never from a note.
     contentPackage: "demo",
     skipDirectories: [],
     // Where the package is served, and where its content tree mounts inside
@@ -157,11 +157,11 @@ describe("a page's address comes from the shared scheme", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const byName = Object.fromEntries(pages.map((p) => [p.name, p.url]));
         // `(type, shortcode)`, at the package root: an address is a
-        // package-wide identity and takes no content mount (#181).
+        // package-wide identity and takes no content mount.
         expect(byName.Dagger).toBe("/demo/weapongear-dagger/");
         expect(byName.Combat).toBe("/demo/doc-combat/");
         // A `README.md` used to address the section it sat in. There is no
-        // section, so it is an ordinary page (#204).
+        // section, so it is an ordinary page.
         expect(byName["The Rules"]).toBe("/demo/doc-rulesidx/");
     });
 
@@ -184,7 +184,7 @@ describe("a page's address comes from the shared scheme", () => {
     it("publishes every note in the tree, under the configured package", () => {
         // Nothing is selected by frontmatter any more: the tree holds one
         // package's notes and `package:` is retired, so a page's package is
-        // the configuration's (#56).
+        // the configuration's.
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
         const content = pages.filter((p) => p.kind === "content");
         expect(content.map((p) => p.name)).toContain("Dagger");
@@ -271,9 +271,9 @@ name:
     });
 
     it("has no section gate, because a page is filed nowhere", () => {
-        // A `doc` with no subtype used to be refused: it had no section, and
-        // the section was the directory the file went into. Pages emit flat
-        // (#204), so there is nothing left for it to lack.
+        // A `doc` with no subtype must not be refused for having no section, since
+        // the section was the directory the file went into. Pages emit flat,
+        // so there is nothing left for it to lack.
         note(
             "Rules/Homeless.md",
             `type: doc
@@ -290,7 +290,7 @@ name:
     it("has no collision gate, because two addresses cannot collide", () => {
         // Two notes of one type sharing a *name* used to claim one URL and had
         // to be caught; `(type, shortcode)` is unique within a package by rule,
-        // so the URL is unique by construction and the gate is gone (#181).
+        // so the URL is unique by construction and the gate is gone.
         note(
             "Gear/Dagger2.md",
             `type: weapongear
@@ -335,7 +335,7 @@ describe("what a page publishes with", () => {
     };
 
     it("carries the package the build derived", () => {
-        // #65: no note declares `package:` — it is retired (#56) — so a page
+        // No note declares `package:` — it is retired — so a page
         // that published only what the note carried would no longer be
         // self-describing. The theme's breadcrumb partial reads
         // `.Params.package` to build the middle crumb, which degrades from a
@@ -352,7 +352,7 @@ describe("what a page publishes with", () => {
     });
 
     it("drops an authored `aliases`", () => {
-        // The field is retired and refused at compile (#180), so this is a
+        // The field is retired and refused at compile, so this is a
         // guard rather than a live path: Hugo reads `aliases` as URL redirects,
         // so passing one through would publish a redirect stub at each name.
         const data = pageFrontmatter(page as never, {});
@@ -389,7 +389,7 @@ describe("what a page publishes with", () => {
         expect(path.dirname(pageDestination(page as never))).toBe(".");
         // The URL is the address either way, and the file now agrees with it.
         // Stated relative to the site root, because Hugo prefixes the site's
-        // own base — see `tests/page-url-root-relative.test.ts` (#217).
+        // own base — see `tests/page-url-root-relative.test.ts`.
         expect(pageFrontmatter(page as never, {}).url).toBe("/weapongear-dagger/");
     });
 });
@@ -502,7 +502,7 @@ describe("buildSite end to end", () => {
         const out = path.join(root, "out/kb");
         expect(fs.existsSync(path.join(out, "weapongear-dagger.md"))).toBe(true);
         // A section directory exists only where the configuration declares one
-        // — no page creates it (#204).
+        // — no page creates it.
         expect(fs.existsSync(path.join(out, "rules"))).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     });
@@ -511,13 +511,13 @@ describe("buildSite end to end", () => {
         buildSite({ config: configFor() });
         const page = fs.readFileSync(path.join(root, "out/kb/weapongear-dagger.md"), "utf8");
         // Both the resolved wikilink and the page's own stated address — two
-        // quantities, and only the link carries the package base (#217).
+        // quantities, and only the link carries the package base.
         expect(page).toContain("](/demo/weapongear-dagger/)");
         expect(page).toMatch(/^url: \/weapongear-dagger\/$/m);
     });
 
     it("writes the derived package into a swept note's page", () => {
-        // #65: end to end, because the defect is that the value the collect
+        // End to end, because the defect is that the value the collect
         // pass already resolved never reaches the file on disk.
         note(
             "Gear/Sling.md",

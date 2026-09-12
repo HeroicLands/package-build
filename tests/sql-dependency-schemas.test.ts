@@ -6,13 +6,13 @@
  */
 
 /**
- * **A dependency's index is a schema you can query** (#246).
+ * **A dependency's index is a schema you can query**.
  *
  * A satellite tabulating what it *depends on* — thalorna listing SoHL's skills —
  * had no way to say so. The proposal was a fence property naming a file
  * (`:db package.jsonl`), which puts a build artifact's path into authored
  * content: rename the artifact and the corpus needs sweeping, which is the
- * coupling #126 is a 4,051-key sweep to undo.
+ * coupling the corpus move exists to undo.
  *
  * Which dataset a query reads is what SQL's `FROM` is for, and the design
  * already draws that line — `_ref` and `_section` are ordinary SQL precisely

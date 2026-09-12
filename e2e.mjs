@@ -19,7 +19,7 @@
  * of labour here. Standing a licensed Foundry up, seeding a world whose
  * Gamemaster password is known, waiting for that world to be *active* rather
  * than merely reachable, tearing it all down again — none of that is one
- * repository's problem, and all of it used to live in one. What runs against
+ * repository's problem, and none of it lives in one. What runs against
  * the served world is named in `packageBuild.e2e.suite`, the same way an asset
  * transform or a manifest-flags module is named: the repository's code, the
  * toolchain's plumbing.
@@ -685,7 +685,7 @@ export function findExecutable(name, { cwd, env = process.env } = {}) {
  *
  * Asked twice per run, and the second asking is the point: an install running
  * alongside the suite can take the runner out from under it mid-flight, which
- * is precisely the failure that reported itself as green (#153).
+ * is precisely the failure that reported itself as green.
  *
  * @param {object} opts
  * @param {readonly string[]} opts.command - The program and its arguments.
@@ -766,7 +766,7 @@ export function freshResults({ paths, since, cwd }) {
  * exit status on its own cannot call a run green, because every way of stopping
  * a runner before it starts — a corrupt install, a missing browser, a killed
  * process, the concurrent `npm ci` that surfaced this — produces a run that
- * executed nothing, and nothing is not a pass (#153).
+ * executed nothing, and nothing is not a pass.
  *
  * This can only ever make a verdict worse. A suite that failed keeps its own
  * status; a suite that passed on no evidence loses the claim. Never the other
@@ -814,7 +814,7 @@ export function suiteVerdict({ status, vanished = [], declared = [], fresh = [] 
  * `MODULE_NOT_FOUND` naming nothing relevant.
  *
  * The suite is bracketed by checks rather than trusted on its exit status,
- * because a run that never started used to report as green (#153):
+ * because a run that never started used to report as green:
  *
  * - **Before.** Every executable the command needs is resolved, and a missing
  *   one is an error naming it — rather than a container stood up, a world

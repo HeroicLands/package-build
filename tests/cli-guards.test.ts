@@ -6,7 +6,7 @@
  */
 
 /**
- * Every invocation the command line accepts is one it performs (#57).
+ * Every invocation the command line accepts is one it performs.
  *
  * The CLI is built on yargs, but yargs' guarantees are opt-in and this one had
  * opted into none of them: a bare `content-build`, an unknown command, and a
@@ -116,7 +116,7 @@ describe("a command whose action decides the work", () => {
     });
 
     it("rejects `docs` with no action", () => {
-        // It used to render the item-field reference regardless of what was
+        // It must not render the item-field reference regardless of what is
         // asked for, because the handler never read `argv.action`.
         const { code } = run("docs");
         expect(code).not.toBe(0);
@@ -139,7 +139,7 @@ describe("what still answers without a configuration", () => {
     });
 
     // `manifest` was the command that wrote the vendored link manifest, and it
-    // is gone with the mechanism (#239). A retired command must fail rather
+    // is gone with the mechanism. A retired command must fail rather
     // than be quietly accepted as an unknown positional.
     it("refuses the retired `manifest` command", () => {
         const { code, err } = run("manifest");

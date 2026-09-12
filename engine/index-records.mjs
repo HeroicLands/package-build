@@ -13,7 +13,7 @@
 
 /**
  * The shape of a content-index record, and the accessors every reader of one
- * needs (#243).
+ * needs.
  *
  * **Why these live apart from the index that builds them.** Deriving records
  * reaches the pack router and the manifest emitter, and those reach the
@@ -38,7 +38,7 @@ import path from "node:path";
  * carry itself.
  *
  * `package` is the note's distribution unit — the configured `contentPackage`,
- * since a note declaring its own is a hard error (#56) — and it matches what
+ * since a note declaring its own is a hard error — and it matches what
  * the content-table expander puts on the same field, so a query reads the same
  * value from either. `file` namespaces the note's place in the tree, again
  * matching the expander's `file.*`.
@@ -69,9 +69,9 @@ export const DERIVED_KEYS = Object.freeze([
  * the machine that built the index, would differ between two checkouts of the
  * same tree, and would put someone's home directory in a published artifact. So
  * every pass that reads the index and then needs to open a note has to compose
- * the absolute form, and each of the readers converted for #243 had written its
+ * the absolute form, and each converted reader had written its
  * own `path.join(base, ...record.file.path.split("/"))`. Four copies of one
- * rule is what #243 exists to remove, so here it is once.
+ * rule is what this exists to remove, so here it is once.
  *
  * The split is on `"/"` rather than `path.sep` because the recorded path is
  * always POSIX — that is what makes the index identical on every platform.

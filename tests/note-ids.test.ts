@@ -6,7 +6,7 @@
  */
 
 /**
- * A document's `_id` is a function of its canonical address (#270).
+ * A document's `_id` is a function of its canonical address.
  *
  * The note already has an identity — `package-system-type-shortcode`, unique by
  * construction and checked by `content-lint` — so the opaque 16-character `id`
@@ -125,7 +125,7 @@ describe("resolveNoteId", () => {
 
 /*
  * A folder is a real Foundry `Folder`, and its `_id` is hashed under the
- * **folder** namespace against its own address (#258) — not under `document`,
+ * **folder** namespace against its own address — not under `document`,
  * so that a folder and an item sharing a shortcode cannot collide silently.
  *
  * `noteDocId` used to hash every note alike, so the value it returned for a
@@ -133,9 +133,9 @@ describe("resolveNoteId", () => {
  * Nothing inside a build noticed: no pass reads a folder's id from here (the
  * folder pass reads the note from disk), and every folder note in this
  * repository pins an `id`, which wins in both paths. The content index is where
- * it surfaced, because the index is read from outside (#310).
+ * it surfaced, because the index is read from outside.
  */
-describe("noteDocId, for a folder note (#310)", () => {
+describe("noteDocId, for a folder note", () => {
     const folderFm = { type: FOLDER_TYPE, shortcode: "cookware" };
 
     it("hashes under the folder namespace, which is what the packs address", () => {

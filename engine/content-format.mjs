@@ -12,7 +12,7 @@
  */
 
 /**
- * Reading `docs/content-format.md` as data (#130).
+ * Reading `docs/content-format.md` as data.
  *
  * The content format — three frontmatter regions, a note vocabulary with its
  * own `type` and `subType`, and a declared map from each note type onto each
@@ -23,7 +23,7 @@
  * - **every `system.*` target it names** must exist in the naming system's
  *   published `schema.json`, or the specification and the system disagree; and
  * - **every authored note** should carry only the keys the format declares for
- *   its type, which during the migration (#127) is a progress bar as much as a
+ *   its type, which during the migration is a progress bar as much as a
  *   check.
  *
  * Both need the document as data, and this is the module that supplies it.
@@ -50,7 +50,7 @@
  * type's `subType` values are stated as `**subType**:` followed by one bullet
  * per value, `- <value>` or `- <value>: <definition>`, and that is read here
  * for the same reason the tables are: so the specification and
- * `note-vocabulary.mjs` cannot disagree about which genres exist (#345). The
+ * `note-vocabulary.mjs` cannot disagree about which genres exist. The
  * one shape is enforced rather than guessed at — the document wrote them five
  * ways, and a reader that accepted every spelling would accept the sixth by
  * reading the section as declaring nothing, which is the drift it exists to
@@ -60,7 +60,7 @@
  * The document states the rows every type maps identically once, at the top,
  * and omits them from all sixteen per-type tables — so a parser that only ever
  * looked inside a type's section could not see them, and the eight rows they
- * cover were checked by nothing (#275). Position is the whole distinction:
+ * cover were checked by nothing. Position is the whole distinction:
  * there is no marker to read and none is wanted, since the document's own
  * argument for stating them once is that they belong to no type in particular. A cell that
  * names no field — `NA`, `**see above**`, a `flags.*` path — is not a claim,
@@ -115,7 +115,7 @@ export const CONTENT_FORMAT_PATH = path.join(
  *   `the shared mappings` for a row of the shared tables — see `shared`.
  * @property {boolean} [shared] - Whether the row came from a **shared** mapping
  *   table, which stands before the first `### type:` heading and states what
- *   every type maps identically (#275). Absent on a per-type row, so the two
+ *   every type maps identically. Absent on a per-type row, so the two
  *   never mix: only a per-type row has a field declaration to be checked
  *   against.
  * @property {string} system - The system column it sits under, from the header.
@@ -205,8 +205,8 @@ const SUBTYPE_BULLET = /^-\s+(\S+?)\s*(?::|$)/;
  *
  * Thrown rather than collected, because there is nothing partial to report: a
  * marker the reader does not understand yields a section that appears to
- * declare no subTypes, and every comparison against it then passes vacuously
- * (#345). The message carries the compiler-parseable position the rest of the
+ * declare no subTypes, and every comparison against it then passes vacuously.
+ * The message carries the compiler-parseable position the rest of the
  * toolchain's diagnostics use.
  *
  * @param {string} file - The document being read.
@@ -338,7 +338,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             table = {
                 kind: "mapping",
                 systems: cells.slice(1).map((cell) => cell.replace(/^→\s*/, "").trim()),
-                // Before any type section, so the rows are every type's (#275).
+                // Before any type section, so the rows are every type's.
                 ...(current ? {} : { shared: true }),
             };
             continue;

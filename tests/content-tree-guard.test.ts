@@ -65,7 +65,7 @@ describe("countContentNotes — is there anything to compile?", () => {
 describe("emptyPassErrors — did anything actually compile?", () => {
     // A tree can be full of notes and still compile nothing: the pack
     // compilers select by the configured content package, so one wrong
-    // package id rejects every note and every pack ships blank (#1502).
+    // package id rejects every note and every pack ships blank.
     it("passes a build whose every pass wrote entries", () => {
         expect(
             emptyPassErrors([

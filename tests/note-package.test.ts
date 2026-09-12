@@ -6,9 +6,9 @@
  */
 
 /**
- * A note's package is the repository's configured `contentPackage` (#56).
+ * A note's package is the repository's configured `contentPackage`.
  *
- * `package:` used to be a **selector**: a note compiled when its frontmatter
+ * `package:` is not a **selector**: as one, a note compiles when its frontmatter
  * matched the configured package, and was skipped — as `skippedOther`,
  * indistinguishable from the thousands of notes that legitimately belong to
  * another pass — when it did not. Every content tree is single-package, so the
@@ -49,7 +49,7 @@ describe("nothing derives a package from a note any more", () => {
         // that might meet either. There is no declared value now, so a call
         // site takes `contentPackage` directly and this export is gone — an
         // import of it is a load-time error rather than a silent read of a
-        // field nothing writes (#56).
+        // field nothing writes.
         expect("notePackage" in notePackageModule).toBe(false);
     });
 });
@@ -253,7 +253,7 @@ describe("the compile loop refuses a note that declares `package:`", () => {
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines).toHaveLength(1);
             // `file:line:column: severity: message`, the path first, and the
-            // position of the field itself (#17).
+            // position of the field itself.
             expect(lines[0]).toMatch(/agrees\.md:\d+:\d+: error: /);
             expect(lines[0]).toContain("retired");
             expect(lines[0]).toContain("contentPackage");
@@ -397,7 +397,7 @@ describe("a generated table still scopes on `package` after the sweep", () => {
         const doc = JSON.parse(fs.readFileSync(path.join(dest, fs.readdirSync(dest)[0]), "utf8"));
         // Without the synthesised package the query would match neither note
         // and render an empty table, in silence — the failure mode the sweep
-        // would otherwise have walked straight into (#56).
+        // would otherwise have walked straight into.
         expect(doc.body).toContain("First");
         expect(doc.body).toContain("Second");
     });
@@ -463,7 +463,7 @@ describe("addresses are keyed from the configuration alone", () => {
             entryContext(configFor(root)),
         );
         // The manifest key is the *full* canonical address, so it carries the
-        // system segment (#59) — unlike the wikilink form above, which is a
+        // system segment — unlike the wikilink form above, which is a
         // partial address and names no system.
         expect(entries.map((e: any) => e.key)).toContain(`${OWN}-sohl-skill-clmb`);
     });

@@ -6,10 +6,10 @@
  */
 
 /**
- * The `sohlKb` pass's TypeDoc symbol map (#75).
+ * The `sohlKb` pass's TypeDoc symbol map.
  *
  * The map is the only thing standing between a `{@link}` tag and a code span,
- * and it used to be read with a cwd-relative path inside a bare `catch` that
+ * and reading it with a cwd-relative path inside a bare `catch` that
  * returned `{}`. Missing file, malformed JSON, permissions error and typo were
  * indistinguishable from each other *and* from a correctly configured build
  * with no symbols — so the failure had no observable state at all, and the

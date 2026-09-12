@@ -6,8 +6,7 @@
  */
 
 /**
- * `packFolder:` — naming a compendium folder by a folder note's **address**
- * (#251, #255).
+ * `packFolder:` — naming a compendium folder by a folder note's **address**.
  *
  * It was a path for one release (`Possessions/Cooking`). A path encoded the
  * hierarchy in the value, so reparenting a folder made every note naming it
@@ -15,11 +14,12 @@
  * rather than deprecated, because it had no authors to migrate — which is the
  * whole reason the change was cheap enough to make.
  *
- * The compile cases below are also where #257 is evidenced: a folder
+ * The compile cases below are also where the emptiness rule is evidenced: a
+ * folder
  * materialises in **every pack holding a document that references it**, so the
  * mirroring defect the path form could only *report* is now unrepresentable.
  *
- * The `folder:` Foundry-id spelling it replaced is retired (#260); what is
+ * The `folder:` Foundry-id spelling it replaced is retired; what is
  * left of it is asserted in `retired-folder-field.test.ts`.
  */
 
@@ -120,8 +120,8 @@ ${Object.entries(parents)
  * A throwaway repository with an item pack and a journals pack.
  *
  * No folder YAML is written for either, because there is no longer any such
- * file to write (#260). Each pack materialises the folders it needs from what
- * its documents reference, so there is no second file left to mirror (#257).
+ * file to write. Each pack materialises the folders it needs from what
+ * its documents reference, so there is no second file left to mirror.
  */
 function folderRepo(notes: Record<string, string>): string {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-folder-tree-"));
@@ -199,7 +199,7 @@ function packDocs(root: string, pack: string): Record<string, any> {
  * The folder notes the compile cases file things in.
  *
  * Named distinctly from the YAML folders above on purpose: both spellings are
- * live until #260, so a fixture reusing a name would be asserting against
+ * live, so a fixture reusing a name would be asserting against
  * whichever of the two happened to be read back, not against the folder note.
  */
 const TREE_NOTES = {
@@ -245,7 +245,7 @@ describe("compiling a note that names its folder by address", () => {
     });
 
     it("files the documentation journal in the same folder, in the journals pack", () => {
-        // The defect #257 removes. Under the path form this failed unless a
+        // The defect this removes. Under the path form this fails unless a
         // second folder file mirrored the first — `sohl-thalorna` was missing
         // 57 such folders and `sohl-kethira-basic` had no journal folder file
         // at all. There is no journal folder file here either, and it compiles:
@@ -268,7 +268,8 @@ describe("compiling a note that names its folder by address", () => {
     });
 
     it("does not materialise a folder nothing references", () => {
-        // A folder with nothing in it materialises nowhere — the answer #257
+        // A folder with nothing in it materialises nowhere — the answer the
+        // rule
         // left open, settled the way it expected.
         const root = folderRepo({
             ...TREE_NOTES,
@@ -294,7 +295,7 @@ describe("compiling a note that names its folder by address", () => {
     });
 
     it("refuses a note that still names a Foundry id, naming `packFolder`", () => {
-        // The retirement, through a real compile (#260): the id spelling has
+        // The retirement, through a real compile: the id spelling has
         // nothing left to resolve against, so it fails rather than filing the
         // note somewhere arbitrary — or, worse, nowhere and silently.
         const root = folderRepo({

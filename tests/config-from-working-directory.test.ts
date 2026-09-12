@@ -6,7 +6,7 @@
  */
 
 /**
- * A build reads the configuration of the tree it was run in (#364).
+ * A build reads the configuration of the tree it was run in.
  *
  * The defect these cases describe needs a shape no unit test can fake, so they
  * build it: a repository with the toolchain installed under it, and a second
@@ -193,7 +193,7 @@ describe("every other shape resolves as it always did", () => {
     });
 
     it("reads it from a subdirectory too, since the walk climbs", () => {
-        // What #1508 bought was one tree per build however it was launched, and
+        // What this buys is one tree per build however it is launched, and
         // an upward walk from the working directory keeps exactly that.
         const deep = path.join(parent, "assets", "content", "Items");
         fs.mkdirSync(deep, { recursive: true });
@@ -211,7 +211,7 @@ describe("every other shape resolves as it always did", () => {
 
     it("still lets PACKAGE_BUILD_CONFIG override both walks, without a warning", () => {
         // An explicit name is not a search result, so there is no disagreement
-        // to report — which is what made it the workaround for #364.
+        // to report — which is what made it the workaround for.
         const named = path.join(parent, `${CONFIG_BASENAME}.yaml`);
         const { config, stderr } = loadFrom(nested, { PACKAGE_BUILD_CONFIG: named });
         expect(config.rootDir).toBe(parent);

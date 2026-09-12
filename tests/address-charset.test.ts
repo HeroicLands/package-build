@@ -6,7 +6,7 @@
  */
 
 /**
- * The charset guarantees a canonical address rests on (#59).
+ * The charset guarantees a canonical address rests on.
  *
  * An address is parsed by counting hyphen-separated segments, which is sound
  * only while the hyphen is *purely* a separator — no segment may contain one.
@@ -103,7 +103,7 @@ describe("the address-segment charset", () => {
         expect(isAddressSegment("weapon2")).toBe(true);
     });
 
-    it("rejects a capital — two names differing only in case are one name (#340)", () => {
+    it("rejects a capital — two names differing only in case are one name", () => {
         // `Dgr` beside `dgr` is a distinction nobody can say out loud and can
         // only see by looking twice. It also collapsed silently: `canonicalKey`
         // lowercases, so both published one address, one `_id` and one URL.
@@ -123,7 +123,7 @@ describe("the address-segment charset", () => {
     });
 
     it("is the one rule shortcodes are already held to", () => {
-        // The shortcode guarantee (SoHL#1397) and the package guarantee are the
+        // The shortcode guarantee and the package guarantee are the
         // same statement about the same address, so they are one pattern rather
         // than two free to drift apart.
         for (const value of ["aconite", "self-pro", "B&CFl", "", "two words"]) {
@@ -148,7 +148,7 @@ describe("`contentPackage` must be alphanumeric", () => {
 
     it("names the file, line and column the key is written on", () => {
         // The `file:line:column: severity: message` form the rest of the build
-        // uses (#95) — and the position has to be *true*, so it is read back
+        // uses — and the position has to be *true*, so it is read back
         // out of the file that was written.
         const { message, text } = rejectionFor("harn-adventures");
         const at = /^(\S+):(\d+):(\d+): error: /.exec(message);
@@ -202,7 +202,7 @@ describe("`contentPackage` must not be a note type", () => {
 
     it("reads the closed vocabulary, so the answer does not depend on configuration", () => {
         // The rule is about the *address* grammar, which is the same everywhere
-        // — but the registries it used to be checked against are the
+        // — but the registries it would be checked against are the
         // repository's own, so a package declaring no `itemBuilders` was told
         // `skill` was a fine name for it. It is a note type in every tree, and
         // `skill-clmb` addresses one, whatever this repository compiles: the

@@ -6,7 +6,7 @@
  */
 
 /**
- * Emitted `system` fields against the receiving DataModel (#60).
+ * Emitted `system` fields against the receiving DataModel.
  *
  * Foundry discards an unknown `system` key silently, so both directions of the
  * mismatch compiled clean and both were found by hand. The two cases the issue
@@ -80,10 +80,10 @@ describe("declaredFields separates own from inherited", () => {
 });
 
 describe("emitted but not declared — the field evaporates at load", () => {
-    // #35. `mysticalability` emitted `assocMysteryCode` while 0.8.x had already
+    // `mysticalability` emitted `assocMysteryCode` while 0.8.x had already
     // replaced it with `assocAffiliationCode`. It compiled clean and the value
     // was gone at load.
-    it("catches the assocMysteryCode case (#35)", () => {
+    it("catches the assocMysteryCode case", () => {
         const { undeclared } = compareFields({
             builders: {
                 mysticalability: [{ to: "subType" }, { to: "assocMysteryCode" }],
@@ -103,7 +103,7 @@ describe("emitted but not declared — the field evaporates at load", () => {
         expect(undeclared[0].systemVersion).toBe("0.8.2");
     });
 
-    // sohl-kethira-basic#30. `affiliation.subType` is authored on all 21 deities
+    // `affiliation.subType` is authored on all 21 deities
     // and *is* defined on sohl `main` — but not at 0.8.2, which is what the
     // module pins. A check against `main` passes and the field still evaporates
     // for every user, which is why the comparison is against the declared
@@ -230,7 +230,7 @@ describe("declared but not emitted — reported, and only for own fields", () =>
 
 describe("what the comparison refuses to guess", () => {
     // A builder compiling into a subtype the system does not define is a
-    // routing question (#79), not a field one. Counted rather than reported, so
+    // routing question, not a field one. Counted rather than reported, so
     // the number is never mistaken for coverage.
     it("skips a type the artifact says nothing about", () => {
         const { undeclared, unemitted, skipped } = compareFields({
@@ -243,7 +243,7 @@ describe("what the comparison refuses to guess", () => {
     });
 
     // The note type and the document subtype coincide today by accident rather
-    // than by rule (#78/#79), so the mapping is a seam rather than an
+    // than by rule, so the mapping is a seam rather than an
     // assumption baked in.
     it("routes through subtypeOf, so the explicit map can replace the coincidence", () => {
         const { undeclared } = compareFields({

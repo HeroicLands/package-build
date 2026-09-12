@@ -12,8 +12,7 @@
  */
 
 /**
- * `docs/content-format.md` is the specification, and this makes it executable
- * (#231, #232).
+ * `docs/content-format.md` is the specification, and this makes it executable.
  *
  * The two had drifted, silently and in both directions. Five types the
  * specification declared — `place`, `lore`, `scenario`, `vehicle` and
@@ -65,7 +64,7 @@ function documentedTypes(): Map<string, string[]> {
 
 const DOCUMENTED = documentedTypes();
 
-describe("the specification and the implementation agree (#231, #232)", () => {
+describe("the specification and the implementation agree", () => {
     it("parses a specification that still has type sections to read", () => {
         // Guards the guard: a rename of the heading shape would otherwise make
         // every assertion below vacuously pass.
@@ -124,13 +123,13 @@ describe("the specification and the implementation agree (#231, #232)", () => {
 });
 
 /**
- * The other half of the same vocabulary entry (#345).
+ * The other half of the same vocabulary entry.
  *
  * The block above compares each type's documented `data` properties to the
  * declared ones. Its `subType` values — the genres an author picks from, and
  * the values a note's `subType` is closed against — were compared to nothing,
  * so the specification and `note-vocabulary.mjs` were free to disagree about
- * which genres exist, in either direction. That is the drift #231 and #232
+ * which genres exist, in either direction. That is the drift the two gaps
  * were filed about, on the half they did not reach.
  *
  * Read through the shared specification parser rather than a second regex
@@ -138,7 +137,7 @@ describe("the specification and the implementation agree (#231, #232)", () => {
  * and that parser is where the shape is enforced: a marker it does not
  * recognise throws rather than yielding a section that declares nothing.
  */
-describe("the specification and the vocabulary agree about subTypes (#345)", () => {
+describe("the specification and the vocabulary agree about subTypes", () => {
     const FORMAT = loadContentFormat();
 
     it("reads values out of the specification, so the comparison is not vacuous", () => {
@@ -151,7 +150,7 @@ describe("the specification and the vocabulary agree about subTypes (#345)", () 
     });
 
     it("declares exactly the values the specification lists, in its order", () => {
-        // Folds in the `lore`-only assertion #333 added: every declared genre
+        // Folds in the `lore`-only assertion: every declared genre
         // is defined in the specification, and the specification names no genre
         // the vocabulary has not declared — now asked of every type.
         //

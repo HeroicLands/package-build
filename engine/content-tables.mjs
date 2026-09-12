@@ -59,7 +59,7 @@
 
 // The fence syntax is stated once, in `code-fences.mjs`, so the scanner that
 // *skips* code and the one that expands a `dataview` block cannot disagree
-// about where a block begins and ends (#1505).
+// about where a block begins and ends.
 import { FENCE_LINE } from "./code-fences.mjs";
 
 /** What a cell shows when its expression resolves to nothing. */
@@ -1084,7 +1084,7 @@ export function renderContentTable(spec, rows, linkable, self) {
  *   reason: string, line: number}>, lineMap: Array<{line: number,
  *   generated: boolean}>}} `lineMap` is parallel to the emitted lines and says
  *   which authored line each came from, so a diagnostic about the expanded
- *   body can name an authored position (#17). An `errors` entry carries the
+ *   body can name an authored position. An `errors` entry carries the
  *   0-based line of the directive that failed, for the same reason.
  */
 /**
@@ -1121,12 +1121,12 @@ export function expandContentTables(
     let sqlOrdinal = 0;
     // One entry per `dataview` directive still authored, so a caller can say how
     // much of the corpus is still on the retiring language without this pass
-    // failing a build over it (#246).
+    // failing a build over it.
     const warnings = [];
     const lines = String(markdown ?? "").split("\n");
     const out = [];
     // Which authored line each emitted line came from, so a later pass can
-    // report an authored position for text this one moved (#17). A generated
+    // report an authored position for text this one moved. A generated
     // row has no authored line of its own, so it is blamed on the directive
     // that produced it — the thing an author can actually edit — and marked,
     // because its columns mean nothing.
@@ -1203,8 +1203,7 @@ export function expandContentTables(
             line: i,
             column: indent.length + 1,
             reason:
-                "`dataview` content tables are being replaced by `sql` over the " +
-                "content index (#246)",
+                "`dataview` content tables are being replaced by `sql` over the " + "content index",
         });
         // `dataview allow-empty` says a table selecting nothing is the intended
         // state. Spelled on the fence rather than in the query, because it is a
@@ -1219,7 +1218,7 @@ export function expandContentTables(
             // a header with nothing under it makes that indistinguishable from
             // a category that is legitimately empty. Eight tables in `sohl`'s
             // `Rules/Bestiary.md` published that way for months after the
-            // `creature` → `being` rename, and no build said a word (#223).
+            // `creature` → `being` rename, and no build said a word.
             if (rows.length === 0 && !allowEmpty) {
                 errors.push({
                     source,
@@ -1239,7 +1238,7 @@ export function expandContentTables(
                 directive: block.join("\n"),
                 reason: err.message,
                 // The fence's own line, so a table error is as locatable as
-                // everything else the build reports (#17).
+                // everything else the build reports.
                 line: i,
             });
             block.forEach((text, k) => emit(text, i + k));

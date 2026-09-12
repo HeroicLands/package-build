@@ -12,7 +12,7 @@
  */
 
 /**
- * No index carries an alias source of its own (#147).
+ * No index carries an alias source of its own.
  *
  * The site index once added a note's filename **verbatim** as an alias, while
  * the pack index and the link checker folded `_` to a space before indexing —
@@ -22,7 +22,7 @@
  *
  * The alias namespace was retired wholesale, which resolves it: every link is
  * an address now, and a bare `[[Name]]` is a finding rather than a lookup. This
- * asserts that, and is the test #147 asks for — the one that fails if a fourth
+ * asserts that — the one that fails if a fourth
  * index starts carrying its own alias source.
  */
 
@@ -40,7 +40,7 @@ const NOTE = {
 
 const FILENAME_FORMS = ["sebeq_sut", "Sebeq_Sut", "sebeq sut", "Sebeq Sut"];
 
-describe("one alias namespace, and it is empty (#147)", () => {
+describe("one alias namespace, and it is empty", () => {
     it("the pack index keys a note by its address, not by its filename", () => {
         const index = buildWikilinkIndex([NOTE], "sohl");
         expect(index.byShortcode.has("place/sebeqsut")).toBe(true);
@@ -73,7 +73,7 @@ describe("one alias namespace, and it is empty (#147)", () => {
     });
 
     it("neither index invents a key the other does not have", () => {
-        // The property #147 actually asks for: a link resolves in all of them
+        // The property that matters: a link resolves in all of them
         // or in none. Compared on the keys both are able to hold.
         const pack = buildWikilinkIndex([NOTE], "sohl");
         const site = buildSiteIndex([

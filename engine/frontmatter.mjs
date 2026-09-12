@@ -19,8 +19,8 @@
  * list of constants, so the
  * item-type registry (`item-builders.mjs`) can build on it without dragging in
  * `helpers.mjs`, which reaches wikilinks — and through them back to
- * `item-docs.mjs`, the very module that derives `itemTypes()` from the registry
- * (#1504). Keeping these readers dependency-free is what makes that one-way.
+ * `item-docs.mjs`, the very module that derives `itemTypes()` from the registry.
+ * Keeping these readers dependency-free is what makes that one-way.
  *
  * `helpers.mjs` re-exports everything here, so existing importers are
  * unaffected: there is still one name for each reader.
@@ -28,7 +28,7 @@
 
 // The affiliation standings an authored `relation` map may use. Read from the
 // build package rather than restated here, so the pipeline and the runtime
-// enum cannot drift apart (#1510) — a value absent from the list is a build
+// enum cannot drift apart — a value absent from the list is a build
 // error, never a silent ship.
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 
@@ -65,7 +65,7 @@ export function sohlField(fm, key, defaultValue = undefined) {
 }
 
 /**
- * Read a `sohl:` field, seeing the **destination** position as well (#126).
+ * Read a `sohl:` field, seeing the **destination** position as well.
  *
  * Five declarations resolve their value by re-reading the note rather than by
  * taking the one {@link module:engine/system-block.resolveFieldValue} handed
@@ -84,8 +84,8 @@ export function sohlField(fm, key, defaultValue = undefined) {
  *
  * `legacyKey` is for the one pair whose two positions are spelled differently:
  * a projectile authors `impact.die` and stores `impactBase.die`, so the reader
- * has to be told both. It is the same split `FieldSpec.name`/`legacyKey` makes
- * (#305), for the same reason — one name cannot key two positions.
+ * has to be told both. It is the same split `FieldSpec.name`/`legacyKey` makes,
+ * for the same reason — one name cannot key two positions.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {string} to - The key at the destination, dotted for a nested one.
@@ -136,7 +136,7 @@ function readMapEntries(fm, key) {
 /**
  * Resolve the `charges` block shared by Mystery and Mystical Ability items.
  *
- * Charge usage is carried by the **maximum** alone (#1129): a `null` max means
+ * Charge usage is carried by the **maximum** alone: a `null` max means
  * the item does not use charges at all, `0` means it is counted but uncapped,
  * and a positive number is a real cap. `value` is the current count, with
  * `null` meaning "infinite remaining". Both persist as nullable NumberFields,
@@ -205,7 +205,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
 
 /**
  * Resolve an affiliation's `relation` map — the shortcode of another
- * affiliation → this one's standing toward it (#1404).
+ * affiliation → this one's standing toward it.
  *
  * An unrecognized standing would fail the schema's `choices` validation at load
  * and be dropped silently, shipping an affiliation whose authored hostility had
@@ -223,7 +223,7 @@ export function resolveSkillAptitudes(fm, ctx = "item") {
  */
 export function resolveRelation(fm, ctx = "item") {
     // `relations` is the field's name; `relation` is the retired spelling, read
-    // underneath it so a tree converts on its own schedule (SoHL#1781). The
+    // underneath it so a tree converts on its own schedule. The
     // current name wins wherever a note writes both, and the lint reports the
     // old one through {@link RETIRED_FIELD_ALIASES}.
     // Probed at the destination too: a note that has moved to
@@ -307,12 +307,12 @@ export function parseValueDesc(raw) {
  * (`folder-poisonsandtoxins`), resolved through the address index the whole
  * build shares. The `folder:` Foundry-id spelling this function once read
  * beside it, and the per-pack `*-folders.yaml` that id was resolved against,
- * are retired together (#260) — a note declaring `folder:` is refused by
+ * are retired together — a note declaring `folder:` is refused by
  * {@link module:engine/folder-notes.assertNoDeclaredFolder} rather than
  * reaching here, so there is no second source for a value to come from.
  *
  * **`packFolder` was a path for one release** (`Possessions/Misc_Gear/Cooking`)
- * and is an address now (#255). A path encoded the hierarchy *in the value*, so
+ * and is an address now. A path encoded the hierarchy *in the value*, so
  * reparenting a folder made every note naming it wrong — a structural edit
  * became a corpus-wide rewrite. An address is stable under reparenting, which
  * is exactly why a note is addressed by `(type, shortcode)` and never by

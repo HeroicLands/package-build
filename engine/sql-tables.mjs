@@ -17,7 +17,7 @@
  * The tables were written in Dataview's query language, chosen when the corpus
  * lived in an Obsidian vault so a table rendered live while authoring. The vault
  * is gone, and what remained was a hand-written parser and evaluator for someone
- * else's language, kept faithful to semantics nothing checked it against (#246).
+ * else's language, kept faithful to semantics nothing checked it against.
  *
  * **The query is real SQL, run by DuckDB** — not a dialect maintained here. That
  * is the whole point: a partial reimplementation would accept some valid SQL and
@@ -39,7 +39,7 @@ import path from "node:path";
 
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
-// The record accessors only — see `engine/index-records.mjs` (#243).
+// The record accessors only — see `engine/index-records.mjs`.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 
 /** Rendered in a cell whose value is absent. */
@@ -64,7 +64,7 @@ const escapeCell = (text) =>
  * Every `sql` fence in a markdown body, with the position each occupies.
  *
  * Positions are 0-based lines into the body as given, which is what a diagnostic
- * about a directive needs (#17) and what the expander uses to splice results
+ * about a directive needs and what the expander uses to splice results
  * back in.
  *
  * @param {string} markdown - The note body, frontmatter already stripped.
@@ -98,12 +98,12 @@ export function findSqlBlocks(markdown) {
             query: lines.slice(i + 1, close).join("\n"),
             // `:allow-empty` says a table selecting nothing is intended.
             // Spelled on the fence rather than in the query because it is a
-            // statement about this directive and not part of SQL (#223).
+            // statement about this directive and not part of SQL.
             allowEmpty: args["allow-empty"] === true,
             sectionLevel: Number.isInteger(level) && level >= 1 && level <= 6 ? level : 2,
             // Every header argument, so a caller can read one this module makes
             // no use of — the point of taking a real grammar rather than a
-            // regex per property (#246).
+            // regex per property.
             args,
             block: lines.slice(i, close + 1).join("\n"),
         });
@@ -140,7 +140,7 @@ export function findSqlBlocks(markdown) {
  * It is `FROM` rather than a fence property naming a file, for two reasons. A
  * path in authored content is a build artifact's name written into the corpus,
  * so renaming the artifact means sweeping every note that cites it — the
- * coupling #126 exists to undo. And *which dataset a query reads* is what
+ * coupling the corpus move exists to undo. And *which dataset a query reads* is what
  * `FROM` is for: the same rule that keeps `_ref` and `_section` ordinary SQL,
  * visible where an author is already looking, rather than fence options.
  *
@@ -184,7 +184,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [] } = {}
             return {
                 // From the result's schema, not from the rows: a query that
                 // selects nothing still has columns, and reporting *that* is
-                // what tells a stale query from an empty category (#223).
+                // what tells a stale query from an empty category.
                 columnNames: reader.columnNames(),
                 rows: reader
                     .getRowObjects()
@@ -362,7 +362,7 @@ export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2
  * {@link module:engine/content-tables.expandContentTables} is not — nor should
  * it become so: two of its three callers are synchronous, and one of those,
  * `renderPages`, is exported. Preparing the results first keeps every one of
- * those signatures intact, and it is the shape #243 is heading for anyway —
+ * those signatures intact, and it is the shape the index is heading for anyway —
  * the corpus enumerated once, each pass reading the answer rather than
  * deriving it again.
  *
@@ -417,7 +417,8 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * Answer every `sql` directive in a content tree.
  *
  * The one entry point each pass uses, so the compiler, the link checker and the
- * site build cannot disagree about what a table selects — the failure mode #243
+ * site build cannot disagree about what a table selects — the failure mode the
+ * shared index
  * describes, where N passes each derive the corpus their own way.
  *
  * **Nothing is opened for a tree with no `sql` directive.** The corpus is still
@@ -431,7 +432,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
  * @param {readonly string[]} [opts.skipDirectories] - The walk's scope.
  * @param {object[]} [opts.records] - Index records the caller already derived.
  *   A command that also builds a link index holds them already, and deriving
- *   them twice is the duplicated-corpus failure #243 is closing.
+ *   them twice is the duplicated-corpus failure this closes.
  * @returns {Promise<Map<string, object[]>|undefined>} Results by note path, or
  *   nothing when the tree has no such directive.
  */
@@ -444,7 +445,7 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     const indexRecords = records ?? indexRecordsFor({ contentBase, config, skipDirectories });
 
     // Which notes carry a directive, discovered over the same corpus every
-    // other pass reads rather than over a walk of this one's own (#243). The
+    // other pass reads rather than over a walk of this one's own. The
     // body has to be read to find a fence — the index carries no note text —
     // but *which files* to read is no longer a second answer.
     //
@@ -464,7 +465,7 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     // never ships a link the wikilink pass will then report dead.
     const addresses = new Set(indexRecords.map((record) => record.address?.slug).filter(Boolean));
     // Each declared dependency's published index, attached as its own schema so
-    // a table can read `FROM <package>.notes` (#246). Imported here for the
+    // a table can read `FROM <package>.notes`. Imported here for the
     // same cycle reason the index is, and tolerated when absent: a tree with no
     // `sql` directive never reaches this line, and one whose dependency has not
     // been fetched already fails earlier with a message naming the fetch.

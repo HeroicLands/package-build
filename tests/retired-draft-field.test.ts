@@ -6,7 +6,7 @@
  */
 
 /**
- * `draft:` is retired (#69).
+ * `draft:` is retired.
  *
  * It excluded a note from the compiled packs, from the link manifest and from a
  * consuming site build, and **no checker reported the consequence**: the link
@@ -15,7 +15,7 @@
  * effect was to move a note from published to unresolvable, in silence.
  *
  * So the readers are gone and the field is **refused**, the same way `package:`
- * is (#56) — a retired field left merely ignored reads to its author as though
+ * is — a retired field left merely ignored reads to its author as though
  * it still works, which is the same silence in a different place.
  */
 
@@ -96,7 +96,7 @@ describe("refusing a note that declares `draft:`", () => {
     it("is reported by the frontmatter lint as well as at compile", () => {
         // The lint is where an author meets every finding in the tree at once,
         // rather than one note at a time — the same reason `package:` is
-        // reported in both places (#56).
+        // reported in both places.
         const raw = [
             "---",
             "type: doc",
@@ -191,7 +191,7 @@ describe("the compile loop refuses a note declaring `draft:`", () => {
 
             const lines = spy.mock.calls.map((c) => String(c[0]));
             expect(lines).toHaveLength(1);
-            // `file:line:column: severity: message`, the path first (#17).
+            // `file:line:column: severity: message`, the path first.
             expect(lines[0]).toMatch(/drafted\.md:7:1: error: /);
             expect(lines[0]).toContain("`draft:` is a retired");
         } finally {

@@ -6,9 +6,9 @@
  */
 
 /**
- * A package with no Item pack of its own can still compile actors (#49).
+ * A package with no Item pack of its own can still compile actors.
  *
- * The actors pass used to throw unless at least one Item pack was declared,
+ * The actors pass must not throw unless at least one Item pack is declared,
  * which asked a package to declare the very thing it may exist not to have: an
  * Item pack is system-bound by construction, so a deliberately system-agnostic
  * module could satisfy the guard only by naming a system. `harn-ensemble` is
@@ -28,7 +28,7 @@ import path from "node:path";
 
 import { Actors } from "../sohl/actors.mjs";
 
-describe("itemsSourceDirs is optional (#49)", () => {
+describe("itemsSourceDirs is optional", () => {
     let dir: string;
 
     beforeEach(() => {

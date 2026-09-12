@@ -13,7 +13,7 @@
 
 /**
  * What a builder **emits** into `system`, against what the receiving DataModel
- * **declares** (#60).
+ * **declares**.
  *
  * Foundry discards an unknown `system` key when a document is constructed, and
  * says nothing: the value is simply absent at load, while the build that wrote
@@ -22,7 +22,7 @@
  *
  * - **Emitted, not declared.** `mysticalability` emitted `assocMysteryCode`,
  *   which no DataModel defined — 0.8.x had replaced it with
- *   `assocAffiliationCode` (#35). And `affiliation.subType`, authored on all 21
+ *   `assocAffiliationCode`. And `affiliation.subType`, authored on all 21
  *   of `sohl-kethira-basic`'s deities, is not defined at the version that module
  *   targets, so the divine/arcane split evaporates on load.
  * - **Declared, not emitted.** The mirror image, fixed by hand in
@@ -39,8 +39,8 @@
  *
  * **The rest of the emission is only observable.** A compiler writes keys of
  * its own alongside the declared fields — `shortcode`, `actionDefs`, `notes`,
- * `docHtml`, and since #126 `templatePriority` — and those appear in neither set
- * {@link compareFields} compares, so nothing compared them at all (#155). They
+ * `docHtml` and `templatePriority` — and those appear in neither set
+ * {@link compareFields} compares, so nothing compared them at all. They
  * cannot be listed here without the list going stale the next time a compiler
  * grows a key, so they are read off the `system` object the compiler produced:
  * {@link compareEmittedSystem} takes the assembled block and asks what the
@@ -69,7 +69,7 @@ import { cachedSchemaPath, SCHEMA_ARTIFACT_FILE } from "./foreign-catalog.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { systemData, systemDataPaths, undeclaredPaths } from "./system-block.mjs";
 // A field the document writes for itself in play: declared by the schema,
-// emitted by no builder, and authored by no note (#330).
+// emitted by no builder, and authored by no note.
 import { runtimeOnlyFields } from "./field-spec.mjs";
 
 /**
@@ -77,7 +77,7 @@ import { runtimeOnlyFields } from "./field-spec.mjs";
  *
  * A mismatch stops the check rather than resolving anyway: a schema read under
  * the wrong shape would report confident nonsense in both directions, and a
- * silently skipped check is the state #60 exists to leave.
+ * silently skipped check is the state this exists to leave.
  *
  * @type {number}
  */
@@ -136,7 +136,7 @@ export function declaredFields(artifact, documentType, subtype) {
  * the path beneath it separately, so a comparison that knew only the leaf would
  * report the container as unemitted and the leaf as undeclared.
  *
- * **A runtime-only field is not in it** (#330). It declares a `to` in order to
+ * **A runtime-only field is not in it**. It declares a `to` in order to
  * *claim* the path — so the verbatim passthrough leaves it alone and the
  * refusal has something to name — and `buildFromFields` deliberately skips it,
  * because the document writes that field in play. Counting it here would make
@@ -196,7 +196,7 @@ function coveredByAncestor(path, emitted) {
  *   compile into.
  * @param {(type: string) => string} [opts.subtypeOf] - Maps a builder's type to
  *   the document subtype it emits. Defaults to identity, which is what the
- *   coincidence of names amounts to today (#79) — stated as a seam so that the
+ *   coincidence of names amounts to today — stated as a seam so that the
  *   explicit map replaces a default rather than a hard-coded assumption.
  * @returns {{undeclared: object[], unemitted: object[], skipped: string[]}}
  *   `undeclared` fails a build; `unemitted` is reported; `skipped` names the
@@ -226,14 +226,14 @@ export function compareFields({
         const declared = declaredFields(artifact, documentType, subtype);
         if (!declared) {
             // Not a finding: a builder may compile into a type this system does
-            // not define at all, which is a routing question (#79) rather than a
+            // not define at all, which is a routing question rather than a
             // field one. Named so the count is never mistaken for coverage.
             skipped.push(type);
             continue;
         }
 
         const emitted = emittedFields(fields);
-        // Paths the declaration says the *document* writes in play (#330). They
+        // Paths the declaration says the *document* writes in play. They
         // are neither emitted nor a defect, so they answer the unemitted
         // question below rather than appearing in it: "every compiled document
         // will carry the field's initial value" is exactly what a runtime-only
@@ -373,7 +373,7 @@ function undeclaredEmittedPaths(data, declared, enumerated, prefix = "") {
 
 /**
  * What a **compiled document** carries in `system`, against what the receiving
- * subtype declares (#155).
+ * subtype declares.
  *
  * The third of the three checks, and the only one whose emitted set is
  * *observed*. {@link compareFields} reads the `itemBuilders` declarations and
@@ -430,7 +430,7 @@ export function compareEmittedSystem({
 
     const declared = declaredFields(artifact, documentType, subtype);
     // Not a finding, for the same reason `compareFields` skips one: a subtype
-    // the artifact says nothing about is a routing question (#79), not a field
+    // the artifact says nothing about is a routing question, not a field
     // one, and guessing at it would report every key on the document.
     if (!declared) return [];
 
@@ -457,7 +457,7 @@ export function compareEmittedSystem({
  * The published schema this build should check itself against, or `null`.
  *
  * **Which system, and which version, are already settled.** `stats.systemId`
- * and `stats.systemVersion` are derived rather than authored (#48) — a system
+ * and `stats.systemVersion` are derived rather than authored — a system
  * package is its own system, and a module takes the one it requires — and the
  * version is the `compatibility.verified` it pins. So the question "whose
  * schema, at what version" has one answer here rather than a second set of
@@ -477,12 +477,12 @@ export function compareEmittedSystem({
  * stamps no system at all, and a system that has not adopted the artifact yet
  * is simply unchecked. Neither is an error, and the caller says which it was.
  *
- * **A build may have more than one system, and then the caller names it (#139).**
+ * **A build may have more than one system, and then the caller names it.**
  * `stats.systemId` is the package-wide answer, and a repository shipping content
  * for two systems has no package-wide answer — it is deliberately `null` there,
  * because a module feeding both `sohl` and `hm3` targets neither. Left at that,
  * every schema check in such a build would be skipped in silence, which is the
- * state #60 exists to remove: the five type names the two systems *share* are
+ * state this exists to remove: the five type names the two systems *share* are
  * exactly the ones a wrong-system emission hides in. So a pass supplies the
  * system its pack declares, and the version comes from that system's own
  * `systems:` entry rather than from a package-wide stamp.
@@ -606,7 +606,7 @@ const artifacts = new WeakMap();
  * The per-note check below runs thousands of times in a build and an artifact
  * never changes inside one, so reading and parsing it per note would be a
  * megabyte of JSON per hundred documents for an answer that is already known.
- * Keyed by system as well as by configuration since #139: a build with two
+ * Keyed by system as well as by configuration: a build with two
  * systems has two artifacts, and caching one of them under the configuration
  * alone would hand every pass whichever system asked first.
  *
@@ -624,7 +624,7 @@ function schemaFor(config, system = undefined) {
 
 /**
  * What a note authors under `<system>.system`, against what the receiving
- * subtype declares (#58).
+ * subtype declares.
  *
  * The **note-side** half of the check `compareFields` performs on the
  * declarations. A field list is checked once for the whole build because it is
@@ -649,7 +649,7 @@ function schemaFor(config, system = undefined) {
  * @param {string} opts.documentType - `Item`, `Actor`, …
  * @param {string} opts.subType - The document subtype the note compiles into.
  * @param {string} [opts.system] - The system whose published schema to read,
- *   where a build has more than one (#139). Defaults to the package-wide
+ *   where a build has more than one. Defaults to the package-wide
  *   `stats.systemId`.
  * @param {object} [opts.config] - The resolved build configuration.
  * @returns {{path: string, message: string}[]} One finding per undeclared path,
@@ -680,7 +680,7 @@ export function checkAuthoredSystemData(
 
 /**
  * The `system` block a compiler just assembled, against what the receiving
- * subtype declares (#155).
+ * subtype declares.
  *
  * The build-time face of {@link compareEmittedSystem}: it resolves the schema
  * the way every other check here does — the system's own committed artifact, or
@@ -703,7 +703,7 @@ export function checkAuthoredSystemData(
  * @param {readonly {to?: string}[]} [opts.fields] - The type's field
  *   declaration, which decides each finding's origin.
  * @param {string} [opts.system] - The system whose published schema to read,
- *   where a build has more than one (#139). Defaults to the package-wide
+ *   where a build has more than one. Defaults to the package-wide
  *   `stats.systemId`.
  * @param {object} [opts.config] - The resolved build configuration.
  * @returns {(EmissionFinding & {message: string})[]} One per undeclared path.

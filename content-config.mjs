@@ -52,13 +52,13 @@
  * Both forms end here, so both are validated and frozen identically.
  *
  * **`rootDir` anchors every path**, so the build reads the same files whatever
- * directory it was launched from (#1508).
+ * directory it was launched from.
  *
  * The Foundry floor is declared here as top-level `compatibility`, and the
  * shipped manifest is generated *from* this file. That reverses an older rule —
  * configuration named where the manifest was and read the floor back out of it —
  * which was right while the manifest was hand-authored and became a round trip
- * through a generated artifact once it was not (#50, package-build#9).
+ * through a generated artifact once it was not.
  *
  * @module
  */
@@ -92,7 +92,7 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     // Where `content-index` writes this package's note index. Under `build/`
     // because it is derived and disposable — regenerating it costs a
     // frontmatter parse — and emphatically not under `stage`, which is mirrored
-    // into a Foundry data root (#224).
+    // into a Foundry data root.
     contentIndex: "build/content-index",
     packJson: "build/packs-json",
     stage: "build/stage/packs",
@@ -100,7 +100,7 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     // Where a dependency declaring `itemCatalog: true` is unpacked. Under
     // `build/` because it is derived, disposable, and version-keyed.
     foreignCache: "build/cache/foreign",
-    // Where a dependency's published content index is fetched to (#239). A
+    // Where a dependency's published content index is fetched to. A
     // sibling of the item catalogue rather than a subdirectory of it: the two
     // are fetched for different dependency sets — a catalogue only where
     // `itemCatalog: true` is declared, an index for *every* declared
@@ -112,7 +112,7 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
 /**
  * The Foundry document types a compendium pack may hold. This is the set the
  * toolchain is able to compile a pack of; a document type Foundry supports but
- * this toolchain does not compile is deliberately absent (see #1501 — playlists
+ * this toolchain does not compile is deliberately absent (playlists
  * and roll tables are out of scope).
  *
  * @satisfies {readonly PackDocumentType[]}
@@ -139,15 +139,11 @@ export const PACK_DOCUMENT_TYPES = /** @type {const} */ ([
  * key is **refused**, at the line it was written on, with a message that says
  * the mechanism is gone rather than naming a value to correct.
  *
- * **What `landing` did (#204).** It named which note addressed a whole section
+ * **`landing` is one such key.** It named which note addressed a whole section
  * rather than a page within one — a *landing page*, which therefore had no slug
- * of its own. #203 retired the second of its two rules and #204 retired the
- * concept both rules chose between: a section is a Hugo content directory that
- * the note format does not carry, a page's address names no directory, and so
- * no note lands anything. The key outlived its mechanism by one release only
- * because both publishing consumers still declared the then-true
- * `landing: readme`, and neither breaking them over a correct statement nor
- * accepting the key in silence was acceptable. Neither declares it now.
+ * of its own. There are no sections to address: a section is a Hugo content
+ * directory the note format does not carry, a page's address names no
+ * directory, and so no note lands anything.
  *
  * @type {Readonly<Record<string, string>>}
  */
@@ -168,7 +164,7 @@ export const RETIRED_ADDRESS_KEYS = Object.freeze({
  * `thalorna`, whose site is nothing but its content. It is not the package's
  * own mount point: where the package itself is served is the consuming build's
  * knowledge, held in `PACKAGE_BASE` (`engine/content-address.mjs`) and prefixed at
- * resolve time, so it is never recorded here (#1465).
+ * resolve time, so it is never recorded here.
  *
  * It is the whole scheme: `landing`, the key that named which note addressed a
  * whole section, is retired with the sections themselves — see
@@ -183,7 +179,7 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  *
  * Every HeroicLands package publishes something: a top-level, human-authored
  * homepage at `https://www.heroiclands.org/<contentPackage>/` saying what the
- * module is, which system it needs and how to install it (#50). So there is no
+ * module is, which system it needs and how to install it. So there is no
  * value here meaning *no web presence at all* — homepage-only is the **floor**,
  * and the default.
  *
@@ -251,7 +247,7 @@ export function publishesContentPages(config) {
  * type** receives its document. The two are orthogonal, and both are needed
  * once a repository groups same-type documents editorially — which it may have
  * to, since a compendium UUID carries its pack name and collapsing such a
- * layout breaks every stored reference (#1566).
+ * layout breaks every stored reference.
  *
  * @typedef {object} PackSpec
  * @property {string} name              Pack name — the manifest `name`, and the
@@ -317,7 +313,7 @@ export function publishesContentPages(config) {
  *                                       Inbound, and fetched rather than
  *                                       committed.
  * @property {string} [metadataCache]    Where a dependency's published content
- *                                       index is fetched to (#239). Inbound,
+ *                                       index is fetched to. Inbound,
  *                                       for *every* declared dependency, not
  *                                       only those supplying a catalogue.
  */
@@ -473,13 +469,13 @@ export function publishesContentPages(config) {
  * `fields` is what makes the type documentable: a builder function says
  * nothing about the vocabulary it consumes, so a consumer that declares its
  * fields can generate its own authoring reference and check its own notes,
- * while one that does not is simply undocumented rather than broken (#22).
+ * while one that does not is simply undocumented rather than broken.
  *
  * @typedef {((fm: object) => object)|{system: (fm: object) => object, img?: string, fields?: readonly object[]}} ItemBuilderEntry
  */
 
 /**
- * One **registry** of a declared set, and the system it belongs to (#58).
+ * One **registry** of a declared set, and the system it belongs to.
  *
  * A repository shipping content for two systems declares one of these per
  * system: the accepted type vocabulary is their union, and a type both declare
@@ -518,14 +514,13 @@ export function publishesContentPages(config) {
  *                                          two systems declares a **list** of
  *                                          `{ system, builders }` registries
  *                                          instead, and the accepted type
- *                                          vocabulary is their union (#58).
+ *                                          vocabulary is their union.
  * @property {PackSpec[]} packs             Packs to compile. More than one entry
  *                                          may share a `type`: a note then names
  *                                          the pack it belongs in with its
  *                                          `pack:` frontmatter, and one pack of
  *                                          the type is marked `default: true` to
- *                                          receive the notes that name none
- *                                          (#1566).
+ *                                          receive the notes that name none.
  * @property {PathsInput} [paths]           Layout overrides. See {@link DEFAULT_PATHS}.
  * @property {string[]} [skipDirectories]   Directory names the content walk ignores
  *                                          wherever they appear (e.g. Obsidian's
@@ -571,12 +566,11 @@ export function publishesContentPages(config) {
  *                                     the frontmatter fields each entry
  *                                     declared. Sparse, like `itemArt` — a type
  *                                     absent here compiles normally and is
- *                                     simply undocumented (#22).
+ *                                     simply undocumented.
  * @property {Readonly<Record<string, Readonly<Record<string, Function>>>>} itemBuildersBySystem
  *                                     Derived: the same builders, kept per
  *                                     declaring system. `{}` for the single
- *                                     registry form, which names no system
- *                                     (#58).
+ *                                     registry form, which names no system.
  * @property {Readonly<Record<string, Readonly<Record<string, string>>>>} itemArtBySystem
  *                                     Derived: the default art, per system.
  * @property {Readonly<Record<string, Readonly<Record<string, readonly object[]>>>>} itemFieldsBySystem
@@ -589,7 +583,7 @@ export function publishesContentPages(config) {
  *                                     {@link ContentBuildConfigInput.itemBuilders},
  *                                     unioned across every declared registry, so
  *                                     the accepted item types and the builder
- *                                     tables are one list (#1504).
+ *                                     tables are one list.
  * @property {ReadonlySet<string>} docEntryTypes   Derived: every type whose prose
  *                                     compiles into a JournalEntry of its own —
  *                                     the item types, plus `macro`, plus the map
@@ -668,7 +662,7 @@ const STATS_KEYS = ["lastModifiedBy"];
  * How the loader hands {@link defineConfig} the system version it resolved.
  *
  * A **Symbol**, deliberately. `stats.systemVersion` is refused from an authored
- * configuration (#48), but the value still has to reach here from the loader —
+ * configuration, but the value still has to reach here from the loader —
  * which is the half that may do I/O, and which reads a system package's version
  * out of the adjacent `package.json`. A string key would be a second spelling of
  * the refused one, forgeable from YAML and reachable by `rejectUnknownKeys`; a
@@ -692,7 +686,7 @@ function isPlainObject(value) {
  * The dotted path is carried on the error as `field` as well as spelled into
  * the message, because the message alone is a good description and a bad
  * locator: the loader that read the file can resolve that path to a line and
- * column, and does (`locateConfigError` in `engine/pack-config.mjs`, #95).
+ * column, and does (`locateConfigError` in `engine/pack-config.mjs`).
  * Attaching it here rather than formatting here is what keeps this module
  * free of I/O — it is the leaf an `.mjs` configuration imports, so it may not
  * reach for the file it is validating.
@@ -739,7 +733,7 @@ function requireNonEmptyString(value, field) {
  * It is the first segment of every canonical address this repository publishes
  * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), and an address is
  * read by counting hyphen-separated segments. So the value carries two
- * obligations that the rest of the configuration does not, and #59 asks for
+ * obligations that the rest of the configuration does not, and asks for
  * both to be **enforced rather than assumed** — the alternative is a package
  * whose addresses are simply unreadable, reported nowhere and discovered as
  * links that resolve to nothing.
@@ -754,9 +748,9 @@ function requireNonEmptyString(value, field) {
  *    by asking whether the name is a known package, and a name in both
  *    vocabularies makes one target readable two ways with no defensible pick.
  *    Keeping the two disjoint is what lets a name be taken at face value; that
- *    the package and the type are no longer *adjacent* segments (#59 put the
- *    system between them) changes nothing, because the hazard was never
- *    adjacency — it is that a short form omits the slots in between.
+ *    the package and the type are not *adjacent* segments, the system sitting
+ *    between them, changes nothing: the hazard is not adjacency, it is that a
+ *    short form omits the slots in between.
  *    One such collision is structural and cannot be fixed — `sohl` is both a
  *    content package and a system id, because Foundry requires a system
  *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
@@ -850,7 +844,7 @@ function optionalString(value, field) {
 function normalizePack(value, where, nested = false) {
     if (!isPlainObject(value)) fail(where, "must be an object");
     const pack = /** @type {Record<string, unknown>} */ (value);
-    // Retired with the YAML it named (#260). Refused explicitly rather than
+    // Retired with the YAML it named. Refused explicitly rather than
     // left to the unknown-key check, because the useful thing to say is not
     // "no such key" but where the folders went: they are notes, and a pack
     // materialises the ones its documents reference.
@@ -1002,7 +996,7 @@ function normalizeStats(value, derived) {
     const input = /** @type {Record<string, unknown>} */ (value);
 
     // **`systemId` and `systemVersion` are derived, and authoring a derived
-    // value is an error rather than an override (#48).** `systems:` is the
+    // value is an error rather than an override.** `systems:` is the
     // single source: it says which systems this package stamps against, and
     // `requiresSystem` — or a lone declared system — says which one the
     // package-wide block takes. A system package answers for itself.
@@ -1115,7 +1109,7 @@ function normalizeDocs(value) {
  * One section's landing metadata — what a section says about itself on the
  * `_index.md` this build generates for it.
  *
- * A generated landing is the *only* place a section can speak, and since #204 it
+ * A generated landing is the *only* place a section can speak, and it
  * is the only place a section **exists**: a content page is addressed
  * `(type, shortcode)` and written flat under the mount, so no page creates a
  * directory and nothing else makes `<prefix><section>/` answer. This is
@@ -1127,18 +1121,18 @@ function normalizeDocs(value) {
  * written fourteen to twenty times per build against a contract every package
  * and every section shares. Unbounded there, a mistyped `descrption:` publishes
  * into front matter, is read by nobody, and says nothing to anyone — which is
- * the failure #91 was filed about, moved one step downstream where no build can
+ * the same failure, moved one step downstream where no build can
  * see it. So the keys are named here, and the writers emit what this produced
- * rather than transcribing a second list of their own (#91).
+ * rather than transcribing a second list of their own.
  *
  * `banner` and `description` are optional — the hero images are external assets
  * and not every section has one, and a section may reasonably have nothing to
  * add to its title. Each is left off entirely rather than written as
  * `undefined`, which is not a value YAML can carry.
  *
- * **`listType` / `listSubType` say what the section lists**
- * (heroiclands-hugo-theme#50). Since #204 a section's directory holds nothing
- * but the `_index.md` written here, so a layout reading Hugo's `.Pages` finds
+ * **`listType` / `listSubType` say what the section lists.** A section's
+ * directory holds nothing but the `_index.md` written here, so a layout
+ * reading Hugo's `.Pages` finds
  * no members and renders an empty landing. The membership survives in this map
  * and nowhere a theme can reach it, so the landing states it and a layout
  * substitutes the equivalent `site.RegularPages` query — the same one `sohl`'s
@@ -1155,7 +1149,7 @@ function normalizeDocs(value) {
  * Both are checked as **address segments**, which is the trap this came from:
  * a section is named for the URL a consumer chose and a subType is an address
  * segment, and the two need not agree — `/sohl/kb/user-guide/` is the section,
- * `userguide` the subType (#207). Copying the section's name into the
+ * `userguide` the subType. Copying the section's name into the
  * declaration would select no page at all, and an empty landing reported by
  * nobody is the failure being fixed. A `listSubType` with no `listType` is
  * refused for the same reason: a subType is only distinguishing *within* a
@@ -1349,10 +1343,10 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * @returns {Readonly<Relationships>} It, frozen; `{}` when absent.
  */
 /**
- * The systems this package can stamp content against — declaration only (#48).
+ * The systems this package can stamp content against — declaration only.
  *
  * **Declaring is not requiring, and that separation is the whole point.** The
- * only place to state a system version used to be `relationships.systems`, and
+ * only other place to state a system version is `relationships.systems`, and
  * that list is a *restriction*: Foundry's `supportsSystem` drops a module from
  * any world whose system it does not name. So a module shipping content for two
  * systems — `harn-ensemble` ships an HM3 pack, a SoHL pack and a system-neutral
@@ -1371,8 +1365,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * @returns {Readonly<Record<string, Readonly<object>>>} Frozen; `{}` when absent.
  */
 /**
- * The **package-wide** system, or `null` where the configuration names none
- * (#48).
+ * The **package-wide** system, or `null` where the configuration names none.
  *
  * A *system* package is its own system, which is true by construction and needs
  * no declaration. A *module* takes the one it requires, or the one system it
@@ -1387,7 +1380,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * exists to remove. Several entries have no single answer and get none.
  *
  * **Written once and read twice**, which is why it is a function rather than the
- * expression it used to be: the value stamped into `stats.systemId` and the
+ * expression: the value stamped into `stats.systemId` and the
  * value a pack's `system:` is validated against are the same fact, and two
  * spellings of it would be free to disagree about exactly the case that has no
  * answer.
@@ -1458,7 +1451,7 @@ function normalizeSystems(value) {
 }
 
 /**
- * The one system this package refuses to load without, or `null` (#48).
+ * The one system this package refuses to load without, or `null`.
  *
  * The gate half of the split. Naming a system here emits
  * `relationships.systems` for it, which is what Foundry's `supportsSystem`
@@ -1557,7 +1550,7 @@ function normalizePackageBuild(value) {
  * The registry is *code* a consumer supplies — the only place the configuration
  * carries any — because the type list and the builder table have to be the same
  * list. They were two, and `trait` sat in the whitelist for a release with no
- * builder behind it (#1504).
+ * builder behind it.
  *
  * **An entry may be written two ways**, and the difference is only whether the
  * type brings default art:
@@ -1637,12 +1630,11 @@ function normalizeOneRegistry(value, at) {
 }
 
 /**
- * The declared item-builder registries, and the vocabulary their union gives
- * (#58).
+ * The declared item-builder registries, and the vocabulary their union gives.
  *
  * **One registry is a ceiling, not a default.** The accepted type list is the
  * registry's keys, which is what makes a type impossible to accept without a
- * builder behind it (#1504) — and, with one registry, impossible to accept a
+ * builder behind it — and, with one registry, impossible to accept a
  * type a *second* system declares. A tree feeding two systems has both:
  * `spell`, `invocation` and `psionic` are HM3's, `mysticalability` and
  * `projectile` are SoHL's, and `skill` is both systems' under one name and
@@ -1768,7 +1760,7 @@ function normalizeItemBuilders(value) {
 }
 
 /**
- * The publishing mode, refusing the boolean this setting used to be.
+ * The publishing mode, refusing a boolean.
  *
  * A boolean is refused rather than mapped onto the nearest mode, because the
  * reading `false` invited — *this package has no web presence* — is exactly the
@@ -1827,7 +1819,7 @@ function normalizePublish(value) {
     // A retired key is refused by name, ahead of the vocabulary check: reported
     // as merely unrecognized it would read as a misspelling of the one key that
     // survives, and the author would correct the spelling rather than learn
-    // that the mechanism is gone (#215).
+    // that the mechanism is gone.
     for (const key of Object.keys(address)) {
         if (Object.hasOwn(RETIRED_ADDRESS_KEYS, key)) {
             fail(`publish.address.${key}`, RETIRED_ADDRESS_KEYS[key]);
@@ -1847,7 +1839,7 @@ function normalizePublish(value) {
     }
     if (prefix.startsWith("/")) {
         // A leading slash would make the recorded address package-absolute,
-        // which is exactly the site-absolute shape #1465 removed.
+        // which is exactly the site-absolute shape this avoids.
         fail("publish.address.prefix", "must not begin with a slash");
     }
 
@@ -1900,7 +1892,7 @@ export function defineConfig(config) {
     const packs = input.packs.map((pack, index) => normalizePack(pack, `packs[${index}]`));
 
     // One list, so the compile order and the directory list cannot disagree —
-    // they used to be `PACK_CONFIGS` and `SOURCE_PACKS`, maintained apart (#1508).
+    // as `PACK_CONFIGS` and `SOURCE_PACKS` they would be maintained apart.
     const packDirectories = packs.flatMap((pack) => [
         pack.name,
         ...pack.companions.map((companion) => companion.name),
@@ -1913,7 +1905,7 @@ export function defineConfig(config) {
         seen.add(name);
     }
 
-    // ── systems: declaring, and requiring, are separate decisions (#48) ──────
+    // ── systems: declaring, and requiring, are separate decisions ──────
     const systems = normalizeSystems(input.systems);
     const requiresSystem = normalizeRequiresSystem(input.requiresSystem);
     const declaredSystems = new Set(Object.keys(systems));
@@ -1934,7 +1926,7 @@ export function defineConfig(config) {
     // A name that resolves to nothing is a build error rather than a
     // fall-through, in the spirit the rest of this file already follows: a pack
     // stamping a system nobody declared would stamp `undefined`, which is the
-    // plausible lie #43 was about.
+    // plausible lie.
     if (requiresSystem !== null && !declaredSystems.has(requiresSystem)) {
         fail(
             "requiresSystem",
@@ -1951,14 +1943,14 @@ export function defineConfig(config) {
         // verified version `statsForPack` reads, or this package's own
         // package-wide system, whose stats answer for every pack of it.
         //
-        // This used to be skipped entirely when `systems:` was empty or absent
+        // Skipping this entirely when `systems:` is empty or absent
         // — `declaredSystems.size &&` guarded it — which left the case the
         // comment above was written about wide open. `harn-ensemble` declares
         // `system: sohl` and `system: hm3` on its packs, no `systems:` block,
         // and no package-wide system, so every pack fell through to a
         // package-wide stat that is null: 2,513 compiled actors stamped
         // `_stats.systemId: null` in a pack that says `system: sohl` on the
-        // line above. That is the plausible lie #43 was about, reached by the
+        // line above. That is the plausible lie, reached by the
         // one path this check did not cover, and the `requiresSystem` check ten
         // lines up already refuses its own version of it in as many words.
         if (!declaredSystems.has(pack.system) && pack.system !== packageWide) {
@@ -1994,7 +1986,7 @@ export function defineConfig(config) {
 
     // Several packs of one document type are allowed — editorial grouping of
     // same-type documents is ordinary Foundry practice, and collapsing such a
-    // layout breaks every stored compendium UUID (#1566). What is not allowed
+    // layout breaks every stored compendium UUID. What is not allowed
     // is two candidates for the same undeclared note.
     const defaultsByType = new Map();
     for (const pack of packs) {
@@ -2029,12 +2021,12 @@ export function defineConfig(config) {
         itemFieldsBySystem,
         itemTypesBySeveralSystems,
     } = normalizeItemBuilders(input.itemBuilders);
-    // The union across every declared registry (#58) — the flat table already
+    // The union across every declared registry — the flat table already
     // holds every key any of them declares, so this stays "the registry's keys"
-    // rather than becoming a second list to keep in step (#1504).
+    // rather than becoming a second list to keep in step.
     const itemTypes = Object.freeze(new Set(Object.keys(itemBuilders)));
     // Every note that compiles into a *system-bearing* document publishes its
-    // prose as a documentation JournalEntry, and that includes actors (#337).
+    // prose as a documentation JournalEntry, and that includes actors.
     // A being was the one such note with no `none` address — its only address
     // named the Actor — so nothing a prose link wrote could land on its page.
     // `doc` stays out for the reason that actually applies to it: its single
@@ -2052,7 +2044,7 @@ export function defineConfig(config) {
         // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
         assetRoot: `${packageKind}/${foundryPackage}/assets`,
         paths: normalizePaths(input.paths, rootDir),
-        // The package-wide system, derived (#48). A **system** package is its
+        // The package-wide system, derived. A **system** package is its
         // own system, which is true by construction and needs no declaration. A
         // **module** takes the one it requires, or the one system it declares
         // when there is exactly one; with several and no gate there is no

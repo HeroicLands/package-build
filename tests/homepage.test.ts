@@ -6,8 +6,8 @@
  */
 
 /**
- * The package homepage: an authored page at `/<contentPackage>/` (#51), and the
- * publishing mode that makes it the floor rather than an extra (#55).
+ * The package homepage: an authored page at `/<contentPackage>/`, and the
+ * publishing mode that makes it the floor rather than an extra.
  *
  * The licensing assertion is the reason most of these exist. `sohl-kethira-basic`
  * (Keléstia's Fan Material Guidelines) and `harn-adventures` (HârnFanon under
@@ -124,7 +124,7 @@ function configFor(
     } as ContentBuildConfigInput);
 }
 
-describe("`type: homepage` is note format, so it lives in the engine (#51)", () => {
+describe("`type: homepage` is note format, so it lives in the engine", () => {
     it("is declared by the engine's own schema registry", () => {
         // Not `sohl/note-schemas.mjs`: the `engine/` ÷ `sohl/` line is
         // note-format knowledge vs. game-system knowledge, and a homepage
@@ -171,7 +171,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         expect(pages.every((p) => p.kind === "content")).toBe(true);
     });
 
-    it("publishes at its own address, like every other note (#182)", () => {
+    it("publishes at its own address, like every other note", () => {
         const config = configFor();
         buildSite({ config });
         // `/demo/homepage-root/` — the note's address — written at the root of
@@ -187,7 +187,7 @@ describe("`type: homepage` is note format, so it lives in the engine (#51)", () 
         const page = fs.readFileSync(dest, "utf8");
         expect(page).toMatch(/^title: The Demo Module$/m);
         expect(page).toMatch(/^package: demo$/m);
-        // Site-root relative, like every other page's (#217): Hugo resolves it
+        // Site-root relative, like every other page's: Hugo resolves it
         // against a `baseURL` whose path is already the package's base.
         expect(page).toMatch(/^url: \/homepage-root\/$/m);
         expect(page).toMatch(/^slug: homepage-root$/m);
@@ -239,7 +239,7 @@ name:
     });
 });
 
-describe("`publish.site` distinguishes homepage-only from content (#55)", () => {
+describe("`publish.site` distinguishes homepage-only from content", () => {
     it("offers exactly two modes, with homepage-only the floor", () => {
         expect(SITE_MODES).toEqual(["homepage", "content"]);
     });
@@ -348,7 +348,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         const files = emitted(path.join(root, "out-content"));
         expect(files).toContain("homepage-root.md");
         // Written flat under the mount and published at its address,
-        // `/demo/weapongear-dagger/` (#181, #204).
+        // `/demo/weapongear-dagger/`.
         expect(files).toContain("kb/weapongear-dagger.md");
         expect(result.stats?.homepages).toBe(1);
     });

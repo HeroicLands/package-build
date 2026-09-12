@@ -61,7 +61,7 @@ function note({
 
 /**
  * The package homepage: an ordinary addressed note, conventionally
- * `homepage-root` (#182).
+ * `homepage-root`.
  */
 function homepage(title = "Hârn Adventures", shortcode = "root"): string {
     return [
@@ -87,7 +87,7 @@ describe("isValidShortcode", () => {
         expect(isValidShortcode("weapon2")).toBe(true);
     });
 
-    it("rejects a capital (#340)", () => {
+    it("rejects a capital", () => {
         // `Dgr` beside `dgr` is a distinction nobody can say out loud, and the
         // two collapsed silently onto one address, one `_id` and one URL.
         expect(isValidShortcode("BCFl")).toBe(false);
@@ -120,7 +120,7 @@ describe("lintContentTree", () => {
         );
         expect(r.findings).toEqual([]);
         // Three notes, three keys: the homepage is addressed like any other
-        // note, at `homepage-root` (#182).
+        // note, at `homepage-root`.
         expect(r.notes).toBe(3);
         expect(r.keys).toBe(3);
     });
@@ -160,7 +160,7 @@ describe("lintContentTree", () => {
         expect(dupes[1].message).toContain("One.md");
     });
 
-    // #1678: a note may declare `pack:`, so two same-address notes can be
+    // A note may declare `pack:`, so two same-address notes can be
     // routed to different packs — which does not make them distinct, because a
     // document is addressed across every pack of its document type.
     it("still reports a duplicate when the two notes route to different packs", () => {
@@ -174,7 +174,7 @@ describe("lintContentTree", () => {
     });
 
     // The rule requiring every note to repeat its own `type-shortcode` in
-    // `aliases:` is retired (#79), and so is the field (#180). A note carrying
+    // `aliases:` is retired, and so is the field. A note carrying
     // neither is correct, and this lint says nothing about it either way.
     it("does not require a note to repeat its own address", () => {
         expect(
@@ -214,10 +214,10 @@ describe("lintContentTree", () => {
         expect(r.notes).toBe(0);
     });
 
-    // #77: a package in `publish.site: homepage` mode may hold exactly one
+    // A package in `publish.site: homepage` mode may hold exactly one
     // note — its homepage. That is a populated tree, not an absent one, so the
     // vacuous guard must not fire. The homepage now carries an address of its
-    // own (#182), so the tree has one key rather than none; the guard is
+    // own, so the tree has one key rather than none; the guard is
     // unaffected, because what it reads is an empty *walk*.
     it("passes a tree whose only note is the package homepage", () => {
         const r = lint({ "homepage.md": homepage() });
@@ -285,12 +285,12 @@ describe("lintContentTree", () => {
 /*
  * A note declares the shortcode it used to be published under, so that
  * `addresses diff` can tell a rename from a withdrawal now that a document id
- * is derived from the address and moves with it (#278). The declaration is
+ * is derived from the address and moves with it. The declaration is
  * testimony, so what it is checked against is the rest of the tree: an entry
  * names an address this package *vacated*, which is the uniqueness rule read
  * backwards.
  */
-describe("`renamedFrom`, the address a note used to hold (#278)", () => {
+describe("`renamedFrom`, the address a note used to hold", () => {
     const lintTree = (files: Record<string, string>) =>
         lintContentTree(tree({ "homepage.md": homepage(), ...files }), {
             skipDirectories: [],
@@ -468,14 +468,14 @@ describe("`renamedFrom`, the address a note used to hold (#278)", () => {
 });
 
 /**
- * The address lint reads the content index (#243).
+ * The address lint reads the content index.
  *
  * `content-build lint` derives the index for its link check and its `sql`
  * tables, and then walked the tree a second time to reach this pass — so one
  * command held two answers to "which files are the corpus?" and reported
  * findings drawn from both. It now holds one.
  */
-describe("the address lint is read from the content index (#243)", () => {
+describe("the address lint is read from the content index", () => {
     it("lints the records it is handed, not the tree", () => {
         const root = tree({
             "A.md": note({ shortcode: "dup" }),

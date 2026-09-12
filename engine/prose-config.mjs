@@ -14,14 +14,14 @@
 /**
  * The prose conventions every content repository writes to — one Prettier
  * configuration and one markdownlint rule set, declared here so a note
- * formatted in one repository is formatted the same way in the next (#69).
+ * formatted in one repository is formatted the same way in the next.
  *
- * These used to exist in exactly one consumer. The SoHL repository carried
+ * These belong in no single consumer. The SoHL repository carried
  * both; `sohl-thalorna` had Prettier but never ran it from `lint`; and
  * `sohl-kethira-basic` had neither, so the package least likely to have been
  * proofread was checked for addresses and nothing else. A rule set copied into
  * three repositories is one rule with three implementations, which is the drift
- * #20 exists to remove — so it is declared once, here, and every consumer
+ * this exists to remove — so it is declared once, here, and every consumer
  * invokes it.
  *
  * **Neither of these is an override.** A consumer that declares its own
@@ -89,7 +89,7 @@ export const PRETTIER_BASE = Object.freeze({
  * **Declared apart from the `overrides` block, not derived from it.** Prettier
  * applies `overrides` only while resolving a config *file*; options handed to
  * it directly keep the global values, so a consumer with no config of its own
- * silently got markdown at 4 (#76). The runner needs the adjustment as data it
+ * silently got markdown at 4. The runner needs the adjustment as data it
  * can apply itself, and {@link PRETTIER_CONFIG} composes the same values into
  * the shape a config file wants — one source, two presentations.
  *
@@ -128,7 +128,7 @@ export const PRETTIER_CONFIG = Object.freeze({
  *
  * @param {string} file - Path of the file about to be formatted.
  * @returns {object} Options to hand Prettier directly. Never carries
- *   `overrides`: passing that inline is what silently did nothing (#76).
+ *   `overrides`: passing that inline is what silently did nothing.
  */
 export function sharedPrettierOptionsFor(file) {
     return /\.md$/i.test(file) ? { ...PRETTIER_BASE, ...PRETTIER_MARKDOWN } : { ...PRETTIER_BASE };
@@ -140,11 +140,11 @@ export function sharedPrettierOptionsFor(file) {
  * The runner resolves each file's options as *either* the consumer's own config
  * or {@link sharedPrettierOptionsFor}, never a merge. That is what bare Prettier
  * does and it is the contract — but it means the conventions this package exists
- * to publish hold by convention alone, and they lapse in two opposite directions
- * (#133). A consumer that declares any config of its own gets whatever that
+ * to publish hold by convention alone, and they lapse in two opposite directions.
+ * A consumer that declares any config of its own gets whatever that
  * config says: spread {@link PRETTIER_BASE} without the markdown override and
- * every note reindents at 4, the reindentation the override was added to prevent
- * (#76); write a partial `.prettierrc` such as `{"tabWidth": 2}` and
+ * every note reindents at 4, the reindentation the override was added to prevent;
+ * write a partial `.prettierrc` such as `{"tabWidth": 2}` and
  * `printWidth`, `trailingComma`, `experimentalTernaries` and the rest fall back
  * to Prettier's own defaults. A consumer that declares *nothing* formats one way
  * under this command and another under a bare `npx prettier`.

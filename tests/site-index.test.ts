@@ -30,7 +30,7 @@ function entry(over: Record<string, unknown> = {}) {
     return {
         kind: "content",
         // No `package:` — the field is retired, and the index takes the
-        // page's own `pkg` or the configured package instead (#56).
+        // page's own `pkg` or the configured package instead.
         fm: { type: "skill", ...(over.fm as object) },
         name,
         slug,
@@ -55,7 +55,7 @@ describe("keys that are unique by construction", () => {
 
     it("sets the canonical package-qualified address alongside the short one", () => {
         // The short form must keep resolving — a bare `[[skill-clmb]]` defaults
-        // to the citing note's own package (#1499).
+        // to the citing note's own package.
         const { index } = buildSiteIndex([
             entry({
                 fm: { type: "skill", shortcode: "clmb" },
@@ -68,7 +68,7 @@ describe("keys that are unique by construction", () => {
 
     it("aliases the doc qualifier onto the same page for types that have one", () => {
         // In Foundry an item and its documentation are two documents; here the
-        // note renders as one page which *is* its documentation (#1362).
+        // note renders as one page which *is* its documentation.
         const { index, contentTypes } = buildSiteIndex([
             entry({
                 fm: { type: "skill", shortcode: "clmb" },
@@ -80,10 +80,10 @@ describe("keys that are unique by construction", () => {
     });
 });
 
-describe("a page's name is not an index key (#180)", () => {
+describe("a page's name is not an index key", () => {
     // It was, as one of a set of collision-aware fallbacks the bare `[[Name]]`
     // form looked up — which is what forbade two pages of one type from
-    // sharing a display name (#179). The form is retired, so the fallbacks are
+    // sharing a display name. The form is retired, so the fallbacks are
     // gone and the constraint with them.
     it("does not index a page by its name", () => {
         const { index } = buildSiteIndex([entry({ fm: { type: "skill", shortcode: "clmb" } })]);
@@ -157,7 +157,7 @@ describe("foreign packages", () => {
 
     it("drops the short form when two packages claim it", () => {
         // The short form is `<type>/<shortcode>` and takes no system segment,
-        // so #59 does not disambiguate this case: two packages publishing a
+        // so the scheme does not disambiguate this case: two packages publishing a
         // `polity/x` still collide on the bare key however each one's document
         // is keyed. Only the qualified addresses tell them apart.
         const both = new Map([
@@ -264,7 +264,7 @@ describe("the resolver context", () => {
         // Default: no cross-package links.
         expect(ctx.foreign.size).toBe(0);
         // No `manifestsComplete`: an unresolved address fails unconditionally
-        // now, so there is no flag left for a caller to soften it with (#184).
+        // now, so there is no flag left for a caller to soften it with.
         expect("manifestsComplete" in ctx).toBe(false);
     });
 });

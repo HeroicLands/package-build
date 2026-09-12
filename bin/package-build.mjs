@@ -133,7 +133,7 @@ function die(err) {
     const message = err instanceof Error ? err.message : String(err);
     // A located diagnostic already starts with `file:line:column:`, which is
     // exactly the position a parser reads the path from — prefixing it would
-    // yield a filename no editor can open (#95).
+    // yield a filename no editor can open.
     console.error(
         /** @type {{located?: boolean}} */ (err)?.located ? message : `package-build: ${message}`,
     );
@@ -325,7 +325,7 @@ async function formatGenerated(text, filepath) {
  *
  * The producing half of the check `content-build lint` runs: Foundry discards
  * an unknown `system` key at construction and says nothing, so a content build
- * needs to know what a document will actually receive (#60). It cannot ask a
+ * needs to know what a document will actually receive. It cannot ask a
  * running Foundry, and it cannot read `defineSchema()` from a sibling checkout,
  * so the system publishes the field sets as data — the same shape the link
  * manifest already uses for addresses.

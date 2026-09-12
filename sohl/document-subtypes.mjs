@@ -13,11 +13,11 @@
 
 /**
  * **SoHL's note-type → document-subtype map** — which Foundry document, and
- * which subtype of it, a note of each content type compiles into (#79).
+ * which subtype of it, a note of each content type compiles into.
  *
  * The mechanism is `engine/document-subtypes.mjs`; what a *game system* does
  * with it is here, which is the `engine/` ÷ `sohl/` line this package draws
- * everywhere else (#36). A second system declares its own map in its own half
+ * everywhere else. A second system declares its own map in its own half
  * and shares nothing but the mechanism.
  *
  * **Every row is written out, identity rows included.** `skill → skill` looks
@@ -31,7 +31,7 @@
  * **Three rows are no longer the identity, and that is what the map was for.**
  * `armor`, `concoction` and `projectile` were renamed from the `…gear`
  * spellings that named SoHL's *document* subtype rather than the thing the note
- * is about (#78); the subtypes themselves did not move, so those three rows now
+ * is about; the subtypes themselves did not move, so those three rows now
  * say two different words where they used to say one twice. Landing the rename
  * cost exactly what having the map first promised it would: a data change on
  * three lines here, and no mechanism change anywhere.
@@ -40,7 +40,7 @@
  * before this map is consulted — so a tree that has not swept its 30,741
  * embedded `(type, shortcode)` references compiles byte-identically. `weapon`
  * is deliberately **not** among them: both systems call that document a
- * `weapongear`, so the name says nothing SoHL-specific and #78 left it alone.
+ * `weapongear`, so the name says nothing SoHL-specific and is left alone.
  *
  * **What this map is not.** It says which document a note becomes, never what
  * that document contains: the `system` block comes from the item registry's
@@ -59,7 +59,7 @@ import { defineDocumentSubtypes } from "../engine/document-subtypes.mjs";
  *
  * The Item rows are the thirteen types the item registry declares; the one
  * Actor row is `being`, which was two types (`character` and `creature`)
- * compiling to the same actor until they were retired in SoHL#1580. Types this
+ * compiling to the same actor before they were retired. Types this
  * map does not name — `doc`, `macro`, the three map types — compile into
  * documents that carry no system subtype at all, so they have no row and never
  * needed one.

@@ -6,7 +6,7 @@
  */
 
 /**
- * Declaring a system and requiring one are separate decisions (#48).
+ * Declaring a system and requiring one are separate decisions.
  *
  * `relationships.systems` is a *restriction*: Foundry's `supportsSystem` drops
  * a module from any world whose system it does not name. It was also the only

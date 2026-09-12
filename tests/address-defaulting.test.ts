@@ -17,7 +17,7 @@ import { expandAddress, blockSystem } from "../engine/content-address.mjs";
 import { NO_SYSTEM } from "../engine/systems.mjs";
 
 /**
- * #336 — an omitted address segment **defaults from where the link is written**.
+ * An omitted address segment **defaults from where the link is written**.
  * It is not a wildcard and not a search: every short form expands to exactly one
  * canonical address before anything is looked up.
  *
@@ -25,7 +25,7 @@ import { NO_SYSTEM } from "../engine/systems.mjs";
  * - system omitted → the system block the link sits under; `none` everywhere
  *   else, including top-level frontmatter, `data:` and body prose.
  */
-describe("expandAddress (#336)", () => {
+describe("expandAddress", () => {
     const here = { package: "thalorna", system: "sohl" };
 
     it("defaults both segments from the context", () => {
@@ -115,7 +115,7 @@ describe("expandAddress (#336)", () => {
  * Which system a frontmatter key path is written under — the other half of the
  * rule, and the only thing the resolver needs to be told.
  */
-describe("blockSystem (#336)", () => {
+describe("blockSystem", () => {
     it("reads the system from the block a key sits under, at any depth", () => {
         expect(blockSystem("sohl.items.0.model")).toBe("sohl");
         expect(blockSystem("sohl.system.body.structure")).toBe("sohl");

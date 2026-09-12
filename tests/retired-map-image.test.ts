@@ -13,7 +13,7 @@
  * read it out of the `sohl:` block, so one idea had two spellings and the
  * specification could not state a rule.
  *
- * That rename ran the three steps `package:` took (#56). #142 took the first —
+ * That rename runs the three steps `package:` took. The first —
  * both spellings read, `img` winning, `image` reported rather than refused. The
  * sweep took the second, leaving no tree writing it. This is the **third**: the
  * alias is dropped, and `image` is an ordinary unknown key again.
@@ -74,7 +74,7 @@ function makeCtx() {
     };
 }
 
-describe("the alias is gone (#149)", () => {
+describe("the alias is gone", () => {
     it("no longer maps `img` onto a retired spelling", () => {
         expect(RETIRED_FIELD_ALIASES).not.toHaveProperty("img");
     });
@@ -121,7 +121,7 @@ describe("`img` is read wherever a swept note put it", () => {
     });
 });
 
-describe("the scenes pass refuses the retired spelling (#149)", () => {
+describe("the scenes pass refuses the retired spelling", () => {
     let tmp: string;
     let errors: string[];
     let errorCount: number;
@@ -188,7 +188,7 @@ Prose.
     });
 });
 
-describe("the frontmatter lint refuses it too (#149)", () => {
+describe("the frontmatter lint refuses it too", () => {
     /** A map note as the link index hands one over. */
     const mapNote = (fm: Record<string, unknown>, sohl: Record<string, unknown>) => {
         const block = Object.entries(sohl)

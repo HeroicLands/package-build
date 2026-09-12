@@ -17,14 +17,14 @@ import { docEntryTypes, hasDocEntry, itemTypes } from "../engine/item-docs.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 
 /**
- * #337 — an actor note publishes documentation like every other system-bearing
+ * An actor note publishes documentation like every other system-bearing
  * note, so its prose has a `none` address a prose link can land on.
  *
  * The Actor keeps its own inline `appearance` / `dossier`: an item's pointer is
  * a compendium-bloat measure, paid because one item is embedded across hundreds
  * of beings, and an actor is singular so the indirection buys nothing.
  */
-describe("an actor note carries a documentation journal (#337)", () => {
+describe("an actor note carries a documentation journal", () => {
     it("counts `being` among the doc-carrying types", () => {
         expect(hasDocEntry("being")).toBe(true);
         expect(docEntryTypes().has("being")).toBe(true);

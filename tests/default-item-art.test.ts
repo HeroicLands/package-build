@@ -10,13 +10,13 @@ import { describe, it, expect } from "vitest";
 // build-time pack builder (`packages/content-build/sohl/items.mjs`) and the runtime
 // `SohlItem.getDefaultArtwork` override. Plain ESM, living in the build package
 // and imported here through the same leaf entry point both of them use, so this
-// suite exercises the map they actually read. See issues #890, #932, #1510.
+// suite exercises the map they actually read. See issues.
 import { DEFAULT_ITEM_ART, defaultItemArt } from "../sohl/default-item-art.mjs";
-// The item-type registry — the one place a type is declared (#1504). Deriving
+// The item-type registry — the one place a type is declared. Deriving
 // the expectation from it is what stops this map becoming a third list that
 // disagrees with the whitelist and the builder table.
 import { itemTypes } from "../engine/item-docs.mjs";
-// …translated through SoHL's own note-type → subtype map, because since #78 the
+// …translated through SoHL's own note-type → subtype map, because the
 // two vocabularies are no longer the same string: the registry is keyed by the
 // note type (`armor`) and this map by the document subtype (`armorgear`), which
 // is what the runtime reads off a Foundry Item.
@@ -28,12 +28,12 @@ import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
 const ART = DEFAULT_ITEM_ART as Record<string, string | undefined>;
 
 // Every item type the system can create ad-hoc must have a default so it never
-// falls through to Foundry's white `icons/svg/item-bag.svg` (#932).
+// falls through to Foundry's white `icons/svg/item-bag.svg`.
 const EXPECTED_TYPES = [...itemTypes()].map(
     (type) => documentSubtype(SOHL_DOCUMENT_SUBTYPES as never, type, {}) ?? type,
 );
 
-describe("default-item-art (single source of truth, #932)", () => {
+describe("default-item-art (single source of truth)", () => {
     it("maps every known item document subtype to a themed SoHL asset", () => {
         for (const type of EXPECTED_TYPES) {
             expect(ART[type]).toMatch(/^systems\/sohl\/assets\/icons\/.+\.svg$/);
@@ -56,8 +56,8 @@ describe("default-item-art (single source of truth, #932)", () => {
         );
     });
 
-    it("is keyed by the document subtype, not the renamed note type (#78)", () => {
-        // The three types #78 renamed. The map stays on the document side —
+    it("is keyed by the document subtype, not the renamed note type", () => {
+        // The three renamed types. The map stays on the document side —
         // `SohlItem.getDefaultArtwork` reads it with a Foundry Item's own
         // `type` — and `sohl/item-builders.mjs` translates before asking.
         expect(defaultItemArt("armorgear")).toBe(
@@ -74,7 +74,7 @@ describe("default-item-art (single source of truth, #932)", () => {
         expect(() => defaultItemArt("")).toThrow(/default art/i);
     });
 
-    it("does not carry the retired `trait` type (#651, #1504)", () => {
+    it("does not carry the retired `trait` type", () => {
         expect(ART["trait"]).toBeUndefined();
         expect(() => defaultItemArt("trait")).toThrow(/default art/i);
     });

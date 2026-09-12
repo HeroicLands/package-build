@@ -12,7 +12,7 @@
  */
 
 /**
- * Emitting this package's cross-package link manifest (#58).
+ * Emitting this package's cross-package link manifest.
  *
  * `engine/content-address.mjs` owns the address *grammar* — how a key is
  * version is read, how a foreign file resolves. This module owns the *pass*:
@@ -27,16 +27,16 @@
  * to strip that same prefix back off; the value never reached the file. So
  * nothing here composes one. An address is derived package-relative from the
  * start, by {@link packageAddress}, and the emitting build's mount point is not
- * a fact it has to be told (#1465).
+ * a fact it has to be told.
  *
- * **An entry's `path` is derivable from the key it is filed under** (#181).
+ * **An entry's `path` is derivable from the key it is filed under**.
  * `sohl-sohl-affliction-aconite` publishes at `affliction-aconite/` — the key
  * with its package and system segments dropped — because a page's URL *is* its
  * address; nothing in it comes from a display name, so a rename moves no URL and
  * no uniqueness check stands between the two. The system segment goes with the
  * package because a note publishes one page however many systems' documents it
- * compiles into (#59). Every entry is
- * derivable that way since #204 retired the section landing, which was the one
+ * compiles into. Every entry is
+ * derivable that way, sections being retired — the section landing was the one
  * that was not. The field is still written rather than left for a consumer to
  * compute, because an absent `path` already means something else entirely (a
  * package that publishes no pages).
@@ -124,8 +124,8 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  * An item note produces **two**: the item, and separately the JournalEntry its
  * prose compiles into. They are two documents with two UUIDs, so they get two
  * addresses; the item's entry points at the other by address rather than
- * repeating its UUID, because the doc entry owns that fact (#1499). A `macro`
- * note is the same arrangement (#1514), which is why the type set comes from
+ * repeating its UUID, because the doc entry owns that fact. A `macro`
+ * note is the same arrangement, which is why the type set comes from
  * {@link hasDocEntry} rather than being spelled here — the journals compiler
  * reads the same one, so a manifest cannot claim documentation nothing compiled.
  *
@@ -137,7 +137,7 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  * UUID. The two are one fact — a UUID ends in the id — but only the entry knows
  * which derivation produced it: an item's is its note's `fm.id`, and its
  * documentation journal's is {@link itemDocEntryId} of that. Stating it here is
- * what lets the content index publish an identity it did not re-derive (#310).
+ * what lets the content index publish an identity it did not re-derive.
  *
  * @param {object} ctx - Resolved identities: `{ contentPackage,
  *   foundryPackageId, packRouter }`.
@@ -161,11 +161,11 @@ export function entriesForNote(fm, name, address, body, ctx) {
 
     // A published address must name the pack the document actually shipped in:
     // a consumer resolves the UUID verbatim, and a repository may ship several
-    // packs of one type (#1566).
+    // packs of one type.
     const uuidFor = (type, id, routeFm) =>
         // A type this cannot name a single compendium document for has no UUID
         // to publish, whatever id it derives. That used to follow from such a
-        // note authoring no `id:`; since #270 every addressable note derives
+        // note authoring no `id:`; every addressable note derives
         // one, so "has an id" stopped being evidence a document exists and the
         // rule is stated where it belongs — beside the addresses — rather than
         // resting on an absent field. `collectFoundryEntries` skips such a note
@@ -175,7 +175,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // Two sets, for opposite reasons (see `note-claims.mjs`). A **homepage**
         // is in no pack: it compiles to a page and there is nothing to address.
         // A **folder** may be in several — it materialises in every pack holding
-        // a document that references it (#276) — so no one UUID identifies it,
+        // a document that references it — so no one UUID identifies it,
         // and its id is hashed under the `folder` namespace against its own
         // address rather than under `document`. Emitting one would publish an
         // `Item` UUID for a `Folder`, at an id no document carries.
@@ -222,7 +222,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
                 // content index publishes it beside the UUID, so an entry the
                 // index gives an identity to states both halves of it rather
                 // than leaving a consumer to parse the id back out of the
-                // UUID's last segment (#310).
+                // UUID's last segment.
                 id: docEntryId,
                 uuid: docUuid,
                 anchors: docUuid ? anchorsOf(docUuid, docEntryId, body ?? "", name) : undefined,
@@ -250,12 +250,11 @@ export function entriesForNote(fm, name, address, body, ctx) {
  * Every note this package publishes, as manifest entries.
  *
  * Every note in the tree is this package's, so nothing here selects by package:
- * the key's first segment is `contentPackage` (#56). A note still declaring the
+ * the key's first segment is `contentPackage`. A note still declaring the
  * retired `package:` or `draft:` field **throws** rather than being skipped —
  * skipping one silently is how a whole tree came to be filtered out of a
  * manifest that then claimed the package published nothing, and it is what let
- * a drafted note's inbound links look like links to a note that never existed
- * (#69).
+ * a drafted note's inbound links look like links to a note that never existed.
  *
  * A note that has no address is **reported, not guessed** — the finding carries
  * the file and the reason, so a caller can print it or fail on it. Inventing an
@@ -278,8 +277,8 @@ export function collectFoundryEntries(contentBase, ctx) {
         skipDirectories: ctx.skipDirectories,
     })) {
         if (!fm) continue;
-        // Its authored pin, or the id derived from its canonical address
-        // (#270). Resolved before anything reads `fm.id`, so the UUID this
+        // Its authored pin, or the id derived from its canonical address.
+        // Resolved before anything reads `fm.id`, so the UUID this
         // pass publishes is the one the pack passes compiled under.
         resolveNoteId(fm, { pkg: ctx.contentPackage });
         const rel = path.relative(contentBase, absPath);
@@ -294,7 +293,7 @@ export function collectFoundryEntries(contentBase, ctx) {
         assertNoSectionField(fm, { file: rel, absPath });
         assertNoTraitsField(fm, { file: rel, absPath });
         if (!fm.type || !fm.shortcode) continue;
-        // A homepage is addressed like every other note since #182, and a
+        // A homepage is addressed like every other note, and a
         // shortcode alone would now put it here. It stays out for the reason it
         // always did, which that change does not touch: a manifest entry is how
         // another package resolves a **document**, and a homepage compiles into
@@ -337,7 +336,7 @@ export function foundryIdentities(config = loadPackConfig()) {
         // Carried in the context rather than read from the global config at the
         // call site, so the pass really is a pure function of what it is handed
         // — which is what lets the content index drive the same derivation with
-        // a configuration it resolved itself (#239).
+        // a configuration it resolved itself.
         docEntryTypes: config.docEntryTypes,
     };
 }
@@ -348,7 +347,7 @@ export function foundryIdentities(config = loadPackConfig()) {
  * {@link foundryIdentities} plus what only a *manifest* emission needs. The
  * split is what lets the content index derive the same Foundry addresses from
  * the same code without also depending on whether the package publishes pages,
- * which is no part of a UUID (#239).
+ * which is no part of a UUID.
  *
  * @param {object} [config] - A resolved configuration; loaded when omitted.
  * @returns {{contentPackage: string, foundryPackageId: string, packRouter: object,

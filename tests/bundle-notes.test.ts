@@ -6,9 +6,9 @@
  */
 
 /**
- * `type: bundle` → Foundry's `Adventure` (#259).
+ * `type: bundle` → Foundry's `Adventure`.
  *
- * #263 specified and declared the type and left it uncompiled, recording the
+ * The specification declares the type and leaves it uncompiled, recording the
  * two decisions that had to come first. Both are evidenced here.
  *
  * **Which pack.** Not the `adventures` companion the scenes pass writes — a
@@ -67,7 +67,7 @@ describe("bundleContents — the addresses a bundle names", () => {
     });
 
     it("reads a top-level list too, as a folder note's `parent` is read", () => {
-        // #259's own example wrote `contents:` under `data:`, and an author
+        // The shipped example writes `contents:` under `data:`, and an author
         // following the issue rather than the specification should still get a
         // bundle rather than a silently empty one.
         expect(bundleContents({ contents: ["doc-combat"] })).toEqual(["doc-combat"]);
@@ -137,7 +137,7 @@ describe("buildAdventure — compiled documents becoming an installer", () => {
     });
 
     it("keys the record by the Foundry collection, not by the pack", () => {
-        // A pack directory may be called anything (#1566); the LevelDB key
+        // A pack directory may be called anything; the LevelDB key
         // names the collection the record belongs to inside it.
         expect(buildAdventure({ id: "abc", name: "A", stats })._key).toBe("!adventures!abc");
     });
@@ -499,7 +499,7 @@ describe("compiling a bundle note", () => {
     });
 
     it("bundles a documentation journal only when the note names its own address", () => {
-        // One note, two documents, two addresses (#1362). `miscgear-bowl` is
+        // One note, two documents, two addresses. `miscgear-bowl` is
         // the item; `docmiscgear-bowl` is the JournalEntry its prose became.
         const root = bundleRepo({
             "Bowl.md": gear("Bowl", "bowl"),

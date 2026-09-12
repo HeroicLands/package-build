@@ -20,7 +20,7 @@
  * configuration, directory creation, reading the shipped Foundry package
  * manifest, and the process exit code. The library itself is import-safe, so a
  * consuming repository's build — or a test — can call it without any of this
- * happening (#1507).
+ * happening.
  *
  * The side effects that need *configuration* live inside the command handler,
  * not at module scope, so `--version` and `--help` answer in a directory that
@@ -29,7 +29,7 @@
  * either is missing.
  *
  * Every path and pack name it hands the library comes from the consuming
- * repository's `package-build.config.yaml` (#1508), located by
+ * repository's `package-build.config.yaml`, located by
  * `engine/pack-config.mjs`; nothing about any one repository's layout is
  * written here.
  *
@@ -96,14 +96,14 @@ import {
 } from "../engine/schema-check.mjs";
 // The one vocabulary, loaded whole. Every content project authors the full type
 // set — an adventure module ships skills, beings and magic swords — so no
-// consumer gets a subset (#19, #20).
+// consumer gets a subset.
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 // The shipped declarations, so this repository can check its own specification
-// against them without standing up a consumer's configuration (#136).
+// against them without standing up a consumer's configuration.
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 // The engine's own types, merged under the registry's so the vocabulary stands
-// in a package that configures no `itemBuilders` at all (#51).
+// in a package that configures no `itemBuilders` at all.
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { schemaSubtypeOf } from "../engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
@@ -122,7 +122,7 @@ import {
 } from "../engine/site-build.mjs";
 import { auditLinks, buildLinkIndex, walkReachability } from "../engine/content-links.mjs";
 import { prepareTreeSqlTables } from "../engine/sql-tables.mjs";
-// The one place a link finding is worded, shared with both builds (#184).
+// The one place a link finding is worded, shared with both builds.
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
 import {
     emitDiagnostic,
@@ -144,7 +144,7 @@ import { emittedArtFor, itemPackJsonDirs } from "../engine/generate.mjs";
  * The packs `unpack` extracts.
  *
  * From the configuration's own pack list, which is where the build already
- * knows them. It used to come out of the shipped manifest — a second
+ * knows them. It does not come out of the shipped manifest — a second
  * declaration of the same list, in a second format, with nothing checking that
  * the two agreed. The manifest is generated from this list now
  * (package-build#9), so reading it back would be a round trip through an
@@ -166,7 +166,7 @@ function configuredPacks() {
  * defaults to the *nearest* `package.json` walking up from the working
  * directory — inside a consuming repository that is the consumer's manifest, so
  * `content-build --version` reported the consumer's version instead of the
- * toolchain's (#1557).
+ * toolchain's.
  *
  * @returns {string} The `version` field of this package's manifest.
  */
@@ -191,8 +191,8 @@ prefix.apply(log, {
 /**
  * Report a command's failure.
  *
- * A configuration error carries its own `file:line:column: error: ` locator
- * (#95), and `loglevel`'s `[timestamp] [ERROR]:` prefix occupies exactly the
+ * A configuration error carries its own `file:line:column: error: ` locator,
+ * and `loglevel`'s `[timestamp] [ERROR]:` prefix occupies exactly the
  * position a parser reads the path from — so a located failure is printed
  * unprefixed, as `emitDiagnostic` prints every other finding. Everything else
  * is ordinary prose and keeps the log line it always had.
@@ -249,10 +249,10 @@ const argv = yargs(hideBin(process.argv))
     .version(ownVersion())
     .help()
     .alias("help", "h")
-    // Every invocation this CLI accepts must be one it performs (#57). yargs
+    // Every invocation this CLI accepts must be one it performs. yargs
     // gives neither guarantee by default: without `demandCommand` a bare
     // `content-build` exits 0 in silence, and without `strict` an unknown
-    // command or option is ignored rather than reported. Both used to read as
+    // command or option is ignored rather than reported. Both would read as
     // success from a `run-s` chain, so a typo in a build script passed the step
     // it was meant to run. The sibling toolchain `@heroiclands/package-build`
     // opts into the same two.
@@ -264,7 +264,7 @@ const argv = yargs(hideBin(process.argv))
  *
  * The page is generated from the `fields` each `itemBuilders` entry declares,
  * so every consuming repository documents *its own* registry with the same
- * command (#22).
+ * command.
  *
  * **The framing comes from configuration**, because the tables are the only
  * part that is the same everywhere. A repository's `docs.itemFields` says what
@@ -288,10 +288,10 @@ function docsCommand() {
         command: "docs <action>",
         describe: "Generate documentation from the configured registries",
         builder: (yargs) => {
-            // Required and honoured. It used to be optional and never read:
+            // Required and honoured, not optional and unread:
             // the handler rendered the item-field reference whatever it was
             // given, so the positional constrained what could be typed and
-            // selected nothing (#57).
+            // selected nothing.
             yargs.positional("action", {
                 describe: "The document to render.",
                 type: "string",
@@ -380,7 +380,7 @@ function docsCommand() {
 }
 
 /**
- * `content-build content-format` — check the format specification itself (#130).
+ * `content-build content-format` — check the format specification itself.
  *
  * Two checks, because the specification makes claims about two different
  * worlds, and they fail for different reasons and at different times:
@@ -389,10 +389,9 @@ function docsCommand() {
  *   naming system's published `schema.json`. A failure means the specification
  *   and the system disagree, which is a defect in one of the two.
  * - `fields` compares the per-type tables against the field declarations that
- *   compile them, so the hand-written half cannot drift from the generated one
- *   (#136).
+ *   compile them, so the hand-written half cannot drift from the generated one.
  * - `notes` measures a content tree against the vocabulary the document
- *   declares per type. During #127 it is the migration's progress bar rather
+ *   declares per type. During the migration it is the progress bar rather
  *   than a gate, so it **reports** by default and `--strict` makes it fatal —
  *   turned on one class at a time as each slice lands.
  *
@@ -535,7 +534,7 @@ function declarationsFrom(argv) {
  * The specification hand-writes a `data` table under most of its type sections,
  * covering ground {@link module:engine/field-reference} already generates from
  * the `fields` on each `itemBuilders` entry — the duplication that module exists
- * to prevent, one document over (#136).
+ * to prevent, one document over.
  *
  * **Checked, not merged.** The document's vocabulary spans note types that
  * produce Scenes, Macros and JournalEntries, which no item registry covers, so
@@ -566,7 +565,7 @@ function contentFormatFieldsCommand() {
             });
             yargs.option("coverage", {
                 describe:
-                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until #127 lands.",
+                    "List, per type, the fields only one side names. They are not findings — the two vocabularies differ by design until the corpus moves.",
                 type: "boolean",
                 default: false,
             });
@@ -627,8 +626,8 @@ function contentFormatFieldsCommand() {
  *
  * **A report, not a gate.** Every authored note predates the format, so a
  * failing check would be red in every repository from the day it lands and
- * would stay red for the length of #127 — which is a check nobody can act on.
- * `--strict` raises the findings to errors, and #127 turns it on slice by
+ * would stay red for the length of the migration — which is a check nobody
+ * can act on. `--strict` raises the findings to errors, turned on slice by
  * slice as each class of finding reaches zero.
  *
  * @returns {object} The yargs command module.
@@ -649,7 +648,7 @@ function contentFormatNotesCommand() {
             });
             yargs.option("strict", {
                 describe:
-                    "Fail on the findings instead of reporting them. Turned on per slice of #127, as each class reaches zero.",
+                    "Fail on the findings instead of reporting them. Turned on per slice, as each class reaches zero.",
                 type: "boolean",
                 default: false,
             });
@@ -660,7 +659,7 @@ function contentFormatNotesCommand() {
                 const root = argv.root ?? config.paths.content;
                 const format = specFrom(argv);
 
-                // The corpus from the index, like every other check (#243).
+                // The corpus from the index, like every other check.
                 // A report measuring the tree against the declared vocabulary
                 // has to be looking at the same tree the compile will, or its
                 // counts describe a corpus nobody builds.
@@ -745,14 +744,14 @@ function lintCommand() {
                 const root = argv.root ?? config.paths.content;
 
                 // The corpus, enumerated once for this command and handed to
-                // every pass below, rather than derived again by each (#243).
+                // every pass below, rather than derived again by each.
                 // The address lint reads it, the `sql` tables select over it
                 // and the link index is built from it, so no two findings this
                 // command reports can be drawn from different ideas of which
                 // files the content is.
                 //
                 // A note the index cannot record is reported like any other
-                // finding rather than thrown (#243): one malformed note must
+                // finding rather than thrown: one malformed note must
                 // not take every other finding in the tree with it, and the
                 // reader needs a line to open, not a stack.
                 const corpusProblems = [];
@@ -768,7 +767,7 @@ function lintCommand() {
                 // would call the tree clean while silently omitting a note.
                 if (corpusProblems.length) process.exitCode = 1;
 
-                // The package is passed for the homepage rule (#52), which
+                // The package is passed for the homepage rule, which
                 // names the address a tree with no front page fails to serve.
                 const addresses = lintContentTree(root, {
                     contentPackage: config.contentPackage,
@@ -790,7 +789,7 @@ function lintCommand() {
                     }),
                 });
                 // Which system blocks this tree carries, derived from what it
-                // declares it ships for (#58). Read before the lint so the
+                // declares it ships for. Read before the lint so the
                 // systems it will *not* check can be said out loud below.
                 // `schemaSystem` names whose vocabulary the `schemas` below
                 // are. They are `sohl/note-schemas.mjs`, imported here
@@ -823,18 +822,18 @@ function lintCommand() {
                 }
                 const frontmatter = lintFrontmatter(index, {
                     schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS },
-                    // The closed frontmatter regions (#128). Passed in rather
+                    // The closed frontmatter regions. Passed in rather
                     // than reached for, so the linter stays a checker of
                     // whatever it is handed and this stays the one place that
                     // decides which vocabulary a tree is held to.
                     vocabulary: NOTE_VOCABULARY,
                     // The pack names, for a `data:` field keyed by pack — a
-                    // folder's `parent` is one (#288). Companions included:
+                    // folder's `parent` is one. Companions included:
                     // the compile asks the map for whichever pack it is
                     // writing, and a companion is a pack it writes.
                     packs: config.packDirectories,
                     // What art each type actually reaches its document through,
-                    // asked of the passes rather than listed here (#349). This
+                    // asked of the passes rather than listed here. This
                     // is the one place that decides what a tree is held to, so
                     // it is where the derivation is handed over — the linter
                     // states no list of iconless types of its own.
@@ -850,7 +849,7 @@ function lintCommand() {
                 });
 
                 // What the builders emit, against what the receiving system
-                // declares (#60). Reported here rather than at compile: it is
+                // declares. Reported here rather than at compile: it is
                 // a property of the *declarations*, not of any one note, so it
                 // is the same answer for every document and belongs where a
                 // reader is already being told about the vocabulary.
@@ -900,7 +899,7 @@ function lintCommand() {
                         artifact: schema.artifact,
                         // A schema is keyed by document subtype and a field
                         // declaration by note type. Those were one string until
-                        // #78 renamed three of them, and joining them by name
+                        // Three are renamed, and joining them by name
                         // after that would drop `armorgear`'s findings without
                         // saying so — the seam exists for exactly this.
                         subtypeOf: (type) => schemaSubtypeOf(config.stats?.systemId, type),
@@ -924,15 +923,15 @@ function lintCommand() {
                     }
                 }
 
-                // The charset the tree is held to, so a book can pick its face
-                // (#377). Run over the raw files rather than the parsed notes:
+                // The charset the tree is held to, so a book can pick its face.
+                // Run over the raw files rather than the parsed notes:
                 // the subject is every character authored, including the ones
                 // that stopped a note parsing at all.
                 const charset = lintContentCharset(root, {
                     skipDirectories: config.skipDirectories,
                 });
 
-                // The names the charset check leaves room for (#378). An icon
+                // The names the charset check leaves room for. An icon
                 // the registry does not declare renders as its own literal
                 // text, which is visible but easy to publish, so it is reported
                 // here rather than left for a reader to notice.
@@ -953,7 +952,7 @@ function lintCommand() {
                     ...icons.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
-                // until #142, so this changed nothing on the day it landed —
+                // by then, so this changes nothing on its own —
                 // but a field retired in favour of another is reported while
                 // both spellings still compile, and failing a build over a note
                 // that produces the correct document would red a tree that has
@@ -1002,7 +1001,7 @@ function lintCommand() {
  * reports, as warnings, each shared convention the repository's own
  * configuration resolves differently — or that it declares no configuration at
  * all, which guarantees an editor and a bare `npx prettier` disagree with this
- * command about the same tree (#133). Nothing there fails the run: the point is
+ * command about the same tree. Nothing there fails the run: the point is
  * that a local choice is deliberate rather than silent.
  *
  * @returns {object} The yargs command module.
@@ -1040,7 +1039,7 @@ function formatCommand() {
                 const root = process.cwd();
                 // Before the per-file report, because it is the context for it:
                 // which rules this run applied, and whether anything else in
-                // the repository applies the same ones (#133). Warnings only —
+                // the repository applies the same ones. Warnings only —
                 // a consumer's config wins by design, so none of this touches
                 // the exit code.
                 const conventions = await checkPrettierConventions(root);
@@ -1065,7 +1064,7 @@ function formatCommand() {
                     // `--write` collects findings too — a file Prettier cannot
                     // parse, or one that will not format to a fixpoint — and
                     // used to discard them, so a run that had left files
-                    // unformatted still reported success and exited 0 (#125).
+                    // unformatted still reported success and exited 0.
                     for (const finding of findings) emitDiagnostic(finding);
                     if (findings.length) {
                         log.error(
@@ -1166,7 +1165,7 @@ function linksCommand() {
                 const contentBase = argv.root ?? config.paths.content;
 
                 const scope = { skipDirectories: config.skipDirectories };
-                // Enumerated once and shared, as in `lint` (#243), and a note
+                // Enumerated once and shared, as in `lint`, and a note
                 // it cannot record is reported rather than thrown.
                 const corpusProblems = [];
                 const records = indexRecordsFor({
@@ -1238,8 +1237,8 @@ function linksCommand() {
                             `heading in ${d.dest.rel} declares`,
                     });
                 }
-                // Every link is an address (#180) and every address must
-                // resolve (#184), so all of these are errors — but they read
+                // Every link is an address and every address must
+                // resolve, so all of these are errors — but they read
                 // differently because the corrections differ. The wording comes
                 // from the shared table, so the checker cannot describe a
                 // defect differently from the build that also refuses it.
@@ -1265,7 +1264,7 @@ function linksCommand() {
                 // The package homepage. Its addresses are markdown links and
                 // `landing:` url/href fields rather than wikilinks — it is
                 // published verbatim, so nothing resolves a wikilink on it —
-                // and until #54 nothing looked at them at all.
+                // and nothing else looks at them.
                 for (const h of homepageLinks) {
                     emitDiagnostic({
                         file: h.note.file,
@@ -1307,7 +1306,7 @@ function linksCommand() {
  *
  * Every build already walks the tree and parses every note's frontmatter, then
  * throws the result away, so nothing outside a build can ask a question about
- * the content (#224). This publishes that walk as JSON Lines: one record per
+ * the content. This publishes that walk as JSON Lines: one record per
  * note, carrying the whole frontmatter plus the note's place in the tree.
  *
  * It is a command of its own rather than only a build step because the point of
@@ -1358,7 +1357,7 @@ function contentIndexCommand() {
  * `content-build site` — publish the content tree as a website.
  *
  * The sibling of `package compile`: the same tree, rendered as pages instead of
- * compiled into packs (#63). Everything a consumer used to write for itself —
+ * compiled into packs. Everything a consumer would otherwise write for itself —
  * the walk, the address derivation, the address index, table expansion,
  * wikilink resolution, code-fence protection, the foreign-manifest merge and
  * the section-landing backfill — happens here, from configuration.
@@ -1394,7 +1393,7 @@ function siteCommand() {
                 // First, because it is decided before the tree is walked and
                 // before the output is cleared: a package with no front page,
                 // or two competing for it, has nothing to say about its pages
-                // yet (#52).
+                // yet.
                 for (const f of gates.homepages) emitDiagnostic(f);
                 for (const f of gates.frontmatterLinks) {
                     emitDiagnostic({
@@ -1440,7 +1439,7 @@ function siteCommand() {
                 // was prose with a timestamp where a parser reads the path,
                 // which made one authored table produce a machine-readable
                 // diagnostic from one build and something ungreppable from the
-                // other (#223).
+                // other.
                 for (const e of result.tableErrors) {
                     emitDiagnostic({
                         file: e.source,
@@ -1452,7 +1451,7 @@ function siteCommand() {
                 }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
-                // the message from the shared table (#184). It used to be a
+                // the message from the shared table, not a
                 // `log.error` whose timestamp prefix sat where a parser reads
                 // the path from, and whose text named a `reason` code rather
                 // than saying what to do — so one authored link produced a
@@ -1531,7 +1530,7 @@ function reachabilityCommand() {
             try {
                 // Resolved once and passed on, so every pass below runs
                 // against the configuration this command resolved rather than
-                // whichever one the working directory answers with (#243).
+                // whichever one the working directory answers with.
                 const config = loadPackConfig();
                 const contentBase = argv.root ?? config.paths.content;
                 const dir = String(argv.dir).replace(/\/+$/, "");
@@ -1604,7 +1603,7 @@ function reachabilityCommand() {
 // eslint-disable-next-line
 /**
  * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency (#239), and the **item
+ * the **content index** of every declared dependency, and the **item
  * catalogue** of those additionally declaring `itemCatalog: true`.
  *
  * The two sets differ deliberately. Citing another package's *addresses* and
@@ -1664,7 +1663,7 @@ function depsCommand() {
         command: "deps <action>",
         describe: "Manage build-time dependencies on other packages",
         builder: (yargs) => {
-            // Required, for the reason `package <action>` is (#57): an optional
+            // Required, for the reason `package <action>` is: an optional
             // action exits 0 having done nothing.
             yargs.positional("action", {
                 describe: "The action to perform.",
@@ -1761,7 +1760,7 @@ async function diffAddresses(config, argv) {
         );
     }
 
-    // Stated by the caller, like every other corpus read in this file (#243):
+    // Stated by the caller, like every other corpus read in this file:
     // the two tree reads below must agree with each other and with the compile
     // about which files are the corpus. They now do so by construction — the
     // corpus is derived once, here, and handed to both.
@@ -1823,7 +1822,7 @@ function addressesCommand() {
         command: "addresses <action>",
         describe: "Compare the addresses this build publishes against a release's",
         builder: (yargs) => {
-            // Required, for the reason every other action is (#57): an
+            // Required, for the reason every other action is: an
             // optional one exits 0 having compared nothing.
             yargs.positional("action", {
                 describe: "The action to perform.",
@@ -1875,7 +1874,7 @@ function packageCommand() {
         builder: (yargs) => {
             // Required, not optional: the action *is* the work, and an
             // optional one meant `content-build package` fell through the
-            // switch below and exited 0 having compiled nothing (#57).
+            // switch below and exited 0 having compiled nothing.
             yargs.positional("action", {
                 describe: "The action to perform.",
                 type: "string",
@@ -1907,7 +1906,7 @@ function packageCommand() {
                 switch (action) {
                     // Every path and pack list the library needs is defaulted
                     // from the resolved configuration, so nothing is restated
-                    // here (#1508).
+                    // here.
                     case "compile":
                         return await compilePacks({ packName: pack });
                     case "clean":

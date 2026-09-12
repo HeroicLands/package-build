@@ -37,7 +37,7 @@ describe("naming the published index", () => {
 describe("which dependencies an index is fetched for", () => {
     const withRelationships = (relationships: unknown) => ({ relationships }) as never;
 
-    // The whole point of #239's dependency set: `itemCatalog` says a dependency
+    // The whole point of the dependency set: `itemCatalog` says a dependency
     // supplies *items*, which is a different edge from citing its *addresses*.
     // `harn-ensemble` cites no address and references 324,016 items; a package
     // can equally cite addresses and need no items. Gating the index on the
@@ -150,7 +150,7 @@ describe("reading the metadata cache", () => {
     });
 });
 
-describe("choosing the newest of several cached versions (#272)", () => {
+describe("choosing the newest of several cached versions", () => {
     /*
      * Shared by both version-keyed caches under `build/cache` — the content
      * index here and the item catalogue in `foreign-catalog.mjs`. Written

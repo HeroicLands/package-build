@@ -6,7 +6,7 @@
  */
 
 /**
- * The charset authored content is held to (#377).
+ * The charset authored content is held to.
  *
  * The cases below are grouped by the argument each tier rests on, because the
  * tiers are not a matter of taste: they were drawn by probing eight candidate

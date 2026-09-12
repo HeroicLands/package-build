@@ -12,7 +12,7 @@
  */
 
 /**
- * Diffing a package's published item addresses against a released one (#66).
+ * Diffing a package's published item addresses against a released one.
  *
  * A package's `(type, shortcode)` addresses are a **published interface**.
  * Every satellite that declares `itemCatalog: true` assembles its beings out of
@@ -48,10 +48,10 @@
  * mean" from string similarity would be worse than saying nothing, because a
  * wrong one sends the reader to the wrong fix.
  *
- * **#270 narrowed that match, and a declaration is what makes up the
+ * **That match is narrow, and a declaration is what makes up the
  * difference.** The join rested on the id being independent of the shortcode: a
  * note authored its `_id`, so the `Tabri` → `Taburi` commit changed the
- * shortcode alone and left the id to join the two sides. Since #270 an id is
+ * shortcode alone and left the id to join the two sides. An id is
  * *derived from the canonical address*, which carries the shortcode — so
  * renaming a shortcode moves the id too, both sides of the join move together,
  * and the match finds nothing. It stays exact for a note that **pins** an `id`,
@@ -61,7 +61,7 @@
  * one.
  *
  * So an author who has just renamed a shortcode **says so**, with
- * `renamedFrom:` on the note that made the change (#278, and see
+ * `renamedFrom:` on the note that made the change (and see
  * `engine/note-renames.mjs`). That is neither a guess nor an identity match but
  * testimony from the only party that knows, and the diagnostic reports which of
  * the two it had rather than blending them — a reader can verify a matched id
@@ -74,7 +74,7 @@
  *
  * **Severity is decided per case.** A withdrawal is legitimate — content is
  * allowed to be retired — so it is reported and does not fail a build. A rename
- * is equally legitimate as a decision (#1397's charset rule forces some), which
+ * is equally legitimate as a decision (the charset rule forces some), which
  * is why it does not fail one either; what it must not do is happen in silence.
  * A caller that wants a gate passes `error` and treats any finding as one.
  *
@@ -91,7 +91,7 @@ import path from "node:path";
 import { formatDiagnostic, positionInFrontmatter } from "./diagnostics.mjs";
 import { positionOfLiteral } from "./diagnostics.mjs";
 import { assertStatedScope } from "./helpers.mjs";
-// The corpus, read from the one pass that derives it (#243). Nothing in the
+// The corpus, read from the one pass that derives it. Nothing in the
 // index's import graph reaches this module — only `bin/` imports it — so this
 // is a plain static import, as in the link checker.
 import { indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
@@ -218,14 +218,15 @@ export function readItemAddresses(dirs) {
  * The corpus both reads below share, as content-index records.
  *
  * **One walk, not two.** `addresses diff` reads the tree twice — once for the
- * declarations and once to place its findings — and until #243 those were two
+ * declarations and once to place its findings — and those would otherwise be
+ * two
  * independent walks that each parsed every note. They are now one derivation,
  * shared: the caller derives the records and hands them to both, so the two
  * halves of a single command cannot disagree about which files the corpus is,
  * or about the ids in it.
  *
  * **The id is why it matters, and not only tidiness.** `noteFilesById` joins
- * tree-side ids against ids read out of the *compiled packs*. Since #270 an id
+ * tree-side ids against ids read out of the *compiled packs*. An id
  * is derived from the canonical address, whose first segment is the content
  * package — and the tree side used to derive it through `resolveNoteId(fm)`
  * with no package, which falls back to `contentPackage()` and so to whichever
@@ -315,7 +316,7 @@ export function declaredPredecessors(
  * @param {Map<string, {to: string, file: string}>} [opts.predecessors] - The
  *   declared renames, from {@link declaredPredecessors}. Omitted, the diff
  *   falls back to the id join alone and reports an unpinned rename as a
- *   withdrawal, which is what it did before #278.
+ *   withdrawal, which is what it did before.
  * @returns {Array<object>} One finding per departed address, in address order
  *   so two runs read the same. `kind` is `"renamed"` (with `to`, and `declared`
  *   when it was the note's word rather than an id match) or `"withdrawn"`.
@@ -431,7 +432,7 @@ export function noteFilesById(contentBase, { skipDirectories, config, records, p
  * A **declared** rename knows its note without any lookup — the declaration is
  * how it was found — and is reported at the `renamedFrom:` line rather than the
  * `shortcode:` line, because that is the line the finding is about and the one
- * the author deletes once the declaration has done its work (#278).
+ * the author deletes once the declaration has done its work.
  *
  * @param {object} finding - One finding from {@link diffItemAddresses}.
  * @param {Map<string, string>} noteFiles - From {@link noteFilesById}.
@@ -480,7 +481,7 @@ export function locateAddressFinding(finding, noteFiles) {
  * known — and says so, rather than leaving the reader to wonder whether one was
  * looked for.
  *
- * **A declared rename says it is declared** (#278). The two claims are not
+ * **A declared rename says it is declared**. The two claims are not
  * equally checkable: an id match is a fact in the artefacts, while a
  * declaration is an author's word, and a reader deciding whether to trust the
  * successor needs to know which one they have. Saying "the same document" of a

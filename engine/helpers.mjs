@@ -43,19 +43,19 @@ import { resolveNoteId } from "./note-ids.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
 // The record accessors only — deriving records reaches the pack router and the
 // manifest emitter, which reach the compilers, which load this module. Reading
-// a record needs none of that (#243).
+// a record needs none of that.
 import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
-// resolvers cannot word the same defect differently (#184).
+// resolvers cannot word the same defect differently.
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
-// The declared tag vocabulary (#172), which is where `draft` is stated. Read
+// The declared tag vocabulary, which is where `draft` is stated. Read
 // from there rather than respelt, so the tag and its one reader cannot drift.
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
-// registry can import them without reaching back through this one (#1504).
+// registry can import them without reaching back through this one.
 // Re-exported here so every existing importer keeps its single import path.
 import { getFrontmatter } from "./frontmatter.mjs";
 export {
@@ -75,7 +75,7 @@ export {
  * `html: true` is long-standing and load-bearing — notes carry raw blocks — and
  * it is also why {@link module:engine/content-icons} exists rather than an
  * instruction to write `<i class="fa-solid …">` by hand: that would render on
- * the two HTML surfaces and be silently dropped by the third (#378).
+ * the two HTML surfaces and be silently dropped by the third.
  */
 export const md = markdownit({ html: true }).use(iconPlugin());
 
@@ -86,7 +86,7 @@ export const md = markdownit({ html: true }).use(iconPlugin());
  * `body` is the trimmed raw markdown after the frontmatter block, and
  * `description` is `body` rendered to HTML. `bodyLine` / `bodyColumn` are the
  * 1-based **file** position of the body's first character, which is what turns
- * an offset within `body` into a position a diagnostic can name (#17) — see
+ * an offset within `body` into a position a diagnostic can name — see
  * {@link positionInBody}. If the file has no frontmatter block, returns
  * `{ frontmatter: null, body: "", description: "" }` with a warn log, and no
  * position: there is no body to have one.
@@ -108,7 +108,7 @@ export function parseMarkdownFile(filePath) {
     const body = raw.trim();
     const description = body ? md.render(body) : "";
     // Where the trimmed body starts in the *file*, so an offset within it can
-    // be reported as a file position (#17). The frontmatter's lines and the
+    // be reported as a file position. The frontmatter's lines and the
     // blank lines `trim()` removes both sit in between, and the trim can take
     // indentation off the first line as well — hence a column, not just a line.
     const bodyStart = content.length - raw.length + (raw.length - raw.trimStart().length);
@@ -123,13 +123,13 @@ export function parseMarkdownFile(filePath) {
  * Yields `{ frontmatter, body, description, file, absPath, bodyLine,
  * bodyColumn }` for each match — the last two from
  * {@link parseMarkdownFile}, so a caller can report a position inside the
- * body as a position in the file (#17).
+ * body as a position in the file.
  * Silently skips directories that don't exist.
  *
  * Directory names in `skipDirectories` are ignored wherever they appear. The
  * walk itself knows nothing about what they mean: `Templates/` is an Obsidian
  * templater convention this repository's vault happens to use, not a property
- * of a content tree, so it is configured rather than hard-coded (#1508).
+ * of a content tree, so it is configured rather than hard-coded.
  *
  * @param {string} rootDir - Root of the tree to walk.
  * @param {object} [opts]
@@ -139,7 +139,7 @@ export function parseMarkdownFile(filePath) {
 /**
  * Refuse a corpus read whose scope its caller did not state.
  *
- * The rule of #243 in one place, so every reader of the tree refuses the same
+ * The rule in one place, so every reader of the tree refuses the same
  * way and says so in the same words. It is shared rather than repeated because
  * the corpus is no longer read only by {@link walkMarkdownTree}: a pass that
  * reads the content index instead is making the identical claim about which
@@ -172,7 +172,7 @@ export function assertStatedScope(skipDirectories, who) {
  * cycle. They take the records their caller already holds.
  *
  * That is not a workaround dressed up as a rule. A compile runs several passes
- * over one tree, and the whole of #243 is that they must not each answer "which
+ * over one tree, and the whole point is that they must not each answer "which
  * files are the corpus?" for themselves. Requiring the answer to be handed in
  * makes the sharing structural rather than remembered.
  *
@@ -192,7 +192,7 @@ export function assertSuppliedCorpus(records, who) {
 }
 
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
-    // Stated by the caller, never resolved here. The default this used to carry
+    // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
     // resolved from the working directory rather than the one the caller was
     // working under. In an ordinary build those are the same object and nothing
@@ -200,9 +200,9 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // `PACKAGE_BUILD_CONFIG` names one, or when the command runs from a
     // worktree. Six of this function's twelve callers were on that default, so
     // "which files are the corpus?" had two answers depending on who asked
-    // (#243) — the same defect class as `entriesForNote` reading
-    // `docEntryTypes` from the ambient config, fixed in #240 after a fixture
-    // had been passing on the leak for as long as it existed.
+    // — the same defect class as `entriesForNote` reading `docEntryTypes` from
+    // the ambient config rather than the passed one, which a fixture can pass
+    // on indefinitely.
     assertStatedScope(skipDirectories, "walkMarkdownTree");
     if (!fs.existsSync(rootDir)) return;
     const stack = [rootDir];
@@ -234,7 +234,7 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
 /**
  * Every position a note may state its template priority at, for one system
  * block, in the order they answer — and whichever of them the note actually
- * wrote (#266).
+ * wrote.
  *
  * Three places, in the order the migration runs. The specification calls this
  * `data.templatePriority`; `sohl-thalorna` already writes it there on 941
@@ -290,7 +290,7 @@ function findTemplatePriority(fm, block) {
 
 /**
  * The template priority a note states, for a system that treats an unstated one
- * as "not a template" rather than as an authoring error (#266).
+ * as "not a template" rather than as an authoring error.
  *
  * Reads exactly the positions {@link resolveTemplatePriority} reads, including
  * the retiring `archetype` spelling, and refuses the same contradiction — so
@@ -324,7 +324,7 @@ export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * Resolve the required `templatePriority` frontmatter for an Item/Actor entry
- * (the archetype contract, #604). The property is a nullable number that
+ * (the archetype contract). The property is a nullable number that
  * authors must state explicitly:
  *   - a number → the document is a template of that priority.
  *   - `null`   → the document is not a template.
@@ -333,7 +333,7 @@ export function statedTemplatePriority(fm, label, { block = "sohl" } = {}) {
  *
  * Reads the positions {@link findTemplatePriority} lists: `data.templatePriority`
  * first — the specified home — then the system block and the top level, and
- * finally the retiring `archetype` spelling in the same two places (#266).
+ * finally the retiring `archetype` spelling in the same two places.
  *
  * @param {object} fm      Parsed frontmatter.
  * @param {string} label   Human-readable context for error messages.
@@ -371,8 +371,7 @@ export function resolveTemplatePriority(fm, label, { block = "sohl" } = {}) {
 
 /**
  * The value a document's `system.templatePriority` carries, from the required
- * `templatePriority` frontmatter (#126, sohl#1780, renamed off `archetype` by
- * #266 / sohl#1836).
+ * `templatePriority` frontmatter (`archetype` is the legacy spelling).
  *
  * A **schema field**, so the tri-state is written out in full rather than
  * expressed by a key's presence: a number is a template at that priority, and
@@ -459,7 +458,7 @@ function addressesAnotherPackage(s) {
  *
  * Content frontmatter (`img` / `portrait`) authors a single path that has to
  * work for Foundry, the knowledgebase, and the website. **Its first segment
- * says which package owns the file** (#331), and there are exactly three
+ * says which package owns the file**, and there are exactly three
  * answers:
  *
  * | Authored path starts with | Owner                 | Emitted              |
@@ -471,7 +470,7 @@ function addressesAnotherPackage(s) {
  * So `icons/relic.svg` compiles to `systems/sohl/assets/icons/relic.svg` here
  * and to `modules/sohl-thalorna/assets/icons/relic.svg` in a module — the asset
  * root is derived from the configuration, and is the one place `systems/sohl`
- * is ever spelled (#1508). An authored
+ * is ever spelled. An authored
  * `systems/sohl/assets/icons/noun/shield.svg` is left exactly as written,
  * whichever package is compiling it.
  *
@@ -482,13 +481,13 @@ function addressesAnotherPackage(s) {
  * `assets/artwork/`, so an authored `artwork/deity.webp` would have shipped
  * unprefixed: a 404 in Foundry, reported by nothing. That a package owns its
  * own tree is the fact; the directory names inside it are that package's
- * business (#331).
+ * business.
  *
  * **Off-install addresses pass through too**, which is the same rule rather
  * than a fourth: a URL, a `data:` URI, or a `/`-rooted path names something no
  * package owns. See {@link addressesAnotherPackage}.
  *
- * **`banner:` does not follow this rule, deliberately (#331).** It is not an
+ * **`banner:` does not follow this rule, deliberately.** It is not an
  * asset path inside a Foundry install at all: it reaches no compiled document,
  * and its only consumer is the Hugo theme, which prefixes a relative value with
  * `images/` and joins it onto `params.cdnBaseURL`. The two fields look alike
@@ -496,7 +495,7 @@ function addressesAnotherPackage(s) {
  * the CDN serves — so they are documented apart rather than reconciled into one
  * rule that would be true of neither.
  *
- * **Two empties, and they mean opposite things (#218).** `null` — or an absent
+ * **Two empties, and they mean opposite things.** `null` — or an absent
  * key, which reaches here as `undefined` — means _unset_: the note names no art
  * and the caller's default applies. `""` means _blank on purpose_: the note
  * names no art **and wants none**, so no default may replace it. Both come back
@@ -515,7 +514,7 @@ function addressesAnotherPackage(s) {
  * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
  * key the site emitter reads as the page title — so `title: null` stringifies
  * into the compiled document as the literal `"null"`. One key, two destinations
- * that disagree about what empty means; see #218.
+ * that disagree about what empty means; see.
  *
  * This is translation only: the default for an unset path is domain-specific
  * (actors default differently from items, and gear differently again), so each
@@ -564,7 +563,7 @@ export function resolveName(fm, defaultValue = "Unnamed") {
  * its migration shims on: a record stamped older than a shim is rewritten by it
  * on load. Every pack once shipped `coreVersion: "14"`, which sorts *below*
  * every v14 build and so left all shipped content permanently eligible for
- * every v14 migration (#1533).
+ * every v14 migration.
  *
  * **Read from the configuration, not from the shipped manifest.** It used to
  * open `paths.packageManifest` and take `compatibility.minimum` out of it,
@@ -598,7 +597,7 @@ export function supportedCoreVersion(config = loadPackConfig()) {
 /**
  * Default `_stats` block for compiled compendium entries.
  *
- * Every stamped identity is configuration (#1508): four compilers used to pass
+ * Every stamped identity is configuration: four compilers used to pass
  * the same frozen `"0.6.0"` literal, and `systemId` / `lastModifiedBy` were
  * written into this function. `coreVersion` alone is *not* configuration — it
  * comes from {@link supportedCoreVersion}, the configured Foundry floor,
@@ -623,13 +622,12 @@ export function buildStats(systemVersion = undefined, config = loadPackConfig())
 }
 
 /**
- * The `_stats` block for one pack, stamped with the system that pack is for
- * (#48).
+ * The `_stats` block for one pack, stamped with the system that pack is for.
  *
  * **`systemId` travels with `systemVersion`.** They are one decision, so where
  * one is omitted both are. Stamping a per-pack version against a package-wide
  * id would emit `systemId: sohl, systemVersion: 1.6.3` on HM3 documents — a
- * *plausible lie*, which is worse than the missing value #43 fixed, because
+ * *plausible lie*, which is worse than a missing value, because
  * nothing about it looks wrong.
  *
  * Resolution, in order:
@@ -708,11 +706,11 @@ import { collectAnchors } from "./anchors.mjs";
  *
  * Each note's pack is resolved here, once, and stored on its index entry: a
  * UUID carries a pack name, so a repository shipping several packs of one type
- * (#1566) would otherwise address every one of them as the first. A note whose
+ * would otherwise address every one of them as the first. A note whose
  * declaration is unroutable is indexed against the conventional name and left
  * for the compile pass to report — the index has no business failing a build,
  * and the pass fails it with a far better message. The one exception is a
- * **retired** content type (SoHL#1580): this walk is the first to see every
+ * **retired** content type: this walk is the first to see every
  * note together with its path, and unlike an unroutable declaration there is
  * no pass that would ever claim such a note and report it.
  *
@@ -740,11 +738,11 @@ export function buildContentLinkIndex(
         const fm = authoredFrontmatter(record);
         const absPath = noteFile(contentBase, record);
         // The id a note's document is filed under: its authored pin, or the
-        // one derived from its canonical address (#270). Derived by the index
-        // against the configuration this build resolved — it used to be
-        // derived here through `resolveNoteId(fm)` with no package, which falls
-        // back to the ambient `contentPackage()` and so to whichever
-        // configuration the working directory answers with (#243).
+        // one derived from its canonical address. Derived by the index
+        // against the configuration this build resolved — never here through
+        // `resolveNoteId(fm)` with no package, which falls back to the ambient
+        // `contentPackage()` and so to whichever configuration the working
+        // directory answers with.
         // What is left after that is a file with **no address** — no type, or
         // no shortcode — which is not an addressable note and has no document
         // to link to.
@@ -752,30 +750,30 @@ export function buildContentLinkIndex(
         // The first walk of every note in the tree, and the only one holding
         // both the declared type and the file that declares it — so a note
         // left on a retired type is reported here, by name, rather than
-        // several frames deeper with nothing to go on (SoHL#1580).
+        // several frames deeper with nothing to go on.
         assertTypeNotRetired(fm.type, absPath);
         const base = String(record.file.name).replace(/_/g, " ");
         docs.push({
             type: fm.type,
             id: fm.id,
             // Where this note's own document lands, and where the JournalEntry
-            // its prose compiles into lands — two documents, two packs (#1362).
+            // its prose compiles into lands — two documents, two packs.
             pack: router.resolveOrNull(fm, packForType(fm.type).docType),
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
             name: fm.name?.full ?? base,
-            // Whether the note is tagged `draft` (#183). Read from the tag
+            // Whether the note is tagged `draft`. Read from the tag
             // vocabulary that declares it, and used for one thing: a link
             // *into* this note renders marked. It takes no part in resolution,
             // so the note is indexed, compiled and published as any other.
             draft: isDraftNote(fm),
             // The anchors this note declares, carried so the *builds* can check
-            // a `#section` link and not only the checker (#193). A foreign
+            // a `#section` link and not only the checker. A foreign
             // anchor has always been checked, because a fetched index
             // publishes the map; a local one was not, because the set was
             // discarded here — the walk yields the body and nothing read it.
             // Read from the record rather than from a second reading of the
-            // note's headings — the one-anchor-reader rule (#243).
+            // note's headings — the one-anchor-reader rule.
             anchors: new Set((record.anchors ?? []).map((anchor) => anchor.slug)),
         });
     }
@@ -783,7 +781,7 @@ export function buildContentLinkIndex(
     // its own content index and this build fetched the ones it depends on, so
     // a contributor without every repository checked out resolves the same
     // links CI does — from an artifact the producer shipped rather than a copy
-    // this repository committed (#239).
+    // this repository committed.
     const { index: foreign, stale } = loadForeignIndexes(
         resolved,
         [resolved.contentPackage],
@@ -810,7 +808,7 @@ export function buildContentLinkIndex(
  * target in the content tree. Every compiler funnels through this so the
  * diagnostic text and the leave-it-alone fallback are identical everywhere.
  *
- * Each report names the **file, line and column** the link sits on (#17), so
+ * Each report names the **file, line and column** the link sits on, so
  * it can be opened and fixed — and so two identical links on one note are
  * tellable apart. That needs `file` and the note's `bodyLine` / `bodyColumn`;
  * without them the diagnostic still reports, one field shorter, rather than
@@ -875,8 +873,8 @@ export function convertNoteWikilinks(
     };
 
     for (const u of result.unresolved) {
-        // Every class fails, and every class is worded by the shared table
-        // (#184). The three resolvers read one authored link, so an author who
+        // Every class fails, and every class is worded by the shared table.
+        // The three resolvers read one authored link, so an author who
         // ran the pack build first and the link checker second must not be told
         // two different things about the same mistake — and a class the pack
         // build alone knew how to describe is how they came apart before.
@@ -916,9 +914,8 @@ export function collectContentDocs(
         docs.push({
             // With its package supplied for a `WHERE … package = "…"` query —
             // synthesised from the configuration this build resolved, since no
-            // note declares it (#56) and the ambient one is a different
-            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`
-            // (#243).
+            // note declares it and the ambient one is a different
+            // configuration in a worktree or under `PACKAGE_BUILD_CONFIG`.
             fm: searchableFrontmatter(fm, resolved.contentPackage),
             // POSIX-separated and relative to the content root — what a
             // `path:` search term globs, on every platform.
@@ -953,7 +950,7 @@ const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type
  * A table searches the whole tree, which is one package's notes and nothing
  * else — so there is no longer a package to scope on. It used to filter, back
  * when a tree could hold several packages' notes and `package:` said which was
- * which; that field is retired and the filter with it (#56).
+ * which; that field is retired and the filter with it.
  *
  * @param {string} body - The note's markdown body.
  * @param {object} ctx
@@ -966,7 +963,7 @@ const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type
  * @returns {{markdown: string, lineMap: Array<{line: number,
  *   generated: boolean}>}} The body with every table expanded, and where each
  *   emitted line came from — which is what lets a diagnostic about the
- *   expanded body name an authored position (#17).
+ *   expanded body name an authored position.
  * @throws {Error} When a query is malformed or unsupported — the note fails to
  *   compile rather than shipping a table-shaped hole. The error carries
  *   `position`, the directive's own line.

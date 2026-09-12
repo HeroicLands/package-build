@@ -13,8 +13,7 @@
 
 /**
  * **The note-type → document-subtype map** — the mechanism that stops a build
- * inferring a Foundry document's subtype from the markdown note's `type`
- * (#79).
+ * inferring a Foundry document's subtype from the markdown note's `type`.
  *
  * A note's `type` and the subtype of the document it compiles into are two
  * vocabularies, and until now they were the same identifier for one reason
@@ -26,7 +25,7 @@
  * risk with **one** system, not merely with two.
  *
  * **The mechanism is here; the declaration is the system's.** That is the
- * `engine/` ÷ `sohl/` line everywhere else in this package (#36): note-format
+ * `engine/` ÷ `sohl/` line everywhere else in this package: note-format
  * knowledge here, game-system knowledge there. `sohl/document-subtypes.mjs`
  * declares SoHL's own map, *including its identity rows* — the coincidence of
  * names may never stand in for a mapping, so `skill` → `skill` is written out
@@ -59,7 +58,7 @@
  * *compiled documents*, which carry only the subtype. {@link referencedSubtype}
  * is the translation for that side, and the reason it is separate from
  * {@link documentSubtype} is that a reference has no frontmatter of its own to
- * read a discriminator from (#140).
+ * read a discriminator from.
  *
  * @module
  */
@@ -207,7 +206,7 @@ function frozenRow(system, noteType, row) {
  * {@link mapsNoteType}, {@link noteTypesFor}'s consumers and
  * {@link systemOf} all arrive here. A note still spelling `armorgear` finds the
  * `armor` row, compiles into the `armorgear` document it always did, and keeps
- * the address it publishes at; only the *report* tells it to move (#78).
+ * the address it publishes at; only the *report* tells it to move.
  *
  * @param {DocumentSubtypeMap} map - The system's map.
  * @param {string|undefined} noteType - The note's declared `type`.
@@ -317,7 +316,7 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  */
 
 /**
- * The document subtype a `(type, shortcode)` **reference** addresses (#140).
+ * The document subtype a `(type, shortcode)` **reference** addresses.
  *
  * A being's frontmatter names each embedded item by the *note's* type — the
  * vocabulary an author writes — while the predefined items it resolves against
@@ -354,7 +353,7 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  * retirement exists to stop.
  *
  * A **renamed** spelling is the opposite case and resolves normally, through
- * the same {@link currentType} every other lookup goes through (#78). It has to
+ * the same {@link currentType} every other lookup goes through. It has to
  * be this side as much as the note's own `type:`: the overwhelming majority of
  * the 31,000 occurrences of the old names are `(type, shortcode)` references
  * inside a being's `items:` list, so a window that resolved notes but not

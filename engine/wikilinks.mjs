@@ -22,7 +22,7 @@
  *   `[[#slug|Text]]`            a section of the source note itself
  *   `[[doctype-shortcode|T]]`   an item's *documentation* (see below)
  *
- * **Every link is an address, and every address carries a label** (#180). A
+ * **Every link is an address, and every address carries a label**. A
  * link written without one addresses nothing and is reported — see
  * {@link unlabelledLinkMessage}, which states the rule for both builds. The
  * bare `[[Alias]]` form and the index it was looked up in are retired.
@@ -36,8 +36,7 @@
  * Nothing narrower than `(type, shortcode)` is consulted — a note's directory
  * and its `category` play no part in resolution — and nothing wider: a note's
  * *name* is not an address, so two notes of a type may share a display name
- * ("Gear" as a rules page and as a user guide page) with nothing to disambiguate
- * (#179, #180).
+ * ("Gear" as a rules page and as a user guide page) with nothing to disambiguate.
  *
  * At compile time each becomes a Foundry UUID enricher, routed to the pack that
  * the target's type compiles into (see {@link packForType}):
@@ -47,7 +46,7 @@
  *
  * **Every address is computed once, when the target is indexed** — see
  * {@link buildWikilinkIndex} — and a link is resolved by looking that value up.
- * Nothing here concatenates a prefix at the point of use (#1498).
+ * Nothing here concatenates a prefix at the point of use.
  *
  * Section links address a **JournalEntryPage**, because Foundry UUIDs cannot
  * target a position inside a page. A heading carrying `{#slug}` therefore starts
@@ -63,15 +62,15 @@
  * **A document and its documentation are two documents.** An item note
  * compiles into an item — and, separately, its prose compiles into a
  * JournalEntry in the journals pack (see
- * {@link sohl.utils.packs.itemDocEntryId}); a macro note works the same way
- * (#1514). `skill/wpnc` addresses the skill; the **virtual qualifier**
+ * {@link sohl.utils.packs.itemDocEntryId}); a macro note works the same way.
+ * `skill/wpnc` addresses the skill; the **virtual qualifier**
  * `docskill/wpnc` addresses that skill's documentation, and
  * `docskill/wpnc#crafting` a page within it. `docmacro/autoattack#script`
  * reaches a macro's source. Every doc-carrying type has a `doc<type>`
  * counterpart, formed by prefix and never enumerated; see
  * {@link resolveItemDocType}. Without it a section link to an item note
  * produced a UUID against the *items* pack, which cannot hold a
- * JournalEntryPage, and dead-ended (#1362).
+ * JournalEntryPage, and dead-ended.
  *
  * **The two builds read the qualifier differently, by design.** In Foundry the
  * item and its documentation are separate documents in separate packs, so the
@@ -117,15 +116,15 @@ const norm = (s) => String(s).toLowerCase().trim();
  * not one.
  *
  * A document and its documentation are two documents in two packs, so they
- * need two addresses (#1362). `skill/wpnc` is the item; `docskill/wpnc` is the
+ * need two addresses. `skill/wpnc` is the item; `docskill/wpnc` is the
  * JournalEntry its prose compiled into, and `docmacro/autoattack` is the same
- * arrangement for a macro (#1514).
+ * arrangement for a macro.
  *
  * The virtual form exists for a type that carries separate documentation
  * ({@link sohl.utils.packs.docEntryTypes} — the set the journals compiler and
  * the link manifest read too), **or** for one that routes to the items pack.
  * The second clause is the older rule and stays: types that compile into items
- * are the open, unenumerated set (#1276), and a foreign package may publish an
+ * are the open, unenumerated set, and a foreign package may publish an
  * item type this build has never heard of. Dropping it would silently unlink
  * every `doc<type>` address into such a package.
  *
@@ -153,8 +152,8 @@ export function resolveItemDocType(qualifier, types) {
  * Two separators are accepted, and they are **not** interchangeable in how
  * confidently they mark a target as qualified:
  *
- * - **`type-shortcode`** and its qualified forms — the canonical spelling
- *   (#1398). Obsidian reads `/` inside a wikilink as a *path* and resolves it
+ * - **`type-shortcode`** and its qualified forms — the canonical spelling.
+ * Obsidian reads `/` inside a wikilink as a *path* and resolves it
  *   against the vault's folders, so a slash-qualified link is a broken link in
  *   the editor where the content is now authored.
  * - **`type/shortcode`** — the legacy form, still resolved so that a link
@@ -163,7 +162,7 @@ export function resolveItemDocType(qualifier, types) {
  *   before it is reported rather than guessed at. The split is at the **last**
  *   slash, as it always was.
  *
- * **The grammar is strict, and omission runs left to right** (#59):
+ * **The grammar is strict, and omission runs left to right**:
  *
  * ```text
  * [[[[<package>-]<system>-]<type>-]<shortcode>]
@@ -178,12 +177,13 @@ export function resolveItemDocType(qualifier, types) {
  * **Parsing is plain positional counting**, the same rule
  * {@link readCanonicalKey} follows, and it is sound for the same reason: every
  * segment is `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced on
- * shortcodes by `content-lint.mjs` since #1397), so the hyphen is purely a
+ * shortcodes by `content-lint.mjs`), so the hyphen is purely a
  * separator and the count alone determines every field. Verified across the
  * four content trees: 138,204 authored shortcodes, none carrying a separator.
  *
  * That replaced a first-hyphen split which let a shortcode contain a hyphen
- * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates #1397 and
+ * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates the
+ * charset rule and
  * outlived it; no tree has used it, and keeping it would make a three-segment
  * target ambiguous between a system and a hyphenated shortcode.
  *
@@ -287,7 +287,7 @@ function readQualifierCased(target, types, packages) {
             return read && { ...read, system, package: pkg };
         }
 
-        // One segment is a bare name, which is not an address (#180); five or
+        // One segment is a bare name, which is not an address; five or
         // more is not a hyphenated shortcode but a name that happens to carry
         // separators, since no segment may contain one.
         default:
@@ -347,7 +347,7 @@ export function anchorPageId(noteId, anchorSlug) {
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
  *   one-pack-per-type names stand in. `draft` says the note carries the `draft`
- *   tag, which marks links *into* it and changes nothing else (#183).
+ *   tag, which marks links *into* it and changes nothing else.
  * @param {string} packageId - The Foundry package shipping the packs; the first
  *   segment of every emitted UUID.
  * @param {Map<string, object>} [foreign] - Canonically keyed entries from
@@ -363,7 +363,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
         throw new Error(
             "buildWikilinkIndex: packageId is required — it is the first " +
                 "segment of every emitted UUID, and defaulting it is how links " +
-                "came to address the wrong package (#1498).",
+                "came to address the wrong package.",
         );
     }
 
@@ -382,7 +382,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
         uuidByDoc.set(d, {
             // `d.pack` is where this note's document actually landed, resolved
             // by the pack router when the index was collected. A repository may
-            // ship several packs of one type (#1566) and a UUID carries the
+            // ship several packs of one type and a UUID carries the
             // pack name, so the address cannot be derived from the type alone.
             uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
             // An item's prose compiles into a separate JournalEntry, addressed
@@ -398,7 +398,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
     // foreign address resolves exactly like a local one and there is no
     // precedence rule to get wrong. A foreign package's types are added to
     // `types` too — without that, its addresses read as prose and silently lose
-    // their link (#1499).
+    // their link.
     const foreignByKey = new Map(foreign ?? []);
     const foreignTypes = [];
     for (const v of foreignByKey.values()) {
@@ -448,7 +448,7 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
  * The foreign manifest entry an address names, or `null`.
  *
  * A target is a **partial** address, matched on the segments it supplies with
- * the rest wildcarded (#59) — so a package-qualified one is a scan rather than
+ * the rest wildcarded — so a package-qualified one is a scan rather than
  * a single lookup, and may still match one entry per system. An unqualified one
  * names no package either, so it resolves against whichever foreign package
  * publishes it — and, in both readings, only when exactly one entry matches.
@@ -470,7 +470,7 @@ function findForeign(index, read) {
  * Every foreign manifest entry an address names.
  *
  * The count is what separates *nothing publishes this* from *two packages do*,
- * and those are different findings with different fixes (#184), so the caller
+ * and those are different findings with different fixes, so the caller
  * gets the list rather than a single answer that has already collapsed the
  * distinction.
  *
@@ -484,7 +484,7 @@ function foreignHits(index, read) {
     const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
     const shortcode = norm(read.shortcode);
 
-    // **An omitted package means this package** (#336), so a short form
+    // **An omitted package means this package**, so a short form
     // addresses nothing foreign and never reaches a dependency's index. A link
     // that resolved into another package only because no local note claimed the
     // address was resolving by accident, and would have retargeted silently the
@@ -534,7 +534,7 @@ function unresolvedLink(text, target) {
 }
 
 /**
- * How a link to a **draft** note renders (#183).
+ * How a link to a **draft** note renders.
  *
  * A note tagged `draft` exists so a link into it is not dead, and nothing more.
  * Unmarked, a reader follows a promising link into an empty page and an author
@@ -552,7 +552,7 @@ function unresolvedLink(text, target) {
  * **Byte-identical with the site build's copy** in `web-wikilinks.mjs`, down to
  * the class name and the `title` wording — one authored link renders on two
  * surfaces, and the two builds have drifted before over exactly this kind of
- * detail (#1409). The argument is already-built markup and is deliberately not
+ * detail. The argument is already-built markup and is deliberately not
  * escaped; the *authored* text inside it was escaped, or made into a link, by
  * whichever resolver called this.
  *
@@ -574,7 +574,7 @@ function draftLink(inner) {
  *
  * **Code is verbatim.** A `[[…]]` inside a fenced or indented code block, or
  * inside an inline code span, is source text an author wrote to be read as
- * written, so it is left alone and not reported (#1505). Without that, a
+ * written, so it is left alone and not reported. Without that, a
  * script sample containing `grid[[0]]` became a link — and only for some
  * array shapes, `[[1,2],[3,4]]` having an inner `]` the pattern cannot cross,
  * so the corruption looked arbitrary. It reaches the reader through the
@@ -595,23 +595,23 @@ function draftLink(inner) {
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
  *   offset: number, reason: string, packages?: string[], anchor?: string}>}}
  *   Each `reason` is one of {@link LINK_FINDING_REASONS}, the vocabulary all
- *   three resolvers share (#184) — `ambiguous` carries the claiming `packages`
+ *   three resolvers share — `ambiguous` carries the claiming `packages`
  *   and `unknown-anchor` the section it named. `offset` is the link's 0-based
  *   position in `markdown`, which is what lets a caller report the line and
- *   column it sits on (#17).
+ *   column it sits on.
  */
 export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     const unresolved = [];
 
     // `offset` is the third replacer argument because the pattern has exactly
     // one capture group. It is what makes two identical unresolved links on
-    // one note tellable apart, and a position reportable at all (#17).
+    // one note tellable apart, and a position reportable at all.
     const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
         const parsed = parseWikilink(rawInner);
         const target = parsed.target;
         const slug = parsed.anchor || null;
 
-        // **Every link carries a label** (#180). Without one there is nothing
+        // **Every link carries a label**. Without one there is nothing
         // to resolve against: the alias namespace a bare `[[Text]]` was looked
         // up in is retired, and a shortcode is an address rather than prose, so
         // the link has neither a target this build can find nor text to show.
@@ -631,7 +631,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
 
         // An *empty* label is not a label — `[[x|]]` means "show the target's
         // name" — and that reading comes from {@link authoredLabel} so the web
-        // resolver cannot draw the line somewhere else (#113).
+        // resolver cannot draw the line somewhere else.
         let text = authoredLabel(parsed) ?? "";
 
         // Resolve the document: the source note itself for an empty target, or
@@ -648,7 +648,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             const qualified = readQualifier(target, index.types, index.packages);
             qualifiedRead = qualified;
             // A target that does not parse as an address is a defect: there is
-            // no second namespace left to fall through to (#180).
+            // no second namespace left to fall through to.
             if (!qualified || qualified.reason) {
                 unresolved.push({
                     link: all,
@@ -659,7 +659,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 });
                 return unresolvedLink(text || target, target);
             }
-            // An omitted system defaults from where the link is written (#336),
+            // An omitted system defaults from where the link is written,
             // and a body is under no system block, so it is `none`. Under
             // `none` a system-bearing type addresses its *documentation* — a
             // note's `none` address IS its `doc<type>` entry — which is what a
@@ -686,7 +686,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             if (hits.length > 1) {
                 // Two packages publish the short address, so it names neither.
                 // Its own class: the fix is the package-qualified form, not a
-                // corrected shortcode (#184).
+                // corrected shortcode.
                 unresolved.push({
                     link: all,
                     target,
@@ -729,7 +729,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // An address with an *empty* label — `[[skill-clmb|]]` — has no prose
         // to show, a shortcode being an address rather than display text, so
         // the document's **current** name stands in and a rename shows at every
-        // citation with no link edited (#1409). The knowledgebase build reads
+        // citation with no link edited. The knowledgebase build reads
         // the same authored link the same way.
         if (!text) text = doc.name ?? target;
 
@@ -751,13 +751,13 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // page an anchor names. An Item or Actor link opens that document's
         // *sheet*, which has no sections, so the anchor has nothing to address
         // and is dropped. Forging a JournalEntryPage id onto a document that
-        // can never hold one is what made such links dead-end (#1362); an
+        // can never hold one is what made such links dead-end; an
         // item's pages are addressed through its `doc<type>` counterpart.
         // A `#section` the target declares no heading for. Checked here, and
         // not only by `content-build links`, because this is the build that
         // *emits* the link: `anchorPageId` will hash any slug into a page id,
         // so an undeclared one compiles to a `@UUID` that dead-ends for the
-        // reader (#193). A foreign anchor has always been checked this way —
+        // reader. A foreign anchor has always been checked this way —
         // the manifest carries the map — and a local one now is too, from the
         // anchor set the index carries.
         if (slug && isJournal && doc.anchors && !doc.anchors.has(slug)) {
@@ -774,8 +774,8 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         const uuid =
             slug && isJournal ? pageUuid(entryUuid, anchorPageId(entryId, slug)) : entryUuid;
         const link = `@UUID[${uuid}]{${text}}`;
-        // A link into a note that exists but is not written renders marked
-        // (#183). Presentation only — the UUID above is unchanged, and a
+        // A link into a note that exists but is not written renders marked.
+        // Presentation only — the UUID above is unchanged, and a
         // `[[#slug]]` self-link is not marked because the reader is already in
         // the note it would be telling them about.
         return doc.draft ? draftLink(link) : link;

@@ -6,8 +6,7 @@
  */
 
 /**
- * Fields a note may never author, because the document writes them in play
- * (#330).
+ * Fields a note may never author, because the document writes them in play.
  *
  * The defect these pin: a schema declares `onsetDate` — the world time an
  * affliction's onset fired at — and a note could write it under

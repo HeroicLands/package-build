@@ -6,7 +6,7 @@
  */
 
 /**
- * Routing one note into **one pack per system** (#58).
+ * Routing one note into **one pack per system**.
  *
  * The scenario is `harn-ensemble`'s, and it is the one the issue exists for:
  * 2,512 notes, each describing one NPC, each compiling into an `actors-sohl`

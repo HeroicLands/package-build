@@ -8,10 +8,10 @@
 /**
  * The package's suite must run on its own — `npm test -w
  * @heroiclands/package-build` loads no `tests/setup.ts`, installs no Foundry
- * globals, and offers no `@src` alias (#1511).
+ * globals, and offers no `@src` alias.
  *
  * That is not merely a convenience. The pack pipeline was severed from the
- * system source in #1510, and a test that quietly imported `@src/...` or poked
+ * system source, and a test that quietly imported `@src/...` or poked
  * `globalThis.game` would re-couple the package to one particular consumer's
  * repository — passing in situ and failing the moment the package is installed
  * from npm, which is the whole point of extracting it.

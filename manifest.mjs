@@ -18,16 +18,13 @@
  * so there is one job here with two spellings: assemble the manifest from the
  * repository's configuration and write it into the build stage.
  *
- * **There is no template any more.** A manifest used to be a hand-authored
- * `system.template.json` that this module stamped a few fields into — which
- * made it the one build input still written as JSON, by hand, per repository,
- * with no schema and nothing checking it. Worse, it declared facts the
- * configuration also declared: the pack list twice, in two formats, with
- * nothing checking that the pairs agreed. `sohl-kethira-basic` hand-maintained
- * its whole `module.json`, and its `download` named an older version than the
- * module claimed.
+ * **There is no template.** A `system.template.json` this module stamped a few
+ * fields into would be the one build input written as JSON, by hand, per
+ * repository, with no schema and nothing checking it — and it would declare
+ * facts the configuration also declares, the pack list twice in two formats,
+ * with nothing checking that the pairs agree.
  *
- * So the manifest is generated (#9). Three kinds of key end up in it:
+ * So the manifest is generated. Three kinds of key end up in it:
  *
  * - **Declared** — the `packageBuild.manifest` block, emitted unchanged, so a
  *   key Foundry adds in a later version needs no release of this package.
@@ -122,7 +119,7 @@ export function releaseUrls({ repoUrl, version, artifact }) {
 }
 
 /**
- * Where this release publishes its content index (#239).
+ * Where this release publishes its content index.
  *
  * **Pinned to this version, like `download` and unlike `manifest`.** A
  * consumer reaches this URL by reading the dependency's manifest, so the
@@ -183,7 +180,7 @@ const MANIFEST_KEY_ORDER = Object.freeze([
 /**
  * The manifest's `packs`, derived from the one pack list the build already has.
  *
- * The two used to be written separately — `package-build.config.yaml` declared
+ * The two are not written separately, with `package-build.config.yaml` declaring
  * a pack's name and type, and the manifest template declared them again beside
  * a label, a path and a system id, with nothing checking that the pairs agreed.
  * They are one list now.
@@ -265,12 +262,12 @@ function namedPacks(folders, at) {
  * `styles`, `languages`), and a staged file is a different relation, checked
  * against the stage rather than against configuration. So this is the one place
  * a declaration can go stale against a value the build already computed — and
- * until now nothing compared them (#81).
+ * until now nothing compared them.
  *
  * `HarnMaster-3-FoundryVTT` shipped the consequence: its folder named four
  * packs, three of which had not existed since the compendium was consolidated,
  * and omitted `items` — 1,577 of 1,597 documents, loose in Foundry's compendium
- * browser, with the build reporting nothing (HM3#420).
+ * browser, with the build reporting nothing.
  *
  * **The two findings are not the same finding**, and giving them one severity
  * gets one of them wrong:
@@ -343,14 +340,14 @@ export function packFolderFindings({ packFolders, packs = [] }) {
  *
  * `relationships` is the one manifest block with a second reader.
  * `@heroiclands/content-build` consumes it too, and v1.8.0 added
- * `itemCatalog: true` as an opt-in on a declared dependency
- * (content-build#82): it selects that package's Item packs as a resolution
+ * `itemCatalog: true` as an opt-in on a declared dependency: it selects that
+ * package's Item packs as a resolution
  * source for the actors pass. That is an instruction to the build, not a fact
  * about the shipped package — Foundry's relationship schema does not define
  * it, and someone reading a published manifest cannot tell a build directive
  * from a declaration about what the package needs.
  *
- * So the block is filtered rather than copied whole (#29). The rule is the
+ * So the block is filtered rather than copied whole. The rule is the
  * distinction, not the name: a key listed here answers *how is this built?*,
  * and every key that survives answers *what does this package depend on?*.
  * `itemCatalog` is the first build-time key to land on a relationship and is
@@ -441,7 +438,7 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     };
     if (config.compatibility) derived.compatibility = config.compatibility;
 
-    // `requiresSystem` is the gate half of the declare/require split (#48). It
+    // `requiresSystem` is the gate half of the declare/require split. It
     // emits the `relationships.systems` entry Foundry's `supportsSystem` reads,
     // reusing the `systems:` declaration rather than restating it — a second
     // transcription is free to disagree with what it copied, which is how
@@ -476,8 +473,8 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
 
     const merged = { ...declared, ...derived };
 
-    // The index every consumer resolves this package's addresses through
-    // (#239). Written unconditionally, because a package that publishes no
+    // The index every consumer resolves this package's addresses through.
+    // Written unconditionally, because a package that publishes no
     // index is one nothing can link into — and the failure of an absent one is
     // a dead link in somebody else's build, which is exactly the kind of
     // silence this replaced the vendored manifest to end.
@@ -562,7 +559,7 @@ function reportPackFolders(findings, configFile) {
  * The declared `packFolders` is checked against the derived `packs[]` first,
  * and an unresolvable name **stops the write**: a manifest already known to
  * describe packs the package does not ship should not reach the stage, where
- * the next command would deploy it (#81). See {@link packFolderFindings} for
+ * the next command would deploy it. See {@link packFolderFindings} for
  * the rule and why its two findings carry different severities.
  *
  * @param {object} options - As {@link buildManifest}, plus where to write.
