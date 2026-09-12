@@ -38,6 +38,31 @@ jobs:
               uses: HeroicLands/.github/actions/todos@main
               with:
                   paths: .
+
+            # Wants a checkout and nothing else, like the step above, and for a
+            # sharper reason: what it guards against breaks the *release*, which
+            # no pull request check would otherwise see.
+            #
+            # `node_modules` was committed once as a symlink to a developer's
+            # absolute path. `.gitignore` said `/node_modules/`, and the
+            # trailing slash matches a directory rather than a symlink, so
+            # nothing stopped it. Every release for the next day failed: the job
+            # installs, and the changesets action's `git reset --hard` then
+            # restores the symlink over the install, leaving every module
+            # unresolvable — `changeset: not found` (#381).
+            #
+            # The .gitignore is fixed, so this is the second lock rather than
+            # the first. It is here because the first one was also thought
+            # sufficient.
+            - name: No dependency tree is tracked
+              run: |
+                  TRACKED="$(git ls-files | grep -E '(^|/)node_modules(/|$)' || true)"
+                  if [ -n "$TRACKED" ]; then
+                      echo "::error::A node_modules path is tracked. Installed dependencies must never be committed — a symlink here broke every release for a day (#381). Run: git rm -r --cached <path>" >&2
+                      printf '%s\n' "$TRACKED" >&2
+                      exit 1
+                  fi
+                  echo "No node_modules path is tracked."
             - uses: actions/setup-node@v7
               with:
                   node-version: 24
