@@ -76,12 +76,27 @@ export const ICON_STYLES = Object.freeze(["solid", "regular", "brands"]);
 /**
  * The icons the user guide already depicts, under the names it should call them.
  *
- * Each entry was read off the interface it describes rather than invented: the
- * `star`/`star-outline` pair is the filled and hollow star the mastery row and
- * the improve flag draw, and `edit` is the pencil the formula editor opens
- * from. The names are what a *writer* would reach for — `delete`, not
- * `trash-can` — because the writer is the one typing them; the Font Awesome
- * spelling is this table's business, not theirs.
+ * Each entry is read off the interface it describes rather than invented, and
+ * that is meant literally — the table was checked against the system's own
+ * templates, which is how `delete` came to be `fa-trash` rather than the
+ * `fa-trash-can` first written here. The sheets draw `fa-trash` twenty-five
+ * times and `fa-trash-can` never, so the first spelling would have printed an
+ * icon the reader has never seen on screen. A registry that is not checked
+ * against the interface is just a second place to be wrong.
+ *
+ * The names are what a *writer* would reach for — `delete`, not `trash` —
+ * because the writer is the one typing them; the Font Awesome spelling is this
+ * table's business, not theirs.
+ *
+ * **Three entries share `xmark`, and that is the point of naming rather than
+ * drawing.** A `✕` in the guide means "not applicable" in a Healing Rate
+ * column, "remove this row" on a control, and "close" on a dialog's corner. One
+ * glyph, three sentences, three different things for a reader who cannot see
+ * it — so they are three names with three labels, and the fact that Font
+ * Awesome happens to draw them identically stays in this table.
+ *
+ * `run` and `expand` are likewise distinct: `▶` runs an action, and its label
+ * should say so. `fa-play` is what the sheets use for it.
  *
  * @type {Readonly<Record<string, {style: string, icon: string, label: string}>>}
  */
@@ -90,11 +105,13 @@ export const DEFAULT_ICONS = Object.freeze({
     "star-outline": { style: "regular", icon: "star", label: "hollow star" },
     diamond: { style: "solid", icon: "diamond", label: "diamond" },
     edit: { style: "solid", icon: "pen-to-square", label: "edit" },
-    delete: { style: "solid", icon: "trash-can", label: "delete" },
+    delete: { style: "solid", icon: "trash", label: "delete" },
     add: { style: "solid", icon: "plus", label: "add" },
     remove: { style: "solid", icon: "xmark", label: "remove" },
     "not-applicable": { style: "solid", icon: "xmark", label: "not applicable" },
+    close: { style: "solid", icon: "xmark", label: "close" },
     menu: { style: "solid", icon: "ellipsis-vertical", label: "actions menu" },
+    run: { style: "solid", icon: "play", label: "run this action" },
     expand: { style: "solid", icon: "caret-right", label: "expand" },
     shield: { style: "solid", icon: "shield-halved", label: "armour" },
     compass: { style: "solid", icon: "compass", label: "guided tour" },

@@ -55,6 +55,28 @@ describe("the registry", () => {
         expect(resolveIcon("star")!.icon).toBe(resolveIcon("star-outline")!.icon);
     });
 
+    it("names the three senses of ✕ separately, though one glyph draws them", () => {
+        // "not applicable" in a column, "remove" on a control, "close" on a
+        // dialog. Identical to look at, three different things to be told.
+        const senses = ["not-applicable", "remove", "close"] as const;
+        for (const n of senses) expect(resolveIcon(n)!.icon, n).toBe("xmark");
+        const labels = senses.map((n) => resolveIcon(n)!.label);
+        expect(new Set(labels).size).toBe(3);
+    });
+
+    it("gives the run control its own name rather than borrowing expand", () => {
+        // `▶` runs an action; a screen reader saying "expand" would be wrong.
+        expect(resolveIcon("run")!.icon).toBe("play");
+        expect(resolveIcon("run")!.label).toContain("run");
+        expect(resolveIcon("expand")!.icon).toBe("caret-right");
+    });
+
+    it("spells delete the way the sheets do", () => {
+        // The system draws fa-trash 25 times and fa-trash-can never. A registry
+        // that disagrees with the interface prints an icon nobody has seen.
+        expect(resolveIcon("delete")!.icon).toBe("trash");
+    });
+
     it("refuses a style Font Awesome Free does not ship", () => {
         const findings = checkIconRegistry({ x: { style: "duotone", icon: "star", label: "s" } });
         expect(findings).toHaveLength(1);
