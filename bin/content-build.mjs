@@ -80,6 +80,7 @@ import {
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
+import { lintContentIcons } from "../engine/content-icons.mjs";
 import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
@@ -931,11 +932,25 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
 
+                // The names the charset check leaves room for (#378). An icon
+                // the registry does not declare renders as its own literal
+                // text, which is visible but easy to publish, so it is reported
+                // here rather than left for a reader to notice.
+                //
+                // The shipped registry, with no per-package override yet: an
+                // `icons:` configuration key is a change to the configuration
+                // contract and belongs with its own validation, rather than
+                // being read here before anything declares it.
+                const icons = lintContentIcons(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
                     ...schemaFindings,
                     ...charset.findings,
+                    ...icons.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // until #142, so this changed nothing on the day it landed —
