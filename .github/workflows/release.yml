@@ -104,36 +104,34 @@ jobs:
               id: changesets
               uses: changesets/action@v2
               with:
-                  # **There is deliberately no `version-script` here.** Without
-                  # one the action runs the CLI itself, as
+                  # `changeset version` rewrites package.json and the CHANGELOG
+                  # and never the lockfile, so its root `version` keeps the
+                  # previous release's number — this repository and
+                  # content-build were each one release behind before the script
+                  # existed, and 20.2.0 shipped that way again while it was
+                  # briefly removed (#385). The action offers no hook between
+                  # versioning and committing, so this input is the only seam
+                  # where the refresh lands in the same commit.
                   #
-                  #     exec("node", [require.resolve("@changesets/cli/bin.js",
-                  #                                   { paths: [cwd] }), "version"])
+                  # It must be ONE command, not a `&&` chain. The input is
+                  # tokenized and exec'd, never handed to a shell, so a chain is
+                  # read as arguments to the first command: `changeset` receives
+                  # `--package-lock-only` and cac rejects it as an unknown
+                  # `packageLockOnly` option. content-build shipped that chain
+                  # and every release after it failed — three merged pull
+                  # requests published nothing — while looking fine, because the
+                  # step is skipped when the only pending changesets are empty.
+                  # An npm script is the seam that does get a shell.
                   #
-                  # which resolves the installed package directly and depends on
-                  # no PATH at all. Setting the input replaces that with
-                  # `exec(script, undefined, { cwd, env })`, and under that exec
-                  # a bare `changeset` does not resolve on a runner: every
-                  # release from 2026-09-11 died on `sh: 1: changeset: not
-                  # found` (#381).
-                  #
-                  # That is a fault in the override, not in the install. A
-                  # diagnostic run on a pull request confirmed that after
-                  # `npm ci` the runner has the package, has
-                  # `node_modules/.bin/changeset` linked, puts
-                  # `node_modules/.bin` first on a run-script's PATH, resolves
-                  # the bare name through `npm run`, and answers
-                  # `require.resolve` — all of it working, in a plain step, in
-                  # the same job that then failed. `npx changeset version` was
-                  # tried too and failed differently, with `could not determine
-                  # executable to run`, because npx consults a registry this job
-                  # configures for publishing rather than for reads.
-                  #
-                  # So the override buys nothing and costs the release. What it
-                  # *did* buy was a seam to refresh package-lock.json, whose
-                  # root `version` `changeset version` leaves behind — that is
-                  # real and still unsolved, and it is #385 rather than a reason
-                  # to keep a step that does not run.
+                  # This input was removed for one release on the theory that it
+                  # was why `changeset version` could not find its own binary.
+                  # It was not. `node_modules` had been committed as a symlink
+                  # to an absolute path, and the action's `git reset --hard`
+                  # restored it over the install, so nothing resolved by any
+                  # mechanism — with the override or without it, by PATH or by
+                  # `require.resolve` (#381). The symlink is gone and the tree
+                  # survives the reset, so the seam works again.
+                  version-script: npm run changeset:version
                   publish-script: npx changeset publish
                   commit-message: "chore(release): version packages"
                   pr-title: "chore(release): version packages"
