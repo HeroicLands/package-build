@@ -1,5 +1,281 @@
 # @heroiclands/package-build
 
+## 20.5.0
+
+### Minor Changes
+
+- cbe3266: **A reference for every subpath entry this package exports**
+  
+  `docs/api.md` documents the whole programmatic surface — `engine`, `sohl`
+  and `hm3` included, on the same footing as the packaging half — organized by
+  how a consumer imports it: signature, what it returns, and when to reach
+  for it, with a runnable example per subpath. Most of it is pure — source
+  text or already-loaded data in, findings or values out, leaving discovery,
+  I/O and reporting to the caller — and the reference names the handful of
+  packaging functions that necessarily touch the filesystem or a subprocess.
+- 8e2b5d3: **A key-by-key reference for `package-build.config.yaml`**
+  
+  `docs/configuration.md` documents every top-level key, every nested key, its
+  type, whether it is required, its default, and the exact message an author
+  sees when a value is wrong — quoted from the validator, so the error a build
+  prints is searchable against the page that explains it.
+  
+  It also documents the values a repository never writes: `rootDir` and
+  `foundryPackage` are derived from where the file sits and from the adjacent
+  `package.json`; `stats.systemVersion` is derived from `package.json` or from
+  `systems:`; `itemBuilders` accepts a registry name (`sohl`, `hm3`) in YAML,
+  resolved before validation. Authoring the first three directly is refused,
+  with the message that says so.
+  
+  `packageBuild:` — the section `@heroiclands/package-build`'s own packaging
+  half reads — gets the same treatment: staging assets, the manifest
+  pass-through and the keys it derives and refuses to have overwritten, the
+  localization coverage settings, the container and end-to-end test
+  configuration.
+- cc3d90b: **The content tree publishes as a book**
+  
+  A third surface beside the compendium packs and the website: one searchable,
+  bookmarked PDF, built by `content-build pdf` and attached to a release by
+  `package-build release`.
+  
+  **A book is a selection, not a rendering of everything.** The packs and the site
+  publish the whole tree; a book is a declared structure whose leaves pick notes
+  out of the corpus with a `WHERE` clause, interleaved with prose that need not be
+  in the tree at all. `pdf.document` names that structure.
+  
+  ```yaml
+  pdf:
+    title: The Hârn Ensemble
+    document: book.yaml
+    fonts:
+      serif: Libertinus Serif
+      mono: DejaVu Sans Mono
+  ```
+  
+  **`publish.site` decides whether one is built, and it is the only switch.**
+  `content` builds a book; `homepage` does not — the same fence that stops the
+  tree being walked for pages stops it being walked for a book, so the four
+  packages that publish only a homepage cannot start emitting a content document
+  because a `pdf:` block appeared. A package with no block, no tree, or no
+  compiler builds nothing, says why, and exits 0.
+  
+  | Property                | How it is got                                                       |
+  | ----------------------- | ------------------------------------------------------------------- |
+  | Searchable              | Real text; every embedded font carries a `ToUnicode` map.           |
+  | Bookmark outline        | Every section and entry is a heading, so the sidebar is the way in. |
+  | Page-numbered contents  | Shallower than the bookmarks — 2,500 entries would be 40 pages.     |
+  | Repeating table headers | A property table spilling a page keeps its column names.            |
+  | Internal references     | A wikilink between two notes of the book resolves inside the PDF.   |
+  | External references     | A cross-package link, or a note not selected, stays a URL.          |
+  
+  **Typst is a binary, not a dependency.** It is found on `PATH` or named by
+  `pdf.binary`. Bundling a native compiler would put a platform-specific artefact
+  in the dependency tree of three repositories, only one of which is mostly a
+  book. A missing binary is a finding, and the `.typ` source is written anyway.
+  
+  Proved against `harn-ensemble`: 2,517 entries, 1,270 pages, 10,421 outline
+  nodes, 34 seconds, no findings.
+  
+  Additive — a package that configures no `pdf:` block is unaffected.
+- c9dfa50: **A `doc` has two more genres to choose from**
+  
+  `subType: howto` and `subType: concept` join `rules`, `userguide` and
+  `reference`:
+  
+  - **`howto`** — a task with an outcome, written as the steps that reach it.
+  - **`concept`** — an explanation of how something works and why it is shaped
+    that way, read to understand rather than to follow.
+  
+  Between them they cover the prose a package writes about itself, which had no
+  genre to declare and was left to a directory name to imply.
+  
+  `subType` stays _a genre and only a genre_: it says what kind of page this is,
+  never who reads it. A page written for a developer is a `howto` or a `concept`
+  like any other, and the audience is the section it sits in.
+  
+  Both spellings are one word, as `userguide` is: a `subType` is held to the
+  address charset, so `how-to` is refused for its hyphen.
+- 00ce257: **A package that publishes documentation**
+  
+  `packageKind` takes a third value, `documentation`: a package that publishes a
+  website and the book built from the same notes, and compiles no Foundry
+  documents at all. `systems` and `modules` say where Foundry installs a package;
+  `documentation` says it installs nowhere.
+  
+  ```yaml
+  contentPackage: toolkit
+  packageKind: documentation
+  
+  publish:
+    site: content
+    address: { prefix: guide/ }
+  
+  site:
+    out: site/content
+  ```
+  
+  `publish` is required, and `site: content` — publishing the tree is the whole of
+  what the kind does, and `content` is also what builds the book.
+  
+  **What it refuses, by name and with a locator.** `packs`, `itemBuilders`,
+  `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`
+  and `foundryPackage` each describe a Foundry package, so each fails at load
+  naming the key and the line and column it was written on, rather than being read
+  and ignored. `packs` is otherwise still required to declare at least one pack.
+  
+  **What follows from the kind.**
+  
+  - _No manifest, and no compile._ `package-build manifest` refuses rather than
+    writing a `module.json` for a package Foundry never installs. The compile
+    passes refuse too, rather than exiting 0 having compiled nothing.
+  - _No Foundry ids to author._ A note's id is derived from its address, and no
+    pass here asks for a pinned one.
+  - _`doc` and `homepage` are the whole vocabulary._ Every other note type exists
+    to become a Foundry document, so a note carrying one has no destination;
+    `content-build lint` reports it at its `type:` line.
+  - _No asset root._ `assetRoot` and `foundryPackage` resolve to nothing, so a
+    note's `img:` names the owning package (`systems/…`, `modules/…`) or a URL.
+    A path this package would have to serve itself is refused.
+  - _A content index all the same._ `content-build content-index` emits
+    `<contentPackage>-metadata.jsonl` as it does everywhere else, so another
+    package can resolve an address into this one.
+  
+  Systems and modules are unchanged: the asset root, the `_stats` stamp and the
+  pack requirement all behave exactly as before.
+- 46d6de3: **Getting started** — `docs/getting-started.md` walks an empty directory to a
+  package that builds: identity, configuration, a first note, the checks, the
+  compiled packs, the manifest, the content index and the release archive. Each
+  step says what it produces and how to tell it worked, with the output it
+  actually prints. It was written by walking it.
+  
+  **Project setup** — `docs/project-setup.md` covers what a repository carries
+  beyond the build configuration: `package.json` and what each script in the chain
+  is _for_, the shared Prettier re-export and what `.prettierignore` is really
+  guarding, the packaged git hooks and their per-hook switches, `.changeset/` and
+  the four settings that are decisions rather than preferences, the label registry
+  pair, and the directory layout — what the build reads, and everything it writes
+  under `build/`.
+- f9e0e27: **`content-build pdf --version` is now `--book-version`.**
+  
+  `--version` collided with yargs' own reserved top-level `--version`, so the
+  option could not actually take a value — passing one failed with
+  `Unknown argument`. `--book-version` stamps the title page and the file name
+  exactly as before; the plain `content-build --version` answers this package's
+  own version, unaffected.
+  
+  **A thrown error from `content-build pdf` no longer crashes with a
+  `ReferenceError`.** It now reports the same located diagnostic and non-zero
+  exit every other command's catch block produces.
+- a6c77d2: **A guide to reading this toolchain's diagnostics**
+  
+  `docs/diagnostics.md` explains the `file:line:column: severity: message` form
+  every warning and error carries: why a field is dropped rather than guessed,
+  why both severities print to stderr, how a configuration error is located,
+  and which commands fail a run on an error-severity finding. It closes with a
+  runnable example that parses a command's output programmatically.
+- 51e334a: **A full command reference**
+  
+  `docs/commands.md` documents every command both binaries expose — `package-build`
+  and `content-build`, 25 commands between them — with what each reads, what it
+  writes, its options and their defaults, its exit codes, and a worked example.
+  
+  Several corners never had a home before this: `content-build pdf`, and the
+  options `--coverage`, `--doc`, `--fields`, `--id`, `--references`, `--registry`
+  and `--root`.
+  
+  The document is checked against the actual `yargs` definitions in both
+  binaries, so an option or an action added to either one and left undocumented
+  fails the build.
+
+### Patch Changes
+
+- 6e80fbd: **`content-config.mjs`'s own documentation now matches what `defineConfig` accepts**
+  
+  The worked example at the top of `content-config.mjs` — and its `.mjs` twin in
+  `CONTENT.md` — authored `stats.systemId`, a key `defineConfig` refuses as
+  derived. Both now carry only what loads.
+  
+  The `contentPackage` refusal, and the sibling refusal for a section's
+  `listType` / `listSubType`, named the wrong character class — `[A-Za-z0-9]`
+  when the enforced charset is lowercase only. Both now say `lowercase
+  alphanumeric` and print the pattern actually enforced, so an author who writes
+  `contentPackage: PackageBuild` is told what is wrong with it rather than sent
+  looking for a character they do not have.
+- bd6c20b: **`docs/configuration.md` now matches `packageKind: documentation`**
+  
+  The configuration reference names all three `packageKind` values —
+  `systems`, `modules` and `documentation` — in the summary table and in the
+  `packageKind` section itself, and states which keys a `documentation`
+  package requires, which it refuses (quoting each located refusal message
+  verbatim), and how `foundryPackage`, `assetRoot` and `stats` resolve for it.
+- fb04049: **`content-build docs item-fields --check` reports a stale page in the located form**
+  
+  The stale-page diagnostic now starts with the file's path, unprefixed by a
+  timestamp — matching every other located failure this command line emits, and
+  readable by the same tools that already parse the rest of them.
+- 46b39ef: **The published types match the code they are generated from**
+  
+  The `.d.mts` files ship with `@heroiclands/package-build` and are generated
+  from the JSDoc, so a block that is not the one belonging to a symbol ships as
+  that symbol's type. `packRelease` now declares the `pdf` option it accepts and
+  the `pdf`, `pdfFindings` and `pdfSkipped` fields it returns; `buildSite` and
+  `expandNoteTables` declare `sqlTables`; a compiler's `resolveEmbedded`
+  declares `modelPackage`; and `expandContentTables` declares the `warnings` it
+  returns and the `column` on every error entry. Type-checking the whole
+  published declaration surface is clean.
+  
+  **Every exported symbol carries documentation of its own**
+  
+  `NOTE_VOCABULARY`, `DECLARED_TAGS`, `buildIndexRecord`, `collectContentIndex`,
+  `expandContentTables`, `walkMarkdownTree`, `declaredPredecessors` and the seven
+  pack compiler classes each describe what they take and what they return, so
+  hovering one in an editor answers the question asked of it.
+- de54d45: `docs/commands.md` reads as a manual page. Every command carries the same
+  labelled sections — **NAME**, **SYNOPSIS**, **DESCRIPTION**, **OPTIONS**,
+  **EXIT STATUS**, **EXAMPLES**, **SEE ALSO** — in the same order, so jumping to
+  the right command means jumping to the right label. **SEE ALSO** cross-links
+  the commands that answer a related question, and every command that emits
+  findings or reads a configuration key now points at _Diagnostics_ or
+  _Configuration_ directly.
+  
+  `package-build lang check` / `coverage` / `hardcoded` and
+  `content-build content-format schema` / `fields` / `notes` each get their own
+  section, rather than sharing one.
+- 40fcc1a: **A frontmatter reference resolves in any package the tree can reach.**
+  
+  A `ref:` field — `parentSkillCode`, `assocSkillCode`, `assocAffiliationCode` —
+  holds a shortcode, not an address. The system persists it as written and looks
+  it up at runtime among the items embedded on one actor, and an actor assembled
+  from several packages carries their items side by side. So the reference check
+  now asks only whether _any_ reachable package declares the `type`/`shortcode`
+  pair: local notes first, then the fetched dependency indexes, with package and
+  system wildcarded.
+  
+  This is the rule for a reference alone. A wikilink is unchanged — its target is
+  a document to point at, so an omitted package still means this one, and reaching
+  another package still requires the fully qualified form.
+  
+  A tree whose references name a parent in a dependency saw every one of them
+  reported:
+  
+  | note                    | `sohl.parentSkillCode` | before       | after                      |
+  | ----------------------- | ---------------------- | ------------ | -------------------------- |
+  | a language skill        | `lang`                 | no such note | resolves in the dependency |
+  | a spirit specialisation | `spirit`               | no such note | resolves in the dependency |
+  
+  A reference naming a shortcode no package declares is still an error, and the
+  value a note writes is still the value its document carries.
+  
+  `buildLinkIndex` gains `referenceHit(target)`, which is what performs this
+  lookup.
+- a331709: **The address-segment charset is documented as lowercase, matching what it enforces.**
+  
+  Comments, JSDoc and the reference documentation described `contentPackage`,
+  `type`, `subType` and `shortcode` as `^[A-Za-z0-9]+$` or plainly "alphanumeric",
+  which reads as case-insensitive. The charset every one of them is held to is
+  lowercase-only, and the wording now says so — in prose and in the refusal
+  messages an author hits when a value breaks it.
+
 ## 20.4.0
 
 ### Minor Changes
