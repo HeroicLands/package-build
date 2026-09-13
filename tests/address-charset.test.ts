@@ -14,9 +14,9 @@
  * enforced rather than assumed. Shortcodes already are (`content-lint.mjs`);
  * these cases cover the two halves that were not:
  *
- * - `contentPackage` is validated as alphanumeric and not equal to any note
- *   type, and a violation is a located build error rather than keys that fail
- *   to read much later.
+ * - `contentPackage` is validated as lowercase alphanumeric and not equal to
+ *   any note type, and a violation is a located build error rather than keys
+ *   that fail to read much later.
  * - `readCanonicalKey` counts segments against a named constant, and reports a
  *   string that *cannot* be a key distinctly from no string at all.
  *
@@ -133,7 +133,7 @@ describe("the address-segment charset", () => {
     });
 });
 
-describe("`contentPackage` must be alphanumeric", () => {
+describe("`contentPackage` must be lowercase alphanumeric", () => {
     it("rejects a hyphenated package, since the hyphen is the separator", () => {
         const { message } = rejectionFor("harn-adventures");
         expect(message).toContain("contentPackage");

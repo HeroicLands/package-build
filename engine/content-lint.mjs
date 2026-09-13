@@ -24,8 +24,8 @@
  *
  * Five rules, all about a note's identity:
  *
- * 1. **Shape** — a `shortcode` is strictly ASCII-alphanumeric. It is the
- *    identity key referenced from saved world data, and it is half of the
+ * 1. **Shape** — a `shortcode` is strictly lowercase ASCII-alphanumeric. It is
+ *    the identity key referenced from saved world data, and it is half of the
  *    `type-shortcode` address, whose parse depends on the separating hyphen
  *    being the only hyphen in the string.
  * 2. **Uniqueness** — `(type, shortcode)` names one note.
@@ -76,7 +76,8 @@ import { checkHomepageCount, isHomepage } from "./homepage.mjs";
 import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-renames.mjs";
 
 /**
- * The shape every `shortcode` must match: ASCII letters and digits only.
+ * The shape every `shortcode` must match: lowercase ASCII letters and digits
+ * only.
  *
  * This is {@link ADDRESS_SEGMENT_PATTERN}, not a second copy of it. A shortcode
  * is the last segment of a canonical address, and the rule it is held to is the
@@ -84,9 +85,10 @@ import { declaresRenamedFrom, renamedFrom, renamedFromEntries } from "./note-ren
  * free to drift apart. The name survives because this is where the rule
  * is applied to a note.
  *
- * Case is deliberately **not** constrained: hundreds of authored shortcodes are
- * mixed-case and collide with nothing, so tightening that is a separate
- * decision from this one.
+ * Case is held to that rule with no exception: two shortcodes differing only
+ * in case are two names nobody can tell apart, and `canonicalKey` lowercases
+ * every address it builds regardless, so a mixed-case shortcode addresses the
+ * same document as its lowercase spelling.
  *
  * A consuming system's *runtime* keeps its own copy of this pattern — it cannot
  * import a build-time dependency into shipped code — and is expected to pin the
@@ -232,8 +234,9 @@ function checkRenamedFrom({ fm, file }, raw) {
                 ...at(value),
                 severity: "error",
                 message:
-                    `\`renamedFrom: ${value}\` is not strictly alphanumeric, so ` +
-                    `it is not an address this package ever published — a ` +
+                    `\`renamedFrom: ${value}\` is not strictly alphanumeric — ` +
+                    `lowercase letters and digits only (${ADDRESS_SEGMENT_PATTERN.source}) — ` +
+                    `so it is not an address this package ever published — a ` +
                     `shortcode is held to one charset whether it is current or past`,
             });
             continue;
@@ -362,7 +365,8 @@ export function lintContentTree(
                 ...positionInFrontmatter(raw(), "shortcode", String(shortcode)),
                 severity: "error",
                 message:
-                    `shortcode "${shortcode}" is not strictly alphanumeric; it ` +
+                    `shortcode "${shortcode}" is not strictly alphanumeric — ` +
+                    `lowercase letters and digits only (${ADDRESS_SEGMENT_PATTERN.source}); it ` +
                     `is the identity key and half of the ` +
                     `"${fm.type}-${shortcode}" address, whose parse needs the ` +
                     `separator to be the only hyphen`,
