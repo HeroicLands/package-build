@@ -299,3 +299,81 @@ describe("guard sanity: the parse is not vacuous", () => {
         expect(flat.some((n) => n.choices.length > 0)).toBe(true);
     });
 });
+
+/**
+ * `docs/commands.md` reads as a manual page: every `### \`...\`` heading is one
+ * invocable command's own entry, carrying seven bold labels — NAME, SYNOPSIS,
+ * DESCRIPTION, OPTIONS, EXIT STATUS, EXAMPLES, SEE ALSO — in that order. This
+ * is a shape guard over the document itself, independent of `parseCommandTree`:
+ * a `### ` heading is a command section whether or not the binaries wire its
+ * action as a nested yargs command (`content-format schema` is; `lang coverage`
+ * is a choice of one positional, not its own command module, and still gets a
+ * full section). Checking document shape this way, rather than by walking the
+ * source tree's nodes, is what lets one source command legitimately expand into
+ * several manual-page entries without the guard needing a special case for it.
+ */
+const SEVEN_LABELS = [
+    "NAME",
+    "SYNOPSIS",
+    "DESCRIPTION",
+    "OPTIONS",
+    "EXIT STATUS",
+    "EXAMPLES",
+    "SEE ALSO",
+];
+
+interface DocSection {
+    /** The heading text, backticks included — e.g. `` `package-build clean` ``. */
+    heading: string;
+    /** Everything between this heading and the next `#`/`##`/`###` heading. */
+    body: string;
+}
+
+/** Every `### ...` command section in a markdown document, heading paired with body. */
+function commandSections(source: string): DocSection[] {
+    const sections: DocSection[] = [];
+    let current: DocSection | null = null;
+    for (const line of source.split("\n")) {
+        const h3 = line.match(/^### (.+)$/);
+        if (h3) {
+            if (current) sections.push(current);
+            current = { heading: h3[1], body: "" };
+            continue;
+        }
+        if (/^#{1,2} /.test(line)) {
+            if (current) sections.push(current);
+            current = null;
+            continue;
+        }
+        if (current) current.body += line + "\n";
+    }
+    if (current) sections.push(current);
+    return sections;
+}
+
+describe("every command section in docs/commands.md carries all seven labels, in order", () => {
+    const sections = commandSections(doc);
+
+    it("found at least one command section", () => {
+        expect(sections.length).toBeGreaterThan(0);
+    });
+
+    for (const { heading, body } of sections) {
+        it(`\`${heading}\` names NAME, SYNOPSIS, DESCRIPTION, OPTIONS, EXIT STATUS, EXAMPLES, SEE ALSO in order`, () => {
+            const positions = SEVEN_LABELS.map((label) => {
+                const marker = `**${label}**`;
+                const index = body.indexOf(marker);
+                expect(index, `${heading} is missing the ${marker} label`).toBeGreaterThanOrEqual(
+                    0,
+                );
+                return index;
+            });
+            for (let i = 1; i < positions.length; i++) {
+                expect(
+                    positions[i],
+                    `${heading}: ${SEVEN_LABELS[i]} must appear after ${SEVEN_LABELS[i - 1]}`,
+                ).toBeGreaterThan(positions[i - 1]);
+            }
+        });
+    }
+});
