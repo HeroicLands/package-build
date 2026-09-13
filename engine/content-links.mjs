@@ -411,6 +411,32 @@ export function buildLinkIndex(
         return hits.length === 1 ? hits[0] : null;
     }
 
+    /**
+     * The note or foreign entry a **frontmatter reference** names, or null.
+     *
+     * A `ref:` field holds a shortcode, not an address. The system persists it
+     * verbatim and resolves it at runtime against the items embedded on one
+     * actor, where packages do not exist: an actor assembled from several
+     * packages carries their items side by side. So a reference resolves when
+     * *any* reachable package declares the `(type, shortcode)` pair — package
+     * and system wildcarded, local notes first, then the fetched indexes.
+     *
+     * Distinct from {@link resolveAddress}, which defaults an omitted package
+     * to this one. That is the rule for a link, whose target is a document to
+     * point at; a reference names an item to stand beside.
+     *
+     * @param {string} target - The reference as `type-shortcode`.
+     * @returns {object|null} The note or foreign entry declaring it.
+     */
+    function referenceHit(target) {
+        const q = readQualifier(target, types, packages);
+        if (!q || q.reason) return null;
+        const local = matchAddress([...byKey], q);
+        if (local.length) return local[0][1];
+        const abroad = matchAddress([...foreign.index], q);
+        return abroad.length ? abroad[0][1] : null;
+    }
+
     return {
         notes,
         frontmatterLinks,
@@ -434,6 +460,7 @@ export function buildLinkIndex(
         resolveAddress,
         manifestHit,
         foreignHits,
+        referenceHit,
         /** Whether a target reads as a qualified address at all. */
         isAddress: (target) => Boolean(readQualifier(target, types, packages)),
     };

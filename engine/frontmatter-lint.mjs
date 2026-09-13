@@ -909,8 +909,9 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {object} note - A note from the link index (`{fm, file, raw, type}`).
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
- * @param {object} [opts.index] - The link index, for the reference check. Its
- *   absence skips that check rather than reporting every reference as dead.
+ * @param {object} [opts.index] - The link index, for the reference check, which
+ *   runs through its `referenceHit`. Its absence skips that check rather than
+ *   reporting every reference as dead.
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
  *   it declares, as `engine/note-vocabulary.mjs` states them. Supplied
  *   by the caller for the same reason `schemas` is: this module validates a
@@ -1466,19 +1467,14 @@ export function lintNote(
             continue;
         }
 
-        // A reference names another note by shortcode. Resolved through the
-        // link index's own resolver, so a cross-package reference answered by a
-        // fetched index lands exactly as the same address in a wikilink
-        // would — rather than through a second, subtly different rule.
-        //
-        // **As an address, always** — which is now the only namespace there
-        // is. A frontmatter reference is a bare address by construction:
-        // there is no pipe to read intent from, and the field supplies the
-        // type. The resolver once took a namespace argument, and omitting it
-        // read every `ref:` value as an alias, which `type-shortcode` never was.
+        // A reference names another note by shortcode, and the field supplies
+        // the type, so the resolver is handed the whole `type-shortcode` pair.
+        // It resolves in any reachable package: the value is persisted as
+        // written and looked up at runtime among one actor's embedded items,
+        // which come from every package the actor draws on.
         if (field.ref && index && typeof value === "string" && value) {
             const target = `${field.ref}-${value}`;
-            if (!index.resolve(target) && !index.manifestHit(target)) {
+            if (!index.referenceHit(target)) {
                 findings.push({
                     file: note.file,
                     ...at(head, value),
