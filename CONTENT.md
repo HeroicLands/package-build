@@ -305,7 +305,7 @@ package's id to _be_ its system id.
 Because it is a segment of an address, the value is **validated** rather than
 taken as written, and a violation fails the build naming the line it is on:
 
-- **Alphanumeric** (`^[A-Za-z0-9]+$`). An address is read by counting
+- **Lowercase alphanumeric** (`^[a-z0-9]+$`). An address is read by counting
   hyphen-separated segments, so the hyphen has to be purely a separator — which
   is why `harn-adventures` is configured as `harnadventures`. This is the same
   rule `shortcode` is already held to, and the two are one constant.
@@ -322,7 +322,7 @@ taken as written, and a violation fails the build naming the line it is on:
   refused.
 
 ```text
-package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not lowercase alphanumeric (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
 ```
 
 **`package:` in a note's frontmatter is retired, and declaring it fails the
@@ -377,7 +377,7 @@ export default defineConfig({
   foundryPackage: "sohl-kethira-basic",
   packageKind: "modules",
   compatibility: { minimum: "14.359", verified: "14.364" },
-  stats: { systemId: "sohl", systemVersion: "0.4.3", lastModifiedBy: "…" },
+  stats: { lastModifiedBy: "…" },
   itemBuilders: ITEM_BUILDERS,
   packs: [{ name: "items", type: "Item" }],
 });
