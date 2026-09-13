@@ -718,16 +718,6 @@ function langHardcoded(config) {
 }
 
 /**
- * `lang <action>` — the three localization guards.
- *
- * They are three questions about one subject, and each is blind to what the
- * others see: `check` asks whether the file will load at all, `coverage`
- * whether the keys and the code agree, `hardcoded` whether the markup ever
- * asks for a key in the first place.
- *
- * @returns {object} The yargs command module.
- */
-/**
  * `package-build yaml` — lint note frontmatter and every YAML file.
  *
  * Frontmatter carries a note's type, shortcode, address and system blocks, and
@@ -839,6 +829,16 @@ function labelsCheck(args) {
     console.log(`package-build: registry and §3 agree (${count} labels).`);
 }
 
+/**
+ * `lang <action>` — the three localization guards.
+ *
+ * They are three questions about one subject, and each is blind to what the
+ * others see: `check` asks whether the file will load at all, `coverage`
+ * whether the keys and the code agree, `hardcoded` whether the markup ever
+ * asks for a key in the first place.
+ *
+ * @returns {object} The yargs command module.
+ */
 function langCommand() {
     return {
         command: "lang <action>",

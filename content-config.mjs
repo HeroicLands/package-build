@@ -1039,18 +1039,6 @@ function normalizePack(value, where, nested = false) {
 }
 
 /**
- * Resolve the layout a consumer supplies against its `rootDir`, filling every
- * unnamed directory from {@link DEFAULT_PATHS}.
- *
- * Configured paths are **relative by contract**: an absolute one would escape
- * the repository the config anchors, which is never what a consumer means and
- * is what made these paths working-directory-dependent in the first place.
- *
- * @param {unknown} value
- * @param {string} rootDir
- * @returns {Readonly<ResolvedPaths>}
- */
-/**
  * A package's icon registry — the fonts it ships and the names it draws from
  * them.
  *
@@ -1172,6 +1160,18 @@ function normalizeIcons(value, rootDir) {
     });
 }
 
+/**
+ * Resolve the layout a consumer supplies against its `rootDir`, filling every
+ * unnamed directory from {@link DEFAULT_PATHS}.
+ *
+ * Configured paths are **relative by contract**: an absolute one would escape
+ * the repository the config anchors, which is never what a consumer means and
+ * is what made these paths working-directory-dependent in the first place.
+ *
+ * @param {unknown} value
+ * @param {string} rootDir
+ * @returns {Readonly<ResolvedPaths>}
+ */
 function normalizePaths(value, rootDir) {
     if (value !== undefined && !isPlainObject(value)) {
         fail("paths", "must be an object");
@@ -1199,7 +1199,9 @@ function normalizePaths(value, rootDir) {
 }
 
 /**
- * @param {unknown} value
+ * @param {unknown} value - The authored `stats:` block.
+ * @param {{systemId: string, systemVersion: string}} derived - The package-wide
+ *   system and the version it stamps against, both derived by the caller.
  * @returns {Readonly<StatsSpec>}
  */
 function normalizeStats(value, derived) {
@@ -1652,38 +1654,6 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
 }
 
 /**
- * Validate the declared relationships.
- *
- * Only as far as this package needs to read them: enough that a system
- * relationship can be found and its `verified` version trusted. The rest is
- * passed through for the manifest generator to emit.
- *
- * @param {unknown} value - The `relationships` block, or `undefined`.
- * @returns {Readonly<Relationships>} It, frozen; `{}` when absent.
- */
-/**
- * The systems this package can stamp content against — declaration only.
- *
- * **Declaring is not requiring, and that separation is the whole point.** The
- * only other place to state a system version is `relationships.systems`, and
- * that list is a *restriction*: Foundry's `supportsSystem` drops a module from
- * any world whose system it does not name. So a module shipping content for two
- * systems — `harn-ensemble` ships an HM3 pack, a SoHL pack and a system-neutral
- * journals pack — had to choose between naming its systems and remaining
- * loadable, and choosing the second meant stamping no system version at all on
- * content that certainly has one.
- *
- * Naming a system here restricts nothing. {@link normalizeRequiresSystem} is
- * what restricts, and it is separate and optional.
- *
- * Each entry carries the same `compatibility` shape a relationship does, and
- * `verified` is what a pack stamps: `_stats.systemVersion` records what the
- * content was *built against*, not the floor it tolerates.
- *
- * @param {unknown} value - The declared `systems:` mapping.
- * @returns {Readonly<Record<string, Readonly<object>>>} Frozen; `{}` when absent.
- */
-/**
  * The **package-wide** system, or `null` where the configuration names none.
  *
  * A *system* package is its own system, which is true by construction and needs
@@ -1728,6 +1698,28 @@ function packageWideSystemId({
     return null;
 }
 
+/**
+ * The systems this package can stamp content against — declaration only.
+ *
+ * **Declaring is not requiring, and that separation is the whole point.** The
+ * only other place to state a system version is `relationships.systems`, and
+ * that list is a *restriction*: Foundry's `supportsSystem` drops a module from
+ * any world whose system it does not name. So a module shipping content for two
+ * systems — `harn-ensemble` ships an HM3 pack, a SoHL pack and a system-neutral
+ * journals pack — had to choose between naming its systems and remaining
+ * loadable, and choosing the second meant stamping no system version at all on
+ * content that certainly has one.
+ *
+ * Naming a system here restricts nothing. {@link normalizeRequiresSystem} is
+ * what restricts, and it is separate and optional.
+ *
+ * Each entry carries the same `compatibility` shape a relationship does, and
+ * `verified` is what a pack stamps: `_stats.systemVersion` records what the
+ * content was *built against*, not the floor it tolerates.
+ *
+ * @param {unknown} value - The declared `systems:` mapping.
+ * @returns {Readonly<Record<string, Readonly<object>>>} Frozen; `{}` when absent.
+ */
 function normalizeSystems(value) {
     if (value === undefined || value === null) return Object.freeze({});
     if (!isPlainObject(value)) fail("systems", "must be a mapping of id to spec");
@@ -1791,6 +1783,16 @@ function normalizeRequiresSystem(value) {
     return requireNonEmptyString(value, "requiresSystem");
 }
 
+/**
+ * Validate the declared relationships.
+ *
+ * Only as far as this package needs to read them: enough that a system
+ * relationship can be found and its `verified` version trusted. The rest is
+ * passed through for the manifest generator to emit.
+ *
+ * @param {unknown} value - The `relationships` block, or `undefined`.
+ * @returns {Readonly<Relationships>} It, frozen; `{}` when absent.
+ */
 function normalizeRelationships(value) {
     if (value === undefined) return Object.freeze({});
     if (!isPlainObject(value)) fail("relationships", "must be a mapping");

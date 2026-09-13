@@ -425,7 +425,8 @@ export function writeHomepages(outRoot, pages, config) {
  * @param {object[]} pages - Every page, from both walks.
  * @param {object} findings - `{ addressFindings, fmLinkFindings }` from
  *   collection.
- * @param {object} options - `{ config }`.
+ * @param {object} options
+ * @param {object} options.config - The resolved build configuration.
  * @returns {object} The gate results and, when they pass, the built index.
  */
 export function siteGates(pages, findings, { config }) {
@@ -608,7 +609,12 @@ export function sectionFrontmatter(meta) {
  * section's landing and takes the title and hero the section declares.
  *
  * @param {object} page - The page.
- * @param {object} options - `{ readmeSections, decorate }`.
+ * @param {object} options
+ * @param {Record<string, object>} [options.readmeSections] - The sections a
+ *   published tree declares, which a tree page's own `README` is the landing
+ *   for.
+ * @param {(data: object, page: object) => void} [options.decorate] - Called
+ *   with each page's frontmatter, for whatever a consumer's own pass adds.
  * @returns {object} The frontmatter to write.
  */
 export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
@@ -800,7 +806,14 @@ export function renderPages(pages, options) {
  * navigation of every page inside it.
  *
  * @param {string} outRoot - The mount directory.
- * @param {object} options - `{ sections, landing, sectionTitle }`.
+ * @param {object} options
+ * @param {Record<string, object>} [options.sections] - The declared sections,
+ *   each written as a titled `_index.md` carrying its own frontmatter.
+ * @param {object} [options.landing] - The mount's own landing frontmatter.
+ *   Omitted, the mount gets no `_index.md` of its own.
+ * @param {((name: string) => string)|null} [options.sectionTitle] - Titles a
+ *   directory below the mount that declared no section. `null` leaves such a
+ *   directory without an `_index.md`.
  * @returns {number} How many landings were written.
  */
 export function writeSectionLandings(outRoot, { sections = {}, landing, sectionTitle }) {
@@ -944,6 +957,11 @@ export function resolveOutputRoot(rootDir, out) {
  * @param {object} [options.config] - A resolved configuration; loaded when
  *   omitted.
  * @param {string} [options.outRoot] - Override the configured output mount.
+ * @param {Map<string, object[]>} [options.sqlTables] - Prepared `sql` results,
+ *   keyed by the note's absolute file, from
+ *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
+ *   `sql` directive with none prepared is a table error: nothing here runs a
+ *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
  *   wikiErrors: object[], manifests: object|null}}
  */

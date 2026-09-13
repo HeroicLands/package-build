@@ -35,11 +35,6 @@
 import { HOMEPAGE_FIELDS, HOMEPAGE_TYPE } from "./homepage.mjs";
 
 /**
- * Every engine-level content type, and what a note of that type may write.
- *
- * @type {Readonly<Record<string, readonly import("./field-spec.mjs").FieldSpec[]>>}
- */
-/**
  * A note that compiles to a JournalEntry and nothing else.
  *
  * Empty on purpose, and the emptiness is the declaration. `place`, `lore` and

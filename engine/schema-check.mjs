@@ -692,7 +692,7 @@ export function checkAuthoredSystemData(
  * existed, or a subtype the artifact does not name, produces no findings.
  * `content-build lint` is where a missing artifact is said out loud, once.
  *
- * @param {object} system - The `system` block the compiler produced.
+ * @param {object} emitted - The `system` block the compiler produced.
  * @param {object} opts
  * @param {object} opts.fm - The note's frontmatter, for the authored paths this
  *   check leaves to {@link checkAuthoredSystemData}.

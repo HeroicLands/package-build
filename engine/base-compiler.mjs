@@ -303,11 +303,17 @@ export class BasePackCompiler {
      *   Resolves a `packFolder` — a folder note's address — to the Foundry
      *   folder id it materialises as in this pack.
      * @param {string} [options.packName] - The pack this pass writes.
+     * @param {string|null} [options.packSystem] - The system that pack declares,
+     *   which decides the `_stats` it stamps and the system block a note must
+     *   carry to reach it. `null` for a pack that declares none.
      * @param {string} [options.docType] - The Foundry document type it holds.
      * @param {{resolve: Function}} [options.router] - The pack router. Omit it
      *   — as the unit suite does — and every claimed note is compiled here.
      * @param {boolean} [options.routingReporter] - Whether this pass reports a
      *   note of its type that routes nowhere.
+     * @param {object} [options.corpus] - The corpus this compile is running
+     *   over, derived once and shared by every pass. A pass handed none derives
+     *   its own in `prepare`, and reports that corpus's problems itself.
      */
     constructor({
         contentBase,

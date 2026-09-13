@@ -577,33 +577,6 @@ export class SystemActorCompiler extends BasePackCompiler {
     }
 
     /**
-     * Resolve one embedded item from a `(type, shortcode?, overlay)`
-     * descriptor. If `shortcode` is given, the predefined item is fetched
-     * from `itemsMap` and the overlay deep-merged on top. If absent, the
-     * descriptor must carry enough fields to stand alone. The embedded
-     * item's `_id` is regenerated deterministically from
-     * `(actorId, subType, shortcode, indexKey)` so re-exports are stable —
-     * from the **document subtype**, so that renaming a note type leaves
-     * every embedded id exactly where it was.
-     * Returns null if the descriptor cannot be resolved.
-     *
-     * @param {Map<string, object>} itemsMap - The predefined items, by address.
-     * @param {string} actorId - The owning actor's id, seeding embedded ids.
-     * @param {string} type - The **note** type the reference names.
-     * @param {string|null} shortcode - The referenced item's shortcode, or
-     *   `null` for a stand-alone entry.
-     * @param {object} [overlay] - The entry's remaining properties.
-     * @param {string} indexKey - Where the reference sits, for a diagnostic.
-     *   It no longer reaches the id — it names the entry in a message.
-     * @param {string} ctx - Diagnostic context (the actor's label).
-     * @param {object} [at] - Where to locate a finding.
-     * @param {string} [at.fmKey] - The frontmatter key the reference sits
-     *   under, so an unresolved one is reported at the reference rather than
-     *   at the note.
-     * @returns {object|null} The embedded item, or null when it resolved to
-     *   nothing — always with a finding emitted.
-     */
-    /**
      * Read an entry's `model:` — the address of the item it is a copy of.
      *
      * The address grammar is the wikilink one, so a `model` is written at
@@ -653,6 +626,36 @@ export class SystemActorCompiler extends BasePackCompiler {
         return { type: read.type, shortcode: read.shortcode, package: read.package ?? null };
     }
 
+    /**
+     * Resolve one embedded item from a `(type, shortcode?, overlay)`
+     * descriptor. If `shortcode` is given, the predefined item is fetched
+     * from `itemsMap` and the overlay deep-merged on top. If absent, the
+     * descriptor must carry enough fields to stand alone. The embedded
+     * item's `_id` is regenerated deterministically from
+     * `(actorId, subType, shortcode, indexKey)` so re-exports are stable —
+     * from the **document subtype**, so that renaming a note type leaves
+     * every embedded id exactly where it was.
+     * Returns null if the descriptor cannot be resolved.
+     *
+     * @param {Map<string, object>} itemsMap - The predefined items, by address.
+     * @param {string} actorId - The owning actor's id, seeding embedded ids.
+     * @param {string} type - The **note** type the reference names.
+     * @param {string|null} shortcode - The referenced item's shortcode, or
+     *   `null` for a stand-alone entry.
+     * @param {object} overlay - The entry's remaining properties.
+     * @param {string} indexKey - Where the reference sits, for a diagnostic.
+     *   It names the entry in a message and does not reach the id.
+     * @param {string} ctx - Diagnostic context (the actor's label).
+     * @param {object} [at] - Where to locate a finding.
+     * @param {string} [at.fmKey] - The frontmatter key the reference sits
+     *   under, so an unresolved one is reported at the reference rather than
+     *   at the note.
+     * @param {string|null} [at.modelPackage] - The package a `model:` names,
+     *   where the template comes from another package's catalogue. Given one,
+     *   the packaged address is what resolves and nothing local shadows it.
+     * @returns {object|null} The embedded item, or null when it resolved to
+     *   nothing — always with a finding emitted.
+     */
     resolveEmbedded(
         itemsMap,
         actorId,
