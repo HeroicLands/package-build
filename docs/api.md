@@ -16,10 +16,12 @@ is named for it in the tables below, and the pure half of its module is kept
 separate from it.
 
 This reference is organized by subpath entry, matching how a consumer
-imports: `import { engine } from "@heroiclands/package-build/engine"` reads
-one way, `import { engine } from "@heroiclands/package-build"` another. Each
-export's row states its signature, what it returns, and when a caller
-reaches for it — sourced from the export's own JSDoc.
+imports: `import * as engine from "@heroiclands/package-build/engine"` reads
+the engine namespaces directly, while `import { engine } from
+"@heroiclands/package-build"` reaches the same namespaces one level deeper,
+as a property of the root import. Each export's row states its signature,
+what it returns, and when a caller reaches for it — sourced from the
+export's own JSDoc.
 
 ## `.` — the package root
 
@@ -95,22 +97,22 @@ console.log(addressSlug({ type: "weapongear", shortcode: "dagger" }));
 
 Deterministic document ids, derived by hashing rather than stored, so compile passes that cannot see each other's output still agree on an id. Also holds the pack-name vocabulary — which content type compiles into which conventional pack and document type — and the retired/renamed type tables every type-keyed lookup normalizes through first.
 
-| Export                 | Signature                                       | Returns                                                        | Use it when                                                                |
-| ---------------------- | ----------------------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| `makeId`               | `makeId(namespace, value)`                      | `string` — a 16-character hexadecimal Foundry id                | deriving a stable id from a namespace and a value, e.g. a heading id when none is supplied |
-| `MAP_TYPES`            | `const MAP_TYPES`                               | —                                                              | enumerating the content types that compile into a Foundry `Scene`          |
-| `MAP_SUBTYPES`         | `const MAP_SUBTYPES`                            | —                                                              | reading the map subTypes, which differ only in derived canvas defaults     |
-| `JOURNAL_TYPES`        | `const JOURNAL_TYPES`                           | —                                                              | enumerating content types whose whole document _is_ a JournalEntry         |
-| `PACK_BY_TYPE`         | `const PACK_BY_TYPE`                            | —                                                              | looking up the conventional pack name and document type for a content type |
-| `RETIRED_TYPES`        | `const RETIRED_TYPES`                           | —                                                              | looking up what a retired content type was replaced by                     |
-| `assertTypeNotRetired` | `assertTypeNotRetired(type, where)`             | throws                                                         | refusing a note whose type has been retired outright                       |
-| `RENAMED_TYPES`        | `const RENAMED_TYPES`                           | —                                                              | looking up what a renamed content type is now called                       |
-| `currentType`          | `currentType(type)`                             | the current spelling                                           | normalizing a type to its current spelling before any keyed lookup         |
-| `renamedTypeMessage`   | `renamedTypeMessage(retired, current, where)`   | `string` — the finding message                                 | building the one message every reporter of a renamed type shares           |
-| `ITEM_PACK`            | `const ITEM_PACK`                               | —                                                              | naming the pack every open-set item type compiles into by default          |
-| `packForType`          | `packForType(type)`                             | `{pack, docType}`                                              | resolving the pack and document type an item type's documents live in      |
-| `compendiumUuid`       | `compendiumUuid(packageId, type, id, packName)` | `string` — `Compendium.<packageId>.<pack>.<DocumentType>.<id>` | composing a document's full compendium UUID in the one place it is spelled |
-| `pageUuid`             | `pageUuid(entryUuid, pageId)`                   | `string` — the page's UUID                                     | composing the UUID of a JournalEntry page                                  |
+| Export                 | Signature                                       | Returns                                                        | Use it when                                                                                |
+| ---------------------- | ----------------------------------------------- | -------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `makeId`               | `makeId(namespace, value)`                      | `string` — a 16-character hexadecimal Foundry id               | deriving a stable id from a namespace and a value, e.g. a heading id when none is supplied |
+| `MAP_TYPES`            | `const MAP_TYPES`                               | —                                                              | enumerating the content types that compile into a Foundry `Scene`                          |
+| `MAP_SUBTYPES`         | `const MAP_SUBTYPES`                            | —                                                              | reading the map subTypes, which differ only in derived canvas defaults                     |
+| `JOURNAL_TYPES`        | `const JOURNAL_TYPES`                           | —                                                              | enumerating content types whose whole document _is_ a JournalEntry                         |
+| `PACK_BY_TYPE`         | `const PACK_BY_TYPE`                            | —                                                              | looking up the conventional pack name and document type for a content type                 |
+| `RETIRED_TYPES`        | `const RETIRED_TYPES`                           | —                                                              | looking up what a retired content type was replaced by                                     |
+| `assertTypeNotRetired` | `assertTypeNotRetired(type, where)`             | throws                                                         | refusing a note whose type has been retired outright                                       |
+| `RENAMED_TYPES`        | `const RENAMED_TYPES`                           | —                                                              | looking up what a renamed content type is now called                                       |
+| `currentType`          | `currentType(type)`                             | the current spelling                                           | normalizing a type to its current spelling before any keyed lookup                         |
+| `renamedTypeMessage`   | `renamedTypeMessage(retired, current, where)`   | `string` — the finding message                                 | building the one message every reporter of a renamed type shares                           |
+| `ITEM_PACK`            | `const ITEM_PACK`                               | —                                                              | naming the pack every open-set item type compiles into by default                          |
+| `packForType`          | `packForType(type)`                             | `{pack, docType}`                                              | resolving the pack and document type an item type's documents live in                      |
+| `compendiumUuid`       | `compendiumUuid(packageId, type, id, packName)` | `string` — `Compendium.<packageId>.<pack>.<DocumentType>.<id>` | composing a document's full compendium UUID in the one place it is spelled                 |
+| `pageUuid`             | `pageUuid(entryUuid, pageId)`                   | `string` — the page's UUID                                     | composing the UUID of a JournalEntry page                                                  |
 
 ### `engine.systemBlock`
 
@@ -470,13 +472,13 @@ Emitting this package's content index. Every content build already walks the who
 
 `engine.contentIndex` also re-exports five names from neighbouring leaf modules, at this same import path:
 
-| Export | Signature | Returns | Use it when |
-| --- | --- | --- | --- |
-| `collectAnchors` | `collectAnchors(body, bodyLine)` | `Array<{slug: string, line: number}>` | reading a note body's anchors, shared with the link checker and every build that emits a link |
-| `DERIVED_KEYS` | `const DERIVED_KEYS` | — | reading which keys the content index adds to a record, and which a note therefore may not author itself |
-| `noteFile` | `noteFile(contentBase, record)` | `string` — the note's absolute path | composing an index record's `file.path` (recorded relative, for a byte-stable artifact) back into an openable absolute path |
-| `authoredFrontmatter` | `authoredFrontmatter(record)` | `Record<string, any>` — the frontmatter without `DERIVED_KEYS` | reading back exactly what a note authored from its index record, so a pass can lint or compile from the index without reasoning about derived fields as if the author wrote them |
-| `isNoteRecord` | `isNoteRecord(record)` | `boolean` | telling a note's own record apart from its documentation journal's, when enumerating the corpus |
+| Export                | Signature                        | Returns                                                        | Use it when                                                                                                                                                                      |
+| --------------------- | -------------------------------- | -------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `collectAnchors`      | `collectAnchors(body, bodyLine)` | `Array<{slug: string, line: number}>`                          | reading a note body's anchors, shared with the link checker and every build that emits a link                                                                                    |
+| `DERIVED_KEYS`        | `const DERIVED_KEYS`             | —                                                              | reading which keys the content index adds to a record, and which a note therefore may not author itself                                                                          |
+| `noteFile`            | `noteFile(contentBase, record)`  | `string` — the note's absolute path                            | composing an index record's `file.path` (recorded relative, for a byte-stable artifact) back into an openable absolute path                                                      |
+| `authoredFrontmatter` | `authoredFrontmatter(record)`    | `Record<string, any>` — the frontmatter without `DERIVED_KEYS` | reading back exactly what a note authored from its index record, so a pass can lint or compile from the index without reasoning about derived fields as if the author wrote them |
+| `isNoteRecord`        | `isNoteRecord(record)`           | `boolean`                                                      | telling a note's own record apart from its documentation journal's, when enumerating the corpus                                                                                  |
 
 ### `engine.siteBuild`
 

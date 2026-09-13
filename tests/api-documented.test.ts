@@ -132,7 +132,9 @@ describe("docs/api.md documents the real export surface", () => {
             // name alone would miss a function disappearing from inside it.
             for (const [name, value] of Object.entries(mod)) {
                 if (!isModuleNamespace(value)) continue;
-                const missingMembers = Object.keys(value).filter((member) => !DOCUMENTED.has(member));
+                const missingMembers = Object.keys(value).filter(
+                    (member) => !DOCUMENTED.has(member),
+                );
                 expect(missingMembers, `${subpath} -> ${name}`).toEqual([]);
             }
         });
