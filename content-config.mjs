@@ -22,7 +22,6 @@
  * packageKind: systems
  * compatibility: { minimum: "14.359", verified: "14.364" }
  * stats:
- *     systemId: sohl
  *     lastModifiedBy: sohlbuilder00000
  * itemBuilders: sohl
  * skipDirectories: [Templates]
@@ -42,14 +41,15 @@
  * a consumer's config is data, and the compilers read it.
  *
  * **This module validates; it does not load.** `engine/pack-config.mjs` is what
- * finds a repository's configuration and reads it, and it is where the three
+ * finds a repository's configuration and reads it, and it is where the four
  * fields absent from the YAML above are derived: `rootDir` (the directory the
- * file sits in), `stats.systemVersion` (the adjacent `package.json`), and the
- * `itemBuilders` table the name `sohl` stands for. All three are I/O or code,
- * and this module is deliberately neither — which is also why a consumer whose
- * item-builder registry is its own writes `package-build.config.mjs`, calling
- * `defineConfig` below directly with a `rootDir` of `import.meta.dirname`.
- * Both forms end here, so both are validated and frozen identically.
+ * file sits in), `foundryPackage` and `stats.systemVersion` (the adjacent
+ * `package.json`), and the `itemBuilders` table the name `sohl` stands for. All
+ * four are I/O or code, and this module is deliberately neither — which is also
+ * why a consumer whose item-builder registry is its own writes
+ * `package-build.config.mjs`, calling `defineConfig` below directly with a
+ * `rootDir` of `import.meta.dirname`. Both forms end here, so both are
+ * validated and frozen identically.
  *
  * **`rootDir` anchors every path**, so the build reads the same files whatever
  * directory it was launched from.
@@ -76,13 +76,70 @@ import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
 
 /**
- * The two kinds of Foundry package a content module can be built into. The
- * value is also the directory Foundry installs the package under, which is why
- * it is plural.
+ * What kind of package this is.
+ *
+ * `systems` and `modules` are the two Foundry answers, and the value is also
+ * the directory Foundry installs the package under, which is why they are
+ * plural. `documentation` is the answer "not a Foundry package at all": it
+ * publishes a site and a book from its notes, installs into no Foundry data
+ * directory and compiles no compendium.
  *
  * @satisfies {readonly PackageKind[]}
  */
-export const PACKAGE_KINDS = /** @type {const} */ (["systems", "modules"]);
+export const PACKAGE_KINDS = /** @type {const} */ (["systems", "modules", "documentation"]);
+
+/**
+ * The kind that compiles no Foundry documents.
+ *
+ * Spelled once and read wherever a pass asks whether it applies, so the
+ * validator, the CLI and the compile passes cannot come to disagree about what
+ * the value means.
+ *
+ * @type {string}
+ */
+export const DOCUMENTATION_KIND = "documentation";
+
+/**
+ * Whether this package compiles Foundry documents at all.
+ *
+ * The one question every Foundry-side reader asks — the manifest writer, to
+ * decide whether there is a package for Foundry to install, and the pack
+ * compilers, to decide whether there is anything to compile.
+ *
+ * @param {{packageKind: string}} config - A resolved configuration.
+ * @returns {boolean} Whether the package compiles Foundry documents.
+ */
+export function compilesFoundryDocuments(config) {
+    return config.packageKind !== DOCUMENTATION_KIND;
+}
+
+/**
+ * Every key a documentation package may not declare, and why.
+ *
+ * The value of the kind is as much in what it refuses as in what it accepts. A
+ * key here cannot mean anything in a package that compiles nothing and installs
+ * nowhere, so it fails at load naming the key — the loader resolves that name
+ * to a line and a column — rather than being read and ignored, which is the
+ * failure this contract exists to prevent.
+ *
+ * `foundryPackage` is on the list for the same reason as the rest, and is the
+ * one the YAML loader would otherwise supply: it derives the id from the
+ * adjacent `package.json`, and there is no Foundry package here to carry one.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+const DOCUMENTATION_REFUSES = Object.freeze({
+    packs: "compiles no compendium, so there are no packs to declare",
+    itemBuilders: "compiles no items, so there is no item-type registry to name",
+    docs: "compiles no items, so there are no item-field reference pages to frame",
+    compatibility:
+        "installs into no Foundry data directory, so there is no Foundry core range to support",
+    relationships: "is not a Foundry package, so it stands in no relationship to one",
+    systems: "compiles no documents, so it ships content for no game system",
+    requiresSystem: "compiles no documents, so there is no game system to gate its packs on",
+    stats: "compiles no documents, so there is no `_stats` block to stamp",
+    foundryPackage: "is not a Foundry package, so it has no Foundry package id",
+});
 
 /**
  * The directories the build reads from and writes to, relative to `rootDir`,
@@ -234,7 +291,7 @@ export function publishesContentPages(config) {
 }
 
 /**
- * @typedef {"systems" | "modules"} PackageKind
+ * @typedef {"systems" | "modules" | "documentation"} PackageKind
  */
 
 /**
@@ -500,10 +557,20 @@ export function publishesContentPages(config) {
  * @property {string} contentPackage        Content package name — the address
  *                                          namespace every note in this
  *                                          repository is published under.
- * @property {string} foundryPackage        Foundry package id, as it appears in
+ * @property {string} [foundryPackage]      Foundry package id, as it appears in
  *                                          `system.json` / `module.json`.
- * @property {PackageKind} packageKind      Whether the package is a system or a module.
- * @property {StatsSpec} stats              Identity stamped into every document's `_stats`.
+ *                                          Refused by a `documentation`
+ *                                          package, which ships no Foundry
+ *                                          package.
+ * @property {PackageKind} packageKind      Whether the package is a system, a
+ *                                          module, or documentation — the kind
+ *                                          that publishes a site and a book
+ *                                          while compiling nothing.
+ * @property {StatsSpec} [stats]            Identity stamped into every
+ *                                          document's `_stats`. Required of a
+ *                                          package that compiles documents, and
+ *                                          refused by a `documentation` one,
+ *                                          which compiles none.
  * @property {Record<string, ItemBuilderEntry>|readonly ItemRegistrySpec[]} [itemBuilders]
  *                                          The consumer's
  *                                          item-type registry: each content `type`
@@ -552,12 +619,20 @@ export function publishesContentPages(config) {
  * @typedef {object} ContentBuildConfig
  * @property {string} rootDir
  * @property {string} contentPackage
- * @property {string} foundryPackage
+ * @property {string|null} foundryPackage  `null` for a `documentation`
+ *                                     package, which ships no Foundry package.
  * @property {PackageKind} packageKind
- * @property {string} assetRoot        Derived: the served Foundry asset root,
- *                                     `<packageKind>/<foundryPackage>/assets`.
+ * @property {string|null} assetRoot   Derived, and **conditional**: the served
+ *                                     Foundry asset root,
+ *                                     `<packageKind>/<foundryPackage>/assets`,
+ *                                     for a package Foundry installs — and
+ *                                     `null` for a `documentation` package,
+ *                                     which Foundry serves no files for. See
+ *                                     {@link module:engine/helpers.resolveImg},
+ *                                     the one reader of it.
  * @property {Readonly<ResolvedPaths>} paths
- * @property {Readonly<StatsSpec>} stats
+ * @property {Readonly<StatsSpec>|null} stats  `null` for a `documentation`
+ *                                     package, which stamps no `_stats`.
  * @property {Readonly<Record<string, Function>>} itemBuilders  Derived: the
  *                                     `system` builder of each entry, whichever
  *                                     of the two spellings declared it.
@@ -781,11 +856,12 @@ function requireContentPackage(value, docEntryTypes) {
     if (!isAddressSegment(pkg)) {
         fail(
             "contentPackage",
-            `is \`${pkg}\`, which is not alphanumeric. It is the first ` +
+            `is \`${pkg}\`, which is not lowercase alphanumeric ` +
+                `(${ADDRESS_SEGMENT_PATTERN.source}). It is the first ` +
                 `segment of every address this package publishes ` +
                 `(\`${pkg}-<system>-<type>-<shortcode>\`), and an address is read by ` +
                 `counting hyphen-separated segments — so anything outside ` +
-                "`[A-Za-z0-9]` here makes those addresses unreadable rather " +
+                "that here makes those addresses unreadable rather " +
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
@@ -1312,7 +1388,7 @@ function normalizeSectionMeta(value, where) {
         if (!isAddressSegment(segment)) {
             fail(
                 `${where}.${key}`,
-                `is \`${segment}\`, which is not alphanumeric. It names a ` +
+                `is \`${segment}\`, which is not lowercase alphanumeric. It names a ` +
                     "content type or subType, and those are address segments " +
                     `(${ADDRESS_SEGMENT_PATTERN.source}) — not the section's ` +
                     "own name, which is a URL this site chose and need not " +
@@ -1628,7 +1704,7 @@ function normalizeCompatibility(value, where, requireMinimum = true) {
  * answer.
  *
  * @param {object} parts - The resolved pieces of the configuration.
- * @param {string} parts.packageKind - `systems` or `modules`.
+ * @param {string} parts.packageKind - One of {@link PACKAGE_KINDS}.
  * @param {unknown} parts.foundryPackage - The package id.
  * @param {string|null} parts.requiresSystem - The declared gate, if any.
  * @param {Readonly<Record<string, object>>} parts.systems - The `systems:` block.
@@ -2129,9 +2205,45 @@ export function defineConfig(config) {
         fail("packageKind", `must be one of: ${PACKAGE_KINDS.join(", ")}`);
     }
 
-    if (!Array.isArray(input.packs)) fail("packs", "must be an array");
-    if (input.packs.length === 0) fail("packs", "must declare at least one pack");
-    const packs = input.packs.map((pack, index) => normalizePack(pack, `packs[${index}]`));
+    // A documentation package compiles nothing and installs nowhere, so every
+    // key that describes a Foundry package is refused by name — ahead of the
+    // checks below, which each assume a Foundry package is being described.
+    const documentation = packageKind === DOCUMENTATION_KIND;
+    if (documentation) {
+        for (const [key, why] of Object.entries(DOCUMENTATION_REFUSES)) {
+            if (input[key] === undefined) continue;
+            fail(key, `is refused in a \`${DOCUMENTATION_KIND}\` package, which ${why}`);
+        }
+        // Publishing is what a documentation package is *for*, so the floor
+        // every other package may sit at is not available to it: `homepage`
+        // would leave a package that publishes one authored page, builds no
+        // book, and compiles nothing at all.
+        if (!isPlainObject(input.publish)) {
+            fail(
+                "publish",
+                `is required in a \`${DOCUMENTATION_KIND}\` package: publishing ` +
+                    "the content tree is the whole of what it does. Write " +
+                    "`publish: {site: content}`",
+            );
+        }
+        const mode = /** @type {Record<string, unknown>} */ (input.publish).site;
+        if (mode !== "content") {
+            fail(
+                "publish.site",
+                `must be \`content\` in a \`${DOCUMENTATION_KIND}\` package — ` +
+                    "`homepage` fences the content surfaces off, and a package " +
+                    "that compiles nothing and publishes nothing from its tree " +
+                    "would produce a single authored page and no book",
+            );
+        }
+    }
+
+    if (!documentation) {
+        if (!Array.isArray(input.packs)) fail("packs", "must be an array");
+        if (input.packs.length === 0) fail("packs", "must declare at least one pack");
+    }
+    const declaredPacks = Array.isArray(input.packs) ? input.packs : [];
+    const packs = declaredPacks.map((pack, index) => normalizePack(pack, `packs[${index}]`));
 
     // One list, so the compile order and the directory list cannot disagree —
     // as `PACK_CONFIGS` and `SOURCE_PACKS` they would be maintained apart.
@@ -2252,7 +2364,10 @@ export function defineConfig(config) {
         requireNonEmptyString(name, `skipDirectories[${index}]`),
     );
 
-    const foundryPackage = requireNonEmptyString(input.foundryPackage, "foundryPackage");
+    // Refused above for a documentation package, so there is nothing to read
+    // and nothing to derive an asset root or a package-wide system from.
+    const foundryPackage =
+        documentation ? null : requireNonEmptyString(input.foundryPackage, "foundryPackage");
 
     const {
         itemBuilders,
@@ -2284,37 +2399,50 @@ export function defineConfig(config) {
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
         // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.
-        assetRoot: `${packageKind}/${foundryPackage}/assets`,
+        //
+        // **Conditional on the kind.** `documentation` names no directory
+        // Foundry serves, and there is no package id to put under one either, so
+        // the derivation would read `documentation/null/assets` — an address
+        // that resolves nowhere and would be written into every compiled `img`.
+        // `null` says the package has no asset root instead, and
+        // {@link module:engine/helpers.resolveImg} — the only reader — refuses
+        // rather than rooting a path against nothing.
+        assetRoot: documentation ? null : `${packageKind}/${foundryPackage}/assets`,
         paths: normalizePaths(input.paths, rootDir),
         // The package-wide system, derived. A **system** package is its
         // own system, which is true by construction and needs no declaration. A
         // **module** takes the one it requires, or the one system it declares
         // when there is exactly one; with several and no gate there is no
         // package-wide answer, and each pack carries its own.
-        stats: normalizeStats(input.stats, {
-            systemId: packageWideSystemId({
-                packageKind,
-                foundryPackage,
-                requiresSystem,
-                systems,
-                relationshipSystems,
-            }),
-            // Derived here where the answer is pure data — the `verified` of
-            // whichever system the package-wide block takes — and supplied by
-            // the loader otherwise. The loader is the half that may do I/O, and
-            // the two cases needing it are a *system* package (its own
-            // `package.json` version) and a module still deriving from
-            // `relationships.systems`.
-            systemVersion:
-                (() => {
-                    const id =
-                        requiresSystem ??
-                        (Object.keys(systems).length === 1 ? Object.keys(systems)[0] : null);
-                    return id ? (systems[id]?.compatibility?.verified ?? null) : null;
-                })() ??
-                (isPlainObject(input.stats) ? input.stats[DERIVED_SYSTEM_VERSION] : null) ??
-                null,
-        }),
+        stats:
+            documentation ? null : (
+                normalizeStats(input.stats, {
+                    systemId: packageWideSystemId({
+                        packageKind,
+                        foundryPackage,
+                        requiresSystem,
+                        systems,
+                        relationshipSystems,
+                    }),
+                    // Derived here where the answer is pure data — the `verified` of
+                    // whichever system the package-wide block takes — and supplied by
+                    // the loader otherwise. The loader is the half that may do I/O, and
+                    // the two cases needing it are a *system* package (its own
+                    // `package.json` version) and a module still deriving from
+                    // `relationships.systems`.
+                    systemVersion:
+                        (() => {
+                            const id =
+                                requiresSystem ??
+                                (Object.keys(systems).length === 1 ?
+                                    Object.keys(systems)[0]
+                                :   null);
+                            return id ? (systems[id]?.compatibility?.verified ?? null) : null;
+                        })() ??
+                        (isPlainObject(input.stats) ? input.stats[DERIVED_SYSTEM_VERSION] : null) ??
+                        null,
+                })
+            ),
         itemBuilders,
         itemArt,
         itemFields,

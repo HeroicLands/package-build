@@ -537,11 +537,19 @@ function addressesAnotherPackage(s) {
  * `itemArt()`, which runs the path back through this function so a registry
  * entry and a note's `img:` are spelled the same way (#7).
  *
+ * **A package with no asset root cannot answer at all.** `assetRoot` is derived
+ * from the package kind, and a `documentation` package has none: Foundry serves
+ * no files for it. Only a compiling pass reaches here, and a documentation
+ * package runs none, so a path arriving with no root to put it under is a pass
+ * running where it should not — reported as that, rather than emitted as
+ * `null/icons/relic.svg` into a document nobody would check.
+ *
  * @param {string | null | undefined} raw - content-relative path from frontmatter.
- * @param {{assetRoot: string}} [config] - The resolved build configuration.
+ * @param {{assetRoot: string|null}} [config] - The resolved build configuration.
  *   Defaults to this repository's.
  * @returns {string | null} the Foundry-relative path; `""` for a deliberate
  *   blank, and `null` when the note names no art at all.
+ * @throws {Error} When the configuration has no asset root.
  */
 export function resolveImg(raw, config = loadPackConfig()) {
     // Unset — the caller's default applies. An absent key arrives as
@@ -552,6 +560,14 @@ export function resolveImg(raw, config = loadPackConfig()) {
     if (s === "") return "";
     // Somebody else's to serve — emit it exactly as authored.
     if (addressesAnotherPackage(s)) return s;
+    if (!config.assetRoot) {
+        throw new Error(
+            `package-build: \`${s}\` names a file this package serves, and a ` +
+                `\`documentation\` package has no asset root to serve it from — ` +
+                `Foundry installs no such package. Address the owning package ` +
+                `(\`systems/…\`, \`modules/…\`) or a URL.`,
+        );
+    }
     // Ours, so root it where Foundry serves this package's files from.
     return `${config.assetRoot}/${s}`;
 }

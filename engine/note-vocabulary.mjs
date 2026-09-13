@@ -793,12 +793,13 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- core documents ------------------------------------------- */
 
     doc: Object.freeze({
-        // `userguide`, not `user-guide`: a subType is held to the address
-        // charset, and a segment carries no hyphen. The old spelling was
-        // accepted transitionally for one release so the consumer trees could
-        // sweep; they have, so it is refused by the charset check now, with no
-        // retirement-specific code left over.
-        subTypes: Object.freeze(["rules", "userguide", "reference"]),
+        // Five genres, and a genre is all this field carries: what kind of page
+        // it is, never who reads it. An audience term alongside them would give
+        // a developer how-to two valid values and no rule for choosing.
+        //
+        // `userguide` and `howto`, not `user-guide` and `how-to`: a subType is
+        // held to the address charset, and a segment carries no hyphen.
+        subTypes: Object.freeze(["rules", "userguide", "reference", "howto", "concept"]),
         data: Object.freeze([]),
     }),
 

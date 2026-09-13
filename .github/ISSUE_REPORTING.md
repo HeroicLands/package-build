@@ -84,7 +84,7 @@ both that file and this table — `package-build labels check` (run as
 
 | Label             | Use it for                                                                               |
 | ----------------- | ---------------------------------------------------------------------------------------- |
-| `documentation`   | The README, CONTENT.md, MIGRATING.md, JSDoc, process.                                    |
+| `documentation`   | The README, CONTENT.md, JSDoc, process.                                                  |
 | `devops`          | Build, tooling, CI, release, repo config.                                                |
 | `tests`           | The vitest suite, its fixtures, and the e2e harness this package ships to consumers.     |
 | `security`        | Evaluating untrusted note content, path traversal, subprocess handling.                  |
@@ -177,8 +177,8 @@ useful line in a report.
 - `npm run build:types` — the published `.d.mts` surface compiles
 
 A change that alters what consumers see updates the documentation that describes
-it: **README.md** for the packaging half, **CONTENT.md** for the content half and
-the note format, and **MIGRATING.md** when a consumer has to do something.
+it: **README.md** for the packaging half, and **CONTENT.md** for the content half
+and the note format.
 
 **Changing the toolchain is not the same as proving it.** A behaviour change here
 is only really verified when a consumer tree compiles through it — see the

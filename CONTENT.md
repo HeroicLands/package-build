@@ -25,8 +25,10 @@ A consuming repository declares one `package-build.config.yaml` at its root:
 # every canonical address, the name of the content index it emits, and the
 # package a cross-package wikilink writes to reach one of its notes.
 contentPackage: thalorna
-# Where Foundry installs it: "systems" or "modules". Also decides the served
-# asset root a note's `img:` resolves to — `modules/sohl-thalorna/assets/…`.
+# What kind of package this is. "systems" and "modules" are where Foundry
+# installs it, and each decides the served asset root a note's `img:` resolves
+# to — `modules/sohl-thalorna/assets/…`. "documentation" is a package Foundry
+# never installs; see "A package that compiles nothing" below.
 packageKind: modules
 
 # The Foundry core range this package supports. `minimum` is stamped into every
@@ -161,13 +163,13 @@ packageBuild:
   assets:
     - { from: assets/icons, to: assets/icons }
 
-# Three independent switches — every combination is real — plus the address
-# scheme both `manifest` and `site` derive addresses under. `site` is a mode,
-# not a boolean: `homepage` (the default) publishes the authored homepage and
-# no other page; `content` publishes it plus every page the tree compiles to.
+# How much of the package reaches the web, plus the address scheme both
+# `manifest` and `site` derive addresses under. `site` is a mode, not a
+# boolean: `homepage` (the default) publishes the authored homepage and no
+# other page; `content` publishes it plus every page the tree compiles to, and
+# is also what builds the book.
 publish:
   site: content
-  manifests: { publish: true, consume: true }
   address:
     prefix: kb/
 
@@ -182,8 +184,8 @@ site:
 
 The loader validates the document, resolves every path against the directory
 the file sits in, fills the optional halves with their defaults
-(`skipDirectories: []`, `packageBuild: {}`, the conventional `paths`, both
-manifest switches off and `publish.site` at its `homepage` floor),
+(`skipDirectories: []`, `packageBuild: {}`, the conventional `paths` and
+`publish.site` at its `homepage` floor),
 derives `assetRoot`, `packDirectories`, `itemTypes` and `docEntryTypes`, and
 freezes the result. A malformed configuration throws a `TypeError` naming the
 offending field — and the line and column it was written on, in the
@@ -211,6 +213,69 @@ is the _module's_ version, and stamping it would claim a system version that
 never existed. A module declaring no usable system relationship fails the build
 rather than guessing — a wrong `_stats.systemVersion` is invisible until
 something migrates on it.
+
+### A package that compiles nothing
+
+`packageKind: documentation` is the answer "not a Foundry package at all". It
+publishes a website and the book built from the same notes, and compiles no
+compendium: nothing is installed into a Foundry data directory, so there is no
+manifest, no pack and no document.
+
+```yaml
+contentPackage: toolkit
+packageKind: documentation
+
+# Required, and `content`: publishing the tree is the whole of what this kind
+# does. `homepage` would leave one authored page, no book and nothing compiled.
+publish:
+  site: content
+  address: { prefix: guide/ }
+
+site:
+  out: site/content
+
+pdf:
+  title: The Toolkit
+  document: book.yaml
+  fonts: { serif: Libertinus Serif }
+```
+
+`contentPackage`, `paths`, `skipDirectories`, `icons`, `site`, `pdf` and
+`packageBuild` mean exactly what they mean anywhere else. **Every key that
+describes a Foundry package is refused**, by name, with the line and column it
+was written on — `packs`, `itemBuilders`, `docs`, `compatibility`,
+`relationships`, `systems`, `requiresSystem`, `stats` and `foundryPackage`:
+
+```text
+package-build.config.yaml:7:1: error: package-build config: `packs` is refused in a `documentation` package, which compiles no compendium, so there are no packs to declare.
+```
+
+A key that cannot mean anything in this shape fails at load rather than being
+read and ignored, which is the difference between a configuration that is wrong
+and a build that is quietly wrong.
+
+What follows from the kind:
+
+- **`foundryPackage` is not derived.** For every other kind the loader reads it
+  from the adjacent `package.json`; there is no Foundry package here to carry an
+  id, so `foundryPackage` and `assetRoot` are both `null`. A note's `img:`
+  therefore names the owning package (`systems/…`, `modules/…`) or a URL — a
+  path this package would have to serve itself is refused, because Foundry
+  serves no files for a package it does not install.
+- **`package-build manifest` refuses**, rather than emitting a `module.json`
+  advertising an installable package with no id, no packs and no compatibility
+  range. So does `content-build package compile`, which would otherwise exit 0
+  having compiled nothing.
+- **Notes need no `id:`.** An id is derived from a note's address, and a
+  hand-assigned one is only ever a pin for a document that already shipped —
+  which needs a compendium, and there is none.
+- **The note vocabulary is `doc` and `homepage`.** Every other type exists to
+  become a Foundry document, so a note carrying one has no destination;
+  `content-build lint` reports it at its `type:` line.
+- **A content index is still published.** `content-build content-index` emits
+  `<contentPackage>-metadata.jsonl` exactly as it does elsewhere, so another
+  package can resolve an address into this one and a wikilink from its notes can
+  reach a page here.
 
 ### A note's package is the repository's, not the note's
 
@@ -240,7 +305,7 @@ package's id to _be_ its system id.
 Because it is a segment of an address, the value is **validated** rather than
 taken as written, and a violation fails the build naming the line it is on:
 
-- **Alphanumeric** (`^[A-Za-z0-9]+$`). An address is read by counting
+- **Lowercase alphanumeric** (`^[a-z0-9]+$`). An address is read by counting
   hyphen-separated segments, so the hyphen has to be purely a separator — which
   is why `harn-adventures` is configured as `harnadventures`. This is the same
   rule `shortcode` is already held to, and the two are one constant.
@@ -257,7 +322,7 @@ taken as written, and a violation fails the build naming the line it is on:
   refused.
 
 ```text
-package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not lowercase alphanumeric (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
 ```
 
 **`package:` in a note's frontmatter is retired, and declaring it fails the
@@ -312,7 +377,7 @@ export default defineConfig({
   foundryPackage: "sohl-kethira-basic",
   packageKind: "modules",
   compatibility: { minimum: "14.359", verified: "14.364" },
-  stats: { systemId: "sohl", systemVersion: "0.4.3", lastModifiedBy: "…" },
+  stats: { lastModifiedBy: "…" },
   itemBuilders: ITEM_BUILDERS,
   packs: [{ name: "items", type: "Item" }],
 });
@@ -658,7 +723,9 @@ and there are exactly three answers:
 
 `assetRoot` is derived, never authored: it is
 `<packageKind>/<foundryPackage>/assets`, and it is the one place `systems/sohl`
-(or `modules/sohl-thalorna`) is ever spelled. So `icons/relic.svg` in a module's
+(or `modules/sohl-thalorna`) is ever spelled. The derivation is **conditional on
+the kind** — a `documentation` package has no asset root, and the third row is
+refused there rather than rooted. So `icons/relic.svg` in a module's
 registry compiles to `modules/sohl-relics/assets/icons/relic.svg`, and the same
 string in the system's compiles to `systems/sohl/assets/icons/relic.svg`. An
 already-served `systems/sohl/assets/icons/…` passes through untouched — which is

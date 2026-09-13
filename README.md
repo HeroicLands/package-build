@@ -317,6 +317,13 @@ other's schema — they split by input, and the dependency runs one way.
 | the release artifact       | `packageKind` — a system ships `system.json`, a module `module.json`        |
 | the bundle entry           | `packageId` — `<id>.mjs`, unless `packageBuild.bundle.entry` says otherwise |
 
+**`packageKind: documentation` has no packaging half.** That kind publishes a
+website and a book and installs into no Foundry data directory, so there is no
+artifact to name and no id to derive one from: `manifest` refuses rather than
+writing a manifest for a package Foundry never installs, and the whole of such a
+package's build is `content-build`. See
+[A package that compiles nothing](CONTENT.md#a-package-that-compiles-nothing).
+
 ## Command line
 
 ```

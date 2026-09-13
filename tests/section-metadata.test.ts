@@ -34,6 +34,7 @@ import path from "node:path";
 
 import { pageFrontmatter, writeSectionLandings } from "../engine/site-build.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
+import { ADDRESS_SEGMENT_PATTERN } from "../engine/address-charset.mjs";
 
 /** A throwaway mount directory. */
 function mount(): string {
@@ -352,6 +353,21 @@ describe("a section can declare what it lists", () => {
                 sections: { "user-guide": { title: "User Guide", listSubType: "user-guide" } },
             }),
         ).toThrow(/`site\.sections\.user-guide\.listSubType`.*alphanumeric/);
+    });
+
+    it("names the class it actually enforces, not a wider one", () => {
+        // The same charset as `contentPackage` — lowercase only — and the
+        // message must say so rather than naming a class a capitalized value
+        // already belongs to.
+        let message = "";
+        try {
+            resolveWithSite({ sections: { rules: { title: "Rules", listType: "Doc" } } });
+        } catch (err) {
+            message = (err as Error).message;
+        }
+        expect(message).toContain("Doc");
+        expect(message).not.toContain("[A-Za-z0-9]");
+        expect(message).toContain(ADDRESS_SEGMENT_PATTERN.source);
     });
 
     it("refuses an empty declaration", () => {

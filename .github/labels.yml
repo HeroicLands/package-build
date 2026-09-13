@@ -21,7 +21,7 @@
 
 - name: documentation
   color: "0075ca"
-  description: Documentation about this repository — README, CONTENT.md, MIGRATING.md, JSDoc, process.
+  description: Documentation about this repository — README, CONTENT.md, JSDoc, process.
 
 - name: devops
   color: "e07b31"
