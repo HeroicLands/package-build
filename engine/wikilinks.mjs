@@ -176,8 +176,8 @@ export function resolveItemDocType(qualifier, types) {
  *
  * **Parsing is plain positional counting**, the same rule
  * {@link readCanonicalKey} follows, and it is sound for the same reason: every
- * segment is `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced on
- * shortcodes by `content-lint.mjs`), so the hyphen is purely a
+ * segment matches `ADDRESS_SEGMENT_PATTERN` (enforced on shortcodes by
+ * `content-lint.mjs`), so the hyphen is purely a
  * separator and the count alone determines every field. Verified across the
  * four content trees: 138,204 authored shortcodes, none carrying a separator.
  *

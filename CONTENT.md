@@ -1044,9 +1044,10 @@ npx content-build lint some/tree  # or a tree named outright
 Checks the three rules every note's **identity** is authored against, and reports
 each finding in the located form below:
 
-- **Shape** — a `shortcode` is strictly ASCII-alphanumeric. It is the identity
-  key referenced from saved world data, and half of the `type-shortcode`
-  address, whose parse needs the separating hyphen to be the only hyphen.
+- **Shape** — a `shortcode` is strictly lowercase ASCII-alphanumeric. It is
+  the identity key referenced from saved world data, and half of the
+  `type-shortcode` address, whose parse needs the separating hyphen to be the
+  only hyphen.
 - **Uniqueness** — `(type, shortcode)` names one note. A document is addressed
   across _every_ pack of its document type, so routing two same-address notes to
   different packs with `pack:` does not separate them.
@@ -1216,7 +1217,7 @@ values. A `weapon` declares none — SoHL distinguishes a weapon's uses by strik
 mode rather than by kind — so `subType` on one is a finding; a `skill` declares
 ten, so `subType: crafte` is a finding naming `craft`.
 
-**A `type` and a `subType` are both held to `^[A-Za-z0-9]+$`** — the same
+**A `type` and a `subType` are both held to `^[a-z0-9]+$`** — the same
 constant a `shortcode` is held to, read rather than restated. A type is a
 segment of every address — the first of the short form an author writes, the
 third of the canonical `package-system-type-shortcode` — so a hyphen in one is
@@ -1227,7 +1228,7 @@ rule is checked ahead of the closed-set check, which is what makes it reach a
 type whose values are declared but not yet enumerated:
 
 ```text
-assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not a well-formed subType — a subType is letters and digits only (^[A-Za-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. …
+assets/content/Beings/Folk.md:3:1: error: `subType` "common-folk" is not a well-formed subType — a subType is letters and digits only (^[a-z0-9]+$), the same charset a type, a shortcode and a contentPackage are held to. …
 ```
 
 One declared value broke that rule: a `doc`'s `user-guide`, now **`userguide`**.
@@ -1288,7 +1289,7 @@ that harmless: three segments name a _system_ whatever the first segment could
 also have meant, and four is the full form.
 
 **Parsing is plain segment counting**, the same rule the canonical key follows,
-and it is sound because every segment is `^[A-Za-z0-9]+$` — so a hyphen is
+and it is sound because every segment is `^[a-z0-9]+$` — so a hyphen is
 purely a separator. A target with five segments is not a hyphenated shortcode;
 it is a name, and not an address.
 
@@ -2295,7 +2296,7 @@ Three things about the spelling, each of them load-bearing:
   site chose; a type and a subType are addresses. They need not agree, and on
   `sohl` they do not: the section is `user-guide`, because that is a published
   URL, while the subType is `userguide` because an address segment is
-  alphanumeric. Both values are checked against that charset here, so
+  lowercase alphanumeric. Both values are checked against that charset here, so
   copying the section's name in is refused rather than quietly matching nothing.
 - **`listSubType` needs a `listType`.** A subType only tells pages apart within
   a type — `rules`, `userguide` and `reference` are all `doc` — so alone it

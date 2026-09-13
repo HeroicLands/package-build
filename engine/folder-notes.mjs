@@ -54,7 +54,7 @@ import path from "node:path";
 import log from "loglevel";
 
 import { NO_SYSTEM, canonicalKey } from "./content-address.mjs";
-import { isAddressSegment } from "./address-charset.mjs";
+import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 import { makeId } from "./ids.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 
@@ -242,7 +242,9 @@ export function collectFolderNotes(notes, pkg) {
             throw Object.assign(
                 new Error(
                     `folder shortcode "${shortcode}" is not strictly ` +
-                        `alphanumeric, so its address would not parse: ${absPath}`,
+                        `alphanumeric — lowercase letters and digits only ` +
+                        `(${ADDRESS_SEGMENT_PATTERN.source}) — so its address ` +
+                        `would not parse: ${absPath}`,
                 ),
                 { absPath },
             );

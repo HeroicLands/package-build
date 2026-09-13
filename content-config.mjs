@@ -825,9 +825,10 @@ function requireNonEmptyString(value, field) {
  * whose addresses are simply unreadable, reported nowhere and discovered as
  * links that resolve to nothing.
  *
- * 1. _Alphanumeric_, so the hyphen stays purely a separator. `harn-adventures`
- *    was the one violator, and its keys read as one segment too many and failed
- *    as a `null` return from `readCanonicalKey` — a silence, not an error.
+ * 1. _Lowercase alphanumeric_ (`ADDRESS_SEGMENT_PATTERN`), so the hyphen stays
+ *    purely a separator. `harn-adventures` was the one violator, and its keys
+ *    read as one segment too many and failed as a `null` return from
+ *    `readCanonicalKey` — a silence, not an error.
  * 2. _Not a note type_, because a written address is a **partial** one: the
  *    shorter forms drop segments from the left, so `skill-clmb` and
  *    `sohl-skill-clmb` are both addresses and position alone no longer says

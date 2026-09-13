@@ -583,9 +583,9 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
  *
  * **Two checks, in this order** — the charset, then the closed set. The
  * charset is first because it is the more general statement about
- * the same value: a value outside `^[A-Za-z0-9]+$` is refused whatever the type
- * declares, and only once it is a well-formed term is the type's own list the
- * reason to refuse it.
+ * the same value: a value outside `ADDRESS_SEGMENT_PATTERN` is refused
+ * whatever the type declares, and only once it is a well-formed term is the
+ * type's own list the reason to refuse it.
  *
  * There is deliberately no third, retired-spelling check ahead of them
  * accepting `user-guide` as a warning naming `userguide`. Every consumer tree

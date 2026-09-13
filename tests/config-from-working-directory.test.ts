@@ -61,8 +61,9 @@ let installed: string;
  * The smallest configuration that resolves, written where a repository keeps it.
  *
  * `name` is the npm name the Foundry package id is derived from, and
- * `contentPackage` has to be alphanumeric — it is the first segment of every
- * address — so the two differ by more than spelling and both are stated.
+ * `contentPackage` has to be lowercase alphanumeric — it is the first segment
+ * of every address — so the two differ by more than spelling and both are
+ * stated.
  */
 function writeRepo(dir: string, name: string, contentPackage: string): void {
     fs.mkdirSync(dir, { recursive: true });

@@ -545,7 +545,7 @@ describe("convertWikilinks — the `type-shortcode` separator", () => {
     });
 
     // This used to split at the *first* hyphen so a shortcode could contain one
-    // (`self-pro`). Every segment is `^[A-Za-z0-9]+$`, and the
+    // (`self-pro`). Every segment is `^[a-z0-9]+$`, and the
     // grammar positional — three segments is `<system>-<type>-<shortcode>` —
     // so the two rules cannot both hold. The charset rule wins: it is enforced,
     // and no tree has ever used the tolerance (138,204 authored shortcodes
@@ -733,7 +733,7 @@ describe("readQualifier — the strict address grammar", () => {
     });
 
     // Positional counting is sound only because every segment is
-    // `^[A-Za-z0-9]+$` — verified across four content trees: 138,204
+    // `^[a-z0-9]+$` — verified across four content trees: 138,204
     // shortcodes, none carrying a separator. A fifth segment is therefore not a
     // hyphenated shortcode; it is not an address.
     it("refuses more segments than the grammar has", () => {
