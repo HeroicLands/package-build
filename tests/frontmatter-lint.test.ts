@@ -27,16 +27,10 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
     fm: { type, ...extra, sohl },
 });
 
-/** An index that resolves exactly the addresses it is given. */
-// Faithful to the real resolver on the point that matters: it resolves an
-// **address** and takes the target alone. The stub once mirrored a
-// namespace argument, and ignoring it is what let every `ref:` field be
-// resolved through the alias namespace — and so reported dead — with the suite
-// green. There is no second namespace to get wrong now.
+/** An index whose references resolve to exactly the pairs it is given. */
 const indexOf = (...addresses: string[]) => ({
     notes: [],
-    resolve: (target: string) => (addresses.includes(target) ? {} : undefined),
-    manifestHit: () => null,
+    referenceHit: (target: string) => (addresses.includes(target) ? {} : null),
 });
 
 const messages = (findings: Array<{ message: string }>) =>
@@ -139,25 +133,41 @@ describe("the five failure classes", () => {
         expect(messages(dead)).toContain("no note or fetched index");
     });
 
-    it("asks the resolver for the field's full `type-shortcode` address", () => {
-        // `type-shortcode` is an address by construction — the field supplies
-        // the type — and it is the whole of what the resolver is handed. Asked
-        // for anything less, every reference in every tree lands nowhere, which
-        // is the failure.
+    it("asks the resolver for the field's full `type-shortcode` pair", () => {
+        // The field supplies the type, so the pair is the whole of what the
+        // resolver is handed. Asked for anything less, every reference in every
+        // tree lands nowhere.
         const asked: string[] = [];
         const index = {
             notes: [],
-            resolve: (target: string) => {
+            referenceHit: (target: string) => {
                 asked.push(target);
                 return {};
             },
-            manifestHit: () => null,
         };
         lintNote(note("skill", { subType: "craft", parentSkillCode: "swrd" }), {
             schemas,
             index: index as any,
         });
         expect(asked).toEqual(["skill-swrd"]);
+    });
+
+    it("takes the reference resolver's answer, not the address rule's", () => {
+        // A reference is a shortcode: persisted as written and looked up at
+        // runtime among one actor's items, so a parent another package declares
+        // resolves unqualified. `resolve` defaults the package to this one and
+        // would report the reference dead.
+        const index = {
+            notes: [],
+            referenceHit: (target: string) => (target === "skill-lang" ? {} : null),
+            resolve: () => undefined,
+            manifestHit: () => null,
+        };
+        const findings = lintNote(note("skill", { subType: "craft", parentSkillCode: "lang" }), {
+            schemas,
+            index: index as any,
+        });
+        expect(findings).toEqual([]);
     });
 
     it("skips the reference check when it has no index to check against", () => {
@@ -263,8 +273,7 @@ describe("lintFrontmatter over an index", () => {
     it("reports each note, in path order", () => {
         const index = {
             notes: [note("sandwich"), note("baguette")],
-            resolve: () => undefined,
-            manifestHit: () => null,
+            referenceHit: () => null,
         } as any;
         const r = lintFrontmatter(index, { schemas: NOTE_SCHEMAS });
         expect(r.notes).toBe(2);
@@ -275,8 +284,7 @@ describe("lintFrontmatter over an index", () => {
     it("reports nothing for a tree of correct notes", () => {
         const index = {
             notes: [note("skill", { subType: "craft" })],
-            resolve: () => ({}),
-            manifestHit: () => null,
+            referenceHit: () => ({}),
         } as any;
         expect(lintFrontmatter(index, { schemas: NOTE_SCHEMAS }).findings).toEqual([]);
     });
@@ -291,13 +299,10 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
         fm: { type: "place", subType: "settlement", tags },
     });
     const tagFindings = (tags: string[]) =>
-        lintFrontmatter(
-            { notes: [tagged(tags)], resolve: () => ({}), manifestHit: () => null } as any,
-            {
-                schemas: NOTE_SCHEMAS,
-                vocabulary: NOTE_VOCABULARY,
-            },
-        ).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
+        lintFrontmatter({ notes: [tagged(tags)], referenceHit: () => ({}) } as any, {
+            schemas: NOTE_SCHEMAS,
+            vocabulary: NOTE_VOCABULARY,
+        }).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
 
     it("passes a declared tag", () => {
         expect(tagFindings(["village", "fishing", "draft"])).toEqual([]);
@@ -350,8 +355,7 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
                             fm: { type, tags },
                         },
                     ],
-                    resolve: () => ({}),
-                    manifestHit: () => null,
+                    referenceHit: () => ({}),
                 } as any,
                 { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
             ).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
