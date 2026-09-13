@@ -825,9 +825,10 @@ function requireNonEmptyString(value, field) {
  * whose addresses are simply unreadable, reported nowhere and discovered as
  * links that resolve to nothing.
  *
- * 1. _Alphanumeric_, so the hyphen stays purely a separator. `harn-adventures`
- *    was the one violator, and its keys read as one segment too many and failed
- *    as a `null` return from `readCanonicalKey` — a silence, not an error.
+ * 1. _Lowercase alphanumeric_ (`ADDRESS_SEGMENT_PATTERN`), so the hyphen stays
+ *    purely a separator. `harn-adventures` was the one violator, and its keys
+ *    read as one segment too many and failed as a `null` return from
+ *    `readCanonicalKey` — a silence, not an error.
  * 2. _Not a note type_, because a written address is a **partial** one: the
  *    shorter forms drop segments from the left, so `skill-clmb` and
  *    `sohl-skill-clmb` are both addresses and position alone no longer says
@@ -856,11 +857,12 @@ function requireContentPackage(value, docEntryTypes) {
     if (!isAddressSegment(pkg)) {
         fail(
             "contentPackage",
-            `is \`${pkg}\`, which is not alphanumeric. It is the first ` +
+            `is \`${pkg}\`, which is not alphanumeric — lowercase letters and ` +
+                `digits only (${ADDRESS_SEGMENT_PATTERN.source}). It is the first ` +
                 `segment of every address this package publishes ` +
                 `(\`${pkg}-<system>-<type>-<shortcode>\`), and an address is read by ` +
-                `counting hyphen-separated segments — so anything outside ` +
-                "`[A-Za-z0-9]` here makes those addresses unreadable rather " +
+                `counting hyphen-separated segments — so anything outside that ` +
+                "charset here makes those addresses unreadable rather " +
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }

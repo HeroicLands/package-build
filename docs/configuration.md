@@ -250,10 +250,10 @@ so `sohl-none-doc-gear`). Read wherever an address is built or parsed
 Two rules apply, both enforced here rather than assumed, because an address
 is read by counting hyphen-separated segments:
 
-- It must be **alphanumeric** — the hyphen stays purely a separator. A value
-  containing one is refused:
+- It must be **lowercase alphanumeric** (`^[a-z0-9]+$`) — the hyphen stays
+  purely a separator. A value containing one is refused:
 
-  > ``package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric. It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside `[A-Za-z0-9]` here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.``
+  > ``package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric — lowercase letters and digits only (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that charset here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.``
 
 - It must **not also be a note type** — the two vocabularies are disjoint,
   because a written address may drop its leading segments and
