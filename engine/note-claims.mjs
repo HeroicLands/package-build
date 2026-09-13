@@ -112,6 +112,23 @@ import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
 export const NEVER_PACKED_TYPES = Object.freeze(new Set([HOMEPAGE_TYPE]));
 
 /**
+ * The whole note vocabulary of a package that compiles no Foundry documents.
+ *
+ * Every other type in the vocabulary exists to *become* a document: a `skill` is
+ * an Item, a `being` an Actor, a `place` a JournalEntry, a `folder` the Folder
+ * they are filed under. In a `documentation` package none of them has a
+ * destination, so a note carrying one would be authored, validated, walked and
+ * then published as a page of something that was meant to be a compendium
+ * entry — the plausible-looking result that reads as success.
+ *
+ * `doc` is prose whose single document *is* the prose, and `homepage` is the
+ * authored front page every package publishes. Both are already pages first.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const DOCUMENTATION_NOTE_TYPES = Object.freeze(new Set(["doc", HOMEPAGE_TYPE]));
+
+/**
  * Content types the specification states and this toolchain does not yet
  * compile.
  *

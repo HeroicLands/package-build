@@ -104,7 +104,7 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import YAML from "yaml";
 
-import { defineConfig, DERIVED_SYSTEM_VERSION } from "../content-config.mjs";
+import { defineConfig, DERIVED_SYSTEM_VERSION, DOCUMENTATION_KIND } from "../content-config.mjs";
 import {
     emitDiagnostic,
     formatDiagnostic,
@@ -541,14 +541,19 @@ export function configFromData(data, configPath) {
     // Every consumer's copy matched exactly, which is what a transcription
     // looks like right up until it does not (a transcribed one freezes
     // four releases while nothing said so).
-    if (input.foundryPackage !== undefined) {
-        throw new Error(
-            `package-build: ${configPath} declares \`foundryPackage\`, which ` +
-                `a data configuration may not: it is the \`name\` of the ` +
-                `\`package.json\` beside it. Remove the key.`,
-        );
+    // A documentation package has no Foundry package, so there is no id to
+    // derive: the validator refuses the key by name, with a locator, and
+    // deriving one here would hand it the very key it is about to refuse.
+    if (input.packageKind !== DOCUMENTATION_KIND) {
+        if (input.foundryPackage !== undefined) {
+            throw new Error(
+                `package-build: ${configPath} declares \`foundryPackage\`, which ` +
+                    `a data configuration may not: it is the \`name\` of the ` +
+                    `\`package.json\` beside it. Remove the key.`,
+            );
+        }
+        input.foundryPackage = foundryPackageId(rootDir);
     }
-    input.foundryPackage = foundryPackageId(rootDir);
 
     if (input.itemBuilders !== undefined) {
         const declared = input.itemBuilders;
@@ -590,7 +595,16 @@ export function configFromData(data, configPath) {
     }
 
     const stats = input.stats;
-    if (stats !== null && typeof stats === "object" && !Array.isArray(stats)) {
+    // Skipped for a documentation package, which stamps no `_stats` and
+    // declares no system to take a version from: the derivation would throw a
+    // bare error about a missing system relationship, burying the located
+    // refusal of the `stats:` key that is the finding an author needs.
+    if (
+        input.packageKind !== DOCUMENTATION_KIND &&
+        stats !== null &&
+        typeof stats === "object" &&
+        !Array.isArray(stats)
+    ) {
         const declared = /** @type {Record<string, unknown>} */ (stats);
         // `stats.systemId` and `stats.systemVersion` are both refused by
         // `defineConfig`, which reports them with a locator — so nothing is

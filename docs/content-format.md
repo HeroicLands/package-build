@@ -346,7 +346,10 @@ there are exactly three answers:
 
 `<assetRoot>` is `<packageKind>/<foundryPackage>/assets`, derived from the
 configuration — `systems/sohl/assets` for the system,
-`modules/sohl-thalorna/assets` for that module. So one authored
+`modules/sohl-thalorna/assets` for that module. A `documentation` package has
+no asset root at all, because Foundry installs no such package and serves no
+files for it: there, the third row is refused, and a note names the owning
+package (`systems/…`, `modules/…`) or a URL. So one authored
 `icons/relic.svg` means "my own `assets/icons/relic.svg`" in whichever package
 writes it, while an authored `systems/sohl/assets/icons/noun/shield.svg` names
 the system's file and is left exactly as written wherever it appears. That
