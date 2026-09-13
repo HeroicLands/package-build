@@ -51,26 +51,26 @@ writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage` and `itemBuilders`, whose data-configuration
 behaviour is also derivation rather than ordinary authoring.
 
-| Key                                         | Type                                                                       | Required                            | Default                                     |
-| ------------------------------------------- | -------------------------------------------------------------------------- | ----------------------------------- | ------------------------------------------- |
-| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                 | —                                           |
-| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML) | —                                           |
-| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"`                                                 | yes                                 | —                                           |
-| [`stats`](#stats)                           | object                                                                     | yes                                 | —                                           |
-| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no                                  | `{}`                                        |
-| [`paths`](#paths)                           | object                                                                     | no                                  | see [`paths`](#paths)                       |
-| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                  | `[]`                                        |
-| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                  | empty registry                              |
-| [`packs`](#packs)                           | array                                                                      | yes, at least one entry             | —                                           |
-| [`docs`](#docs)                             | object                                                                     | no                                  | `{}`                                        |
-| [`site`](#site)                             | object                                                                     | no                                  | see [`site`](#site)                         |
-| [`pdf`](#pdf)                               | object                                                                     | no                                  | `null`                                      |
-| [`compatibility`](#compatibility)           | object                                                                     | no                                  | `null`                                      |
-| [`relationships`](#relationships)           | object                                                                     | no                                  | `{}`                                        |
-| [`systems`](#systems)                       | object                                                                     | no                                  | `{}`                                        |
-| [`requiresSystem`](#requiressystem)         | string                                                                     | no                                  | `null`                                      |
-| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                  | `{}`                                        |
-| [`publish`](#publish)                       | object                                                                     | no                                  | `{site: "homepage", address: {prefix: ""}}` |
+| Key                                         | Type                                                                       | Required                                                                                           | Default                                     |
+| ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
+| [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                           |
+| [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                           |
+| [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                           |
+| [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                           |
+| [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                        |
+| [`paths`](#paths)                           | object                                                                     | no                                                                                                 | see [`paths`](#paths)                       |
+| [`skipDirectories`](#skipdirectories)       | string[]                                                                   | no                                                                                                 | `[]`                                        |
+| [`icons`](#icons)                           | object, or a path to a file holding one                                    | no                                                                                                 | empty registry                              |
+| [`packs`](#packs)                           | array                                                                      | yes, at least one entry, in a `systems` or `modules` package; refused in a `documentation` package | —                                           |
+| [`docs`](#docs)                             | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
+| [`site`](#site)                             | object                                                                     | no                                                                                                 | see [`site`](#site)                         |
+| [`pdf`](#pdf)                               | object                                                                     | no                                                                                                 | `null`                                      |
+| [`compatibility`](#compatibility)           | object                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
+| [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
+| [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
+| [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
+| [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
+| [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
 
 Any key outside this list is refused:
 
@@ -84,13 +84,15 @@ refuses an authored `rootDir` earlier, with its own message — see
 
 ### Derived values
 
-Four values in the resolved configuration are never transcribed by an author
+Five values in the resolved configuration are never transcribed by an author
 — they are computed from where the file sits, from the adjacent
-`package.json`, or from a name naming a table this package already ships.
-Authoring the first three yourself is an **error**, not an override: a
+`package.json`, from the package kind, or from a name naming a table this
+package already ships. Authoring `rootDir`, `foundryPackage` or
+`stats.systemVersion` yourself is an **error**, not an override: a
 transcribed copy is free to drift from what it copied, which is exactly how
 `stats.systemVersion` once sat at a stale version for four releases while
-nothing said so.
+nothing said so. `assetRoot` has no author-facing spelling to refuse in the
+first place — it is never a key at all, only ever a computed value.
 
 #### `rootDir`
 
@@ -115,7 +117,9 @@ it was launched from.
 
 The Foundry package id — what appears as `id` in the generated
 `system.json` / `module.json`, and the value `assetRoot` and the packaging
-half's `packageId` are built from.
+half's `packageId` are built from. `null` in the resolved configuration of a
+`documentation` package — see [`packageKind`](#packagekind) for the refusal,
+which applies before either loader form gets a chance to derive anything.
 
 - In a **YAML** configuration, writing `foundryPackage:` is refused; the
   loader reads it from the adjacent `package.json` `name` instead, verbatim,
@@ -130,17 +134,36 @@ half's `packageId` are built from.
 
   > ``package-build: <package.json path> declares no `name`, which is what the Foundry package id is derived from.``
 
+  A `documentation` package derives nothing here: it has no Foundry package
+  id, so the loader never reads `package.json` `name` for one.
+
 - In an **`.mjs`** configuration, `foundryPackage` is an ordinary required
   key — a non-empty string, checked the same way as every other required
-  string field:
+  string field — for a `systems` or `modules` package:
 
   > ``package-build config: `foundryPackage` must be a non-empty string.``
+
+#### `assetRoot`
+
+The served Foundry asset root a compiled document's `img:` is resolved
+against — the one reader of it is `resolveImg`
+(`engine/helpers.mjs`). Never a key an author writes; always computed from
+`packageKind` and `foundryPackage`.
+
+- For a `systems` or `modules` package, `<packageKind>/<foundryPackage>/assets`.
+- For a `documentation` package, `null` — Foundry serves no files for a
+  package of this kind, and `documentation/null/assets` would be an address
+  that resolves nowhere. `resolveImg` refuses rather than rooting a path
+  against nothing.
 
 #### `stats.systemVersion`
 
 The version of the game system the packs were built against, stamped into
 every compiled document's `_stats.systemVersion`. `stats.systemId` is
 derived the same way, from the same block — see [`stats`](#stats) for both.
+Both are `null` in the resolved configuration of a `documentation` package,
+which refuses `stats` outright — see [`stats`](#stats) — and so has neither
+to derive.
 
 - **A system package** (`packageKind: systems`) is its own system, so its
   `systemVersion` is its own `package.json` `version`:
@@ -253,21 +276,39 @@ An empty or non-string value is refused generically:
 ### `foundryPackage`
 
 See [Derived values](#derived-values) — forbidden in a YAML configuration,
-required (a non-empty string) in an `.mjs` one.
+required (a non-empty string) in an `.mjs` one. Refused in either form for a
+`documentation` package, which is not a Foundry package and has no Foundry
+package id:
+
+> ``package-build config: `foundryPackage` is refused in a `documentation` package, which is not a Foundry package, so it has no Foundry package id.``
 
 ### `packageKind`
 
-**Type:** `"systems"` \| `"modules"` · **Required** · no default.
+**Type:** `"systems"` \| `"modules"` \| `"documentation"` · **Required** · no default.
 
-Which kind of Foundry package this repository builds — also the directory
-Foundry installs it under, and what `assetRoot` and the packaging half's
-`artifact` (`system` or `module`) are derived from.
+Which kind of package this repository builds. `systems` and `modules` are the
+two Foundry answers — also the directory Foundry installs the package under,
+and what `assetRoot` and the packaging half's `artifact` (`system` or
+`module`) are derived from. `documentation` is the answer "not a Foundry
+package at all": it publishes a site and a book from its notes, installs into
+no Foundry data directory and compiles no compendium.
 
-> ``package-build config: `packageKind` must be one of: systems, modules.``
+> ``package-build config: `packageKind` must be one of: systems, modules, documentation.``
+
+`compilesFoundryDocuments(config)`, exported from `content-config.mjs`
+alongside `DOCUMENTATION_KIND` and [`publishesContentPages`](#publish), is the
+one question every Foundry-side reader asks — the manifest writer, to decide
+whether there is a package for Foundry to install, and the pack compilers, to
+decide whether there is anything to compile. It returns
+`config.packageKind !== DOCUMENTATION_KIND`.
 
 ### `stats`
 
-**Type:** object · **Required** · no default.
+**Type:** object · **Required** in a `systems` or `modules` package · refused
+in a `documentation` package, which compiles no documents and so has no
+`_stats` block to stamp:
+
+> ``package-build config: `stats` is refused in a `documentation` package, which compiles no documents, so there is no `_stats` block to stamp.``
 
 The identity stamped into every compiled document's `_stats` block.
 `coreVersion` is **not** here — that is the top-level `compatibility.minimum`,
@@ -303,7 +344,10 @@ Any other key under `stats` is refused:
 
 **Type:** object (`{type: builder}`), or a list of `{system, builders}`
 registries — or, in YAML only, a registry **name** (`sohl`, `hm3`) or list of
-names · **Optional** · default `{}`.
+names · **Optional** · default `{}`. Refused in a `documentation` package,
+which compiles no items and so has no item-type registry to name:
+
+> ``package-build config: `itemBuilders` is refused in a `documentation` package, which compiles no items, so there is no item-type registry to name.``
 
 The consumer's item-type registry: each content `type` that compiles into an
 Item, paired with the builder function producing its `system` block. A
@@ -501,7 +545,11 @@ any finding it reports is a refusal, joined into one message:
 
 ### `packs`
 
-**Type:** array of pack specs · **Required, at least one entry**.
+**Type:** array of pack specs · **Required, at least one entry**, in a
+`systems` or `modules` package. Refused in a `documentation` package, which
+compiles no compendium and so has no packs to declare:
+
+> ``package-build config: `packs` is refused in a `documentation` package, which compiles no compendium, so there are no packs to declare.``
 
 The compendium packs the build compiles, named exactly as declared in the
 package manifest's `packs` array. Several packs may share a `type` — a
@@ -591,7 +639,11 @@ Any other key on a pack entry is refused:
 
 ### `docs`
 
-**Type:** object · **Optional** · default `{}`.
+**Type:** object · **Optional** · default `{}`. Refused in a `documentation`
+package, which compiles no items and so has no item-field reference pages to
+frame:
+
+> ``package-build config: `docs` is refused in a `documentation` package, which compiles no items, so there are no item-field reference pages to frame.``
 
 How this repository frames the documentation pages it generates.
 
@@ -808,7 +860,11 @@ Any other key on `pdf` is refused:
 
 ### `compatibility`
 
-**Type:** object · **Optional** · default `null`.
+**Type:** object · **Optional** · default `null`. Refused in a
+`documentation` package, which installs into no Foundry data directory and so
+has no Foundry core range to support:
+
+> ``package-build config: `compatibility` is refused in a `documentation` package, which installs into no Foundry data directory, so there is no Foundry core range to support.``
 
 The **Foundry core** version range this package supports — not to be
 confused with `relationships.systems[].compatibility` or
@@ -843,7 +899,11 @@ compile time rather than at configuration time, without it:
 
 ### `relationships`
 
-**Type:** object · **Optional** · default `{}`.
+**Type:** object · **Optional** · default `{}`. Refused in a `documentation`
+package, which is not a Foundry package and so stands in no relationship to
+one:
+
+> ``package-build config: `relationships` is refused in a `documentation` package, which is not a Foundry package, so it stands in no relationship to one.``
 
 What this package declares about other packages, in Foundry's own shape.
 Passed through to the shipped manifest, and read here for one derivation: a
@@ -893,7 +953,11 @@ item catalogue at build time. It requires a `manifest`:
 
 ### `systems`
 
-**Type:** object (`{id: spec}`) · **Optional** · default `{}`.
+**Type:** object (`{id: spec}`) · **Optional** · default `{}`. Refused in a
+`documentation` package, which compiles no documents and so ships content for
+no game system:
+
+> ``package-build config: `systems` is refused in a `documentation` package, which compiles no documents, so it ships content for no game system.``
 
 The systems this package can stamp content against — **declaration only**,
 not a restriction. Declaring a system here does not narrow which worlds can
@@ -936,7 +1000,11 @@ close.
 
 ### `requiresSystem`
 
-**Type:** string · **Optional** · default `null`.
+**Type:** string · **Optional** · default `null`. Refused in a
+`documentation` package, which compiles no documents and so has no game
+system to gate its packs on:
+
+> ``package-build config: `requiresSystem` is refused in a `documentation` package, which compiles no documents, so there is no game system to gate its packs on.``
 
 The one system this package refuses to load without — the **gate** half of
 the systems split. Naming one here emits `relationships.systems` for it,
@@ -966,7 +1034,14 @@ mapping:
 
 ### `publish`
 
-**Type:** object · **Optional** · default `{site: "homepage", address: {prefix: ""}}`.
+**Type:** object · **Optional** for a `systems` or `modules` package, default
+`{site: "homepage", address: {prefix: ""}}`. **Required** for a
+`documentation` package, with `site: content` — publishing the content tree is
+the whole of what that kind does:
+
+> ``package-build config: `publish` is required in a `documentation` package: publishing the content tree is the whole of what it does. Write `publish: {site: content}`.``
+
+> ``package-build config: `publish.site` must be `content` in a `documentation` package — `homepage` fences the content surfaces off, and a package that compiles nothing and publishes nothing from its tree would produce a single authored page and no book.``
 
 Publishing switches — how much of this package reaches the web, and where
 its content tree's addresses mount inside the package.
@@ -986,7 +1061,12 @@ Every HeroicLands package publishes at least an authored homepage at
 _no web presence at all_. `homepage` is the floor: the authored homepage
 and nothing else, no content-tree walk, no `site.sections` / `site.trees` /
 `site.landing` output. `content` is the homepage plus every page the
-content tree publishes.
+content tree publishes. `publishesContentPages(config)`, exported from
+`content-config.mjs` alongside [`compilesFoundryDocuments`](#packagekind),
+answers the one question every reader of the mode actually asks — the site
+build, to decide whether to walk the tree at all, and the content index, to
+decide whether an entry carries a web `path`. It returns
+`config.publish.site === "content"`.
 
 This was a boolean before `5.0.0`, and both spellings are refused rather
 than silently mapped, because a value reinterpreted reads to its author as
@@ -1349,3 +1429,4 @@ the source directory:
 | `stats.systemVersion`                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
 | `packageBuild.manifest.id`, `.version`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
 | `publish.site: true` / `publish.site: false`                                                                                    | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
+| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
