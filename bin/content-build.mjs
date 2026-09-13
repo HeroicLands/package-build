@@ -64,6 +64,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
+import { buildPdf } from "../engine/pdf-build.mjs";
 import {
     fetchAllCatalogs,
     fetchCatalogFromPath,
@@ -245,6 +246,7 @@ const argv = yargs(hideBin(process.argv))
     .command(markdownCommand())
     .command(contentIndexCommand())
     .command(siteCommand())
+    .command(pdfCommand())
     .command(reachabilityCommand())
     .command(addressesCommand())
     .version(ownVersion())
@@ -1358,6 +1360,86 @@ function contentIndexCommand() {
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-build pdf` — build the book the content tree publishes as.
+ *
+ * The third surface, beside `package compile` and `site`. It takes the same
+ * `--out` override the site command does, and reports what it found in the same
+ * `file:line:column: severity: message` shape every other pass here uses — so
+ * one editor, one CI annotator and one `grep` read all three.
+ *
+ * **Not building is a normal outcome, and it exits 0.** A package publishing
+ * only a homepage, a package with no `pdf:` block and a package with no content
+ * tree have each said they publish no book; saying so on stderr and failing the
+ * command would break the release of every package that is not a book.
+ *
+ * @returns {object} The yargs command module.
+ */
+function pdfCommand() {
+    return {
+        command: "pdf",
+        describe: "Build the content tree as a PDF",
+        builder: (yargs) => {
+            yargs
+                .option("out", {
+                    describe: "Write the book here instead of the configured `pdf.out`.",
+                    type: "string",
+                })
+                .option("version", {
+                    describe: "Stamp this version on the title page and in the file name.",
+                    type: "string",
+                })
+                // Declared positively so yargs derives `--no-compile` from it;
+                // an option literally named `no-compile` is rejected as unknown
+                // when it is actually passed.
+                .option("compile", {
+                    describe: "Run the Typst compiler. `--no-compile` emits the source and stops.",
+                    type: "boolean",
+                    default: true,
+                });
+        },
+        handler: async (argv) => {
+            try {
+                const result = await buildPdf({
+                    ...(argv.out ? { out: argv.out } : {}),
+                    ...(argv.version ? { version: String(argv.version) } : {}),
+                    compile: argv.compile !== false,
+                });
+
+                for (const finding of result.findings) emitDiagnostic(finding);
+
+                if (!result.built) {
+                    // A reason is a deliberate no-op — the fence, an absent
+                    // block, an absent tree. No reason means the findings above
+                    // say what went wrong, and those decide the exit code.
+                    if (result.reason) {
+                        log.info(`No book built: ${result.reason}`);
+                        return;
+                    }
+                    process.exitCode = 1;
+                    return;
+                }
+
+                const { stats } = result;
+                log.info(
+                    `${stats.notes} entr(ies) and ${stats.prose} prose file(s) across ` +
+                        `${stats.sections} section(s)` +
+                        (stats.repeated ?
+                            `, ${stats.repeated} of them printed more than once`
+                        :   ""),
+                );
+                log.info(`Typst source: ${result.typ}`);
+                if (result.pdf) log.info(`Book: ${result.pdf}`);
+                // Findings are reported, never fatal — a filter that selected
+                // nothing is worth fixing and is not worth refusing to publish
+                // the other two thousand entries over.
+            } catch (err) {
+                fail(err, "pdf");
             }
         },
     };

@@ -623,6 +623,7 @@ const CONFIG_KEYS = [
     "packs",
     "docs",
     "site",
+    "pdf",
     "compatibility",
     "relationships",
     "systems",
@@ -646,6 +647,9 @@ const SITE_KEYS = [
     "backfillSections",
 ];
 const SITE_TREE_KEYS = ["from", "section"];
+const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
+const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
+const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
@@ -1430,6 +1434,114 @@ function normalizeSite(value) {
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
         backfillSections: optionalBoolean(input.backfillSections, "site.backfillSections", false),
+    });
+}
+
+/**
+ * The `pdf` section — the book the content tree is published as.
+ *
+ * A third surface beside the packs and the website, and the one that is a
+ * **selection** rather than a rendering of everything: `document:` names the
+ * tree that says which notes the volume carries and in what order, because a
+ * book is an editorial act where a site is an index. That file is the
+ * consumer's, parsed by {@link module:engine/pdf-toc.parseDocumentTree}, and
+ * nothing about its shape is validated here — this block says only where it is.
+ *
+ * **Nothing here is an address or a brand.** The title, the subtitle, the front
+ * matter and the faces are every one of them the publishing repository's to
+ * choose, which is the whole reason they are configuration: the engine that
+ * sets the book must be able to set somebody else's book.
+ *
+ * **Declaring the block is not the switch.** Whether a PDF is built at all is
+ * `publish.site` — `content` builds one, `homepage` does not — so a package
+ * cannot end up with two switches that disagree about whether it publishes its
+ * content tree. See {@link publishesContentPages}.
+ *
+ * @param {unknown} value - The `pdf` block, or `undefined`.
+ * @param {string} rootDir - The repository root configured paths resolve against.
+ * @returns {Readonly<object>|null} It, frozen; `null` when the block is absent.
+ */
+function normalizePdf(value, rootDir) {
+    if (value === undefined) return null;
+    if (!isPlainObject(value)) fail("pdf", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, PDF_KEYS, "pdf.");
+
+    // Both required, and required together: a document with no tree has nothing
+    // to print, and a tree with no title produces a file whose name and cover
+    // say nothing about what a reader downloaded.
+    const title = requireNonEmptyString(input.title, "pdf.title");
+    const document = requireNonEmptyString(input.document, "pdf.document");
+
+    const front = [];
+    if (input.front !== undefined) {
+        if (!Array.isArray(input.front)) fail("pdf.front", "must be a list of markdown files");
+        input.front.forEach((entry, i) => {
+            front.push(requireNonEmptyString(entry, `pdf.front[${i}]`));
+        });
+    }
+
+    let fonts = EMPTY_PDF_FONTS;
+    if (input.fonts !== undefined) {
+        if (!isPlainObject(input.fonts)) fail("pdf.fonts", "must be a mapping");
+        const declared = /** @type {Record<string, unknown>} */ (input.fonts);
+        rejectUnknownKeys(declared, PDF_FONT_KEYS, "pdf.fonts.");
+        fonts = Object.freeze({
+            // Family *names*, not files: the renderer asks the font stack for a
+            // family, and `path` is where it may look beyond the system's own.
+            serif:
+                declared.serif === undefined ?
+                    ""
+                :   requireNonEmptyString(declared.serif, "pdf.fonts.serif"),
+            sans:
+                declared.sans === undefined ?
+                    ""
+                :   requireNonEmptyString(declared.sans, "pdf.fonts.sans"),
+            mono:
+                declared.mono === undefined ?
+                    ""
+                :   requireNonEmptyString(declared.mono, "pdf.fonts.mono"),
+            path:
+                declared.path === undefined ?
+                    ""
+                :   path.resolve(rootDir, requireNonEmptyString(declared.path, "pdf.fonts.path")),
+        });
+    }
+
+    // Family name to the font file carrying its glyphs, for `:icon-…:`. A file
+    // rather than a codepoint, because the font's own tables are the only
+    // trustworthy source of which glyph a name resolves to — see
+    // {@link module:engine/content-icons}, which states the style and the name
+    // and deliberately holds no codepoints.
+    const iconFonts = {};
+    if (input.iconFonts !== undefined) {
+        if (!isPlainObject(input.iconFonts)) {
+            fail("pdf.iconFonts", "must be a mapping of icon family to font file");
+        }
+        for (const [family, file] of Object.entries(input.iconFonts)) {
+            iconFonts[family] = path.resolve(
+                rootDir,
+                requireNonEmptyString(file, `pdf.iconFonts.${family}`),
+            );
+        }
+    }
+
+    return Object.freeze({
+        title,
+        subtitle:
+            input.subtitle === undefined ?
+                ""
+            :   requireNonEmptyString(input.subtitle, "pdf.subtitle"),
+        document: path.resolve(rootDir, document),
+        out: input.out === undefined ? "" : requireNonEmptyString(input.out, "pdf.out"),
+        front: Object.freeze(front.map((f) => path.resolve(rootDir, f))),
+        fonts,
+        iconFonts: Object.freeze(iconFonts),
+        // Where the Typst binary is, when it is not simply `typst` on PATH.
+        // Named rather than bundled: a native compiler would put a
+        // platform-specific binary in the dependency tree of three repositories
+        // that mostly do not build books.
+        binary: input.binary === undefined ? "" : requireNonEmptyString(input.binary, "pdf.binary"),
     });
 }
 
@@ -2224,6 +2336,7 @@ export function defineConfig(config) {
         packDirectories: Object.freeze(packDirectories),
         docs: normalizeDocs(input.docs),
         site: normalizeSite(input.site),
+        pdf: normalizePdf(input.pdf, rootDir),
         compatibility: normalizeCompatibility(input.compatibility, "compatibility"),
         relationships: normalizeRelationships(input.relationships),
         systems,

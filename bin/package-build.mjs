@@ -931,17 +931,37 @@ function releaseCommand() {
     return {
         command: "release",
         describe: "Package the staged build for release",
-        builder: (y) => y,
-        handler: handler(async () => {
+        builder: (y) =>
+            y.option("no-pdf", {
+                describe:
+                    "Skip the content-tree book. A package that publishes no content " +
+                    "already builds none; this is for a release that has a tree and " +
+                    "does not want the book.",
+                type: "boolean",
+            }),
+        handler: handler(async (argv) => {
             const config = loadPackageBuildConfig();
-            const { zip, version, bytes } = await packRelease({
+            const result = await packRelease({
                 artifact: config.artifact,
+                pdf: argv.pdf !== false,
             });
+            const { zip, version, bytes } = result;
             console.log(
                 `✅ Packaged ${version} for release: ` +
                     `${path.relative(config.rootDir, zip)} ` +
                     `(${(bytes / 1024 / 1024).toFixed(1)} MB)`,
             );
+            // Reported, never fatal: the archive above is the release, and a
+            // book that would not set is a problem to fix rather than a reason
+            // to have published nothing.
+            for (const finding of result.pdfFindings ?? []) {
+                console.error(`${finding.file ?? "book"}: ${finding.severity}: ${finding.message}`);
+            }
+            if (result.pdf) {
+                console.log(`📕 Book: ${path.relative(config.rootDir, result.pdf)}`);
+            } else if (result.pdfSkipped) {
+                console.log(`   No book: ${result.pdfSkipped}`);
+            }
         }),
     };
 }

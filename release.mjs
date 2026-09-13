@@ -69,6 +69,7 @@ export async function packRelease({
     outDir = "build/dist",
     artifact = "system",
     metadataDir = "build/content-index",
+    pdf = true,
 } = {}) {
     const stage = path.resolve(stageDir);
     const out = path.resolve(outDir);
@@ -112,13 +113,65 @@ export async function packRelease({
 
     const metadata = await publishMetadataIndex({ manifest, stage, out, metadataDir });
 
+    // Last, and never fatal: the archive and the manifest are the release, and
+    // a book that failed to set is a reported problem rather than a reason to
+    // publish neither.
+    const book =
+        pdf ?
+            await packReleasePdf({ out, version: manifest.version })
+        :   { pdf: null, findings: [], reason: "the release was asked not to build one" };
+
     return {
         zip: zipPath,
         manifest: path.join(out, manifestName),
         ...(metadata ? { metadata } : {}),
+        ...(book.pdf ? { pdf: book.pdf } : {}),
+        pdfFindings: book.findings,
+        pdfSkipped: book.pdf ? null : book.reason,
         bytes: archive.pointer(),
         version: manifest.version,
     };
+}
+
+/**
+ * Build the book that ships beside the archive.
+ *
+ * **Imported when it is used, not when this module is.** The book build pulls
+ * in a markdown parser, DuckDB and the whole content engine; `release.mjs`
+ * otherwise exists to zip a directory, and every consumer that publishes no
+ * book would pay for that graph on `import`. A dynamic import inside the one
+ * function that needs it keeps the cost where the benefit is.
+ *
+ * **Not building is the normal case and never an error.** A package publishing
+ * only a homepage, one with no `pdf:` block and one with no content tree have
+ * each said they publish no book. Four of the six packages that install this
+ * toolchain are in exactly that position, so a release that failed for the
+ * absence of a PDF would break more releases than it helped.
+ *
+ * @param {object} opts - Options.
+ * @param {string} opts.out - The release directory.
+ * @param {string} opts.version - The version the manifest declares.
+ * @returns {Promise<{pdf: string|null, findings: object[], reason: string|null}>}
+ *   What was built, and what was found on the way.
+ */
+async function packReleasePdf({ out, version }) {
+    let buildPdf;
+    try {
+        ({ buildPdf } = await import("./engine/pdf-build.mjs"));
+    } catch (err) {
+        return {
+            pdf: null,
+            findings: [
+                {
+                    severity: "warning",
+                    message: `the book builder could not be loaded: ${err.message}`,
+                },
+            ],
+            reason: null,
+        };
+    }
+    const result = await buildPdf({ out, version });
+    return { pdf: result.pdf, findings: result.findings, reason: result.reason };
 }
 
 /**

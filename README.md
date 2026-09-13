@@ -327,11 +327,22 @@ npx package-build lang check
 npx package-build lang coverage [--unused]
 npx package-build lang hardcoded
 npx package-build bundle check
-npx package-build release
+npx package-build release [--no-pdf]
 npx package-build deploy <stage>
 npx package-build container <stage> <start|stop|restart|recreate|rm|status|logs|pull>
 npx package-build e2e <seed|run|open|fast|sweep>
 ```
+
+`package-build release` writes `<artifact>.zip` and `<artifact>.json` into
+`build/dist`, the content index the manifest advertises, and — when the package
+publishes a content tree — the book that tree compiles to, as
+`<artifact>-<version>.pdf`.
+
+The book is **built by default and never fatal**. A package publishing only a
+homepage, one with no `pdf:` block, and one with no content tree each build
+none and say so; `--no-pdf` is for a release that has a tree and does not want
+the book. What the book is and how it is configured is `CONTENT.md`, under
+_Publishing a book_ — it is a content surface, and the content half owns it.
 
 Wrapped as npm scripts — SoHL spells them:
 

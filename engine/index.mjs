@@ -158,6 +158,18 @@ export * as wikilinkSyntax from "./wikilink-syntax.mjs";
 /** The address index a site build resolves its wikilinks against. */
 export * as siteIndex from "./site-index.mjs";
 
+/** The document tree a book selects, and the plan it resolves to. */
+export * as pdfToc from "./pdf-toc.mjs";
+
+/** Markdown and a plan, rendered as Typst source. Pure. */
+export * as pdfRender from "./pdf-render.mjs";
+
+/** Which glyph an icon name resolves to, read from the font that carries it. */
+export * as pdfFonts from "./pdf-fonts.mjs";
+
+/** The content tree, built into a book. Reads the tree; runs the compiler. */
+export * as pdfBuild from "./pdf-build.mjs";
+
 /** The shape every pack compiler shares. */
 export * as baseCompiler from "./base-compiler.mjs";
 
