@@ -30,7 +30,12 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 
-import { defineConfig } from "../content-config.mjs";
+import {
+    defineConfig,
+    PACKAGE_KINDS,
+    SITE_MODES,
+    PACK_DOCUMENT_TYPES,
+} from "../content-config.mjs";
 import { resolvePackageBuildConfig, DERIVED_MANIFEST_KEYS } from "../config.mjs";
 
 const DOC = readFileSync(path.resolve(__dirname, "../docs/configuration.md"), "utf8");
@@ -93,6 +98,54 @@ function assertDocuments(prefix: string, keys: readonly string[]) {
         );
     }
 }
+
+/**
+ * Every value of a closed, exported set, formatted the way the document
+ * spells it and searched for verbatim.
+ *
+ * `rejectUnknownKeys` reads a key list out of the validator's own refusal
+ * message, so a renamed or added *key* already fails
+ * {@link assertDocuments}. A closed set's accepted *values* are never routed
+ * through that message — `packageKind` rejects a bad value with "must be one
+ * of: <the list>", not "not a recognized option" — so nothing previously
+ * caught a member added to `PACKAGE_KINDS` while the document went on
+ * listing the old ones. Reading the set from its own exported binding, the
+ * same way {@link assertDocuments} reads a key list from the validator's
+ * thrown message, is what closes that gap.
+ *
+ * @param values - The exported closed set, read from `content-config.mjs`.
+ * @param format - How the document spells one member, e.g. `` `"content"` ``.
+ */
+function assertValuesDocumented(values: readonly string[], format: (value: string) => string) {
+    for (const value of values) {
+        const formatted = format(value);
+        expect(DOC, `docs/configuration.md should list the value ${formatted}`).toContain(
+            formatted,
+        );
+    }
+}
+
+describe("every closed-set value is documented", () => {
+    it("reads sets worth checking", () => {
+        // Guards the guard: an empty or single-member export would let this
+        // whole describe block pass by checking nothing.
+        expect(PACKAGE_KINDS.length).toBeGreaterThan(1);
+        expect(SITE_MODES.length).toBeGreaterThan(1);
+        expect(PACK_DOCUMENT_TYPES.length).toBeGreaterThan(1);
+    });
+
+    it("`PACKAGE_KINDS`, in the summary table and the `packageKind` section", () => {
+        assertValuesDocumented(PACKAGE_KINDS, (value) => `\`"${value}"\``);
+    });
+
+    it("`SITE_MODES`, in the `publish.site` row and section", () => {
+        assertValuesDocumented(SITE_MODES, (value) => `\`"${value}"\``);
+    });
+
+    it("`PACK_DOCUMENT_TYPES`, in the `packs[].type` row", () => {
+        assertValuesDocumented(PACK_DOCUMENT_TYPES, (value) => `\`${value}\``);
+    });
+});
 
 describe("every top-level key is documented", () => {
     const keys = allowedKeys(() => defineConfig(minimal({ __unrecognised__: true })));
