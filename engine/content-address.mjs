@@ -81,11 +81,11 @@ export const KB_PREFIX = "kb/";
  * consumer deriving a `path` from a key drops the *package and the system*, not
  * the package alone.
  *
- * The hyphen is a separator and never occurs inside a segment: a shortcode is
- * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN`, enforced by `content-lint.mjs`)
- * and a type is a bare word. That is the same charset guarantee positional key
- * parsing rests on, so the address and the key cannot disagree about where one
- * ends and the other begins.
+ * The hyphen is a separator and never occurs inside a segment: a shortcode
+ * matches `ADDRESS_SEGMENT_PATTERN` (`engine/address-charset.mjs`, enforced by
+ * `content-lint.mjs`) and a type is a bare word. That is the same charset
+ * guarantee positional key parsing rests on, so the address and the key
+ * cannot disagree about where one ends and the other begins.
  *
  * @param {object} fm - Parsed frontmatter.
  * @returns {string} The address segment, e.g. `weapongear-dagger`.
@@ -311,10 +311,10 @@ export const CANONICAL_KEY_SEGMENTS = 4;
  *
  * Parsing is plain positional counting: split on the separator, require
  * {@link CANONICAL_KEY_SEGMENTS} of them, and assign each position its field.
- * **The charset rule is what makes that sound** — every segment is
- * `^[A-Za-z0-9]+$` (`ADDRESS_SEGMENT_PATTERN` in `engine/address-charset.mjs`),
- * so the hyphen is purely a separator and the count alone determines every
- * field. That is enforced at each of the three sources rather than assumed of
+ * **The charset rule is what makes that sound** — every segment matches
+ * `ADDRESS_SEGMENT_PATTERN` (`engine/address-charset.mjs`), so the hyphen is
+ * purely a separator and the count alone determines every field. That is
+ * enforced at each of the three sources rather than assumed of
  * the data: shortcodes by `content-lint.mjs`, `contentPackage` by
  * `defineConfig`, and types are bare words. Were any of them free to
  * carry a hyphen, no amount of counting would recover the fields and the reader

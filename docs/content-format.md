@@ -826,9 +826,9 @@ only in case are two names nobody can tell apart, and they collapsed onto one
 address, one `_id` and one URL with nothing to report it.
 
 **Parsing is positional counting from the right, and nothing else.** Every
-segment is alphanumeric — shortcodes, **types** and **subTypes** are all
-`^[a-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
-alphanumeric — so the hyphen is purely a separator. There is no longest-match
+segment is lowercase alphanumeric — shortcodes, **types** and **subTypes** are
+all `^[a-z0-9]+$`, systems come from a closed registry, and `contentPackage` is
+`^[a-z0-9]+$` too — so the hyphen is purely a separator. There is no longest-match
 against a roster and no vocabulary check before splitting.
 
 **`type` and `subType` are held to that charset, not merely expected to meet
@@ -2461,8 +2461,9 @@ data:
 A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
 `Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
 system's. Its shortcode is [an address segment](#the-canonical-address) like
-every other, so it is strictly alphanumeric: `possessionscooking`, never
-`possessions-cooking`, which would read as two segments and resolve to nothing.
+every other, so it is strictly lowercase alphanumeric: `possessionscooking`,
+never `possessions-cooking`, which would read as two segments and resolve to
+nothing.
 
 **`color` must be quoted**, and YAML gives no third option: `color: #7a4b2a`
 parses as `null` (a `#` after a space opens a comment) and `color: 000000` parses

@@ -53,8 +53,8 @@
  * have swept.
  *
  * **A type name and a subType value are held to the address charset**, so
- * both are `^[A-Za-z0-9]+$` — the charset `engine/address-charset.mjs` states
- * and the shortcode is already held to. For a type that is literal: it is a
+ * both match `ADDRESS_SEGMENT_PATTERN` — the charset `engine/address-charset.mjs`
+ * states and the shortcode is already held to. For a type that is literal: it is a
  * segment of every address — the first of the short form an author writes
  * (`type-shortcode`), the third of the canonical
  * `package-system-type-shortcode` — the hyphen is the separator between
