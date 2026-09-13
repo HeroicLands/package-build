@@ -250,10 +250,10 @@ so `sohl-none-doc-gear`). Read wherever an address is built or parsed
 Two rules apply, both enforced here rather than assumed, because an address
 is read by counting hyphen-separated segments:
 
-- It must be **lowercase alphanumeric** (`^[a-z0-9]+$`) — the hyphen stays
-  purely a separator. A value containing one is refused:
+- It must be **lowercase alphanumeric** — the hyphen stays purely a separator.
+  A value containing one is refused:
 
-  > ``package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric — lowercase letters and digits only (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that charset here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.``
+  > ``package-build config: `contentPackage` is `harn-adventures`, which is not lowercase alphanumeric (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.``
 
 - It must **not also be a note type** — the two vocabularies are disjoint,
   because a written address may drop its leading segments and
@@ -761,7 +761,7 @@ and subType, which are address segments and therefore checked against
 `^[a-z0-9]+$`, deliberately distinct from the section's own name (a URL
 this site chose; `user-guide` is the section, `userguide` the subType):
 
-> ``package-build config: `site.sections.<name>.listType` is `Not Ok`, which is not alphanumeric. It names a content type or subType, and those are address segments (^[a-z0-9]+$) — not the section's own name, which is a URL this site chose and need not match (`user-guide` is the section, `userguide` the subType). A value no page carries selects nothing and leaves the landing empty.``
+> ``package-build config: `site.sections.<name>.listType` is `Not Ok`, which is not lowercase alphanumeric. It names a content type or subType, and those are address segments (^[a-z0-9]+$) — not the section's own name, which is a URL this site chose and need not match (`user-guide` is the section, `userguide` the subType). A value no page carries selects nothing and leaves the landing empty.``
 
 `listSubType` alone, without `listType`, names no query — a subType only
 distinguishes _within_ a type:

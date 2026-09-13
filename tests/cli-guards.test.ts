@@ -157,3 +157,33 @@ describe("what still answers without a configuration", () => {
         }
     });
 });
+
+describe("content-build pdf's own error handling", () => {
+    // A thrown error — as opposed to a finding `buildPdf` reports — must
+    // reach the same located diagnostic every other command's catch block
+    // produces, not crash the process trying to report itself.
+    it("reports a thrown error as a located diagnostic instead of crashing", () => {
+        const { code, err } = run("pdf");
+
+        expect(err).not.toMatch(/ReferenceError/);
+        expect(err).toMatch(/no package-build\.config\.yaml/);
+        expect(code).toBe(1);
+    });
+
+    it("accepts a value for --book-version rather than rejecting it as unknown", () => {
+        const { err } = run("pdf", "--book-version", "9.9.9");
+
+        expect(err).not.toMatch(/Unknown argument/);
+        // Still fails for the same configuration reason as the bare command —
+        // the option parsed, and the failure is the fixture's, not the flag's.
+        expect(err).toMatch(/no package-build\.config\.yaml/);
+    });
+
+    it("registers no option named the yargs-reserved `version`", () => {
+        // Node's own warning for the collision this used to have
+        // (`"version" is a reserved word.`) would appear on stderr here.
+        const { err } = run("pdf", "--help");
+
+        expect(err).not.toMatch(/reserved word/);
+    });
+});

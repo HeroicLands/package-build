@@ -22,7 +22,6 @@
  * packageKind: systems
  * compatibility: { minimum: "14.359", verified: "14.364" }
  * stats:
- *     systemId: sohl
  *     lastModifiedBy: sohlbuilder00000
  * itemBuilders: sohl
  * skipDirectories: [Templates]
@@ -42,14 +41,15 @@
  * a consumer's config is data, and the compilers read it.
  *
  * **This module validates; it does not load.** `engine/pack-config.mjs` is what
- * finds a repository's configuration and reads it, and it is where the three
+ * finds a repository's configuration and reads it, and it is where the four
  * fields absent from the YAML above are derived: `rootDir` (the directory the
- * file sits in), `stats.systemVersion` (the adjacent `package.json`), and the
- * `itemBuilders` table the name `sohl` stands for. All three are I/O or code,
- * and this module is deliberately neither — which is also why a consumer whose
- * item-builder registry is its own writes `package-build.config.mjs`, calling
- * `defineConfig` below directly with a `rootDir` of `import.meta.dirname`.
- * Both forms end here, so both are validated and frozen identically.
+ * file sits in), `foundryPackage` and `stats.systemVersion` (the adjacent
+ * `package.json`), and the `itemBuilders` table the name `sohl` stands for. All
+ * four are I/O or code, and this module is deliberately neither — which is also
+ * why a consumer whose item-builder registry is its own writes
+ * `package-build.config.mjs`, calling `defineConfig` below directly with a
+ * `rootDir` of `import.meta.dirname`. Both forms end here, so both are
+ * validated and frozen identically.
  *
  * **`rootDir` anchors every path**, so the build reads the same files whatever
  * directory it was launched from.
@@ -857,12 +857,12 @@ function requireContentPackage(value, docEntryTypes) {
     if (!isAddressSegment(pkg)) {
         fail(
             "contentPackage",
-            `is \`${pkg}\`, which is not alphanumeric — lowercase letters and ` +
-                `digits only (${ADDRESS_SEGMENT_PATTERN.source}). It is the first ` +
+            `is \`${pkg}\`, which is not lowercase alphanumeric ` +
+                `(${ADDRESS_SEGMENT_PATTERN.source}). It is the first ` +
                 `segment of every address this package publishes ` +
                 `(\`${pkg}-<system>-<type>-<shortcode>\`), and an address is read by ` +
-                `counting hyphen-separated segments — so anything outside that ` +
-                "charset here makes those addresses unreadable rather " +
+                `counting hyphen-separated segments — so anything outside ` +
+                "that here makes those addresses unreadable rather " +
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
@@ -1389,7 +1389,7 @@ function normalizeSectionMeta(value, where) {
         if (!isAddressSegment(segment)) {
             fail(
                 `${where}.${key}`,
-                `is \`${segment}\`, which is not alphanumeric. It names a ` +
+                `is \`${segment}\`, which is not lowercase alphanumeric. It names a ` +
                     "content type or subType, and those are address segments " +
                     `(${ADDRESS_SEGMENT_PATTERN.source}) — not the section's ` +
                     "own name, which is a URL this site chose and need not " +

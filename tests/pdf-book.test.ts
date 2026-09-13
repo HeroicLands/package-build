@@ -144,6 +144,25 @@ describe("the homepage fence", () => {
     });
 });
 
+describe("--book-version", () => {
+    // `--version` collides with yargs' own reserved top-level option, so the
+    // CLI accepts the stamp under this name instead; this is what proves the
+    // renamed flag still reaches `buildPdf` and lands in the emitted document.
+    it("stamps the file name and the title page", () => {
+        const dir = makeRepo("content");
+        const { out } = build(dir, "--no-compile", "--book-version", "3.1.4");
+
+        const typMatch = out.match(/Typst source: (.+\.typ)/);
+        expect(typMatch).not.toBeNull();
+        const typPath = typMatch![1].trim();
+
+        expect(path.basename(typPath)).toContain("3.1.4");
+        const source = fs.readFileSync(typPath, "utf8");
+        expect(source).toContain("3.1.4");
+        fs.rmSync(dir, { recursive: true, force: true });
+    });
+});
+
 describe("a package with nothing to print", () => {
     it("is a no-op when no `pdf:` block is configured", () => {
         const dir = makeRepo("content", false);

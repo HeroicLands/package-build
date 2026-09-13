@@ -322,7 +322,7 @@ taken as written, and a violation fails the build naming the line it is on:
   refused.
 
 ```text
-package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not alphanumeric — lowercase letters and digits only (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that charset here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
+package-build.config.yaml:1:1: error: package-build config: `contentPackage` is `harn-adventures`, which is not lowercase alphanumeric (^[a-z0-9]+$). It is the first segment of every address this package publishes (`harn-adventures-<system>-<type>-<shortcode>`), and an address is read by counting hyphen-separated segments — so anything outside that here makes those addresses unreadable rather than merely ugly. `harn-adventures` became `harnadventures`.
 ```
 
 **`package:` in a note's frontmatter is retired, and declaring it fails the
@@ -377,7 +377,7 @@ export default defineConfig({
   foundryPackage: "sohl-kethira-basic",
   packageKind: "modules",
   compatibility: { minimum: "14.359", verified: "14.364" },
-  stats: { systemId: "sohl", systemVersion: "0.4.3", lastModifiedBy: "…" },
+  stats: { lastModifiedBy: "…" },
   itemBuilders: ITEM_BUILDERS,
   packs: [{ name: "items", type: "Item" }],
 });

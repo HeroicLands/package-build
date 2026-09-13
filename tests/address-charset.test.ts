@@ -146,6 +146,16 @@ describe("`contentPackage` must be lowercase alphanumeric", () => {
         expect(rejectionFor('"harn adventures"').message).toMatch(/alphanumeric/);
     });
 
+    it("names the class it actually enforces, not a wider one", () => {
+        // `isAddressSegment` is lowercase-only (`ADDRESS_SEGMENT_PATTERN`), so a
+        // capitalized value is refused too — and the message must not send the
+        // reader looking for a character `PackageBuild` does not have.
+        const { message } = rejectionFor("PackageBuild");
+        expect(message).toContain("PackageBuild");
+        expect(message).not.toContain("[A-Za-z0-9]");
+        expect(message).toContain(ADDRESS_SEGMENT_PATTERN.source);
+    });
+
     it("names the file, line and column the key is written on", () => {
         // The `file:line:column: severity: message` form the rest of the build
         // uses — and the position has to be *true*, so it is read back

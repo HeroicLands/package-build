@@ -886,7 +886,7 @@ $ content-build site
 ### `content-build pdf`
 
 ```
-content-build pdf [--out <path>] [--version <version>] [--compile]
+content-build pdf [--out <path>] [--book-version <version>] [--compile]
 ```
 
 Builds the book the content tree publishes as — the third surface beside
@@ -901,11 +901,11 @@ lets the source be inspected or compiled by hand. Reads the content tree named
 by `pdf.document` and `paths.content`; writes the `.typ` source and, unless
 `--no-compile`, the `.pdf`, to `--out` or the configured `pdf.out`.
 
-| Option      | Type    | Default                  | Description                                                        |
-| ----------- | ------- | ------------------------ | ------------------------------------------------------------------ |
-| `--out`     | string  | the configured `pdf.out` | Write the book here instead.                                       |
-| `--version` | string  | —                        | Stamp this version on the title page and in the file name.         |
-| `--compile` | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops. |
+| Option           | Type    | Default                  | Description                                                        |
+| ---------------- | ------- | ------------------------ | ------------------------------------------------------------------ |
+| `--out`          | string  | the configured `pdf.out` | Write the book here instead.                                       |
+| `--book-version` | string  | —                        | Stamp this version on the title page and in the file name.         |
+| `--compile`      | boolean | `true`                   | Run the Typst compiler. `--no-compile` emits the source and stops. |
 
 **Exit codes.** 0 when there is a stated reason not to build (`publish.site`
 is `homepage`, no `pdf:` block, no content tree). 1 if the document tree
