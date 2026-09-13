@@ -238,12 +238,24 @@ function collectItems(contents, keyPath, trail, ctx) {
 /**
  * A stable identity for one item, so selections can be keyed without the tree.
  *
+ * The key is opaque — it is a `Map` key and nothing ever takes it apart again —
+ * so the only requirement is that two different items cannot produce the same
+ * string. `JSON.stringify` of the trail and the index gives that for free: it
+ * quotes and escapes each title, so a title containing the separator cannot
+ * forge a neighbour's key.
+ *
+ * Joining on a delimiter would work too, but every delimiter safe enough to be
+ * collision-proof is a control character, and a control character written into
+ * source is a character nobody can see in a diff, a test failure or a review.
+ * A JSON array is printable, greppable, and reads as itself when a plan is
+ * dumped.
+ *
  * @param {string[]} trail - The owning section's titles.
  * @param {number} index - The item's place in `contents`.
  * @returns {string} The key.
  */
 function id(trail, index) {
-    return `${trail.join(" ")} ${index}`;
+    return JSON.stringify([...trail, index]);
 }
 
 /**
