@@ -2316,6 +2316,131 @@ None of them exits the process from inside the library; the command decides. Tha
 is what makes them testable, which the consumer scripts' inline `process.exit`
 calls were not.
 
+## Publishing a book
+
+The third surface the content tree publishes, beside the compendium packs and
+the website: one PDF, built by `content-build pdf` and by `package-build release`.
+
+```bash
+npx content-build pdf                    # build it where `pdf.out` says
+npx content-build pdf --out build/book   # somewhere else
+npx content-build pdf --no-compile       # emit the Typst source and stop
+npx content-build pdf --version 1.4.0    # stamp a version on the title page
+```
+
+### A book is a selection, not a rendering of everything
+
+The packs and the website publish the _whole_ tree: every note becomes a
+document and a page, and the three surfaces agreeing about what the content is
+is the point. **A book is not that.** It is a declared structure whose leaves
+pick notes out of the corpus, interleaved with prose that need not live in the
+content tree at all.
+
+`pdf.document` names that structure — a YAML file of nested sections, each
+holding some mixture of prose files and `filter:` clauses:
+
+```yaml
+contents:
+  - sectionName: Gear
+    contents:
+      - file: prose/gear-preamble.md
+      - filter: "type = 'weapongear'"
+      - sectionName: Armour
+        contents:
+          - filter: "type = 'armorgear'"
+  - sectionName: The Cast
+    contents:
+      - filter: "type = 'being' AND subType = 'npc'"
+```
+
+Three consequences follow, and each is behaviour rather than oversight:
+
+- **A note no clause selects is not in the book.** A project decides what its
+  own volume carries, so an omission is an editorial act and nothing reports it.
+- **A note several clauses select appears several times**, each occurrence its
+  own page, outline node and anchor. Inbound wikilinks are pointed at the
+  first, so `[[weapongear-dagger]]` reaches one place however often it prints.
+- **A filter that selects nothing _is_ reported.** A note nobody asked for is
+  expected; a clause matching nothing is either wrong or left over from a
+  structure that has moved on.
+
+The `WHERE` clause runs against the same content index the SQL tables read, and
+the build owns the `SELECT … FROM notes` — so a filter cannot name a table, and
+cannot reach another package's notes.
+
+### What it is fenced by
+
+**`publish.site` decides whether a book is built, and it is the only switch.**
+`content` builds one; `homepage` does not — the same fence that stops the tree
+being walked for pages stops it being walked for a book. A PDF of the content
+tree is a content surface by any reading, arguably the most portable one there
+is, so a package that publishes only a homepage publishes no book however its
+`pdf:` block is written. The command says so and exits 0.
+
+That is also the opt-out: a package with no `pdf:` block, no content tree, or
+`publish.site: homepage` builds nothing and fails nothing.
+
+### Configuration
+
+```yaml
+pdf:
+  title: The Hârn Ensemble # required
+  subtitle: a roster of the ready-made
+  document: book.yaml # required — the document tree above
+  out: build/dist # default
+  front: # prose before the contents
+    - prose/colophon.md
+  fonts:
+    serif: Libertinus Serif
+    sans: Libertinus Sans
+    mono: DejaVu Sans Mono
+    path: assets/fonts # where to find them, beyond the system's
+  iconFonts: # icon family → the font carrying its glyphs
+    fontawesome: assets/fonts/fa-solid-900.ttf
+  binary: typst # when it is not simply `typst` on PATH
+```
+
+Nothing here is an address or a brand: the title, the front matter and the faces
+are the publishing repository's to choose, which is why they are configuration.
+
+### Typst is a binary, not a dependency
+
+The compiler is an external program, found on `PATH` or named by `pdf.binary`.
+Bundling a native compiler would put a platform-specific artefact into the
+dependency tree of three repositories, only one of which is mostly a book, and
+it would have to resolve on every consumer's CI runner before any of them could
+install the toolchain at all.
+
+A missing binary is a **finding**, not a failure: the `.typ` source is written
+anyway, which is both the diagnostic and the thing a consumer can compile by
+hand.
+
+### What the book gets right, and why each matters
+
+| Property                 | How                                                                           |
+| ------------------------ | ----------------------------------------------------------------------------- |
+| Searchable               | Real text, not page images — a roster nobody can search for a name is no use. |
+| Bookmark outline         | Every section and entry is a heading, so a viewer's sidebar is the way in.    |
+| Page-numbered contents   | `#outline()`, shallower than the bookmarks — 2,500 entries would be 40 pages. |
+| Repeating table headers  | `table.header`, so a property table spilling a page keeps its column names.   |
+| Internal cross-reference | A wikilink between two notes of the book becomes an internal destination.     |
+| External cross-reference | A cross-package link, and a note the book did not select, stay URLs.          |
+
+`{#anchor}` on a heading becomes an internal destination namespaced by its
+entry, so `[[being-jaslyne#appearance]]` reaches the section and two notes may
+both declare `{#appearance}`. A reference to a destination the book does not
+carry falls back to the entry that would have held it, or to plain text, and is
+reported — because Typst treats a dangling reference as fatal, and one mistyped
+anchor should not take a thousand-page book down at the last step.
+
+### The charset is what makes a face choosable
+
+A PDF embeds the faces it sets, so every character in the corpus is a claim on
+the book's typeface — and Typst does not warn about a missing glyph, it falls
+back and exits 0. That is why `content-build lint` holds content to a charset,
+and why `:icon-…:` names an icon rather than pasting one. Both exist for this
+surface. See _Prose: formatting and markdown_.
+
 ## Diffing published addresses
 
 ```bash
