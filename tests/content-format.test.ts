@@ -590,9 +590,10 @@ describe("a doc's subtype is a genre, and routes nothing", () => {
     // `doc` note silently lost its address. There is no section left to pick:
     // a page is addressed `(type, shortcode)` and emitted flat, so `doc-combat`
     // publishes at `/<package>/doc-combat/` whatever its subtype says.
-    it("declares the three genres, and they are not addresses", () => {
-        expect(NOTE_VOCABULARY.doc.subTypes).toEqual(["rules", "userguide", "reference"]);
-        for (const subType of ["rules", "userguide", "reference"]) {
+    it("declares the five genres, and they are not addresses", () => {
+        const genres = ["rules", "userguide", "reference", "howto", "concept"];
+        expect(NOTE_VOCABULARY.doc.subTypes).toEqual(genres);
+        for (const subType of genres) {
             expect(packageAddress({ type: "doc", subType, shortcode: "combat" })).toBe(
                 "doc-combat/",
             );
