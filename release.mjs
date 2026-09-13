@@ -57,10 +57,16 @@ import { ZipArchive } from "archiver";
  *   Determines both asset names.
  * @param {string} [opts.metadataDir] - Where the build writes its content
  *   index, consulted when the advertised file was not staged.
+ * @param {boolean} [opts.pdf] - Whether to build the book that ships beside
+ *   the archive, when the package declares one. Building is never fatal to
+ *   the release — see {@link packReleasePdf}.
  * @returns {Promise<{zip: string, manifest: string, metadata?: string,
+ *   pdf?: string, pdfFindings: object[], pdfSkipped: string|null,
  *   bytes: number, version: string}>} The paths written, the archive's size,
  *   and the version the manifest declares. `metadata` is absent when the
- *   manifest advertises no content index.
+ *   manifest advertises no content index; `pdf` is absent when none was
+ *   built, in which case `pdfSkipped` names why. `pdfFindings` is always
+ *   present, empty when the book build reported nothing.
  * @throws {Error} When the stage has no manifest — there is nothing to release,
  *   and an archive without one installs as nothing.
  */

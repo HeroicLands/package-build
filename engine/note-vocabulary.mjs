@@ -275,6 +275,17 @@ const CHARGES = Object.freeze([
  */
 export const DRAFT_TAG = "draft";
 
+/**
+ * The declared tag groups a note may carry, keyed by group name.
+ *
+ * Each entry is `{ types, tags }`: `types` is the note types the group
+ * applies to, or `null` for a group any note may carry regardless of type;
+ * `tags` is the group's own closed list of values, in declaration order.
+ * Read through {@link declaredTags}, which flattens the groups that apply to
+ * a given type into one list, rather than indexed directly.
+ *
+ * @type {Readonly<Record<string, {types: readonly string[]|null, tags: readonly string[]}>>}
+ */
 export const DECLARED_TAGS = Object.freeze({
     /** What a place *is*. */
     placeKind: Object.freeze({
@@ -413,6 +424,17 @@ export function isDraftNote(fm) {
     return hasTag(fm, DRAFT_TAG);
 }
 
+/**
+ * The closed vocabulary every note type is validated against: each type's
+ * `data:` field list, and its closed `subType` values.
+ *
+ * Keyed by note type, each entry a {@link TypeVocabulary}. Frozen, and read
+ * through {@link dataFields} and {@link subTypes} rather than indexed
+ * directly, so a lookup against a type this registry does not declare has one
+ * place to fall back from.
+ *
+ * @type {Readonly<Record<string, TypeVocabulary>>}
+ */
 export const NOTE_VOCABULARY = Object.freeze({
     /* ----- actors --------------------------------------------------- */
 

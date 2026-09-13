@@ -166,4 +166,22 @@ describe("packRelease", () => {
         const { stageDir, outDir } = stage({ "sohl.js": "x" });
         await expect(packRelease({ stageDir, outDir })).rejects.toThrow(/nothing to release/);
     });
+
+    // The JSDoc's `@returns` names `pdf`, `pdfFindings` and `pdfSkipped`
+    // alongside the fields the tests above already check — asserted here so
+    // the documented shape and the actual one cannot drift apart again.
+    it("returns the documented shape when asked not to build a book", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+        });
+
+        const result = await packRelease({ stageDir, outDir, pdf: false });
+
+        expect(result.pdf).toBeUndefined();
+        expect(result.pdfFindings).toEqual([]);
+        expect(result.pdfSkipped).toBe("the release was asked not to build one");
+        expect(Object.keys(result).sort()).toEqual(
+            ["bytes", "manifest", "pdfFindings", "pdfSkipped", "version", "zip"].sort(),
+        );
+    });
 });
