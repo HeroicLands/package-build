@@ -346,7 +346,10 @@ there are exactly three answers:
 
 `<assetRoot>` is `<packageKind>/<foundryPackage>/assets`, derived from the
 configuration — `systems/sohl/assets` for the system,
-`modules/sohl-thalorna/assets` for that module. So one authored
+`modules/sohl-thalorna/assets` for that module. A `documentation` package has
+no asset root at all, because Foundry installs no such package and serves no
+files for it: there, the third row is refused, and a note names the owning
+package (`systems/…`, `modules/…`) or a URL. So one authored
 `icons/relic.svg` means "my own `assets/icons/relic.svg`" in whichever package
 writes it, while an authored `systems/sohl/assets/icons/noun/shield.svg` names
 the system's file and is left exactly as written wherever it appears. That
@@ -2266,8 +2269,14 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - rules: The rules of the game, independent of medium — valid at a table with paper and dice.
 - userguide: How to operate the Foundry implementation to play by the rules.
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
+- howto: A task with an outcome, written as the steps that reach it.
+- concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
 
 A `doc` declares no properties of its own.
+
+The field is a genre and only a genre: it says what kind of page this is, never
+who reads it. A page written for a developer is a `howto` or a `concept` like
+any other, and the audience is the section it sits in.
 
 **A page that introduces a type is an ordinary note, named by convention.**
 Write `type: doc`, `subType: reference`, `shortcode: <type>` — so the

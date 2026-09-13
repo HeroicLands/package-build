@@ -63,6 +63,7 @@ import prefix from "loglevel-plugin-prefix";
 import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 import { compilePacks, cleanPacks, unpackPacks } from "../engine/compendiums.mjs";
+import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { buildPdf } from "../engine/pdf-build.mjs";
 import {
@@ -1988,11 +1989,24 @@ function packageCommand() {
             // an unhandled-rejection stack trace. Report the message and set a
             // failing exit code, so a build guard reads as a build failure.
             try {
+                const config = loadPackConfig();
+                // The compile passes do not run for a package that declares no
+                // packs by rule. Refused rather than exiting 0 having compiled
+                // nothing: a build that succeeds and produces no documents is
+                // the quiet failure this toolchain reports everywhere else.
+                if (!compilesFoundryDocuments(config)) {
+                    throw new Error(
+                        `\`packageKind: ${config.packageKind}\` compiles no ` +
+                            `compendium, so there is nothing to ${action}. Build ` +
+                            `its site with \`content-build site\` and its book ` +
+                            `with \`content-build pdf\`.`,
+                    );
+                }
                 // The one directory the pipeline creates rather than expects:
                 // `unpack` writes the extracted JSON there and `compile` reads
                 // it back. Created here rather than at module scope so that
                 // asking the CLI its version needs no configuration (#2).
-                fs.mkdirSync(loadPackConfig().paths.unpack, {
+                fs.mkdirSync(config.paths.unpack, {
                     recursive: true,
                 });
                 switch (action) {

@@ -78,6 +78,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
+import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
@@ -413,6 +414,18 @@ function manifestCommand() {
         handler: handler(async () => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
+            // Refused rather than written: a manifest is the file Foundry reads
+            // to install a package, and a documentation package is not one. An
+            // emitted `module.json` would advertise an installable package with
+            // no packs, no compatibility range and no id — the plausible lie
+            // this toolchain refuses everywhere else.
+            if (!compilesFoundryDocuments(shared)) {
+                die(
+                    `\`packageKind: ${shared.packageKind}\` ships no Foundry ` +
+                        `package, so there is no manifest to generate. The site ` +
+                        `and the book are built by \`content-build\`.`,
+                );
+            }
             const packageJson = readPackageJson(config);
 
             let flags;
