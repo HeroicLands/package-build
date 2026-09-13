@@ -77,9 +77,31 @@ describe("markdownToTypst", () => {
             anchorPrefix: "being-jaslyne",
         });
         // The braces are markup, not prose: a book printing them shows every
-        // reader the syntax that makes a link work.
-        expect(out).toBe("== Appearance <being-jaslyne--appearance>");
+        // reader the syntax that makes a link work. A body heading is never
+        // printed and never bookmarked, and stays a real heading regardless.
+        expect(out).toBe(
+            "#heading(level: 2, outlined: false, bookmarked: false)[Appearance] " +
+                "<being-jaslyne--appearance>",
+        );
         expect(out).not.toContain("{#");
+    });
+
+    it("derives a label from the heading text when the author wrote no anchor", () => {
+        const out = markdownToTypst("## Notes", { anchorPrefix: "being-jaslyne" });
+        expect(out).toBe(
+            "#heading(level: 2, outlined: false, bookmarked: false)[Notes] " +
+                "<being-jaslyne--notes>",
+        );
+    });
+
+    it("keeps a derived anchor from colliding with a repeat, or with an authored one", () => {
+        const out = markdownToTypst(
+            ["## Notes", "", "## Notes", "", "## History {#notes}"].join("\n"),
+            { anchorPrefix: "being-jaslyne" },
+        );
+        expect(out).toContain("<being-jaslyne--notes>");
+        expect(out).toContain("<being-jaslyne--notes-2>");
+        expect(out).toContain("<being-jaslyne--notes-3>");
     });
 
     it("points a fragment link at the section rather than at the entry", () => {
@@ -91,7 +113,9 @@ describe("markdownToTypst", () => {
 
     it("nests a note's own headings beneath the entry heading the book gave it", () => {
         const out = markdownToTypst("## Description", { headingOffset: 1 });
-        expect(out).toBe("=== Description");
+        expect(out).toBe(
+            "#heading(level: 3, outlined: false, bookmarked: false)[Description] <description>",
+        );
     });
 
     it("sets an unknown icon as its own name rather than dropping it", () => {
@@ -154,17 +178,21 @@ describe("renderBook", () => {
         stats: {},
     };
 
-    it("gives every entry a heading, so the PDF outline is built for free", () => {
+    it("gives every entry a heading, so the PDF bookmarks panel is built for free", () => {
         const out = renderBook({ plan, title: "A Book", bodies: new Map() });
-        expect(out).toContain("= Gear <gear>");
-        expect(out).toContain("== Dagger <weapongear-dagger>");
+        expect(out).toContain("#heading(level: 1, outlined: true, bookmarked: true)[Gear] <gear>");
+        expect(out).toContain(
+            "#heading(level: 2, outlined: false, bookmarked: true)[Dagger] <weapongear-dagger>",
+        );
     });
 
-    it("opens on a table of contents shallower than the outline", () => {
+    it("opens on a table of contents with no depth limit, since headings decide it", () => {
         // 2,500 entries in the front matter would be forty pages of contents
-        // before the book starts; the sidebar carries the entries instead.
-        const out = renderBook({ plan, title: "A Book", tocDepth: 2 });
-        expect(out).toContain("#outline(title: [Contents], depth: 2)");
+        // before the book starts; `outlined: false` on every note leaf is what
+        // keeps them off it, not a depth cutoff.
+        const out = renderBook({ plan, title: "A Book" });
+        expect(out).toContain("#outline(title: [Contents])");
+        expect(out).not.toMatch(/#outline\([^)]*depth/);
     });
 
     it("names the faces a consumer configured", () => {

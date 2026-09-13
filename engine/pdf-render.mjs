@@ -64,6 +64,7 @@
 import MarkdownIt from "markdown-it";
 
 import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
+import { slugify } from "./content-slug.mjs";
 
 /**
  * Characters that mean something to Typst's markup parser.
@@ -170,7 +171,11 @@ export function markdownToTypst(markdown, opts = {}) {
         anchorPrefix = "",
     } = opts;
     const tokens = md.parse(String(markdown ?? ""), {});
-    return renderTokens(tokens, { links, glyphs, headingOffset, anchorPrefix });
+    // One map for the whole body, not one per block: a heading inside a
+    // blockquote or a list item shares the entry's anchor namespace with every
+    // other heading in the same body, because `sectionLabel` scopes by entry
+    // rather than by container.
+    return renderTokens(tokens, { links, glyphs, headingOffset, anchorPrefix, seen: new Map() });
 }
 
 /**
@@ -209,15 +214,26 @@ function renderBlock(tokens, i, out, ctx) {
             // Typst caps headings at a depth no book reaches by accident; going
             // past it would be a compile error in the middle of a 2,500-entry
             // run, so it clamps and keeps setting.
-            const level = Math.min(6, Number(token.tag.slice(1)) + ctx.headingOffset);
+            const level = Math.max(1, Math.min(6, Number(token.tag.slice(1)) + ctx.headingOffset));
             const inline = tokens[i + 1];
             // `## Appearance {#appearance}` declares an addressable section. The
             // journals compiler strips the suffix and surfaces it as an anchor;
             // so does this, because a book that printed the braces would show
             // every reader the markup that makes a link work.
             const { text, anchor } = splitHeadingAnchor(inline, ctx);
-            const label = anchor ? ` <${sectionLabel(ctx.anchorPrefix, anchor)}>` : "";
-            out.push(`\n${"=".repeat(Math.max(1, level))} ${text}${label}\n\n`);
+            // A heading with no authored anchor still needs a link target, so one
+            // is derived from its own text. `anchorFor` keeps it from colliding
+            // with an authored anchor, or with another derived one, that lands on
+            // the same words later in the same entry.
+            const base = anchor || slugify(plainHeadingText(inline)) || "heading";
+            const unique = anchorFor(base, ctx.seen);
+            const label = ` <${sectionLabel(ctx.anchorPrefix, unique)}>`;
+            // A body heading is never printed and never bookmarked — it is
+            // structure a reader reaches only by following a link, not a
+            // destination either outline offers on its own.
+            out.push(
+                `\n#heading(level: ${level}, outlined: false, bookmarked: false)[${text}]${label}\n\n`,
+            );
             return 3;
         }
         case "paragraph_open": {
@@ -283,6 +299,44 @@ function splitHeadingAnchor(inline, ctx) {
     const children = [...inline.children];
     children[children.length - 1] = { ...last, content: match[1] };
     return { text: renderInline({ ...inline, children }, ctx), anchor: match[2] };
+}
+
+/**
+ * A heading's text, unescaped and with any `{#anchor}` suffix still attached.
+ *
+ * Used only to derive an anchor when the author wrote none, so it wants the
+ * words as typed rather than the Typst-escaped, suffix-stripped text
+ * {@link splitHeadingAnchor} renders — {@link module:engine/content-slug.slugify}
+ * normalises punctuation and case itself and has no use for an escape
+ * backslash.
+ *
+ * @param {object} inline - The heading's `inline` token.
+ * @returns {string} The heading's raw text.
+ */
+function plainHeadingText(inline) {
+    const children = inline?.children ?? [];
+    return children.map((child) => child.content ?? "").join("");
+}
+
+/**
+ * A unique anchor within one render pass, suffixed when the base repeats.
+ *
+ * A derived anchor is only as good as its uniqueness: two headings reading
+ * "Notes" in one entry, or a derived "description" landing on an author's own
+ * `{#description}`, would otherwise give one label two meanings. First use of
+ * a base anchor keeps it exactly as written or slugified; every later use in
+ * the same body is suffixed, in the order headings are walked — which is
+ * stable across rebuilds because the body's markdown is.
+ *
+ * @param {string} base - The preferred anchor.
+ * @param {Map<string, number>} seen - How many times each base has been used,
+ *   scoped to one call to {@link markdownToTypst}.
+ * @returns {string} The anchor.
+ */
+function anchorFor(base, seen) {
+    const n = (seen.get(base) ?? 0) + 1;
+    seen.set(base, n);
+    return n === 1 ? base : `${base}-${n}`;
 }
 
 /**
@@ -612,25 +666,39 @@ function renderIcon(token, ctx) {
  * with no filesystem and no compiler. {@link module:engine/pdf-build} supplies
  * both and runs Typst over the result.
  *
- * ## Two outlines, and why they are not the same outline
+ * ## Three surfaces, one heading tree
  *
  * A roster of 2,500 entries wants every entry reachable from a viewer's
  * sidebar, and emphatically does not want all 2,500 printed in the front
- * matter: that is forty pages of contents before the book starts.
+ * matter: that is forty pages of contents before the book starts. It also
+ * wants every heading in a note's own body to keep working as a link target,
+ * without appearing on either surface — the anchor an author writes for
+ * `[[note#appearance]]` is structure, not a destination either outline offers
+ * on its own.
  *
- * Typst separates the two for us. **The PDF bookmark outline is built from
- * every heading**, so each entry gets its own node at its own depth for free
- * and the sidebar is the navigational interface the issue asks for.
- * **`#outline()` prints only to `tocDepth`**, so the paper table of contents
- * stays the sections. Both are page-numbered and both are links.
+ * `heading` carries `outlined` and `bookmarked` independently, so the three
+ * wants are three settings rather than three passes:
+ *
+ * - A **section** — `outlined: true, bookmarked: true` — prints in the paper
+ *   contents and the PDF sidebar alike.
+ * - A **note leaf**, titled from `name.full`, is `outlined: false,
+ *   bookmarked: true`: reachable from the sidebar, absent from the printed
+ *   contents.
+ * - A **body heading**, inside a note's own markdown, is `outlined: false,
+ *   bookmarked: false`: a real heading with a label, so it still supplies a
+ *   link target, a running head and a page break, but neither outline lists
+ *   it. {@link markdownToTypst} emits these.
+ *
+ * `#outline()` needs no depth limit under this model: what prints is decided
+ * per heading, not by how deep the tree happens to go.
  *
  * ## Headings carry the structure, so nothing else has to
  *
  * Every section, every prose file and every entry is a real Typst heading at
- * its plan depth. That single decision supplies the bookmarks, the printed
- * contents, the running heads and the page breaks at once — where drawing
- * titles as styled text would have meant building all four by hand and keeping
- * them agreeing with each other.
+ * its plan depth. That single decision supplies both outlines, the running
+ * heads and the page breaks at once — where drawing titles as styled text
+ * would have meant building all four by hand and keeping them agreeing with
+ * each other.
  *
  * @param {object} opts - Options.
  * @param {object} opts.plan - From {@link module:engine/pdf-toc.planDocument}.
@@ -640,7 +708,6 @@ function renderIcon(token, ctx) {
  * @param {string} [opts.subtitle] - Shown under it on the title page.
  * @param {string[]} [opts.front] - Rendered Typst for each front-matter file.
  * @param {object} [opts.fonts] - `{ serif, sans, mono }` family names.
- * @param {number} [opts.tocDepth] - How deep the *printed* contents go.
  * @param {string} [opts.version] - Stamped on the title page when given.
  * @returns {string} A complete `.typ` document.
  */
@@ -651,7 +718,6 @@ export function renderBook({
     subtitle = "",
     front = [],
     fonts = {},
-    tocDepth = 2,
     version = "",
 } = {}) {
     const serif = fonts.serif || "Libertinus Serif";
@@ -700,7 +766,9 @@ export function renderBook({
         out.push("");
     }
 
-    out.push(`#outline(title: [Contents], depth: ${Math.max(1, Number(tocDepth) || 2)})`);
+    // No `depth:` limit: what prints is decided per heading by `outlined`,
+    // below, not by how deep the plan's tree happens to go.
+    out.push("#outline(title: [Contents])");
     out.push("#pagebreak()");
     out.push("");
 
@@ -708,7 +776,12 @@ export function renderBook({
         const label = labelFor(entry.anchor);
         const depth = Math.min(6, Math.max(1, Number(entry.depth) || 1));
         if (entry.kind === "section") {
-            out.push(`${"=".repeat(depth)} ${escapeTypst(entry.title)} <${label}>`);
+            // A declared `sectionName:` — the structure the printed contents
+            // shows and the bookmarks panel shows alongside it.
+            out.push(
+                `#heading(level: ${depth}, outlined: true, bookmarked: true)` +
+                    `[${escapeTypst(entry.title)}] <${label}>`,
+            );
             out.push("");
             continue;
         }
@@ -721,8 +794,13 @@ export function renderBook({
             out.push("");
             continue;
         }
+        // A note leaf: reachable from the bookmarks panel, titled from
+        // `name.full`, and never printed in the paper contents.
         const name = entry.record?.name?.full ?? entry.record?.address?.slug ?? "(untitled)";
-        out.push(`${"=".repeat(Math.min(6, depth + 1))} ${escapeTypst(name)} <${label}>`);
+        out.push(
+            `#heading(level: ${Math.min(6, depth + 1)}, outlined: false, bookmarked: true)` +
+                `[${escapeTypst(name)}] <${label}>`,
+        );
         out.push("");
         const body = bodies.get(entry.anchor);
         if (body) {

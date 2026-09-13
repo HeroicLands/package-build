@@ -46,6 +46,15 @@ function makeRepo(mode: string, withPdf = true, withTree = true): string {
             ].join("\n"),
         );
         note("sword.md", "type: weapongear\nshortcode: sword\nname:\n  full: Sword", "A blade.");
+        // A body opening with an H1 repeating the note's own title is the
+        // defect #464 reports: the entry heading already carries the name, so
+        // the body's H1 must stay unbookmarked or the sidebar shows "Shield"
+        // twice for one page.
+        note(
+            "shield.md",
+            "type: weapongear\nshortcode: shield\nname:\n  full: Shield",
+            ["# Shield", "", "A round shield."].join("\n"),
+        );
         fs.writeFileSync(
             path.join(dir, "assets", "content", "homepage.md"),
             "---\ntype: homepage\nshortcode: root\nname:\n  full: Book Package\n---\n\nFront.\n",
@@ -194,20 +203,54 @@ describe("the emitted document", () => {
         source = fs.readFileSync(path.join(dist, typ), "utf8");
     });
 
-    it("gives every section and entry its own heading, which is the outline", () => {
-        // Typst builds the PDF bookmark outline from headings, so a heading per
-        // entry *is* the navigational interface a 2,500-entry roster needs.
-        expect(source).toContain("= Gear <gear>");
-        expect(source).toContain("== Dagger <weapongear-dagger>");
-        expect(source).toContain("== Sword <weapongear-sword>");
+    it("gives every section and entry its own heading, which is the bookmarks panel", () => {
+        // Typst builds the PDF bookmark outline from every heading regardless of
+        // `outlined`, so a heading per entry *is* the navigational interface a
+        // 2,500-entry roster needs.
+        expect(source).toContain(
+            "#heading(level: 1, outlined: true, bookmarked: true)[Gear] <gear>",
+        );
+        expect(source).toContain(
+            "#heading(level: 2, outlined: false, bookmarked: true)[Dagger] <weapongear-dagger>",
+        );
+        expect(source).toContain(
+            "#heading(level: 2, outlined: false, bookmarked: true)[Sword] <weapongear-sword>",
+        );
     });
 
-    it("opens on a table of contents", () => {
-        expect(source).toMatch(/#outline\(title: \[Contents\], depth: \d+\)/);
+    it("gives a note opening with an H1 repeating its title no duplicate on either surface", () => {
+        // The entry heading already carries "Shield" as the bookmarked node;
+        // the body's own `# Shield` must stay a plain link target so the
+        // sidebar does not show the same page twice.
+        expect(source).toContain(
+            "#heading(level: 2, outlined: false, bookmarked: true)[Shield] <weapongear-shield>",
+        );
+        expect(source).toContain(
+            "#heading(level: 2, outlined: false, bookmarked: false)[Shield] " +
+                "<weapongear-shield--shield>",
+        );
+        const bookmarkedShield = source.match(/#heading\([^)]*bookmarked: true\)\[Shield\]/g);
+        expect(bookmarkedShield).toHaveLength(1);
+    });
+
+    it("marks a note body's own heading as neither printed nor bookmarked", () => {
+        // Description is a heading inside the dagger's body, not a section the
+        // document tree declared and not the note's own leaf heading — it must
+        // stay a real, labelled heading (a link target) without surfacing on
+        // either the printed contents or the bookmarks panel.
+        expect(source).toContain(
+            "#heading(level: 3, outlined: false, bookmarked: false)[Description] " +
+                "<weapongear-dagger--description>",
+        );
+    });
+
+    it("opens on a table of contents with no depth limit", () => {
+        expect(source).toContain("#outline(title: [Contents])");
+        expect(source).not.toMatch(/#outline\([^)]*depth/);
     });
 
     it("orders entries by name rather than by the order notes were walked", () => {
-        expect(source.indexOf("== Dagger")).toBeLessThan(source.indexOf("== Sword"));
+        expect(source.indexOf("[Dagger]")).toBeLessThan(source.indexOf("[Sword]"));
     });
 
     it("resolves a wikilink between two notes of the book to an internal destination", () => {
