@@ -1397,7 +1397,7 @@ function pdfCommand() {
                     describe: "Write the book here instead of the configured `pdf.out`.",
                     type: "string",
                 })
-                .option("version", {
+                .option("book-version", {
                     describe: "Stamp this version on the title page and in the file name.",
                     type: "string",
                 })
@@ -1414,7 +1414,7 @@ function pdfCommand() {
             try {
                 const result = await buildPdf({
                     ...(argv.out ? { out: argv.out } : {}),
-                    ...(argv.version ? { version: String(argv.version) } : {}),
+                    ...(argv.bookVersion ? { version: String(argv.bookVersion) } : {}),
                     compile: argv.compile !== false,
                 });
 
@@ -1446,7 +1446,8 @@ function pdfCommand() {
                 // nothing is worth fixing and is not worth refusing to publish
                 // the other two thousand entries over.
             } catch (err) {
-                fail(err, "pdf");
+                reportFailure(err);
+                process.exitCode = 1;
             }
         },
     };
