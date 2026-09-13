@@ -260,19 +260,6 @@ export function asciiAliases(aliases) {
 }
 
 /**
- * Build one index record from a note's frontmatter and its place in the tree.
- *
- * @param {object} options - Options.
- * @param {Record<string, any>} options.frontmatter - The note's parsed frontmatter.
- * @param {string} options.relPath - Its path below the content root, POSIX-separated.
- * @param {string} options.contentPackage - The package the tree compiles as.
- * @param {string} [options.body] - The note's markdown body, for its anchors.
- * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
- * @returns {Record<string, any>} The record, keys sorted at every depth.
- * @throws {Error} When the note carries a key this module derives, which would
- *   otherwise be overwritten without a word.
- */
-/**
  * This note's Foundry addresses, or `null` where it has none.
  *
  * **Derived by the manifest's own code, not a second implementation of it.**
@@ -410,6 +397,29 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
     }
 }
 
+/**
+ * Build one index record from a note's frontmatter and its place in the tree.
+ *
+ * The frontmatter as authored, plus what the index derives from it: the package
+ * it compiles as, its address, ASCII folds of its name and aliases, the anchors
+ * of its body, its Foundry block, the address of its documentation journal, and
+ * where the file sits within the tree.
+ *
+ * @param {object} options - Options.
+ * @param {Record<string, any>} options.frontmatter - The note's parsed frontmatter.
+ * @param {string} options.relPath - Its path below the content root, POSIX-separated.
+ * @param {string} [options.absPath] - The file, read only on the failing path to
+ *   locate the offending key.
+ * @param {string} options.contentPackage - The package the tree compiles as.
+ * @param {string} [options.body] - The note's markdown body, for its anchors.
+ * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
+ * @param {object} [options.manifest] - The package manifest, which the Foundry
+ *   entries are derived against.
+ * @returns {Record<string, any>} The record, keys sorted at every depth.
+ * @throws {Error} When the note carries a key this module derives, which would
+ *   otherwise be overwritten without a word. `file` and, where the file was
+ *   read, `position` ride on the error.
+ */
 export function buildIndexRecord({
     frontmatter,
     relPath,
@@ -467,16 +477,6 @@ export function buildIndexRecord({
 }
 
 /**
- * Read a content tree into index records, in the order they will be written.
- *
- * @param {string} contentBase - The content tree to walk.
- * @param {object} options - Options.
- * @param {string} options.contentPackage - The package the tree compiles as.
- * @param {Array<string>} [options.skipDirectories] - Directory names to skip.
- * @returns {Array<Record<string, any>>} The records, in a total order that does
- *   not depend on directory-read order.
- */
-/**
  * The record for an item note's **documentation journal**.
  *
  * An item note compiles into two documents — the item, and a JournalEntry
@@ -531,6 +531,27 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     );
 }
 
+/**
+ * Read a content tree into index records, in the order they will be written.
+ *
+ * An item note yields two records — the item, and the documentation journal
+ * that is a document in its own right.
+ *
+ * @param {string} contentBase - The content tree to walk.
+ * @param {object} options - Options.
+ * @param {string} options.contentPackage - The package the tree compiles as.
+ * @param {readonly string[]} options.skipDirectories - The walk's scope, stated
+ *   by the caller. An absent one is the caller's omission, and
+ *   {@link module:engine/helpers.walkMarkdownTree} throws on it.
+ * @param {object} [options.manifest] - The package manifest, which the Foundry
+ *   entries are derived against.
+ * @param {object[]} [options.problems] - Supplied by a **reader**: a note that
+ *   cannot be recorded is pushed here as a diagnostic and skipped. Omitted, the
+ *   note throws — the contract the emitter needs, since an index missing a note
+ *   asserts that it does not exist.
+ * @returns {Array<Record<string, any>>} The records, in a total order that does
+ *   not depend on directory-read order.
+ */
 export function collectContentIndex(
     contentBase,
     { contentPackage, skipDirectories, manifest, problems },

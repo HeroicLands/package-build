@@ -674,7 +674,8 @@ function checkSubType(note, { type, entry }) {
  *
  * @param {object} note - The note.
  * @param {object} opts
- * @param {readonly string[]} opts.tags - Every declared tag, flattened.
+ * @param {string} opts.type - The note's declared `type`, which scopes the
+ *   groups checked against.
  * @returns {object[]} Findings.
  */
 function checkTags(note, { type }) {
@@ -730,6 +731,27 @@ const ART_FIELDS = Object.freeze([
 ]);
 
 /**
+ * The keys a field declaration is authored at **inside a system block**.
+ *
+ * The first segment of each field's in-block key: `impact.die` is authored as
+ * `impact`, and a field whose shared source moved under `data:` is authored at
+ * the `legacyKey` it declares rather than at its dotted name. Keying on
+ * the name instead would report `sohl.species` as a property no `being` has,
+ * against exactly the notes the sweep has not reached yet.
+ *
+ * Written once and read twice: the note type's own declaration answers for the
+ * system whose vocabulary the caller's `schemas` are, and a second system's
+ * registry answers for its block. Two derivations of one thing would be
+ * free to disagree about which position a note authors.
+ *
+ * @param {readonly object[]|null|undefined} schema - A type's declarations.
+ * @returns {Set<string>} The in-block keys.
+ */
+function inBlockKeys(schema) {
+    return new Set(authoredFields(schema ?? []).map((f) => legacyKeyOf(f).split(".")[0]));
+}
+
+/**
  * The in-block keys a type's own declarations claim for a *different* quantity.
  *
  * {@link module:engine/field-spec.FieldSpec.topLevelMeans} read from the other
@@ -756,27 +778,6 @@ const ART_FIELDS = Object.freeze([
  * @returns {Set<string>} The in-block keys that are not the note-level field of
  *   the same name.
  */
-/**
- * The keys a field declaration is authored at **inside a system block**.
- *
- * The first segment of each field's in-block key: `impact.die` is authored as
- * `impact`, and a field whose shared source moved under `data:` is authored at
- * the `legacyKey` it declares rather than at its dotted name. Keying on
- * the name instead would report `sohl.species` as a property no `being` has,
- * against exactly the notes the sweep has not reached yet.
- *
- * Written once and read twice: the note type's own declaration answers for the
- * system whose vocabulary the caller's `schemas` are, and a second system's
- * registry answers for its block. Two derivations of one thing would be
- * free to disagree about which position a note authors.
- *
- * @param {readonly object[]|null|undefined} schema - A type's declarations.
- * @returns {Set<string>} The in-block keys.
- */
-function inBlockKeys(schema) {
-    return new Set(authoredFields(schema ?? []).map((f) => legacyKeyOf(f).split(".")[0]));
-}
-
 function collidingBlockKeys(schema) {
     const keys = new Set();
     if (!Array.isArray(schema)) return keys;

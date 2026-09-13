@@ -119,6 +119,15 @@ export function loadBundleSources(sourceDirs) {
     return documents;
 }
 
+/**
+ * Adventure pack compiler.
+ *
+ * Walks the content tree and compiles every `type: bundle` note into one
+ * Adventure per system, holding **copies** of the compiled documents its
+ * `contents` addresses name. Reading other passes' output is what
+ * {@link Bundles.readsPackOutputOf} declares, and what the generator orders the
+ * compile by.
+ */
 export class Bundles extends BasePackCompiler {
     static id = "bundles";
     static label = "bundle";

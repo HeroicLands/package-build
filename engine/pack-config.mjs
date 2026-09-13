@@ -513,7 +513,7 @@ export function locateConfigError(err, configPath) {
  *
  * @param {unknown} data - The parsed configuration document.
  * @param {string} configPath - Absolute path of the file it was parsed from.
- * @returns {import("../config.mjs").ContentBuildConfig} The frozen configuration.
+ * @returns {import("../content-config.mjs").ContentBuildConfig} The frozen configuration.
  * @throws {Error} When the document is not a mapping, declares `rootDir`, or
  *   names an item-builder registry this package does not ship.
  */
@@ -634,7 +634,7 @@ export function configFromData(data, configPath) {
  * Load an `.mjs` configuration — one that called `defineConfig` itself.
  *
  * @param {string} configPath - Absolute path of the file.
- * @returns {import("../config.mjs").ContentBuildConfig} What it exported.
+ * @returns {import("../content-config.mjs").ContentBuildConfig} What it exported.
  * @throws {Error} When its module graph uses top-level `await`, which a
  *   synchronously-read configuration cannot.
  */
@@ -676,7 +676,7 @@ let loadedFrom;
  * configuration (#2). The result is memoised, so calling it in a default
  * parameter — the usual spelling here — costs one property read per call.
  *
- * @returns {import("../config.mjs").ContentBuildConfig} The frozen configuration.
+ * @returns {import("../content-config.mjs").ContentBuildConfig} The frozen configuration.
  * @throws {Error} When no configuration file can be found, or the one named
  *   cannot be loaded. Absence is a defect, not a fallback: without it the
  *   compilers know neither what to compile nor where to put it.

@@ -246,10 +246,7 @@ function mappingSystems(maps, type) {
  * pack from appearing to answer for any note.
  *
  * @param {string} docType - The Foundry document type a pack holds.
- * @param {ClaimSources} [sources] - What to answer from.
- * @param {object} [opts] - Options.
- * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above. Defaults to the
+ * @param {ClaimSources} [sources] - What to answer from. Defaults to the
  *   configured registries and the systems this toolchain ships.
  * @returns {ReadonlySet<string>} The note types such a pass would claim.
  */
@@ -420,9 +417,6 @@ function noteHasProse(absPath) {
  * @param {object} [config] - The resolved build configuration. Defaults to this
  *   repository's.
  * @param {ClaimSources} [sources] - What to answer from.
- * @param {object} [opts] - Options.
- * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above.
  * @returns {ReadonlySet<string>} The claimed note types.
  */
 export function claimedNoteTypes(config = loadPackConfig(), sources) {
@@ -444,9 +438,6 @@ export function claimedNoteTypes(config = loadPackConfig(), sources) {
  * declare on top.
  *
  * @param {ClaimSources} [sources] - What to answer from.
- * @param {object} [opts] - Options.
- * @param {readonly object[]} [opts.records] - The corpus, derived once by the
- *   compile and handed in — required, for the reason above.
  * @returns {ReadonlySet<string>} The vocabulary.
  */
 export function noteTypeVocabulary(sources) {

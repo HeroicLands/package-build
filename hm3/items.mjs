@@ -54,6 +54,14 @@ import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
 
+/**
+ * HM3's Item compile pass.
+ *
+ * Declares HM3's note-type → document-subtype map, which decides the notes this
+ * pass claims and what each becomes, the one `system` key HM3 writes from prose,
+ * and the template-priority flag HM3's data model has no field for. Everything
+ * else is {@link module:engine/item-compiler}'s.
+ */
 export class Hm3Items extends SystemItemCompiler {
     /**
      * HM3's note-type → document-subtype map — the one declaration that says

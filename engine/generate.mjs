@@ -403,6 +403,11 @@ export function unsatisfiedPassDependencies(running, config) {
  *     document type that routes nowhere. True for the first configured pack of
  *     the type, so one unroutable note yields one error rather than one per
  *     pack.
+ * @param {object} folderNotes - The folder index, which resolves a note's
+ *     `packFolder` address to a Foundry folder id and its ancestor chain.
+ * @param {object} corpus - The corpus this compile derived once, shared by
+ *     every pass so that no two answer "which files are the corpus?"
+ *     differently.
  * @returns {Promise<{errors: number, compiled: number}>} The compiler's error
  *     count (0 on success) and the number of entries it wrote.
  */

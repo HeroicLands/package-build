@@ -563,8 +563,6 @@ function draftLink(inner) {
     return `<span class="sohl-draft-link" title="Draft — not yet written">${inner}</span>`;
 }
 
-/** Matches a whole wikilink, capturing its inner text. */
-
 /**
  * Rewrites every wikilink in a markdown body as a Foundry UUID enricher.
  *

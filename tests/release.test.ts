@@ -166,4 +166,60 @@ describe("packRelease", () => {
         const { stageDir, outDir } = stage({ "sohl.js": "x" });
         await expect(packRelease({ stageDir, outDir })).rejects.toThrow(/nothing to release/);
     });
+
+    it("skips the book when asked, and says so", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ version: "1.0.0" }),
+        });
+        const result = await packRelease({ stageDir, outDir, pdf: false });
+        expect(result.pdf).toBeUndefined();
+        expect(result.pdfFindings).toEqual([]);
+        expect(result.pdfSkipped).toMatch(/asked not to build one/);
+    });
+});
+
+/*
+ * The published `.d.mts` is generated from this JSDoc, so a field the function
+ * returns and the block omits ships as a type error for every caller reaching
+ * it. Read from the source rather than restated here: a copy of the shape would
+ * be a third thing to keep in step.
+ */
+describe("packRelease's documented return shape", () => {
+    /** The field names of the `@returns {Promise<{…}>}` shape, and which are optional. */
+    function documentedFields(): { required: string[]; optional: string[] } {
+        const source = fs.readFileSync(path.join(__dirname, "..", "release.mjs"), "utf8");
+        // Its own block, and no other: everything before the declaration.
+        const above = source.slice(0, source.indexOf("export async function packRelease"));
+        const block = /@returns \{Promise<\{([\s\S]*?)\}>\}/.exec(above);
+        if (!block) throw new Error("packRelease's `@returns` shape is not where it was read from");
+        const required: string[] = [];
+        const optional: string[] = [];
+        for (const [, name, mark] of block[1].matchAll(/([A-Za-z][\w]*)(\??):/g)) {
+            (mark === "?" ? optional : required).push(name);
+        }
+        return { required, optional };
+    }
+
+    it("documents every field the function returns", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ version: "1.0.0" }),
+        });
+        const result = await packRelease({ stageDir, outDir, pdf: false });
+        const { required, optional } = documentedFields();
+
+        expect(required.length).toBeGreaterThan(0);
+        expect(Object.keys(result).sort()).toEqual(
+            [...required, ...optional].filter((f) => f in result).sort(),
+        );
+    });
+
+    it("returns every field the block calls required", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ version: "1.0.0" }),
+        });
+        const result = await packRelease({ stageDir, outDir, pdf: false });
+        for (const field of documentedFields().required) {
+            expect(Object.keys(result)).toContain(field);
+        }
+    });
 });
