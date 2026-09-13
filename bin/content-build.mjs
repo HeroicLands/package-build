@@ -352,13 +352,19 @@ function docsCommand() {
                     if (current !== page) {
                         // Staleness belongs to the whole file, so no line is
                         // named — the diagnostics contract drops a field it
-                        // cannot supply rather than guessing one.
-                        log.error(
-                            `${relative}: error: out of date with the ` +
-                                `item-field declarations — run ` +
-                                `\`content-build docs item-fields\` and commit ` +
-                                `the regenerated file`,
-                        );
+                        // cannot supply rather than guessing one. Routed
+                        // through `emitDiagnostic`, not `log.error`, so the
+                        // path starts the line unprefixed by loglevel's
+                        // `[timestamp] [ERROR]:` banner — the same reason
+                        // every other located failure in this file uses it.
+                        emitDiagnostic({
+                            file: relative,
+                            severity: "error",
+                            message:
+                                "out of date with the item-field declarations " +
+                                "— run `content-build docs item-fields` and " +
+                                "commit the regenerated file",
+                        });
                         process.exitCode = 1;
                         return;
                     }
