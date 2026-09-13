@@ -1,5 +1,80 @@
 # @heroiclands/package-build
 
+## 20.4.0
+
+### Minor Changes
+
+- 7b24587: Four rules, all of them about a note being renderable into a book.
+  
+  **A package declares its own icons**, through a new `icons:` configuration key
+  validated when the configuration resolves. See the entry below for the shape it
+  settled on.
+  
+  **Raw HTML in a note's prose is reported.** There is no route from `<p>` to a
+  PDF: the packs and the website pass HTML through, and Typst is handed markdown
+  and knows none. A fenced block or a code span is an example and is not
+  reported. A warning, like the checks beside it.
+  
+  **A note may not author a key the compiler derives.** `sohl.system.docHtml`
+  holds the `@UUID` of the JournalEntry the note's prose compiled into, and the
+  compiler writes it unconditionally — so an authored one is overwritten, or ships
+  prose where every reader expects a pointer. Each pass declares its own derived
+  keys, so the rule is the general one rather than a list of names.
+  
+  **A SQL table selecting nothing renders its header and rule** rather than
+  nothing at all. The finding is the point, not withholding the output: a heading
+  with an empty table under it says the query ran and matched nothing, where a
+  heading with nothing under it reads as a page that failed to build.
+- 7695b06: **The icon registry belongs to the consumer, not to the toolchain.**
+  
+  `DEFAULT_ICONS` and `ICON_FAMILIES` are gone. A package declares both halves —
+  the fonts it ships and the names it draws from them — in its own `icons:`
+  configuration, and a package that declares neither names no icons at all.
+  
+  A registry entry is a promise that a glyph will render, and only the package
+  shipping the font can keep it: the Game-Icons webfont is built by a consumer
+  from its own templates, and Font Awesome reaches neither the knowledgebase nor a
+  printed page unless somebody puts it there. A shipped table would also be one
+  game system's vocabulary — `victory-star-tester` means nothing to another system
+  compiled by this same toolchain. What is shared is the mechanism: the `:icon-…:`
+  syntax, resolution, rendering, and the checks.
+  
+  The value is either the registry inline or a **path to a file holding it**:
+  
+  ```yaml
+  icons: assets/icon-registry.yaml
+  ```
+  
+  The file form is what a real package wants, because a registry is derived from
+  what the interface actually draws — so it is generated, and a generated document
+  inlined into a hand-edited configuration conflicts on every regeneration.
+  
+  A **family** declares its class prefix and the weights it ships. A style is
+  checked against that list rather than against Font Awesome's three, so a font
+  with five weights or none is describable. An entry may declare `fixedWidth`,
+  which emits `fa-fw`: whether a glyph needs a full advance to sit in a column of
+  controls is a fact about that glyph, so it belongs to the table rather than to a
+  note's use of it.
+
+### Patch Changes
+
+- 05fdfa7: Drop history, issue references and hand-counted values from the comments and
+  the shipped documentation.
+  
+  A comment citing the issue it came from tells a reader nothing they can act on,
+  and a rule explained by narrating the shape it replaced buries what is true now.
+  Both are removed throughout `engine/`, `sohl/`, `hm3/`, `bin/`, `ci/`, the test
+  suites and the reference docs; the reasoning survives, stated in the present
+  tense.
+  
+  `MIGRATING.md` is deleted and drops out of the published `files`. It carried
+  upgrade instructions for 15.0.0 down to 3.0.0, and no consumer is below 18.
+  
+  `CHANGELOG.md` and `CHANGELOG-content-build.md` are untouched — history belongs
+  in them.
+  
+  No behavior changes.
+
 ## 20.3.1
 
 ### Patch Changes
