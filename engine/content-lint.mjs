@@ -22,7 +22,7 @@
  * disagree without anything detecting it, which the canonical-separator
  * handling already did once on each side.
  *
- * Four rules, all about a note's identity:
+ * Five rules, all about a note's identity:
  *
  * 1. **Shape** — a `shortcode` is strictly ASCII-alphanumeric. It is the
  *    identity key referenced from saved world data, and it is half of the
@@ -39,6 +39,10 @@
  *    rule 2 read backwards, and it needs the same whole-tree view: an entry can
  *    only be checked against every *other* note's address, and two notes
  *    claiming one predecessor is the uniqueness rule applied to the past.
+ * 5. **The vocabulary a package's kind leaves it** — a package compiling no
+ *    Foundry documents publishes `doc` and `homepage` notes and nothing else.
+ *    It is here rather than with the claim check in `note-claims.mjs` because
+ *    that check runs at compile, and this is the case where no compile runs.
  *
  * **Nothing here writes.** A check reports and an author fixes.
  *
@@ -61,6 +65,9 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
+// The kind that compiles nothing, and the vocabulary that leaves a tree with.
+import { DOCUMENTATION_KIND, compilesFoundryDocuments } from "../content-config.mjs";
+import { DOCUMENTATION_NOTE_TYPES } from "./note-claims.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { assertStatedScope } from "./helpers.mjs";
 // The corpus, read from the one pass that derives it.
@@ -285,6 +292,12 @@ export function lintContentTree(
 ) {
     const findings = [];
     const notes = collectNotes(contentBase, { skipDirectories, config, records, problems });
+    // Whether this package's note vocabulary is the narrowed one. Asked of the
+    // configuration once rather than per note, and defaulted to the wide
+    // vocabulary when a caller supplies none — an unconfigured lint holds a
+    // tree to the rules every package shares.
+    const narrowed =
+        Boolean(config) && !compilesFoundryDocuments(/** @type {{packageKind: string}} */ (config));
 
     /** @type {Map<string, Array<{file: string, absPath: string}>>} */
     const byKey = new Map();
@@ -298,6 +311,23 @@ export function lintContentTree(
         // Read only when there is something to say about the note, so a clean
         // tree costs one pass rather than two.
         const raw = () => fs.readFileSync(absPath, "utf8");
+
+        // Rule 5, and it is the whole of the check for a package that compiles
+        // nothing: no pass downstream would report the note, because the pass
+        // that reports an unclaimed type is a compile pass and none runs.
+        const type = typeof fm.type === "string" ? fm.type.trim() : "";
+        if (narrowed && type && !DOCUMENTATION_NOTE_TYPES.has(type)) {
+            findings.push({
+                file,
+                ...positionInFrontmatter(raw(), "type", type),
+                severity: "error",
+                message:
+                    `\`type: ${type}\` compiles to a Foundry document, and a ` +
+                    `\`${DOCUMENTATION_KIND}\` package compiles none — so the ` +
+                    `note has no destination. Its vocabulary is ` +
+                    `${[...DOCUMENTATION_NOTE_TYPES].map((t) => `\`${t}\``).join(" and ")}`,
+            });
+        }
 
         // Before the keyless `continue` below, because a note declaring a
         // rename while carrying no address of its own is exactly one of the
