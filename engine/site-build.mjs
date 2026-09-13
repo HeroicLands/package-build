@@ -267,6 +267,14 @@ export function collectContentPages(contentBase, ctx) {
  * addressed by type and slug: they are a book with chapters, and a reader
  * follows their paths. A `README` is its directory's landing.
  *
+ * **The section is the tree's, never the note's.** `tree.section` is the
+ * mount point a `trees` entry configures — fixed, physical, and the same
+ * value `site-index.mjs` indexes a tree page's address under. A note's own
+ * `subType` is a genre and reaches no address, the same contract
+ * `packageAddress()` holds for a content page: reading it here would move a
+ * page's URL, its file destination (`pageDestination`) and the address a
+ * wikilink cites it by, every time an author classified it.
+ *
  * @param {object} tree - `{ from, rel, section, route }`.
  * @param {object} ctx - `{ mount }`.
  * @returns {{pages: object[], fmLinkFindings: object[]}}
@@ -287,7 +295,7 @@ export function collectTreePages(tree, ctx) {
         const rel = path.relative(tree.from, file).replace(/\\/g, "/");
         const base = path.basename(rel);
         const isReadme = base.toLowerCase() === "readme.md";
-        const sec = fm.subType ?? tree.section;
+        const sec = tree.section;
         const h1 = /^#\s+(.+?)\s*$/m.exec(body);
         const h1Title = h1 ? h1[1].replace(/\{@link\s+[^}]*\}/g, "").trim() : null;
         const name = fm.name?.full ?? fm.title ?? h1Title ?? path.basename(base, ".md");
