@@ -204,6 +204,37 @@ describe("a page's address comes from the shared scheme", () => {
         expect(byName["Developer Documentation"]).toBe("/demo/kb/dev-docs/");
     });
 
+    // Mirrors `content-format.test.ts`'s "a doc's subtype is a genre, and
+    // routes nothing" — the same invariant, for the one address path that
+    // test never covers. `subType` classifies a tree page for the site
+    // index's grouping; it must not move the page.
+    it("addresses a tree page the same whatever subType it declares, and none at all", () => {
+        const tree = {
+            from: path.join(root, "docs"),
+            rel: "docs",
+            section: "dev-docs",
+            route: "/demo/kb/dev-docs/",
+        };
+        const file = path.join(root, "docs/how-to/testing.md");
+        const original = fs.readFileSync(file, "utf8");
+        const genres = ["rules", "userguide", "reference", "howto", "concept"];
+        try {
+            const urls = new Set<string>();
+            for (const subType of [...genres, undefined]) {
+                fs.writeFileSync(
+                    file,
+                    `---\n${subType ? `subType: ${subType}\n` : ""}---\n\n# Testing\n\nProse.\n`,
+                );
+                const page = collectTreePages(tree, ctx).pages.find((p) => p.name === "Testing")!;
+                urls.add(page.url);
+            }
+            expect(urls.size).toBe(1);
+            expect([...urls][0]).toBe("/demo/kb/dev-docs/how-to/testing/");
+        } finally {
+            fs.writeFileSync(file, original);
+        }
+    });
+
     it("takes a tree page's name from its H1, and strips it from the body", () => {
         const tree = {
             from: path.join(root, "docs"),
