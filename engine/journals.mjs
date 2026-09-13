@@ -303,6 +303,15 @@ export function buildJournalEntry({
     };
 }
 
+/**
+ * Journals pack compiler.
+ *
+ * Walks the content tree and compiles every `type: doc` note, and every note of
+ * a doc-carrying type, into one JournalEntry document: the body split into
+ * pages on its top-level H1 headings, each rendered to HTML. A doc-carrying
+ * note's entry is that document's documentation, filed in the document's own
+ * folder.
+ */
 export class Journals extends BasePackCompiler {
     static id = "journals";
     static label = "journal";

@@ -1059,35 +1059,6 @@ export function renderContentTable(spec, rows, linkable, self) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * Expand every fenced `dataview` block in a markdown body.
- *
- * A block that cannot be honoured — malformed or unsupported — is left in the
- * body verbatim and reported in `errors`, so the failure is visible in the
- * output as well as on the console. Every other code fence, and every code
- * span, is left alone (that is how the syntax is documented).
- *
- * A query that matches **no** note is not an error: it renders as an empty
- * table (headers only), which is what the author already sees in Obsidian, and
- * a category with no content yet is a normal state of the corpus rather than a
- * broken build.
- *
- * @param {string} markdown - The note body, frontmatter already stripped.
- * @param {object} ctx
- * @param {Array<ContentTableDoc>} ctx.docs - The searchable universe: every
- *   content note the caller considers in scope.
- * @param {(doc: ContentTableDoc) => boolean} [ctx.linkable] - Whether a note can
- *   be linked to from a cell; defaults to never.
- * @param {string} [ctx.source] - The note being expanded, for error reports.
- * @param {ContentTableDoc} [ctx.self] - The note being expanded, as a searchable
- *   doc: what a query's `this` reads.
- * @returns {{markdown: string, errors: Array<{source: string, directive: string,
- *   reason: string, line: number}>, lineMap: Array<{line: number,
- *   generated: boolean}>}} `lineMap` is parallel to the emitted lines and says
- *   which authored line each came from, so a diagnostic about the expanded
- *   body can name an authored position. An `errors` entry carries the
- *   0-based line of the directive that failed, for the same reason.
- */
-/**
  * The `WHERE` clause of a query, as authored, for a message that has to name
  * what matched nothing.
  *
@@ -1104,6 +1075,40 @@ function whereText(query) {
     return match ? `\`${match[1]}\`` : "";
 }
 
+/**
+ * Expand every fenced `dataview` and `sql` block in a markdown body.
+ *
+ * A block that cannot be honoured — malformed or unsupported — is left in the
+ * body verbatim and reported in `errors`, so the failure is visible in the
+ * output as well as on the console. Every other code fence, and every code
+ * span, is left alone (that is how the syntax is documented).
+ *
+ * A query that selects **no** note is an error unless the fence says
+ * `allow-empty`, which states that an empty table is the intended result.
+ *
+ * @param {string} markdown - The note body, frontmatter already stripped.
+ * @param {object} ctx
+ * @param {Array<ContentTableDoc>} ctx.docs - The searchable universe: every
+ *   content note the caller considers in scope.
+ * @param {(doc: ContentTableDoc) => boolean} [ctx.linkable] - Whether a note can
+ *   be linked to from a cell; defaults to never.
+ * @param {string} [ctx.source] - The note being expanded, for error reports.
+ * @param {ContentTableDoc} [ctx.self] - The note being expanded, as a searchable
+ *   doc: what a query's `this` reads.
+ * @param {object[]} [ctx.sqlTables] - This note's prepared `sql` results, in
+ *   document order, from
+ *   {@link module:engine/sql-tables.prepareSqlTables}. An `sql` directive with
+ *   no prepared result is an error: nothing here runs a query.
+ * @returns {{markdown: string, errors: Array<{source: string, directive: string,
+ *   reason: string, line: number, column?: number}>,
+ *   warnings: Array<{source: string, line: number, column: number,
+ *   reason: string}>, lineMap: Array<{line: number, generated: boolean}>}}
+ *   `lineMap` is parallel to the emitted lines and says which authored line
+ *   each came from, so a diagnostic about the expanded body can name an
+ *   authored position. An `errors` entry carries the 0-based line of the
+ *   directive that failed, for the same reason. `warnings` holds one entry per
+ *   `dataview` directive the body still authors.
+ */
 export function expandContentTables(
     markdown,
     {

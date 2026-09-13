@@ -58,10 +58,9 @@ import { slugify } from "./content-slug.mjs";
 
 // Re-exported so a site build keeps one import path for the whole of link
 // resolution: the same rule that names a page also names an anchor within it.
+/** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 export { slugify };
 import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
-
-/** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 
 /**
  * The index key a **piped** target resolves to, or `null` when it does not
@@ -83,8 +82,12 @@ import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-s
  * The build indexes an item note under both `skill/climb` and `docskill/climb`,
  * and `contentTypes` carries both qualifiers, so either form finds the page.
  *
+ * @param {Map<string, object>} index - The page index to look in.
  * @param {object|null} read - From {@link readQualifier}.
- * @returns {string | null} The index key, or `null` when not an address.
+ * @param {string} contentPackage - The citing package, which an omitted package
+ *   segment defaults from.
+ * @returns {object|undefined} The indexed page, or `undefined` when the target
+ *   is not an address or nothing publishes it.
  */
 function lookupRead(index, read, contentPackage) {
     if (!read || read.reason) return undefined;

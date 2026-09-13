@@ -189,6 +189,14 @@ function defaultActorImg(subType) {
     return img;
 }
 
+/**
+ * HM3's Actor compile pass.
+ *
+ * Declares HM3's note-type → document-subtype map and builds a `being` note's
+ * document: the subtype the note authors in `hm3.type`, the mapped fields and
+ * the two anchored prose sections, and the embedded items `hm3.items` names.
+ * Everything else is {@link module:engine/actor-compiler}'s.
+ */
 export class Hm3Actors extends SystemActorCompiler {
     /**
      * HM3's note-type → document-subtype map — the one declaration that says

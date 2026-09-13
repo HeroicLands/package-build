@@ -115,6 +115,15 @@ export function collectKnownActionNames(repoRoot) {
     return names;
 }
 
+/**
+ * Scenes pack compiler.
+ *
+ * Walks the content tree and compiles every map note into one Scene, resolving
+ * what one note says about another through an index built before any scene is
+ * written. It also writes one Adventure per place, bundling those scenes with
+ * the JournalEntries their prose compiled into, which is what makes a pinned
+ * scene's id-based references resolve on import.
+ */
 export class Scenes extends BasePackCompiler {
     static id = "scenes";
     static label = "map";
@@ -171,11 +180,6 @@ export class Scenes extends BasePackCompiler {
     }
 
     /**
-     * Collect every map note in the tree, and every item note's Active Effects.
-     *
-     * @returns {{maps: Array<object>, effectsByAddress: Map<string, object>}}
-     */
-    /**
      * The router this pass resolves pack names through.
      *
      * `generatePack` hands every pass the one router the compile resolved, and
@@ -191,6 +195,11 @@ export class Scenes extends BasePackCompiler {
         return this.router ?? packRouter();
     }
 
+    /**
+     * Collect every map note in the tree, and every item note's Active Effects.
+     *
+     * @returns {{maps: Array<object>, effectsByAddress: Map<string, object>}}
+     */
     #collect() {
         const maps = [];
         const effectsByAddress = new Map();

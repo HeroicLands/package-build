@@ -190,6 +190,14 @@ function extractBodyAndMovement(fm) {
     };
 }
 
+/**
+ * SoHL's Actor compile pass.
+ *
+ * Declares SoHL's note-type → document-subtype map and builds a `being` note's
+ * document: the body structure and its movement profiles, the embedded
+ * attribute and item documents the frontmatter names, and the `system` block.
+ * Everything else is {@link module:engine/actor-compiler}'s.
+ */
 export class Actors extends SystemActorCompiler {
     /**
      * SoHL's note-type → document-subtype map — the one declaration that says

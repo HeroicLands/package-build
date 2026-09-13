@@ -174,47 +174,6 @@ export function readItemAddresses(dirs) {
 }
 
 /**
- * Every rename the tree's notes **declare**, as old address → where it went.
- *
- * Read from the content tree rather than from compiled output, because a
- * declaration is authored and the compiled document does not carry it: nothing
- * downstream consumes `renamedFrom:`, so emitting it into every pack to let one
- * diagnostic read it back would put a build-time note in shipped data forever.
- * The tree is already read by this module for the same reason
- * ({@link noteFilesById}) — to place a finding where its author can fix it.
- *
- * **A declaration is keyed by document subtype, not by note type.** The address
- * space is the one consumers resolve against, and it is spelled in compiled
- * documents: `hm3` compiles a `projectile` note into a `missilegear` item,
- * so that is the address a rename of it moves. {@link referencedSubtype} is the
- * function that already answers this for a being's embedded `(type, shortcode)`
- * references, so both sides read the same rule rather than a second copy of it.
- *
- * **An entry is emitted for every system that maps the type**, whether or not
- * the note declares that system's block. Over-emitting is inert — the diff uses
- * an entry only when the baseline published the old address *and* this build
- * publishes the new one, and a system the note does not compile for satisfies
- * neither — while asking which blocks a note declares would put a second,
- * subtly different answer to that question in a third place.
- *
- * **First claim wins on a collision.** Two notes naming one predecessor is a
- * contradiction — an address has one successor — and it is reported as an error
- * by `engine/content-lint.mjs`, where both notes are in hand and can both be
- * named. Picking one here keeps this a map; it is not a resolution, and nothing
- * rests on which one it picked.
- *
- * @param {string} contentBase - Root of the content tree.
- * @param {object} opts
- * @param {readonly string[]} [opts.skipDirectories] - The corpus scope. Stated
- *   by the caller, never defaulted — see {@link addressCorpus}.
- * @param {readonly object[]} [opts.maps] - The document-subtype maps.
- * @param {object} [opts.config] - The resolved build configuration.
- * @param {readonly object[]} [opts.records] - Index records the caller already
- *   derived, shared with {@link noteFilesById} so one command reads one corpus.
- * @returns {Map<string, {to: string, file: string, shortcode: string}>} Old
- *   address → the address the declaring note publishes at now, and that note.
- */
-/**
  * The corpus both reads below share, as content-index records.
  *
  * **One walk, not two.** `addresses diff` reads the tree twice — once for the
@@ -258,6 +217,49 @@ function addressCorpus(contentBase, { skipDirectories, config, records, problems
     return indexRecordsFor({ contentBase, config, skipDirectories, problems });
 }
 
+/**
+ * Every rename the tree's notes **declare**, as old address → where it went.
+ *
+ * Read from the content tree rather than from compiled output, because a
+ * declaration is authored and the compiled document does not carry it: nothing
+ * downstream consumes `renamedFrom:`, so emitting it into every pack to let one
+ * diagnostic read it back would put a build-time note in shipped data forever.
+ * The tree is already read by this module for the same reason
+ * ({@link noteFilesById}) — to place a finding where its author can fix it.
+ *
+ * **A declaration is keyed by document subtype, not by note type.** The address
+ * space is the one consumers resolve against, and it is spelled in compiled
+ * documents: `hm3` compiles a `projectile` note into a `missilegear` item,
+ * so that is the address a rename of it moves. {@link referencedSubtype} is the
+ * function that already answers this for a being's embedded `(type, shortcode)`
+ * references, so both sides read the same rule rather than a second copy of it.
+ *
+ * **An entry is emitted for every system that maps the type**, whether or not
+ * the note declares that system's block. Over-emitting is inert — the diff uses
+ * an entry only when the baseline published the old address *and* this build
+ * publishes the new one, and a system the note does not compile for satisfies
+ * neither — while asking which blocks a note declares would put a second,
+ * subtly different answer to that question in a third place.
+ *
+ * **First claim wins on a collision.** Two notes naming one predecessor is a
+ * contradiction — an address has one successor — and it is reported as an error
+ * by `engine/content-lint.mjs`, where both notes are in hand and can both be
+ * named. Picking one here keeps this a map; it is not a resolution, and nothing
+ * rests on which one it picked.
+ *
+ * @param {string} contentBase - Root of the content tree.
+ * @param {object} opts
+ * @param {readonly string[]} [opts.skipDirectories] - The corpus scope. Stated
+ *   by the caller, never defaulted — see {@link addressCorpus}.
+ * @param {readonly object[]} [opts.maps] - The document-subtype maps.
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {readonly object[]} [opts.records] - Index records the caller already
+ *   derived, shared with {@link noteFilesById} so one command reads one corpus.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, so one of them does not abort the diff before it reports.
+ * @returns {Map<string, {to: string, file: string, shortcode: string}>} Old
+ *   address → the address the declaring note publishes at now, and that note.
+ */
 export function declaredPredecessors(
     contentBase,
     { skipDirectories, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS, config, records, problems } = {},
@@ -394,6 +396,8 @@ export function diffItemAddresses(baseline, current, { baseline: label, predeces
  *   id is derived against. See {@link addressCorpus} for why that matters.
  * @param {readonly object[]} [opts.records] - Index records the caller already
  *   derived, shared with {@link declaredPredecessors}.
+ * @param {object[]} [opts.problems] - Collects the notes the index cannot
+ *   record, so one of them does not abort the diff before it reports.
  * @returns {Map<string, string>} Document id → the note's absolute path.
  */
 export function noteFilesById(contentBase, { skipDirectories, config, records, problems } = {}) {

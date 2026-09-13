@@ -223,17 +223,20 @@ const CHARGES = Object.freeze([
 /* --------------------------------------------------------------------- */
 
 /**
- * Every note type this toolchain compiles, and the closed vocabulary it
- * declares.
+ * The declared tag that marks a note as **unfinished**.
  *
- * Taken from the content-format specification, one `### type:` section per
- * entry. Where the specification and the shape notes are authored in today
- * disagree, the specification wins on the **name** — that is what a `data:`
- * key will be called — and the disagreement is recorded on the field rather
- * than resolved silently.
+ * Named once and referenced from the declaration below, because a second
+ * spelling is how the two come apart: rename the tag in `DECLARED_TAGS` and a
+ * private copy elsewhere keeps matching the old word, silently.
  *
- * @type {Readonly<Record<string, TypeVocabulary>>}
+ * It is a **presentation** fact and nothing more. A draft note compiles,
+ * validates, publishes and resolves like any other; only a link *into* it
+ * renders marked. What it emphatically is not is the retired `draft:` field,
+ * whose entire effect was to move a note from published to unresolvable — see
+ * {@link draftRetiredMessage}.
  */
+export const DRAFT_TAG = "draft";
+
 /**
  * The tags that **classify** a note, grouped by what they classify.
  *
@@ -260,21 +263,6 @@ const CHARGES = Object.freeze([
  * fishing village is a `village` that is `fishing`, and the single-valued field
  * this replaced had to spell it `Fishing Village` as a value of its own.
  */
-/**
- * The declared tag that marks a note as **unfinished**.
- *
- * Named once and referenced from the declaration below, because a second
- * spelling is how the two come apart: rename the tag in `DECLARED_TAGS` and a
- * private copy elsewhere keeps matching the old word, silently.
- *
- * It is a **presentation** fact and nothing more. A draft note compiles,
- * validates, publishes and resolves like any other; only a link *into* it
- * renders marked. What it emphatically is not is the retired `draft:` field,
- * whose entire effect was to move a note from published to unresolvable — see
- * {@link draftRetiredMessage}.
- */
-export const DRAFT_TAG = "draft";
-
 export const DECLARED_TAGS = Object.freeze({
     /** What a place *is*. */
     placeKind: Object.freeze({
@@ -413,6 +401,18 @@ export function isDraftNote(fm) {
     return hasTag(fm, DRAFT_TAG);
 }
 
+/**
+ * Every note type this toolchain compiles, and the closed vocabulary it
+ * declares.
+ *
+ * Taken from the content-format specification, one `### type:` section per
+ * entry. Where the specification and the shape notes are authored in today
+ * disagree, the specification wins on the **name** — that is what a `data:`
+ * key will be called — and the disagreement is recorded on the field rather
+ * than resolved silently.
+ *
+ * @type {Readonly<Record<string, TypeVocabulary>>}
+ */
 export const NOTE_VOCABULARY = Object.freeze({
     /* ----- actors --------------------------------------------------- */
 

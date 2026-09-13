@@ -302,17 +302,6 @@ export function buildLinkIndex(
     }
 
     /**
-     * The note an **address** names, or `undefined`.
-     *
-     * The qualifier is read with {@link readQualifier} rather than a second
-     * copy of the rule, so this cannot drift from what the builds do — the two
-     * separators, the first-hyphen split, and the optional leading package
-     * segment.
-     *
-     * @param {string} target - The link target, anchor already removed.
-     * @returns {object|undefined} The note it addresses.
-     */
-    /**
      * Every indexed entry an address names, matching only the segments it
      * supplies.
      *
@@ -351,6 +340,20 @@ export function buildLinkIndex(
         return matchAddress([...byKey], q).map(([, v]) => v);
     }
 
+    /**
+     * The note an **address** names, or `undefined`.
+     *
+     * The qualifier is read with {@link readQualifier} rather than a second
+     * copy of the rule, so this cannot drift from what the builds do — the two
+     * separators, the first-hyphen split, and the optional leading package
+     * segment.
+     *
+     * @param {string} target - The link target, anchor already removed.
+     * @param {string} [keyPath] - The dotted frontmatter key path the link sits
+     *   under, which supplies the system an omitted segment defaults to — see
+     *   {@link blockSystem}. Body prose has none.
+     * @returns {object|undefined} The note it addresses.
+     */
     function resolveAddress(target, keyPath) {
         const qualified = readQualifier(target, types, packages);
         if (!qualified || qualified.reason) return undefined;
@@ -379,6 +382,9 @@ export function buildLinkIndex(
      * rather than collapsed here.
      *
      * @param {string} target - The link target.
+     * @param {string} [keyPath] - The dotted frontmatter key path the link sits
+     *   under, which supplies the system an omitted segment defaults to — see
+     *   {@link blockSystem}. Body prose has none.
      * @returns {object[]} The foreign entries, each carrying its `package`.
      */
     function foreignHits(target, keyPath) {

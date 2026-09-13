@@ -1702,30 +1702,6 @@ function reachabilityCommand() {
 
 // eslint-disable-next-line
 /**
- * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency, and the **item
- * catalogue** of those additionally declaring `itemCatalog: true`.
- *
- * The two sets differ deliberately. Citing another package's *addresses* and
- * embedding its *items* are separate edges, and a package may have either
- * without the other — `harn-ensemble` cites no foreign address and embeds
- * 324,016 item references.
- *
- * Its own command rather than a step of `package compile`, so that a compile
- * never reaches the network. A build that downloads silently is not
- * reproducible, breaks offline, and hides a dependency's version change behind
- * a passing run.
- *
- * `--from` fills the cache from a locally built artifact instead of a release,
- * which is what makes iterating across packages possible: change the system,
- * build it, and see the effect on every consumer **before** any of it ships.
- * Otherwise testing a dependency change against its consumers costs a release
- * round-trip, which makes releasing a debugging tool rather than a publishing
- * decision.
- *
- * @returns {object} The yargs command module.
- */
-/**
  * Resolve which declared dependency `--from` supplies, and cache it.
  *
  * @param {object} config - The resolved build configuration.
@@ -1758,6 +1734,30 @@ async function fetchFromLocalArtifact(config, argv) {
     }
 }
 
+/**
+ * `deps fetch` — fill the caches this build resolves other packages through:
+ * the **content index** of every declared dependency, and the **item
+ * catalogue** of those additionally declaring `itemCatalog: true`.
+ *
+ * The two sets differ deliberately. Citing another package's *addresses* and
+ * embedding its *items* are separate edges, and a package may have either
+ * without the other — `harn-ensemble` cites no foreign address and embeds
+ * 324,016 item references.
+ *
+ * Its own command rather than a step of `package compile`, so that a compile
+ * never reaches the network. A build that downloads silently is not
+ * reproducible, breaks offline, and hides a dependency's version change behind
+ * a passing run.
+ *
+ * `--from` fills the cache from a locally built artifact instead of a release,
+ * which is what makes iterating across packages possible: change the system,
+ * build it, and see the effect on every consumer **before** any of it ships.
+ * Otherwise testing a dependency change against its consumers costs a release
+ * round-trip, which makes releasing a debugging tool rather than a publishing
+ * decision.
+ *
+ * @returns {object} The yargs command module.
+ */
 function depsCommand() {
     return {
         command: "deps <action>",

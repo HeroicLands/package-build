@@ -131,24 +131,6 @@ export function parseMarkdownFile(filePath) {
 }
 
 /**
- * Recursively yields every `.md` file under `rootDir`, parsed.
- * Yields `{ frontmatter, body, description, file, absPath, bodyLine,
- * bodyColumn }` for each match — the last two from
- * {@link parseMarkdownFile}, so a caller can report a position inside the
- * body as a position in the file.
- * Silently skips directories that don't exist.
- *
- * Directory names in `skipDirectories` are ignored wherever they appear. The
- * walk itself knows nothing about what they mean: `Templates/` is an Obsidian
- * templater convention this repository's vault happens to use, not a property
- * of a content tree, so it is configured rather than hard-coded.
- *
- * @param {string} rootDir - Root of the tree to walk.
- * @param {object} [opts]
- * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
- *   Defaults to the configured list.
- */
-/**
  * Refuse a corpus read whose scope its caller did not state.
  *
  * The rule in one place, so every reader of the tree refuses the same
@@ -203,6 +185,31 @@ export function assertSuppliedCorpus(records, who) {
     }
 }
 
+/**
+ * Recursively yields every `.md` file under `rootDir`, parsed.
+ *
+ * Yields `{ frontmatter, body, description, file, absPath, bodyLine,
+ * bodyColumn }` for each match — the last from {@link parseMarkdownFile}, so a
+ * caller can report a position inside the body as a position in the file. A
+ * root that does not exist yields nothing, and a directory that cannot be read
+ * is warned about and skipped.
+ *
+ * Directory names in `skipDirectories` are ignored wherever they appear. The
+ * walk itself knows nothing about what they mean: `Templates/` is an Obsidian
+ * templater convention this repository's vault happens to use, not a property
+ * of a content tree, so it is stated by the caller rather than hard-coded.
+ *
+ * @param {string} rootDir - Root of the tree to walk.
+ * @param {object} opts
+ * @param {readonly string[]} opts.skipDirectories - Directory names to ignore.
+ *   Required: the scope is the caller's to state, so two passes cannot
+ *   disagree about which files are the corpus.
+ * @yields {{frontmatter: object|null, body: string, description: string,
+ *   file: string, absPath: string, bodyLine?: number, bodyColumn?: number}}
+ *   One entry per `.md` file found.
+ * @throws {Error} When `skipDirectories` is not stated — see
+ *   {@link assertStatedScope}.
+ */
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
@@ -414,11 +421,6 @@ export function systemTemplatePriority(fm, label) {
 export function makeFilename(name, id) {
     return `${unidecode(name)}_${id}`.replace(/[^0-9a-zA-Z]+/g, "_") + ".json";
 }
-
-/**
- * Standardize a name into a slug: lowercase, apostrophes removed,
- * non-alphanumerics collapsed to single hyphens.
- */
 
 /**
  * The path prefixes that name a package other than the one being compiled.
@@ -705,6 +707,13 @@ export function defaultStats() {
     return cachedDefaultStats;
 }
 
+// The one slug rule, re-exported so callers keep a single import path.
+/**
+ * Standardize a name into a slug: lowercase, apostrophes removed,
+ * non-alphanumerics collapsed to single hyphens.
+ */
+export { slugify } from "./content-slug.mjs";
+
 /**
  * Stable 16-char hex id derived from `${namespace}:${value}`.
  *
@@ -712,9 +721,6 @@ export function defaultStats() {
  * resolver this one imports can derive ids too — and re-exported here for the
  * passes that have always reached it through `helpers`.
  */
-// The one slug rule, re-exported so callers keep a single import path.
-export { slugify } from "./content-slug.mjs";
-
 export { makeId } from "./ids.mjs";
 
 // The content-type → document-type map, which decides *which* pack list a
@@ -746,6 +752,15 @@ import { collectAnchors } from "./anchors.mjs";
  * @param {object} [router] - The pack router. Supplied by the calling pass so
  *   the index and the compile agree about where each note landed; defaults to
  *   this repository's own.
+ * @param {object} [opts]
+ * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
+ *   every corpus reader takes; the scope is already settled by `records`.
+ * @param {object} [opts.config] - The resolved build configuration; loaded when
+ *   omitted.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once per
+ *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
+ * @param {object[]} [opts.problems] - Part of the same options bag; the notes
+ *   the index cannot record are collected where the corpus is derived.
  * @returns {{byShortcode: Map, types: Set}} From `buildWikilinkIndex`.
  */
 export function buildContentLinkIndex(
@@ -843,11 +858,21 @@ export function buildContentLinkIndex(
  * inventing a position.
  *
  * @param {string} body - The note's markdown body, tables already expanded.
- * @param {object} ctx - `{ type, id, pack, docPack, index, name }` — `name` is
- *   used in the message, and the two pack names address a `[[#slug]]`
- *   self-link, whose target is the source note itself and so has no index
- *   entry. Position is carried by `{ file, bodyLine, bodyColumn, lineMap }`,
- *   the last from {@link expandNoteTables}.
+ * @param {object} ctx
+ * @param {string} ctx.type - The source note's content type.
+ * @param {string} ctx.id - The source note's document id.
+ * @param {string} ctx.pack - The pack the note's own document lands in, which
+ *   addresses a `[[#slug]]` self-link: its target is the source note itself, so
+ *   it has no index entry.
+ * @param {string} ctx.docPack - The pack the note's documentation journal lands
+ *   in, addressing a self-link the same way.
+ * @param {object} ctx.index - The address index every link resolves through.
+ * @param {string} ctx.name - The note, for the message.
+ * @param {string} [ctx.file] - The note's file, so a report names it.
+ * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line.
+ * @param {number} [ctx.bodyColumn] - 1-based file column of the same character.
+ * @param {Array<{line: number, generated: boolean}>} [ctx.lineMap] - Which
+ *   authored line each body line came from, from {@link expandNoteTables}.
  * @returns {{markdown: string, unresolved: Array<object>}}
  * @throws {Error} On any link that does not resolve — an unlabelled one, a
  *   target that is not an address, or an address nothing publishes. The error
@@ -924,6 +949,15 @@ export function convertNoteWikilinks(
  * a table that leaves rows tied still emits identically on every build.
  *
  * @param {string} contentBase - Root of the content tree.
+ * @param {object} [opts]
+ * @param {readonly string[]} [opts.skipDirectories] - Part of the options bag
+ *   every corpus reader takes; the scope is already settled by `records`.
+ * @param {object} [opts.config] - The resolved build configuration; loaded when
+ *   omitted.
+ * @param {readonly object[]} [opts.records] - The corpus, derived once per
+ *   compile and handed in. Required: see {@link assertSuppliedCorpus}.
+ * @param {object[]} [opts.problems] - Part of the same options bag; the notes
+ *   the walk cannot read are collected where the corpus is derived.
  * @returns {Array<{fm: object, path: string, tld: string, folder: string,
  *   absPath: string}>}
  */
@@ -988,6 +1022,10 @@ const packLinkable = (doc) => Boolean(doc.fm?.shortcode) && Boolean(doc.fm?.type
  *   query's `this` reads. Its entry in `docs` supplies the path as well.
  * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line,
  *   so a failing directive can be reported at its position in the file.
+ * @param {object[]} [ctx.sqlTables] - This note's prepared `sql` results, in
+ *   document order, from
+ *   {@link module:engine/sql-tables.prepareSqlTables}. An `sql` directive with
+ *   no prepared result fails the note: nothing here runs a query.
  * @returns {{markdown: string, lineMap: Array<{line: number,
  *   generated: boolean}>}} The body with every table expanded, and where each
  *   emitted line came from — which is what lets a diagnostic about the

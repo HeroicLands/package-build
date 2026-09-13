@@ -41,6 +41,14 @@ import { systemTemplatePriority } from "../engine/helpers.mjs";
 import { SystemItemCompiler } from "../engine/item-compiler.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 
+/**
+ * SoHL's Item compile pass.
+ *
+ * Declares SoHL's note-type → document-subtype map, which decides the notes
+ * this pass claims and what each becomes, and the `system` keys SoHL writes on
+ * every item whatever its type. Everything else is
+ * {@link module:engine/item-compiler}'s.
+ */
 export class Items extends SystemItemCompiler {
     /**
      * SoHL's note-type → document-subtype map — the one declaration that says

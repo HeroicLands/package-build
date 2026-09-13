@@ -83,11 +83,6 @@ const MACRO_FIELDS = Object.freeze([
 ]);
 
 /**
- * A `being` note — an actor, with its body, movement and embedded items.
- *
- * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
- */
-/**
  * A `vehicle` note — a conveyance that carries goods and people.
  *
  * Empty, and the emptiness is the declaration: the specification gives a
@@ -103,6 +98,11 @@ const MACRO_FIELDS = Object.freeze([
  */
 const VEHICLE_FIELDS = Object.freeze([]);
 
+/**
+ * A `being` note — an actor, with its body, movement and embedded items.
+ *
+ * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
+ */
 const BEING_FIELDS = Object.freeze([
     {
         name: "body",
