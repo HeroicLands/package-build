@@ -1059,23 +1059,6 @@ export function renderContentTable(spec, rows, linkable, self) {
 /* ------------------------------------------------------------------------ */
 
 /**
- * The `WHERE` clause of a query, as authored, for a message that has to name
- * what matched nothing.
- *
- * The parsed spec holds an expression tree, and rendering that back to text
- * would be a second dialect of the query language to keep in step. The authored
- * line is what the author wrote and what they will edit, so it is what the
- * finding quotes.
- *
- * @param {string} query - The fence's contents.
- * @returns {string} The clause, or "" when the query has none.
- */
-function whereText(query) {
-    const match = /^\s*WHERE\s+(.+?)\s*$/im.exec(String(query ?? ""));
-    return match ? `\`${match[1]}\`` : "";
-}
-
-/**
  * Expand every fenced `dataview` block in a markdown body.
  *
  * A block that cannot be honoured — malformed or unsupported — is left in the
@@ -1097,22 +1080,30 @@ function whereText(query) {
  * @param {string} [ctx.source] - The note being expanded, for error reports.
  * @param {ContentTableDoc} [ctx.self] - The note being expanded, as a searchable
  *   doc: what a query's `this` reads.
- * @param {Array<{markdown: string, rows: number, reason?: string,
- *   allowEmpty?: boolean}>} [ctx.sqlTables] - The already-prepared result for
- *   each `sql` directive in the body, one entry per directive in the order
- *   they appear (`sql` is a synchronous pass, so an async query is run and
- *   prepared beforehand — see `prepareSqlTables`).
  * @returns {{markdown: string, errors: Array<{source: string, directive: string,
- *   reason: string, line: number, column: number}>, lineMap: Array<{line: number,
- *   generated: boolean}>, warnings: Array<{source: string, line: number,
- *   column: number, reason: string}>}} `lineMap` is parallel to the emitted
- *   lines and says which authored line each came from, so a diagnostic about
- *   the expanded body can name an authored position. An `errors` entry
- *   carries the 0-based line and column of the directive that failed, for the
- *   same reason. `warnings` names each remaining `dataview` directive, so a
- *   caller can measure how much of the corpus is still on the retiring
- *   language without failing the build over it.
+ *   reason: string, line: number}>, lineMap: Array<{line: number,
+ *   generated: boolean}>}} `lineMap` is parallel to the emitted lines and says
+ *   which authored line each came from, so a diagnostic about the expanded
+ *   body can name an authored position. An `errors` entry carries the
+ *   0-based line of the directive that failed, for the same reason.
  */
+/**
+ * The `WHERE` clause of a query, as authored, for a message that has to name
+ * what matched nothing.
+ *
+ * The parsed spec holds an expression tree, and rendering that back to text
+ * would be a second dialect of the query language to keep in step. The authored
+ * line is what the author wrote and what they will edit, so it is what the
+ * finding quotes.
+ *
+ * @param {string} query - The fence's contents.
+ * @returns {string} The clause, or "" when the query has none.
+ */
+function whereText(query) {
+    const match = /^\s*WHERE\s+(.+?)\s*$/im.exec(String(query ?? ""));
+    return match ? `\`${match[1]}\`` : "";
+}
+
 export function expandContentTables(
     markdown,
     {

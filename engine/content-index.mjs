@@ -410,27 +410,6 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
     }
 }
 
-/**
- * One note's content-index record.
- *
- * Refuses a note that authors a key the index derives itself — `package`
- * among them, which is the retired top-level `package:` field — before
- * building anything, so a bad frontmatter field is a located error rather
- * than a record silently carrying two disagreeing ideas of its own package.
- *
- * @param {object} args
- * @param {object} args.frontmatter - The note's parsed frontmatter.
- * @param {string} args.relPath - The note's path within the content tree.
- * @param {string} [args.absPath] - The file's absolute path, for locating a
- *   derived-key error and for {@link foundryEntries}.
- * @param {string} args.contentPackage - The package this tree compiles as.
- * @param {string} [args.body] - The note's body, for anchor collection.
- * @param {number} [args.bodyLine] - The line the body starts on.
- * @param {object} [args.manifest] - The shipped Foundry manifest, for
- *   {@link foundryEntries}.
- * @returns {Record<string, any>} The record, with derived fields sorted deep.
- * @throws {Error} When the frontmatter authors a key the index derives.
- */
 export function buildIndexRecord({
     frontmatter,
     relPath,
@@ -488,6 +467,16 @@ export function buildIndexRecord({
 }
 
 /**
+ * Read a content tree into index records, in the order they will be written.
+ *
+ * @param {string} contentBase - The content tree to walk.
+ * @param {object} options - Options.
+ * @param {string} options.contentPackage - The package the tree compiles as.
+ * @param {Array<string>} [options.skipDirectories] - Directory names to skip.
+ * @returns {Array<Record<string, any>>} The records, in a total order that does
+ *   not depend on directory-read order.
+ */
+/**
  * The record for an item note's **documentation journal**.
  *
  * An item note compiles into two documents — the item, and a JournalEntry
@@ -542,27 +531,6 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     );
 }
 
-/**
- * Read a content tree into index records, in a total order that does not
- * depend on directory-read order.
- *
- * An item note yields two records — its own, and its documentation
- * journal's, built through {@link buildIndexRecord} and `buildDocRecord`
- * respectively — everything else yields one.
- *
- * @param {string} contentBase - The content tree to walk.
- * @param {object} options - Options.
- * @param {string} options.contentPackage - The package the tree compiles as.
- * @param {Array<string>} [options.skipDirectories] - Directory names to skip.
- * @param {object} [options.manifest] - The shipped Foundry manifest, for
- *   {@link foundryEntries}.
- * @param {Array<object>} [options.problems] - When supplied, a note that
- *   fails {@link buildIndexRecord} is reported into it and skipped rather
- *   than failing the whole read — the contract a reader wants. Omitted, the
- *   first such note throws, which is right for an emitter: an index quietly
- *   missing a note would assert the note does not exist.
- * @returns {Array<Record<string, any>>} The records.
- */
 export function collectContentIndex(
     contentBase,
     { contentPackage, skipDirectories, manifest, problems },

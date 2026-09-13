@@ -131,6 +131,24 @@ export function parseMarkdownFile(filePath) {
 }
 
 /**
+ * Recursively yields every `.md` file under `rootDir`, parsed.
+ * Yields `{ frontmatter, body, description, file, absPath, bodyLine,
+ * bodyColumn }` for each match — the last two from
+ * {@link parseMarkdownFile}, so a caller can report a position inside the
+ * body as a position in the file.
+ * Silently skips directories that don't exist.
+ *
+ * Directory names in `skipDirectories` are ignored wherever they appear. The
+ * walk itself knows nothing about what they mean: `Templates/` is an Obsidian
+ * templater convention this repository's vault happens to use, not a property
+ * of a content tree, so it is configured rather than hard-coded.
+ *
+ * @param {string} rootDir - Root of the tree to walk.
+ * @param {object} [opts]
+ * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
+ *   Defaults to the configured list.
+ */
+/**
  * Refuse a corpus read whose scope its caller did not state.
  *
  * The rule in one place, so every reader of the tree refuses the same
@@ -185,26 +203,6 @@ export function assertSuppliedCorpus(records, who) {
     }
 }
 
-/**
- * Walk a content tree, yielding every markdown file's parsed frontmatter and
- * body alongside its path.
- *
- * `skipDirectories` is required rather than defaulted, so every caller states
- * the scope it means rather than one silently resolving a different
- * configuration than another — see {@link assertStatedScope}. A directory
- * that cannot be read is logged and skipped rather than failing the walk.
- * Directory names in `skipDirectories` are ignored wherever they occur in the
- * tree.
- *
- * @param {string} rootDir - The content tree's root.
- * @param {object} options
- * @param {readonly string[]} options.skipDirectories - Directory names to
- *   skip entirely.
- * @yields {{frontmatter: object|null, body: string, description: string,
- *   bodyLine?: number, bodyColumn?: number, file: string, absPath: string}}
- *   One entry per `.md` file found — see {@link parseMarkdownFile} for the
- *   parsed fields — plus `file` (its basename) and `absPath`.
- */
 export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
     // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
