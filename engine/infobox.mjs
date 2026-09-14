@@ -58,7 +58,10 @@
  *    the panel breaks between them. This is what lets a long box cross a
  *    column or page boundary without splitting a stat grid.
  * 4. **An absent field is absent, not empty.** A row with no value is not
- *    emitted. An em-dash placeholder asserts a fact that is not there.
+ *    emitted, and neither is a section with no rows — a creature carrying no
+ *    equipment gets no equipment section rather than an empty one. An em-dash
+ *    placeholder asserts a fact that is not there, and an empty heading asserts
+ *    that something was expected and is missing.
  * 5. **{@link NOT_AVAILABLE} is a different thing, and survives.** It is the
  *    whole box for a mapped system that produced no document — a statement
  *    about this note, not about a missing field. Rule 4 governs rows; this

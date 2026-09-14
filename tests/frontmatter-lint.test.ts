@@ -377,6 +377,73 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
     });
 });
 
+describe("a being's kind is one slot, and a note fills it once or not at all", () => {
+    /** A being carrying tags, as the index hands one over. */
+    const being = (tags: string[]) => ({
+        file: "/tree/being.md",
+        type: "being",
+        raw: `---\ntype: being\ntags:\n${tags.map((x) => `  - ${x}`).join("\n")}\n---\n`,
+        fm: { type: "being", tags },
+    });
+    const findings = (tags: string[], type = "being") =>
+        lintFrontmatter(
+            {
+                notes: [{ ...being(tags), type, fm: { type, tags } }],
+                referenceHit: () => ({}),
+            } as any,
+            { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
+        ).findings.filter(
+            (f: { message: string }) => f.message.includes("kind") || f.message.startsWith('tag "'),
+        );
+
+    it("passes a being that states one kind", () => {
+        expect(findings(["character"])).toEqual([]);
+        expect(findings(["creature"])).toEqual([]);
+    });
+
+    it("passes a being that states no kind at all", () => {
+        // The kind is authored deliberately, and a tree part-way through
+        // tagging is a tree with untagged beings in it. Silence is the only
+        // honest answer: nothing can tell an unstated kind from a wrong one.
+        expect(findings([])).toEqual([]);
+        expect(findings(["soldiery", "draft"])).toEqual([]);
+    });
+
+    it("refuses a being that states both, as an error", () => {
+        const f = findings(["character", "creature"]);
+        expect(f).toHaveLength(1);
+        expect(f[0].severity).toBe("error");
+        expect(f[0].message).toContain('"character"');
+        expect(f[0].message).toContain('"creature"');
+    });
+
+    it("locates the finding on the note's `tags` key", () => {
+        // The whole list is at fault, not one entry of it, so the key's own
+        // line is where a reader is sent. `type:` is line 2 and `tags:` line 3.
+        const f = findings(["character", "creature"])[0];
+        expect(f.line).toBe(3);
+        expect(f.column).toBe(1);
+    });
+
+    it("reports a near miss of either kind, naming what was probably meant", () => {
+        expect(findings(["charcter"])[0].message).toContain('"character"');
+        expect(findings(["creture"])[0].message).toContain('"creature"');
+    });
+
+    it("leaves a tag that is plainly the author's own alone", () => {
+        // Nothing else names a being's kind, and nothing else is refused for
+        // failing to: the top level stays open.
+        expect(findings(["monstrous", "undead", "beast-of-burden"])).toEqual([]);
+    });
+
+    it("checks the kind only on a being", () => {
+        // `character` is also what HM3 calls one of the two documents a being
+        // compiles to, and it was once a note type of its own. A place tagged
+        // with the word is neither, and is nobody's finding.
+        expect(findings(["character", "creature"], "place")).toEqual([]);
+    });
+});
+
 /* -------------------------------------------------------------------- */
 /*  `img: ""` — the old spelling of "unset"                       */
 /* -------------------------------------------------------------------- */
