@@ -38,6 +38,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
+import { IMAGE_CLASSES, IMAGE_FLOATS } from "../engine/content-images.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
@@ -178,5 +179,42 @@ describe("the specification and the vocabulary agree about subTypes", () => {
             };
         }
         expect(drift).toEqual({});
+    });
+});
+
+/**
+ * The closed vocabularies a body directive admits.
+ *
+ * An image states its width as a class and its position as `float:`, and both
+ * are closed: an unrecognised value is refused rather than rendered as the
+ * default, because a page that silently looks like the author asked for
+ * nothing is the failure worth preventing. Two places say which values exist —
+ * the specification's tables and `engine/content-images.mjs` — and a reader of
+ * either has to be able to trust it.
+ *
+ * So the tables are read through the shared specification parser, which
+ * recognises a vocabulary table by its own header, and compared against the
+ * declarations the renderers use. A value documented but not implemented
+ * renders as its own literal braces; a value implemented but not documented is
+ * an undocumented feature of a format whose whole contract is that it is
+ * written down.
+ */
+describe("the specification and the renderers agree about an image's vocabularies", () => {
+    const FORMAT = loadContentFormat();
+
+    it("reads vocabulary tables out of the specification, so the comparison is not vacuous", () => {
+        // Guards the guard: were the table's header to change shape, every
+        // comparison below would be between two empty lists.
+        expect([...FORMAT.vocabularies.keys()].sort()).toEqual(["class", "float"]);
+    });
+
+    it("declares exactly the width classes the specification lists, in its order", () => {
+        expect(Object.keys(IMAGE_CLASSES)).toEqual(
+            FORMAT.vocabularies.get("class")?.values.map((v) => v.replace(/^\./, "")),
+        );
+    });
+
+    it("declares exactly the float positions the specification lists, in its order", () => {
+        expect(Object.keys(IMAGE_FLOATS)).toEqual(FORMAT.vocabularies.get("float")?.values);
     });
 });

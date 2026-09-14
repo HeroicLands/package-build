@@ -64,6 +64,7 @@
 import MarkdownIt from "markdown-it";
 
 import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
+import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
 import { slugify } from "./content-slug.mjs";
 
 /**
@@ -143,6 +144,9 @@ export function labelFor(anchor) {
 export function createParser(registry) {
     const md = new MarkdownIt({ html: false, linkify: false, typographer: false });
     md.use(iconPlugin(registry));
+    // The same plugin the HTML surfaces use, so one directive is read once and
+    // three renderers read the same `meta` off the same token.
+    md.use(imagePlugin());
     return md;
 }
 
@@ -156,6 +160,10 @@ export function createParser(registry) {
  * @param {object} [opts.registry] - The icon registry, when no parser is passed.
  * @param {Map<string, string>} [opts.links] - Address slug → plan anchor.
  * @param {Map<string, string>} [opts.glyphs] - Icon name → `{font, char}`.
+ * @param {Map<string, string>} [opts.images] - An image's address as authored →
+ *   the staged file's path, relative to the `.typ`. An address this does not
+ *   carry has no file the compiler can open, so the figure prints its caption
+ *   alone — see {@link renderImage}.
  * @param {number} [opts.headingOffset] - Added to every heading level, so a
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
@@ -167,6 +175,7 @@ export function markdownToTypst(markdown, opts = {}) {
         md = createParser(opts.registry),
         links = new Map(),
         glyphs = new Map(),
+        images = new Map(),
         headingOffset = 0,
         anchorPrefix = "",
     } = opts;
@@ -175,7 +184,14 @@ export function markdownToTypst(markdown, opts = {}) {
     // blockquote or a list item shares the entry's anchor namespace with every
     // other heading in the same body, because `sectionLabel` scopes by entry
     // rather than by container.
-    return renderTokens(tokens, { links, glyphs, headingOffset, anchorPrefix, seen: new Map() });
+    return renderTokens(tokens, {
+        links,
+        glyphs,
+        images,
+        headingOffset,
+        anchorPrefix,
+        seen: new Map(),
+    });
 }
 
 /**
@@ -559,14 +575,9 @@ function renderInline(token, ctx) {
                 i = close;
                 break;
             }
-            case "image": {
-                // An image has no route into a book that does not also carry the
-                // file, and the asset tree is not this pass's to resolve. The
-                // alt text is what the note said the picture was for.
-                const alt = child.content || child.attrGet?.("alt") || "";
-                if (alt) out.push(`#emph[${escapeTypst(alt)}]`);
+            case "image":
+                out.push(renderImage(child, ctx));
                 break;
-            }
             default:
                 if (child.content) out.push(escapeTypst(child.content));
                 break;
@@ -641,6 +652,61 @@ function renderLink(href, inner, ctx) {
     }
     if (!url) return inner;
     return `#link("${escapeTypstString(url)}")[${inner}]`;
+}
+
+/**
+ * One image, as the figure the book prints.
+ *
+ * ## The width class is the measure
+ *
+ * An image with no class is one column wide. That is `width: 100%` of whatever
+ * container it is set in — the page today, and a column once the book is set in
+ * two — so the ordinary case needs nothing but an ordinary block and stays
+ * correct through the change.
+ *
+ * `.full-width` has to leave its column, and a block cannot: only a float
+ * placed with `scope: "parent"` spans every column of the page. So a
+ * full-width image is always placed, whether or not it states a `float:`, and
+ * an image that states neither is left in the flow where it was written.
+ *
+ * ## A float occupies the measure
+ *
+ * Typst has no shaped text flow, so `#place(…, float: true)` reserves the whole
+ * measure and sets the text above and below rather than beside. The horizontal
+ * half of a position therefore has no effect on the page; it is emitted anyway,
+ * because it costs nothing and says what the note asked for.
+ *
+ * ## No file, no picture
+ *
+ * `#image` on a path Typst cannot open is a compile error, and a compile error
+ * in a 2,500-entry book is fatal at the very end of a run that otherwise
+ * succeeded — over an illustration, which is the least important thing on the
+ * page. An address the build could not stage prints its caption alone instead,
+ * and the build reports the address it could not find.
+ *
+ * @param {object} token - An `image` token.
+ * @param {object} ctx - Render context.
+ * @returns {string} Typst markup.
+ */
+function renderImage(token, ctx) {
+    const alt = token.content || token.attrGet?.("alt") || "";
+    const caption =
+        alt ? `\n  #text(size: 7.6pt, style: "italic", fill: luma(45%))[${escapeTypst(alt)}]` : "";
+    const staged = ctx.images.get(token.attrGet?.("src") ?? "");
+    if (!staged) return caption ? `\n#block(below: 0.6em)[${caption}\n]\n\n` : "";
+
+    const figure =
+        `#block(width: 100%, below: 0.6em)[\n` +
+        `  #image("${escapeTypstString(staged)}", width: 100%)${caption}\n]`;
+
+    const width = token.meta?.classes?.[0];
+    const scope = IMAGE_CLASSES[width]?.scope ?? "column";
+    const float = IMAGE_FLOATS[token.meta?.float];
+    // In the flow where it was written: no class asking for the page, and no
+    // position asking for the top or the bottom of the column.
+    if (!float && scope === "column") return `\n${figure}\n\n`;
+    const align = float?.align ?? "top";
+    return `\n#place(${align}, float: true, scope: "${scope}", clearance: 0.7em)[\n${figure}\n]\n\n`;
 }
 
 /**

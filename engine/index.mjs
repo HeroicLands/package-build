@@ -126,6 +126,9 @@ export * as contentIcons from "./content-icons.mjs";
 /** Raw HTML in a note's prose, which no book renderer can read. */
 export * as contentHtml from "./content-html.mjs";
 
+/** An image saying how wide it is and where it sits, in two closed vocabularies. */
+export * as contentImages from "./content-images.mjs";
+
 /** Resolving every link in a tree, and the ones that land nowhere. */
 export * as contentLinks from "./content-links.mjs";
 

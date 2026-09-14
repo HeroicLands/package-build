@@ -2485,14 +2485,22 @@ hand.
 
 ### What the book gets right, and why each matters
 
-| Property                 | How                                                                           |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| Searchable               | Real text, not page images — a roster nobody can search for a name is no use. |
-| Bookmark outline         | Every section and entry is a heading, so a viewer's sidebar is the way in.    |
-| Page-numbered contents   | `#outline()`, shallower than the bookmarks — 2,500 entries would be 40 pages. |
-| Repeating table headers  | `table.header`, so a property table spilling a page keeps its column names.   |
-| Internal cross-reference | A wikilink between two notes of the book becomes an internal destination.     |
-| External cross-reference | A cross-package link, and a note the book did not select, stay URLs.          |
+| Property                 | How                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| Searchable               | Real text, not page images — a roster nobody can search for a name is no use.   |
+| Bookmark outline         | Every section and entry is a heading, so a viewer's sidebar is the way in.      |
+| Page-numbered contents   | `#outline()`, shallower than the bookmarks — 2,500 entries would be 40 pages.   |
+| Repeating table headers  | `table.header`, so a property table spilling a page keeps its column names.     |
+| Internal cross-reference | A wikilink between two notes of the book becomes an internal destination.       |
+| External cross-reference | A cross-package link, and a note the book did not select, stay URLs.            |
+| Illustration             | An image authored in the body is staged and set at the measure its class names. |
+
+An image states its own width and position once, in the note, and the book, the
+website and a Foundry journal page each honour it — see
+[Images](docs/content-format.md#images) for the two closed vocabularies. The book
+copies each picture it prints into the output directory before the compiler
+runs, because Typst reads nothing above its own root; an address naming a file
+this package does not ship prints its caption alone and is reported.
 
 `{#anchor}` on a heading becomes an internal destination namespaced by its
 entry, so `[[being-jaslyne#appearance]]` reaches the section and two notes may
