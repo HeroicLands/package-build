@@ -50,7 +50,9 @@ import log from "loglevel";
 
 import { sohlField, makeId, resolveName, defaultStats, md, folderField } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
-import { anchorPageId } from "./wikilinks.mjs";
+import { anchorPageId, resolveReference } from "./wikilinks.mjs";
+import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
+import { noteInfoboxes } from "./infobox-registry.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 
@@ -277,6 +279,13 @@ export function buildPages(rawPages, entryId, noteName) {
  *   entry: a module may ship the same content for two systems, and each pack's
  *   documents record the system version they were built against. A
  *   caller with no pack in hand gets the package-wide block.
+ * @param {string} [params.infobox] - The note's infobox, already rendered to
+ *   HTML. Prepended to the entry's first page, which is where the format puts
+ *   it: the box is generated content in document order, before the prose, and
+ *   a Foundry page is narrow enough that inlining it is the only arrangement
+ *   that reads. It is **not** a page of its own — a page is what a UUID
+ *   addresses, and a summary a reader has to navigate to is a summary they do
+ *   not see.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -287,9 +296,13 @@ export function buildJournalEntry({
     folder = null,
     flags,
     stats = defaultStats(),
+    infobox = "",
 }) {
     const rawPages = splitPages(markdown, leadName);
     const pages = buildPages(rawPages, id, name);
+    if (infobox.trim() && pages.length) {
+        pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
+    }
     return {
         name,
         pages,
@@ -422,10 +435,18 @@ export class Journals extends BasePackCompiler {
         const { value: authoredFolder } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress: true });
 
+        // What the note summarises, in the panel every medium draws from one
+        // definition. Links are compendium references rather than website
+        // URLs: a player reading this at the table stays in Foundry.
+        const boxes = noteInfoboxes(fm, {
+            resolve: (ref, hint) => resolveReference(this.linkIndex, ref, hint),
+        });
+
         return buildJournalEntry({
             id,
             name,
             markdown,
+            infobox: infoboxesToHtml(boxes, { link: linkToUuid }),
             // A doc-carrying note's lead page is the document itself, not an
             // "Introduction" — see {@link splitPages}.
             leadName: ownsDoc ? name : undefined,

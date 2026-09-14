@@ -781,3 +781,96 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
 
     return { markdown: out, unresolved };
 }
+
+/**
+ * The short `type/shortcode` view of an index's foreign entries.
+ *
+ * Derived once per index and memoised: a compile resolves references on every
+ * one of thousands of notes, and rebuilding the view per note would rescan a
+ * dependency's whole published index each time. Keyed on the index object, so
+ * it is discarded with it.
+ *
+ * An address two foreign packages both claim is left out rather than resolved
+ * to whichever loaded first — the same rule the wikilink resolver follows.
+ *
+ * @type {WeakMap<object, Map<string, object>>}
+ */
+const FOREIGN_BY_SHORTCODE = new WeakMap();
+
+/** The memoised short view of `index.foreign`. */
+function foreignByShortcode(index) {
+    const cached = FOREIGN_BY_SHORTCODE.get(index);
+    if (cached) return cached;
+    const short = new Map();
+    const ambiguous = new Set();
+    for (const [key, value] of index?.foreign ?? []) {
+        const parts = readCanonicalKey(key);
+        if (!parts) continue;
+        const shortKey = `${norm(parts.type)}/${norm(parts.shortcode)}`;
+        if (short.has(shortKey) && short.get(shortKey).package !== value.package) {
+            ambiguous.add(shortKey);
+        } else {
+            short.set(shortKey, value);
+        }
+    }
+    for (const key of ambiguous) short.delete(key);
+    FOREIGN_BY_SHORTCODE.set(index, short);
+    return short;
+}
+
+/**
+ * Resolve one reference against a compile's address index.
+ *
+ * The compile-time counterpart of
+ * {@link module:engine/site-index.resolveInfoboxRef}: the same three authored
+ * forms — a bare shortcode, a short address, a canonical one — answered with
+ * what a **compendium** can use. A local target answers with the UUID its own
+ * document was addressed by; a foreign one with the UUID its package
+ * published.
+ *
+ * @param {object} index - From {@link buildWikilinkIndex}.
+ * @param {unknown} ref - The reference, as authored.
+ * @param {object} [hint] - `{type}`, where the caller knows what it expects.
+ * @returns {{name?: string, uuid?: string, address?: string, subType?: string}|undefined}
+ *   The target, or `undefined` where nothing answers.
+ */
+export function resolveReference(index, ref, hint) {
+    if (typeof ref !== "string" || !ref) return undefined;
+    const wanted = norm(ref);
+    const keys = [];
+    if (hint?.type) keys.push(`${norm(hint.type)}/${wanted}`);
+    if (wanted.includes("-")) {
+        const segments = wanted.split("-");
+        if (segments.length >= 2) {
+            keys.push(`${segments[segments.length - 2]}/${segments[segments.length - 1]}`);
+        }
+    }
+    if (!hint?.type) {
+        for (const type of [...(index?.types ?? [])].sort()) keys.push(`${type}/${wanted}`);
+    }
+
+    const foreign = foreignByShortcode(index);
+    for (const key of keys) {
+        const local = index?.byShortcode?.get(key);
+        if (local) {
+            return {
+                ...(local.name ? { name: local.name } : {}),
+                ...(local.subType ? { subType: local.subType } : {}),
+                ...(index.uuidByDoc?.get(local)?.uuid ?
+                    { uuid: index.uuidByDoc.get(local).uuid }
+                :   {}),
+                address: key.replace("/", "-"),
+            };
+        }
+        const away = foreign.get(key);
+        if (away) {
+            return {
+                ...(away.name ? { name: away.name } : {}),
+                ...(away.uuid ? { uuid: away.uuid } : {}),
+                ...(away.subType ? { subType: away.subType } : {}),
+                address: key.replace("/", "-"),
+            };
+        }
+    }
+    return undefined;
+}

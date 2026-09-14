@@ -95,9 +95,10 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  * @property {Set<string>} contentTypes  Every type the resolver should read as
  *                                       an address qualifier, local and foreign.
  * @property {Set<string>} sections      Section names, lowercased.
- * @property {Map<string, {name: string, url: string}>} refIndex  `type:shortcode`
- *                                       → page, for callers resolving embedded
- *                                       references (a being's items, say).
+ * @property {Map<string, {name: string, url: string, subType?: string}>} refIndex
+ *                                       `type:shortcode` → page, for callers
+ *                                       resolving embedded references (a
+ *                                       being's items, say).
  * @property {{key: string, package: string}[]} conflicts  Addresses claimed by
  *                                       more than one package. Non-empty is a
  *                                       build failure; the caller reports it.
@@ -230,13 +231,23 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
         if (e.kind !== "content") continue;
         const type = String(e.fm.type).toLowerCase();
         contentTypes.add(type);
-        const value = { url: e.url, name: e.name, draft: isDraftNote(e.fm) };
+        // `subType` rides along because a caller resolving a reference often
+        // needs to know what it found, not only where it is: an infobox groups
+        // a being's skills by the family each skill note declares, and that
+        // fact lives on the target rather than on the reference.
+        const value = {
+            url: e.url,
+            name: e.name,
+            draft: isDraftNote(e.fm),
+            ...(e.fm.subType ? { subType: e.fm.subType } : {}),
+        };
 
         const shortcode = e.fm.shortcode;
         if (typeof shortcode === "string" && shortcode) {
             refIndex.set(`${e.fm.type}:${shortcode}`, {
                 name: e.name,
                 url: e.url,
+                ...(e.fm.subType ? { subType: e.fm.subType } : {}),
             });
             index.set(`${type}/${shortcode}`.toLowerCase(), value);
             // The canonical address alongside the short one. The short form
@@ -337,4 +348,82 @@ export function wikiContext(built, { src, file, type = null, errors, foreignInde
         src,
         file,
     };
+}
+
+/**
+ * Resolve one infobox reference against a site index.
+ *
+ * A note writes a reference three ways and all three reach here: a bare
+ * **shortcode** (`slntlncmpny`), a short **address** (`affiliation-slntlncmpny`)
+ * and a **canonical** one (`sohl-sohl-skill-melee`). The first is the ordinary
+ * case and the ambiguous one — a shortcode is unique within a type and not
+ * across a tree — so a caller that knows what it expects passes `hint.type`
+ * and the lookup is narrowed to it.
+ *
+ * **Without a hint the types are tried in sorted order**, so two trees holding
+ * the same note resolve it the same way. A shortcode two types both claim
+ * answers with the first alphabetically, which is a stable wrong answer rather
+ * than an unstable one; a caller that cares supplies the hint.
+ *
+ * The `address` on the answer is the slug form — `type-shortcode` — because
+ * that is what the book's own link map is keyed by and what a wikilink is
+ * written as.
+ *
+ * @param {SiteIndex} siteIndex - The index.
+ * @param {unknown} ref - The reference, as authored.
+ * @param {object} [hint] - `{type}`, where the caller knows it.
+ * @returns {{name?: string, url?: string, address?: string, subType?: string}|undefined}
+ *   The page, or `undefined` where nothing answers.
+ */
+export function resolveInfoboxRef(siteIndex, ref, hint) {
+    if (typeof ref !== "string" || !ref) return undefined;
+    const wanted = ref.toLowerCase();
+    const keys = [];
+    if (hint?.type) keys.push(`${String(hint.type).toLowerCase()}/${wanted}`);
+    // An authored address already names its own type, so it is tried whole
+    // before the type sweep — `affiliation-slntlncmpny` must not be read as a
+    // shortcode of some other type that happens to spell it.
+    if (wanted.includes("-")) {
+        keys.push(wanted);
+        const segments = wanted.split("-");
+        if (segments.length >= 2) {
+            keys.push(`${segments[segments.length - 2]}/${segments[segments.length - 1]}`);
+        }
+    }
+    if (!hint?.type) {
+        for (const type of [...(siteIndex?.contentTypes ?? [])].sort()) {
+            keys.push(`${type}/${wanted}`);
+        }
+    }
+    for (const key of keys) {
+        const found = siteIndex?.index?.get(key);
+        if (!found) continue;
+        const slug = key.includes("/") ? key.replace("/", "-") : addressSlugOfKey(key);
+        // No `uuid`, although a foreign entry carries one: this resolver
+        // answers for the **published** surfaces, which address a page by URL
+        // and an entry in the book by its slug. A compendium reference is what
+        // `resolveReference` answers with, from the compile's own index.
+        return {
+            ...(found.name ? { name: found.name } : {}),
+            ...(found.url ? { url: found.url } : {}),
+            ...(found.subType ? { subType: found.subType } : {}),
+            address: slug,
+        };
+    }
+    return undefined;
+}
+
+/**
+ * The `type-shortcode` slug of a canonical key.
+ *
+ * A canonical key is `package-system-type-shortcode`, and its slug is the last
+ * two segments — the same rule `contentAddress` states, applied to a key
+ * rather than to frontmatter.
+ *
+ * @param {string} key - The canonical key.
+ * @returns {string} The slug.
+ */
+function addressSlugOfKey(key) {
+    const segments = String(key).split("-");
+    return segments.length >= 2 ? segments.slice(-2).join("-") : key;
 }

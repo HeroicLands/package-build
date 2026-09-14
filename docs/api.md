@@ -346,6 +346,66 @@ The closed half of a note's frontmatter: the `data:` container and each type's `
 | `dataFields`              | `dataFields(type, vocabulary)`               | `readonly DataFieldSpec[] \| undefined`  | looking up the `data:` keys a note type may carry                                            |
 | `subTypes`                | `subTypes(type, vocabulary)`                 | `readonly string[] \| null \| undefined` | looking up the closed `subType` values a note type declares                                  |
 
+### `engine.infobox`
+
+The declared infobox: what a note's summary panel holds, decided once and rendered by each medium. The note box's fields are the type's own `data:` vocabulary, in its declared order, so a key added to a type appears everywhere with no second edit; the overlay declares only the label and the handful of keys that carry no row.
+
+| Export                    | Signature                              | Returns                     | Use it when                                                                            |
+| ------------------------- | -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
+| `INFOBOX_LAYOUTS`         | `const INFOBOX_LAYOUTS`                | —                           | looking up the four section layouts and the property each carries its content in       |
+| `INFOBOX_VALUE_KINDS`     | `const INFOBOX_VALUE_KINDS`            | —                           | enumerating what a row's value may be                                                  |
+| `DURATION_LABELS`         | `const DURATION_LABELS`                | —                           | naming a duration pair — the roll and the flat number of seconds — in either overlay   |
+| `GEAR_UNITS`              | `const GEAR_UNITS`                     | —                           | naming a gear item's price and weight, and the unit each carries, in either overlay    |
+| `UNSET_VALUES`            | `const UNSET_VALUES`                   | —                           | enumerating the words a corpus writes when it means "there is nothing here"            |
+| `applyUnit`               | `applyUnit(kind, value, unit)`         | `object`                    | putting a declared unit on a row's value, where the quantity is                        |
+| `NOT_AVAILABLE`           | `const NOT_AVAILABLE`                  | —                           | naming what a mapped system that produced no document says                             |
+| `NOTHING_BEYOND_PROFILE`  | `const NOTHING_BEYOND_PROFILE`         | —                           | naming what a system holding nothing the note box has not shown says                   |
+| `NOTE_BOX_ID`             | `const NOTE_BOX_ID`                    | —                           | naming the note infobox, which is not a system id                                      |
+| `NOTE_BOX_TITLE`          | `const NOTE_BOX_TITLE`                 | —                           | naming the note infobox's heading                                                      |
+| `NOTE_SECTION_ID`         | `const NOTE_SECTION_ID`                | —                           | naming the note infobox's single section                                               |
+| `NOTE_FIELD_PRESENTATION` | `const NOTE_FIELD_PRESENTATION`        | —                           | looking up a `data:` key's label, the group it composes into, or why it carries no row |
+| `assertInfoboxSet`        | `assertInfoboxSet(boxes, fm, options)` | `readonly object[]`, throws | refusing a page that carries anything but the boxes its type maps to                   |
+| `buildInfoboxes`          | `buildInfoboxes(fm, options)`          | `object[]`                  | building every box a note carries, against a given set of maps and declarations        |
+| `defineInfobox`           | `defineInfobox(declaration)`           | `object`                    | declaring one system's half of the infobox                                             |
+| `hasRenderableValue`      | `hasRenderableValue(kind, value)`      | `boolean`                   | deciding whether a built value is worth a row                                          |
+| `hasValue`                | `hasValue(value)`                      | `boolean`                   | deciding whether an authored value is worth a row                                      |
+| `humanizeFieldName`       | `humanizeFieldName(name)`              | `string`                    | turning a declared key into the label a reader sees                                    |
+| `humanizeValue`           | `humanizeValue(value)`                 | `string`                    | turning an authored value into readable text                                           |
+| `isDeclaredDefault`       | `isDeclaredDefault(field, raw)`        | `boolean`                   | deciding whether a value is the one the field's own declaration would have supplied    |
+| `isUnsetSentinel`         | `isUnsetSentinel(value)`               | `boolean`                   | deciding whether a value is a word meaning "nothing here" rather than a value          |
+| `linkValue`               | `linkValue(ref, resolve, hint)`        | `object`                    | resolving one reference into a `link` value                                            |
+| `noteInfobox`             | `noteInfobox(fm, options)`             | `object`                    | building the note box alone, from the type's `data:` vocabulary                        |
+| `overlayFor`              | `overlayFor(presentation, type, name)` | `object`                    | reading a field's overlay entry, preferring the `<type>.<field>` key over the bare one |
+| `presentValue`            | `presentValue(value)`                  | `string`                    | showing a value in a row, capitalising an enumerated one and leaving prose as written  |
+| `requiredInfoboxIds`      | `requiredInfoboxIds(fm, options)`      | `string[]`                  | asking which boxes a note's type maps to                                               |
+| `sectionHolds`            | `sectionHolds(section)`                | `boolean`                   | deciding whether a section holds anything a medium would draw                          |
+| `systemRowsSection`       | `systemRowsSection(fm, fields, ctx)`   | `object[]`                  | building the rows a type's own field declaration yields                                |
+| `valueKindOf`             | `valueKindOf(field, value)`            | `string`                    | reading the value kind a field declaration implies                                     |
+
+### `engine.infoboxRegistry`
+
+The infobox declarations this toolchain ships, one per system, and the single call each medium makes to build a note's boxes.
+
+| Export            | Signature                    | Returns               | Use it when                                                                    |
+| ----------------- | ---------------------------- | --------------------- | ------------------------------------------------------------------------------ |
+| `KNOWN_INFOBOXES` | `const KNOWN_INFOBOXES`      | —                     | enumerating every system's infobox declaration, in the order a page shows them |
+| `infoboxFor`      | `infoboxFor(system)`         | `object \| undefined` | looking up one system's declaration by its id                                  |
+| `noteInfoboxes`   | `noteInfoboxes(fm, options)` | `object[]`, throws    | building every box one note carries, wired to the shipped registries           |
+
+### `engine.infoboxRender`
+
+Drawing a declared infobox: HTML for a Foundry Journal Page, Typst for the book. The website's boxes travel in front matter and the site theme draws them, so there is no renderer for it here.
+
+| Export                 | Signature                             | Returns   | Use it when                                                              |
+| ---------------------- | ------------------------------------- | --------- | ------------------------------------------------------------------------ |
+| `infoboxTypstPreamble` | `infoboxTypstPreamble()`              | `string`  | emitting the panel definitions the book's bodies call, once per document |
+| `infoboxesToHtml`      | `infoboxesToHtml(boxes, options)`     | `string`  | drawing the boxes as `<details>` disclosures, open by default            |
+| `infoboxesToTypst`     | `infoboxesToTypst(boxes, options)`    | `string`  | drawing the boxes as panels that break between their sections            |
+| `linkToHtml`           | `linkToHtml(value)`                   | `string`  | drawing a link value as an anchor on its URL                             |
+| `linkToTypst`          | `linkToTypst(value, links, labelFor)` | `string`  | drawing a link value as a cross-reference into the book                  |
+| `linkToUuid`           | `linkToUuid(value)`                   | `string`  | drawing a link value as a Foundry document reference                     |
+| `sectionHasContent`    | `sectionHasContent(section)`          | `boolean` | deciding whether a section holds anything worth drawing                  |
+
 ### `engine.systems`
 
 The closed registry of system ids, and the `none` that stands for no system at all. An unknown system value is an error; adding a system is a data change to this registry rather than a hardcoded set scattered through the pipeline.
@@ -707,6 +767,7 @@ Wikilink resolution for the pack compilers. Content notes link to one another wi
 | `readQualifier`      | `function readQualifier(target, types, packages)`                       | {{type: string, shortcode: string, itemDoc: boolean, package?: string, system?: string, reason?: undefined} \| {reason: "unknown-type"} \| null} The resolved qualifier; a `reason` when the target is definitely qualified but names no known type; or `null` when it is not an address at all.                                      | Read a link target as a **qualified** `type-shortcode` reference, or report that it does not parse as one.                                                                 |
 | `anchorPageId`       | `function anchorPageId(noteId, anchorSlug)`                             | {string} A 16-character alphanumeric id.                                                                                                                                                                                                                                                                                              | The deterministic JournalEntryPage id for one anchor: SHA-256 of `"<noteId>-<anchorSlug>"`, base64-encoded, reduced to the 16 alphanumeric characters a Foundry id allows. |
 | `buildWikilinkIndex` | `function buildWikilinkIndex(docs, packageId, foreign, contentPackage)` | {{byShortcode: Map<string, object>, types: Set<string>}} `types` is every type the tree actually contains, so a qualifier naming no real type can be told apart from a missing target.                                                                                                                                                | Builds the link-resolution tables for a content tree.                                                                                                                      |
+| `resolveReference`   | `function resolveReference(index, ref, hint)`                           | {{name?: string, uuid?: string, address?: string, subType?: string}\|undefined} The target, or `undefined` where nothing answers.                                                                                                                                                                                                     | Resolve one reference — a bare shortcode, a short address or a canonical one — to what a compendium can use.                                                               |
 | `convertWikilinks`   | `function convertWikilinks(markdown,`                                   | {{markdown: string, unresolved: Array<{link: string, target: string, offset: number, reason: string, packages?: string[], anchor?: string}>}} Each `reason` is one of {@link LINK_FINDING_REASONS}, the vocabulary all three resolvers share — `ambiguous` carries the claiming `packages` and `unknown-anchor` the section it named. | Rewrites every wikilink in a markdown body as a Foundry UUID enricher.                                                                                                     |
 
 ### `engine.wikilinkSyntax`
@@ -729,10 +790,11 @@ What a `[[…]]` **is**, before anything decides where it points. One authored l
 
 **The address index a site build resolves its wikilinks against.** Every consumer that publishes a content tree as a website has to answer the same question — given `[[Something]]`, which page? — and every one of them answered it with its own copy of the same 150 lines. `sohl`'s and `sohl-thalorna`'s site builds still share 147 identical lines of it, comments and indentation aside. This is that shared half, lifted out whole.
 
-| Export           | Signature                          | Returns                                                               | Use it when                                               |
-| ---------------- | ---------------------------------- | --------------------------------------------------------------------- | --------------------------------------------------------- |
-| `buildSiteIndex` | `function buildSiteIndex(entries,` | {SiteIndex} The index, and what could not be addressed unambiguously. | Build the address index a site's wikilink resolver reads. |
-| `wikiContext`    | `function wikiContext(built,`      | {object} The resolver context.                                        | The per-page context a wikilink resolver takes.           |
+| Export              | Signature                                          | Returns                                                                                                                        | Use it when                                                                                                  |
+| ------------------- | -------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| `buildSiteIndex`    | `function buildSiteIndex(entries,`                 | {SiteIndex} The index, and what could not be addressed unambiguously.                                                          | Build the address index a site's wikilink resolver reads.                                                    |
+| `wikiContext`       | `function wikiContext(built,`                      | {object} The resolver context.                                                                                                 | The per-page context a wikilink resolver takes.                                                              |
+| `resolveInfoboxRef` | `function resolveInfoboxRef(siteIndex, ref, hint)` | {{name?: string, url?: string, address?: string, subType?: string}\|undefined} The page, or `undefined` where nothing answers. | Resolve one infobox reference — a bare shortcode, a short address or a canonical one — against a site index. |
 
 ### `engine.pdfToc`
 
@@ -976,6 +1038,24 @@ SoHL's Actor pass — what a SoHL `being` document holds and nothing else: the b
 | -------- | -------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------------------------- |
 | `Actors` | `class Actors` | —       | not called directly — imported and driven by `engine/generate.mjs`; must run after the items passes, since it reads their generated JSON trees |
 
+### `sohl.infobox`
+
+Which of SoHL's facts a note's summary panel carries, and how they group. Read off the same field declaration the compiler obeys, with a builder of its own only where a box is derived rather than read field by field.
+
+| Export                    | Signature                       | Returns               | Use it when                                                                         |
+| ------------------------- | ------------------------------- | --------------------- | ----------------------------------------------------------------------------------- |
+| `SOHL_INFOBOX`            | `const SOHL_INFOBOX`            | —                     | reading SoHL's infobox declaration                                                  |
+| `SOHL_INFOBOX_TITLE`      | `const SOHL_INFOBOX_TITLE`      | —                     | naming SoHL's box                                                                   |
+| `SOHL_FIELD_PRESENTATION` | `const SOHL_FIELD_PRESENTATION` | —                     | looking up what one of SoHL's fields is called, or why it carries no row            |
+| `PROTECTION_FIELDS`       | `const PROTECTION_FIELDS`       | —                     | reading the declarations of the aspects armour is rated against, in the order shown |
+| `UNSTATED`                | `const UNSTATED`                | —                     | naming what a strike mode shows where a value was not stated                        |
+| `armorSections`           | `armorSections(fm, ctx)`        | `object[]`            | building armour's box, protection included                                          |
+| `beingSections`           | `beingSections(fm, ctx)`        | `object[]`            | building a being's attributes, skills, mystical abilities and equipment             |
+| `decodeItem`              | `decodeItem(entry)`             | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in         |
+| `projectileSections`      | `projectileSections(fm, ctx)`   | `object[]`            | building a projectile's box, its impact composed into one row                       |
+| `strikeModes`             | `strikeModes(declared)`         | `[string, object][]`  | reading a weapon's strike modes, whichever of the two shapes were authored          |
+| `weaponSections`          | `weaponSections(fm, ctx)`       | `object[]`            | building a weapon's box, strike modes included                                      |
+
 ### `sohl.kbPasses`
 
 The `sohl` knowledgebase's own body passes: two rewrites driven by a TypeDoc symbol map and a repository layout only this package has, named from `site.passOptions` the same way an asset transform is named from configuration. Neither rewrite ever fails a build — an unresolved `{@link}` degrades to a code span, and a relative link outside the documentation tree becomes a GitHub blob URL — but building the bundle from a misconfigured `symbolMap` fails loudly before any page renders.
@@ -1037,6 +1117,16 @@ HM3's note-type → document-subtype map. Unlike SoHL's near-identity map, HM3's
 | ----------------------- | ----------------------------- | ------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | `HM3_TYPE_KEY`          | `const HM3_TYPE_KEY`          | —       | reading the frontmatter key (`hm3.type`) inside the `hm3:` block that resolves a one-to-many content type to its HM3 document subtype                  |
 | `HM3_DOCUMENT_SUBTYPES` | `const HM3_DOCUMENT_SUBTYPES` | —       | looking up which Foundry document and subtype a content type compiles into under HM3; a type absent from this map compiles into no HM3 document at all |
+
+### `hm3.infobox`
+
+Which of HM3's facts a note's summary panel carries, read off the same field list the item builders obey.
+
+| Export                   | Signature                      | Returns | Use it when                                   |
+| ------------------------ | ------------------------------ | ------- | --------------------------------------------- |
+| `HM3_INFOBOX`            | `const HM3_INFOBOX`            | —       | reading HM3's infobox declaration             |
+| `HM3_INFOBOX_TITLE`      | `const HM3_INFOBOX_TITLE`      | —       | naming HM3's box                              |
+| `HM3_FIELD_PRESENTATION` | `const HM3_FIELD_PRESENTATION` | —       | looking up what one of HM3's fields is called |
 
 ### `hm3.items`
 

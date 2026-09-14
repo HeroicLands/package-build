@@ -362,6 +362,11 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 doc: record.documentation ?? undefined,
                 anchors: foundry?.anchors,
                 type: parts.type,
+                // What the note *is*, not only where it lives. A consumer
+                // grouping a reference by the family its target declares —
+                // an infobox sorting a being's skills — has no other way to
+                // learn it about a note another package publishes.
+                subType: record.subType ?? undefined,
                 package: pkg,
             });
         }

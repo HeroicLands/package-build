@@ -96,6 +96,15 @@ export * as contentAddress from "./content-address.mjs";
 /** Which note-type → document-subtype maps this toolchain ships. */
 export * as subtypeRegistry from "./subtype-registry.mjs";
 
+/** The declared infobox: what a note's summary panel holds, in every medium. */
+export * as infobox from "./infobox.mjs";
+
+/** The infobox declarations this toolchain ships, one per system. */
+export * as infoboxRegistry from "./infobox-registry.mjs";
+
+/** Drawing a declared infobox as HTML for Foundry and as Typst for the book. */
+export * as infoboxRender from "./infobox-render.mjs";
+
 /** The id a note's document is filed under: its pin, or its address. */
 export * as noteIds from "./note-ids.mjs";
 

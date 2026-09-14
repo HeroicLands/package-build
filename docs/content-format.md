@@ -4,7 +4,10 @@
 
 All markdown will end up generating a JournalNote document: If anything appears before the first H1 header, that will be placed in an "Introduction" page, and then every H1 header will become a subsequent page. The link id of this document will be `<package>-none-<note_type>-<shortcode>`
 
-If there are `hm3` or `sohl` sections in the frontmatter, those will be used to generate InfoBoxes, which will be displayed as a separate page (named "SoHL InfoBox" and "HM3 InfoBox", with anchors sohlinfobox and hm3infobox)
+An **infobox** is prepended to the entry's first page, before the prose. It is
+not a page of its own: a page is what a Foundry UUID addresses, and a summary a
+reader has to navigate to is a summary they do not see. What the box holds, and
+where it sits in every other medium, is [the infobox](#the-infobox) below.
 
 **There are two kinds of infobox.**
 
@@ -49,6 +52,219 @@ maps to_ is an assertion the build can make, so a missing infobox is a failure
 rather than something nobody notices.
 
 For Web Pages, the entire markdown content will be converted into an HTML page, with appropriate infoboxes.
+
+### The infobox
+
+**The infobox is generated content at a known position — prepended, before the
+prose.** It is not a floating sidebar and it is not defined in a rendering
+template. The toolchain settles what each box holds; each medium lays that out
+its own way.
+
+| medium  | placement                                              | collapsing                |
+| ------- | ------------------------------------------------------ | ------------------------- |
+| book    | flows in the column measure, breaking between sections | none, and none needed     |
+| website | side rail on wide screens, inline on narrow            | `<details>`, default open |
+| Foundry | inlined, the page being narrow                         | `<details>`, default open |
+
+Two columns are print-only. A scrolling page has no fixed viewport, so columns
+make a reader travel down and back up, and a narrow screen collapses to one
+column regardless.
+
+**Six rules hold in every medium.**
+
+1. **It is content in document order**, prepended before the prose. An image
+   authored before it appears before it.
+2. **It contains no image.** A picture is authored in the text with its own
+   directive, and its position governs.
+3. **A section is the unit that flows.** Sections are whole and unbreakable and
+   the panel breaks _between_ them, which is what lets a long box cross a
+   column or page boundary without splitting a stat grid down the middle.
+4. **An absent field is absent, not empty.** A row with no value is not
+   emitted. A placeholder asserts a fact that is not there. A corpus writes an
+   absence three ways and all three count: the key is omitted, it holds the
+   field's own default, or it holds a **sentinel** — `na`, `none`,
+   `not applicable` — which is the same absence written as a word. `Potency: Na`
+   is not a fact about a potion.
+5. **A system box is never an empty panel; it says which silence it is.** Rule
+   4 governs rows, and a box is not a row — a heading over nothing asserts that
+   something should have been there. See
+   [the three states of a system box](#the-three-states-of-a-system-box).
+6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
+   the order given.
+
+#### What the note box holds
+
+**The note box's fields are the type's own `data:` vocabulary, in its declared
+order** — the very table each `### type:` section below states. There is no
+second list, so a key added to a type appears in the book, on the website and
+in a compendium journal with no further edit. A `Name` row stands first on
+every note, because every note has one.
+
+A few keys carry no row, and the reason in each case is one of exactly two —
+the key is **machinery**, steering a build or an interface rather than
+describing the subject, or it is an **image**, which rule 2 keeps out of the
+box:
+
+| key                          | why it carries no row                            |
+| ---------------------------- | ------------------------------------------------ |
+| `templatePriority`           | template machinery, not a fact about the subject |
+| `color`                      | sidebar machinery, not a fact about the subject  |
+| `portrait`, `img`, `overlay` | an image, which rule 2 keeps out of the box      |
+
+A field whose value is a **mapping** carries no row either — a governance
+ladder or a wall layout has no summary shape — and neither does one the note
+left empty.
+
+A being's `age`, `height`, `weight` and `appearance.*` compose into a single
+**Appearance** clause rather than taking six rows of their own: _Age 34, 6′ 1″,
+181 lbs, medium frame, brown eyes_.
+
+#### What a system box holds
+
+**A system box's fields are that system's own field declaration**, in its
+order. There is no second list here either, so a field added to a type reaches
+the box with no further edit.
+
+Two things keep a fact off it:
+
+- **A value the declaration would have supplied anyway.** A field answered by
+  its own default is a fact about the compiler, not about the note — and that is
+  true of the value, wherever it was written. A corpus writes its defaults out:
+  `improveFlag: false` and `combatCategory: none` are typed into hundreds of
+  notes that mean nothing by them.
+- **A fact the note box already put on the page.** A gear item's weight is
+  system-agnostic and belongs to the note. What counts is what the note box
+  _shows_, not what its vocabulary declares — the same fact is written under
+  `data:` on one note and at its destination path on another, and a system box
+  that stood down on the declaration alone would leave it on no surface at all.
+
+**A measured quantity carries its unit on its value** — `Price 160d`,
+`Weight 1.1 lbs`. The unit belongs to the quantity rather than to the name of
+the quantity, so it is not folded into the label: `Price (d)` beside `160` makes
+a reader reassemble one fact from two cells, and reads worst in the book, whose
+label column is a narrow small-caps rule. A medium cannot supply it either —
+appending `d` to a price means knowing which row is the price, which is the one
+thing a generic renderer must never know. A row carrying a unit is `text`,
+because a number with a unit on it is no longer a number.
+
+**What a field is called** is a **presentation overlay** on that same
+declaration, per system. It carries two things a compiler's field list cannot,
+because they are about a page rather than about a document: a reader's word
+where the declaration's key is the compiler's — `assocSkillCode` is exactly
+right in a DataModel and wrong in a panel somebody reads — and the handful of
+keys that belong on no page at all, either because the box shows the same fact
+whole somewhere else or because they steer a character sheet rather than
+describe the subject. It is an overlay and not a list: a field it does not
+mention still gets a row, under its own humanised name.
+
+Four types are read differently, because their box is derived rather than read
+field by field — a **being**, whose attributes, skills, mystical abilities and
+carried gear are one flat `sohl.items` list; **armour**, whose protection is
+shown for all four aspects with an unstated one rendered `0`; a **weapon**,
+whose strike modes are shown one per line with an unstated value rendered `—`;
+and a **projectile**, whose impact is three declared fields composing into the
+one quantity a reader wants. Both of those placeholders are decided by the
+toolchain and travel as data, so no renderer has to know which field it is
+looking at.
+
+A weapon's strike modes are authored either as a **list**, each mode carrying
+its own `shortcode`, or as a **mapping** keyed by the mode's name. Both are
+read, and both yield the same section.
+
+#### The three states of a system box
+
+A system box says something on every page that carries one. Which of the three
+it says is decided here and travels as the box's `statement`, so a medium draws
+one thing and decides none of it.
+
+| state          | when                                                       | what the box says                       |
+| -------------- | ---------------------------------------------------------- | --------------------------------------- |
+| content        | the system holds something the note box has not shown      | its sections, and no `statement`        |
+| not available  | the system maps this note's type but produced no document  | `statement: Not available`              |
+| nothing to add | the system produced a document holding nothing new to show | `statement: Nothing beyond the profile` |
+
+The third state is not the second. _Not available_ is a statement about this
+note — the system has no document for it, and a reader can act on that. A
+system that _does_ compile the note and holds only facts the note box has
+already given says so instead, because a reader told "not available" would go
+looking for a document that exists, and an empty panel tells them nothing at
+all.
+
+A system that does not map the note's type gets **no box**. A box reading
+_Not available_ on every affiliation page would suggest a gap in the note when
+the truth is about the system's scope.
+
+#### Four section layouts
+
+A section says how it is arranged, and a renderer switches on that and on a
+value's `kind` — never on a field name, which is what keeps a field list from
+leaking back into a template.
+
+| `layout` value | shape                           | what carries it | where it is used           |
+| -------------- | ------------------------------- | --------------- | -------------------------- |
+| `rows`         | label/value pairs, one per line | `rows`          | a profile                  |
+| `grid`         | short label/value cells         | `cells`         | attributes, armour aspects |
+| `runin`        | groups of comma-joined entries  | `groups`        | skills, equipment          |
+| `list`         | one entry per line              | `entries`       | mystical abilities         |
+
+| `kind` value | the value is                    |
+| ------------ | ------------------------------- |
+| `text`       | a string                        |
+| `number`     | a number                        |
+| `link`       | `{text, url?, uuid?, address?}` |
+| `links`      | a list of those                 |
+| `list`       | a list of strings               |
+
+A website renders a link by its `url`, a compendium journal by its `uuid`, and
+the book by the `address`, which is the entry's own label in the volume. A
+reference the index could not reach keeps its words rather than being dropped.
+
+**Emitted shape**, as a page's front matter carries it:
+
+```yaml
+infoboxes:
+  - id: note
+    kind: note
+    title: Profile
+    sections:
+      - id: profile
+        layout: rows
+        rows:
+          - label: Name
+            kind: text
+            value: Brànwâal Dôrgaar
+          - label: Affiliations
+            kind: links
+            value:
+              - text: The Silent Talon Company
+                url: /thalorna/affiliation-slntlncmpny/
+  - id: sohl
+    kind: system
+    system: sohl
+    title: SoHL
+    available: true
+    sections:
+      - id: attributes
+        label: Attributes
+        layout: grid
+        cells:
+          - label: STR
+            value: 14
+      - id: skills
+        label: Skills
+        layout: runin
+        groups:
+          - label: Combat
+            entries:
+              - text: Melee 75
+  - id: hm3
+    kind: system
+    system: hm3
+    title: HM3
+    available: false
+    sections: []
+    statement: Not available
+```
 
 ### Frontmatter has three regions
 
