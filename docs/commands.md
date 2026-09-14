@@ -437,6 +437,81 @@ package-build: registry and §3 agree (11 labels).
 
 None.
 
+### `package-build bump [packages..]`
+
+**NAME**
+
+Take a newer version of a dependency, keeping the lockfile's formatting.
+
+**SYNOPSIS**
+
+```
+package-build bump [packages..] [--tag <tag>] [--check]
+```
+
+**DESCRIPTION**
+
+Takes the newest published version of one or more declared dependencies,
+updating `package-lock.json` — and `package.json` when the declared range has to
+move — then restoring both files to the indentation they already used.
+
+npm performs the resolution, so a version whose dependency set differs from the
+one it replaces is handled as correctly as one that moves three lines. Editing
+those three lines by hand is only right while the two dependency sets are
+identical, and nothing tells the author when they are not.
+
+The indentation is the reason this exists rather than `npm install` being run
+directly. Every repository consuming this toolchain writes `package-lock.json`
+with four spaces and prettier-ignores it; npm rewrites it with two, turning a
+three-line version change into a whole-file reformat no reviewer can read past.
+
+Named no packages, it takes every `@heroiclands/*` dependency the manifest
+declares. That scope is the one a person bumps by hand — a first-party release
+is taken the moment it publishes, usually to unblock the change that prompted
+it, while third-party updates arrive from Dependabot on their own schedule.
+
+The version reported is the one the **lockfile** resolves, not the range the
+manifest declares, because `npm ci` installs from the lockfile. Above 1.0 a
+caret range usually already admits the new version, so the manifest does not
+move and the lockfile is the whole change; below 1.0 a caret is locked to the
+minor, so it does.
+
+Writes no `node_modules`: install the result with `npm ci`.
+
+**OPTIONS**
+
+| Option    | Type    | Default  | Description                                 |
+| --------- | ------- | -------- | ------------------------------------------- |
+| `--tag`   | string  | `latest` | The dist-tag to take.                       |
+| `--check` | boolean | `false`  | Report what would change and write nothing. |
+
+**EXIT STATUS**
+
+1 if the working directory holds no `package.json` or no `package-lock.json`. 1
+if a named package is not a declared dependency. Otherwise 0, including when
+every package is already current.
+
+**EXAMPLES**
+
+```
+$ package-build bump
+@heroiclands/package-build  20.6.0 → 20.7.0
+   kept the existing indentation of package-lock.json
+
+Install it with `npm ci`, which resolves from the lockfile this just moved.
+```
+
+```
+$ package-build bump @heroiclands/hugo-theme --check
+@heroiclands/hugo-theme  0.5.0 → 0.6.0
+
+Run without --check to take it.
+```
+
+**SEE ALSO**
+
+`package-build clean`.
+
 ### `package-build yaml [paths..]`
 
 **NAME**

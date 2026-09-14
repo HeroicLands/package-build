@@ -86,6 +86,7 @@ import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
 import { lintYaml } from "../engine/yaml-lint.mjs";
+import { bumpDependencies } from "../engine/dependency-bump.mjs";
 import {
     analyzeCoverage,
     collectScriptReferences,
@@ -1132,6 +1133,81 @@ function e2eCommand() {
     };
 }
 
+/**
+ * `bump [packages..]` — take a newer version of a dependency.
+ *
+ * npm does the resolving, so a bump whose dependency set changed is as correct
+ * as one that moves three lines. What this adds is the indentation: every
+ * repository here writes `package-lock.json` with four spaces and
+ * prettier-ignores it, and npm rewrites it with two, so the version change
+ * arrives buried in a whole-file reformat.
+ *
+ * Named nothing, it takes the first-party packages — the ones a person bumps
+ * by hand, the moment a release publishes, usually to unblock the change that
+ * prompted it. Third-party bumps arrive from Dependabot on their own schedule.
+ *
+ * @returns {object} The yargs command module.
+ */
+function bumpCommand() {
+    return {
+        command: "bump [packages..]",
+        describe: "Take a newer version of a dependency, keeping the lockfile's formatting",
+        builder: (y) =>
+            y
+                .positional("packages", {
+                    type: "string",
+                    array: true,
+                    describe: "Packages to bump (default: every @heroiclands/* dependency)",
+                })
+                .option("tag", {
+                    type: "string",
+                    default: "latest",
+                    describe: "Dist-tag to take",
+                })
+                .option("check", {
+                    type: "boolean",
+                    default: false,
+                    describe: "Report what would change and write nothing",
+                }),
+        handler: handler(async (args) => {
+            const rootDir = process.cwd();
+            const result = bumpDependencies({
+                rootDir,
+                packages: args.packages,
+                tag: args.tag,
+                check: args.check,
+            });
+
+            if (result.changes.length === 0) {
+                const named =
+                    result.unchanged.length ?
+                        result.unchanged.join(", ")
+                    :   "no first-party dependency";
+                console.log(`Already on the newest ${args.tag}: ${named}`);
+                return;
+            }
+
+            for (const { name, from, to } of result.changes) {
+                console.log(`${name}  ${from ?? "—"} → ${to}`);
+            }
+
+            if (result.checked) {
+                console.log(
+                    `\nRun without --check to take ${result.changes.length > 1 ? "them" : "it"}.`,
+                );
+                return;
+            }
+
+            for (const file of result.reindented) {
+                console.log(`   kept the existing indentation of ${path.basename(file)}`);
+            }
+            console.log(
+                `\nInstall it with \`npm ci\`, which resolves from the lockfile this just moved.`,
+            );
+        }),
+    };
+}
+
 yargs(hideBin(process.argv))
     .scriptName("package-build")
     .command(cleanCommand())
@@ -1140,6 +1216,7 @@ yargs(hideBin(process.argv))
     .command(schemaCommand())
     .command(langCommand())
     .command(labelsCommand())
+    .command(bumpCommand())
     .command(yamlCommand())
     .command(bundleCommand())
     .command(releaseCommand())
