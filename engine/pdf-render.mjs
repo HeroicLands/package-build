@@ -168,6 +168,9 @@ export function createParser(registry) {
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
  *   every `{#slug}` the body declares.
+ * @param {boolean} [opts.dropCap] - Whether to open the body with a raised
+ *   capital. Set for an entry, which begins a page; not for front matter or a
+ *   prose file, which carry headings of their own.
  * @returns {string} Typst markup.
  */
 export function markdownToTypst(markdown, opts = {}) {
@@ -178,6 +181,7 @@ export function markdownToTypst(markdown, opts = {}) {
         images = new Map(),
         headingOffset = 0,
         anchorPrefix = "",
+        dropCap = false,
     } = opts;
     const tokens = md.parse(String(markdown ?? ""), {});
     // One map for the whole body, not one per block: a heading inside a
@@ -190,6 +194,7 @@ export function markdownToTypst(markdown, opts = {}) {
         images,
         headingOffset,
         anchorPrefix,
+        dropCap,
         seen: new Map(),
     });
 }
@@ -253,7 +258,7 @@ function renderBlock(tokens, i, out, ctx) {
             return 3;
         }
         case "paragraph_open": {
-            out.push(`\n${renderInline(tokens[i + 1], ctx)}\n\n`);
+            out.push(`\n${openingParagraph(renderInline(tokens[i + 1], ctx), ctx)}\n\n`);
             return 3;
         }
         case "fence":
@@ -266,7 +271,7 @@ function renderBlock(tokens, i, out, ctx) {
             return 1;
         case "blockquote_open": {
             const end = matching(tokens, i, "blockquote_open", "blockquote_close");
-            const inner = renderTokens(tokens.slice(i + 1, end), ctx);
+            const inner = renderTokens(tokens.slice(i + 1, end), { ...ctx, dropCap: false });
             out.push(`\n#quote(block: true)[${inner}]\n\n`);
             return end - i + 1;
         }
@@ -291,6 +296,29 @@ function renderBlock(tokens, i, out, ctx) {
         default:
             return 1;
     }
+}
+
+/**
+ * The first paragraph of an entry, opened with a raised capital.
+ *
+ * Only the first, and only when it begins with a letter: a paragraph opening
+ * on a link, a bold run or a number has no character to raise, and raising
+ * whatever happened to be first would put a 26pt accent on a bracket. The
+ * chance is spent either way — a body opens once — so a paragraph that cannot
+ * take the capital simply sets as itself.
+ *
+ * @param {string} rendered - The paragraph's Typst markup.
+ * @param {object} ctx - Render context.
+ * @returns {string} The same markup, or it with a raised capital.
+ */
+function openingParagraph(rendered, ctx) {
+    if (!ctx.dropCap) return rendered;
+    ctx.dropCap = false;
+    // A letter is never escaped, so the first character of the markup is the
+    // first character of the prose whenever the prose starts with one.
+    const match = /^(\p{L})([\s\S]*)$/u.exec(rendered);
+    if (!match) return rendered;
+    return `#book-dropcap[${match[1]}]#h(1pt)${match[2]}`;
 }
 
 /**
@@ -410,7 +438,7 @@ function listItems(tokens, start, end, ctx) {
             continue;
         }
         const close = matching(tokens, i, "list_item_open", "list_item_close");
-        items.push(renderTokens(tokens.slice(i + 1, close), ctx));
+        items.push(renderTokens(tokens.slice(i + 1, close), { ...ctx, dropCap: false }));
         i = close + 1;
     }
     return items;
@@ -488,7 +516,12 @@ function renderTable(tokens, ctx) {
                 columns,
             )}),`
         :   "";
-    return `\n#table(\n  columns: ${columns},${alignment}${header}\n${body}\n)\n\n`;
+    const drawn = `#table(\n  columns: ${columns},${alignment}${header}\n${body}\n)`;
+    // Wide content is given an explicit span rather than left to overflow the
+    // measure: past three columns a table is set across the page, and
+    // `book-wide` decides between a float and pages of its own by measuring it.
+    if (columns > WIDE_TABLE_COLUMNS) return `\n#book-wide[\n${drawn}\n]\n\n`;
+    return `\n${drawn}\n\n`;
 }
 
 /**
@@ -724,6 +757,174 @@ function renderIcon(token, ctx) {
 }
 
 /**
+ * How many columns a table may hold before it is set across the page.
+ *
+ * Three is where a column measure gives out. A two- or three-column table of
+ * names and numbers sets comfortably in half a US Letter page; a fourth column
+ * is where the cells start breaking one word to a line, and by five — a roster
+ * of nomes with a sentence of character in the last cell — the table is wider
+ * than the measure whatever the renderer does with it.
+ *
+ * The count is the rule because it is the one thing known without laying the
+ * page out. How *tall* the result is decides the rest, and that is measured in
+ * Typst rather than guessed here: see `book-wide` in {@link bookTypstPreamble}.
+ *
+ * @type {number}
+ */
+const WIDE_TABLE_COLUMNS = 3;
+
+/**
+ * The Typst definitions the book's page furniture is drawn with.
+ *
+ * Emitted once at the head of the document, for the reason the infobox panel's
+ * rules are: 2,000 entries each restating the plate, the running foot and the
+ * drop cap is a megabyte of repetition, and the one place a reader changes how
+ * the book looks should be one place.
+ *
+ * ## The geometry is stated, not discovered
+ *
+ * The page is US Letter with a 1.9cm margin, and the plate bleeds off all
+ * three edges it touches — so the plate has to know the paper's width and the
+ * margin it is escaping. Both are `#let` bindings here rather than numbers
+ * repeated down the file, and every other measure is arithmetic on them.
+ *
+ * ## Three things that cost time to discover, encoded here
+ *
+ * - **A title inherits the body's justification and hyphenation** unless told
+ *   otherwise. Both are habits of body text that make a display line look
+ *   broken, so the plate turns them off inside itself.
+ * - **The plate's height follows its title**, and the line count is derived
+ *   from the title's *natural* width: measuring an already-wrapped block does
+ *   not report the wrapped height, and a percentage width cannot resolve
+ *   inside `measure`. So the title arrives as a string to be measured
+ *   alongside the heading that is actually drawn.
+ * - **A float is not breakable.** A table taller than the page placed as one
+ *   silently piles its rows on top of each other at the foot of the page —
+ *   no warning, no error. So `book-wide` measures first and gives a table that
+ *   will not fit its own single-column pages instead.
+ *
+ * ## The ornament is drawn, not typed
+ *
+ * The running foot's centre mark is a rotated square rather than a dingbat
+ * character, because the faces a consumer names and the faces a build runner
+ * carries are not the same set, and a missing glyph on 2,000 feet is a
+ * tofu box on every page of the book.
+ *
+ * @returns {string} Typst markup.
+ */
+export function bookTypstPreamble() {
+    return [
+        "#let book-margin = 1.9cm",
+        "#let book-page-width = 8.5in",
+        "#let book-page-height = 11in",
+        "#let book-text-width = book-page-width - 2 * book-margin",
+        "#let book-text-height = book-page-height - 2 * book-margin",
+        // The title sets short of the measure, so a plate's last line does not
+        // run to the trimmed edge of the paper.
+        "#let book-title-measure = book-text-width - 2.5cm",
+        '#let book-ink = rgb("#241f1a")',
+        '#let book-paper = rgb("#f4efe4")',
+        '#let book-accent = rgb("#7c3b1e")',
+        '#let book-faint = rgb("#6b6357")',
+        "#let book-ornament = box(baseline: 1pt, " +
+            "rotate(45deg, rect(width: 3pt, height: 3pt, fill: book-accent)))",
+        "#let book-footer(name) = context {\n" +
+            "  set text(size: 8pt, fill: book-faint)\n" +
+            "  grid(columns: (1fr, auto, 1fr), align(left)[#name], align(center)[#book-ornament],\n" +
+            "    align(right)[#counter(page).display()])\n" +
+            "}",
+        // A heading justifies and hyphenates like body text unless told
+        // otherwise, and both make a display line look broken.
+        "#let book-sechead(it) = block(width: 100%, above: 0.9em, below: 0.5em, " +
+            "breakable: false)[\n" +
+            "  #set par(justify: false, first-line-indent: 0em)\n" +
+            "  #set text(hyphenate: false)\n" +
+            '  #text(size: 11pt, weight: "bold", tracking: 1.6pt, fill: book-accent)[#upper(it.body)]\n' +
+            "  #v(-0.35em)\n" +
+            "  #line(length: 100%, stroke: 0.5pt + book-accent)\n" +
+            "]",
+        '#let book-dropcap(letter) = text(size: 26pt, weight: "bold", fill: book-accent, ' +
+            "baseline: 5pt)[#letter]",
+        // The plate bleeds off the paper: the placed panel is the full width of
+        // the sheet and starts a margin above and to the left of wherever the
+        // flow has reached, which on an entry's first page is the top corner.
+        "#let book-plate(kicker, title, banner, floor, body) = context {\n" +
+            '  let natural = measure(text(size: 25pt, weight: "bold", tracking: 1.4pt)[#title]).width\n' +
+            "  let lines = calc.max(1, calc.ceil(natural / book-title-measure))\n" +
+            "  let height = calc.max(floor, lines * 1.15cm + 1.75cm)\n" +
+            "  block(width: 100%, height: height - book-margin, above: 0pt, below: 0pt)[\n" +
+            "    #place(top + left, dx: -book-margin, dy: -book-margin)[\n" +
+            "      #block(width: book-page-width, height: height, clip: true, inset: 0pt,\n" +
+            "        fill: book-ink)[\n" +
+            "        #if banner != none {\n" +
+            '          place(top + left, image(banner, width: 100%, height: height, fit: "cover"))\n' +
+            "        }\n" +
+            "        #place(top + left, rect(width: 100%, height: height,\n" +
+            "          fill: gradient.linear(rgb(10, 8, 6, 70), rgb(10, 8, 6, 175),\n" +
+            "            rgb(10, 8, 6, 240), angle: 90deg)))\n" +
+            "        #place(bottom + left, dx: book-margin, dy: -0.55cm)[\n" +
+            "          #block(width: book-title-measure)[\n" +
+            "            #set par(justify: false, leading: 0.35em, first-line-indent: 0em)\n" +
+            "            #set text(hyphenate: false)\n" +
+            '            #text(fill: rgb("#e8dcc2"), size: 7.5pt, tracking: 2.6pt)[#upper(kicker)]\n' +
+            "            #v(-0.10em)\n" +
+            "            #{\n" +
+            "              show heading: it => it.body\n" +
+            '              set text(fill: white, size: 25pt, weight: "bold", tracking: 1.4pt)\n' +
+            "              body\n" +
+            "            }\n" +
+            "          ]\n" +
+            "        ]\n" +
+            "      ]\n" +
+            "    ]\n" +
+            "  ]\n" +
+            "}",
+        "#let book-epigraph(body) = {\n" +
+            "  v(0.42cm)\n" +
+            "  align(center)[\n" +
+            "    #line(length: 38%, stroke: 0.6pt + book-accent)\n" +
+            "    #v(0.28em)\n" +
+            "    #block(width: 78%)[\n" +
+            "      #set par(justify: false, first-line-indent: 0em)\n" +
+            '      #text(size: 10pt, style: "italic", fill: rgb("#3d352b"))[#body]\n' +
+            "    ]\n" +
+            "    #v(0.28em)\n" +
+            "    #line(length: 38%, stroke: 0.6pt + book-accent)\n" +
+            "  ]\n" +
+            "}",
+        // An entry owns its page. The plate is a float scoped to the parent
+        // because that is the only placement that spans every column, and the
+        // body has to set *below* it rather than beside it.
+        "#let book-entry(kicker, title, banner, epigraph, body) = {\n" +
+            "  pagebreak(weak: true)\n" +
+            '  place(top, float: true, scope: "parent", clearance: 0.55cm)[\n' +
+            "    #book-plate(kicker, title, banner, 3.5cm, body)\n" +
+            "    #if epigraph != none { book-epigraph(epigraph) }\n" +
+            "  ]\n" +
+            "}",
+        // A section opener holds nothing but its plate, so the plate needs no
+        // float: placed out of the flow it covers the sheet whichever column
+        // the flow happens to be in, and the break after it is what makes the
+        // page exist.
+        "#let book-section(kicker, title, banner, body) = {\n" +
+            "  pagebreak(weak: true)\n" +
+            "  place(top + left)[#book-plate(kicker, title, banner, 9cm, body)]\n" +
+            "  pagebreak()\n" +
+            "}",
+        // Wide content spans the page, and how it spans depends on how tall it
+        // is: a float is unbreakable and silently overflows, so anything taller
+        // than a page takes pages of its own instead.
+        "#let book-wide(body) = context {\n" +
+            "  if measure(block(width: book-text-width)[#body]).height < book-text-height * 0.88 {\n" +
+            '    place(top, float: true, scope: "parent", clearance: 0.8em)[#body]\n' +
+            "  } else {\n" +
+            "    page(columns: 1)[#body]\n" +
+            "  }\n" +
+            "}",
+    ].join("\n");
+}
+
+/**
  * The whole book, as one Typst document.
  *
  * **Pure, and that is the point.** Everything a reviewer of #316 has to check
@@ -758,6 +959,46 @@ function renderIcon(token, ctx) {
  * `#outline()` needs no depth limit under this model: what prints is decided
  * per heading, not by how deep the tree happens to go.
  *
+ * ## An entry owns its page, and the page is set in two columns
+ *
+ * A reference book is consulted rather than read through. An entry beginning
+ * halfway down a page is harder to find, cannot carry its own running head
+ * honestly, and makes a page number in the contents point at the middle of
+ * something else — so every entry opens a page of its own, under a full-bleed
+ * plate carrying a kicker and its name.
+ *
+ * The body is set in **two columns**, the measure a reference work wants and
+ * the one every other decision follows from: an image with no width class is a
+ * column wide, the infobox flows in the column measure and breaks between its
+ * sections, and a table wider than {@link WIDE_TABLE_COLUMNS} spans the page.
+ * The columns are the *page's* rather than a `columns()` block's, because only
+ * a page with columns can carry a float that spans them — which is what the
+ * plate, a wide table and a full-width figure all need.
+ *
+ * Two columns are print's answer and print's alone: a scrolling page has no
+ * fixed viewport, so the website keeps one measure.
+ *
+ * ## What a section declares, its entries inherit
+ *
+ * {@link module:engine/pdf-toc.PRESENTATION_KEYS} travels down the document
+ * tree, and two of those keys are read here:
+ *
+ * - **`page`** — `banner:`, the plate's picture; `kicker:`, the line above an
+ *   entry's name; and `columns:`, the measure the section's pages are set in.
+ * - **`footer`** — the name the running foot carries, which is the section's
+ *   own title when nothing says otherwise.
+ *
+ * `header` and `infobox` are reserved and read by nothing: the running head is
+ * a foot in this design, and which infobox a note draws is decided by the
+ * note's type.
+ *
+ * ## A missing banner is a plate without a picture
+ *
+ * A section plate implies a banner per section, and art arrives later than
+ * rendering does. A section that names no banner — or names one the build
+ * cannot read — still gets its plate, its kicker and its title, set over the
+ * book's ink.
+ *
  * ## Headings carry the structure, so nothing else has to
  *
  * Every section, every prose file and every entry is a real Typst heading at
@@ -778,6 +1019,10 @@ function renderIcon(token, ctx) {
  * @param {string} [opts.preamble] - Definitions the bodies call, emitted once
  *   above the title page. A panel every entry draws is a set of rules stated
  *   here rather than repeated 2,500 times.
+ * @param {Map<string, string>} [opts.banners] - A banner as the document tree
+ *   declared it → the staged file's path, relative to the `.typ`. A declared
+ *   banner this map does not carry has no file the compiler can open, so the
+ *   plate draws without a picture.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -789,21 +1034,34 @@ export function renderBook({
     fonts = {},
     version = "",
     preamble = "",
+    banners = new Map(),
 } = {}) {
     const serif = fonts.serif || "Libertinus Serif";
     const sans = fonts.sans || serif;
     const mono = fonts.mono || "DejaVu Sans Mono";
     const out = [];
 
+    out.push(bookTypstPreamble());
+    out.push("");
     out.push(`#set document(title: "${escapeTypstString(title)}")`);
-    out.push('#set page(paper: "us-letter", margin: (x: 2.2cm, y: 2.4cm), numbering: "1")');
-    out.push(`#set text(font: "${escapeTypstString(serif)}", size: 10pt, lang: "en")`);
-    out.push("#set par(justify: true, leading: 0.65em)");
+    // Cream stock and dark ink rather than a dark screen theme: 2,000 pages of
+    // reversed-out text is a different proposition on paper than on a display.
+    out.push(
+        '#set page(paper: "us-letter", margin: book-margin, fill: book-paper, numbering: "1")',
+    );
+    out.push(
+        `#set text(font: "${escapeTypstString(serif)}", size: 9.6pt, fill: book-ink, lang: "en")`,
+    );
+    out.push("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
     // The mono face is a separate claim from the book face: a fenced block is
     // the one place the corpus is allowed box-drawing characters, and the
     // serif that sets the prose is not the font that carries them.
     out.push(`#show raw: set text(font: "${escapeTypstString(mono)}")`);
     out.push(`#show heading: set text(font: "${escapeTypstString(sans)}")`);
+    // Every heading the reader sees inside an entry is a section rule in the
+    // accent: the entry's own name is drawn on its plate, where a nested show
+    // rule takes the heading back to its words.
+    out.push("#show heading: book-sechead");
     // A link the reader can see is the difference between a cross-reference and
     // a sentence that happens to mention something.
     out.push('#show link: set text(fill: rgb("#1b4d7a"))');
@@ -847,15 +1105,34 @@ export function renderBook({
     out.push("#pagebreak()");
     out.push("");
 
+    // The body's geometry, once. Each section restates the columns and the
+    // running foot below, because a `set page` rule starts a page and a
+    // section opener starts one anyway — so the two cost nothing together.
+    out.push(
+        "#set page(margin: book-margin, columns: 2, " +
+            `footer: book-footer[${escapeTypst(title)}])`,
+    );
+    out.push("");
+
     for (const entry of plan?.entries ?? []) {
         const label = labelFor(entry.anchor);
         const depth = Math.min(6, Math.max(1, Number(entry.depth) || 1));
+        const page = presentationPage(entry);
+        const banner = plateBanner(page, banners);
         if (entry.kind === "section") {
             // A declared `sectionName:` — the structure the printed contents
-            // shows and the bookmarks panel shows alongside it.
+            // shows and the bookmarks panel shows alongside it. It opens a page
+            // of its own so that a section reads as a section rather than as
+            // the first entry beneath it.
             out.push(
-                `#heading(level: ${depth}, outlined: true, bookmarked: true)` +
-                    `[${escapeTypst(entry.title)}] <${label}>`,
+                `#set page(columns: ${columnsOf(page)}, ` +
+                    `footer: book-footer[${escapeTypst(footerName(entry))}])`,
+            );
+            out.push(
+                `#book-section("${escapeTypstString(sectionKicker(entry, title))}", ` +
+                    `"${escapeTypstString(entry.title)}", ${banner})[` +
+                    `#heading(level: ${depth}, outlined: true, bookmarked: true)` +
+                    `[${escapeTypst(entry.title)}] <${label}>]`,
             );
             out.push("");
             continue;
@@ -864,17 +1141,25 @@ export function renderBook({
             // Prose carries no title of its own — its headings are its own. The
             // label goes on a zero-width marker so the contents and any inbound
             // link still have somewhere to land.
+            out.push("#pagebreak(weak: true)");
             out.push(`#metadata(none) <${label}>`);
             out.push(bodies.get(entry.anchor) ?? "");
             out.push("");
             continue;
         }
         // A note leaf: reachable from the bookmarks panel, titled from
-        // `name.full`, and never printed in the paper contents.
+        // `name.full`, and never printed in the paper contents. The heading is
+        // handed to the plate, which draws it as the entry's name — one
+        // element, so the bookmark, the anchor and the title a reader sees
+        // cannot drift apart.
         const name = entry.record?.name?.full ?? entry.record?.address?.slug ?? "(untitled)";
+        const description = String(entry.record?.description ?? "").trim();
+        const epigraph = description ? `[${escapeTypst(description)}]` : "none";
         out.push(
-            `#heading(level: ${Math.min(6, depth + 1)}, outlined: false, bookmarked: true)` +
-                `[${escapeTypst(name)}] <${label}>`,
+            `#book-entry("${escapeTypstString(entryKicker(entry))}", ` +
+                `"${escapeTypstString(name)}", ${banner}, ${epigraph})[` +
+                `#heading(level: ${Math.min(6, depth + 1)}, outlined: false, bookmarked: true)` +
+                `[${escapeTypst(name)}] <${label}>]`,
         );
         out.push("");
         const body = bodies.get(entry.anchor);
@@ -885,6 +1170,86 @@ export function renderBook({
     }
 
     return `${out.join("\n")}\n`;
+}
+
+/**
+ * The `page:` presentation an entry inherited, as a mapping.
+ *
+ * @param {object} entry - A plan entry.
+ * @returns {object} The mapping, or an empty one.
+ */
+function presentationPage(entry) {
+    const page = entry?.presentation?.page;
+    return page && typeof page === "object" && !Array.isArray(page) ? page : {};
+}
+
+/**
+ * How many columns an entry's pages are set in.
+ *
+ * @param {object} page - The `page:` presentation.
+ * @returns {number} The column count.
+ */
+function columnsOf(page) {
+    const columns = Number(page.columns);
+    return Number.isInteger(columns) && columns >= 1 && columns <= 4 ? columns : 2;
+}
+
+/**
+ * The staged banner an entry's plate draws, as a Typst argument.
+ *
+ * @param {object} page - The `page:` presentation.
+ * @param {Map<string, string>} banners - Declared path → staged path.
+ * @returns {string} A quoted path, or `none`.
+ */
+function plateBanner(page, banners) {
+    const staged = typeof page.banner === "string" ? banners.get(page.banner) : undefined;
+    return staged ? `"${escapeTypstString(staged)}"` : "none";
+}
+
+/**
+ * The line an entry's name is set under.
+ *
+ * The section that holds it, which is what a reader needs to place an entry
+ * they have arrived at from the index. A tree that wants something else —
+ * the volume's own name, a series line — declares `page.kicker`.
+ *
+ * @param {object} entry - A plan entry.
+ * @returns {string} The kicker.
+ */
+function entryKicker(entry) {
+    const declared = presentationPage(entry).kicker;
+    if (typeof declared === "string" && declared.trim()) return declared.trim();
+    const trail = Array.isArray(entry.trail) ? entry.trail : [];
+    return trail.join(" · ");
+}
+
+/**
+ * The line a section's own name is set under.
+ *
+ * The sections above it, and the book's title at the top of the tree — where
+ * repeating the section's own name would say nothing.
+ *
+ * @param {object} entry - A section entry.
+ * @param {string} title - The book's title.
+ * @returns {string} The kicker.
+ */
+function sectionKicker(entry, title) {
+    const declared = presentationPage(entry).kicker;
+    if (typeof declared === "string" && declared.trim()) return declared.trim();
+    const trail = Array.isArray(entry.trail) ? entry.trail : [];
+    return trail.slice(0, -1).join(" · ") || String(title ?? "");
+}
+
+/**
+ * The name the running foot carries beneath a section and everything under it.
+ *
+ * @param {object} entry - A section entry.
+ * @returns {string} The name.
+ */
+function footerName(entry) {
+    const declared = entry?.presentation?.footer;
+    if (typeof declared === "string" && declared.trim()) return declared.trim();
+    return String(entry?.title ?? "");
 }
 
 /**

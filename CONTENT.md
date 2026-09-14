@@ -2449,6 +2449,75 @@ The `WHERE` clause runs against the same content index the SQL tables read, and
 the build owns the `SELECT … FROM notes` — so a filter cannot name a table, and
 cannot reach another package's notes.
 
+### How the book is set
+
+**Every entry opens a page of its own**, under a full-bleed plate carrying a
+small-caps kicker above the entry's name. A reference book is consulted rather
+than read through: an entry beginning halfway down a page is harder to find,
+cannot carry its own running head honestly, and makes a page number in the
+contents point at the middle of something else. A section opens a page of its
+own too, plated to twice the depth, so a section reads as a section rather than
+as the first entry beneath it.
+
+**The body is set in two columns**, and every other measure follows from that
+one: an image with no width class is a column wide, the infobox flows in the
+column measure and breaks between its sections, and a table wider than three
+columns is set across the page. Two columns are print's answer and print's
+alone — a scrolling page has no fixed viewport, so the website keeps one
+measure with a side rail.
+
+A note's `description:` sets as an epigraph between short rules under the
+plate, and the first paragraph of the prose opens on a raised capital. Both
+disappear rather than leave a shell: a note with no description has no
+epigraph, and a body opening on a link or a number keeps its own first
+character. The running foot carries the section's name, an ornament and the
+folio.
+
+A table of **more than three columns** is given an explicit span rather than
+left to overflow the measure. Which span depends on how tall it is, and that is
+measured while the page is laid out: a table that fits a page is floated across
+both columns at the top of one, and a longer one is set on single-column pages
+of its own — a float cannot break, and a table taller than the page placed as
+one piles its rows on top of each other without a word of warning.
+
+### What a section declares, its entries inherit
+
+A section may carry presentation alongside its `contents:`, and everything
+beneath it agrees unless it says otherwise:
+
+```yaml
+contents:
+  - sectionName: Beings
+    footer: The Bestiary # what the running foot carries
+    page:
+      banner: assets/images/banners/bestiary.webp # the plate's picture
+      kicker: The Bestiary of Thalorna # the line above each entry's name
+      columns: 2 # the measure this section's pages are set in
+    contents:
+      - filter: "type = 'being'"
+```
+
+| Key            | Default                | What it does                                          |
+| -------------- | ---------------------- | ----------------------------------------------------- |
+| `footer`       | the section's own name | The name in the running foot.                         |
+| `page.banner`  | none                   | A file this repository ships, plated under the title. |
+| `page.kicker`  | the section's trail    | The small-caps line above an entry's name.            |
+| `page.columns` | `2`                    | Columns, from 1 to 4.                                 |
+
+`page:` is inherited whole: a subsection declaring one of its keys states the
+others it wants as well.
+
+**A missing banner is a plate without a picture.** A section plate implies a
+banner per section, and art arrives later than rendering does — so a section
+that names none still gets its plate, its kicker and its title, set over the
+book's ink, and nothing is reported. A banner the build _cannot read_ is a
+different matter: that is a statement the tree makes and the build cannot
+honour, so it is a finding.
+
+`header:` and `infobox:` are part of the format and read by nothing: the
+running head is a foot in this design, and which infobox a note draws is
+decided by the note's type.
+
 ### What it is fenced by
 
 **`publish.site` decides whether a book is built, and it is the only switch.**

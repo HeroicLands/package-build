@@ -54,15 +54,85 @@ import { positionOfYamlPath } from "./diagnostics.mjs";
 /**
  * Presentation a node may declare, and that its descendants inherit.
  *
- * Reserved now although the first release renders none of them, because the
- * shape of the file is the thing consumers commit to: a book that has to be
- * restructured to gain a running head has the wrong format, not the wrong
- * renderer. Inheritance is what makes them worth declaring at all — `Gear` says
- * once which infobox its entries use, and nine sections beneath it agree.
+ * Inheritance is what makes them worth declaring at all — `Gear` says once
+ * which banner its entries are plated over, and nine sections beneath it
+ * agree.
+ *
+ * **`page` and `footer` are read by the renderer**, and their shapes are
+ * checked here so that a key nothing can act on is an error rather than a
+ * silence. `header` and `infobox` are reserved and read by nothing: the
+ * running head is a foot in this design, and which infobox a note draws is
+ * decided by the note's type. They keep their place in the format because the
+ * shape of the file is the thing consumers commit to.
  *
  * @type {readonly string[]}
  */
 export const PRESENTATION_KEYS = Object.freeze(["header", "footer", "infobox", "page"]);
+
+/** Keys the `page:` presentation may carry. @type {readonly string[]} */
+const PAGE_KEYS = Object.freeze(["banner", "columns", "kicker"]);
+
+/**
+ * How many columns a section's pages may be set in.
+ *
+ * One or two is the real choice; the ceiling is there so a typo that reads as
+ * a number cannot produce a page of unreadable slivers.
+ *
+ * @type {number}
+ */
+const MAX_COLUMNS = 4;
+
+/**
+ * Check the presentation a section declares, in the two keys anything reads.
+ *
+ * @param {Record<string, unknown>} entry - The section.
+ * @param {Array<string|number>} at - Where it sits in the document.
+ * @param {object} ctx - `{ findings, text }`.
+ * @returns {void}
+ */
+function checkPresentation(entry, at, ctx) {
+    if (entry.footer !== undefined && typeof entry.footer !== "string") {
+        ctx.findings.push(
+            finding(ctx, [...at, "footer"], "`footer:` must be the name the running foot carries"),
+        );
+    }
+    if (entry.page === undefined) return;
+    if (!entry.page || typeof entry.page !== "object" || Array.isArray(entry.page)) {
+        ctx.findings.push(finding(ctx, [...at, "page"], "`page:` must be a mapping"));
+        return;
+    }
+    const page = /** @type {Record<string, unknown>} */ (entry.page);
+    for (const key of Object.keys(page)) {
+        if (!PAGE_KEYS.includes(key)) {
+            ctx.findings.push(
+                finding(ctx, [...at, "page", key], `unknown key \`${key}:\` under \`page:\``, {
+                    key: true,
+                }),
+            );
+        }
+    }
+    for (const key of ["banner", "kicker"]) {
+        if (page[key] !== undefined && (typeof page[key] !== "string" || !page[key].trim())) {
+            ctx.findings.push(
+                finding(ctx, [...at, "page", key], `\`page.${key}:\` must be a non-empty string`),
+            );
+        }
+    }
+    if (
+        page.columns !== undefined &&
+        (!Number.isInteger(page.columns) ||
+            /** @type {number} */ (page.columns) < 1 ||
+            /** @type {number} */ (page.columns) > MAX_COLUMNS)
+    ) {
+        ctx.findings.push(
+            finding(
+                ctx,
+                [...at, "page", "columns"],
+                `\`page.columns:\` must be a whole number from 1 to ${MAX_COLUMNS}`,
+            ),
+        );
+    }
+}
 
 /** Keys a section node may carry. @type {readonly string[]} */
 const SECTION_KEYS = Object.freeze(["sectionName", "contents", ...PRESENTATION_KEYS]);
@@ -163,6 +233,8 @@ function walkSections(contents, keyPath, trail, inherited, ctx) {
                 );
             }
         }
+
+        checkPresentation(entry, at, ctx);
 
         const presentation = { ...inherited };
         for (const key of PRESENTATION_KEYS) {
