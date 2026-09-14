@@ -108,11 +108,17 @@ const nonEmpty = (v) => Array.isArray(v) && v.length > 0;
  * @param {object|null|undefined} sohl - The note's `sohl` frontmatter block.
  * @param {Map<string, {name?: string, url?: string}>} index - Content index,
  *   `"<type>:<shortcode>"` → the item's page.
- * @returns {object|null|undefined} The block with its info-block fields filled
- *   in, or the input unchanged when there is nothing to derive from.
+ * @returns {object|null} The block with its info-block fields filled in, or the
+ *   input unchanged when there is nothing to derive from — with an absent block
+ *   reported as `null`, the value an empty one already carries.
  */
 export function deriveBeingInfo(sohl, index) {
-    if (!isMap(sohl)) return sohl;
+    // A note declaring no `sohl:` key at all arrives as `undefined`, and the
+    // site emitter assigns this result straight into a page's front matter.
+    // js-yaml refuses to dump a property whose value is `undefined`, and the
+    // throw aborts the whole build rather than the one page — so "no block"
+    // is answered with the same `null` an empty block gets.
+    if (!isMap(sohl)) return sohl ?? null;
     const out = { ...sohl };
     const items = Array.isArray(out.items) ? out.items : [];
     if (items.length === 0) return out;
