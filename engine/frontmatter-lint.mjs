@@ -71,7 +71,12 @@ import { isAddressSegment } from "./address-charset.mjs";
 // than repeated, because a linter holding its own copy of what the compiler
 // reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
-import { declaredTags, subTypeCharsetMessage, typeCharsetMessage } from "./note-vocabulary.mjs";
+import {
+    declaredTags,
+    exclusiveTagGroups,
+    subTypeCharsetMessage,
+    typeCharsetMessage,
+} from "./note-vocabulary.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
@@ -673,6 +678,14 @@ function checkSubType(note, { type, entry }) {
  * findings above become none while a settlement tagged `vilage` is still
  * caught.
  *
+ * **A group declared as a slot is checked twice over.** Its tags are the
+ * alternative answers to one question — a being is a `character` or a
+ * `creature` — so two of them on one note is refused outright, by
+ * {@link checkExclusiveTags}, on top of the near miss every group gets. An
+ * *unfilled* slot is not a finding: the kind is authored deliberately, and
+ * nothing can tell a being nobody has classified yet from one the author means
+ * to leave unclassified.
+ *
  * @param {object} note - The note.
  * @param {object} opts
  * @param {string} opts.type - The note's declared `type`, which scopes the
@@ -702,6 +715,55 @@ function checkTags(note, { type }) {
                 `tag "${guess}". A classifying tag is queried, so a misspelt one drops ` +
                 `this note out of an index without failing anything. Write "${guess}", ` +
                 `or rename the tag so it is plainly the author's own`,
+        });
+    }
+    return findings;
+}
+
+/**
+ * Refuse a note that fills one single-valued tag slot twice.
+ *
+ * This is the whole of what "a closed tag vocabulary" can mean while `tags:`
+ * stays open. A slot's values are alternatives, not attributes: a being is a
+ * `character` or a `creature`, so a note carrying both has answered the
+ * question twice and every reader of the tag — an index, a query, a renderer —
+ * gets to pick. That is the same silent wrongness a misspelt classifying tag
+ * is, and it gets the same answer.
+ *
+ * **An error, not a warning**, because a warning does not change the build's
+ * exit code and a contradiction that still ships is a contradiction nobody
+ * fixes.
+ *
+ * **Located on the `tags` key**, because the fault is the list rather than
+ * either entry in it — both values are correctly spelt, and pointing at one of
+ * them would say the wrong one is the wrong one.
+ *
+ * @param {object} note - The note.
+ * @param {object} opts
+ * @param {string} opts.type - The note's declared `type`, which scopes the
+ *   slots checked.
+ * @returns {object[]} Findings.
+ */
+function checkExclusiveTags(note, { type }) {
+    const authored = (note.fm ?? {}).tags;
+    if (!Array.isArray(authored)) return [];
+
+    const carried = new Set(
+        authored.filter((t) => typeof t === "string" && t.trim()).map((t) => t.trim()),
+    );
+    const findings = [];
+    for (const { slot, tags } of exclusiveTagGroups(type)) {
+        const filled = tags.filter((t) => carried.has(t));
+        if (filled.length < 2) continue;
+        findings.push({
+            file: note.file,
+            ...positionInFrontmatter(note.raw ?? "", "tags"),
+            severity: "error",
+            message:
+                `a ${type}'s ${slot} is one tag, and this note carries ` +
+                `${filled.map((t) => `"${t}"`).join(" and ")}. Those are the alternative ` +
+                `answers to one question (${tags.join(", ")}), so carrying two of them ` +
+                `states no ${slot} at all. Keep the one that is true, or neither`,
         });
     }
     return findings;
@@ -1243,6 +1305,7 @@ export function lintNote(
     // type's property — `draft` belongs to any note and `village` to a place —
     // so the finding must survive the early returns below.
     findings.push(...checkTags(note, { type }));
+    findings.push(...checkExclusiveTags(note, { type }));
 
     // A refused field must be one the note *wrote*: `resolveNoteId` fills
     // `fm.id` in place, so the parsed frontmatter carries a derived id the

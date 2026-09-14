@@ -262,6 +262,21 @@ export const DRAFT_TAG = "draft";
  * Kind and character are separate groups because one slot could not hold both: a
  * fishing village is a `village` that is `fishing`, and the single-valued field
  * this replaced had to spell it `Fishing Village` as a value of its own.
+ *
+ * **A group carrying `exclusive` is a single-valued slot**, and that is the one
+ * closure a tag vocabulary can make. Its tags are not several things the subject
+ * may be at once — they are the alternative answers to one question, so a note
+ * naming two of them has named none, and both together are refused as an error.
+ * The property is opt-in and changes nothing for a group without it: a place is
+ * freely a `port` and a `town`, and `draft` is orthogonal to everything. The
+ * value is what the slot is called, for the message a reader gets.
+ *
+ * **Closure stops at the slot, and deliberately.** A tag outside an exclusive
+ * group's list does not fill that group's slot and is not refused for failing
+ * to — `tags:` is open and a being tagged `undead` is describing the subject in
+ * the author's own words. What is refused is a near miss of a declared value,
+ * and two values of one slot; there is no third refusal to make without taking
+ * back the openness of the region these tags sit in.
  */
 export const DECLARED_TAGS = Object.freeze({
     /** What a place *is*. */
@@ -343,6 +358,15 @@ export const DECLARED_TAGS = Object.freeze({
             "unguilded",
         ]),
     }),
+    /**
+     * What kind of being this is — a person, or one of the beasts and made
+     * things. A being is one or the other, so the group is a slot.
+     */
+    beingKind: Object.freeze({
+        types: ["being"],
+        exclusive: "kind",
+        tags: Object.freeze(["character", "creature"]),
+    }),
     /** A note's working state, which any note may carry. */
     state: Object.freeze({ types: null, tags: Object.freeze([DRAFT_TAG]) }),
 });
@@ -355,8 +379,39 @@ export const DECLARED_TAGS = Object.freeze({
  * @returns {readonly string[]} The tags, in declaration order.
  */
 export function declaredTags(type, groups = DECLARED_TAGS) {
-    const applies = Object.values(groups).filter((g) => !g.types || g.types.includes(type));
-    return Object.freeze(applies.flatMap((g) => g.tags));
+    return Object.freeze(applicableTagGroups(type, groups).flatMap((g) => g.tags));
+}
+
+/**
+ * The declared groups scoped to this type, in declaration order.
+ *
+ * The one reading of `types` that the flattened list and the slot check share,
+ * so the two can never disagree about which groups a `being` is held to.
+ *
+ * @param {string} type - The note's type.
+ * @param {object} [groups] - The grouped declaration.
+ * @returns {object[]} The groups that apply.
+ */
+export function applicableTagGroups(type, groups = DECLARED_TAGS) {
+    return Object.values(groups).filter((g) => !g.types || g.types.includes(type));
+}
+
+/**
+ * The single-valued slots a note of this type has, in declaration order.
+ *
+ * A group carrying `exclusive` states alternatives rather than attributes, so a
+ * note carrying two of its tags has answered one question twice. Only such a
+ * group is returned: the check has nothing to say about a group whose tags
+ * genuinely accumulate.
+ *
+ * @param {string} type - The note's type.
+ * @param {object} [groups] - The grouped declaration.
+ * @returns {{slot: string, tags: readonly string[]}[]} The slots and their values.
+ */
+export function exclusiveTagGroups(type, groups = DECLARED_TAGS) {
+    return applicableTagGroups(type, groups)
+        .filter((g) => g.exclusive)
+        .map((g) => ({ slot: g.exclusive, tags: g.tags }));
 }
 
 /**

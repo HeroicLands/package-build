@@ -39,7 +39,7 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS } from "../engine/content-images.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { DECLARED_TAGS, NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const SPEC = readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
@@ -204,8 +204,11 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("reads vocabulary tables out of the specification, so the comparison is not vacuous", () => {
         // Guards the guard: were the table's header to change shape, every
-        // comparison below would be between two empty lists.
-        expect([...FORMAT.vocabularies.keys()].sort()).toEqual(["class", "float"]);
+        // comparison below would be between two empty lists. The two this
+        // suite compares are named, rather than every vocabulary the
+        // specification declares, so a vocabulary added elsewhere does not
+        // fail an assertion about images.
+        expect([...FORMAT.vocabularies.keys()]).toEqual(expect.arrayContaining(["class", "float"]));
     });
 
     it("declares exactly the width classes the specification lists, in its order", () => {
@@ -216,5 +219,102 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("declares exactly the float positions the specification lists, in its order", () => {
         expect(Object.keys(IMAGE_FLOATS)).toEqual(FORMAT.vocabularies.get("float")?.values);
+    });
+});
+
+/**
+ * The tag groups, which nothing compared until now.
+ *
+ * `tags:` sits in the open top-level region, so most tags are the author's own
+ * and no registry has standing over them. A **classifying** tag is different,
+ * because something queries it: a settlement tagged `village` is in the list of
+ * villages and one tagged `vilage` is not, while the list still renders looking
+ * complete. `DECLARED_TAGS` is what the lint checks a near miss against, and
+ * the specification's table is what an author reads — two statements of one
+ * vocabulary, free to disagree in either direction.
+ *
+ * The table's group names are prose (`being kind`) and the registry's are keys
+ * (`beingKind`), so the name is camel-cased rather than mapped: a hand-written
+ * second map would be one more pair free to drift.
+ *
+ * Only the tags are compared, not the `applies to` column. That column is
+ * written for a reader and says `place / settlement` where the registry scopes
+ * the group to `place` and the subtype is what narrows it — a true sentence
+ * about where the tag belongs, and not the same statement as `types`.
+ */
+describe("the specification and the registry agree about the tags that classify", () => {
+    /** Each row of the tag-group table: prose group name → the tags it lists. */
+    function documentedTagGroups(): Map<string, string[]> {
+        const table = SPEC.match(/^\|\s*group\s*\|.*\n\|[-\s|]+\n((?:\|.*\n)+)/m);
+        const out = new Map<string, string[]>();
+        for (const row of (table?.[1] ?? "").trim().split("\n")) {
+            const cells = row.trim().replace(/^\|/, "").replace(/\|$/, "").split("|");
+            const name = cells[0].replace(/\*/g, "").trim();
+            const tags = [...(cells[2] ?? "").matchAll(/`([^`]+)`/g)].map((m) => m[1]);
+            if (name) out.set(name, tags);
+        }
+        return out;
+    }
+
+    /** `being kind` → `beingKind`, so the two names need no third list. */
+    const key = (name: string) => name.replace(/\s+(\w)/g, (_, c: string) => c.toUpperCase());
+
+    const DOCUMENTED_GROUPS = documentedTagGroups();
+
+    it("reads a tag-group table that still has rows, so the comparison is not vacuous", () => {
+        expect(DOCUMENTED_GROUPS.size).toBeGreaterThan(4);
+        expect(DOCUMENTED_GROUPS.get("state")).toEqual(["draft"]);
+    });
+
+    it("declares exactly the groups the specification tabulates", () => {
+        expect([...DOCUMENTED_GROUPS.keys()].map(key).sort()).toEqual(
+            Object.keys(DECLARED_TAGS).sort(),
+        );
+    });
+
+    it("declares exactly the tags the specification lists, in its order", () => {
+        const drift: Record<string, { documented: string[]; declared: string[] }> = {};
+        for (const [name, documented] of DOCUMENTED_GROUPS) {
+            const group = DECLARED_TAGS[key(name) as keyof typeof DECLARED_TAGS];
+            if (!group) continue; // reported by the test above
+            const declared = [...group.tags];
+            if (documented.join(" ") !== declared.join(" ")) drift[name] = { documented, declared };
+        }
+        expect(drift).toEqual({});
+    });
+});
+
+/**
+ * A being's kind, which is the one tag group that is a slot.
+ *
+ * `character` and `creature` are not two of the several things a being may be
+ * at once — they are the two answers to one question, and a note answering it
+ * twice has said nothing. That is what `exclusive` marks, and it is the only
+ * refusal a closed tag vocabulary can make without redefining the open region
+ * it sits in.
+ *
+ * Stated twice on purpose and compared here: the group table above lists the
+ * two tags where a reader looks for tags, and the vocabulary table states what
+ * each one means. Both are read against `DECLARED_TAGS`, so neither can drift
+ * from the registry or, through it, from the other.
+ */
+describe("the specification and the registry agree about a being's kind", () => {
+    const FORMAT = loadContentFormat();
+
+    it("reads a vocabulary table out of the specification, so the comparison is not vacuous", () => {
+        // Guards the guard: were the table's header to change shape, every
+        // comparison below would be between two empty lists.
+        expect([...FORMAT.vocabularies.keys()]).toContain("beingKind");
+    });
+
+    it("admits exactly the values the specification lists, in its order", () => {
+        expect([...DECLARED_TAGS.beingKind.tags]).toEqual(
+            FORMAT.vocabularies.get("beingKind")?.values,
+        );
+    });
+
+    it("marks the group single-valued, which is what the specification promises", () => {
+        expect(DECLARED_TAGS.beingKind.exclusive).toBe("kind");
+        expect(DECLARED_TAGS.beingKind.types).toEqual(["being"]);
     });
 });

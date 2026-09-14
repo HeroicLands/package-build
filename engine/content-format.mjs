@@ -48,11 +48,10 @@
  * `→ hm3`), so the system vocabulary comes from the document too.
  *
  * **A closed vocabulary is a table because it is a list with consequences.**
- * A body-markdown directive that admits a fixed set of names — an image's width
- * class, its `float:` position — states each name in a row beside what each
- * surface does with it, which is the only place a reader can compare the three.
- * The header names the key rather than the parser, so a second vocabulary costs
- * a table and nothing here.
+ * Where the format admits a fixed set of names and refuses the rest, each name
+ * takes a row beside what it means, which is the only place a reader can
+ * compare them. The header names the vocabulary rather than the parser, so a
+ * second one costs a table and nothing here.
  *
  * **The other half of a type's vocabulary is a bullet list, not a table.** A
  * type's `subType` values are stated as `**subType**:` followed by one bullet
@@ -366,7 +365,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             };
             continue;
         }
-        // `` `float` value `` — a closed vocabulary, named by its own header.
+        // `` `<name>` value `` — a closed vocabulary, named by its own header.
         const vocabularyHeader = /^`([A-Za-z][\w-]*)`\s+value$/.exec(cells[0]);
         if (vocabularyHeader) {
             const name = vocabularyHeader[1];
