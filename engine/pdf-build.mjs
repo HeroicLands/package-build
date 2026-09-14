@@ -86,57 +86,41 @@ import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imageSourcesIn } from "./content-images.mjs";
-import { resolveImg } from "./helpers.mjs";
+import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { createParser, markdownToTypst, renderBook, resolveDanglingLabels } from "./pdf-render.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 
 /**
- * Where the book keeps the pictures it prints.
+ * The file on disk an authored image pathname names, or `null`.
  *
- * Typst resolves a path against its root, which is the directory holding the
- * source it is given, and refuses to read anything above it. So a file reaches
- * the compiler by being **copied under the output directory** rather than by
- * widening the root to the whole repository: the emitted `.typ` and everything
- * it opens then sit in one directory, which is what makes the source a consumer
- * can compile by hand with no flags — and what keeps a build from touching a
- * path outside its own output.
+ * Two of the four forms {@link module:engine/pathnames.resolvePathname}
+ * derives, used together: `local` is the file in this repository's own tree,
+ * and `pdf` is where the book stages a copy of it.
  *
- * The name mirrors the package's own asset directory, so a staged file sits at
- * the path the note addressed it by.
+ * **Typst decides where that copy goes.** It resolves a path against its root —
+ * the directory holding the source it is given — and refuses to read anything
+ * above it. So a file reaches the compiler by being copied under the output
+ * directory rather than by widening the root to the whole repository: the
+ * emitted `.typ` and everything it opens sit in one directory, which is what
+ * makes the source a consumer can compile by hand with no flags, and what keeps
+ * a build from touching a path outside its own output.
  *
- * @type {string}
- */
-const STAGED_ASSETS = "assets";
-
-/**
- * The file on disk an authored image address names, or `null`.
+ * Only a file **this** package ships can be staged. A pathname naming another
+ * package's file, or a URL, names something no build here can open — a build
+ * reaches no network — and the caller reports it as a picture the book will not
+ * carry.
  *
- * The inverse of {@link module:engine/helpers.resolveImg}, and deliberately the
- * same rule read backwards: an address whose first segment says *this* package
- * owns the file names a file in this repository's own asset directory, and one
- * naming another package — or a URL — names a file no build here can open.
- *
- * @param {string} src - The address, as authored.
+ * @param {string} src - The pathname, as authored.
  * @param {object} config - The resolved configuration.
  * @returns {{from: string, to: string}|null} The file, and where under the
  *   output directory it is staged.
  */
 export function stagedImagePath(src, config) {
-    if (!config.assetRoot) return null;
-    let resolved;
-    try {
-        resolved = resolveImg(src, config);
-    } catch {
-        return null;
-    }
-    const prefix = `${config.assetRoot}/`;
-    if (!resolved || !resolved.startsWith(prefix)) return null;
-    const within = resolved.slice(prefix.length);
+    const forms = resolvePathname(src, config);
+    if (!forms || forms.state !== "package" || !forms.own) return null;
     return {
-        // `assetRoot` ends in the directory Foundry serves this package's files
-        // from, and that is the directory they are authored in.
-        from: path.resolve(config.rootDir, path.basename(config.assetRoot), within),
-        to: `${STAGED_ASSETS}/${within}`,
+        from: path.resolve(config.rootDir, forms.local),
+        to: forms.pdf,
     };
 }
 
@@ -344,6 +328,14 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         for (const src of imageSourcesIn(body)) {
             if (seenImages.has(src)) continue;
             seenImages.add(src);
+            // An **error**, where a picture the book cannot carry is a warning:
+            // this pathname resolves on no surface at all, and the replacement
+            // is mechanical and named in the message.
+            const problem = pathnameProblem(src);
+            if (problem) {
+                findings.push({ file, severity: "error", message: problem });
+                continue;
+            }
             const staged = stagedImagePath(src, resolved);
             if (!staged) {
                 findings.push({

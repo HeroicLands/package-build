@@ -19,12 +19,11 @@
  * no `img:` of its own, rather than shipping a mismatched icon. So every type
  * `item-builders.mjs` declares has a row here.
  *
- * **Paths are fully resolved.** `resolveImg` rewrites a leading `icons/` or
- * `images/` to the *consuming package's* asset root, which is not where these
- * live: they are shipped by the HM3 system. Written as `systems/hm3/images/…`
- * they pass through untouched and address the icons HM3's own compendiums
- * already use, so an item compiled from a note looks like its hand-authored
- * neighbours.
+ * **Paths name the package that owns the file.** These icons are not the
+ * consuming package's — they are shipped by the HM3 system — so they are
+ * written `hm3/assets/…` and each surface derives its own address from that.
+ * That addresses the icons HM3's own compendiums already use, so an item
+ * compiled from a note looks like its hand-authored neighbours.
  *
  * **A one-to-many type gets one default**, because art is keyed by note type
  * and a note type is what a registry entry addresses. `weapongear` compiles
@@ -42,15 +41,15 @@
  * @type {Readonly<Record<string, string>>}
  */
 export const HM3_DEFAULT_ITEM_ART = Object.freeze({
-    armorgear: "systems/hm3/images/icons/svg/armor.svg",
-    armorlocation: "systems/hm3/images/icons/svg/anatomy.svg",
-    containergear: "systems/hm3/images/icons/svg/sack.svg",
-    miscgear: "systems/hm3/images/icons/svg/miscgear.svg",
-    mysticalability: "systems/hm3/images/icons/svg/psionics.svg",
-    projectilegear: "systems/hm3/images/icons/svg/arrow.svg",
-    skill: "systems/hm3/images/icons/svg/skills.svg",
-    trauma: "systems/hm3/images/icons/svg/injury.svg",
-    weapongear: "systems/hm3/images/icons/svg/sword.svg",
+    armorgear: "hm3/assets/images/icons/svg/armor.svg",
+    armorlocation: "hm3/assets/images/icons/svg/anatomy.svg",
+    containergear: "hm3/assets/images/icons/svg/sack.svg",
+    miscgear: "hm3/assets/images/icons/svg/miscgear.svg",
+    mysticalability: "hm3/assets/images/icons/svg/psionics.svg",
+    projectilegear: "hm3/assets/images/icons/svg/arrow.svg",
+    skill: "hm3/assets/images/icons/svg/skills.svg",
+    trauma: "hm3/assets/images/icons/svg/injury.svg",
+    weapongear: "hm3/assets/images/icons/svg/sword.svg",
 });
 
 /**

@@ -170,11 +170,11 @@ export function itemFields(type, system) {
  * `defaultItemArt` was written for. Only the error's *owner* changed: it now
  * names the registry the consumer declares and can add to.
  *
- * **Resolved by the same rule a note's `img:` is.** The path goes through
- * {@link resolveImg}, so `icons/relic.svg` means the consumer's own asset root
- * in the registry exactly as it does on a note, and an already-served path
- * (`systems/sohl/assets/…`, as every SoHL default is) passes through untouched.
- * One spelling, one meaning, wherever it is written.
+ * **Resolved by the same rule a note's `img:` is.** The pathname goes through
+ * {@link resolveImg}, so `icons/relic.svg` means the consumer's own package in
+ * the registry exactly as it does on a note, and `sohl/assets/…` — as every
+ * SoHL default is written — names the `sohl` package's file wherever it is
+ * compiled. One spelling, one meaning, wherever it is written.
  *
  * @param {string} type - the item type.
  * @param {string} [system] - The system compiling it, where a build declares

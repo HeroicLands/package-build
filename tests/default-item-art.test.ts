@@ -36,7 +36,7 @@ const EXPECTED_TYPES = [...itemTypes()].map(
 describe("default-item-art (single source of truth)", () => {
     it("maps every known item document subtype to a themed SoHL asset", () => {
         for (const type of EXPECTED_TYPES) {
-            expect(ART[type]).toMatch(/^systems\/sohl\/assets\/icons\/.+\.svg$/);
+            expect(ART[type]).toMatch(/^sohl\/assets\/icons\/.+\.svg$/);
         }
     });
 
@@ -45,15 +45,13 @@ describe("default-item-art (single source of truth)", () => {
     });
 
     it("gives trauma and affliction the wound/sick icons (the regression)", () => {
-        expect(defaultItemArt("trauma")).toBe("systems/sohl/assets/icons/other/injury.svg");
-        expect(defaultItemArt("affliction")).toBe("systems/sohl/assets/icons/other/sick.svg");
+        expect(defaultItemArt("trauma")).toBe("sohl/assets/icons/other/injury.svg");
+        expect(defaultItemArt("affliction")).toBe("sohl/assets/icons/other/sick.svg");
     });
 
     it("returns the per-type default for a known type", () => {
-        expect(defaultItemArt("weapongear")).toBe("systems/sohl/assets/icons/other/sword.svg");
-        expect(defaultItemArt("miscgear")).toBe(
-            "systems/sohl/assets/icons/other/question-mark.svg",
-        );
+        expect(defaultItemArt("weapongear")).toBe("sohl/assets/icons/other/sword.svg");
+        expect(defaultItemArt("miscgear")).toBe("sohl/assets/icons/other/question-mark.svg");
     });
 
     it("is keyed by the document subtype, not the renamed note type", () => {
@@ -61,7 +59,7 @@ describe("default-item-art (single source of truth)", () => {
         // `SohlItem.getDefaultArtwork` reads it with a Foundry Item's own
         // `type` — and `sohl/item-builders.mjs` translates before asking.
         expect(defaultItemArt("armorgear")).toBe(
-            "systems/sohl/assets/icons/game-icons/lorc/breastplate.svg",
+            "sohl/assets/icons/game-icons/lorc/breastplate.svg",
         );
         expect(ART["armor"]).toBeUndefined();
         expect(ART["concoction"]).toBeUndefined();

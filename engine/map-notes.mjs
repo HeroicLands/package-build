@@ -59,6 +59,7 @@ import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.m
 // A map's background art is `img`, as every other note type's art is. `image`,
 // the spelling a map alone once used, is retired and gone.
 import { sohlField } from "./frontmatter.mjs";
+import { resolveImg } from "./helpers.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -907,7 +908,7 @@ export function buildScene(fm, ctx) {
     // Read from the note rather than from its `sohl:` block: art is not
     // system-specific, so `img` is authored at the top level like every other
     // type's, and `sohlField` honours the block for anything already there.
-    const img = sohlField(fm, "img");
+    const img = resolveImg(sohlField(fm, "img"));
     if (!img) throw new Error("a map note needs an `img`");
 
     const warn = (message) => {
@@ -985,7 +986,7 @@ export function buildScene(fm, ctx) {
  *   still works.
  * @returns {object} The Level document, keyed for the pack.
  */
-export function buildLevel(sohl, sceneId, img = sohlField({ sohl }, "img")) {
+export function buildLevel(sohl, sceneId, img = resolveImg(sohlField({ sohl }, "img"))) {
     const level = {
         _id: DEFAULT_LEVEL_ID,
         name: sohl.levelName ?? "Ground",
@@ -994,7 +995,9 @@ export function buildLevel(sohl, sceneId, img = sohlField({ sohl }, "img")) {
             color: sohl.backgroundColor ?? "#999999",
             src: img,
         },
-        foreground: { src: sohl.overlay ?? null },
+        // The overlay is a pathname like the background, and resolves by the
+        // same rule — a scene draws the two from one authored statement each.
+        foreground: { src: resolveImg(sohl.overlay ?? null) },
         sort: 0,
         _key: `!scenes.levels!${sceneId}.${DEFAULT_LEVEL_ID}`,
     };
@@ -1117,7 +1120,9 @@ export function buildTiles(sohl, geom, ctx) {
             rotation: spec.rotation ?? 0,
             alpha: spec.alpha ?? 1,
             sort: 0,
-            texture: { src: spec.image },
+            // A tile's texture is a pathname, resolved by the same rule the
+            // scene's own background is.
+            texture: { src: resolveImg(spec.image) },
             _key: `!scenes.tiles!${ctx.sceneId}.${id}`,
         };
     });
@@ -1146,7 +1151,8 @@ export function buildSounds(sohl, geom, ctx) {
             x,
             y,
             radius: spec.radius ?? 0,
-            path: spec.path,
+            // An ambient sound is a file a package ships, like the pictures.
+            path: resolveImg(spec.path),
             repeat: spec.repeat ?? true,
             volume: spec.volume ?? 0.5,
             walls: spec.walls ?? true,
