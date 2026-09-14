@@ -53,6 +53,7 @@
 
 import {
     DURATION_LABELS,
+    GEAR_UNITS,
     defineInfobox,
     hasValue,
     humanizeFieldName,
@@ -130,6 +131,7 @@ const SKILL_GROUP_LABELS = Object.freeze({ combattechnique: "Combat Techniques" 
  */
 export const SOHL_FIELD_PRESENTATION = Object.freeze({
     ...DURATION_LABELS,
+    ...GEAR_UNITS,
 
     "protection.blunt": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
     "protection.edged": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
@@ -146,12 +148,12 @@ export const SOHL_FIELD_PRESENTATION = Object.freeze({
         withheld: "a body-location layout, which has no summary shape",
     }),
 
-    value: Object.freeze({ label: "Price" }),
     subType: Object.freeze({ label: "Subtype" }),
     flexloc: Object.freeze({ label: "Flexible locations" }),
     rigidloc: Object.freeze({ label: "Rigid locations" }),
     perceptionPenaltyBase: Object.freeze({ label: "Perception penalty" }),
     detailMaterial: Object.freeze({ label: "Material detail" }),
+    maxCapacity: Object.freeze({ label: "Max capacity", unit: " lbs" }),
     scoreBase: Object.freeze({ label: "Score" }),
     masteryLevelBase: Object.freeze({ label: "Mastery" }),
     levelBase: Object.freeze({ label: "Level" }),
@@ -434,15 +436,33 @@ function signed(value) {
     return Number(value) >= 0 ? `+${value}` : String(value);
 }
 
-/** An impact as dice and aspect, or {@link UNSTATED}. */
+/**
+ * An impact as dice and aspect, or {@link UNSTATED}.
+ *
+ * **A die of `0` is no die**, which is how the schema says a strike mode rolls
+ * nothing — a net envelops and does no damage. Read as a number it would print
+ * `1d0`, a roll nobody can make, so it composes to a flat modifier or to
+ * nothing at all.
+ *
+ * **An aspect alone is not an impact.** Without a die or a modifier there is no
+ * magnitude, and a line reading `Impact blunt` states the kind of a quantity
+ * that was never given. That is {@link UNSTATED}'s whole job.
+ *
+ * @param {unknown} impact - The authored `impactBase`.
+ * @returns {string} The impact, or {@link UNSTATED}.
+ */
 function impactOf(impact) {
     if (!isMapping(impact)) return UNSTATED;
-    const dice = hasValue(impact.die) ? `${impact.numDice ?? 1}d${impact.die}` : "";
+    const die = Number(impact.die ?? 0);
     const modifier = Number(impact.modifier ?? 0);
-    const roll = dice ? `${dice}${modifier ? signed(modifier) : ""}` : "";
+    const dice = die > 0 ? `${impact.numDice ?? 1}d${die}` : "";
+    const roll =
+        dice ? `${dice}${modifier ? signed(modifier) : ""}`
+        : modifier ? signed(modifier)
+        : "";
+    if (!roll) return UNSTATED;
     const aspect = hasValue(impact.aspect) ? humanizeValue(impact.aspect) : "";
-    const text = [roll, aspect].filter(Boolean).join(" ");
-    return text || UNSTATED;
+    return [roll, aspect].filter(Boolean).join(" ");
 }
 
 /**

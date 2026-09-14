@@ -29,7 +29,7 @@
  * @module
  */
 
-import { defineInfobox } from "../engine/infobox.mjs";
+import { GEAR_UNITS, defineInfobox } from "../engine/infobox.mjs";
 import { HM3_ITEM_FIELDS } from "./item-fields.mjs";
 
 /** What this system's box is called. @type {string} */
@@ -46,7 +46,8 @@ export const HM3_INFOBOX_TITLE = "HM3";
  * @type {Readonly<Record<string, {label?: string, withheld?: string}>>}
  */
 export const HM3_FIELD_PRESENTATION = Object.freeze({
-    value: Object.freeze({ label: "Price" }),
+    ...GEAR_UNITS,
+    capacity: Object.freeze({ label: "Capacity", unit: " lbs" }),
     masteryLevel: Object.freeze({ label: "Mastery" }),
 });
 

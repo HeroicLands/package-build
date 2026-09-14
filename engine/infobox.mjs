@@ -207,6 +207,21 @@ export const DURATION_LABELS = Object.freeze({
 });
 
 /**
+ * What a gear item's two measured quantities are called, and measured in.
+ *
+ * Price is in pence and weight in pounds throughout the corpus, and the same
+ * fact is authored under `data:` on one note and at its destination path on
+ * another — so both overlays read the one declaration and a reader meets one
+ * word and one unit whichever box the row landed in.
+ *
+ * @type {Readonly<Record<string, {label?: string, unit: string}>>}
+ */
+export const GEAR_UNITS = Object.freeze({
+    value: Object.freeze({ label: "Price", unit: "d" }),
+    weight: Object.freeze({ unit: " lbs" }),
+});
+
+/**
  * The presentation overlay: what a `data:` field is called, and whether it
  * belongs in the box at all.
  *
@@ -222,6 +237,8 @@ export const DURATION_LABELS = Object.freeze({
  *   machinery — something that steers a build or an interface rather than
  *   describing the subject — or it is an image, which rule 2 keeps out of the
  *   box.
+ * - `unit` — what the quantity is measured in, appended to the value verbatim.
+ *   See {@link applyUnit}.
  * - `group` / `phrase` — the field composes into one row with its group mates
  *   rather than taking a row of its own. `phrase` turns the value into its
  *   clause; without one the value stands alone, so a field added to a group
@@ -234,10 +251,11 @@ export const DURATION_LABELS = Object.freeze({
  * compose a coin's weight into its appearance.
  *
  * @type {Readonly<Record<string, {label?: string, withheld?: string,
- *   group?: string, phrase?: (value: any) => string}>>}
+ *   unit?: string, group?: string, phrase?: (value: any) => string}>>}
  */
 export const NOTE_FIELD_PRESENTATION = Object.freeze({
     ...DURATION_LABELS,
+    ...GEAR_UNITS,
 
     templatePriority: Object.freeze({
         withheld: "template machinery, not a fact about the subject",
@@ -327,18 +345,70 @@ function isMapping(value) {
 }
 
 /**
+/**
+ * The words a note writes when it means "there is nothing here".
+ *
+ * A corpus states an absence three ways, and only two of them are the absence
+ * of a value: the key is omitted, or it holds the field's own default. The
+ * third is a **sentinel** — a token standing in for the unset state, spelled
+ * however the note happened to spell it. `potency: na` and `category: none`
+ * are not a sodium potion and a category called None; they are two authors
+ * writing "not applicable" in the space a value would go.
+ *
+ * Compared after {@link normalizeToken} strips everything but letters, so
+ * `n/a`, `N/A` and `not applicable` are one word and `none of the above` is
+ * not one of them.
+ *
+ * @type {readonly string[]}
+ */
+export const UNSET_VALUES = Object.freeze([
+    "na",
+    "none",
+    "notapplicable",
+    "unset",
+    "null",
+    "undefined",
+]);
+
+/**
+ * A value reduced to its letters, lowercased.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {string} The token.
+ */
+function normalizeToken(value) {
+    return String(value ?? "")
+        .toLowerCase()
+        .replace(/[^a-z]/g, "");
+}
+
+/**
+ * Whether a value is a word meaning "nothing here" rather than a value.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {boolean} Whether it is one of {@link UNSET_VALUES}.
+ */
+export function isUnsetSentinel(value) {
+    if (typeof value !== "string") return false;
+    return UNSET_VALUES.includes(normalizeToken(value));
+}
+
+/**
  * Whether a value is worth a row.
  *
  * Rule 4: an absent field is absent. `null`, `""` and `[]` are how the corpus
  * writes "nobody filled this in" — a note that declares every key of its type
- * and leaves most of them empty is the ordinary shape, not the exception.
+ * and leaves most of them empty is the ordinary shape, not the exception — and
+ * so is a sentinel, which is the same absence written as a word. Judged here
+ * rather than per field, because a sentinel that reaches a page reaches it the
+ * same way whichever box was building the row.
  *
  * @param {unknown} value - The authored value.
  * @returns {boolean} Whether to emit it.
  */
 export function hasValue(value) {
     if (value == null) return false;
-    if (typeof value === "string") return value.trim() !== "";
+    if (typeof value === "string") return value.trim() !== "" && !isUnsetSentinel(value);
     if (Array.isArray(value)) return value.some((entry) => hasValue(entry));
     if (isMapping(value)) return false;
     return true;
@@ -459,6 +529,34 @@ function rowValue(kind, raw, resolve, hint) {
 }
 
 /**
+ * One row, with its unit on it.
+ *
+ * **The unit goes on the value, not on the label**, because it belongs to the
+ * quantity rather than to the name of the quantity. A price is 160d and a
+ * weight is 1.1 lbs; splitting that across two cells — `Price (d)` beside
+ * `160` — makes a reader reassemble one fact from two places, and reads worst
+ * in the book, whose label column is a narrow small-caps rule.
+ *
+ * A medium cannot supply it. Appending `d` to a price means knowing which row
+ * is the price, which is the one thing a generic renderer must never know — so
+ * the unit is declared here and travels as part of the value.
+ *
+ * The declared string is appended **verbatim**, which is what lets a symbol
+ * hug its number (`160d`) and a word stand off it (`1.1 lbs`). The row's kind
+ * becomes `text`: a number with a unit on it is no longer a number, and saying
+ * otherwise would invite a medium to format it as one.
+ *
+ * @param {string} kind - The row's kind.
+ * @param {unknown} value - The built value.
+ * @param {string} [unit] - The declared unit, or nothing.
+ * @returns {{kind: string, value: unknown}} The row's kind and value.
+ */
+export function applyUnit(kind, value, unit) {
+    if (!unit || (kind !== "number" && kind !== "text")) return { kind, value };
+    return { kind: "text", value: `${value}${unit}` };
+}
+
+/**
  * One reference, resolved as far as the medium's index reaches.
  *
  * An unresolved reference keeps its own text rather than being dropped: a page
@@ -556,9 +654,10 @@ function noteBox(
             continue;
         }
 
-        const kind = valueKindOf(field, raw);
-        const value = rowValue(kind, raw, resolve);
-        if (!hasRenderableValue(kind, value)) continue;
+        const declaredKind = valueKindOf(field, raw);
+        const built = rowValue(declaredKind, raw, resolve);
+        if (!hasRenderableValue(declaredKind, built)) continue;
+        const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
         shown.add(field.name);
     }
@@ -706,9 +805,15 @@ export function systemRowsSection(
         if (from === "default" || from === "value") continue;
         if (isDeclaredDefault(field, raw)) continue;
         if (!hasValue(raw)) continue;
-        const kind = field.ref ? "link" : valueKindOf(field, raw);
-        const value = rowValue(kind, raw, resolve, field.ref ? { type: field.ref } : undefined);
-        if (!hasRenderableValue(kind, value)) continue;
+        const declaredKind = field.ref ? "link" : valueKindOf(field, raw);
+        const built = rowValue(
+            declaredKind,
+            raw,
+            resolve,
+            field.ref ? { type: field.ref } : undefined,
+        );
+        if (!hasRenderableValue(declaredKind, built)) continue;
+        const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
     }
     return rows.length ? [{ id: "profile", layout: "rows", rows }] : [];

@@ -32,8 +32,13 @@ import {
     INFOBOX_VALUE_KINDS,
     NOTE_BOX_ID,
     NOTE_FIELD_PRESENTATION,
+    GEAR_UNITS,
     NOTHING_BEYOND_PROFILE,
     NOT_AVAILABLE,
+    UNSET_VALUES,
+    applyUnit,
+    hasValue,
+    isUnsetSentinel,
     assertInfoboxSet,
     buildInfoboxes,
     defineInfobox,
@@ -44,7 +49,7 @@ import {
     presentValue,
     requiredInfoboxIds,
 } from "../engine/infobox.mjs";
-import { SOHL_FIELD_PRESENTATION, strikeModes } from "../sohl/infobox.mjs";
+import { SOHL_FIELD_PRESENTATION, UNSTATED, strikeModes } from "../sohl/infobox.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { noteInfoboxes } from "../engine/infobox-registry.mjs";
@@ -493,7 +498,7 @@ describe("a fact is on exactly one surface", () => {
                 sohl: { system: {} },
             });
             expect(shared.note, type).toEqual(
-                expect.arrayContaining(["Weight", "Value", "Durability"]),
+                expect.arrayContaining(["Weight", "Price", "Durability"]),
             );
             expect(shared.sohl, type).not.toEqual(expect.arrayContaining(["Weight", "Price"]));
         }
@@ -684,5 +689,139 @@ describe("a system box's labels are a reader's words", () => {
                 /machinery|shown whole|shown one per line|no summary shape/,
             );
         }
+    });
+});
+
+describe("a measured quantity carries its unit", () => {
+    const gearTypes = ["weapongear", "armorgear", "miscgear", "containergear", "projectilegear"];
+
+    /** Every `label: value` a note's boxes carry, box id → rows. */
+    function rowsOf(fm: Record<string, unknown>): Record<string, string[]> {
+        const out: Record<string, string[]> = {};
+        for (const box of noteInfoboxes(fm)) {
+            out[box.id] = (box.sections ?? []).flatMap(
+                (section: { rows?: { label: string; value: unknown }[] }) =>
+                    (section.rows ?? []).map((row) => `${row.label}: ${row.value}`),
+            );
+        }
+        return out;
+    }
+
+    it("puts it on the value, where the quantity is, and not on the label", () => {
+        expect(applyUnit("number", 160, "d")).toEqual({ kind: "text", value: "160d" });
+        expect(applyUnit("number", 1.1, " lbs")).toEqual({ kind: "text", value: "1.1 lbs" });
+        // No unit declared leaves the row exactly as it was built.
+        expect(applyUnit("number", 160, undefined)).toEqual({ kind: "number", value: 160 });
+        // A link or a list is not a quantity, so nothing is appended to it.
+        expect(applyUnit("links", [{ text: "x" }], " lbs")).toEqual({
+            kind: "links",
+            value: [{ text: "x" }],
+        });
+    });
+
+    it("says the same unit on every gear type, and in whichever box the row landed", () => {
+        for (const type of gearTypes) {
+            expect(
+                rowsOf({
+                    type,
+                    name: { full: "A Thing" },
+                    sohl: { system: { weightBase: 1.1, valueBase: 160 } },
+                }).sohl,
+                type,
+            ).toEqual(expect.arrayContaining(["Weight: 1.1 lbs", "Price: 160d"]));
+
+            expect(
+                rowsOf({
+                    type,
+                    name: { full: "A Thing" },
+                    data: { weight: 1.1, value: 160 },
+                    sohl: { system: {} },
+                }).note,
+                type,
+            ).toEqual(expect.arrayContaining(["Weight: 1.1 lbs", "Price: 160d"]));
+        }
+    });
+
+    it("declares the unit once, so both overlays read the same one", () => {
+        for (const [name, entry] of Object.entries(GEAR_UNITS)) {
+            expect(SOHL_FIELD_PRESENTATION[name], name).toEqual(entry);
+            expect(NOTE_FIELD_PRESENTATION[name], name).toEqual(entry);
+        }
+    });
+});
+
+describe("a sentinel is an absence, not a value", () => {
+    it("reads the words a corpus writes for nothing", () => {
+        for (const word of UNSET_VALUES) expect(isUnsetSentinel(word), word).toBe(true);
+        expect(isUnsetSentinel("n/a")).toBe(true);
+        expect(isUnsetSentinel("N/A")).toBe(true);
+        expect(isUnsetSentinel("not applicable")).toBe(true);
+        // A word that merely contains one is a value.
+        expect(isUnsetSentinel("none of the above")).toBe(false);
+        expect(isUnsetSentinel("Nonesuch")).toBe(false);
+        expect(isUnsetSentinel(0)).toBe(false);
+        expect(hasValue("na")).toBe(false);
+        expect(hasValue(0)).toBe(true);
+    });
+
+    it("drops the row wherever the sentinel was written", () => {
+        // Judged in `hasValue`, so one rule answers for both boxes rather than
+        // each one growing its own list of words to ignore.
+        const boxes = noteInfoboxes({
+            type: "concoctiongear",
+            name: { full: "Alkahest" },
+            subType: "elixir",
+            sohl: { system: { potency: "na", weightBase: 0.25 } },
+        });
+        const sohl = boxes.find((box) => box.id === "sohl");
+        const labels = sohl.sections.flatMap((section: { rows?: { label: string }[] }) =>
+            (section.rows ?? []).map((row) => row.label),
+        );
+        expect(labels).toContain("Weight");
+        expect(labels).not.toContain("Potency");
+
+        const trauma = noteInfoboxes({
+            type: "trauma",
+            name: { full: "Aquaphobia" },
+            sohl: { system: { category: "none", healingRateBase: 1 } },
+        }).find((box) => box.id === "sohl");
+        const traumaLabels = trauma.sections.flatMap((section: { rows?: { label: string }[] }) =>
+            (section.rows ?? []).map((row) => row.label),
+        );
+        expect(traumaLabels).toContain("Healing rate");
+        expect(traumaLabels).not.toContain("Category");
+    });
+
+    it("reads a die of nought as no die rather than as a roll", () => {
+        const modes = (declared: unknown) => {
+            const sohl = noteInfoboxes({
+                type: "weapongear",
+                name: { full: "Net" },
+                sohl: { system: { strikeModes: declared } },
+            }).find((box) => box.id === "sohl");
+            return sohl.sections.find((entry: { id: string }) => entry.id === "strikemodes");
+        };
+
+        // A net envelops and does no damage: no die, no modifier, and an aspect
+        // on its own is not an impact.
+        const nothing = modes([
+            {
+                shortcode: "envelop",
+                name: "Envelop",
+                impactBase: { numDice: 1, die: 0, modifier: 0, aspect: "blunt" },
+                lengthBase: 5,
+            },
+        ]);
+        expect(nothing.groups[0].entries[1]).toEqual({ text: `Impact ${UNSTATED}` });
+
+        // A flat modifier with no die is still an impact.
+        const flat = modes([
+            {
+                shortcode: "shove",
+                name: "Shove",
+                impactBase: { numDice: 1, die: 0, modifier: 3, aspect: "blunt" },
+            },
+        ]);
+        expect(flat.groups[0].entries[1]).toEqual({ text: "Impact +3 blunt" });
     });
 });

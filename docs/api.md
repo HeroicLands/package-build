@@ -355,6 +355,9 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `INFOBOX_LAYOUTS`         | `const INFOBOX_LAYOUTS`                | —                           | looking up the four section layouts and the property each carries its content in       |
 | `INFOBOX_VALUE_KINDS`     | `const INFOBOX_VALUE_KINDS`            | —                           | enumerating what a row's value may be                                                  |
 | `DURATION_LABELS`         | `const DURATION_LABELS`                | —                           | naming a duration pair — the roll and the flat number of seconds — in either overlay   |
+| `GEAR_UNITS`              | `const GEAR_UNITS`                     | —                           | naming a gear item's price and weight, and the unit each carries, in either overlay    |
+| `UNSET_VALUES`            | `const UNSET_VALUES`                   | —                           | enumerating the words a corpus writes when it means "there is nothing here"            |
+| `applyUnit`               | `applyUnit(kind, value, unit)`         | `object`                    | putting a declared unit on a row's value, where the quantity is                        |
 | `NOT_AVAILABLE`           | `const NOT_AVAILABLE`                  | —                           | naming what a mapped system that produced no document says                             |
 | `NOTHING_BEYOND_PROFILE`  | `const NOTHING_BEYOND_PROFILE`         | —                           | naming what a system holding nothing the note box has not shown says                   |
 | `NOTE_BOX_ID`             | `const NOTE_BOX_ID`                    | —                           | naming the note infobox, which is not a system id                                      |
@@ -369,6 +372,7 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `humanizeFieldName`       | `humanizeFieldName(name)`              | `string`                    | turning a declared key into the label a reader sees                                    |
 | `humanizeValue`           | `humanizeValue(value)`                 | `string`                    | turning an authored value into readable text                                           |
 | `isDeclaredDefault`       | `isDeclaredDefault(field, raw)`        | `boolean`                   | deciding whether a value is the one the field's own declaration would have supplied    |
+| `isUnsetSentinel`         | `isUnsetSentinel(value)`               | `boolean`                   | deciding whether a value is a word meaning "nothing here" rather than a value          |
 | `linkValue`               | `linkValue(ref, resolve, hint)`        | `object`                    | resolving one reference into a `link` value                                            |
 | `noteInfobox`             | `noteInfobox(fm, options)`             | `object`                    | building the note box alone, from the type's `data:` vocabulary                        |
 | `overlayFor`              | `overlayFor(presentation, type, name)` | `object`                    | reading a field's overlay entry, preferring the `<type>.<field>` key over the bare one |

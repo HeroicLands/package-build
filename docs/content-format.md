@@ -80,7 +80,11 @@ column regardless.
    the panel breaks _between_ them, which is what lets a long box cross a
    column or page boundary without splitting a stat grid down the middle.
 4. **An absent field is absent, not empty.** A row with no value is not
-   emitted. A placeholder asserts a fact that is not there.
+   emitted. A placeholder asserts a fact that is not there. A corpus writes an
+   absence three ways and all three count: the key is omitted, it holds the
+   field's own default, or it holds a **sentinel** — `na`, `none`,
+   `not applicable` — which is the same absence written as a word. `Potency: Na`
+   is not a fact about a potion.
 5. **A system box is never an empty panel; it says which silence it is.** Rule
    4 governs rows, and a box is not a row — a heading over nothing asserts that
    something should have been there. See
@@ -133,6 +137,15 @@ Two things keep a fact off it:
   _shows_, not what its vocabulary declares — the same fact is written under
   `data:` on one note and at its destination path on another, and a system box
   that stood down on the declaration alone would leave it on no surface at all.
+
+**A measured quantity carries its unit on its value** — `Price 160d`,
+`Weight 1.1 lbs`. The unit belongs to the quantity rather than to the name of
+the quantity, so it is not folded into the label: `Price (d)` beside `160` makes
+a reader reassemble one fact from two cells, and reads worst in the book, whose
+label column is a narrow small-caps rule. A medium cannot supply it either —
+appending `d` to a price means knowing which row is the price, which is the one
+thing a generic renderer must never know. A row carrying a unit is `text`,
+because a number with a unit on it is no longer a number.
 
 **What a field is called** is a **presentation overlay** on that same
 declaration, per system. It carries two things a compiler's field list cannot,
