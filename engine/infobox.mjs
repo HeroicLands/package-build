@@ -29,7 +29,8 @@
  * - A **system infobox** summarises what one system makes of the note, from
  *   that system's block. There is one per system the note's type maps to, and
  *   a box whose system this note produces no document for reads
- *   {@link NOT_AVAILABLE}. A system that maps the type at all draws no box —
+ *   {@link NOT_AVAILABLE}. A system that does not map the type at all draws
+ *   no box —
  *   HM3 has no affiliations, mysteries or attributes, and a box reading "Not
  *   available" on those pages would suggest a gap in the note when the truth
  *   is about the system's scope.
@@ -41,10 +42,12 @@
  * {@link assertInfoboxSet} — rather than a property nobody checks.
  *
  * **What a field is called and where it sits is the only thing declared**, in
- * {@link NOTE_FIELD_PRESENTATION}. The field *set* comes from
- * {@link NOTE_VOCABULARY}, in its declared order, so a key added to a type
- * appears on every surface with no second edit. A field the overlay does not
- * mention still gets a row, humanised from its own name.
+ * {@link NOTE_FIELD_PRESENTATION} for the note box and in each system's own
+ * `presentation` overlay for its box. The field *set* comes from
+ * {@link NOTE_VOCABULARY} and from the system's field declaration, in their
+ * declared order, so a key added to a type appears on every surface with no
+ * second edit. A field an overlay does not mention still gets a row,
+ * humanised from its own name.
  *
  * ## Six rules that hold in every medium
  *
@@ -59,10 +62,12 @@
  *    column or page boundary without splitting a stat grid.
  * 4. **An absent field is absent, not empty.** A row with no value is not
  *    emitted. An em-dash placeholder asserts a fact that is not there.
- * 5. **{@link NOT_AVAILABLE} is a different thing, and survives.** It is the
- *    whole box for a mapped system that produced no document — a statement
- *    about this note, not about a missing field. Rule 4 governs rows; this
- *    governs boxes.
+ * 5. **A system box is never empty; it says which silence it is.** Rule 4
+ *    governs rows, and a box is not a row. A mapped system that produced no
+ *    document says {@link NOT_AVAILABLE}; one that produced a document holding
+ *    nothing a reader has not already been shown says
+ *    {@link NOTHING_BEYOND_PROFILE}. Both travel as the box's `statement`, so
+ *    a medium draws one thing and decides neither.
  * 6. **Order is the toolchain's.** A medium renders boxes, sections and rows
  *    in the order given.
  *
@@ -149,6 +154,22 @@ export const INFOBOX_VALUE_KINDS = Object.freeze(["text", "number", "link", "lin
  */
 export const NOT_AVAILABLE = "Not available";
 
+/**
+ * What a system that does produce a document, and holds nothing a reader has
+ * not already been shown, says.
+ *
+ * The third state of a system box, and the reason it is stated rather than
+ * drawn as an empty panel: a heading over nothing asserts that something
+ * should have been there. It is not {@link NOT_AVAILABLE} — the system
+ * compiles this note, and a reader told otherwise would go looking for a
+ * document that exists. It is that everything this system holds about the note
+ * is either the subject's own fact, carried by the note box above, or a value
+ * the compiler would have supplied anyway.
+ *
+ * @type {string}
+ */
+export const NOTHING_BEYOND_PROFILE = "Nothing beyond the profile";
+
 /** The note infobox's id, which is not a system id. @type {string} */
 export const NOTE_BOX_ID = "note";
 
@@ -157,6 +178,48 @@ export const NOTE_BOX_TITLE = "Profile";
 
 /** The note infobox's single section id. @type {string} */
 export const NOTE_SECTION_ID = "profile";
+
+/**
+ * What a **duration pair** is called.
+ *
+ * A note states an interval twice over — once as a roll formula and once as a
+ * flat number of seconds — and the declaration names the two by what they hold:
+ * `courseDurationFormula` and `courseDurationBase`. A page wants the thing
+ * being timed and which of the two it is reading.
+ *
+ * Shared by the note box's overlay and by a system's, because the two
+ * declarations spell these fields identically and a reader meeting an
+ * affliction written one way and one written the other should meet one word.
+ *
+ * @type {Readonly<Record<string, {label: string}>>}
+ */
+export const DURATION_LABELS = Object.freeze({
+    onsetDurationFormula: Object.freeze({ label: "Onset roll" }),
+    onsetDurationBase: Object.freeze({ label: "Onset" }),
+    healingCheckDurationFormula: Object.freeze({ label: "Healing check roll" }),
+    healingCheckDurationBase: Object.freeze({ label: "Healing check" }),
+    resolutionDurationFormula: Object.freeze({ label: "Resolution roll" }),
+    resolutionDurationBase: Object.freeze({ label: "Resolution" }),
+    bloodLossAdvanceDurationFormula: Object.freeze({ label: "Blood loss roll" }),
+    bloodLossAdvanceDurationBase: Object.freeze({ label: "Blood loss" }),
+    courseDurationFormula: Object.freeze({ label: "Course roll" }),
+    courseDurationBase: Object.freeze({ label: "Course" }),
+});
+
+/**
+ * What a gear item's two measured quantities are called, and measured in.
+ *
+ * Price is in pence and weight in pounds throughout the corpus, and the same
+ * fact is authored under `data:` on one note and at its destination path on
+ * another — so both overlays read the one declaration and a reader meets one
+ * word and one unit whichever box the row landed in.
+ *
+ * @type {Readonly<Record<string, {label?: string, unit: string}>>}
+ */
+export const GEAR_UNITS = Object.freeze({
+    value: Object.freeze({ label: "Price", unit: "d" }),
+    weight: Object.freeze({ unit: " lbs" }),
+});
 
 /**
  * The presentation overlay: what a `data:` field is called, and whether it
@@ -170,19 +233,35 @@ export const NOTE_SECTION_ID = "profile";
  * Three properties, all optional:
  *
  * - `label` — what the row is called. Absent means the key, humanised.
- * - `withheld` — why the field carries no row. Two reasons only: it is build
- *   plumbing, or it is an image, which rule 2 keeps out of the box.
+ * - `withheld` — why the field carries no row. Two reasons only: it is
+ *   machinery — something that steers a build or an interface rather than
+ *   describing the subject — or it is an image, which rule 2 keeps out of the
+ *   box.
+ * - `unit` — what the quantity is measured in, appended to the value verbatim.
+ *   See {@link applyUnit}.
  * - `group` / `phrase` — the field composes into one row with its group mates
  *   rather than taking a row of its own. `phrase` turns the value into its
  *   clause; without one the value stands alone, so a field added to a group
  *   still appears.
  *
+ * A key is either a field name or `<type>.<field name>`, and the qualified one
+ * wins. One spelling is not one quantity across the vocabulary: `data.weight`
+ * is a being's body weight, which reads as a clause of its appearance, and a
+ * gear item's mass, which is a row. An overlay keyed on the bare word would
+ * compose a coin's weight into its appearance.
+ *
  * @type {Readonly<Record<string, {label?: string, withheld?: string,
- *   group?: string, phrase?: (value: any) => string}>>}
+ *   unit?: string, group?: string, phrase?: (value: any) => string}>>}
  */
 export const NOTE_FIELD_PRESENTATION = Object.freeze({
+    ...DURATION_LABELS,
+    ...GEAR_UNITS,
+
     templatePriority: Object.freeze({
         withheld: "template machinery, not a fact about the subject",
+    }),
+    color: Object.freeze({
+        withheld: "sidebar machinery, not a fact about the subject",
     }),
     portrait: Object.freeze({ withheld: "an image, which the box never carries" }),
     img: Object.freeze({ withheld: "an image, which the box never carries" }),
@@ -205,28 +284,45 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
 
     // The appearance clause: a being's measurements read as a sentence rather
     // than as six rows of numbers, exactly as the book prototype sets them.
-    age: Object.freeze({ group: "appearance", phrase: (v) => `Age ${v}` }),
-    height: Object.freeze({ group: "appearance", phrase: heightPhrase }),
-    weight: Object.freeze({ group: "appearance", phrase: weightPhrase }),
-    frame: Object.freeze({ group: "appearance", phrase: (v) => `${v} frame` }),
-    "appearance.eye_color": Object.freeze({
+    // Qualified by type, because `weight` is also what a coin weighs.
+    "being.age": Object.freeze({ group: "appearance", phrase: (v) => `Age ${v}` }),
+    "being.height": Object.freeze({ group: "appearance", phrase: heightPhrase }),
+    "being.weight": Object.freeze({ group: "appearance", phrase: weightPhrase }),
+    "being.frame": Object.freeze({ group: "appearance", phrase: (v) => `${v} frame` }),
+    "being.appearance.eye_color": Object.freeze({
         group: "appearance",
         phrase: (v) => `${humanizeValue(v)} eyes`,
     }),
-    "appearance.hair_color": Object.freeze({
+    "being.appearance.hair_color": Object.freeze({
         group: "appearance",
         phrase: (v) => `${humanizeValue(v)} hair`,
     }),
-    "appearance.skin_color": Object.freeze({
+    "being.appearance.skin_color": Object.freeze({
         group: "appearance",
         phrase: (v) => `${humanizeValue(v)} skin`,
     }),
-    "appearance.complexion": Object.freeze({
+    "being.appearance.complexion": Object.freeze({
         group: "appearance",
         phrase: (v) => `${humanizeValue(v)} complexion`,
     }),
-    "appearance.extra_features": Object.freeze({ group: "appearance" }),
+    "being.appearance.extra_features": Object.freeze({ group: "appearance" }),
 });
+
+/**
+ * One field's overlay entry, qualified by type where the declaration qualifies
+ * it.
+ *
+ * `<type>.<field>` wins over the bare name, so a spelling two types use for two
+ * quantities can be said differently on each without splitting the overlay.
+ *
+ * @param {Readonly<Record<string, object>>} presentation - The overlay.
+ * @param {string|undefined} type - The note's type.
+ * @param {string} name - The field's declared name.
+ * @returns {object} The entry, or an empty one.
+ */
+export function overlayFor(presentation, type, name) {
+    return presentation?.[`${currentType(type)}.${name}`] ?? presentation?.[name] ?? {};
+}
 
 /** What a composed group's row is called. @type {Readonly<Record<string, string>>} */
 const GROUP_LABELS = Object.freeze({ appearance: "Appearance" });
@@ -249,18 +345,70 @@ function isMapping(value) {
 }
 
 /**
+/**
+ * The words a note writes when it means "there is nothing here".
+ *
+ * A corpus states an absence three ways, and only two of them are the absence
+ * of a value: the key is omitted, or it holds the field's own default. The
+ * third is a **sentinel** — a token standing in for the unset state, spelled
+ * however the note happened to spell it. `potency: na` and `category: none`
+ * are not a sodium potion and a category called None; they are two authors
+ * writing "not applicable" in the space a value would go.
+ *
+ * Compared after {@link normalizeToken} strips everything but letters, so
+ * `n/a`, `N/A` and `not applicable` are one word and `none of the above` is
+ * not one of them.
+ *
+ * @type {readonly string[]}
+ */
+export const UNSET_VALUES = Object.freeze([
+    "na",
+    "none",
+    "notapplicable",
+    "unset",
+    "null",
+    "undefined",
+]);
+
+/**
+ * A value reduced to its letters, lowercased.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {string} The token.
+ */
+function normalizeToken(value) {
+    return String(value ?? "")
+        .toLowerCase()
+        .replace(/[^a-z]/g, "");
+}
+
+/**
+ * Whether a value is a word meaning "nothing here" rather than a value.
+ *
+ * @param {unknown} value - The authored value.
+ * @returns {boolean} Whether it is one of {@link UNSET_VALUES}.
+ */
+export function isUnsetSentinel(value) {
+    if (typeof value !== "string") return false;
+    return UNSET_VALUES.includes(normalizeToken(value));
+}
+
+/**
  * Whether a value is worth a row.
  *
  * Rule 4: an absent field is absent. `null`, `""` and `[]` are how the corpus
  * writes "nobody filled this in" — a note that declares every key of its type
- * and leaves most of them empty is the ordinary shape, not the exception.
+ * and leaves most of them empty is the ordinary shape, not the exception — and
+ * so is a sentinel, which is the same absence written as a word. Judged here
+ * rather than per field, because a sentinel that reaches a page reaches it the
+ * same way whichever box was building the row.
  *
  * @param {unknown} value - The authored value.
  * @returns {boolean} Whether to emit it.
  */
 export function hasValue(value) {
     if (value == null) return false;
-    if (typeof value === "string") return value.trim() !== "";
+    if (typeof value === "string") return value.trim() !== "" && !isUnsetSentinel(value);
     if (Array.isArray(value)) return value.some((entry) => hasValue(entry));
     if (isMapping(value)) return false;
     return true;
@@ -381,6 +529,34 @@ function rowValue(kind, raw, resolve, hint) {
 }
 
 /**
+ * One row, with its unit on it.
+ *
+ * **The unit goes on the value, not on the label**, because it belongs to the
+ * quantity rather than to the name of the quantity. A price is 160d and a
+ * weight is 1.1 lbs; splitting that across two cells — `Price (d)` beside
+ * `160` — makes a reader reassemble one fact from two places, and reads worst
+ * in the book, whose label column is a narrow small-caps rule.
+ *
+ * A medium cannot supply it. Appending `d` to a price means knowing which row
+ * is the price, which is the one thing a generic renderer must never know — so
+ * the unit is declared here and travels as part of the value.
+ *
+ * The declared string is appended **verbatim**, which is what lets a symbol
+ * hug its number (`160d`) and a word stand off it (`1.1 lbs`). The row's kind
+ * becomes `text`: a number with a unit on it is no longer a number, and saying
+ * otherwise would invite a medium to format it as one.
+ *
+ * @param {string} kind - The row's kind.
+ * @param {unknown} value - The built value.
+ * @param {string} [unit] - The declared unit, or nothing.
+ * @returns {{kind: string, value: unknown}} The row's kind and value.
+ */
+export function applyUnit(kind, value, unit) {
+    if (!unit || (kind !== "number" && kind !== "text")) return { kind, value };
+    return { kind: "text", value: `${value}${unit}` };
+}
+
+/**
  * One reference, resolved as far as the medium's index reaches.
  *
  * An unresolved reference keeps its own text rather than being dropped: a page
@@ -420,11 +596,32 @@ export function linkValue(ref, resolve, hint) {
  * @param {object} [options.presentation] - The overlay to read.
  * @returns {object} The box.
  */
-export function noteInfobox(
+export function noteInfobox(fm, options = {}) {
+    return noteBox(fm, options).box;
+}
+
+/**
+ * The note infobox, and the names of the fields it actually shows.
+ *
+ * The second half is what a system box needs: a field is the note's to state
+ * only where the note box **states** it, which is not the same as the
+ * vocabulary declaring it. A gear item's weight is declared under `data:` and
+ * authored at `sohl.system.weightBase`, so the note box shows nothing for it,
+ * and a system box that stood down on the strength of the declaration alone
+ * left the fact on no surface at all.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {object} [options] - As {@link noteInfobox}.
+ * @returns {{box: object, shown: Set<string>}} The box, and the field names it
+ *   put on the page.
+ */
+function noteBox(
     fm,
     { resolve, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
 ) {
     const rows = [];
+    /** @type {Set<string>} */
+    const shown = new Set();
     const name = fm?.name?.full ?? fm?.title;
     if (hasValue(name)) rows.push({ label: "Name", kind: "text", value: String(name) });
 
@@ -433,7 +630,7 @@ export function noteInfobox(
     const groups = new Map();
 
     for (const field of dataFields(fm?.type, vocabulary) ?? []) {
-        const overlay = presentation[field.name] ?? {};
+        const overlay = overlayFor(presentation, fm?.type, field.name);
         if (overlay.withheld) continue;
         const raw = getFrontmatter(data, field.name, undefined);
         if (!hasValue(raw)) continue;
@@ -453,20 +650,26 @@ export function noteInfobox(
                 // the group appears where the vocabulary put it.
                 rows.push({ label: group.label, kind: "list", value: group.entries });
             }
+            shown.add(field.name);
             continue;
         }
 
-        const kind = valueKindOf(field, raw);
-        const value = rowValue(kind, raw, resolve);
-        if (!hasRenderableValue(kind, value)) continue;
+        const declaredKind = valueKindOf(field, raw);
+        const built = rowValue(declaredKind, raw, resolve);
+        if (!hasRenderableValue(declaredKind, built)) continue;
+        const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
         rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
+        shown.add(field.name);
     }
 
     return {
-        id: NOTE_BOX_ID,
-        kind: "note",
-        title: NOTE_BOX_TITLE,
-        sections: [{ id: NOTE_SECTION_ID, layout: "rows", rows }],
+        box: {
+            id: NOTE_BOX_ID,
+            kind: "note",
+            title: NOTE_BOX_TITLE,
+            sections: [{ id: NOTE_SECTION_ID, layout: "rows", rows }],
+        },
+        shown,
     };
 }
 
@@ -488,13 +691,21 @@ export function noteInfobox(
  * @param {Readonly<Record<string, readonly object[]>>} [declaration.fields] -
  *   Note type → that system's declared field list, read for the generic rows
  *   section. The same list the compiler obeys, never a copy of it.
+ * @param {Readonly<Record<string, {label?: string, withheld?: string}>>} [declaration.presentation] -
+ *   The presentation overlay: what one of this system's fields is called where
+ *   humanising its key is wrong, and the fields that carry no row at all.
+ *   **Not a second field list** — the fields come from `fields`, and a field
+ *   the overlay does not mention still gets a row, so a field added to the
+ *   system reaches the box with no edit here.
  * @param {Record<string, (fm: object, ctx: object) => object[]>} [declaration.sections] -
  *   Note type → a builder returning that type's sections, for a type whose box
  *   is derived rather than read field by field.
  * @returns {object} The frozen declaration.
  * @throws {Error} When it names no system or no title.
  */
-export function defineInfobox({ system, title, fields, sections } = /** @type {never} */ ({})) {
+export function defineInfobox(
+    { system, title, fields, presentation, sections } = /** @type {never} */ ({}),
+) {
     if (typeof system !== "string" || system === "") {
         throw new Error(
             "An infobox declaration must name the `system` it belongs to — a box " +
@@ -512,39 +723,98 @@ export function defineInfobox({ system, title, fields, sections } = /** @type {n
         system,
         title,
         fields: Object.freeze({ ...(fields ?? {}) }),
+        presentation: Object.freeze({ ...(presentation ?? {}) }),
         sections: Object.freeze({ ...(sections ?? {}) }),
     });
+}
+
+/**
+ * Whether two authored values say the same thing.
+ *
+ * Structural, because a declared default is as often `[]` or `{value: null}`
+ * as it is a number.
+ *
+ * @param {unknown} a - One value.
+ * @param {unknown} b - The other.
+ * @returns {boolean} Whether they agree.
+ */
+function sameValue(a, b) {
+    if (a === b) return true;
+    if (Array.isArray(a) && Array.isArray(b)) {
+        return a.length === b.length && a.every((entry, at) => sameValue(entry, b[at]));
+    }
+    if (isMapping(a) && isMapping(b)) {
+        const keys = Object.keys(a);
+        if (keys.length !== Object.keys(b).length) return false;
+        return keys.every((key) => key in b && sameValue(a[key], b[key]));
+    }
+    return false;
+}
+
+/**
+ * Whether a field's value is the one its own declaration would have supplied.
+ *
+ * _A field answered by its default is a fact about the compiler, not about the
+ * note_ — and that is true of the **value**, not of where it was written. A
+ * corpus writes its defaults out: `improveFlag: false`, `combatCategory: none`
+ * and `initSkillMult: 0` are typed into hundreds of notes that mean nothing by
+ * them, and a row for each says the compiler's word back to a reader who came
+ * for the note's.
+ *
+ * A field declaring no default has nothing to be equal to, so every value it
+ * holds is the note's.
+ *
+ * @param {object} field - The declaration.
+ * @param {unknown} raw - The resolved value.
+ * @returns {boolean} Whether the value is the declaration's own.
+ */
+export function isDeclaredDefault(field, raw) {
+    return "default" in (field ?? {}) && sameValue(raw, field.default);
 }
 
 /**
  * The generic rows section: what this note authors in one system's block.
  *
  * Read through the system's own field declaration, in its order, and only
- * where the note actually wrote a value — a field answered by its default is a
- * fact about the compiler, not about the note.
+ * where the note said something the declaration does not already say — a value
+ * equal to the field's own default is the compiler's answer wherever it was
+ * typed.
  *
- * A field the **note box** already carries is skipped. A shared source such as
- * a gear item's `weight` is authored under `data:` on one note and at its
- * destination path on another, and the note box is where a system-agnostic
- * fact belongs; showing it twice on the notes that write it one way would make
- * the panel disagree with itself across two pages of the same type.
+ * A field the **note box** already put on the page is skipped, so the panel
+ * does not say one fact twice. It is what the note box *shows* rather than
+ * what its vocabulary declares: a gear item's weight is declared under `data:`
+ * and authored at `sohl.system.weightBase`, and standing down on the
+ * declaration alone left the fact on no surface at all.
  *
  * @param {object} fm - The note's frontmatter.
  * @param {readonly object[]} fields - The system's field declaration.
- * @param {object} ctx - `{ block, resolve, resolveFieldValue, taken }`.
+ * @param {object} ctx - `{ block, resolve, resolveField, taken, presentation }`.
  * @returns {object[]} Zero or one section.
  */
-export function systemRowsSection(fm, fields, { block, resolve, resolveField, taken = new Set() }) {
+export function systemRowsSection(
+    fm,
+    fields,
+    { block, resolve, resolveField, taken = new Set(), presentation = {} },
+) {
     const rows = [];
     for (const field of fields ?? []) {
         if (!field?.name || taken.has(field.name)) continue;
+        const overlay = overlayFor(presentation, fm?.type, field.name);
+        if (overlay.withheld) continue;
         const { value: raw, from } = resolveField(field, fm, { block });
         if (from === "default" || from === "value") continue;
+        if (isDeclaredDefault(field, raw)) continue;
         if (!hasValue(raw)) continue;
-        const kind = field.ref ? "link" : valueKindOf(field, raw);
-        const value = rowValue(kind, raw, resolve, field.ref ? { type: field.ref } : undefined);
-        if (!hasRenderableValue(kind, value)) continue;
-        rows.push({ label: humanizeFieldName(field.name), kind, value });
+        const declaredKind = field.ref ? "link" : valueKindOf(field, raw);
+        const built = rowValue(
+            declaredKind,
+            raw,
+            resolve,
+            field.ref ? { type: field.ref } : undefined,
+        );
+        if (!hasRenderableValue(declaredKind, built)) continue;
+        const { kind, value } = applyUnit(declaredKind, built, overlay.unit);
+        rows.push({ label: overlay.label ?? humanizeFieldName(field.name), kind, value });
     }
     return rows.length ? [{ id: "profile", layout: "rows", rows }] : [];
 }
@@ -581,8 +851,8 @@ export function buildInfoboxes(fm, options) {
         vocabulary = NOTE_VOCABULARY,
     } = options;
 
-    const boxes = [noteInfobox(fm, { resolve, vocabulary })];
-    const taken = new Set((dataFields(fm?.type, vocabulary) ?? []).map((field) => field.name));
+    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary });
+    const boxes = [note];
 
     for (const map of maps ?? []) {
         if (!subtypeRow(map, fm?.type)) continue;
@@ -598,20 +868,38 @@ export function buildInfoboxes(fm, options) {
         };
         if (available && provider) {
             const type = currentType(fm.type);
+            const ctx = {
+                block: map.block,
+                resolve,
+                resolveField,
+                taken,
+                presentation: provider.presentation ?? {},
+            };
             const build = provider.sections[type];
             box.sections =
-                build ?
-                    build(fm, { block: map.block, resolve, resolveField, taken })
-                :   systemRowsSection(fm, provider.fields[type], {
-                        block: map.block,
-                        resolve,
-                        resolveField,
-                        taken,
-                    });
+                build ? build(fm, ctx) : systemRowsSection(fm, provider.fields[type], ctx);
         }
+        // A system box is never an empty panel. It either holds something, or
+        // it says which of the two silences this is.
+        if (!available) box.statement = NOT_AVAILABLE;
+        else if (!box.sections.some(sectionHolds)) box.statement = NOTHING_BEYOND_PROFILE;
         boxes.push(box);
     }
     return boxes;
+}
+
+/**
+ * Whether a section holds anything a medium would draw.
+ *
+ * Keyed by {@link INFOBOX_LAYOUTS}, so a layout added there is understood here
+ * without a second edit.
+ *
+ * @param {object} section - The section.
+ * @returns {boolean} Whether it holds anything.
+ */
+export function sectionHolds(section) {
+    const key = INFOBOX_LAYOUTS[section?.layout];
+    return Boolean(key && Array.isArray(section[key]) && section[key].length);
 }
 
 /**

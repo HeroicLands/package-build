@@ -37,7 +37,9 @@ import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { RETIRED_FIELD_ALIASES, readAliasedField } from "../engine/retired-fields.mjs";
 
 const SCENE_ID = "AAAAAAAAAAAAAAAA";
-const ART = "systems/sohl/assets/ui/parchment.jpg";
+const ART = "sohl/assets/ui/parchment.jpg";
+/** The same file, as a Foundry install addresses it. */
+const SERVED = "systems/sohl/assets/ui/parchment.jpg";
 
 // The pack helpers are plain ESM whose JSDoc types the returns as `object`, so
 // these thin wrappers keep the assertions below readable.
@@ -91,7 +93,7 @@ describe("the alias is gone", () => {
 describe("`img` is read wherever a swept note put it", () => {
     it("reads it from the note's top level, where every other type carries it", () => {
         const topLevel = buildSceneDoc(makeNote({ img: ART }, {}), makeCtx());
-        expect(topLevel.levels[0].background.src).toBe(ART);
+        expect(topLevel.levels[0].background.src).toBe(SERVED);
     });
 
     it("still honours a note that has not moved it out of the block", () => {
@@ -116,8 +118,8 @@ describe("`img` is read wherever a swept note put it", () => {
     });
 
     it("synthesises the Level from `img`, and from nothing else", () => {
-        expect(buildLevelDoc({ img: ART }, SCENE_ID).background.src).toBe(ART);
-        expect(buildLevelDoc({ image: ART }, SCENE_ID).background.src).toBeUndefined();
+        expect(buildLevelDoc({ img: ART }, SCENE_ID).background.src).toBe(SERVED);
+        expect(buildLevelDoc({ image: ART }, SCENE_ID).background.src).toBeNull();
     });
 });
 

@@ -84,6 +84,7 @@ import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
+import { lintContentImages } from "../engine/content-images.mjs";
 import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
@@ -962,6 +963,14 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
 
+                // The width and position an image states. Refused rather than
+                // reported, because an unrecognised value rendering as the
+                // ordinary width looks exactly like a directive that worked —
+                // so these are errors and they fail the run.
+                const images = lintContentImages(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -969,6 +978,7 @@ function lintCommand() {
                     ...charset.findings,
                     ...icons.findings,
                     ...html.findings,
+                    ...images.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —
@@ -1418,7 +1428,13 @@ function pdfCommand() {
                     compile: argv.compile !== false,
                 });
 
-                for (const finding of result.findings) emitDiagnostic(finding);
+                // The shared line, not a second copy of it: an **error** fails
+                // the run and a **warning** does not. A picture the book cannot
+                // carry is a warning — the entry still prints, with its caption
+                // where the image would be — and a pathname no surface can
+                // resolve is an error, because the same statement is wrong in
+                // Foundry and on the website too.
+                const errors = reportFindings(result.findings, {});
 
                 if (!result.built) {
                     // A reason is a deliberate no-op — the fence, an absent
@@ -1442,9 +1458,7 @@ function pdfCommand() {
                 );
                 log.info(`Typst source: ${result.typ}`);
                 if (result.pdf) log.info(`Book: ${result.pdf}`);
-                // Findings are reported, never fatal — a filter that selected
-                // nothing is worth fixing and is not worth refusing to publish
-                // the other two thousand entries over.
+                if (errors) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -1565,7 +1579,25 @@ function siteCommand() {
                         message: linkFindingMessage(e),
                     });
                 }
-                if (result.tableErrors.length || result.wikiErrors.length) {
+                // An image whose pathname the site cannot resolve, located the
+                // way a wikilink finding is: by searching the note for the
+                // literal the resolver was handed. The page is written either
+                // way — a missing picture is visible, and stopping before the
+                // write would hide every other finding in the tree behind one
+                // address.
+                for (const e of result.imageErrors) {
+                    emitDiagnostic({
+                        file: e.file,
+                        ...positionOfLiteral(readRawNote(e.file), e.src, e.occurrence),
+                        severity: "error",
+                        message: e.message,
+                    });
+                }
+                if (
+                    result.tableErrors.length ||
+                    result.wikiErrors.length ||
+                    result.imageErrors.length
+                ) {
                     process.exitCode = 1;
                     return;
                 }

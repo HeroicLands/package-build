@@ -32,19 +32,40 @@ import {
     INFOBOX_VALUE_KINDS,
     NOTE_BOX_ID,
     NOTE_FIELD_PRESENTATION,
+    GEAR_UNITS,
+    NOTHING_BEYOND_PROFILE,
     NOT_AVAILABLE,
+    UNSET_VALUES,
+    applyUnit,
+    hasValue,
+    isUnsetSentinel,
     assertInfoboxSet,
     buildInfoboxes,
     defineInfobox,
     humanizeFieldName,
+    isDeclaredDefault,
+    overlayFor,
     noteInfobox,
     presentValue,
     requiredInfoboxIds,
 } from "../engine/infobox.mjs";
+import { SOHL_FIELD_PRESENTATION, UNSTATED, strikeModes } from "../sohl/infobox.mjs";
+import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { noteInfoboxes } from "../engine/infobox-registry.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
+
+/**
+ * The suffixes a declaration's own key carries into a label.
+ *
+ * A field is named for the value it carries into a DataModel, so
+ * `perceptionPenaltyBase`, `assocSkillCode` and `improveFlag` humanise into the
+ * compiler's word rather than a reader's. Deriving the check from the
+ * declarations means a field added with such a name fails until an overlay
+ * names it or withholds it.
+ */
+const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
 function sampleFor(field: { shape?: string; kind?: string }): unknown {
@@ -89,7 +110,7 @@ describe("the note box's fields are the type's own vocabulary", () => {
             const box = noteInfobox(fullyStated(type));
             const labels = new Set(box.sections[0].rows.map((row: { label: string }) => row.label));
             for (const field of NOTE_VOCABULARY[type].data) {
-                const overlay = NOTE_FIELD_PRESENTATION[field.name] ?? {};
+                const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
                 if (overlay.withheld) continue;
                 const wanted =
                     overlay.group ? "Appearance" : (overlay.label ?? humanizeFieldName(field.name));
@@ -109,28 +130,47 @@ describe("the note box's fields are the type's own vocabulary", () => {
             "Healing rate",
             "Contagion index",
             "Outcome traumas",
-            "Onset duration formula",
-            "Onset duration base",
-            "Healing check duration formula",
-            "Healing check duration base",
-            "Resolution duration formula",
-            "Resolution duration base",
+            "Onset roll",
+            "Onset",
+            "Healing check roll",
+            "Healing check",
+            "Resolution roll",
+            "Resolution",
         ]);
     });
 
-    it("withholds nothing but build plumbing and images", () => {
+    it("withholds nothing but machinery and images", () => {
         for (const [name, overlay] of Object.entries(NOTE_FIELD_PRESENTATION)) {
             if (!overlay.withheld) continue;
             expect(overlay.withheld, `\`${name}\` withheld for a third reason`).toMatch(
-                /image|template machinery/,
+                /image|machinery/,
             );
         }
     });
 
+    it("leaves no declaration's own key on a page", () => {
+        const leaked: Record<string, string> = {};
+        for (const [type, entry] of Object.entries(NOTE_VOCABULARY)) {
+            for (const field of entry.data as { name: string }[]) {
+                // An overlay entry is somebody deciding what the row is called,
+                // so it is trusted. What this catches is a field nobody has
+                // decided about, humanised straight out of the vocabulary.
+                const overlay = overlayFor(NOTE_FIELD_PRESENTATION, type, field.name);
+                if (overlay.withheld || overlay.label || overlay.group) continue;
+                const label = humanizeFieldName(field.name);
+                if (COMPILER_WORDS.test(label)) leaked[`${type}.${field.name}`] = label;
+            }
+        }
+        expect(leaked).toEqual({});
+    });
+
     it("names no field the vocabulary does not declare", () => {
         const declared = new Set(
-            Object.values(NOTE_VOCABULARY).flatMap((entry) =>
-                entry.data.map((field: { name: string }) => field.name),
+            Object.entries(NOTE_VOCABULARY).flatMap(([type, entry]) =>
+                entry.data.flatMap((field: { name: string }) => [
+                    field.name,
+                    `${type}.${field.name}`,
+                ]),
             ),
         );
         const stale = Object.keys(NOTE_FIELD_PRESENTATION).filter((name) => !declared.has(name));
@@ -279,7 +319,7 @@ describe("the rendered box", () => {
         expect(typst).toContain("#block(breakable: false)[\n#infobox-title[SoHL]");
     });
 
-    it("gives an unavailable box a block of its own, title and all", () => {
+    it("gives a box that states rather than shows a block of its own, title and all", () => {
         const typst = infoboxesToTypst([
             {
                 id: "hm3",
@@ -288,10 +328,11 @@ describe("the rendered box", () => {
                 title: "HM3",
                 available: false,
                 sections: [],
+                statement: NOT_AVAILABLE,
             },
         ]);
         expect(typst).toContain("#infobox-title[HM3]");
-        expect(typst).toContain("#infobox-unavailable[Not available]");
+        expect(typst).toContain("#infobox-statement[Not available]");
         expect(typst.match(/#block\(breakable: false\)/g)).toHaveLength(1);
     });
 
@@ -420,5 +461,367 @@ describe("a system box", () => {
         expect(sohl.sections[0].rows).toEqual([
             { label: "Mastery level base", kind: "number", value: 40 },
         ]);
+    });
+});
+
+describe("a fact is on exactly one surface", () => {
+    const maps = KNOWN_DOCUMENT_SUBTYPE_MAPS;
+    const gearTypes = ["weapongear", "armorgear", "miscgear", "containergear", "projectilegear"];
+
+    /** Every label a note's boxes carry, box id → labels. */
+    function labelsOf(fm: Record<string, unknown>): Record<string, string[]> {
+        const out: Record<string, string[]> = {};
+        for (const box of noteInfoboxes(fm)) {
+            out[box.id] = (box.sections ?? []).flatMap((section: { rows?: { label: string }[] }) =>
+                (section.rows ?? []).map((row) => row.label),
+            );
+        }
+        return out;
+    }
+
+    it("puts a gear note's weight, price and durability on a box wherever it is authored", () => {
+        for (const type of gearTypes) {
+            const atDestination = labelsOf({
+                type,
+                name: { full: "A Thing" },
+                sohl: { system: { weightBase: 1.5, valueBase: 40, durabilityBase: 6 } },
+            });
+            expect(atDestination.sohl, type).toEqual(
+                expect.arrayContaining(["Weight", "Price", "Durability"]),
+            );
+            expect(atDestination.note, type).not.toEqual(expect.arrayContaining(["Weight"]));
+
+            const shared = labelsOf({
+                type,
+                name: { full: "A Thing" },
+                data: { weight: 1.5, value: 40, durability: 6 },
+                sohl: { system: {} },
+            });
+            expect(shared.note, type).toEqual(
+                expect.arrayContaining(["Weight", "Price", "Durability"]),
+            );
+            expect(shared.sohl, type).not.toEqual(expect.arrayContaining(["Weight", "Price"]));
+        }
+    });
+
+    it("skips a value the declaration would have supplied anyway, wherever it was written", () => {
+        expect(isDeclaredDefault({ name: "improveFlag", default: false }, false)).toBe(true);
+        expect(isDeclaredDefault({ name: "improveFlag", default: false }, true)).toBe(false);
+        expect(isDeclaredDefault({ name: "parents", default: [] }, [])).toBe(true);
+        expect(isDeclaredDefault({ name: "parents", default: [] }, ["x"])).toBe(false);
+        // No declared default is nothing to be equal to.
+        expect(isDeclaredDefault({ name: "material" }, "")).toBe(false);
+
+        const written = labelsOf({
+            type: "skill",
+            name: { full: "Ritual" },
+            sohl: { system: { improveFlag: false, combatCategory: "none", initSkillMult: 0 } },
+        });
+        expect(written.sohl).toEqual([]);
+        expect(
+            labelsOf({
+                type: "skill",
+                name: { full: "Melee" },
+                sohl: { system: { combatCategory: "melee", initSkillMult: 2 } },
+            }).sohl,
+        ).toEqual(["Combat category", "Init multiplier"]);
+    });
+});
+
+describe("armour's protection", () => {
+    const note = {
+        type: "armorgear",
+        name: { full: "Buckram Knee Boots" },
+        sohl: { system: { protectionBase: { blunt: 4, edged: 8, piercing: 5 } } },
+    };
+
+    it("reads the aspects where a note authors them", () => {
+        const box = noteInfoboxes(note).find((entry) => entry.id === "sohl");
+        const grid = box.sections.find((section: { id: string }) => section.id === "protection");
+        expect(grid.cells).toEqual([
+            { label: "Blunt", value: 4 },
+            { label: "Edged", value: 8 },
+            { label: "Piercing", value: 5 },
+            // Armour that stops nothing fiery is a fact, not a gap.
+            { label: "Fire", value: 0 },
+        ]);
+    });
+
+    it("shows them there and nowhere else", () => {
+        const box = noteInfoboxes(note).find((entry) => entry.id === "sohl");
+        const rows = box.sections
+            .filter((section: { id: string }) => section.id === "profile")
+            .flatMap((section: { rows: { label: string }[] }) => section.rows);
+        expect(rows).toEqual([]);
+    });
+});
+
+describe("a weapon's strike modes", () => {
+    /** The same two modes, in the two shapes the corpus writes. */
+    const asList = [
+        { shortcode: "crush", name: "Crush", attack: { modifier: 0 }, lengthBase: 5 },
+        { shortcode: "pommel", name: "Pommel", attack: { modifier: -5 }, lengthBase: 5 },
+    ];
+    const asMapping = {
+        crush: { name: "Crush", attack: { modifier: 0 }, lengthBase: 5 },
+        pommel: { name: "Pommel", attack: { modifier: -5 }, lengthBase: 5 },
+    };
+
+    /** The Strike Modes section of a weapon authoring `declared`. */
+    function section(declared: unknown) {
+        const boxes = noteInfoboxes({
+            type: "weapongear",
+            name: { full: "A Weapon" },
+            sohl: { system: { strikeModes: declared } },
+        });
+        const sohl = boxes.find((box) => box.id === "sohl");
+        return sohl.sections.find((entry: { id: string }) => entry.id === "strikemodes");
+    }
+
+    it("reads both authored shapes the same way", () => {
+        expect(section(asList)).toEqual(section(asMapping));
+        expect(section(asList).groups.map((group: { label: string }) => group.label)).toEqual([
+            "Crush",
+            "Pommel",
+        ]);
+    });
+
+    it("names a mode by its shortcode when a list states no name", () => {
+        expect(strikeModes([{ shortcode: "swung" }])).toEqual([["swung", { shortcode: "swung" }]]);
+        expect(strikeModes(undefined)).toEqual([]);
+        expect(strikeModes("crush")).toEqual([]);
+    });
+
+    it("shows the modes there and nowhere else", () => {
+        const boxes = noteInfoboxes({
+            type: "weapongear",
+            name: { full: "A Weapon" },
+            sohl: { system: { strikeModes: asList } },
+        });
+        const sohl = boxes.find((box) => box.id === "sohl");
+        const rows = sohl.sections
+            .filter((entry: { id: string }) => entry.id === "profile")
+            .flatMap((entry: { rows: { label: string }[] }) => entry.rows);
+        expect(rows.map((row: { label: string }) => row.label)).not.toContain("Strike modes");
+    });
+});
+
+describe("a system box is never an empty panel", () => {
+    it("says which silence it is", () => {
+        const boxes = noteInfoboxes({
+            type: "miscgear",
+            name: { full: "A Coin" },
+            // A block the note carries, holding nothing but what the compiler
+            // would have supplied anyway.
+            sohl: { system: { weightBase: 0, valueBase: 0 } },
+        });
+        const sohl = boxes.find((box) => box.id === "sohl");
+        expect(sohl.available).toBe(true);
+        expect(sohl.sections).toEqual([]);
+        expect(sohl.statement).toBe(NOTHING_BEYOND_PROFILE);
+        expect(sohl.statement).not.toBe(NOT_AVAILABLE);
+
+        const hm3 = boxes.find((box) => box.id === "hm3");
+        expect(hm3.available).toBe(false);
+        expect(hm3.statement).toBe(NOT_AVAILABLE);
+    });
+
+    it("draws the statement rather than a heading over nothing", () => {
+        const boxes = noteInfoboxes({
+            type: "miscgear",
+            name: { full: "A Coin" },
+            sohl: { system: { weightBase: 0 } },
+        });
+        expect(infoboxesToHtml(boxes)).toContain(
+            `<p class="infobox-statement">${NOTHING_BEYOND_PROFILE}</p>`,
+        );
+        expect(infoboxesToTypst(boxes)).toContain(`#infobox-statement[${NOTHING_BEYOND_PROFILE}]`);
+    });
+
+    it("leaves no system box with neither sections nor a statement", () => {
+        const bare = { type: "weapongear", name: { full: "A Weapon" }, sohl: {}, hm3: {} };
+        for (const box of noteInfoboxes(bare)) {
+            if (box.kind !== "system") continue;
+            const holds = (box.sections ?? []).some((section: Record<string, unknown[]>) =>
+                Object.values(INFOBOX_LAYOUTS).some(
+                    (key) => Array.isArray(section[key]) && section[key].length,
+                ),
+            );
+            expect(holds || Boolean(box.statement), `\`${box.id}\` draws nothing`).toBe(true);
+        }
+    });
+});
+
+describe("a system box's labels are a reader's words", () => {
+    it("names no field the declaration does not declare", () => {
+        const declared = new Set(
+            Object.entries(NOTE_SCHEMAS).flatMap(([type, fields]) =>
+                fields
+                    .filter((field: { name?: string }) => field.name)
+                    .flatMap((field: { name: string }) => [field.name, `${type}.${field.name}`]),
+            ),
+        );
+        const stale = Object.keys(SOHL_FIELD_PRESENTATION).filter((name) => !declared.has(name));
+        expect(stale).toEqual([]);
+    });
+
+    it("leaves no declaration's own key on a page", () => {
+        const leaked: Record<string, string> = {};
+        for (const [type, fields] of Object.entries(NOTE_SCHEMAS)) {
+            for (const field of fields as { name?: string }[]) {
+                if (!field.name) continue;
+                // An overlay entry is somebody deciding what the row is called,
+                // so it is trusted. What this catches is a field nobody has
+                // decided about, humanised straight out of the declaration.
+                const overlay = overlayFor(SOHL_FIELD_PRESENTATION, type, field.name);
+                if (overlay.withheld || overlay.label) continue;
+                const label = humanizeFieldName(field.name);
+                if (COMPILER_WORDS.test(label)) leaked[`${type}.${field.name}`] = label;
+            }
+        }
+        expect(leaked).toEqual({});
+    });
+
+    it("withholds nothing but machinery and a fact the box shows whole elsewhere", () => {
+        for (const [name, overlay] of Object.entries(SOHL_FIELD_PRESENTATION)) {
+            if (!overlay.withheld) continue;
+            expect(overlay.withheld, `\`${name}\` withheld for a third reason`).toMatch(
+                /machinery|shown whole|shown one per line|no summary shape/,
+            );
+        }
+    });
+});
+
+describe("a measured quantity carries its unit", () => {
+    const gearTypes = ["weapongear", "armorgear", "miscgear", "containergear", "projectilegear"];
+
+    /** Every `label: value` a note's boxes carry, box id → rows. */
+    function rowsOf(fm: Record<string, unknown>): Record<string, string[]> {
+        const out: Record<string, string[]> = {};
+        for (const box of noteInfoboxes(fm)) {
+            out[box.id] = (box.sections ?? []).flatMap(
+                (section: { rows?: { label: string; value: unknown }[] }) =>
+                    (section.rows ?? []).map((row) => `${row.label}: ${row.value}`),
+            );
+        }
+        return out;
+    }
+
+    it("puts it on the value, where the quantity is, and not on the label", () => {
+        expect(applyUnit("number", 160, "d")).toEqual({ kind: "text", value: "160d" });
+        expect(applyUnit("number", 1.1, " lbs")).toEqual({ kind: "text", value: "1.1 lbs" });
+        // No unit declared leaves the row exactly as it was built.
+        expect(applyUnit("number", 160, undefined)).toEqual({ kind: "number", value: 160 });
+        // A link or a list is not a quantity, so nothing is appended to it.
+        expect(applyUnit("links", [{ text: "x" }], " lbs")).toEqual({
+            kind: "links",
+            value: [{ text: "x" }],
+        });
+    });
+
+    it("says the same unit on every gear type, and in whichever box the row landed", () => {
+        for (const type of gearTypes) {
+            expect(
+                rowsOf({
+                    type,
+                    name: { full: "A Thing" },
+                    sohl: { system: { weightBase: 1.1, valueBase: 160 } },
+                }).sohl,
+                type,
+            ).toEqual(expect.arrayContaining(["Weight: 1.1 lbs", "Price: 160d"]));
+
+            expect(
+                rowsOf({
+                    type,
+                    name: { full: "A Thing" },
+                    data: { weight: 1.1, value: 160 },
+                    sohl: { system: {} },
+                }).note,
+                type,
+            ).toEqual(expect.arrayContaining(["Weight: 1.1 lbs", "Price: 160d"]));
+        }
+    });
+
+    it("declares the unit once, so both overlays read the same one", () => {
+        for (const [name, entry] of Object.entries(GEAR_UNITS)) {
+            expect(SOHL_FIELD_PRESENTATION[name], name).toEqual(entry);
+            expect(NOTE_FIELD_PRESENTATION[name], name).toEqual(entry);
+        }
+    });
+});
+
+describe("a sentinel is an absence, not a value", () => {
+    it("reads the words a corpus writes for nothing", () => {
+        for (const word of UNSET_VALUES) expect(isUnsetSentinel(word), word).toBe(true);
+        expect(isUnsetSentinel("n/a")).toBe(true);
+        expect(isUnsetSentinel("N/A")).toBe(true);
+        expect(isUnsetSentinel("not applicable")).toBe(true);
+        // A word that merely contains one is a value.
+        expect(isUnsetSentinel("none of the above")).toBe(false);
+        expect(isUnsetSentinel("Nonesuch")).toBe(false);
+        expect(isUnsetSentinel(0)).toBe(false);
+        expect(hasValue("na")).toBe(false);
+        expect(hasValue(0)).toBe(true);
+    });
+
+    it("drops the row wherever the sentinel was written", () => {
+        // Judged in `hasValue`, so one rule answers for both boxes rather than
+        // each one growing its own list of words to ignore.
+        const boxes = noteInfoboxes({
+            type: "concoctiongear",
+            name: { full: "Alkahest" },
+            subType: "elixir",
+            sohl: { system: { potency: "na", weightBase: 0.25 } },
+        });
+        const sohl = boxes.find((box) => box.id === "sohl");
+        const labels = sohl.sections.flatMap((section: { rows?: { label: string }[] }) =>
+            (section.rows ?? []).map((row) => row.label),
+        );
+        expect(labels).toContain("Weight");
+        expect(labels).not.toContain("Potency");
+
+        const trauma = noteInfoboxes({
+            type: "trauma",
+            name: { full: "Aquaphobia" },
+            sohl: { system: { category: "none", healingRateBase: 1 } },
+        }).find((box) => box.id === "sohl");
+        const traumaLabels = trauma.sections.flatMap((section: { rows?: { label: string }[] }) =>
+            (section.rows ?? []).map((row) => row.label),
+        );
+        expect(traumaLabels).toContain("Healing rate");
+        expect(traumaLabels).not.toContain("Category");
+    });
+
+    it("reads a die of nought as no die rather than as a roll", () => {
+        const modes = (declared: unknown) => {
+            const sohl = noteInfoboxes({
+                type: "weapongear",
+                name: { full: "Net" },
+                sohl: { system: { strikeModes: declared } },
+            }).find((box) => box.id === "sohl");
+            return sohl.sections.find((entry: { id: string }) => entry.id === "strikemodes");
+        };
+
+        // A net envelops and does no damage: no die, no modifier, and an aspect
+        // on its own is not an impact.
+        const nothing = modes([
+            {
+                shortcode: "envelop",
+                name: "Envelop",
+                impactBase: { numDice: 1, die: 0, modifier: 0, aspect: "blunt" },
+                lengthBase: 5,
+            },
+        ]);
+        expect(nothing.groups[0].entries[1]).toEqual({ text: `Impact ${UNSTATED}` });
+
+        // A flat modifier with no die is still an impact.
+        const flat = modes([
+            {
+                shortcode: "shove",
+                name: "Shove",
+                impactBase: { numDice: 1, die: 0, modifier: 3, aspect: "blunt" },
+            },
+        ]);
+        expect(flat.groups[0].entries[1]).toEqual({ text: "Impact +3 blunt" });
     });
 });

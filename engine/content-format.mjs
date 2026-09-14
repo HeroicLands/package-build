@@ -36,15 +36,23 @@
  * nothing about their contents: no type name, no field name and no system name
  * is written here. Editing the document changes what the checks assert.
  *
- * **Two table shapes carry everything.**
+ * **Three table shapes carry everything.**
  *
  * | table | recognised by its first header cell | yields |
  * | --- | --- | --- |
  * | the per-type vocabulary | `` `data` property `` | the keys that type's `data:` block may carry |
  * | the per-type mapping | `shared source` | one claim per `system.*` cell |
+ * | a closed vocabulary | `` `<name>` value `` | the values `<name>` admits |
  *
  * A mapping table's remaining header cells name the systems (`→ sohl`,
  * `→ hm3`), so the system vocabulary comes from the document too.
+ *
+ * **A closed vocabulary is a table because it is a list with consequences.**
+ * A body-markdown directive that admits a fixed set of names — an image's width
+ * class, its `float:` position — states each name in a row beside what each
+ * surface does with it, which is the only place a reader can compare the three.
+ * The header names the key rather than the parser, so a second vocabulary costs
+ * a table and nothing here.
  *
  * **The other half of a type's vocabulary is a bullet list, not a table.** A
  * type's `subType` values are stated as `**subType**:` followed by one bullet
@@ -126,12 +134,25 @@ export const CONTENT_FORMAT_PATH = path.join(
  */
 
 /**
+ * One closed vocabulary the specification states as a table.
+ *
+ * @typedef {object} VocabularySpec
+ * @property {string} name - The key the header names, without its backticks.
+ * @property {number} line - 1-based line of the header row.
+ * @property {string[]} values - The values, in document order. A row whose
+ *   first cell is not a single inline-code span states no value and is skipped,
+ *   which is how a table says "no marker" in a row of its own.
+ */
+
+/**
  * The specification, as data.
  *
  * @typedef {object} ContentFormat
  * @property {string} file - Where it was read from, for diagnostics.
  * @property {Map<string, TypeSpec>} types - Note type → what its section declares.
  * @property {MappingClaim[]} claims - Every `system.*` target, in document order.
+ * @property {Map<string, VocabularySpec>} vocabularies - Key → the values it
+ *   admits, for every closed vocabulary the document states as a table.
  */
 
 /**
@@ -280,11 +301,13 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
     const types = new Map();
     /** @type {MappingClaim[]} */
     const claims = [];
+    /** @type {Map<string, VocabularySpec>} */
+    const vocabularies = new Map();
 
     const lines = String(text ?? "").split("\n");
     /** @type {TypeSpec|undefined} */
     let current;
-    /** @type {{kind: "data"|"mapping", systems: string[], shared?: boolean}|undefined} */
+    /** @type {{kind: "data"|"mapping"|"vocabulary", systems: string[], shared?: boolean, vocabulary?: VocabularySpec}|undefined} */
     let table;
 
     for (let i = 0; i < lines.length; i += 1) {
@@ -343,7 +366,34 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
             };
             continue;
         }
+        // `` `float` value `` — a closed vocabulary, named by its own header.
+        const vocabularyHeader = /^`([A-Za-z][\w-]*)`\s+value$/.exec(cells[0]);
+        if (vocabularyHeader) {
+            const name = vocabularyHeader[1];
+            if (vocabularies.has(name)) {
+                throw specError(
+                    file,
+                    i + 1,
+                    `\`${name}\` already has a vocabulary table at line ` +
+                        `${/** @type {VocabularySpec} */ (vocabularies.get(name)).line}. ` +
+                        "A vocabulary is stated once, or a reader has two closed sets to " +
+                        "reconcile and no rule for which is closed.",
+                );
+            }
+            const vocabulary = { name, line: i + 1, values: /** @type {string[]} */ ([]) };
+            vocabularies.set(name, vocabulary);
+            table = { kind: "vocabulary", systems: [], vocabulary };
+            continue;
+        }
         if (!table) continue;
+
+        if (table.kind === "vocabulary") {
+            const value = code(cells[0]);
+            // A row stating no value states the *absence* of a marker, which is
+            // a real row of such a table and not a value it admits.
+            if (value) /** @type {VocabularySpec} */ (table.vocabulary).values.push(value);
+            continue;
+        }
 
         if (table.kind === "data") {
             if (!current) continue;
@@ -373,7 +423,7 @@ export function parseContentFormat(text, { file = CONTENT_FORMAT_PATH } = {}) {
         }
     }
 
-    return { file, types, claims };
+    return { file, types, claims, vocabularies };
 }
 
 /**

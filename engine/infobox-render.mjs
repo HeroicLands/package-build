@@ -34,7 +34,7 @@
  * @module
  */
 
-import { NOT_AVAILABLE } from "./infobox.mjs";
+import { sectionHolds } from "./infobox.mjs";
 import { escapeTypst, escapeTypstString } from "./pdf-render.mjs";
 
 /**
@@ -185,8 +185,8 @@ export function infoboxesToHtml(boxes, { link = linkToHtml } = {}) {
         if (box.kind !== "system" && !box.sections?.some((s) => sectionHasContent(s))) continue;
         out.push(`<details class="infobox infobox-${escapeHtml(box.id)}" open>`);
         out.push(`<summary>${escapeHtml(box.title)}</summary>`);
-        if (box.kind === "system" && !box.available) {
-            out.push(`<p class="infobox-unavailable">${escapeHtml(NOT_AVAILABLE)}</p>`);
+        if (box.statement) {
+            out.push(`<p class="infobox-statement">${escapeHtml(box.statement)}</p>`);
         } else {
             for (const section of box.sections ?? []) {
                 if (sectionHasContent(section)) out.push(sectionToHtml(section, link));
@@ -202,14 +202,15 @@ export function infoboxesToHtml(boxes, { link = linkToHtml } = {}) {
  *
  * A section with nothing in it is not drawn: rule 4 says an absent field is
  * absent, and a heading over nothing is the em-dash placeholder in another
- * form.
+ * form. The declaration answers it — {@link module:engine/infobox.sectionHolds}
+ * — because the same question decides whether a system box carries a statement
+ * instead of sections, and two answers to it would come apart.
  *
  * @param {object} section - The section.
  * @returns {boolean} Whether to draw it.
  */
 export function sectionHasContent(section) {
-    const key = { rows: "rows", grid: "cells", runin: "groups", list: "entries" }[section?.layout];
-    return Boolean(key && Array.isArray(section[key]) && section[key].length);
+    return sectionHolds(section);
 }
 
 /**
@@ -328,10 +329,10 @@ export function infoboxesToTypst(boxes, { link = (value) => escapeTypst(value?.t
         if (box.kind !== "system" && !drawn.length) continue;
         const title = `#infobox-title[${escapeTypst(box.title)}]`;
         const body = [];
-        if (box.kind === "system" && !box.available) {
+        if (box.statement) {
             body.push(
                 `#block(breakable: false)[\n${title}\n` +
-                    `#infobox-unavailable[${escapeTypst(NOT_AVAILABLE)}]\n]`,
+                    `#infobox-statement[${escapeTypst(box.statement)}]\n]`,
             );
         } else if (!drawn.length) {
             body.push(`#block(breakable: false)[\n${title}\n]`);
@@ -375,6 +376,6 @@ export function infoboxTypstPreamble() {
         "#let infobox-runin(lab, body) = block(below: 0.28em, breakable: false)[" +
             "#set par(justify: false, first-line-indent: 0em, hanging-indent: 0.5cm, leading: 0.40em)\n" +
             '#text(size: 7.8pt)[#if lab != "" [ #text(weight: "bold")[#lab: ] ]#body]]',
-        '#let infobox-unavailable(t) = text(size: 8pt, style: "italic", fill: infobox-faint)[#t]',
+        '#let infobox-statement(t) = text(size: 8pt, style: "italic", fill: infobox-faint)[#t]',
     ].join("\n");
 }

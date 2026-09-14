@@ -80,10 +80,15 @@ column regardless.
    the panel breaks _between_ them, which is what lets a long box cross a
    column or page boundary without splitting a stat grid down the middle.
 4. **An absent field is absent, not empty.** A row with no value is not
-   emitted. A placeholder asserts a fact that is not there.
-5. **_Not available_ is a different thing, and survives.** It is the whole box
-   for a mapped system that produced no document — a statement about this note,
-   not about a missing field. Rule 4 governs rows; this governs boxes.
+   emitted. A placeholder asserts a fact that is not there. A corpus writes an
+   absence three ways and all three count: the key is omitted, it holds the
+   field's own default, or it holds a **sentinel** — `na`, `none`,
+   `not applicable` — which is the same absence written as a word. `Potency: Na`
+   is not a fact about a potion.
+5. **A system box is never an empty panel; it says which silence it is.** Rule
+   4 governs rows, and a box is not a row — a heading over nothing asserts that
+   something should have been there. See
+   [the three states of a system box](#the-three-states-of-a-system-box).
 6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
    the order given.
 
@@ -95,11 +100,15 @@ second list, so a key added to a type appears in the book, on the website and
 in a compendium journal with no further edit. A `Name` row stands first on
 every note, because every note has one.
 
-Three keys carry no row, and the reason in each case is one of exactly two:
+A few keys carry no row, and the reason in each case is one of exactly two —
+the key is **machinery**, steering a build or an interface rather than
+describing the subject, or it is an **image**, which rule 2 keeps out of the
+box:
 
 | key                          | why it carries no row                            |
 | ---------------------------- | ------------------------------------------------ |
 | `templatePriority`           | template machinery, not a fact about the subject |
+| `color`                      | sidebar machinery, not a fact about the subject  |
 | `portrait`, `img`, `overlay` | an image, which rule 2 keeps out of the box      |
 
 A field whose value is a **mapping** carries no row either — a governance
@@ -113,18 +122,77 @@ A being's `age`, `height`, `weight` and `appearance.*` compose into a single
 #### What a system box holds
 
 **A system box's fields are that system's own field declaration**, in its
-order, and only where the note actually wrote a value — a field answered by the
-compiler's default is a fact about the compiler. A field the note box already
-carries is not repeated: a gear item's weight is system-agnostic and belongs to
-the note.
+order. There is no second list here either, so a field added to a type reaches
+the box with no further edit.
 
-Three types are read differently, because their box is derived rather than read
+Two things keep a fact off it:
+
+- **A value the declaration would have supplied anyway.** A field answered by
+  its own default is a fact about the compiler, not about the note — and that is
+  true of the value, wherever it was written. A corpus writes its defaults out:
+  `improveFlag: false` and `combatCategory: none` are typed into hundreds of
+  notes that mean nothing by them.
+- **A fact the note box already put on the page.** A gear item's weight is
+  system-agnostic and belongs to the note. What counts is what the note box
+  _shows_, not what its vocabulary declares — the same fact is written under
+  `data:` on one note and at its destination path on another, and a system box
+  that stood down on the declaration alone would leave it on no surface at all.
+
+**A measured quantity carries its unit on its value** — `Price 160d`,
+`Weight 1.1 lbs`. The unit belongs to the quantity rather than to the name of
+the quantity, so it is not folded into the label: `Price (d)` beside `160` makes
+a reader reassemble one fact from two cells, and reads worst in the book, whose
+label column is a narrow small-caps rule. A medium cannot supply it either —
+appending `d` to a price means knowing which row is the price, which is the one
+thing a generic renderer must never know. A row carrying a unit is `text`,
+because a number with a unit on it is no longer a number.
+
+**What a field is called** is a **presentation overlay** on that same
+declaration, per system. It carries two things a compiler's field list cannot,
+because they are about a page rather than about a document: a reader's word
+where the declaration's key is the compiler's — `assocSkillCode` is exactly
+right in a DataModel and wrong in a panel somebody reads — and the handful of
+keys that belong on no page at all, either because the box shows the same fact
+whole somewhere else or because they steer a character sheet rather than
+describe the subject. It is an overlay and not a list: a field it does not
+mention still gets a row, under its own humanised name.
+
+Four types are read differently, because their box is derived rather than read
 field by field — a **being**, whose attributes, skills, mystical abilities and
 carried gear are one flat `sohl.items` list; **armour**, whose protection is
-shown for all four aspects with an unstated one rendered `0`; and a **weapon**,
-whose strike modes are shown one per line with an unstated value rendered `—`.
-Both of those placeholders are decided by the toolchain and travel as data, so
-no renderer has to know which field it is looking at.
+shown for all four aspects with an unstated one rendered `0`; a **weapon**,
+whose strike modes are shown one per line with an unstated value rendered `—`;
+and a **projectile**, whose impact is three declared fields composing into the
+one quantity a reader wants. Both of those placeholders are decided by the
+toolchain and travel as data, so no renderer has to know which field it is
+looking at.
+
+A weapon's strike modes are authored either as a **list**, each mode carrying
+its own `shortcode`, or as a **mapping** keyed by the mode's name. Both are
+read, and both yield the same section.
+
+#### The three states of a system box
+
+A system box says something on every page that carries one. Which of the three
+it says is decided here and travels as the box's `statement`, so a medium draws
+one thing and decides none of it.
+
+| state          | when                                                       | what the box says                       |
+| -------------- | ---------------------------------------------------------- | --------------------------------------- |
+| content        | the system holds something the note box has not shown      | its sections, and no `statement`        |
+| not available  | the system maps this note's type but produced no document  | `statement: Not available`              |
+| nothing to add | the system produced a document holding nothing new to show | `statement: Nothing beyond the profile` |
+
+The third state is not the second. _Not available_ is a statement about this
+note — the system has no document for it, and a reader can act on that. A
+system that _does_ compile the note and holds only facts the note box has
+already given says so instead, because a reader told "not available" would go
+looking for a document that exists, and an empty panel tells them nothing at
+all.
+
+A system that does not map the note's type gets **no box**. A box reading
+_Not available_ on every affiliation page would suggest a gap in the note when
+the truth is about the system's scope.
 
 #### Four section layouts
 
@@ -195,6 +263,7 @@ infoboxes:
     title: HM3
     available: false
     sections: []
+    statement: Not available
 ```
 
 ### Frontmatter has three regions
@@ -478,47 +547,91 @@ item compiled from a template note loses the fact that it is one
 The row states the mapping the format makes;
 the gap is in the pass, not in the table.
 
-#### An asset path's first segment says which package owns it
+#### A pathname names the package that owns the file
 
-`img` and `portrait` are paths, and a path has to say **which package holds the
-file** — because a module's content routinely cites the system's art, while the
-system's content never cites the module's. The first segment answers that, and
-there are exactly three answers:
+A note names a file once, and four surfaces have to serve it: a Foundry
+install, this repository's own working tree, the website, and the book. Each
+addresses the same file differently, so an authored pathname is a **statement
+of ownership** and every surface derives its own address from it.
 
-| Authored path starts with | Owner                 | Emitted              |
-| ------------------------- | --------------------- | -------------------- |
-| `systems/`                | a separate **system** | unchanged            |
-| `modules/`                | a separate **module** | unchanged            |
-| anything else             | **this package**      | `<assetRoot>/<path>` |
+**The first segment names the package, when an `assets/` follows it.**
+Everything after that `assets/` is the _suffix_ — the path inside the package's
+shipped tree, and the one piece every derived form is built from. A pathname
+that does not open `<package>/assets/` belongs to the package being compiled,
+and the whole of it is the suffix.
 
-`<assetRoot>` is `<packageKind>/<foundryPackage>/assets`, derived from the
-configuration — `systems/sohl/assets` for the system,
-`modules/sohl-thalorna/assets` for that module. A `documentation` package has
-no asset root at all, because Foundry installs no such package and serves no
-files for it: there, the third row is refused, and a note names the owning
-package (`systems/…`, `modules/…`) or a URL. So one authored
-`icons/relic.svg` means "my own `assets/icons/relic.svg`" in whichever package
-writes it, while an authored `systems/sohl/assets/icons/noun/shield.svg` names
-the system's file and is left exactly as written wherever it appears. That
-second case is not hypothetical: every default this toolchain pairs with an item
-type is a `systems/sohl/…` path, so a module's compiled documents carry it
-verbatim.
+```yaml
+img: images/beings/athlwvthrnd-portrait.webp # this package's
+img: sohl/assets/icons/noun/shield.svg # the sohl package's
+```
 
-**The third row is "anything else", not a list of directories.** It is a rule
-about ownership: a package owns its whole `assets/` tree, and the directory
-names inside it are that package's business. `sohl-kethira-basic` keeps art
-under `assets/artwork/`, and `artwork/deity.webp` is rooted under its assets by
-the same rule that roots `icons/…` and `images/…` there.
+The four forms, for a `thalorna` note (the `thalorna` package ships as the
+Foundry module `sohl-thalorna`) writing `images/map.webp`:
 
-An address naming **no** package passes through untouched, which is that same
-rule rather than an exception — an absolute URL, a `data:` URI and a `/`-rooted
-path each already address something no package owns, so prefixing any of them
-would break an address that was already correct.
+| Surface     | Address                                                  |
+| ----------- | -------------------------------------------------------- |
+| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
+| **Local**   | `assets/images/map.webp`                                 |
+| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
 
-`worlds/` is deliberately **not** exempt. A package may not ship art out of a
-world, so a note writing one has made a mistake; prefixing it yields a plainly
-broken path rather than a plausible one that 404s in Foundry with nothing
-reporting it.
+And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
+system ships and this repository does not hold:
+
+| Surface     | Address                                                   |
+| ----------- | --------------------------------------------------------- |
+| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`               |
+| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository  |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
+| **Book**    | not carried — a build stages only what this package ships |
+
+**The package's name is not its Foundry id.** `thalorna` is what the content is
+called, what a note writes, and what the website serves it under.
+`sohl-thalorna` is what Foundry installs the module as, and it appears in the
+Foundry form alone. The two words are the same for `sohl` and for `hm3`, which
+is exactly why they are kept apart here.
+
+Which packages a build can resolve is derived from its configuration: its own
+`contentPackage`, every game system it compiles content for (`systems:`,
+`packs[].system`, `requiresSystem`, `relationships.systems`), and every package
+it declares under `relationships`, whose `contentPackage` names the content
+where that differs from the Foundry id. A pathname naming a package the build
+does not know still resolves on the website and in the book — those need only
+the name and the suffix — and has no Foundry address, which is refused rather
+than guessed.
+
+**The host is configuration.** `site.assets` in `package-build.config.yaml` is
+the root the web form is joined onto, and a package-owned image on a page with
+none set is an error naming that key.
+
+**A pathname naming no package at all passes through on every surface** — an
+absolute URL, a `data:` URI, a protocol-relative `//host/…`, or a `/`-rooted
+path, which Foundry serves from its data root. That is how a note addresses
+core Foundry art (`/icons/svg/mystery-man.svg`) or a package this build knows
+nothing of (`/systems/dnd5e/icons/spell.webp`).
+
+**A `systems/…` or `modules/…` pathname is refused**, with a finding naming the
+replacement. It is a Foundry address written where an ownership statement
+belongs: it resolves for Foundry and for nothing else, because neither the
+website nor the book has any such directory. `systems/sohl/assets/ui/logo.webp`
+is written `sohl/assets/ui/logo.webp`, and `systems/hm3/images/svg/sword.svg` —
+where the package serves its pictures from its own root — is written
+`hm3/assets/images/svg/sword.svg`, because `assets/` is where a package's files
+sit in every derived form.
+
+`worlds/` is not a Foundry root for this purpose. A package may not ship files
+out of a world, so a note writing one has made a different mistake and gets the
+ordinary "this package owns it" reading — a plainly broken path rather than a
+plausible one that 404s with nothing reporting it.
+
+**The rule is about ownership, not a list of directories.** A package owns its
+whole `assets/` tree and the directory names inside it are its own business:
+`sohl-kethira-basic` keeps art under `assets/artwork/`, and `artwork/deity.webp`
+is that package's by the same rule that claims `icons/…` and `images/…`.
+
+**Every pathname a note carries follows it.** `img:` and `data.portrait:`; a
+map note's background, overlay, tile textures and ambient sounds; and the
+address of every image in a note's body.
 
 #### `banner:` addresses the CDN, not the Foundry install
 
@@ -535,19 +648,20 @@ and **anything else is prefixed with `images/`** and joined onto
 to a doubled path:
 
 ```text
-banner: systems/sohl/assets/images/banners/lore.webp
-      → <cdnBaseURL>/images/systems/sohl/assets/images/banners/lore.webp
+banner: sohl/assets/images/banners/lore.webp
+      → <cdnBaseURL>/images/sohl/assets/images/banners/lore.webp
 ```
 
 That can be made to work by mirroring the path on the CDN, and one consumer
 does exactly that — but it is not what the author meant.
 
 **The two are not reconciled, because they are not two spellings of one thing.**
-`img:` addresses a file inside a Foundry install, where the package that holds
-it is the question worth asking. `banner:` addresses a file on a CDN, where
-there are no packages at all. Write a `banner:` relative to the CDN's `images/`
-root — `banners/lore.webp`, not `images/banners/lore.webp` and not a
-package-rooted path.
+A pathname names a file a package ships, and four surfaces derive an address
+from it. `banner:` names a hero image on the site's own asset host, reaches no
+compiled document and no book, and is resolved by the theme rather than by this
+toolchain — `banner: none` is not even a target. Write a `banner:` relative to
+the CDN's `images/` root — `banners/lore.webp`, not `images/banners/lore.webp`
+and not a package-qualified pathname.
 
 #### The pack a note compiles into
 
@@ -1232,6 +1346,99 @@ Any header can include curly braces. Inside the curly braces:
 - `#id` represents an id anchor named `id` (only one allowed)
 - `.class1` represents a CSS class named `class1` (any number of classes allowed)
 - `attr="value"` represents an HTML attribute named `attr` whose value is `value` (any number of attr/value pairs allowed)
+
+#### Images
+
+An image is authored in the body, in the place it belongs, and every surface
+renders it there — the book, the website and a Foundry Journal Page alike. One
+authored statement, three renderers, which is the single-sourcing every other
+part of this format follows.
+
+```markdown
+![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+
+![Map of Thalorna](images/maps/thalorna.webp){.full-width}
+```
+
+**An image is a block.** It stands alone in its paragraph, with a blank line
+either side of it, and every surface renders it as a figure. An image sharing a
+paragraph with prose is refused, because a width and a position mean nothing
+applied to a word in the middle of a sentence.
+
+**The alt text is the caption.** Print has no `alt` attribute and has to put
+those words somewhere a reader can see them, so every surface draws them under
+the picture; the two HTML surfaces carry them as `alt` as well. A title —
+`![alt](src "title")` — is refused rather than dropped in silence: there is one
+place for those words and this is it.
+
+##### Width is a class, and the ordinary width carries no marker
+
+| `class` value | book          | website            | Foundry journal  |
+| ------------- | ------------- | ------------------ | ---------------- |
+| _(none)_      | one column    | the text measure   | the page measure |
+| `.full-width` | the full page | full content width | full page width  |
+
+The simple case needs no spelling, which is why the ordinary width has no name.
+A third width joins this table as a name.
+
+**No pixel values, ever.** A number means something in a browser and nothing
+coherent in print, and a directive carrying a class and a dimension at once
+gives one question two answers with no rule for which wins. `{width=800}` is
+refused.
+
+##### Position is `float:`
+
+| `float` value  | book                 | website and Foundry journal     |
+| -------------- | -------------------- | ------------------------------- |
+| `top-left`     | top of the column    | floated left, text wraps        |
+| `bottom-left`  | bottom of the column | floated left, text wraps        |
+| `top-right`    | top of the column    | floated right, text wraps       |
+| `bottom-right` | bottom of the column | floated right, text wraps       |
+| `center`       | top of the column    | centred, with no text beside it |
+
+**Print cannot wrap text around an arbitrary shape.** A Typst float occupies
+the column measure, so in the book only the vertical half of a position has an
+effect — top of the column or bottom of it — while the horizontal half does
+not. The website and a Foundry journal get true CSS wrap from the same
+directive. Expect the same statement, not the same page.
+
+An image with no `float:` is an ordinary block in the flow, where it was
+written. A `.full-width` image is placed at the top of the page it falls on,
+since a block cannot leave the column it is set in.
+
+##### Both vocabularies are closed
+
+`{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float: middle}` are
+refused, located by file, line and column, and the build fails. An unrecognised
+value rendering as the ordinary width is the failure worth preventing, because
+it looks exactly like a directive that worked.
+
+A directive holding anything this section does not name is not honoured at all,
+even in the part that parsed: a half-honoured directive is the same silent
+failure in a smaller costume. The image keeps its braces and renders them as
+literal text, so the mistake is visible on the page as well as in the log.
+
+**Nothing else reaches emitted markup.** The two vocabularies and the address
+are all that leave a note; there is no `style`, no `id` and no arbitrary
+attribute, because data is never compiled into markup here. An address carries
+a scheme of `http:` or `https:`, or none at all.
+
+##### Where an address resolves
+
+An image's address follows the rule [`img:` follows](#an-asset-paths-first-segment-says-which-package-owns-it)
+— its first segment says which package owns the file — and each surface
+resolves it to what that surface serves:
+
+- **Foundry** is handed the path inside the install, so `images/map.webp`
+  reaches a journal page as `modules/<package>/assets/images/map.webp`.
+- **The book** is handed a copy of the file, staged out of this package's own
+  asset tree into the build directory before the compiler runs. An address
+  naming a file this package does not ship — another package's, or a URL —
+  cannot be staged, and the book prints the caption alone and says so.
+- **The website** passes the address through exactly as authored, because a
+  site serves its imagery from its own asset host and this package is not told
+  what that host is. An address that has to resolve there is written as a full
+  URL.
 
 #### Content tables
 
