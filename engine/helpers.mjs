@@ -32,6 +32,7 @@ import yaml from "yaml";
 import unidecode from "unidecode";
 import markdownit from "markdown-it";
 import { iconPlugin } from "./content-icons.mjs";
+import { imagePlugin } from "./content-images.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
@@ -77,19 +78,34 @@ export {
  * instruction to write `<i class="fa-solid …">` by hand: that would render on
  * the two HTML surfaces and be silently dropped by the third.
  */
-export const md = markdownit({ html: true }).use(
-    // Resolved per render, not at import: this constant is built before any
-    // configuration is read, and a package's own icons live in the
-    // configuration. A tree with none — or a caller with no configuration to
-    // find — falls back to the shipped table.
-    iconPlugin(() => {
-        try {
-            return loadPackConfig().icons;
-        } catch {
-            return undefined;
-        }
-    }),
-);
+export const md = markdownit({ html: true })
+    .use(
+        // Resolved per render, not at import: this constant is built before any
+        // configuration is read, and a package's own icons live in the
+        // configuration. A tree with none — or a caller with no configuration to
+        // find — falls back to the shipped table.
+        iconPlugin(() => {
+            try {
+                return loadPackConfig().icons;
+            } catch {
+                return undefined;
+            }
+        }),
+    )
+    // The width and position an image states, honoured as a figure. The
+    // vocabularies are closed and need no configuration; the address does, and
+    // is resolved per render for the reason the icon registry is — Foundry
+    // serves a file from inside the install, so a body image's address is
+    // translated by the same rule `img:` follows.
+    .use(
+        imagePlugin((src) => {
+            try {
+                return resolveImg(src, loadPackConfig()) ?? src;
+            } catch {
+                return src;
+            }
+        }),
+    );
 
 /**
  * Parses a markdown file with YAML frontmatter.

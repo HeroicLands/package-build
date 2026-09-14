@@ -85,8 +85,60 @@ import { wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { protectCode } from "./code-fences.mjs";
+import { imageSourcesIn } from "./content-images.mjs";
+import { resolveImg } from "./helpers.mjs";
 import { createParser, markdownToTypst, renderBook, resolveDanglingLabels } from "./pdf-render.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
+
+/**
+ * Where the book keeps the pictures it prints.
+ *
+ * Typst resolves a path against its root, which is the directory holding the
+ * source it is given, and refuses to read anything above it. So a file reaches
+ * the compiler by being **copied under the output directory** rather than by
+ * widening the root to the whole repository: the emitted `.typ` and everything
+ * it opens then sit in one directory, which is what makes the source a consumer
+ * can compile by hand with no flags — and what keeps a build from touching a
+ * path outside its own output.
+ *
+ * The name mirrors the package's own asset directory, so a staged file sits at
+ * the path the note addressed it by.
+ *
+ * @type {string}
+ */
+const STAGED_ASSETS = "assets";
+
+/**
+ * The file on disk an authored image address names, or `null`.
+ *
+ * The inverse of {@link module:engine/helpers.resolveImg}, and deliberately the
+ * same rule read backwards: an address whose first segment says *this* package
+ * owns the file names a file in this repository's own asset directory, and one
+ * naming another package — or a URL — names a file no build here can open.
+ *
+ * @param {string} src - The address, as authored.
+ * @param {object} config - The resolved configuration.
+ * @returns {{from: string, to: string}|null} The file, and where under the
+ *   output directory it is staged.
+ */
+export function stagedImagePath(src, config) {
+    if (!config.assetRoot) return null;
+    let resolved;
+    try {
+        resolved = resolveImg(src, config);
+    } catch {
+        return null;
+    }
+    const prefix = `${config.assetRoot}/`;
+    if (!resolved || !resolved.startsWith(prefix)) return null;
+    const within = resolved.slice(prefix.length);
+    return {
+        // `assetRoot` ends in the directory Foundry serves this package's files
+        // from, and that is the directory they are authored in.
+        from: path.resolve(config.rootDir, path.basename(config.assetRoot), within),
+        to: `${STAGED_ASSETS}/${within}`,
+    };
+}
 
 /**
  * The file name a downloaded book identifies itself by.
@@ -266,6 +318,63 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
+    const outDir = path.resolve(
+        resolved.rootDir,
+        out || resolved.pdf.out || path.join("build", "dist"),
+    );
+    fs.mkdirSync(outDir, { recursive: true });
+
+    /** @type {Map<string, string>} Authored address → the staged file's path. */
+    const images = new Map();
+    /** @type {Set<string>} Addresses already looked for, staged or not. */
+    const seenImages = new Set();
+
+    /**
+     * Copy every picture one body names into the output directory.
+     *
+     * Run per body rather than in a pass of its own, because the addresses are
+     * read from the markdown *after* its tables have expanded — a generated
+     * table is as free to carry an image as prose is.
+     *
+     * @param {string} body - The rendered markdown.
+     * @param {string} file - The note, for the finding.
+     * @returns {void}
+     */
+    const stageImages = (body, file) => {
+        for (const src of imageSourcesIn(body)) {
+            if (seenImages.has(src)) continue;
+            seenImages.add(src);
+            const staged = stagedImagePath(src, resolved);
+            if (!staged) {
+                findings.push({
+                    file,
+                    severity: "warning",
+                    message:
+                        `\`${src}\` names a file this package does not ship, so the book ` +
+                        "prints the caption where the picture would be — an image the book " +
+                        "carries is addressed inside this package",
+                });
+                continue;
+            }
+            const dest = path.join(outDir, staged.to);
+            try {
+                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                fs.copyFileSync(staged.from, dest);
+            } catch (err) {
+                findings.push({
+                    file,
+                    severity: "warning",
+                    message:
+                        `\`${src}\` cannot be read from ` +
+                        `\`${path.relative(resolved.rootDir, staged.from)}\`, so the book ` +
+                        `prints the caption where the picture would be: ${err.message}`,
+                });
+                continue;
+            }
+            images.set(src, staged.to);
+        }
+    };
+
     /**
      * One note's markdown, through the same passes the site runs.
      *
@@ -309,10 +418,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: String(err.message ?? err),
             });
         }
+        stageImages(resolvedBody, page.file);
         return markdownToTypst(resolvedBody, {
             md,
             links: plan.links,
             glyphs,
+            images,
             headingOffset,
             anchorPrefix,
         });
@@ -348,12 +459,14 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 });
                 continue;
             }
+            stageImages(text, file);
             bodies.set(
                 entry.anchor,
                 markdownToTypst(text, {
                     md,
                     links: plan.links,
                     glyphs,
+                    images,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
                 }),
@@ -372,10 +485,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     const front = resolved.pdf.front.map((file) => {
         try {
-            return markdownToTypst(fs.readFileSync(file, "utf8"), {
+            const text = fs.readFileSync(file, "utf8");
+            stageImages(text, file);
+            return markdownToTypst(text, {
                 md,
                 links: plan.links,
                 glyphs,
+                images,
             });
         } catch {
             findings.push({
@@ -400,11 +516,6 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     // declaration is in one string, and Typst treats a dangling one as fatal.
     const source = resolveDanglingLabels(assembled, findings);
 
-    const outDir = path.resolve(
-        resolved.rootDir,
-        out || resolved.pdf.out || path.join("build", "dist"),
-    );
-    fs.mkdirSync(outDir, { recursive: true });
     const stem = pdfFileName(resolved.foundryPackage?.id ?? resolved.contentPackage, version);
     const typPath = path.join(outDir, stem.replace(/\.pdf$/, ".typ"));
     const pdfPath = path.join(outDir, stem);

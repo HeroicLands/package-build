@@ -84,6 +84,7 @@ import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
+import { lintContentImages } from "../engine/content-images.mjs";
 import { declaredSystems, lintFrontmatter, systemBlocksFor } from "../engine/frontmatter-lint.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import {
@@ -962,6 +963,14 @@ function lintCommand() {
                     skipDirectories: config.skipDirectories,
                 });
 
+                // The width and position an image states. Refused rather than
+                // reported, because an unrecognised value rendering as the
+                // ordinary width looks exactly like a directive that worked —
+                // so these are errors and they fail the run.
+                const images = lintContentImages(root, {
+                    skipDirectories: config.skipDirectories,
+                });
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -969,6 +978,7 @@ function lintCommand() {
                     ...charset.findings,
                     ...icons.findings,
                     ...html.findings,
+                    ...images.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —

@@ -1086,6 +1086,99 @@ Any header can include curly braces. Inside the curly braces:
 - `.class1` represents a CSS class named `class1` (any number of classes allowed)
 - `attr="value"` represents an HTML attribute named `attr` whose value is `value` (any number of attr/value pairs allowed)
 
+#### Images
+
+An image is authored in the body, in the place it belongs, and every surface
+renders it there — the book, the website and a Foundry Journal Page alike. One
+authored statement, three renderers, which is the single-sourcing every other
+part of this format follows.
+
+```markdown
+![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+
+![Map of Thalorna](images/maps/thalorna.webp){.full-width}
+```
+
+**An image is a block.** It stands alone in its paragraph, with a blank line
+either side of it, and every surface renders it as a figure. An image sharing a
+paragraph with prose is refused, because a width and a position mean nothing
+applied to a word in the middle of a sentence.
+
+**The alt text is the caption.** Print has no `alt` attribute and has to put
+those words somewhere a reader can see them, so every surface draws them under
+the picture; the two HTML surfaces carry them as `alt` as well. A title —
+`![alt](src "title")` — is refused rather than dropped in silence: there is one
+place for those words and this is it.
+
+##### Width is a class, and the ordinary width carries no marker
+
+| `class` value | book          | website            | Foundry journal  |
+| ------------- | ------------- | ------------------ | ---------------- |
+| _(none)_      | one column    | the text measure   | the page measure |
+| `.full-width` | the full page | full content width | full page width  |
+
+The simple case needs no spelling, which is why the ordinary width has no name.
+A third width joins this table as a name.
+
+**No pixel values, ever.** A number means something in a browser and nothing
+coherent in print, and a directive carrying a class and a dimension at once
+gives one question two answers with no rule for which wins. `{width=800}` is
+refused.
+
+##### Position is `float:`
+
+| `float` value  | book                 | website and Foundry journal     |
+| -------------- | -------------------- | ------------------------------- |
+| `top-left`     | top of the column    | floated left, text wraps        |
+| `bottom-left`  | bottom of the column | floated left, text wraps        |
+| `top-right`    | top of the column    | floated right, text wraps       |
+| `bottom-right` | bottom of the column | floated right, text wraps       |
+| `center`       | top of the column    | centred, with no text beside it |
+
+**Print cannot wrap text around an arbitrary shape.** A Typst float occupies
+the column measure, so in the book only the vertical half of a position has an
+effect — top of the column or bottom of it — while the horizontal half does
+not. The website and a Foundry journal get true CSS wrap from the same
+directive. Expect the same statement, not the same page.
+
+An image with no `float:` is an ordinary block in the flow, where it was
+written. A `.full-width` image is placed at the top of the page it falls on,
+since a block cannot leave the column it is set in.
+
+##### Both vocabularies are closed
+
+`{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float: middle}` are
+refused, located by file, line and column, and the build fails. An unrecognised
+value rendering as the ordinary width is the failure worth preventing, because
+it looks exactly like a directive that worked.
+
+A directive holding anything this section does not name is not honoured at all,
+even in the part that parsed: a half-honoured directive is the same silent
+failure in a smaller costume. The image keeps its braces and renders them as
+literal text, so the mistake is visible on the page as well as in the log.
+
+**Nothing else reaches emitted markup.** The two vocabularies and the address
+are all that leave a note; there is no `style`, no `id` and no arbitrary
+attribute, because data is never compiled into markup here. An address carries
+a scheme of `http:` or `https:`, or none at all.
+
+##### Where an address resolves
+
+An image's address follows the rule [`img:` follows](#an-asset-paths-first-segment-says-which-package-owns-it)
+— its first segment says which package owns the file — and each surface
+resolves it to what that surface serves:
+
+- **Foundry** is handed the path inside the install, so `images/map.webp`
+  reaches a journal page as `modules/<package>/assets/images/map.webp`.
+- **The book** is handed a copy of the file, staged out of this package's own
+  asset tree into the build directory before the compiler runs. An address
+  naming a file this package does not ship — another package's, or a URL —
+  cannot be staged, and the book prints the caption alone and says so.
+- **The website** passes the address through exactly as authored, because a
+  site serves its imagery from its own asset host and this package is not told
+  what that host is. An address that has to resolve there is written as a full
+  URL.
+
 #### Content tables
 
 A fenced `dataview` block is replaced by the table its query selects:

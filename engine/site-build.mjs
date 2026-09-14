@@ -53,6 +53,7 @@ import { slugify } from "./content-slug.mjs";
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderImageFigures } from "./content-images.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
@@ -742,7 +743,11 @@ export function renderPages(pages, options) {
             if (pass.beforeLinks) t = pass.beforeLinks(t, page);
             t = resolveWebWikilinks(t, ctx);
             if (pass.afterLinks) t = pass.afterLinks(t, page);
-            return t;
+            // Last, so a consumer's own rewrites see the image as the note
+            // wrote it rather than as a figure. Hugo is handed markdown, not a
+            // rendered page, so a `{…}` directive left in the body would reach
+            // the reader as its own literal braces.
+            return renderImageFigures(t);
         };
 
         let body = page.body;
