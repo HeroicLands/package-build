@@ -216,7 +216,10 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("declares exactly the float positions the specification lists, in its order", () => {
         expect(Object.keys(IMAGE_FLOATS)).toEqual(FORMAT.vocabularies.get("float")?.values);
+    });
+});
 
+/**
  * The tag groups, which nothing compared until now.
  *
  * `tags:` sits in the open top-level region, so most tags are the author's own
