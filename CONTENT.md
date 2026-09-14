@@ -2467,10 +2467,8 @@ alone — a scrolling page has no fixed viewport, so the website keeps one
 measure with a side rail.
 
 A note's `description:` sets as an epigraph between short rules under the
-plate, and the first paragraph of the prose opens on a raised capital. Both
-disappear rather than leave a shell: a note with no description has no
-epigraph, and a body opening on a link or a number keeps its own first
-character. The running foot carries the section's name, an ornament and the
+plate. It disappears rather than leave a shell: a note with no description has
+no epigraph. The running foot carries the section's name, an ornament and the
 folio.
 
 A table of **more than three columns** is given an explicit span rather than
