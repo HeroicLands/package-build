@@ -233,13 +233,15 @@ describe("a path with no asset root to be served from", () => {
         expect(() => resolveImg("icons/relic.svg", config)).toThrow(/has no asset root/);
     });
 
-    it("still passes through what another package serves", () => {
+    it("still passes through what no package serves", () => {
         const config = defineConfig(minimal());
 
-        // The rule is about ownership, and these name a file no documentation
-        // package owns — so there is nothing to root.
-        expect(resolveImg("systems/sohl/assets/icons/shield.svg", config)).toBe(
-            "systems/sohl/assets/icons/shield.svg",
+        // A `documentation` package declares no relationships — Foundry
+        // installs nothing of it — so it has no package's install path to
+        // derive. An address that names no package at all is untouched, and a
+        // `/`-rooted one is how such a tree addresses another package's file.
+        expect(resolveImg("/systems/sohl/assets/icons/shield.svg", config)).toBe(
+            "/systems/sohl/assets/icons/shield.svg",
         );
         expect(resolveImg("https://example.org/art.webp", config)).toBe(
             "https://example.org/art.webp",

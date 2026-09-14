@@ -25,7 +25,7 @@ id: AAAAAAAAAAAAAAAA
 shortcode: testground
 type: map
 subType: battlemap
-img: systems/sohl/assets/ui/parchment.jpg
+img: sohl/assets/ui/parchment.jpg
 sohl:
   place: testplace
   placeName: Test Place
@@ -63,7 +63,7 @@ id: BBBBBBBBBBBBBBBB
 shortcode: testloft
 type: map
 subType: battlemap
-img: systems/sohl/assets/ui/parchment.jpg
+img: sohl/assets/ui/parchment.jpg
 sohl:
   place: testplace
   dimensions: [512, 512]

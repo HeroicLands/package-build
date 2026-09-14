@@ -85,6 +85,8 @@ import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { protectCode } from "./code-fences.mjs";
+import { imageSourcesIn } from "./content-images.mjs";
+import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import {
     createParser,
     labelFor,
@@ -95,6 +97,40 @@ import {
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
+
+/**
+ * The file on disk an authored image pathname names, or `null`.
+ *
+ * Two of the four forms {@link module:engine/pathnames.resolvePathname}
+ * derives, used together: `local` is the file in this repository's own tree,
+ * and `pdf` is where the book stages a copy of it.
+ *
+ * **Typst decides where that copy goes.** It resolves a path against its root —
+ * the directory holding the source it is given — and refuses to read anything
+ * above it. So a file reaches the compiler by being copied under the output
+ * directory rather than by widening the root to the whole repository: the
+ * emitted `.typ` and everything it opens sit in one directory, which is what
+ * makes the source a consumer can compile by hand with no flags, and what keeps
+ * a build from touching a path outside its own output.
+ *
+ * Only a file **this** package ships can be staged. A pathname naming another
+ * package's file, or a URL, names something no build here can open — a build
+ * reaches no network — and the caller reports it as a picture the book will not
+ * carry.
+ *
+ * @param {string} src - The pathname, as authored.
+ * @param {object} config - The resolved configuration.
+ * @returns {{from: string, to: string}|null} The file, and where under the
+ *   output directory it is staged.
+ */
+export function stagedImagePath(src, config) {
+    const forms = resolvePathname(src, config);
+    if (!forms || forms.state !== "package" || !forms.own) return null;
+    return {
+        from: path.resolve(config.rootDir, forms.local),
+        to: forms.pdf,
+    };
+}
 
 /**
  * The file name a downloaded book identifies itself by.
@@ -274,6 +310,71 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
+    const outDir = path.resolve(
+        resolved.rootDir,
+        out || resolved.pdf.out || path.join("build", "dist"),
+    );
+    fs.mkdirSync(outDir, { recursive: true });
+
+    /** @type {Map<string, string>} Authored address → the staged file's path. */
+    const images = new Map();
+    /** @type {Set<string>} Addresses already looked for, staged or not. */
+    const seenImages = new Set();
+
+    /**
+     * Copy every picture one body names into the output directory.
+     *
+     * Run per body rather than in a pass of its own, because the addresses are
+     * read from the markdown *after* its tables have expanded — a generated
+     * table is as free to carry an image as prose is.
+     *
+     * @param {string} body - The rendered markdown.
+     * @param {string} file - The note, for the finding.
+     * @returns {void}
+     */
+    const stageImages = (body, file) => {
+        for (const src of imageSourcesIn(body)) {
+            if (seenImages.has(src)) continue;
+            seenImages.add(src);
+            // An **error**, where a picture the book cannot carry is a warning:
+            // this pathname resolves on no surface at all, and the replacement
+            // is mechanical and named in the message.
+            const problem = pathnameProblem(src);
+            if (problem) {
+                findings.push({ file, severity: "error", message: problem });
+                continue;
+            }
+            const staged = stagedImagePath(src, resolved);
+            if (!staged) {
+                findings.push({
+                    file,
+                    severity: "warning",
+                    message:
+                        `\`${src}\` names a file this package does not ship, so the book ` +
+                        "prints the caption where the picture would be — an image the book " +
+                        "carries is addressed inside this package",
+                });
+                continue;
+            }
+            const dest = path.join(outDir, staged.to);
+            try {
+                fs.mkdirSync(path.dirname(dest), { recursive: true });
+                fs.copyFileSync(staged.from, dest);
+            } catch (err) {
+                findings.push({
+                    file,
+                    severity: "warning",
+                    message:
+                        `\`${src}\` cannot be read from ` +
+                        `\`${path.relative(resolved.rootDir, staged.from)}\`, so the book ` +
+                        `prints the caption where the picture would be: ${err.message}`,
+                });
+                continue;
+            }
+            images.set(src, staged.to);
+        }
+    };
+
     /**
      * One note's markdown, through the same passes the site runs.
      *
@@ -317,10 +418,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: String(err.message ?? err),
             });
         }
+        stageImages(resolvedBody, page.file);
         const prose = markdownToTypst(resolvedBody, {
             md,
             links: plan.links,
             glyphs,
+            images,
             headingOffset,
             anchorPrefix,
         });
@@ -366,12 +469,14 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 });
                 continue;
             }
+            stageImages(text, file);
             bodies.set(
                 entry.anchor,
                 markdownToTypst(text, {
                     md,
                     links: plan.links,
                     glyphs,
+                    images,
                     headingOffset: entry.depth,
                     anchorPrefix: entry.anchor,
                 }),
@@ -390,10 +495,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 
     const front = resolved.pdf.front.map((file) => {
         try {
-            return markdownToTypst(fs.readFileSync(file, "utf8"), {
+            const text = fs.readFileSync(file, "utf8");
+            stageImages(text, file);
+            return markdownToTypst(text, {
                 md,
                 links: plan.links,
                 glyphs,
+                images,
             });
         } catch {
             findings.push({
@@ -419,11 +527,6 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     // declaration is in one string, and Typst treats a dangling one as fatal.
     const source = resolveDanglingLabels(assembled, findings);
 
-    const outDir = path.resolve(
-        resolved.rootDir,
-        out || resolved.pdf.out || path.join("build", "dist"),
-    );
-    fs.mkdirSync(outDir, { recursive: true });
     const stem = pdfFileName(resolved.foundryPackage?.id ?? resolved.contentPackage, version);
     const typPath = path.join(outDir, stem.replace(/\.pdf$/, ".typ"));
     const pdfPath = path.join(outDir, stem);

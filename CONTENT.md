@@ -259,9 +259,9 @@ What follows from the kind:
 - **`foundryPackage` is not derived.** For every other kind the loader reads it
   from the adjacent `package.json`; there is no Foundry package here to carry an
   id, so `foundryPackage` and `assetRoot` are both `null`. A note's `img:`
-  therefore names the owning package (`systems/…`, `modules/…`) or a URL — a
-  path this package would have to serve itself is refused, because Foundry
-  serves no files for a package it does not install.
+  therefore names a `/`-rooted path or a URL — a pathname this package would
+  have to serve itself is refused, because Foundry serves no files for a
+  package it does not install.
 - **`package-build manifest` refuses**, rather than emitting a `module.json`
   advertising an installable package with no id, no packs and no compatibility
   range. So does `content-build package compile`, which would otherwise exit 0
@@ -709,44 +709,57 @@ whitelist without a builder behind it.
 same `resolveImg` rule as a note's `img:`, so one spelling means one thing
 wherever it is written.
 
-#### An asset path's first segment says which package owns it
+#### A pathname names the package that owns the file
 
-Every authored asset path — a registry `img:`, a note's `img:`, an actor's
-`portrait:` — answers "which package holds this file?" in its **first segment**,
-and there are exactly three answers:
+Every authored pathname — a registry `img:`, a note's `img:`, an actor's
+`data.portrait:`, a map's background, the address of an image in a body —
+answers "which package holds this file?" in its **first segment**, when an
+`assets/` follows it. Everything after that `assets/` is the _suffix_, and a
+pathname that does not open `<package>/assets/` belongs to the package being
+compiled, whole.
 
-| Authored path starts with | Owner                 | Emitted              |
-| ------------------------- | --------------------- | -------------------- |
-| `systems/`                | a separate **system** | unchanged            |
-| `modules/`                | a separate **module** | unchanged            |
-| anything else             | **this package**      | `<assetRoot>/<path>` |
+Four surfaces derive an address from that one statement. For a `thalorna` note
+— the package Foundry installs as the module `sohl-thalorna` — writing
+`images/map.webp`:
 
-`assetRoot` is derived, never authored: it is
-`<packageKind>/<foundryPackage>/assets`, and it is the one place `systems/sohl`
-(or `modules/sohl-thalorna`) is ever spelled. The derivation is **conditional on
-the kind** — a `documentation` package has no asset root, and the third row is
-refused there rather than rooted. So `icons/relic.svg` in a module's
-registry compiles to `modules/sohl-relics/assets/icons/relic.svg`, and the same
-string in the system's compiles to `systems/sohl/assets/icons/relic.svg`. An
-already-served `systems/sohl/assets/icons/…` passes through untouched — which is
-what lets a module pair a SoHL default with one of its own types.
+| Surface     | Address                                                  |
+| ----------- | -------------------------------------------------------- |
+| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
+| **Local**   | `assets/images/map.webp`                                 |
+| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
 
-**"Anything else" is the rule, not a list of directories.** A package owns its
+`sohl/assets/icons/relic.svg` names the `sohl` package's file wherever it is
+written, which is what lets a module pair a SoHL default with one of its own
+types. The package's name is not its Foundry id: `thalorna` is the content and
+`sohl-thalorna` the install, and only the Foundry form carries the second.
+
+The web host is `site.assets`, and a package-owned image on a page with none
+set is an error naming that key.
+
+**The rule is about ownership, not a list of directories.** A package owns its
 whole `assets/` tree, so a directory this toolchain has never heard of is still
 that package's: art under `assets/artwork/` is addressed `artwork/deity.webp`
-and rooted exactly as `icons/…` and `images/…` are. An address naming no package
-at all — an absolute URL, a `data:` URI, a `/`-rooted path — passes through, on
-the same rule rather than as an exception.
+and resolved exactly as `icons/…` and `images/…` are. An address naming no
+package at all — an absolute URL, a `data:` URI, a `/`-rooted path — passes
+through on every surface, on the same rule rather than as an exception.
 
-`worlds/` is deliberately not exempt: a package may not ship art out of a world,
-so prefixing such a path produces a plainly broken one rather than a plausible
-one that 404s in Foundry unreported.
+**A `systems/…` or `modules/…` pathname is refused**, with a finding naming the
+replacement: it resolves for Foundry and for neither of the other surfaces, and
+deriving anything from it would put a wrong address on two of the three.
+`worlds/` is not such a root — a package may not ship files out of a world, so
+that path gets the ordinary reading and produces a plainly broken one rather
+than a plausible one that 404s unreported.
+
+A `documentation` package installs nothing, so it has no Foundry form to derive
+and addresses another package's file by a `/`-rooted path or a URL.
 
 **`banner:` is a path that does not follow this rule.** It reaches no compiled
-document; it is a top-level key the Hugo theme reads, and the theme prefixes a
-relative value with `images/` and joins it onto `params.cdnBaseURL`. The two
-address different places — `img:` a file Foundry serves, `banner:` a file the
-CDN serves — so they are stated apart rather than reconciled. See the
+document and no book; it is a top-level key the Hugo theme reads, and the theme
+prefixes a relative value with `images/` and joins it onto
+`params.cdnBaseURL`. The two address different places — a pathname a file a
+package ships, `banner:` a hero image on the site's own asset host — so they are
+stated apart rather than reconciled. See the
 [content format specification](docs/content-format.md#banner-addresses-the-cdn-not-the-foundry-install).
 
 #### "Names no art" and "wants no art" are different
@@ -2485,14 +2498,22 @@ hand.
 
 ### What the book gets right, and why each matters
 
-| Property                 | How                                                                           |
-| ------------------------ | ----------------------------------------------------------------------------- |
-| Searchable               | Real text, not page images — a roster nobody can search for a name is no use. |
-| Bookmark outline         | Every section and entry is a heading, so a viewer's sidebar is the way in.    |
-| Page-numbered contents   | `#outline()`, shallower than the bookmarks — 2,500 entries would be 40 pages. |
-| Repeating table headers  | `table.header`, so a property table spilling a page keeps its column names.   |
-| Internal cross-reference | A wikilink between two notes of the book becomes an internal destination.     |
-| External cross-reference | A cross-package link, and a note the book did not select, stay URLs.          |
+| Property                 | How                                                                             |
+| ------------------------ | ------------------------------------------------------------------------------- |
+| Searchable               | Real text, not page images — a roster nobody can search for a name is no use.   |
+| Bookmark outline         | Every section and entry is a heading, so a viewer's sidebar is the way in.      |
+| Page-numbered contents   | `#outline()`, shallower than the bookmarks — 2,500 entries would be 40 pages.   |
+| Repeating table headers  | `table.header`, so a property table spilling a page keeps its column names.     |
+| Internal cross-reference | A wikilink between two notes of the book becomes an internal destination.       |
+| External cross-reference | A cross-package link, and a note the book did not select, stay URLs.            |
+| Illustration             | An image authored in the body is staged and set at the measure its class names. |
+
+An image states its own width and position once, in the note, and the book, the
+website and a Foundry journal page each honour it — see
+[Images](docs/content-format.md#images) for the two closed vocabularies. The book
+copies each picture it prints into the output directory before the compiler
+runs, because Typst reads nothing above its own root; an address naming a file
+this package does not ship prints its caption alone and is reported.
 
 `{#anchor}` on a heading becomes an internal destination namespaced by its
 entry, so `[[being-jaslyne#appearance]]` reaches the section and two notes may

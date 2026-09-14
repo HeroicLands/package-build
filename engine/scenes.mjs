@@ -53,6 +53,7 @@ import log from "loglevel";
 import {
     parseMarkdownFile,
     sohlField,
+    resolveImg,
     resolveName,
     slugify,
     defaultStats,
@@ -472,7 +473,7 @@ export class Scenes extends BasePackCompiler {
             this.places.set(placeKey, {
                 key: placeKey,
                 name: sohlField(fm, "placeName", null) || name,
-                img: sohlField(fm, "img", null),
+                img: resolveImg(sohlField(fm, "img", null)),
                 pinned: false,
                 scenes: [],
                 journal: [],

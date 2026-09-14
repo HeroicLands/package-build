@@ -623,6 +623,41 @@ Raw HTML in a note's prose, reported. **A note is markdown.** What markdown cann
 | `checkHtml`       | `function checkHtml(body, file,`        | {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} One finding per tag, in source order.                                  | Every raw HTML tag in one note's body.                         |
 | `lintContentHtml` | `function lintContentHtml(contentBase,` | {{findings: Array<{file: string, line: number, column: number, severity: "warning", message: string}>, files: number}} The findings, and how many files were read. | Walk a content tree and report raw HTML in every note's prose. |
 
+### `engine.contentImages`
+
+An image saying how wide it is and where it sits. A markdown image carries no indication of either, so each of the three surfaces decides for itself and the author — who is the one who knows — has no way to say. A directive in the curly-attribute convention Pandoc and Kramdown use closes that, in two closed vocabularies: a width class, and a `float:` position.
+
+| Export                | Signature                                       | Returns                                                                                                                                        | Use it when                                                                  |
+| --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `IMAGE_CLASSES`       | `const IMAGE_CLASSES`                           | —                                                                                                                                              | The width classes an image may carry, and what each means to a renderer.     |
+| `IMAGE_FLOATS`        | `const IMAGE_FLOATS`                            | —                                                                                                                                              | The `float:` positions an image may take, and where each puts it.            |
+| `IMAGE_FIGURE_CLASS`  | `const IMAGE_FIGURE_CLASS`                      | —                                                                                                                                              | The class every figure carries, whatever its width or position.              |
+| `IMAGE_PATTERN`       | `const IMAGE_PATTERN`                           | —                                                                                                                                              | A markdown image, with the directive it may carry.                           |
+| `imageSourceProblem`  | `function imageSourceProblem(src)`              | {string} The problem, as a finding's sentence, or `""`.                                                                                        | What is wrong with an image's address, or `""` when nothing is.              |
+| `parseImageDirective` | `function parseImageDirective(raw)`             | {{classes: string[], float: string, problems: string[]}} What was written, and what cannot be honoured.                                        | Read the directive on an image.                                              |
+| `figureClasses`       | `function figureClasses(directive)`             | {string} A space-separated class list.                                                                                                         | The classes a figure carries, from a parsed directive.                       |
+| `escapeHtml`          | `function escapeHtml(text)`                     | {string} The same value, safe in markup.                                                                                                       | Text going inside an HTML attribute or between tags.                         |
+| `imageFigureHtml`     | `function imageFigureHtml(image)`               | {string} The figure, as one HTML block.                                                                                                        | One image as the `<figure>` both HTML surfaces render.                       |
+| `standsAlone`         | `function standsAlone(text, start, end)`        | {boolean} Whether the match is a block of its own.                                                                                             | Whether a match sits alone in its own paragraph.                             |
+| `imagesIn`            | `function imagesIn(body)`                       | {Array<{alt: string, src: string, title: string, directive: string, index: number, length: number, block: boolean}>} One entry per image.      | Every image in one body, with its directive and its position.                |
+| `imageSourcesIn`      | `function imageSourcesIn(body)`                 | {string[]} The addresses, with repeats.                                                                                                        | Every image address one body names, in order of appearance.                  |
+| `checkImages`         | `function checkImages(body, file,`              | {Array<{file: string, line: number, column: number\|undefined, severity: "error", message: string}>} One finding per defect, in source order.  | Every defect in one note's images.                                           |
+| `lintContentImages`   | `function lintContentImages(contentBase,`       | {{findings: Array<{file: string, line: number, column: number\|undefined, severity: "error", message: string}>, files: number}} What it found. | Walk a content tree and report every image it cannot render as authored.     |
+| `renderImageFigures`  | `function renderImageFigures(body, resolveSrc)` | {string} The same body, with each block image as a `<figure>`.                                                                                 | Rewrite every block image in a body into the figure the website publishes.   |
+| `imagePlugin`         | `function imagePlugin()`                        | {(md: object) => void} A markdown-it plugin.                                                                                                   | A markdown-it plugin that reads an image's directive and renders its figure. |
+
+### `engine.pathnames`
+
+One authored pathname, and the four addresses it resolves to. A note names a file once — in `img:`, in `data.portrait:`, in the body of a markdown image — and the first segment says which package owns it when an `assets/` follows. Every surface derives its own address from that one statement: the path inside a Foundry install, the file in the owning repository's tree, the address the website serves, and where the book stages its copy.
+
+| Export              | Signature                               | Returns                                                                                            | Use it when                                                         |
+| ------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ASSETS_SEGMENT`    | `const ASSETS_SEGMENT`                  | —                                                                                                  | The directory a package ships its files in.                         |
+| `PATHNAME_SURFACES` | `const PATHNAME_SURFACES`               | —                                                                                                  | The surfaces one authored pathname resolves for.                    |
+| `pathnameProblem`   | `function pathnameProblem(raw)`         | {string} The problem, as a finding's sentence, or `""`.                                            | What is wrong with an authored pathname, or `""` when nothing is.   |
+| `packageAddresses`  | `function packageAddresses(config)`     | {Map<string, {root: string\|null, id: string\|null, own: boolean}>} The packages, by package name. | Every content package this build can resolve a pathname against.    |
+| `resolvePathname`   | `function resolvePathname(raw, config)` | {PathnameForms\|null} The four forms, or `null` when the note names no file.                       | Resolve one authored pathname into the address each surface serves. |
+
 ### `engine.contentLinks`
 
 Resolving every link in a content tree, and reporting the ones that land nowhere. Three link defects survive both content builds silently, so neither the pack compilers nor a site build catches them:
@@ -801,11 +836,12 @@ Which glyph an icon name resolves to, read from the font that carries it. {@link
 
 The content tree, built into a book. The I/O half of the PDF surface: it reads the configuration, the document tree and the notes, drives the passes the site build already owns, hands the result to {@link module:engine/pdf-render} and runs Typst over what comes back. Everything about _what the book says_ is decided in the pure half; this module is where the filesystem and the compiler live.
 
-| Export         | Signature                                           | Returns                                                               | Use it when                                           |
-| -------------- | --------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `pdfFileName`  | `function pdfFileName(artifact, version)`           | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned. | The file name a downloaded book identifies itself by. |
-| `buildPdf`     | `async buildPdf({ config, out, version, compile })` | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.     | Build the book.                                       |
-| `compileTypst` | `function compileTypst(typPath, pdfPath, pdf`       | {{ok: boolean, message: string}} What happened.                       | Run Typst over the emitted source.                    |
+| Export            | Signature                                           | Returns                                                                                         | Use it when                                                  |
+| ----------------- | --------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------ |
+| `pdfFileName`     | `function pdfFileName(artifact, version)`           | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned.                           | The file name a downloaded book identifies itself by.        |
+| `buildPdf`        | `async buildPdf({ config, out, version, compile })` | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.                               | Build the book.                                              |
+| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`       | {{ok: boolean, message: string}} What happened.                                                 | Run Typst over the emitted source.                           |
+| `stagedImagePath` | `function stagedImagePath(src, config)`             | {{from: string, to: string}\|null} The file, and where under the output directory it is staged. | The file on disk an authored image address names, or `null`. |
 
 ### `engine.baseCompiler`
 

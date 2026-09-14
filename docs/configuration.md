@@ -689,6 +689,7 @@ Any other key under `docs.itemFields` is refused:
 | ----------------------- | -------- | ------- |
 | `site.out`              | string   | `""`    |
 | `site.base`             | string   | `""`    |
+| `site.assets`           | string   | `""`    |
 | `site.packages`         | string[] | `[]`    |
 | `site.sections`         | object   | `{}`    |
 | `site.readmeSections`   | object   | `{}`    |
@@ -706,7 +707,7 @@ rewrites.
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: out, base, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: out, base, assets, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections).``
 
 `site.out` is the output root, resolved by `engine/site-build.mjs`; unset,
 it is refused **at build time** rather than by `defineConfig` (an unset
@@ -714,6 +715,23 @@ value would otherwise resolve to `rootDir` itself, and the tree the build
 wipes on every run would be the working tree):
 
 > `site.out is not set, so there is nowhere to write the site. Refusing to continue: the output directory is wiped on every run, and an unset one resolves to the repository root.`
+
+`site.assets` is the host every package's imagery is served from, and it is
+the one address in this file that is not this repository's own. A note names
+a file by the package that owns it and the path inside that package's
+`assets/` (see `docs/content-format.md`), and the website joins the two onto
+this host — `https://cdn.heroiclands.org` + `/thalorna` +
+`/images/map.webp`. A build has no way to find the host out, so a page
+carrying a package-owned image with none set is an error naming this key.
+Absolute, and the trailing slash is trimmed:
+
+> ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
+
+The consuming Hugo site spells the same host as `params.cdnBaseURL`, which
+its theme resolves a relative asset path against. The two are the same
+address written for two readers: this one is what the toolchain emits into a
+page, that one is what the theme joins onto anything the toolchain left
+relative.
 
 `site.packages` names which content packages' notes the site walks, beyond
 this one's own; `site.pass` names a repository's own body-rewrite bundle
@@ -925,22 +943,31 @@ system relationship it declares — see [`stats.systemVersion`](#statssystemvers
 
 Each entry, in any of the four lists:
 
-| Key (under `relationships.<kind>[]`)    | Type                            | Required | Default |
-| --------------------------------------- | ------------------------------- | -------- | ------- |
-| `relationships.systems[].id`            | string                          | yes      | —       |
-| `relationships.systems[].type`          | string                          | no       | none    |
-| `relationships.systems[].manifest`      | string                          | no       | none    |
-| `relationships.systems[].compatibility` | object, `{minimum?, verified?}` | no       | none    |
-| `relationships.systems[].itemCatalog`   | boolean                         | no       | `false` |
+| Key (under `relationships.<kind>[]`)     | Type                            | Required | Default |
+| ---------------------------------------- | ------------------------------- | -------- | ------- |
+| `relationships.systems[].id`             | string                          | yes      | —       |
+| `relationships.systems[].contentPackage` | string                          | no       | the id  |
+| `relationships.systems[].type`           | string                          | no       | none    |
+| `relationships.systems[].manifest`       | string                          | no       | none    |
+| `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
+| `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
 
-(the same four keys apply under `requires[]`, `recommends[]` and
+(the same keys apply under `requires[]`, `recommends[]` and
 `conflicts[]`.)
 
 > ``package-build config: `relationships.<kind>[<index>]` must be a mapping.``
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, type, manifest, compatibility, itemCatalog).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog).``
+
+`contentPackage` names what the other package's _content_ is called, where
+that differs from its Foundry id. A note addresses a file by the content
+package that owns it — `thalorna/assets/images/map.webp` — and the Foundry id
+(`sohl-thalorna`) appears only in the install path that pathname resolves to.
+Omit it where the two are the same word, which they are for every system:
+
+> ``package-build config: `relationships.<kind>[<index>].contentPackage` must be a non-empty string.``
 
 `itemCatalog` opts into extracting the named package's Item packs so the
 actors pass can resolve embedded items this repository does not hold — off
