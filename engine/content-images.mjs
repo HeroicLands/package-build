@@ -621,9 +621,13 @@ export function renderImageFigures(body) {
  * own literal text, which is how the author sees the mistake without reading a
  * log.
  *
+ * @param {(src: string) => string} [resolveSrc] - Translates an authored
+ *   address into the one this surface serves. Foundry is handed the path inside
+ *   the install; a renderer that resolves the address itself — the book stages
+ *   its own copy — passes nothing and gets the address as authored.
  * @returns {(md: object) => void} A markdown-it plugin.
  */
-export function imagePlugin() {
+export function imagePlugin(resolveSrc = (src) => src) {
     return (md) => {
         /** @type {any} */ (md).core.ruler.push("heroiclands_image", (state) => {
             attachImageDirectives(state.tokens);
@@ -639,7 +643,7 @@ export function imagePlugin() {
             const token = tokens[idx];
             if (!token.meta?.block) return base(tokens, idx, options, env, self);
             return `${imageFigureHtml({
-                src: token.attrGet("src") ?? "",
+                src: resolveSrc(token.attrGet("src") ?? ""),
                 alt: token.content ?? "",
                 classes: token.meta.classes,
                 float: token.meta.float,

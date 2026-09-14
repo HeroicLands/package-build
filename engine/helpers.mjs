@@ -92,9 +92,20 @@ export const md = markdownit({ html: true })
             }
         }),
     )
-    // The width and position an image states, honoured as a figure. It needs no
-    // configuration: both vocabularies are closed and stated in the format.
-    .use(imagePlugin());
+    // The width and position an image states, honoured as a figure. The
+    // vocabularies are closed and need no configuration; the address does, and
+    // is resolved per render for the reason the icon registry is — Foundry
+    // serves a file from inside the install, so a body image's address is
+    // translated by the same rule `img:` follows.
+    .use(
+        imagePlugin((src) => {
+            try {
+                return resolveImg(src, loadPackConfig()) ?? src;
+            } catch {
+                return src;
+            }
+        }),
+    );
 
 /**
  * Parses a markdown file with YAML frontmatter.

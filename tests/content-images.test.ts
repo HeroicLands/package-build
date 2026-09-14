@@ -240,6 +240,15 @@ describe("a Foundry journal page gets the same figure", () => {
         expect(render("![A map](images/m.webp){.fullwidth}\n")).toContain("{.fullwidth}");
     });
 
+    it("hands Foundry the address inside the install", () => {
+        // The `img:` rule, read the same way: the first segment of an address
+        // says which package owns the file, and Foundry serves it from there.
+        const html = new MarkdownIt({ html: true })
+            .use(imagePlugin((src) => `modules/thalorna/assets/${src}`))
+            .render("![A map](images/m.webp)\n");
+        expect(html).toContain('src="modules/thalorna/assets/images/m.webp"');
+    });
+
     it("emits the identical markup the website emits", () => {
         const markdown = "![A map](images/m.webp){.full-width}\n";
         expect(render(markdown).trim()).toBe(renderImageFigures(markdown).trim());
