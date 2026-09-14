@@ -64,12 +64,10 @@
  *
  * ## Where the address resolves
  *
- * An address follows the rule `img:` follows — its first segment says which
- * package owns the file — and each surface resolves it to what that surface
- * serves. Foundry is handed the path inside the install; the book is handed a
- * file staged out of this package's own asset tree; the website passes the
- * address through as authored, because the site serves its imagery from its own
- * asset host and this package is not told what that host is.
+ * An address is a pathname, and follows the one rule every pathname follows —
+ * see {@link module:engine/pathnames}. The note states which package owns the
+ * file, and each surface derives the address it serves: Foundry the path inside
+ * the install, the website one on the asset host, the book a staged copy.
  *
  * @module
  */
@@ -79,6 +77,7 @@ import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { positionInBody } from "./diagnostics.mjs";
+import { pathnameProblem } from "./pathnames.mjs";
 
 /**
  * The width classes an image may carry, and what each means to a renderer.
@@ -457,7 +456,7 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1 } = {}) {
     };
 
     for (const image of imagesIn(text)) {
-        const problem = imageSourceProblem(image.src);
+        const problem = imageSourceProblem(image.src) || pathnameProblem(image.src);
         if (problem) report(image.index, problem);
         if (image.title) {
             report(
@@ -586,9 +585,12 @@ export function lintContentImages(contentBase, { skipDirectories = [] } = {}) {
  * in a fence is an example of one.
  *
  * @param {string} body - The note's markdown.
+ * @param {(src: string) => string} [resolveSrc] - Translates an authored
+ *   pathname into the address this surface serves. The default is the identity,
+ *   for a caller rendering the format rather than publishing it.
  * @returns {string} The same body, with each block image as a `<figure>`.
  */
-export function renderImageFigures(body) {
+export function renderImageFigures(body, resolveSrc = (src) => src) {
     const text = String(body ?? "");
     let out = "";
     let last = 0;
@@ -597,7 +599,7 @@ export function renderImageFigures(body) {
         const { classes, float, problems } = parseImageDirective(image.directive);
         if (problems.length) continue;
         out += text.slice(last, image.index);
-        out += imageFigureHtml({ src: image.src, alt: image.alt, classes, float });
+        out += imageFigureHtml({ src: resolveSrc(image.src), alt: image.alt, classes, float });
         last = image.index + image.length;
     }
     return out + text.slice(last);

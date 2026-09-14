@@ -1575,7 +1575,25 @@ function siteCommand() {
                         message: linkFindingMessage(e),
                     });
                 }
-                if (result.tableErrors.length || result.wikiErrors.length) {
+                // An image whose pathname the site cannot resolve, located the
+                // way a wikilink finding is: by searching the note for the
+                // literal the resolver was handed. The page is written either
+                // way — a missing picture is visible, and stopping before the
+                // write would hide every other finding in the tree behind one
+                // address.
+                for (const e of result.imageErrors) {
+                    emitDiagnostic({
+                        file: e.file,
+                        ...positionOfLiteral(readRawNote(e.file), e.src, e.occurrence),
+                        severity: "error",
+                        message: e.message,
+                    });
+                }
+                if (
+                    result.tableErrors.length ||
+                    result.wikiErrors.length ||
+                    result.imageErrors.length
+                ) {
                     process.exitCode = 1;
                     return;
                 }

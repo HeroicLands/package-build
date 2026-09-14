@@ -331,47 +331,91 @@ item compiled from a template note loses the fact that it is one
 The row states the mapping the format makes;
 the gap is in the pass, not in the table.
 
-#### An asset path's first segment says which package owns it
+#### A pathname names the package that owns the file
 
-`img` and `portrait` are paths, and a path has to say **which package holds the
-file** — because a module's content routinely cites the system's art, while the
-system's content never cites the module's. The first segment answers that, and
-there are exactly three answers:
+A note names a file once, and four surfaces have to serve it: a Foundry
+install, this repository's own working tree, the website, and the book. Each
+addresses the same file differently, so an authored pathname is a **statement
+of ownership** and every surface derives its own address from it.
 
-| Authored path starts with | Owner                 | Emitted              |
-| ------------------------- | --------------------- | -------------------- |
-| `systems/`                | a separate **system** | unchanged            |
-| `modules/`                | a separate **module** | unchanged            |
-| anything else             | **this package**      | `<assetRoot>/<path>` |
+**The first segment names the package, when an `assets/` follows it.**
+Everything after that `assets/` is the _suffix_ — the path inside the package's
+shipped tree, and the one piece every derived form is built from. A pathname
+that does not open `<package>/assets/` belongs to the package being compiled,
+and the whole of it is the suffix.
 
-`<assetRoot>` is `<packageKind>/<foundryPackage>/assets`, derived from the
-configuration — `systems/sohl/assets` for the system,
-`modules/sohl-thalorna/assets` for that module. A `documentation` package has
-no asset root at all, because Foundry installs no such package and serves no
-files for it: there, the third row is refused, and a note names the owning
-package (`systems/…`, `modules/…`) or a URL. So one authored
-`icons/relic.svg` means "my own `assets/icons/relic.svg`" in whichever package
-writes it, while an authored `systems/sohl/assets/icons/noun/shield.svg` names
-the system's file and is left exactly as written wherever it appears. That
-second case is not hypothetical: every default this toolchain pairs with an item
-type is a `systems/sohl/…` path, so a module's compiled documents carry it
-verbatim.
+```yaml
+img: images/beings/athlwvthrnd-portrait.webp # this package's
+img: sohl/assets/icons/noun/shield.svg # the sohl package's
+```
 
-**The third row is "anything else", not a list of directories.** It is a rule
-about ownership: a package owns its whole `assets/` tree, and the directory
-names inside it are that package's business. `sohl-kethira-basic` keeps art
-under `assets/artwork/`, and `artwork/deity.webp` is rooted under its assets by
-the same rule that roots `icons/…` and `images/…` there.
+The four forms, for a `thalorna` note (the `thalorna` package ships as the
+Foundry module `sohl-thalorna`) writing `images/map.webp`:
 
-An address naming **no** package passes through untouched, which is that same
-rule rather than an exception — an absolute URL, a `data:` URI and a `/`-rooted
-path each already address something no package owns, so prefixing any of them
-would break an address that was already correct.
+| Surface     | Address                                                  |
+| ----------- | -------------------------------------------------------- |
+| **Foundry** | `modules/sohl-thalorna/assets/images/map.webp`           |
+| **Local**   | `assets/images/map.webp`                                 |
+| **Web**     | `https://cdn.heroiclands.org/thalorna/images/map.webp`   |
+| **Book**    | `assets/images/map.webp`, staged beside the Typst source |
 
-`worlds/` is deliberately **not** exempt. A package may not ship art out of a
-world, so a note writing one has made a mistake; prefixing it yields a plainly
-broken path rather than a plausible one that 404s in Foundry with nothing
-reporting it.
+And for the same note writing `sohl/assets/icons/noun/shield.svg`, a file the
+system ships and this repository does not hold:
+
+| Surface     | Address                                                   |
+| ----------- | --------------------------------------------------------- |
+| **Foundry** | `systems/sohl/assets/icons/noun/shield.svg`               |
+| **Local**   | `assets/icons/noun/shield.svg`, in the `sohl` repository  |
+| **Web**     | `https://cdn.heroiclands.org/sohl/icons/noun/shield.svg`  |
+| **Book**    | not carried — a build stages only what this package ships |
+
+**The package's name is not its Foundry id.** `thalorna` is what the content is
+called, what a note writes, and what the website serves it under.
+`sohl-thalorna` is what Foundry installs the module as, and it appears in the
+Foundry form alone. The two words are the same for `sohl` and for `hm3`, which
+is exactly why they are kept apart here.
+
+Which packages a build can resolve is derived from its configuration: its own
+`contentPackage`, every game system it compiles content for (`systems:`,
+`packs[].system`, `requiresSystem`, `relationships.systems`), and every package
+it declares under `relationships`, whose `contentPackage` names the content
+where that differs from the Foundry id. A pathname naming a package the build
+does not know still resolves on the website and in the book — those need only
+the name and the suffix — and has no Foundry address, which is refused rather
+than guessed.
+
+**The host is configuration.** `site.assets` in `package-build.config.yaml` is
+the root the web form is joined onto, and a package-owned image on a page with
+none set is an error naming that key.
+
+**A pathname naming no package at all passes through on every surface** — an
+absolute URL, a `data:` URI, a protocol-relative `//host/…`, or a `/`-rooted
+path, which Foundry serves from its data root. That is how a note addresses
+core Foundry art (`/icons/svg/mystery-man.svg`) or a package this build knows
+nothing of (`/systems/dnd5e/icons/spell.webp`).
+
+**A `systems/…` or `modules/…` pathname is refused**, with a finding naming the
+replacement. It is a Foundry address written where an ownership statement
+belongs: it resolves for Foundry and for nothing else, because neither the
+website nor the book has any such directory. `systems/sohl/assets/ui/logo.webp`
+is written `sohl/assets/ui/logo.webp`, and `systems/hm3/images/svg/sword.svg` —
+where the package serves its pictures from its own root — is written
+`hm3/assets/images/svg/sword.svg`, because `assets/` is where a package's files
+sit in every derived form.
+
+`worlds/` is not a Foundry root for this purpose. A package may not ship files
+out of a world, so a note writing one has made a different mistake and gets the
+ordinary "this package owns it" reading — a plainly broken path rather than a
+plausible one that 404s with nothing reporting it.
+
+**The rule is about ownership, not a list of directories.** A package owns its
+whole `assets/` tree and the directory names inside it are its own business:
+`sohl-kethira-basic` keeps art under `assets/artwork/`, and `artwork/deity.webp`
+is that package's by the same rule that claims `icons/…` and `images/…`.
+
+**Every pathname a note carries follows it.** `img:` and `data.portrait:`; a
+map note's background, overlay, tile textures and ambient sounds; and the
+address of every image in a note's body.
 
 #### `banner:` addresses the CDN, not the Foundry install
 
@@ -388,19 +432,20 @@ and **anything else is prefixed with `images/`** and joined onto
 to a doubled path:
 
 ```text
-banner: systems/sohl/assets/images/banners/lore.webp
-      → <cdnBaseURL>/images/systems/sohl/assets/images/banners/lore.webp
+banner: sohl/assets/images/banners/lore.webp
+      → <cdnBaseURL>/images/sohl/assets/images/banners/lore.webp
 ```
 
 That can be made to work by mirroring the path on the CDN, and one consumer
 does exactly that — but it is not what the author meant.
 
 **The two are not reconciled, because they are not two spellings of one thing.**
-`img:` addresses a file inside a Foundry install, where the package that holds
-it is the question worth asking. `banner:` addresses a file on a CDN, where
-there are no packages at all. Write a `banner:` relative to the CDN's `images/`
-root — `banners/lore.webp`, not `images/banners/lore.webp` and not a
-package-rooted path.
+A pathname names a file a package ships, and four surfaces derive an address
+from it. `banner:` names a hero image on the site's own asset host, reaches no
+compiled document and no book, and is resolved by the theme rather than by this
+toolchain — `banner: none` is not even a target. Write a `banner:` relative to
+the CDN's `images/` root — `banners/lore.webp`, not `images/banners/lore.webp`
+and not a package-qualified pathname.
 
 #### The pack a note compiles into
 

@@ -160,7 +160,7 @@ id: EEEEEEEEEEEEEEEE
 shortcode: foreignmap
 type: map
 subType: battlemap
-img: systems/sohl/assets/ui/parchment.jpg
+img: sohl/assets/ui/parchment.jpg
 sohl:
   archetype: null
   place: foreignplace

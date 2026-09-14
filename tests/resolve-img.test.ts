@@ -35,13 +35,26 @@ describe("resolveImg (content → Foundry img path translation)", () => {
         );
     });
 
-    it("leaves an already system-rooted path unchanged", () => {
-        const p = "systems/sohl/assets/icons/game-icons/lorc/monkey.svg";
-        expect(resolveImg(p)).toBe(p);
+    it("resolves a package-qualified pathname to that package's install path", () => {
+        expect(resolveImg("sohl/assets/icons/game-icons/lorc/monkey.svg")).toBe(
+            "systems/sohl/assets/icons/game-icons/lorc/monkey.svg",
+        );
     });
 
-    it("passes through any other rooted path unchanged (module, URL)", () => {
-        expect(resolveImg("modules/foo/bar.webp")).toBe("modules/foo/bar.webp");
+    it("refuses a Foundry-spelled pathname, naming the replacement", () => {
+        // It resolves for Foundry and for neither of the other two surfaces.
+        expect(() => resolveImg("systems/sohl/assets/icons/monkey.svg")).toThrow(
+            /write `sohl\/assets\/icons\/monkey\.svg`/,
+        );
+        expect(() => resolveImg("modules/foo/bar.webp")).toThrow(/write `foo\/assets\/bar\.webp`/);
+        // `hm3` serves its pictures from `images/` at its own root, so the
+        // replacement gains the `assets/` segment every form is built on.
+        expect(() => resolveImg("systems/hm3/images/svg/sword.svg")).toThrow(
+            /write `hm3\/assets\/images\/svg\/sword\.svg`/,
+        );
+    });
+
+    it("passes a URL through unchanged", () => {
         expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
@@ -80,20 +93,35 @@ describe("an asset path's first segment says which package owns it", () => {
         expect(resolveImg("relic.svg")).toBe("systems/sohl/assets/relic.svg");
     });
 
-    it("passes a `systems/`-rooted path through untouched", () => {
+    it("reads `<package>/assets/…` as that package's, whoever is compiling", () => {
         // Every default this toolchain ships is one of these, which is why the
         // default-art path in a compiled `sohl-thalorna` document reads
         // `systems/sohl/…` rather than being rewritten under the module.
-        const p = "systems/sohl/assets/icons/noun/shield.svg";
-        expect(resolveImg(p)).toBe(p);
-        // Another system entirely — nothing here knows or cares which.
-        expect(resolveImg("systems/dnd5e/icons/spell.webp")).toBe("systems/dnd5e/icons/spell.webp");
+        expect(resolveImg("sohl/assets/icons/noun/shield.svg")).toBe(
+            "systems/sohl/assets/icons/noun/shield.svg",
+        );
     });
 
-    it("passes a `modules/`-rooted path through untouched", () => {
-        const p = "modules/sohl-thalorna/assets/icons/takheperu/pantheon/ra.svg";
-        expect(resolveImg(p)).toBe(p);
-        expect(resolveImg("modules/foo/bar.webp")).toBe("modules/foo/bar.webp");
+    it("refuses a pathname written in Foundry's own spelling", () => {
+        expect(() => resolveImg("systems/sohl/assets/icons/noun/shield.svg")).toThrow(
+            /is a Foundry address/,
+        );
+        expect(() =>
+            resolveImg("modules/sohl-thalorna/assets/icons/takheperu/pantheon/ra.svg"),
+        ).toThrow(/is a Foundry address/);
+    });
+
+    it("has no Foundry address for a package it declares no relationship with", () => {
+        // The website and the book need only the name and the suffix; the
+        // install path needs the package's kind and its Foundry id, which only
+        // a relationship carries. Refused rather than guessed — and a
+        // `/`-rooted path addresses such a package directly.
+        expect(() => resolveImg("dnd5e/assets/icons/spell.webp")).toThrow(
+            /declares no relationship/,
+        );
+        expect(resolveImg("/systems/dnd5e/icons/spell.webp")).toBe(
+            "/systems/dnd5e/icons/spell.webp",
+        );
     });
 
     it("passes an address that names no package at all through untouched", () => {
@@ -127,6 +155,9 @@ describe("resolveImg for a non-`sohl` consumer", () => {
             lastModifiedBy: "thalornabuild000",
         },
         packs: [{ name: "items", type: "Item" }],
+        // What makes `sohl/assets/…` resolvable from here: a relationship is
+        // where a package learns another package's kind and Foundry id.
+        relationships: { systems: [{ id: "sohl", type: "system" }] },
     });
 
     it("emits `modules/<id>/assets/…` for a module package", () => {
@@ -141,25 +172,25 @@ describe("resolveImg for a non-`sohl` consumer", () => {
         );
     });
 
-    it("still leaves an already-rooted path alone", () => {
-        const p = "modules/sohl-thalorna/assets/icons/other/sword.svg";
-        expect(resolveImg(p, moduleConfig)).toBe(p);
+    it("resolves its own package by the name a note writes, not its Foundry id", () => {
+        // `thalorna` is what the content is called; `sohl-thalorna` is what
+        // Foundry installs. A note writes the first and never the second.
+        expect(resolveImg("thalorna/assets/icons/other/sword.svg", moduleConfig)).toBe(
+            "modules/sohl-thalorna/assets/icons/other/sword.svg",
+        );
         expect(resolveImg("", moduleConfig)).toBe("");
     });
 
-    it("obeys the same three-way ownership rule, only under a different root", () => {
-        // The rule is one rule; the asset root it prefixes with is the only
-        // thing configuration changes. A module citing the system's art gets
-        // it verbatim — which is what makes the system's default art usable
-        // from a module at all.
+    it("obeys the same ownership rule, only under a different root", () => {
+        // The rule is one rule; the package the pathname names is the only
+        // thing that decides where it lands. A module citing the system's art
+        // gets the system's install path — which is what makes the system's
+        // default art usable from a module at all.
         expect(resolveImg("artwork/deity.webp", moduleConfig)).toBe(
             "modules/sohl-thalorna/assets/artwork/deity.webp",
         );
-        expect(resolveImg("systems/sohl/assets/icons/noun/shield.svg", moduleConfig)).toBe(
+        expect(resolveImg("sohl/assets/icons/noun/shield.svg", moduleConfig)).toBe(
             "systems/sohl/assets/icons/noun/shield.svg",
-        );
-        expect(resolveImg("modules/other-module/art.webp", moduleConfig)).toBe(
-            "modules/other-module/art.webp",
         );
     });
 });
@@ -226,13 +257,10 @@ describe("an item note's art obeys the ownership rule", () => {
         );
     });
 
-    it("leaves a `systems/`- or `modules/`-rooted path exactly as authored", () => {
-        expect(
-            items().buildEntry(skillNote({ img: "systems/sohl/assets/icons/custom.svg" }), "").img,
-        ).toBe("systems/sohl/assets/icons/custom.svg");
-        expect(
-            items().buildEntry(skillNote({ img: "modules/other/icons/custom.svg" }), "").img,
-        ).toBe("modules/other/icons/custom.svg");
+    it("resolves a package-qualified pathname to that package's install path", () => {
+        expect(items().buildEntry(skillNote({ img: "sohl/assets/icons/custom.svg" }), "").img).toBe(
+            "systems/sohl/assets/icons/custom.svg",
+        );
     });
 });
 
@@ -251,17 +279,17 @@ describe("an actor note's art obeys the ownership rule, on both fields", () => {
         expect(doc.system.portrait).toBe("systems/sohl/assets/artwork/folk.webp");
     });
 
-    it("leaves a `systems/`- or `modules/`-rooted path exactly as authored", () => {
+    it("resolves a package-qualified pathname on both fields alike", () => {
         const doc = actors().buildBeing(
             new Map(),
             beingNote({
-                img: "systems/sohl/assets/icons/game-icons/delapouite/person.svg",
-                portrait: "modules/sohl-thalorna/assets/images/folk.webp",
+                img: "sohl/assets/icons/game-icons/delapouite/person.svg",
+                portrait: "sohl/assets/images/folk.webp",
             }),
             "",
         );
 
         expect(doc.img).toBe("systems/sohl/assets/icons/game-icons/delapouite/person.svg");
-        expect(doc.system.portrait).toBe("modules/sohl-thalorna/assets/images/folk.webp");
+        expect(doc.system.portrait).toBe("systems/sohl/assets/images/folk.webp");
     });
 });

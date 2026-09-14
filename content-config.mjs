@@ -474,6 +474,10 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} RelationshipSpec
  * @property {string} id             The other package's id.
+ * @property {string} [contentPackage]  What the other package's content is
+ *                                   called, where that differs from its Foundry
+ *                                   id. It is the name a note writes when it
+ *                                   addresses a file that package ships.
  * @property {string} [type]         `system`, `module`, or `world`.
  * @property {string} [manifest]     Where its manifest is published.
  * @property {CompatibilitySpec} [compatibility]  The version range of *that*
@@ -712,6 +716,7 @@ const DOCS_KEYS = ["itemFields"];
 const SITE_KEYS = [
     "out",
     "base",
+    "assets",
     "packages",
     "sections",
     "readmeSections",
@@ -728,7 +733,14 @@ const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" 
 const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
-const RELATIONSHIP_KEYS = ["id", "type", "manifest", "compatibility", "itemCatalog"];
+const RELATIONSHIP_KEYS = [
+    "id",
+    "contentPackage",
+    "type",
+    "manifest",
+    "compatibility",
+    "itemCatalog",
+];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
 const ITEM_REGISTRY_KEYS = ["system", "builders"];
 const PACK_KEYS = [
@@ -1415,6 +1427,38 @@ function normalizeSectionMeta(value, where) {
 }
 
 /**
+ * The asset host the website resolves a pathname against.
+ *
+ * The one address in this configuration that is not this repository's own. A
+ * note names a file by the package that owns it and the path inside that
+ * package's `assets/`, and the website serves every package's files from one
+ * host — so the host is the missing half of a web address, and it is written
+ * here because a build has no way to find it out.
+ *
+ * **Absolute, and with no trailing slash.** The forms are joined with a single
+ * `/`, so a trailing one would double it; it is trimmed rather than refused,
+ * because a doubled slash is the sort of thing a reader's eye slides past. A
+ * relative value is refused outright: it would resolve against each page's own
+ * URL, which is the failure the key exists to remove.
+ *
+ * @param {unknown} value - The configured value, or `undefined`.
+ * @returns {string} The host, without its trailing slash; `""` when unset.
+ */
+function normalizeSiteAssets(value) {
+    if (value === undefined) return "";
+    const assets = requireNonEmptyString(value, "site.assets");
+    if (!/^https?:\/\/[^/]+/.test(assets)) {
+        fail(
+            "site.assets",
+            "must be an absolute `http://` or `https://` address — it is the host " +
+                "every package's imagery is served from, and a relative value " +
+                "resolves against whichever page happens to carry the image",
+        );
+    }
+    return assets.replace(/\/+$/, "");
+}
+
+/**
  * A map of section name → landing metadata.
  *
  * @param {unknown} value - The declared mapping.
@@ -1447,6 +1491,7 @@ function normalizeSite(value) {
     const empty = Object.freeze({
         out: "",
         base: "",
+        assets: "",
         packages: Object.freeze([]),
         sections: Object.freeze({}),
         readmeSections: Object.freeze({}),
@@ -1502,6 +1547,7 @@ function normalizeSite(value) {
     return Object.freeze({
         out: input.out === undefined ? "" : requireNonEmptyString(input.out, "site.out"),
         base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
+        assets: normalizeSiteAssets(input.assets),
         packages: Object.freeze(packages),
         sections: normalizeSectionMap(input.sections, "site.sections"),
         readmeSections: normalizeSectionMap(input.readmeSections, "site.readmeSections"),
@@ -1814,6 +1860,18 @@ function normalizeRelationships(value) {
                 const spec = {
                     id: requireNonEmptyString(rel.id, `${at}.id`),
                 };
+                // What the other package's *content* is called, where that
+                // differs from its Foundry id. A note addresses a file by the
+                // content package that owns it — `thalorna/assets/…` — and the
+                // Foundry id (`sohl-thalorna`) appears only in the install
+                // path this derives. Omitted where the two are the same word,
+                // which they are for every system.
+                if (rel.contentPackage !== undefined) {
+                    spec.contentPackage = requireNonEmptyString(
+                        rel.contentPackage,
+                        `${at}.contentPackage`,
+                    );
+                }
                 for (const key of ["type", "manifest"]) {
                     if (rel[key] !== undefined) {
                         spec[key] = requireNonEmptyString(rel[key], `${at}.${key}`);

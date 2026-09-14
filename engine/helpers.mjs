@@ -33,6 +33,7 @@ import unidecode from "unidecode";
 import markdownit from "markdown-it";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin } from "./content-images.mjs";
+import { resolvePathname } from "./pathnames.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
@@ -99,11 +100,18 @@ export const md = markdownit({ html: true })
     // translated by the same rule `img:` follows.
     .use(
         imagePlugin((src) => {
+            // The *configuration* is what may be absent — a caller rendering
+            // markdown outside a content repository has none, and the ordinary
+            // width and position still apply. A pathname this rule refuses is a
+            // different thing entirely and is allowed to throw: emitting it as
+            // authored is the silent wrong address the rule exists to remove.
+            let config;
             try {
-                return resolveImg(src, loadPackConfig()) ?? src;
+                config = loadPackConfig();
             } catch {
                 return src;
             }
+            return resolveImg(src, config) ?? src;
         }),
     );
 
@@ -439,155 +447,66 @@ export function makeFilename(name, id) {
 }
 
 /**
- * The path prefixes that name a package other than the one being compiled.
+ * Translate an authored pathname into the address a Foundry install serves.
  *
- * Foundry serves every installed package from a root named for its kind, so a
- * path opening with one of these is already a served address and belongs to
- * somebody else — most often `systems/sohl/assets/…`, where every default this
- * toolchain ships lives, and which a module's content cites as readily as the
- * system's own does.
+ * The Foundry half of {@link module:engine/pathnames.resolvePathname}, which
+ * states the rule and derives the other three surfaces from the same
+ * statement. Kept as its own function because the compilers want one address
+ * and nothing else, and because the default a caller applies to an unset one is
+ * domain-specific — actors default differently from items, and gear differently
+ * again — so each compiler owns its default and applies it with **nullish**
+ * coalescing: `resolveImg(fm.img) ?? <default>`. Not `||`, which would collapse
+ * a deliberate blank back into the default.
  *
- * **Two, not "the ones we happen to use".** `worlds/` is left out on purpose: a
- * package may not ship art out of a world, so a note that writes one has made a
- * mistake, and prefixing it yields a plainly broken path rather than a
- * plausible one that fails silently much later.
- *
- * @type {readonly string[]}
- */
-const FOREIGN_PACKAGE_ROOTS = Object.freeze(["systems/", "modules/"]);
-
-/**
- * Whether a path already addresses something this package does not own, and so
- * must be emitted exactly as authored.
- *
- * Three shapes qualify, each a different kind of "not mine":
- *
- * - **Another package** — `systems/…` or `modules/…`, per
- *   {@link FOREIGN_PACKAGE_ROOTS}.
- * - **Somewhere off this install** — a URI scheme (`https:`, `data:`) or a
- *   protocol-relative `//cdn…`.
- * - **The data root itself** — a leading `/`, which Foundry serves from the
- *   install rather than from any package.
- *
- * @param {string} s - A non-empty authored path.
- * @returns {boolean} Whether it passes through untranslated.
- */
-function addressesAnotherPackage(s) {
-    if (FOREIGN_PACKAGE_ROOTS.some((root) => s.startsWith(root))) return true;
-    // `//host/x.png` — protocol-relative, so it leaves this origin entirely.
-    // Checked before the single-slash case, which would otherwise claim it.
-    if (s.startsWith("//")) return true;
-    // `/x.png` — rooted at the Foundry data root, not at any package.
-    if (s.startsWith("/")) return true;
-    // `https://…`, `data:…`, `file:…` — a scheme, so not a path at all.
-    return /^[a-z][a-z0-9+.-]*:/i.test(s);
-}
-
-/**
- * Translate a content-relative image path into its Foundry-relative form.
- *
- * Content frontmatter (`img` / `portrait`) authors a single path that has to
- * work for Foundry, the knowledgebase, and the website. **Its first segment
- * says which package owns the file**, and there are exactly three
- * answers:
- *
- * | Authored path starts with | Owner                 | Emitted              |
- * | ------------------------- | --------------------- | -------------------- |
- * | `systems/`                | a separate **system** | unchanged            |
- * | `modules/`                | a separate **module** | unchanged            |
- * | anything else             | **this package**      | `<assetRoot>/<path>` |
- *
- * So `icons/relic.svg` compiles to `systems/sohl/assets/icons/relic.svg` here
- * and to `modules/sohl-thalorna/assets/icons/relic.svg` in a module — the asset
- * root is derived from the configuration, and is the one place `systems/sohl`
- * is ever spelled. An authored
- * `systems/sohl/assets/icons/noun/shield.svg` is left exactly as written,
- * whichever package is compiling it.
- *
- * **This is a rule about ownership, not an allowlist of directories.** It used
- * to prefix `icons/…` and `images/…` and pass everything else through — the
- * same answer for every path any tree authors today, and the wrong one for the
- * next directory a package ships. `sohl-kethira-basic` keeps art under
- * `assets/artwork/`, so an authored `artwork/deity.webp` would have shipped
- * unprefixed: a 404 in Foundry, reported by nothing. That a package owns its
- * own tree is the fact; the directory names inside it are that package's
- * business.
- *
- * **Off-install addresses pass through too**, which is the same rule rather
- * than a fourth: a URL, a `data:` URI, or a `/`-rooted path names something no
- * package owns. See {@link addressesAnotherPackage}.
- *
- * **`banner:` does not follow this rule, deliberately.** It is not an
- * asset path inside a Foundry install at all: it reaches no compiled document,
- * and its only consumer is the Hugo theme, which prefixes a relative value with
- * `images/` and joins it onto `params.cdnBaseURL`. The two fields look alike
- * and address different places — `img:` a file Foundry serves, `banner:` a file
- * the CDN serves — so they are documented apart rather than reconciled into one
- * rule that would be true of neither.
- *
- * **Two empties, and they mean opposite things.** `null` — or an absent
- * key, which reaches here as `undefined` — means _unset_: the note names no art
- * and the caller's default applies. `""` means _blank on purpose_: the note
- * names no art **and wants none**, so no default may replace it. Both come back
+ * **Two empties, and they mean opposite things.** `null` — or an absent key,
+ * which reaches here as `undefined` — means _unset_: the note names no art and
+ * the caller's default applies. `""` means _blank on purpose_: the note names
+ * no art **and wants none**, so no default may replace it. Both come back
  * distinguishable, `null` and `""` respectively, and neither is invented from
  * the other.
- *
- * This used to open `if (!raw) return ""`, which made the two one case: every
- * caller then applied its default with `||`, so a deliberate blank was
- * unspellable and an unset key and an empty string compiled identically. That
- * is the convention the project already rejects for an optional "not specified"
- * DataModel string, where `nullable, initial: null` keeps "unset" a single
- * honest value rather than two.
  *
  * **`title` does not follow this rule**, and must not be made to. On a
  * `type: affiliation` note `title` is *also* a declared item field whose default
  * is `""` (`sohl/item-fields.mjs`), resolved from the very same shared top-level
  * key the site emitter reads as the page title — so `title: null` stringifies
  * into the compiled document as the literal `"null"`. One key, two destinations
- * that disagree about what empty means; see.
+ * that disagree about what empty means.
  *
- * This is translation only: the default for an unset path is domain-specific
- * (actors default differently from items, and gear differently again), so each
- * compiler owns its own default and applies it to the result with **nullish**
- * coalescing — `resolveImg(fm.img) ?? <default>`. Not `||`: that would collapse
- * a deliberate blank back into the default and undo the distinction. For items
- * that default is the art paired with the type's builder, reached through
- * `itemArt()`, which runs the path back through this function so a registry
- * entry and a note's `img:` are spelled the same way (#7).
+ * **`banner:` does not follow it either, deliberately.** It is not a file
+ * inside a Foundry install: it reaches no compiled document and no book, its
+ * only consumer is the Hugo theme, and the theme resolves it against the site's
+ * own asset root. See `docs/content-format.md`.
  *
- * **A package with no asset root cannot answer at all.** `assetRoot` is derived
- * from the package kind, and a `documentation` package has none: Foundry serves
- * no files for it. Only a compiling pass reaches here, and a documentation
- * package runs none, so a path arriving with no root to put it under is a pass
- * running where it should not — reported as that, rather than emitted as
- * `null/icons/relic.svg` into a document nobody would check.
+ * For items, the default is the art paired with the type's builder, reached
+ * through `itemArt()`, which runs the pathname back through this function so a
+ * registry entry and a note's `img:` are spelled the same way.
  *
- * @param {string | null | undefined} raw - content-relative path from frontmatter.
+ * @param {string | null | undefined} raw - The pathname from frontmatter.
  * @param {{assetRoot: string|null}} [config] - The resolved build configuration.
  *   Defaults to this repository's.
  * @returns {string | null} the Foundry-relative path; `""` for a deliberate
  *   blank, and `null` when the note names no art at all.
- * @throws {Error} When the configuration has no asset root.
+ * @throws {Error} When no Foundry address can be derived — a `documentation`
+ *   package, which Foundry installs nothing of, or a pathname naming a package
+ *   this build declares no relationship with.
  */
 export function resolveImg(raw, config = loadPackConfig()) {
-    // Unset — the caller's default applies. An absent key arrives as
-    // `undefined`, an authored one as `null`; they say the same thing.
-    if (raw == null) return null;
-    const s = String(raw);
-    // Blank on purpose — the caller's default must not apply.
-    if (s === "") return "";
-    // Somebody else's to serve — emit it exactly as authored.
-    if (addressesAnotherPackage(s)) return s;
-    if (!config.assetRoot) {
+    const forms = resolvePathname(raw, config);
+    if (forms === null) return null;
+    if (forms.foundry !== null) return forms.foundry;
+    if (forms.own) {
         throw new Error(
-            `package-build: \`${s}\` names a file this package serves, and a ` +
-                `\`documentation\` package has no asset root to serve it from — ` +
-                `Foundry installs no such package. Address the owning package ` +
-                `(\`systems/…\`, \`modules/…\`) or a URL.`,
+            `package-build: \`${forms.authored}\` names a file this package serves, ` +
+                `and a \`documentation\` package has no asset root to serve it from — ` +
+                `Foundry installs no such package. Address a \`/\`-rooted path or a URL.`,
         );
     }
-    // Ours, so root it where Foundry serves this package's files from.
-    return `${config.assetRoot}/${s}`;
+    throw new Error(
+        `package-build: \`${forms.authored}\` names a file the \`${forms.package}\` ` +
+            `package ships, and this build declares no relationship with a package of ` +
+            `that name, so there is no Foundry address to derive. Declare it under ` +
+            `\`relationships\`, or address the file by a \`/\`-rooted path.`,
+    );
 }
 
 /**

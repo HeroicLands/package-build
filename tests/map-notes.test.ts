@@ -40,7 +40,7 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         shortcode: "ambushdefile",
         type: "map",
         subType: "battlemap",
-        img: "systems/sohl/assets/ui/parchment.jpg",
+        img: "sohl/assets/ui/parchment.jpg",
         sohl: {
             dimensions: [1900, 2600],
             pxPerGrid: 100,
@@ -245,7 +245,7 @@ describe("embedded document ids", () => {
 describe("buildScene — the whole document", () => {
     it("synthesises exactly one inline Level from img/overlay and names it initial", () => {
         const scene = buildSceneDoc(
-            makeNote({ overlay: "systems/sohl/assets/ui/parchment.jpg" }),
+            makeNote({ overlay: "sohl/assets/ui/parchment.jpg" }),
             makeCtx(),
         );
         expect(scene.levels).toHaveLength(1);
@@ -361,14 +361,14 @@ describe("buildScene — the whole document", () => {
                     oak: {
                         position: [400, 500],
                         size: [200, 200],
-                        image: "systems/sohl/assets/ui/parchment.jpg",
+                        image: "sohl/assets/ui/parchment.jpg",
                     },
                 },
                 sounds: {
                     river: {
                         position: [800, 1200],
                         radius: 40,
-                        path: "systems/sohl/assets/audio/swoosh1.ogg",
+                        path: "sohl/assets/audio/swoosh1.ogg",
                         volume: 0.4,
                     },
                 },

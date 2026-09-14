@@ -153,18 +153,18 @@ describe("the art a compiled sohl item actually gets (#7)", () => {
 
     it("is the map's entry, exactly as before the art moved", () => {
         // Routing art through configuration must not change a single compiled
-        // path for this package. `DEFAULT_ITEM_ART` holds already-served
-        // `systems/sohl/…` paths, which `resolveImg` returns untouched, so the
-        // value here is the map's value and not an asset-root rewrite of it.
+        // path for this package. `DEFAULT_ITEM_ART` names the `sohl` package's
+        // own files, and this repository compiles as `sohl`, so the resolved
+        // value is the system's install path.
         const entry = compiler().buildEntry(SKILL_FM, "");
 
-        expect(entry.img).toBe(DEFAULT_ITEM_ART.skill);
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/head-gear.svg");
         expect(entry.img).toBe("systems/sohl/assets/icons/other/head-gear.svg");
     });
 
     it("still lets a note override it", () => {
         const entry = compiler().buildEntry(
-            { ...SKILL_FM, img: "systems/sohl/assets/icons/custom.svg" },
+            { ...SKILL_FM, img: "sohl/assets/icons/custom.svg" },
             "",
         );
 

@@ -54,6 +54,8 @@ import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderImageFigures } from "./content-images.mjs";
+import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
+import { ART_FIELDS } from "./frontmatter-lint.mjs";
 import { buildSiteIndex, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
@@ -624,9 +626,13 @@ export function sectionFrontmatter(meta) {
  *   for.
  * @param {(data: object, page: object) => void} [options.decorate] - Called
  *   with each page's frontmatter, for whatever a consumer's own pass adds.
+ * @param {(src: string) => string} [options.webSrc] - Translates an authored
+ *   pathname into the address the website serves. Every artwork field goes
+ *   through it, so a page's `img:` and its body images name the same file the
+ *   same way.
  * @returns {object} The frontmatter to write.
  */
-export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
+export function pageFrontmatter(page, { readmeSections = {}, decorate, webSrc }) {
     const { fm, name, slug, sec, isReadme } = page;
     let data;
     if (page.kind === "content") {
@@ -658,7 +664,38 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate }) {
         if (meta) Object.assign(data, sectionFrontmatter(meta));
     }
     delete data.aliases;
+    if (webSrc) resolveArtFields(data, webSrc);
     return data;
+}
+
+/**
+ * Rewrite a page's artwork fields into the addresses the website serves.
+ *
+ * The same fields the linter holds to the pathname rule, read from the same
+ * list, so a third art field added to the vocabulary reaches the page without
+ * anyone remembering this function exists. Only an authored **string** is
+ * touched: `null` is a note naming no art and `""` is one naming none on
+ * purpose, and neither is a pathname to resolve.
+ *
+ * @param {object} data - The frontmatter being emitted, rewritten in place.
+ * @param {(src: string) => string} webSrc - The website's resolver.
+ * @returns {void}
+ */
+function resolveArtFields(data, webSrc) {
+    for (const { key, inData } of ART_FIELDS) {
+        const holder = inData && isPlainObject(data.data) ? data.data : data;
+        const value = holder?.[key];
+        if (typeof value !== "string" || value === "") continue;
+        holder[key] = webSrc(value);
+    }
+}
+
+/**
+ * @param {unknown} value - Anything.
+ * @returns {boolean} Whether it is a mapping a field may be read out of.
+ */
+function isPlainObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /**
@@ -705,7 +742,8 @@ export function pageDestination(page) {
  *
  * @param {object[]} pages - Every page.
  * @param {object} options - Everything the render needs.
- * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[], wikiErrors: object[]}}
+ * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
+ *   wikiErrors: object[], imageErrors: object[]}}
  */
 export function renderPages(pages, options) {
     const {
@@ -718,11 +756,53 @@ export function renderPages(pages, options) {
         decorate,
         linkable = (d) => Boolean(d.fm.shortcode),
         sqlTables,
+        config,
     } = options;
 
     const tableErrors = [];
     const wikiErrors = [];
+    const imageErrors = [];
     const byKind = {};
+
+    /**
+     * The address the website serves for one authored pathname.
+     *
+     * A pathname the rule refuses, and a package-owned one with no asset host
+     * to resolve against, are both reported and emitted as authored: a page
+     * still publishes, with a picture the reader can see is missing, and the
+     * build exits non-zero. The occurrence count is what lets the command find
+     * the literal in the note and report a line and a column, the way a
+     * wikilink finding is located.
+     *
+     * @param {string} file - The note, for the finding.
+     * @returns {(src: string) => string} The resolver for that note's images.
+     */
+    const webAddresses = (file) => {
+        /** @type {Map<string, number>} */
+        const seen = new Map();
+        return (src) => {
+            const occurrence = (seen.get(src) ?? 0) + 1;
+            seen.set(src, occurrence);
+            const problem = pathnameProblem(src);
+            if (problem) {
+                imageErrors.push({ file, src, occurrence, message: problem });
+                return src;
+            }
+            const forms = resolvePathname(src, config);
+            if (!forms || forms.web !== null) return forms?.web ?? src;
+            imageErrors.push({
+                file,
+                src,
+                occurrence,
+                message:
+                    `\`${src}\` names a file the \`${forms.package}\` package ships, and ` +
+                    "no asset host is configured to serve it from — set `site.assets` in " +
+                    "package-build.config.yaml. Emitted as authored, the address resolves " +
+                    "against the page's own URL, which is nowhere",
+            });
+            return src;
+        };
+    };
 
     for (const page of pages) {
         // The page's path in the tree an author edits: below the content root
@@ -738,6 +818,7 @@ export function renderPages(pages, options) {
             foreignIndex: foreign.index,
         });
 
+        const webSrc = webAddresses(page.file);
         const resolve = (text) => {
             let t = text;
             if (pass.beforeLinks) t = pass.beforeLinks(t, page);
@@ -747,7 +828,7 @@ export function renderPages(pages, options) {
             // wrote it rather than as a figure. Hugo is handed markdown, not a
             // rendered page, so a `{…}` directive left in the body would reach
             // the reader as its own literal braces.
-            return renderImageFigures(t);
+            return renderImageFigures(t, webSrc);
         };
 
         let body = page.body;
@@ -769,14 +850,14 @@ export function renderPages(pages, options) {
             body = markdown;
         }
 
-        const data = pageFrontmatter(page, { readmeSections, decorate });
+        const data = pageFrontmatter(page, { readmeSections, decorate, webSrc });
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(protectCode(body, resolve), data));
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
-    return { written: pages.length, byKind, tableErrors, wikiErrors };
+    return { written: pages.length, byKind, tableErrors, wikiErrors, imageErrors };
 }
 
 /**
@@ -976,7 +1057,7 @@ export function resolveOutputRoot(rootDir, out) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], manifests: object|null}}
+ *   wikiErrors: object[], imageErrors: object[], manifests: object|null}}
  */
 export function buildSite({ config, outRoot, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
@@ -1070,6 +1151,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             manifests: null,
             tableErrors: [],
             wikiErrors: [],
+            imageErrors: [],
             stats: null,
         };
     }
@@ -1087,6 +1169,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             manifests: null,
             tableErrors: [],
             wikiErrors: [],
+            imageErrors: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
                 landings: 0,
@@ -1138,6 +1221,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             stats: null,
             tableErrors: [],
             wikiErrors: [],
+            imageErrors: [],
         };
     }
 
@@ -1149,6 +1233,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
     const rendered = renderPages(pages, {
         outRoot: out,
         sqlTables,
+        config: resolved,
         index: gates.index,
         foreign: gates.foreign,
         universe: tableUniverse(pages),
@@ -1179,6 +1264,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
         gates,
         tableErrors: rendered.tableErrors,
         wikiErrors: rendered.wikiErrors,
+        imageErrors: rendered.imageErrors,
         stats: {
             ...rendered.byKind,
             homepages: homepagesWritten,
