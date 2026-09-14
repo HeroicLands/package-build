@@ -767,16 +767,17 @@ The document tree a PDF is built from, and the plan it resolves to (#316). The p
 
 A note's markdown, and a document plan, rendered as Typst source. **This module emits text and reads nothing.** It takes markdown and a plan and returns a `.typ` document; the filesystem, the note bodies and the compiler that turns the result into a PDF all live in {@link module:engine/pdf-build}. That split is what lets the outline, the table of contents, every anchor and every link destination be asserted in a unit test with no renderer installed — which is most of what a book has to get right, and all of what a test can check without eyes.
 
-| Export                  | Signature                                                              | Returns                                                      | Use it when                                                              |
-| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `escapeTypst`           | `function escapeTypst(text)`                                           | {string} The same text, inert.                               | Escape literal text for Typst markup.                                    |
-| `escapeTypstString`     | `function escapeTypstString(text)`                                     | {string} The same value, quotable.                           | Escape a string going inside Typst string quotes, as a `#link` URL does. |
-| `labelFor`              | `function labelFor(anchor)`                                            | {string} A Typst label name.                                 | A Typst label, from a plan anchor.                                       |
-| `createParser`          | `function createParser(registry)`                                      | {object} A markdown-it instance.                             | A markdown-it configured to parse, not to render.                        |
-| `markdownToTypst`       | `function markdownToTypst(markdown, opts`                              | {string} Typst markup.                                       | Render markdown as Typst content.                                        |
-| `renderBook`            | `renderBook({ plan, bodies, title, subtitle, front, fonts, version })` | {string} A complete `.typ` document.                         | The whole book, as one Typst document.                                   |
-| `resolveDanglingLabels` | `function resolveDanglingLabels(source, findings`                      | {string} The same document, with no reference left dangling. | Point every internal link at a label the document actually declares.     |
-| `iconNamesIn`           | `function iconNamesIn(markdown)`                                       | {string[]} The names, in order of appearance, with repeats.  | Every icon name a body uses, so a build can resolve them once.           |
+| Export                  | Signature                                                                                 | Returns                                                      | Use it when                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `escapeTypst`           | `function escapeTypst(text)`                                                              | {string} The same text, inert.                               | Escape literal text for Typst markup.                                    |
+| `escapeTypstString`     | `function escapeTypstString(text)`                                                        | {string} The same value, quotable.                           | Escape a string going inside Typst string quotes, as a `#link` URL does. |
+| `labelFor`              | `function labelFor(anchor)`                                                               | {string} A Typst label name.                                 | A Typst label, from a plan anchor.                                       |
+| `createParser`          | `function createParser(registry)`                                                         | {object} A markdown-it instance.                             | A markdown-it configured to parse, not to render.                        |
+| `markdownToTypst`       | `function markdownToTypst(markdown, opts`                                                 | {string} Typst markup.                                       | Render markdown as Typst content.                                        |
+| `renderBook`            | `renderBook({ plan, bodies, title, subtitle, front, fonts, version, preamble, banners })` | {string} A complete `.typ` document.                         | The whole book, as one Typst document.                                   |
+| `resolveDanglingLabels` | `function resolveDanglingLabels(source, findings`                                         | {string} The same document, with no reference left dangling. | Point every internal link at a label the document actually declares.     |
+| `iconNamesIn`           | `function iconNamesIn(markdown)`                                                          | {string[]} The names, in order of appearance, with repeats.  | Every icon name a body uses, so a build can resolve them once.           |
+| `bookTypstPreamble`     | `function bookTypstPreamble()`                                                            | {string} Typst markup.                                       | The Typst definitions the book's page furniture is drawn with.           |
 
 ### `engine.pdfFonts`
 
@@ -792,11 +793,12 @@ Which glyph an icon name resolves to, read from the font that carries it. {@link
 
 The content tree, built into a book. The I/O half of the PDF surface: it reads the configuration, the document tree and the notes, drives the passes the site build already owns, hands the result to {@link module:engine/pdf-render} and runs Typst over what comes back. Everything about _what the book says_ is decided in the pure half; this module is where the filesystem and the compiler live.
 
-| Export         | Signature                                           | Returns                                                               | Use it when                                           |
-| -------------- | --------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `pdfFileName`  | `function pdfFileName(artifact, version)`           | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned. | The file name a downloaded book identifies itself by. |
-| `buildPdf`     | `async buildPdf({ config, out, version, compile })` | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.     | Build the book.                                       |
-| `compileTypst` | `function compileTypst(typPath, pdfPath, pdf`       | {{ok: boolean, message: string}} What happened.                       | Run Typst over the emitted source.                    |
+| Export         | Signature                                                  | Returns                                                                               | Use it when                                                          |
+| -------------- | ---------------------------------------------------------- | ------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `pdfFileName`  | `function pdfFileName(artifact, version)`                  | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned.                 | The file name a downloaded book identifies itself by.                |
+| `buildPdf`     | `async buildPdf({ config, out, version, compile })`        | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.                     | Build the book.                                                      |
+| `stageBanners` | `function stageBanners(entries, config, outDir, findings)` | {Map<string, string>} Declared path → the staged file's path, relative to the `.typ`. | Copy every banner the document tree names into the output directory. |
+| `compileTypst` | `function compileTypst(typPath, pdfPath, pdf`              | {{ok: boolean, message: string}} What happened.                                       | Run Typst over the emitted source.                                   |
 
 ### `engine.baseCompiler`
 

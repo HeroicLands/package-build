@@ -97,6 +97,78 @@ import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 
 /**
+ * Where the book keeps the pictures its section plates are drawn over.
+ *
+ * Typst resolves a path against its root, which is the directory holding the
+ * source it is given, and refuses to read anything above it. So a banner
+ * reaches the compiler by being **copied under the output directory** rather
+ * than by widening the root to the whole repository: the emitted `.typ` and
+ * everything it opens then sit in one directory, which is what makes the
+ * source a consumer can compile by hand with no flags.
+ *
+ * The declared path is mirrored beneath it, so two banners with the same base
+ * name cannot land on each other.
+ *
+ * @type {string}
+ */
+const STAGED_PLATES = "plates";
+
+/**
+ * Copy every banner the document tree names into the output directory.
+ *
+ * **A missing banner is not a failure.** A section plate implies a banner per
+ * section and art arrives later than rendering does, so a section that names
+ * none draws its plate over the book's ink and says nothing about it. One that
+ * names a file the build cannot read is a different matter — that is a
+ * statement the tree makes and the build cannot honour — and it is reported.
+ *
+ * @param {object[]} entries - The plan's entries.
+ * @param {object} config - The resolved configuration.
+ * @param {string} outDir - Where the book is written.
+ * @param {object[]} findings - Collected here rather than thrown.
+ * @returns {Map<string, string>} Declared path → the staged file's path,
+ *   relative to the `.typ`.
+ */
+export function stageBanners(entries, config, outDir, findings = []) {
+    const staged = new Map();
+    const seen = new Set();
+    for (const entry of entries ?? []) {
+        const declared = entry?.presentation?.page?.banner;
+        if (typeof declared !== "string" || !declared.trim() || seen.has(declared)) continue;
+        seen.add(declared);
+        const from = path.resolve(config.rootDir, declared);
+        const within = path.relative(config.rootDir, from);
+        if (within.startsWith("..") || path.isAbsolute(within)) {
+            findings.push({
+                file: config.pdf.document,
+                severity: "warning",
+                message:
+                    `the banner \`${declared}\` is outside this package, so the section ` +
+                    "plate is drawn without a picture — a banner is a file this repository ships",
+            });
+            continue;
+        }
+        const to = `${STAGED_PLATES}/${within.split(path.sep).join("/")}`;
+        const dest = path.join(outDir, to);
+        try {
+            fs.mkdirSync(path.dirname(dest), { recursive: true });
+            fs.copyFileSync(from, dest);
+        } catch (err) {
+            findings.push({
+                file: config.pdf.document,
+                severity: "warning",
+                message:
+                    `the banner \`${declared}\` cannot be read, so the section plate is ` +
+                    `drawn without a picture: ${err.message}`,
+            });
+            continue;
+        }
+        staged.set(declared, to);
+    }
+    return staged;
+}
+
+/**
  * The file name a downloaded book identifies itself by.
  *
  * The zip and the manifest take their names from the manifest, so an asset's
@@ -323,6 +395,8 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             glyphs,
             headingOffset,
             anchorPrefix,
+            // An entry opens a page, so its first paragraph opens the page too.
+            dropCap: true,
         });
         // The infobox is generated content in document order — prepended,
         // before the prose. An image the note authored ahead of it still comes
@@ -405,6 +479,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         }
     });
 
+    const outDir = path.resolve(
+        resolved.rootDir,
+        out || resolved.pdf.out || path.join("build", "dist"),
+    );
+    fs.mkdirSync(outDir, { recursive: true });
+    const banners = stageBanners(plan.entries, resolved, outDir, findings);
+
     const assembled = renderBook({
         plan,
         bodies,
@@ -414,16 +495,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         fonts: resolved.pdf.fonts,
         version,
         preamble: infoboxTypstPreamble(),
+        banners,
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.
     const source = resolveDanglingLabels(assembled, findings);
 
-    const outDir = path.resolve(
-        resolved.rootDir,
-        out || resolved.pdf.out || path.join("build", "dist"),
-    );
-    fs.mkdirSync(outDir, { recursive: true });
     const stem = pdfFileName(resolved.foundryPackage?.id ?? resolved.contentPackage, version);
     const typPath = path.join(outDir, stem.replace(/\.pdf$/, ".typ"));
     const pdfPath = path.join(outDir, stem);

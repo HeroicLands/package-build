@@ -3,6 +3,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+    bookTypstPreamble,
     escapeTypst,
     labelFor,
     markdownToTypst,
@@ -39,6 +40,41 @@ describe("markdownToTypst", () => {
         expect(out).toContain("table.header([A], [B])");
         expect(out).toContain("columns: 2");
         expect(out).toContain("align: (left, right)");
+    });
+
+    it("spans a table wider than three columns across the page, and sets a narrower one in the column", () => {
+        // Past three columns the cells start breaking one word to a line in a
+        // column measure. `book-wide` decides between a float and pages of its
+        // own by measuring the result, which cannot be done here.
+        const wide = markdownToTypst(
+            ["| A | B | C | D |", "| - | - | - | - |", "| 1 | 2 | 3 | 4 |"].join("\n"),
+        );
+        expect(wide).toContain("#book-wide[");
+        const narrow = markdownToTypst(
+            ["| A | B | C |", "| - | - | - |", "| 1 | 2 | 3 |"].join("\n"),
+        );
+        expect(narrow).not.toContain("#book-wide[");
+    });
+
+    it("opens an entry on a raised capital, once and only where there is a letter to raise", () => {
+        const out = markdownToTypst("## Appearance\n\nBrànwâal is weathered.\n\nHe is also tall.", {
+            dropCap: true,
+        });
+        expect(out).toContain("#book-dropcap[B]#h(1pt)rànwâal is weathered.");
+        expect(out).toContain("He is also tall.");
+        expect(out.match(/#book-dropcap/g)).toHaveLength(1);
+    });
+
+    it("leaves a body that opens on markup to set as itself", () => {
+        // The chance is spent either way — a body opens once — and raising
+        // whatever happened to be first would put a 26pt accent on a bracket.
+        const out = markdownToTypst("**Bold** to start with.", { dropCap: true });
+        expect(out).not.toContain("#book-dropcap");
+        expect(out).toContain("#strong[Bold]");
+    });
+
+    it("raises nothing when the book did not ask for it", () => {
+        expect(markdownToTypst("Plain prose.")).not.toContain("#book-dropcap");
     });
 
     it("nests a list as a call rather than by indentation", () => {
@@ -166,11 +202,12 @@ describe("resolveDanglingLabels", () => {
 describe("renderBook", () => {
     const plan = {
         entries: [
-            { kind: "section", title: "Gear", depth: 1, anchor: "gear" },
+            { kind: "section", title: "Gear", depth: 1, anchor: "gear", trail: ["Gear"] },
             {
                 kind: "note",
                 depth: 1,
                 anchor: "weapongear-dagger",
+                trail: ["Gear"],
                 record: { name: { full: "Dagger" } },
             },
         ],
@@ -211,5 +248,84 @@ describe("renderBook", () => {
         expect(out).toContain("[A Book]");
         expect(out).toContain("[and more]");
         expect(out).toContain("[1.2.3]");
+    });
+
+    it("gives every entry a page of its own, and the section one too", () => {
+        // `book-entry` and `book-section` each open with a weak page break, so
+        // a page number in the contents points at the thing it names rather
+        // than at the middle of whatever ran on before it.
+        const out = renderBook({ plan, title: "A Book" });
+        expect(out).toContain("#book-section(");
+        expect(out).toContain("#book-entry(");
+        expect(bookTypstPreamble()).toContain("#let book-entry(kicker, title, banner, epigraph");
+        expect(bookTypstPreamble()).toMatch(/book-entry[\s\S]*?pagebreak\(weak: true\)/);
+        expect(bookTypstPreamble()).toMatch(/book-section[\s\S]*?pagebreak\(weak: true\)/);
+    });
+
+    it("sets the body in two columns, and takes a section's own count when it declares one", () => {
+        const out = renderBook({ plan, title: "A Book" });
+        expect(out).toContain("#set page(margin: book-margin, columns: 2,");
+        expect(out).toContain("#set page(columns: 2, footer: book-footer[Gear])");
+
+        const narrow = renderBook({
+            plan: {
+                ...plan,
+                entries: [{ ...plan.entries[0], presentation: { page: { columns: 1 } } }],
+            },
+            title: "A Book",
+        });
+        expect(narrow).toContain("#set page(columns: 1, footer: book-footer[Gear])");
+    });
+
+    it("names the running foot after the section, and after `footer:` when one is declared", () => {
+        const out = renderBook({
+            plan: {
+                ...plan,
+                entries: [{ ...plan.entries[0], presentation: { footer: "The Armoury" } }],
+            },
+            title: "A Book",
+        });
+        expect(out).toContain("footer: book-footer[The Armoury]");
+    });
+
+    it("plates an entry over the banner its section declared, and over nothing when there is none", () => {
+        // Art arrives later than rendering does, so a section with no banner —
+        // or one the build could not stage — still gets its plate.
+        const entries = [
+            { ...plan.entries[0], presentation: { page: { banner: "art/gear.webp" } } },
+            { ...plan.entries[1], presentation: { page: { banner: "art/gear.webp" } } },
+        ];
+        const staged = renderBook({
+            plan: { ...plan, entries },
+            title: "A Book",
+            banners: new Map([["art/gear.webp", "plates/art/gear.webp"]]),
+        });
+        expect(staged).toContain('"plates/art/gear.webp"');
+
+        const bare = renderBook({ plan: { ...plan, entries }, title: "A Book" });
+        expect(bare).toContain('#book-entry("Gear", "Dagger", none,');
+    });
+
+    it("sets a note's description as its epigraph, and leaves an entry without one bare", () => {
+        const described = renderBook({
+            plan: {
+                ...plan,
+                entries: [
+                    {
+                        ...plan.entries[1],
+                        record: { name: { full: "Dagger" }, description: "A short blade." },
+                    },
+                ],
+            },
+            title: "A Book",
+        });
+        expect(described).toContain("none, [A short blade.])");
+        expect(renderBook({ plan, title: "A Book" })).toContain("none, none)");
+    });
+
+    it("carries the section above an entry as its kicker, and the book above a section", () => {
+        const out = renderBook({ plan, title: "A Book" });
+        expect(out).toContain('#book-section("A Book", "Gear", none)');
+        expect(out).toContain('#book-entry("Gear", "Dagger"');
     });
 });
