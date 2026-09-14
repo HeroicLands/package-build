@@ -804,6 +804,10 @@ export function buildContentLinkIndex(
             pack: router.resolveOrNull(fm, packForType(fm.type).docType),
             docPack: router.resolveOrNull(fm, "JournalEntry"),
             shortcode: fm.shortcode ?? null,
+            // What the note *is*, carried so a caller resolving a reference
+            // can group by the family its target declares rather than only by
+            // where the target lives.
+            subType: fm.subType ?? null,
             name: fm.name?.full ?? base,
             // Whether the note is tagged `draft`. Read from the tag
             // vocabulary that declares it, and used for one thing: a link

@@ -709,6 +709,9 @@ function renderIcon(token, ctx) {
  * @param {string[]} [opts.front] - Rendered Typst for each front-matter file.
  * @param {object} [opts.fonts] - `{ serif, sans, mono }` family names.
  * @param {string} [opts.version] - Stamped on the title page when given.
+ * @param {string} [opts.preamble] - Definitions the bodies call, emitted once
+ *   above the title page. A panel every entry draws is a set of rules stated
+ *   here rather than repeated 2,500 times.
  * @returns {string} A complete `.typ` document.
  */
 export function renderBook({
@@ -719,6 +722,7 @@ export function renderBook({
     front = [],
     fonts = {},
     version = "",
+    preamble = "",
 } = {}) {
     const serif = fonts.serif || "Libertinus Serif";
     const sans = fonts.sans || serif;
@@ -743,6 +747,11 @@ export function renderBook({
     out.push("#set table(stroke: (x, y) => (top: 0.4pt, bottom: 0.4pt), inset: 5pt)");
     out.push("#show table.cell.where(y: 0): strong");
     out.push("");
+
+    if (preamble.trim()) {
+        out.push(preamble);
+        out.push("");
+    }
 
     // Title page.
     out.push("#align(center + horizon)[");

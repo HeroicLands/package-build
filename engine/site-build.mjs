@@ -53,9 +53,10 @@ import { slugify } from "./content-slug.mjs";
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
-import { buildSiteIndex, wikiContext } from "./site-index.mjs";
+import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
+import { noteInfoboxes } from "./infobox-registry.mjs";
 import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -1157,6 +1158,13 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             if (isBeing(page.fm)) {
                 data.sohl = deriveBeingInfo(page.fm.sohl, gates.index.refIndex);
             }
+            // The declared infobox, travelling in the page's own front matter.
+            // The site theme draws it; what it holds is settled here, so the
+            // same panel reaches the website, a compendium journal and the
+            // book from one definition.
+            data.infoboxes = noteInfoboxes(page.fm, {
+                resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
+            });
         },
     });
 

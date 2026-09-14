@@ -81,11 +81,19 @@ import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
-import { wikiContext } from "./site-index.mjs";
+import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { protectCode } from "./code-fences.mjs";
-import { createParser, markdownToTypst, renderBook, resolveDanglingLabels } from "./pdf-render.mjs";
+import {
+    createParser,
+    labelFor,
+    markdownToTypst,
+    renderBook,
+    resolveDanglingLabels,
+} from "./pdf-render.mjs";
+import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
+import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
 
 /**
@@ -309,13 +317,23 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: String(err.message ?? err),
             });
         }
-        return markdownToTypst(resolvedBody, {
+        const prose = markdownToTypst(resolvedBody, {
             md,
             links: plan.links,
             glyphs,
             headingOffset,
             anchorPrefix,
         });
+        // The infobox is generated content in document order — prepended,
+        // before the prose. An image the note authored ahead of it still comes
+        // first, because the image lives in the body and the body follows.
+        const boxes = noteInfoboxes(page.fm, {
+            resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
+        });
+        const panel = infoboxesToTypst(boxes, {
+            link: (value) => linkToTypst(value, plan.links, labelFor),
+        });
+        return panel ? `${panel}\n\n${prose}` : prose;
     };
 
     const bodies = new Map();
@@ -395,6 +413,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         front,
         fonts: resolved.pdf.fonts,
         version,
+        preamble: infoboxTypstPreamble(),
     });
     // Last, over the whole document: a reference can only be checked once every
     // declaration is in one string, and Typst treats a dangling one as fatal.

@@ -51,6 +51,9 @@ export * as actors from "./actors.mjs";
 /** Where HM3 records the template priority — one rule, called by both compilers. */
 export * as templatePriority from "./template-priority.mjs";
 
+/** Which of HM3's facts a note's summary panel carries. */
+export * as infobox from "./infobox.mjs";
+
 // Flat as well as namespaced, matching the SoHL barrel: the default-art map is
 // the one export a Foundry runtime would import by name.
 export { HM3_DEFAULT_ITEM_ART, hm3DefaultItemArt } from "./default-item-art.mjs";
