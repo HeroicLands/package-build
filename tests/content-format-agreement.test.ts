@@ -204,8 +204,11 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("reads vocabulary tables out of the specification, so the comparison is not vacuous", () => {
         // Guards the guard: were the table's header to change shape, every
-        // comparison below would be between two empty lists.
-        expect([...FORMAT.vocabularies.keys()].sort()).toEqual(["beingKind", "class", "float"]);
+        // comparison below would be between two empty lists. The two this
+        // suite compares are named, rather than every vocabulary the
+        // specification declares, so a vocabulary added elsewhere does not
+        // fail an assertion about images.
+        expect([...FORMAT.vocabularies.keys()]).toEqual(expect.arrayContaining(["class", "float"]));
     });
 
     it("declares exactly the width classes the specification lists, in its order", () => {
