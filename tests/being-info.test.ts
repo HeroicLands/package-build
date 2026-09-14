@@ -324,10 +324,19 @@ describe("what it leaves alone", () => {
 
     it.each([
         ["null", null],
-        ["undefined", undefined],
         ["a list", []],
         ["a string", "nope"],
     ])("returns %s as-is rather than throwing", (_name, value) => {
         expect(deriveBeingInfo(value as never, index())).toBe(value);
+    });
+
+    it("reports an absent block as null, the way an empty one is reported", () => {
+        // A note declaring no `sohl:` key at all arrives here as `undefined`,
+        // and the site emitter assigns the result straight into a page's front
+        // matter. js-yaml refuses to dump a property whose value is
+        // `undefined`, and the throw takes the whole site build down rather
+        // than the one page. `null` says the same thing and serialises, so
+        // "no block" and "an empty block" are answered identically.
+        expect(deriveBeingInfo(undefined as never, index())).toBeNull();
     });
 });
