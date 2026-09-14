@@ -1,5 +1,164 @@
 # @heroiclands/package-build
 
+## 21.0.0
+
+### Major Changes
+
+- 742861f: **A pathname names the package that owns the file, and every surface derives its
+  own address from it.** A note states a file once — `img:`, `data.portrait:`, a
+  map's background, overlay, tile textures and ambient sounds, and the address of
+  every image in a body — and four surfaces resolve it: a Foundry install, the
+  repository's own tree, the website, and the book. The website used to publish
+  the address exactly as authored, so a picture that appeared in Foundry and in
+  the book 404'd on the page.
+  
+  **What a pathname looks like now**
+  
+  - `images/map.webp` — a file **this** package ships.
+  - `sohl/assets/icons/noun/shield.svg` — a file the `sohl` package ships. The
+    first segment is the **content package**, never its Foundry id: `thalorna`,
+    not `sohl-thalorna`.
+  - An absolute URL, a `data:` URI, a `//host/…` or a `/`-rooted path passes
+    through untouched on every surface, which is how a note addresses core Foundry
+    art or a package outside this constellation.
+  
+  `thalorna` writing `images/map.webp` publishes
+  `modules/sohl-thalorna/assets/images/map.webp` in Foundry,
+  `https://cdn.heroiclands.org/thalorna/images/map.webp` on the web, and a copy
+  staged at `assets/images/map.webp` in the book.
+  
+  **What every consuming repository must change**
+  
+  - **Convert authored pathnames.** `systems/sohl/assets/X` becomes
+    `sohl/assets/X`, and `systems/hm3/images/X` becomes `hm3/assets/images/X`.
+    A Foundry-spelled pathname is now refused with a located error naming its
+    replacement, so nothing converts silently and nothing is missed.
+  - **Set `site.assets`** in `package-build.config.yaml` to the host the site
+    serves imagery from. A package-owned image on a page with none set is an
+    error naming the key.
+  - **HM3 serves its pictures from `assets/images/`.** The default art this
+    toolchain pairs with each HM3 item type addresses them there.
+  - **`DEFAULT_ITEM_ART` holds pathnames, not install paths.** A runtime reading
+    the map directly resolves the pathname for itself.
+  - **A package addressed by a pathname must be one the build knows** — its own,
+    a game system it compiles content for, or a package under `relationships`.
+    Where another package's content name differs from its Foundry id, say so with
+    `relationships.<kind>[].contentPackage`.
+  
+  `banner:` is unchanged, and still not a pathname: it names a hero image on the
+  site's own asset host, reaches no compiled document and no book, and the Hugo
+  theme resolves it.
+
+### Minor Changes
+
+- 0d83c42: **Beings**
+  
+  - A being note says what kind of being it is — `character` or `creature` — as a
+    tag, declared alongside the stations, the place kinds and `draft` that a note's
+    tags are already checked against.
+  - A being is one or the other. A note carrying both is refused, naming the note
+    and the line, because two answers to one question are no answer. A being
+    carrying neither is left alone, so a setting part-way through classifying its
+    cast still builds.
+  - A misspelt kind is caught the way a misspelt `village` already is: a query for
+    the characters in a setting does not find `charcter`, and the list it returns
+    still looks complete.
+- 841b98b: **`package-build bump` takes a newer first-party release without reformatting
+  the lockfile.** Run it with no arguments to move every `@heroiclands/*`
+  dependency to its newest published version, or name the packages to move; add
+  `--check` to see what would change and write nothing.
+  
+  npm does the resolving, so a version whose dependency set differs from the one
+  it replaces is handled as correctly as one that moves three lines — and then
+  both `package-lock.json` and `package.json` are restored to the indentation they
+  already used. That is the part worth having: every repository consuming this
+  toolchain writes its lockfile with four spaces and prettier-ignores it, npm
+  rewrites it with two, and a three-line version change arrives as a whole-file
+  reformat nobody can review.
+- 5d46b86: **The page**
+  
+  - Every entry now opens a page of its own, under a full-bleed plate carrying the section it belongs to above its name. A wrapped name grows the plate rather than pushing that line off the top of it.
+  - A section opens a page of its own too, plated to twice the depth, so the book reads as parts rather than as one continuous run.
+  - The body is set in two columns, on cream stock in dark ink with rust rules. A note's `description:` sets as an epigraph under the plate, and the prose opens on a raised capital.
+  - A running foot carries the section, an ornament and the folio, so a page found by chance says where it belongs.
+  - A page number in the contents now points at the first page of the thing it names.
+  - Columns are print's alone. The website keeps one measure.
+  
+  **Tables and wide content**
+  
+  - A table of more than three columns is set across the page instead of crushed into a column: floated over both where it fits a page, and given single-column pages of its own where it does not.
+  - A narrower table sets in the column measure and carries its header onto every page and column it spills onto.
+  
+  **What a section can say about itself**
+  
+  - A section may name the banner its plate is drawn over, the line printed above each entry's name, the name the running foot carries, and how many columns its pages are set in. Everything beneath it agrees unless it says otherwise.
+  - A section that names no banner still gets its plate, its kicker and its title. A banner that cannot be read is reported.
+- 790d7ab: **An image says how wide it is and where it sits, once, in the note.** A
+  markdown image can carry a directive in the curly-attribute convention Pandoc
+  and Kramdown use, and the book, the website and a Foundry journal page each
+  honour it:
+  
+  ```markdown
+  ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+  
+  ![Map of Thalorna](images/maps/thalorna.webp){.full-width}
+  ```
+  
+  - **Width is a class**, and the ordinary width carries no marker — `.full-width`
+    is the only one there is. One column in the book, the text measure on the
+    website and in a journal page.
+  - **Position is `float:`**, taking `top-left`, `bottom-left`, `top-right`,
+    `bottom-right` or `center`. The website and Foundry wrap text around it; print
+    cannot wrap around a shape, so a float there occupies the measure and only the
+    top-or-bottom half of a position has an effect.
+  - **An image is a block** — it stands alone in its paragraph — and its **alt
+    text is the caption**, drawn under the picture on every surface.
+  - Both vocabularies are **closed**. `{.fullwidth}`, `{width=800}` and
+    `{float: middle}` are refused by `content-build lint`, located by file, line
+    and column, and they fail the run: an unrecognised value rendering as the
+    ordinary width looks exactly like a directive that worked. Nothing beyond the
+    two vocabularies and the address reaches emitted markup.
+  
+  **The book prints pictures.** An image authored in a note is copied into the
+  output directory and set at the measure its class names, where it used to reach
+  the page as italic alt text. An address naming a file the package does not ship
+  prints its caption alone and is reported.
+  
+  **A body image's address follows the `img:` rule** — its first segment says
+  which package owns the file — so `images/map.webp` reaches a journal page as
+  `modules/<package>/assets/images/map.webp`. The website passes an address
+  through as authored; one that has to resolve there is written as a full URL.
+  
+  _Styling the two HTML surfaces is each surface's own: a figure carries
+  `note-image`, plus `note-image-full-width` and `note-image-float-…` from the
+  vocabularies._
+- 086fbb4: **Infoboxes**
+  
+  - Every entry now opens with a summary panel: the subject's own facts first, then one panel for each game system the note reaches.
+  - A gear item's price, weight and durability reach the panel whichever way the note states them, each with its unit on it — 160d, 1.1 lbs.
+  - Armour states all four protection aspects, an unrated one reading `0`; a weapon states its strike modes one per line, with `—` where a value was never given.
+  - A being's system panel gathers attributes, skills, mystical abilities and equipment, each a section that stays whole when the panel breaks across a page or column.
+  - Skills group by the family each skill note declares, and equipment by what the gear is. A projectile states what it hits for.
+  - Rows are labelled for a reader rather than named after the field behind them, and the panel says what the note says and nothing else: a value the system would have assumed anyway is left off, and so is a word standing in for an unset one — no more _Potency: Na_, and a strike mode that rolls no damage says so rather than printing a die nobody can roll.
+  - A system panel is never a heading over nothing. One reads _Not available_ where the system produces no document for the note; one that produces a document but adds nothing to the profile says so. A system with no such concept draws no panel at all.
+  - The panel carries no picture. An image belongs in the note's text, where its position decides what comes after it.
+  - On the web and in Foundry each panel is a disclosure a reader can fold away, open to begin with, so several stack without burying the prose. In print they simply flow.
+  - What a panel holds is settled once and drawn the same way in the book, on the website and in a compendium journal — and a field added to a note type appears in all three without further work.
+  
+  **Content format**
+  
+  - The specification now describes the infobox: where it sits in each medium, the rules that hold everywhere, which fields each panel carries, the three things a system panel can say, and the shape a page publishes it in.
+
+### Patch Changes
+
+- 841b98b: **A being that declares no `sohl:` block no longer takes the site build down.**
+  `content-build site` failed with `unacceptable kind of an object to dump [object
+  Undefined]` for any `type: being` note whose front matter carried no `sohl:` key
+  at all, and the throw aborted the entire run rather than the one page. A note
+  carrying `sohl: null` had always been fine, so the failure only appeared once a
+  tree removed the empty key rather than emptying it. Both shapes now publish the
+  same page. Fixes HeroicLands/package-build#478.
+
 ## 20.7.0
 
 ### Minor Changes
