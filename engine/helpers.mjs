@@ -100,18 +100,18 @@ export const md = markdownit({ html: true })
     // translated by the same rule `img:` follows.
     .use(
         imagePlugin((src) => {
-            // The *configuration* is what may be absent — a caller rendering
-            // markdown outside a content repository has none, and the ordinary
-            // width and position still apply. A pathname this rule refuses is a
-            // different thing entirely and is allowed to throw: emitting it as
-            // authored is the silent wrong address the rule exists to remove.
-            let config;
+            // **Reported elsewhere, never here.** A renderer has no channel to
+            // report through, and this one runs inside the very passes whose
+            // job is to collect findings — a throw would take the whole lint
+            // down and lose every other finding in the tree. A pathname this
+            // rule refuses is a Foundry address, so emitting it unchanged is
+            // right on the one surface this renderer serves, and the passes
+            // that own the other three refuse it with a line and a column.
             try {
-                config = loadPackConfig();
+                return resolveImg(src, loadPackConfig()) ?? src;
             } catch {
                 return src;
             }
-            return resolveImg(src, config) ?? src;
         }),
     );
 

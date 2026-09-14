@@ -1428,7 +1428,13 @@ function pdfCommand() {
                     compile: argv.compile !== false,
                 });
 
-                for (const finding of result.findings) emitDiagnostic(finding);
+                // The shared line, not a second copy of it: an **error** fails
+                // the run and a **warning** does not. A picture the book cannot
+                // carry is a warning — the entry still prints, with its caption
+                // where the image would be — and a pathname no surface can
+                // resolve is an error, because the same statement is wrong in
+                // Foundry and on the website too.
+                const errors = reportFindings(result.findings, {});
 
                 if (!result.built) {
                     // A reason is a deliberate no-op — the fence, an absent
@@ -1452,9 +1458,7 @@ function pdfCommand() {
                 );
                 log.info(`Typst source: ${result.typ}`);
                 if (result.pdf) log.info(`Book: ${result.pdf}`);
-                // Findings are reported, never fatal — a filter that selected
-                // nothing is worth fixing and is not worth refusing to publish
-                // the other two thousand entries over.
+                if (errors) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
