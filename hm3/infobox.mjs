@@ -29,11 +29,27 @@
  * @module
  */
 
-import { defineInfobox } from "../engine/infobox.mjs";
+import { GEAR_UNITS, defineInfobox } from "../engine/infobox.mjs";
 import { HM3_ITEM_FIELDS } from "./item-fields.mjs";
 
 /** What this system's box is called. @type {string} */
 export const HM3_INFOBOX_TITLE = "HM3";
+
+/**
+ * HM3's presentation overlay: what one of this system's fields is called where
+ * humanising its key gives the wrong word.
+ *
+ * **Not a second field list.** A field it does not mention still gets a row
+ * under its own humanised name, so a field added to {@link HM3_ITEM_FIELDS}
+ * reaches the box with no edit here.
+ *
+ * @type {Readonly<Record<string, {label?: string, withheld?: string}>>}
+ */
+export const HM3_FIELD_PRESENTATION = Object.freeze({
+    ...GEAR_UNITS,
+    capacity: Object.freeze({ label: "Capacity", unit: " lbs" }),
+    masteryLevel: Object.freeze({ label: "Mastery" }),
+});
 
 /**
  * HM3's infobox declaration.
@@ -44,4 +60,5 @@ export const HM3_INFOBOX = defineInfobox({
     system: "hm3",
     title: HM3_INFOBOX_TITLE,
     fields: HM3_ITEM_FIELDS,
+    presentation: HM3_FIELD_PRESENTATION,
 });

@@ -26,7 +26,7 @@
  * and, for an item type, the very list the compiler obeys — so a field added
  * to a type reaches the box with no second edit anywhere.
  *
- * **Three types earn a builder of their own**, because their box is derived
+ * **Four types earn a builder of their own**, because their box is derived
  * rather than read field by field:
  *
  * - a **being**, whose attributes, skills, mystical abilities and carried gear
@@ -36,16 +36,24 @@
  *   an unstated one rendered `0` rather than dropped — armour that stops
  *   nothing edged is a fact, not a gap;
  * - a **weapon**, whose strike modes are shown one per line, with an unstated
- *   value rendered `—` for the same reason.
+ *   value rendered `—` for the same reason;
+ * - a **projectile**, whose impact is three declared fields composing into the
+ *   one quantity a reader wants.
  *
  * Both placeholders are **data**, decided here, not a renderer's fallback.
  * That is what lets one generic renderer draw them without knowing which field
  * it is looking at.
  *
+ * **What each field is called, and the few that carry no row**, is
+ * {@link SOHL_FIELD_PRESENTATION} — an overlay on the declaration rather than
+ * a list beside it.
+ *
  * @module
  */
 
 import {
+    DURATION_LABELS,
+    GEAR_UNITS,
     defineInfobox,
     hasValue,
     humanizeFieldName,
@@ -55,7 +63,6 @@ import {
 import { currentType } from "../engine/ids.mjs";
 import { subTypes } from "../engine/note-vocabulary.mjs";
 import { systemBlock, systemData } from "../engine/system-block.mjs";
-import { getFrontmatter } from "../engine/frontmatter.mjs";
 import { NOTE_SCHEMAS } from "./note-schemas.mjs";
 import { GEAR_TYPE_TO_KEY } from "./being-info.mjs";
 
@@ -75,24 +82,92 @@ export const SOHL_INFOBOX_TITLE = "SoHL";
  */
 export const UNSTATED = "—";
 
+/** The prefix every protection aspect's declared name carries. @type {string} */
+const PROTECTION_PREFIX = "protection.";
+
 /**
- * The four aspects armour is rated against, in the order a sheet shows them.
+ * The declarations of the four aspects armour is rated against, in the order a
+ * sheet shows them.
  *
- * Read from the armour field declaration rather than listed: the declaration
- * names `protection.blunt`, `protection.edged` and the rest, so the set and
- * its order come from the same place the compiler reads them.
+ * Taken from the armour field declaration rather than listed: the declaration
+ * names `protection.blunt`, `protection.edged` and the rest, so the set, its
+ * order **and where each is authored** come from the same place the compiler
+ * reads them. Carrying the whole declaration rather than the aspect's word is
+ * what lets the grid resolve a value the way the compiler does — a note writes
+ * `sohl.system.protectionBase.blunt`, and a grid that read the declared
+ * *source* path instead would find nothing and call every aspect unstated.
  *
- * @type {readonly string[]}
+ * @type {readonly object[]}
  */
-export const PROTECTION_ASPECTS = Object.freeze(
-    (NOTE_SCHEMAS.armorgear ?? [])
-        .map((field) => field.name)
-        .filter((name) => typeof name === "string" && name.startsWith("protection."))
-        .map((name) => name.slice("protection.".length)),
+export const PROTECTION_FIELDS = Object.freeze(
+    (NOTE_SCHEMAS.armorgear ?? []).filter(
+        (field) => typeof field.name === "string" && field.name.startsWith(PROTECTION_PREFIX),
+    ),
 );
 
 /** A skill family whose humanised name reads wrong. */
 const SKILL_GROUP_LABELS = Object.freeze({ combattechnique: "Combat Techniques" });
+
+/**
+ * SoHL's presentation overlay: what one of this system's fields is called, and
+ * the few that carry no row.
+ *
+ * **Not a second field list.** The fields come from {@link NOTE_SCHEMAS}, and
+ * a field this overlay does not mention still gets a row under its own
+ * humanised name — so a field added to a type reaches the box with no edit
+ * here. What the overlay adds is the two things a compiler's field list cannot
+ * say, because they are about a page rather than about a document:
+ *
+ * - **a reader's word** where the declaration's key is the compiler's. A key
+ *   is named for the value it carries into a DataModel; `assocSkillCode` and
+ *   `perceptionPenaltyBase` are exactly right there and wrong in a panel
+ *   somebody reads.
+ * - **which facts belong on a page at all.** A value shown whole somewhere
+ *   else in the same box — protection, strike modes, a projectile's impact —
+ *   would otherwise be said twice, the second time a row at a time and worse;
+ *   and a flag that steers a character sheet is not a fact about the subject.
+ *
+ * @type {Readonly<Record<string, {label?: string, withheld?: string}>>}
+ */
+export const SOHL_FIELD_PRESENTATION = Object.freeze({
+    ...DURATION_LABELS,
+    ...GEAR_UNITS,
+
+    "protection.blunt": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
+    "protection.edged": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
+    "protection.piercing": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
+    "protection.fire": Object.freeze({ withheld: "shown whole, in the Protection grid" }),
+    strikeModes: Object.freeze({ withheld: "shown one per line, in the Strike Modes section" }),
+    "impact.die": Object.freeze({ withheld: "shown whole, as the Impact row" }),
+    "impact.modifier": Object.freeze({ withheld: "shown whole, as the Impact row" }),
+    "impact.aspect": Object.freeze({ withheld: "shown whole, as the Impact row" }),
+    improveFlag: Object.freeze({
+        withheld: "character-sheet machinery — whether the item is flagged for improvement",
+    }),
+    facing: Object.freeze({
+        withheld: "a body-location layout, which has no summary shape",
+    }),
+
+    subType: Object.freeze({ label: "Subtype" }),
+    flexloc: Object.freeze({ label: "Flexible locations" }),
+    rigidloc: Object.freeze({ label: "Rigid locations" }),
+    perceptionPenaltyBase: Object.freeze({ label: "Perception penalty" }),
+    detailMaterial: Object.freeze({ label: "Material detail" }),
+    maxCapacity: Object.freeze({ label: "Max capacity", unit: " lbs" }),
+    scoreBase: Object.freeze({ label: "Score" }),
+    masteryLevelBase: Object.freeze({ label: "Mastery" }),
+    levelBase: Object.freeze({ label: "Level" }),
+    healingRateBase: Object.freeze({ label: "Healing rate" }),
+    skillBaseFormula: Object.freeze({ label: "Skill base" }),
+    initSkillMult: Object.freeze({ label: "Init multiplier" }),
+    initDiceFormula: Object.freeze({ label: "Initiative dice" }),
+    valueDesc: Object.freeze({ label: "Scale" }),
+    parentSkillCode: Object.freeze({ label: "Specialises" }),
+    assocSkillCode: Object.freeze({ label: "Associated skill" }),
+    assocAffiliationCode: Object.freeze({ label: "Associated affiliation" }),
+    bodyLocationCode: Object.freeze({ label: "Body location" }),
+    impairedByRoles: Object.freeze({ label: "Impaired when" }),
+});
 
 /** Whether a value is a plain mapping. */
 function isMapping(value) {
@@ -264,11 +339,13 @@ export function beingSections(fm, { block, resolve }) {
  */
 export function armorSections(fm, ctx) {
     const sections = genericSections(fm, "armorgear", ctx);
-    const data = systemData(fm, ctx.block);
-    const cells = PROTECTION_ASPECTS.map((aspect) => ({
-        label: humanizeFieldName(aspect),
-        value: getFrontmatter(data, `protection.${aspect}`, 0) ?? 0,
-    }));
+    const cells = PROTECTION_FIELDS.map((field) => {
+        const { value } = ctx.resolveField(field, fm, { block: ctx.block });
+        return {
+            label: humanizeFieldName(field.name),
+            value: hasValue(value) ? value : 0,
+        };
+    });
     if (cells.length) {
         sections.push({ id: "protection", label: "Protection", layout: "grid", cells });
     }
@@ -289,11 +366,8 @@ export function armorSections(fm, ctx) {
  */
 export function weaponSections(fm, ctx) {
     const sections = genericSections(fm, "weapongear", ctx);
-    const declared = systemData(fm, ctx.block).strikeModes;
-    const modes = isMapping(declared) ? Object.entries(declared) : [];
     const groups = [];
-    for (const [key, mode] of modes) {
-        if (!isMapping(mode)) continue;
+    for (const [key, mode] of strikeModes(systemData(fm, ctx.block).strikeModes)) {
         groups.push({
             label: mode.name || humanizeValue(key),
             entries: [
@@ -309,21 +383,86 @@ export function weaponSections(fm, ctx) {
     return sections;
 }
 
+/**
+ * A projectile's box: whatever the note states, then what it hits for.
+ *
+ * Impact is three declared fields — dice, modifier and aspect — and a reader
+ * wants the one quantity they compose into. Three rows reading `Die 6`,
+ * `Modifier 2`, `Aspect Piercing` say the declaration's structure rather than
+ * the projectile's, so the three are withheld and the row they make is added
+ * in their place.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {object} ctx - The section context.
+ * @returns {object[]} The sections.
+ */
+export function projectileSections(fm, ctx) {
+    const sections = genericSections(fm, "projectilegear", ctx);
+    const impact = impactOf(systemData(fm, ctx.block).impactBase);
+    if (impact !== UNSTATED) {
+        const rows = sections[0]?.rows;
+        const row = { label: "Impact", kind: "text", value: impact };
+        if (rows) rows.push(row);
+        else sections.push({ id: "profile", layout: "rows", rows: [row] });
+    }
+    return sections;
+}
+
+/**
+ * A weapon's strike modes, whichever of the two shapes the note wrote.
+ *
+ * Both are live in the corpus and both name the same thing. A **list** carries
+ * the mode's identity inside it, as `shortcode`, which is the shape a
+ * compendium document holds; a **mapping** carries it as the key. So the
+ * fallback name comes from the shortcode in one and from the key in the other,
+ * and everything downstream sees one shape.
+ *
+ * @param {unknown} declared - What the note wrote at `strikeModes`.
+ * @returns {[string, object][]} Mode name → the mode.
+ */
+export function strikeModes(declared) {
+    if (Array.isArray(declared)) {
+        return declared
+            .filter(isMapping)
+            .map((mode, at) => [String(mode.shortcode ?? at + 1), mode]);
+    }
+    if (isMapping(declared)) return Object.entries(declared).filter(([, mode]) => isMapping(mode));
+    return [];
+}
+
 /** A modifier with its sign, or {@link UNSTATED}. */
 function signed(value) {
     if (!hasValue(value) && value !== 0) return UNSTATED;
     return Number(value) >= 0 ? `+${value}` : String(value);
 }
 
-/** An impact as dice and aspect, or {@link UNSTATED}. */
+/**
+ * An impact as dice and aspect, or {@link UNSTATED}.
+ *
+ * **A die of `0` is no die**, which is how the schema says a strike mode rolls
+ * nothing — a net envelops and does no damage. Read as a number it would print
+ * `1d0`, a roll nobody can make, so it composes to a flat modifier or to
+ * nothing at all.
+ *
+ * **An aspect alone is not an impact.** Without a die or a modifier there is no
+ * magnitude, and a line reading `Impact blunt` states the kind of a quantity
+ * that was never given. That is {@link UNSTATED}'s whole job.
+ *
+ * @param {unknown} impact - The authored `impactBase`.
+ * @returns {string} The impact, or {@link UNSTATED}.
+ */
 function impactOf(impact) {
     if (!isMapping(impact)) return UNSTATED;
-    const dice = hasValue(impact.die) ? `${impact.numDice ?? 1}d${impact.die}` : "";
+    const die = Number(impact.die ?? 0);
     const modifier = Number(impact.modifier ?? 0);
-    const roll = dice ? `${dice}${modifier ? signed(modifier) : ""}` : "";
+    const dice = die > 0 ? `${impact.numDice ?? 1}d${die}` : "";
+    const roll =
+        dice ? `${dice}${modifier ? signed(modifier) : ""}`
+        : modifier ? signed(modifier)
+        : "";
+    if (!roll) return UNSTATED;
     const aspect = hasValue(impact.aspect) ? humanizeValue(impact.aspect) : "";
-    const text = [roll, aspect].filter(Boolean).join(" ");
-    return text || UNSTATED;
+    return [roll, aspect].filter(Boolean).join(" ");
 }
 
 /**
@@ -350,9 +489,11 @@ export const SOHL_INFOBOX = defineInfobox({
     system: "sohl",
     title: SOHL_INFOBOX_TITLE,
     fields: NOTE_SCHEMAS,
+    presentation: SOHL_FIELD_PRESENTATION,
     sections: {
         being: beingSections,
         armorgear: armorSections,
         weapongear: weaponSections,
+        projectilegear: projectileSections,
     },
 });

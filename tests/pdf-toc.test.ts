@@ -96,6 +96,48 @@ contents:
         expect(by.Weapons).toEqual({ infobox: "weapon", header: "running" });
     });
 
+    it("checks the shape of the presentation the renderer reads", () => {
+        // A key nothing can act on is an error rather than a silence: `page`
+        // and `footer` are read when the book is set, so a typo in either is
+        // reported where it was written.
+        const { findings } = tree(`
+contents:
+  - sectionName: Gear
+    footer: 7
+    page:
+      bannner: plates/gear.webp
+      columns: two
+    contents: []
+`);
+        const messages = findings.map((f: any) => f.message);
+        expect(messages).toContain("`footer:` must be the name the running foot carries");
+        expect(messages).toContain("unknown key `bannner:` under `page:`");
+        expect(messages).toContain("`page.columns:` must be a whole number from 1 to 4");
+        expect(findings.every((f: any) => f.line > 0)).toBe(true);
+    });
+
+    it("takes a banner, a kicker and a column count as the presentation they are", () => {
+        const { nodes, findings } = tree(`
+contents:
+  - sectionName: Beings
+    footer: The Bestiary
+    page:
+      banner: assets/images/banners/bestiary.webp
+      kicker: The Bestiary of Thalorna
+      columns: 1
+    contents: []
+`);
+        expect(findings).toEqual([]);
+        expect(nodes[0].presentation).toEqual({
+            footer: "The Bestiary",
+            page: {
+                banner: "assets/images/banners/bestiary.webp",
+                kicker: "The Bestiary of Thalorna",
+                columns: 1,
+            },
+        });
+    });
+
     it("refuses a filter that reaches another package's notes", () => {
         // The build owns `SELECT … FROM notes`, so the only way back out is a
         // subquery — and a book selects from its own project only.

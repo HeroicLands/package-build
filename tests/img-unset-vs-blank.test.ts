@@ -63,12 +63,12 @@ describe("resolveImg tells an unset path from a deliberately blank one", () => {
         expect(resolveImg("")).toBe("");
     });
 
-    it("still translates a bundled asset root, and still passes anything else through", () => {
+    it("still translates a bundled pathname, and still passes a URL through", () => {
         // The translation half is unchanged; only the empty cases moved.
         expect(resolveImg("icons/other/sword.svg")).toBe(
             "systems/sohl/assets/icons/other/sword.svg",
         );
-        expect(resolveImg("modules/foo/bar.webp")).toBe("modules/foo/bar.webp");
+        expect(resolveImg("https://example.com/a.png")).toBe("https://example.com/a.png");
     });
 
     it("distinguishes the two for a non-`sohl` consumer as well", () => {
@@ -101,16 +101,19 @@ describe("an item note's `img`", () => {
         sohl: { subType: "physical", archetype: null },
     };
 
+    // The registry's art is a pathname like any other, so the compiled value
+    // is its resolved form rather than the map's own string.
+    const SKILL_ART = "systems/sohl/assets/icons/other/head-gear.svg";
+
     it("falls back to the type's default art when the key is absent", () => {
-        expect(compiler().buildEntry(SKILL_FM, "").img).toBe(DEFAULT_ITEM_ART.skill);
+        expect(DEFAULT_ITEM_ART.skill).toBe("sohl/assets/icons/other/head-gear.svg");
+        expect(compiler().buildEntry(SKILL_FM, "").img).toBe(SKILL_ART);
     });
 
     it("falls back to the type's default art when the note writes `null`", () => {
         // The 45 `sohl-thalorna` notes this rule was written for say exactly
         // this, and must keep the art they have always compiled with.
-        expect(compiler().buildEntry({ ...SKILL_FM, img: null }, "").img).toBe(
-            DEFAULT_ITEM_ART.skill,
-        );
+        expect(compiler().buildEntry({ ...SKILL_FM, img: null }, "").img).toBe(SKILL_ART);
     });
 
     it('ships no art at all when the note writes `""`', () => {
@@ -119,8 +122,7 @@ describe("an item note's `img`", () => {
 
     it("still lets a note name its own art", () => {
         expect(
-            compiler().buildEntry({ ...SKILL_FM, img: "systems/sohl/assets/icons/custom.svg" }, "")
-                .img,
+            compiler().buildEntry({ ...SKILL_FM, img: "sohl/assets/icons/custom.svg" }, "").img,
         ).toBe("systems/sohl/assets/icons/custom.svg");
     });
 });

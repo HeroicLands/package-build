@@ -63,6 +63,7 @@ import {
     unknownBlockKeys,
 } from "./system-block.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
+import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
@@ -787,7 +788,7 @@ function checkExclusiveTags(note, { type }) {
  *
  * @type {readonly {key: string, inData: boolean}[]}
  */
-const ART_FIELDS = Object.freeze([
+export const ART_FIELDS = Object.freeze([
     Object.freeze({ key: "img", inData: false }),
     Object.freeze({ key: "portrait", inData: true }),
 ]);
@@ -1179,6 +1180,29 @@ export function lintNote(
                 ", so the path is dropped. Delete the key, or move the art onto " +
                 "the note whose document is meant to show it; keep it only where " +
                 "a page template reads it as a parameter",
+        });
+    }
+
+    // A pathname written in Foundry's own spelling. It resolves for Foundry and
+    // for neither of the other two surfaces, which have no such directory — so
+    // the website serves a 404 and the book prints a caption with no picture,
+    // and nothing in either build has any reason to look twice at a string that
+    // parses. An **error**: the replacement is mechanical and named in the
+    // message, and a tree that has not been swept should stop rather than
+    // publish two broken surfaces out of three.
+    for (const { key, inData } of ART_FIELDS) {
+        const authored = authoredValue(fm, key, {
+            inData,
+            blockCollides: blockCollisions.has(key),
+        });
+        if (typeof authored !== "string") continue;
+        const problem = pathnameProblem(authored);
+        if (!problem) continue;
+        findings.push({
+            file: note.file,
+            ...at(key, authored),
+            severity: "error",
+            message: problem,
         });
     }
 

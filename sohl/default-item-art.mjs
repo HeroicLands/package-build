@@ -18,7 +18,7 @@
  *
  * Foundry's `Item.DEFAULT_ICON` is the white `icons/svg/item-bag.svg`, which is
  * invisible on the light Manuscript sheet and does not adapt to theme; every
- * SoHL item type instead defaults to a themed `systems/sohl/assets/icons/**`
+ * SoHL item type instead defaults to a themed `sohl/assets/icons/**`
  * SVG here (dark ink in light mode, cream in dark, via the build-time
  * adaptive-fill injection in `utils/svg-theme.mjs`).
  *
@@ -38,8 +38,10 @@
  * Injecting the map through configuration instead would re-open that drift,
  * because the two sides would once more be free to disagree.
  *
- * Paths are fully resolved (`systems/sohl/...`) — the served path both layers
- * need. If a new item type is added, add its default here.
+ * **Paths name the package that owns the file**, as every pathname does: these
+ * icons are the `sohl` package's, so they are written `sohl/assets/…` and each
+ * surface derives its own address from that. If a new item type is added, add
+ * its default here.
  *
  * **The keys are SoHL *document* subtypes, not markdown note types.** The
  * runtime reads this with `itemData.type`, which is a Foundry Item subtype, and
@@ -51,19 +53,19 @@
  * build translates once and no second copy of those three rows exists.
  */
 export const DEFAULT_ITEM_ART = {
-    affiliation: "systems/sohl/assets/icons/noun/shield.svg",
-    affliction: "systems/sohl/assets/icons/other/sick.svg",
-    armorgear: "systems/sohl/assets/icons/game-icons/lorc/breastplate.svg",
-    attribute: "systems/sohl/assets/icons/other/charm.svg",
-    concoctiongear: "systems/sohl/assets/icons/game-icons/badges/flask.svg",
-    containergear: "systems/sohl/assets/icons/other/sack.svg",
-    miscgear: "systems/sohl/assets/icons/other/question-mark.svg",
-    mystery: "systems/sohl/assets/icons/other/sparkles.svg",
-    mysticalability: "systems/sohl/assets/icons/other/hand-sparkles.svg",
-    projectilegear: "systems/sohl/assets/icons/noun/arrow.svg",
-    skill: "systems/sohl/assets/icons/other/head-gear.svg",
-    trauma: "systems/sohl/assets/icons/other/injury.svg",
-    weapongear: "systems/sohl/assets/icons/other/sword.svg",
+    affiliation: "sohl/assets/icons/noun/shield.svg",
+    affliction: "sohl/assets/icons/other/sick.svg",
+    armorgear: "sohl/assets/icons/game-icons/lorc/breastplate.svg",
+    attribute: "sohl/assets/icons/other/charm.svg",
+    concoctiongear: "sohl/assets/icons/game-icons/badges/flask.svg",
+    containergear: "sohl/assets/icons/other/sack.svg",
+    miscgear: "sohl/assets/icons/other/question-mark.svg",
+    mystery: "sohl/assets/icons/other/sparkles.svg",
+    mysticalability: "sohl/assets/icons/other/hand-sparkles.svg",
+    projectilegear: "sohl/assets/icons/noun/arrow.svg",
+    skill: "sohl/assets/icons/other/head-gear.svg",
+    trauma: "sohl/assets/icons/other/injury.svg",
+    weapongear: "sohl/assets/icons/other/sword.svg",
 };
 
 /**

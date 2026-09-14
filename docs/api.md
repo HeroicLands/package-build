@@ -356,7 +356,12 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | ------------------------- | -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
 | `INFOBOX_LAYOUTS`         | `const INFOBOX_LAYOUTS`                | —                           | looking up the four section layouts and the property each carries its content in       |
 | `INFOBOX_VALUE_KINDS`     | `const INFOBOX_VALUE_KINDS`            | —                           | enumerating what a row's value may be                                                  |
+| `DURATION_LABELS`         | `const DURATION_LABELS`                | —                           | naming a duration pair — the roll and the flat number of seconds — in either overlay   |
+| `GEAR_UNITS`              | `const GEAR_UNITS`                     | —                           | naming a gear item's price and weight, and the unit each carries, in either overlay    |
+| `UNSET_VALUES`            | `const UNSET_VALUES`                   | —                           | enumerating the words a corpus writes when it means "there is nothing here"            |
+| `applyUnit`               | `applyUnit(kind, value, unit)`         | `object`                    | putting a declared unit on a row's value, where the quantity is                        |
 | `NOT_AVAILABLE`           | `const NOT_AVAILABLE`                  | —                           | naming what a mapped system that produced no document says                             |
+| `NOTHING_BEYOND_PROFILE`  | `const NOTHING_BEYOND_PROFILE`         | —                           | naming what a system holding nothing the note box has not shown says                   |
 | `NOTE_BOX_ID`             | `const NOTE_BOX_ID`                    | —                           | naming the note infobox, which is not a system id                                      |
 | `NOTE_BOX_TITLE`          | `const NOTE_BOX_TITLE`                 | —                           | naming the note infobox's heading                                                      |
 | `NOTE_SECTION_ID`         | `const NOTE_SECTION_ID`                | —                           | naming the note infobox's single section                                               |
@@ -368,10 +373,14 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `hasValue`                | `hasValue(value)`                      | `boolean`                   | deciding whether an authored value is worth a row                                      |
 | `humanizeFieldName`       | `humanizeFieldName(name)`              | `string`                    | turning a declared key into the label a reader sees                                    |
 | `humanizeValue`           | `humanizeValue(value)`                 | `string`                    | turning an authored value into readable text                                           |
+| `isDeclaredDefault`       | `isDeclaredDefault(field, raw)`        | `boolean`                   | deciding whether a value is the one the field's own declaration would have supplied    |
+| `isUnsetSentinel`         | `isUnsetSentinel(value)`               | `boolean`                   | deciding whether a value is a word meaning "nothing here" rather than a value          |
 | `linkValue`               | `linkValue(ref, resolve, hint)`        | `object`                    | resolving one reference into a `link` value                                            |
 | `noteInfobox`             | `noteInfobox(fm, options)`             | `object`                    | building the note box alone, from the type's `data:` vocabulary                        |
+| `overlayFor`              | `overlayFor(presentation, type, name)` | `object`                    | reading a field's overlay entry, preferring the `<type>.<field>` key over the bare one |
 | `presentValue`            | `presentValue(value)`                  | `string`                    | showing a value in a row, capitalising an enumerated one and leaving prose as written  |
 | `requiredInfoboxIds`      | `requiredInfoboxIds(fm, options)`      | `string[]`                  | asking which boxes a note's type maps to                                               |
+| `sectionHolds`            | `sectionHolds(section)`                | `boolean`                   | deciding whether a section holds anything a medium would draw                          |
 | `systemRowsSection`       | `systemRowsSection(fm, fields, ctx)`   | `object[]`                  | building the rows a type's own field declaration yields                                |
 | `valueKindOf`             | `valueKindOf(field, value)`            | `string`                    | reading the value kind a field declaration implies                                     |
 
@@ -616,6 +625,41 @@ Raw HTML in a note's prose, reported. **A note is markdown.** What markdown cann
 | `checkHtml`       | `function checkHtml(body, file,`        | {Array<{file: string, line: number, column: number, severity: "warning", message: string}>} One finding per tag, in source order.                                  | Every raw HTML tag in one note's body.                         |
 | `lintContentHtml` | `function lintContentHtml(contentBase,` | {{findings: Array<{file: string, line: number, column: number, severity: "warning", message: string}>, files: number}} The findings, and how many files were read. | Walk a content tree and report raw HTML in every note's prose. |
 
+### `engine.contentImages`
+
+An image saying how wide it is and where it sits. A markdown image carries no indication of either, so each of the three surfaces decides for itself and the author — who is the one who knows — has no way to say. A directive in the curly-attribute convention Pandoc and Kramdown use closes that, in two closed vocabularies: a width class, and a `float:` position.
+
+| Export                | Signature                                       | Returns                                                                                                                                        | Use it when                                                                  |
+| --------------------- | ----------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `IMAGE_CLASSES`       | `const IMAGE_CLASSES`                           | —                                                                                                                                              | The width classes an image may carry, and what each means to a renderer.     |
+| `IMAGE_FLOATS`        | `const IMAGE_FLOATS`                            | —                                                                                                                                              | The `float:` positions an image may take, and where each puts it.            |
+| `IMAGE_FIGURE_CLASS`  | `const IMAGE_FIGURE_CLASS`                      | —                                                                                                                                              | The class every figure carries, whatever its width or position.              |
+| `IMAGE_PATTERN`       | `const IMAGE_PATTERN`                           | —                                                                                                                                              | A markdown image, with the directive it may carry.                           |
+| `imageSourceProblem`  | `function imageSourceProblem(src)`              | {string} The problem, as a finding's sentence, or `""`.                                                                                        | What is wrong with an image's address, or `""` when nothing is.              |
+| `parseImageDirective` | `function parseImageDirective(raw)`             | {{classes: string[], float: string, problems: string[]}} What was written, and what cannot be honoured.                                        | Read the directive on an image.                                              |
+| `figureClasses`       | `function figureClasses(directive)`             | {string} A space-separated class list.                                                                                                         | The classes a figure carries, from a parsed directive.                       |
+| `escapeHtml`          | `function escapeHtml(text)`                     | {string} The same value, safe in markup.                                                                                                       | Text going inside an HTML attribute or between tags.                         |
+| `imageFigureHtml`     | `function imageFigureHtml(image)`               | {string} The figure, as one HTML block.                                                                                                        | One image as the `<figure>` both HTML surfaces render.                       |
+| `standsAlone`         | `function standsAlone(text, start, end)`        | {boolean} Whether the match is a block of its own.                                                                                             | Whether a match sits alone in its own paragraph.                             |
+| `imagesIn`            | `function imagesIn(body)`                       | {Array<{alt: string, src: string, title: string, directive: string, index: number, length: number, block: boolean}>} One entry per image.      | Every image in one body, with its directive and its position.                |
+| `imageSourcesIn`      | `function imageSourcesIn(body)`                 | {string[]} The addresses, with repeats.                                                                                                        | Every image address one body names, in order of appearance.                  |
+| `checkImages`         | `function checkImages(body, file,`              | {Array<{file: string, line: number, column: number\|undefined, severity: "error", message: string}>} One finding per defect, in source order.  | Every defect in one note's images.                                           |
+| `lintContentImages`   | `function lintContentImages(contentBase,`       | {{findings: Array<{file: string, line: number, column: number\|undefined, severity: "error", message: string}>, files: number}} What it found. | Walk a content tree and report every image it cannot render as authored.     |
+| `renderImageFigures`  | `function renderImageFigures(body, resolveSrc)` | {string} The same body, with each block image as a `<figure>`.                                                                                 | Rewrite every block image in a body into the figure the website publishes.   |
+| `imagePlugin`         | `function imagePlugin()`                        | {(md: object) => void} A markdown-it plugin.                                                                                                   | A markdown-it plugin that reads an image's directive and renders its figure. |
+
+### `engine.pathnames`
+
+One authored pathname, and the four addresses it resolves to. A note names a file once — in `img:`, in `data.portrait:`, in the body of a markdown image — and the first segment says which package owns it when an `assets/` follows. Every surface derives its own address from that one statement: the path inside a Foundry install, the file in the owning repository's tree, the address the website serves, and where the book stages its copy.
+
+| Export              | Signature                               | Returns                                                                                            | Use it when                                                         |
+| ------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ASSETS_SEGMENT`    | `const ASSETS_SEGMENT`                  | —                                                                                                  | The directory a package ships its files in.                         |
+| `PATHNAME_SURFACES` | `const PATHNAME_SURFACES`               | —                                                                                                  | The surfaces one authored pathname resolves for.                    |
+| `pathnameProblem`   | `function pathnameProblem(raw)`         | {string} The problem, as a finding's sentence, or `""`.                                            | What is wrong with an authored pathname, or `""` when nothing is.   |
+| `packageAddresses`  | `function packageAddresses(config)`     | {Map<string, {root: string\|null, id: string\|null, own: boolean}>} The packages, by package name. | Every content package this build can resolve a pathname against.    |
+| `resolvePathname`   | `function resolvePathname(raw, config)` | {PathnameForms\|null} The four forms, or `null` when the note names no file.                       | Resolve one authored pathname into the address each surface serves. |
+
 ### `engine.contentLinks`
 
 Resolving every link in a content tree, and reporting the ones that land nowhere. Three link defects survive both content builds silently, so neither the pack compilers nor a site build catches them:
@@ -769,16 +813,17 @@ The document tree a PDF is built from, and the plan it resolves to (#316). The p
 
 A note's markdown, and a document plan, rendered as Typst source. **This module emits text and reads nothing.** It takes markdown and a plan and returns a `.typ` document; the filesystem, the note bodies and the compiler that turns the result into a PDF all live in {@link module:engine/pdf-build}. That split is what lets the outline, the table of contents, every anchor and every link destination be asserted in a unit test with no renderer installed — which is most of what a book has to get right, and all of what a test can check without eyes.
 
-| Export                  | Signature                                                              | Returns                                                      | Use it when                                                              |
-| ----------------------- | ---------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
-| `escapeTypst`           | `function escapeTypst(text)`                                           | {string} The same text, inert.                               | Escape literal text for Typst markup.                                    |
-| `escapeTypstString`     | `function escapeTypstString(text)`                                     | {string} The same value, quotable.                           | Escape a string going inside Typst string quotes, as a `#link` URL does. |
-| `labelFor`              | `function labelFor(anchor)`                                            | {string} A Typst label name.                                 | A Typst label, from a plan anchor.                                       |
-| `createParser`          | `function createParser(registry)`                                      | {object} A markdown-it instance.                             | A markdown-it configured to parse, not to render.                        |
-| `markdownToTypst`       | `function markdownToTypst(markdown, opts`                              | {string} Typst markup.                                       | Render markdown as Typst content.                                        |
-| `renderBook`            | `renderBook({ plan, bodies, title, subtitle, front, fonts, version })` | {string} A complete `.typ` document.                         | The whole book, as one Typst document.                                   |
-| `resolveDanglingLabels` | `function resolveDanglingLabels(source, findings`                      | {string} The same document, with no reference left dangling. | Point every internal link at a label the document actually declares.     |
-| `iconNamesIn`           | `function iconNamesIn(markdown)`                                       | {string[]} The names, in order of appearance, with repeats.  | Every icon name a body uses, so a build can resolve them once.           |
+| Export                  | Signature                                                                                 | Returns                                                      | Use it when                                                              |
+| ----------------------- | ----------------------------------------------------------------------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------ |
+| `escapeTypst`           | `function escapeTypst(text)`                                                              | {string} The same text, inert.                               | Escape literal text for Typst markup.                                    |
+| `escapeTypstString`     | `function escapeTypstString(text)`                                                        | {string} The same value, quotable.                           | Escape a string going inside Typst string quotes, as a `#link` URL does. |
+| `labelFor`              | `function labelFor(anchor)`                                                               | {string} A Typst label name.                                 | A Typst label, from a plan anchor.                                       |
+| `createParser`          | `function createParser(registry)`                                                         | {object} A markdown-it instance.                             | A markdown-it configured to parse, not to render.                        |
+| `markdownToTypst`       | `function markdownToTypst(markdown, opts`                                                 | {string} Typst markup.                                       | Render markdown as Typst content.                                        |
+| `renderBook`            | `renderBook({ plan, bodies, title, subtitle, front, fonts, version, preamble, banners })` | {string} A complete `.typ` document.                         | The whole book, as one Typst document.                                   |
+| `resolveDanglingLabels` | `function resolveDanglingLabels(source, findings`                                         | {string} The same document, with no reference left dangling. | Point every internal link at a label the document actually declares.     |
+| `iconNamesIn`           | `function iconNamesIn(markdown)`                                                          | {string[]} The names, in order of appearance, with repeats.  | Every icon name a body uses, so a build can resolve them once.           |
+| `bookTypstPreamble`     | `function bookTypstPreamble()`                                                            | {string} Typst markup.                                       | The Typst definitions the book's page furniture is drawn with.           |
 
 ### `engine.pdfFonts`
 
@@ -794,11 +839,13 @@ Which glyph an icon name resolves to, read from the font that carries it. {@link
 
 The content tree, built into a book. The I/O half of the PDF surface: it reads the configuration, the document tree and the notes, drives the passes the site build already owns, hands the result to {@link module:engine/pdf-render} and runs Typst over what comes back. Everything about _what the book says_ is decided in the pure half; this module is where the filesystem and the compiler live.
 
-| Export         | Signature                                           | Returns                                                               | Use it when                                           |
-| -------------- | --------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------- |
-| `pdfFileName`  | `function pdfFileName(artifact, version)`           | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned. | The file name a downloaded book identifies itself by. |
-| `buildPdf`     | `async buildPdf({ config, out, version, compile })` | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.     | Build the book.                                       |
-| `compileTypst` | `function compileTypst(typPath, pdfPath, pdf`       | {{ok: boolean, message: string}} What happened.                       | Run Typst over the emitted source.                    |
+| Export            | Signature                                                  | Returns                                                                                         | Use it when                                                          |
+| ----------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| `pdfFileName`     | `function pdfFileName(artifact, version)`                  | {string} `<artifact>-<version>.pdf`, or `<artifact>.pdf` unversioned.                           | The file name a downloaded book identifies itself by.                |
+| `buildPdf`        | `async buildPdf({ config, out, version, compile })`        | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.                               | Build the book.                                                      |
+| `stagedImagePath` | `function stagedImagePath(src, config)`                    | {{from: string, to: string}\|null} The file, and where under the output directory it is staged. | The file on disk an authored image address names, or `null`.         |
+| `stageBanners`    | `function stageBanners(entries, config, outDir, findings)` | {Map<string, string>} Declared path → the staged file's path, relative to the `.typ`.           | Copy every banner the document tree names into the output directory. |
+| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`              | {{ok: boolean, message: string}} What happened.                                                 | Run Typst over the emitted source.                                   |
 
 ### `engine.baseCompiler`
 
@@ -999,16 +1046,19 @@ SoHL's Actor pass — what a SoHL `being` document holds and nothing else: the b
 
 Which of SoHL's facts a note's summary panel carries, and how they group. Read off the same field declaration the compiler obeys, with a builder of its own only where a box is derived rather than read field by field.
 
-| Export               | Signature                  | Returns               | Use it when                                                                 |
-| -------------------- | -------------------------- | --------------------- | --------------------------------------------------------------------------- |
-| `SOHL_INFOBOX`       | `const SOHL_INFOBOX`       | —                     | reading SoHL's infobox declaration                                          |
-| `SOHL_INFOBOX_TITLE` | `const SOHL_INFOBOX_TITLE` | —                     | naming SoHL's box                                                           |
-| `PROTECTION_ASPECTS` | `const PROTECTION_ASPECTS` | —                     | enumerating the aspects armour is rated against, in the order shown         |
-| `UNSTATED`           | `const UNSTATED`           | —                     | naming what a strike mode shows where a value was not stated                |
-| `armorSections`      | `armorSections(fm, ctx)`   | `object[]`            | building armour's box, protection included                                  |
-| `beingSections`      | `beingSections(fm, ctx)`   | `object[]`            | building a being's attributes, skills, mystical abilities and equipment     |
-| `decodeItem`         | `decodeItem(entry)`        | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in |
-| `weaponSections`     | `weaponSections(fm, ctx)`  | `object[]`            | building a weapon's box, strike modes included                              |
+| Export                    | Signature                       | Returns               | Use it when                                                                         |
+| ------------------------- | ------------------------------- | --------------------- | ----------------------------------------------------------------------------------- |
+| `SOHL_INFOBOX`            | `const SOHL_INFOBOX`            | —                     | reading SoHL's infobox declaration                                                  |
+| `SOHL_INFOBOX_TITLE`      | `const SOHL_INFOBOX_TITLE`      | —                     | naming SoHL's box                                                                   |
+| `SOHL_FIELD_PRESENTATION` | `const SOHL_FIELD_PRESENTATION` | —                     | looking up what one of SoHL's fields is called, or why it carries no row            |
+| `PROTECTION_FIELDS`       | `const PROTECTION_FIELDS`       | —                     | reading the declarations of the aspects armour is rated against, in the order shown |
+| `UNSTATED`                | `const UNSTATED`                | —                     | naming what a strike mode shows where a value was not stated                        |
+| `armorSections`           | `armorSections(fm, ctx)`        | `object[]`            | building armour's box, protection included                                          |
+| `beingSections`           | `beingSections(fm, ctx)`        | `object[]`            | building a being's attributes, skills, mystical abilities and equipment             |
+| `decodeItem`              | `decodeItem(entry)`             | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in         |
+| `projectileSections`      | `projectileSections(fm, ctx)`   | `object[]`            | building a projectile's box, its impact composed into one row                       |
+| `strikeModes`             | `strikeModes(declared)`         | `[string, object][]`  | reading a weapon's strike modes, whichever of the two shapes were authored          |
+| `weaponSections`          | `weaponSections(fm, ctx)`       | `object[]`            | building a weapon's box, strike modes included                                      |
 
 ### `sohl.kbPasses`
 
@@ -1076,10 +1126,11 @@ HM3's note-type → document-subtype map. Unlike SoHL's near-identity map, HM3's
 
 Which of HM3's facts a note's summary panel carries, read off the same field list the item builders obey.
 
-| Export              | Signature                 | Returns | Use it when                       |
-| ------------------- | ------------------------- | ------- | --------------------------------- |
-| `HM3_INFOBOX`       | `const HM3_INFOBOX`       | —       | reading HM3's infobox declaration |
-| `HM3_INFOBOX_TITLE` | `const HM3_INFOBOX_TITLE` | —       | naming HM3's box                  |
+| Export                   | Signature                      | Returns | Use it when                                   |
+| ------------------------ | ------------------------------ | ------- | --------------------------------------------- |
+| `HM3_INFOBOX`            | `const HM3_INFOBOX`            | —       | reading HM3's infobox declaration             |
+| `HM3_INFOBOX_TITLE`      | `const HM3_INFOBOX_TITLE`      | —       | naming HM3's box                              |
+| `HM3_FIELD_PRESENTATION` | `const HM3_FIELD_PRESENTATION` | —       | looking up what one of HM3's fields is called |
 
 ### `hm3.items`
 
