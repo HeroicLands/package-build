@@ -1,5 +1,27 @@
 # @heroiclands/package-build
 
+## 20.7.0
+
+### Minor Changes
+
+- 6c10f17: **A `trees` entry's pages stay where their tree mounts them** — declaring
+  `subType` on a note inside `site.trees` no longer moves its published address.
+  A `subType` classifies a page for the site index; it never routed a tree
+  page's URL to begin with for a note that left it unset, and now it does not
+  for one that sets it either. A site that already worked around this by
+  avoiding `subType` on its tree notes can declare it again: those pages move
+  back under the tree's own section on upgrade.
+
+### Patch Changes
+
+- 72daae4: **A being that declares no `sohl:` block no longer takes the site build down.**
+  `content-build site` failed with `unacceptable kind of an object to dump [object
+  Undefined]` for any `type: being` note whose front matter carried no `sohl:` key
+  at all, and the throw aborted the entire run rather than the one page. A note
+  carrying `sohl: null` had always been fine, so the failure only appeared once a
+  tree removed the empty key rather than emptying it. Both shapes now publish the
+  same page. Fixes HeroicLands/package-build#478.
+
 ## 20.6.0
 
 ### Minor Changes
