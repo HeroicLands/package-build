@@ -17,8 +17,11 @@
 
 import { describe, it, expect, beforeAll, afterAll } from "vitest";
 import fs from "node:fs";
+import matter from "gray-matter";
 import os from "node:os";
 import path from "node:path";
+
+import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 
 import { defineConfig } from "../index.mjs";
 import {
@@ -422,6 +425,36 @@ describe("what a page publishes with", () => {
         // Stated relative to the site root, because Hugo prefixes the site's
         // own base — see `tests/page-url-root-relative.test.ts`.
         expect(pageFrontmatter(page as never, {}).url).toBe("/weapongear-dagger/");
+    });
+
+    it("publishes a being that declares no `sohl:` block", () => {
+        // The decorator mirrors the one `buildSite` installs. A being whose
+        // note carries no `sohl:` key reaches it as `undefined`, and assigning
+        // that creates an own property YAML cannot dump: `matter.stringify`
+        // throws `unacceptable kind of an object to dump [object Undefined]`
+        // and takes the entire site build with it, not just this page.
+        //
+        // Serialising here is the assertion. Checking the value alone would
+        // pass against the shape that crashes.
+        const being = {
+            ...page,
+            fm: { type: "being", name: { full: "Njörven" } },
+            name: "Njörven",
+            slug: "being-njorven",
+            sec: "being",
+        };
+        const data = pageFrontmatter(
+            being as never,
+            {
+                decorate: (d: Record<string, unknown>, p: { fm: { sohl?: unknown } }) => {
+                    if (isBeing(p.fm)) d.sohl = deriveBeingInfo(p.fm.sohl as never, new Map());
+                },
+            } as never,
+        );
+
+        expect(Object.hasOwn(data, "sohl")).toBe(true);
+        expect(data.sohl).toBeNull();
+        expect(() => matter.stringify("", data)).not.toThrow();
     });
 });
 
