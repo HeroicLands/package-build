@@ -354,7 +354,9 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | ------------------------- | -------------------------------------- | --------------------------- | -------------------------------------------------------------------------------------- |
 | `INFOBOX_LAYOUTS`         | `const INFOBOX_LAYOUTS`                | —                           | looking up the four section layouts and the property each carries its content in       |
 | `INFOBOX_VALUE_KINDS`     | `const INFOBOX_VALUE_KINDS`            | —                           | enumerating what a row's value may be                                                  |
+| `DURATION_LABELS`         | `const DURATION_LABELS`                | —                           | naming a duration pair — the roll and the flat number of seconds — in either overlay   |
 | `NOT_AVAILABLE`           | `const NOT_AVAILABLE`                  | —                           | naming what a mapped system that produced no document says                             |
+| `NOTHING_BEYOND_PROFILE`  | `const NOTHING_BEYOND_PROFILE`         | —                           | naming what a system holding nothing the note box has not shown says                   |
 | `NOTE_BOX_ID`             | `const NOTE_BOX_ID`                    | —                           | naming the note infobox, which is not a system id                                      |
 | `NOTE_BOX_TITLE`          | `const NOTE_BOX_TITLE`                 | —                           | naming the note infobox's heading                                                      |
 | `NOTE_SECTION_ID`         | `const NOTE_SECTION_ID`                | —                           | naming the note infobox's single section                                               |
@@ -366,10 +368,13 @@ The declared infobox: what a note's summary panel holds, decided once and render
 | `hasValue`                | `hasValue(value)`                      | `boolean`                   | deciding whether an authored value is worth a row                                      |
 | `humanizeFieldName`       | `humanizeFieldName(name)`              | `string`                    | turning a declared key into the label a reader sees                                    |
 | `humanizeValue`           | `humanizeValue(value)`                 | `string`                    | turning an authored value into readable text                                           |
+| `isDeclaredDefault`       | `isDeclaredDefault(field, raw)`        | `boolean`                   | deciding whether a value is the one the field's own declaration would have supplied    |
 | `linkValue`               | `linkValue(ref, resolve, hint)`        | `object`                    | resolving one reference into a `link` value                                            |
 | `noteInfobox`             | `noteInfobox(fm, options)`             | `object`                    | building the note box alone, from the type's `data:` vocabulary                        |
+| `overlayFor`              | `overlayFor(presentation, type, name)` | `object`                    | reading a field's overlay entry, preferring the `<type>.<field>` key over the bare one |
 | `presentValue`            | `presentValue(value)`                  | `string`                    | showing a value in a row, capitalising an enumerated one and leaving prose as written  |
 | `requiredInfoboxIds`      | `requiredInfoboxIds(fm, options)`      | `string[]`                  | asking which boxes a note's type maps to                                               |
+| `sectionHolds`            | `sectionHolds(section)`                | `boolean`                   | deciding whether a section holds anything a medium would draw                          |
 | `systemRowsSection`       | `systemRowsSection(fm, fields, ctx)`   | `object[]`                  | building the rows a type's own field declaration yields                                |
 | `valueKindOf`             | `valueKindOf(field, value)`            | `string`                    | reading the value kind a field declaration implies                                     |
 
@@ -997,16 +1002,19 @@ SoHL's Actor pass — what a SoHL `being` document holds and nothing else: the b
 
 Which of SoHL's facts a note's summary panel carries, and how they group. Read off the same field declaration the compiler obeys, with a builder of its own only where a box is derived rather than read field by field.
 
-| Export               | Signature                  | Returns               | Use it when                                                                 |
-| -------------------- | -------------------------- | --------------------- | --------------------------------------------------------------------------- |
-| `SOHL_INFOBOX`       | `const SOHL_INFOBOX`       | —                     | reading SoHL's infobox declaration                                          |
-| `SOHL_INFOBOX_TITLE` | `const SOHL_INFOBOX_TITLE` | —                     | naming SoHL's box                                                           |
-| `PROTECTION_ASPECTS` | `const PROTECTION_ASPECTS` | —                     | enumerating the aspects armour is rated against, in the order shown         |
-| `UNSTATED`           | `const UNSTATED`           | —                     | naming what a strike mode shows where a value was not stated                |
-| `armorSections`      | `armorSections(fm, ctx)`   | `object[]`            | building armour's box, protection included                                  |
-| `beingSections`      | `beingSections(fm, ctx)`   | `object[]`            | building a being's attributes, skills, mystical abilities and equipment     |
-| `decodeItem`         | `decodeItem(entry)`        | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in |
-| `weaponSections`     | `weaponSections(fm, ctx)`  | `object[]`            | building a weapon's box, strike modes included                              |
+| Export                    | Signature                       | Returns               | Use it when                                                                         |
+| ------------------------- | ------------------------------- | --------------------- | ----------------------------------------------------------------------------------- |
+| `SOHL_INFOBOX`            | `const SOHL_INFOBOX`            | —                     | reading SoHL's infobox declaration                                                  |
+| `SOHL_INFOBOX_TITLE`      | `const SOHL_INFOBOX_TITLE`      | —                     | naming SoHL's box                                                                   |
+| `SOHL_FIELD_PRESENTATION` | `const SOHL_FIELD_PRESENTATION` | —                     | looking up what one of SoHL's fields is called, or why it carries no row            |
+| `PROTECTION_FIELDS`       | `const PROTECTION_FIELDS`       | —                     | reading the declarations of the aspects armour is rated against, in the order shown |
+| `UNSTATED`                | `const UNSTATED`                | —                     | naming what a strike mode shows where a value was not stated                        |
+| `armorSections`           | `armorSections(fm, ctx)`        | `object[]`            | building armour's box, protection included                                          |
+| `beingSections`           | `beingSections(fm, ctx)`        | `object[]`            | building a being's attributes, skills, mystical abilities and equipment             |
+| `decodeItem`              | `decodeItem(entry)`             | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in         |
+| `projectileSections`      | `projectileSections(fm, ctx)`   | `object[]`            | building a projectile's box, its impact composed into one row                       |
+| `strikeModes`             | `strikeModes(declared)`         | `[string, object][]`  | reading a weapon's strike modes, whichever of the two shapes were authored          |
+| `weaponSections`          | `weaponSections(fm, ctx)`       | `object[]`            | building a weapon's box, strike modes included                                      |
 
 ### `sohl.kbPasses`
 
@@ -1074,10 +1082,11 @@ HM3's note-type → document-subtype map. Unlike SoHL's near-identity map, HM3's
 
 Which of HM3's facts a note's summary panel carries, read off the same field list the item builders obey.
 
-| Export              | Signature                 | Returns | Use it when                       |
-| ------------------- | ------------------------- | ------- | --------------------------------- |
-| `HM3_INFOBOX`       | `const HM3_INFOBOX`       | —       | reading HM3's infobox declaration |
-| `HM3_INFOBOX_TITLE` | `const HM3_INFOBOX_TITLE` | —       | naming HM3's box                  |
+| Export                   | Signature                      | Returns | Use it when                                   |
+| ------------------------ | ------------------------------ | ------- | --------------------------------------------- |
+| `HM3_INFOBOX`            | `const HM3_INFOBOX`            | —       | reading HM3's infobox declaration             |
+| `HM3_INFOBOX_TITLE`      | `const HM3_INFOBOX_TITLE`      | —       | naming HM3's box                              |
+| `HM3_FIELD_PRESENTATION` | `const HM3_FIELD_PRESENTATION` | —       | looking up what one of HM3's fields is called |
 
 ### `hm3.items`
 

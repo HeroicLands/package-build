@@ -81,9 +81,10 @@ column regardless.
    column or page boundary without splitting a stat grid down the middle.
 4. **An absent field is absent, not empty.** A row with no value is not
    emitted. A placeholder asserts a fact that is not there.
-5. **_Not available_ is a different thing, and survives.** It is the whole box
-   for a mapped system that produced no document — a statement about this note,
-   not about a missing field. Rule 4 governs rows; this governs boxes.
+5. **A system box is never an empty panel; it says which silence it is.** Rule
+   4 governs rows, and a box is not a row — a heading over nothing asserts that
+   something should have been there. See
+   [the three states of a system box](#the-three-states-of-a-system-box).
 6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
    the order given.
 
@@ -95,11 +96,15 @@ second list, so a key added to a type appears in the book, on the website and
 in a compendium journal with no further edit. A `Name` row stands first on
 every note, because every note has one.
 
-Three keys carry no row, and the reason in each case is one of exactly two:
+A few keys carry no row, and the reason in each case is one of exactly two —
+the key is **machinery**, steering a build or an interface rather than
+describing the subject, or it is an **image**, which rule 2 keeps out of the
+box:
 
 | key                          | why it carries no row                            |
 | ---------------------------- | ------------------------------------------------ |
 | `templatePriority`           | template machinery, not a fact about the subject |
+| `color`                      | sidebar machinery, not a fact about the subject  |
 | `portrait`, `img`, `overlay` | an image, which rule 2 keeps out of the box      |
 
 A field whose value is a **mapping** carries no row either — a governance
@@ -113,18 +118,68 @@ A being's `age`, `height`, `weight` and `appearance.*` compose into a single
 #### What a system box holds
 
 **A system box's fields are that system's own field declaration**, in its
-order, and only where the note actually wrote a value — a field answered by the
-compiler's default is a fact about the compiler. A field the note box already
-carries is not repeated: a gear item's weight is system-agnostic and belongs to
-the note.
+order. There is no second list here either, so a field added to a type reaches
+the box with no further edit.
 
-Three types are read differently, because their box is derived rather than read
+Two things keep a fact off it:
+
+- **A value the declaration would have supplied anyway.** A field answered by
+  its own default is a fact about the compiler, not about the note — and that is
+  true of the value, wherever it was written. A corpus writes its defaults out:
+  `improveFlag: false` and `combatCategory: none` are typed into hundreds of
+  notes that mean nothing by them.
+- **A fact the note box already put on the page.** A gear item's weight is
+  system-agnostic and belongs to the note. What counts is what the note box
+  _shows_, not what its vocabulary declares — the same fact is written under
+  `data:` on one note and at its destination path on another, and a system box
+  that stood down on the declaration alone would leave it on no surface at all.
+
+**What a field is called** is a **presentation overlay** on that same
+declaration, per system. It carries two things a compiler's field list cannot,
+because they are about a page rather than about a document: a reader's word
+where the declaration's key is the compiler's — `assocSkillCode` is exactly
+right in a DataModel and wrong in a panel somebody reads — and the handful of
+keys that belong on no page at all, either because the box shows the same fact
+whole somewhere else or because they steer a character sheet rather than
+describe the subject. It is an overlay and not a list: a field it does not
+mention still gets a row, under its own humanised name.
+
+Four types are read differently, because their box is derived rather than read
 field by field — a **being**, whose attributes, skills, mystical abilities and
 carried gear are one flat `sohl.items` list; **armour**, whose protection is
-shown for all four aspects with an unstated one rendered `0`; and a **weapon**,
-whose strike modes are shown one per line with an unstated value rendered `—`.
-Both of those placeholders are decided by the toolchain and travel as data, so
-no renderer has to know which field it is looking at.
+shown for all four aspects with an unstated one rendered `0`; a **weapon**,
+whose strike modes are shown one per line with an unstated value rendered `—`;
+and a **projectile**, whose impact is three declared fields composing into the
+one quantity a reader wants. Both of those placeholders are decided by the
+toolchain and travel as data, so no renderer has to know which field it is
+looking at.
+
+A weapon's strike modes are authored either as a **list**, each mode carrying
+its own `shortcode`, or as a **mapping** keyed by the mode's name. Both are
+read, and both yield the same section.
+
+#### The three states of a system box
+
+A system box says something on every page that carries one. Which of the three
+it says is decided here and travels as the box's `statement`, so a medium draws
+one thing and decides none of it.
+
+| state          | when                                                       | what the box says                       |
+| -------------- | ---------------------------------------------------------- | --------------------------------------- |
+| content        | the system holds something the note box has not shown      | its sections, and no `statement`        |
+| not available  | the system maps this note's type but produced no document  | `statement: Not available`              |
+| nothing to add | the system produced a document holding nothing new to show | `statement: Nothing beyond the profile` |
+
+The third state is not the second. _Not available_ is a statement about this
+note — the system has no document for it, and a reader can act on that. A
+system that _does_ compile the note and holds only facts the note box has
+already given says so instead, because a reader told "not available" would go
+looking for a document that exists, and an empty panel tells them nothing at
+all.
+
+A system that does not map the note's type gets **no box**. A box reading
+_Not available_ on every affiliation page would suggest a gap in the note when
+the truth is about the system's scope.
 
 #### Four section layouts
 
@@ -195,6 +250,7 @@ infoboxes:
     title: HM3
     available: false
     sections: []
+    statement: Not available
 ```
 
 ### Frontmatter has three regions
