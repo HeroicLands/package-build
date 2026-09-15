@@ -799,6 +799,7 @@ export function bookTypstPreamble() {
         '#let book-ink = rgb("#241f1a")',
         '#let book-paper = rgb("#f4efe4")',
         '#let book-accent = rgb("#7c3b1e")',
+        '#let book-head = rgb("#5e2b14")',
         '#let book-faint = rgb("#6b6357")',
         "#let book-ornament = box(baseline: 1pt, " +
             "rotate(45deg, rect(width: 3pt, height: 3pt, fill: book-accent)))",
@@ -809,14 +810,34 @@ export function bookTypstPreamble() {
             "}",
         // A heading justifies and hyphenates like body text unless told
         // otherwise, and both make a display line look broken.
-        "#let book-sechead(it) = block(width: 100%, above: 0.9em, below: 0.5em, " +
-            "breakable: false)[\n" +
-            "  #set par(justify: false, first-line-indent: 0em)\n" +
-            "  #set text(hyphenate: false)\n" +
-            '  #text(size: 11pt, weight: "bold", tracking: 1.6pt, fill: book-accent)[#upper(it.body)]\n' +
-            "  #v(-0.35em)\n" +
-            "  #line(length: 100%, stroke: 0.5pt + book-accent)\n" +
-            "]",
+        //
+        // Size, weight and the space above follow the level, so a parent reads
+        // as one without the words being read. The rule belongs to the note's own
+        // top level alone; every level under it is set apart by space. Headings set
+        // in the sans face and in the case they were authored in, so neither
+        // capitals nor tracking is carrying the distinction. The scale starts
+        // at 3: `book-plate` shadows this rule while it draws the title, so
+        // the section landing and the entry title never arrive here, and the
+        // headings that do are the note's own.
+        "#let book-sechead(it) = {\n" +
+            "  let lv = it.level\n" +
+            "  let size = if lv <= 3 { 26pt } else if lv == 4 { 19pt }\n" +
+            "    else if lv == 5 { 14pt } else { 11pt }\n" +
+            "  let above = if lv <= 3 { 2.5em } else if lv == 4 { 2.0em }\n" +
+            "    else { 1.0em }\n" +
+            "  let below = if lv <= 3 { 0.5em } else if lv == 4 { 0.36em }\n" +
+            "    else { 0.28em }\n" +
+            '  let weight = if lv <= 5 { "bold" } else { "regular" }\n' +
+            "  block(width: 100%, above: above, below: below, breakable: false)[\n" +
+            "    #set par(justify: false, first-line-indent: 0em)\n" +
+            "    #set text(hyphenate: false)\n" +
+            "    #text(size: size, weight: weight, fill: book-head)[#it.body]\n" +
+            "    #if lv <= 3 {\n" +
+            "      v(-0.30em)\n" +
+            "      line(length: 100%, stroke: 0.5pt + book-accent)\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}",
         // The plate bleeds off the paper: the placed panel is the full width of
         // the sheet and starts a margin above and to the left of wherever the
         // flow has reached, which on an entry's first page is the top corner.
