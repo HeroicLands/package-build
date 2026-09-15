@@ -818,10 +818,10 @@ export function bookTypstPreamble() {
         // headings that do are the note's own.
         "#let book-sechead(it) = {\n" +
             "  let lv = it.level\n" +
-            "  let size = if lv <= 3 { 12pt } else if lv == 4 { 10pt }\n" +
-            "    else if lv == 5 { 9pt } else { 8.4pt }\n" +
-            "  let above = if lv <= 3 { 2.4em } else if lv == 4 { 1.9em }\n" +
-            "    else if lv == 5 { 1.0em } else { 0.75em }\n" +
+            "  let size = if lv <= 3 { 14pt } else if lv == 4 { 11pt }\n" +
+            "    else if lv == 5 { 10pt } else { 9pt }\n" +
+            "  let above = if lv <= 3 { 2.5em } else if lv == 4 { 2.0em }\n" +
+            "    else { 1.0em }\n" +
             "  let below = if lv <= 3 { 0.55em } else if lv == 4 { 0.38em }\n" +
             "    else { 0.3em }\n" +
             "  let track = if lv <= 3 { 1.8pt } else if lv == 4 { 1.4pt }\n" +
