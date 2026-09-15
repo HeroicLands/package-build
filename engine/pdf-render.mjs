@@ -168,7 +168,6 @@ export function createParser(registry) {
  *   note's own `##` nests beneath the entry heading the book gave it.
  * @param {string} [opts.anchorPrefix] - The entry's anchor, which namespaces
  *   every `{#slug}` the body declares.
- * @param {boolean} [opts.dropCap] - Whether to open the body with a raised
  *   capital. Set for an entry, which begins a page; not for front matter or a
  *   prose file, which carry headings of their own.
  * @returns {string} Typst markup.
@@ -181,7 +180,6 @@ export function markdownToTypst(markdown, opts = {}) {
         images = new Map(),
         headingOffset = 0,
         anchorPrefix = "",
-        dropCap = false,
     } = opts;
     const tokens = md.parse(String(markdown ?? ""), {});
     // One map for the whole body, not one per block: a heading inside a
@@ -194,7 +192,6 @@ export function markdownToTypst(markdown, opts = {}) {
         images,
         headingOffset,
         anchorPrefix,
-        dropCap,
         seen: new Map(),
     });
 }
@@ -258,7 +255,7 @@ function renderBlock(tokens, i, out, ctx) {
             return 3;
         }
         case "paragraph_open": {
-            out.push(`\n${openingParagraph(renderInline(tokens[i + 1], ctx), ctx)}\n\n`);
+            out.push(`\n${renderInline(tokens[i + 1], ctx)}\n\n`);
             return 3;
         }
         case "fence":
@@ -271,7 +268,7 @@ function renderBlock(tokens, i, out, ctx) {
             return 1;
         case "blockquote_open": {
             const end = matching(tokens, i, "blockquote_open", "blockquote_close");
-            const inner = renderTokens(tokens.slice(i + 1, end), { ...ctx, dropCap: false });
+            const inner = renderTokens(tokens.slice(i + 1, end), { ...ctx });
             out.push(`\n#quote(block: true)[${inner}]\n\n`);
             return end - i + 1;
         }
@@ -296,29 +293,6 @@ function renderBlock(tokens, i, out, ctx) {
         default:
             return 1;
     }
-}
-
-/**
- * The first paragraph of an entry, opened with a raised capital.
- *
- * Only the first, and only when it begins with a letter: a paragraph opening
- * on a link, a bold run or a number has no character to raise, and raising
- * whatever happened to be first would put a 26pt accent on a bracket. The
- * chance is spent either way — a body opens once — so a paragraph that cannot
- * take the capital simply sets as itself.
- *
- * @param {string} rendered - The paragraph's Typst markup.
- * @param {object} ctx - Render context.
- * @returns {string} The same markup, or it with a raised capital.
- */
-function openingParagraph(rendered, ctx) {
-    if (!ctx.dropCap) return rendered;
-    ctx.dropCap = false;
-    // A letter is never escaped, so the first character of the markup is the
-    // first character of the prose whenever the prose starts with one.
-    const match = /^(\p{L})([\s\S]*)$/u.exec(rendered);
-    if (!match) return rendered;
-    return `#book-dropcap[${match[1]}]#h(1pt)${match[2]}`;
 }
 
 /**
@@ -438,7 +412,7 @@ function listItems(tokens, start, end, ctx) {
             continue;
         }
         const close = matching(tokens, i, "list_item_open", "list_item_close");
-        items.push(renderTokens(tokens.slice(i + 1, close), { ...ctx, dropCap: false }));
+        items.push(renderTokens(tokens.slice(i + 1, close), { ...ctx }));
         i = close + 1;
     }
     return items;
@@ -843,8 +817,6 @@ export function bookTypstPreamble() {
             "  #v(-0.35em)\n" +
             "  #line(length: 100%, stroke: 0.5pt + book-accent)\n" +
             "]",
-        '#let book-dropcap(letter) = text(size: 26pt, weight: "bold", fill: book-accent, ' +
-            "baseline: 5pt)[#letter]",
         // The plate bleeds off the paper: the placed panel is the full width of
         // the sheet and starts a margin above and to the left of wherever the
         // flow has reached, which on an entry's first page is the top corner.

@@ -498,8 +498,6 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             images,
             headingOffset,
             anchorPrefix,
-            // An entry opens a page, so its first paragraph opens the page too.
-            dropCap: true,
         });
         // The infobox is generated content in document order — prepended,
         // before the prose. An image the note authored ahead of it still comes

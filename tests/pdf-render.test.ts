@@ -56,27 +56,6 @@ describe("markdownToTypst", () => {
         expect(narrow).not.toContain("#book-wide[");
     });
 
-    it("opens an entry on a raised capital, once and only where there is a letter to raise", () => {
-        const out = markdownToTypst("## Appearance\n\nBrànwâal is weathered.\n\nHe is also tall.", {
-            dropCap: true,
-        });
-        expect(out).toContain("#book-dropcap[B]#h(1pt)rànwâal is weathered.");
-        expect(out).toContain("He is also tall.");
-        expect(out.match(/#book-dropcap/g)).toHaveLength(1);
-    });
-
-    it("leaves a body that opens on markup to set as itself", () => {
-        // The chance is spent either way — a body opens once — and raising
-        // whatever happened to be first would put a 26pt accent on a bracket.
-        const out = markdownToTypst("**Bold** to start with.", { dropCap: true });
-        expect(out).not.toContain("#book-dropcap");
-        expect(out).toContain("#strong[Bold]");
-    });
-
-    it("raises nothing when the book did not ask for it", () => {
-        expect(markdownToTypst("Plain prose.")).not.toContain("#book-dropcap");
-    });
-
     it("nests a list as a call rather than by indentation", () => {
         const out = markdownToTypst(["- one", "- two", "  - deep"].join("\n"));
         expect(out).toContain("#list([one]");
