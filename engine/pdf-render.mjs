@@ -809,14 +809,33 @@ export function bookTypstPreamble() {
             "}",
         // A heading justifies and hyphenates like body text unless told
         // otherwise, and both make a display line look broken.
-        "#let book-sechead(it) = block(width: 100%, above: 0.9em, below: 0.5em, " +
-            "breakable: false)[\n" +
-            "  #set par(justify: false, first-line-indent: 0em)\n" +
-            "  #set text(hyphenate: false)\n" +
-            '  #text(size: 11pt, weight: "bold", tracking: 1.6pt, fill: book-accent)[#upper(it.body)]\n' +
-            "  #v(-0.35em)\n" +
-            "  #line(length: 100%, stroke: 0.5pt + book-accent)\n" +
-            "]",
+        //
+        // Size and the space above follow the level, so a parent reads as one
+        // without the words being read. The rule belongs to the note's own top
+        // level alone; every level under it is set apart by space. The scale starts
+        // at 3: `book-plate` shadows this rule while it draws the title, so
+        // the section landing and the entry title never arrive here, and the
+        // headings that do are the note's own.
+        "#let book-sechead(it) = {\n" +
+            "  let lv = it.level\n" +
+            "  let size = if lv <= 3 { 12pt } else if lv == 4 { 10pt }\n" +
+            "    else if lv == 5 { 9pt } else { 8.4pt }\n" +
+            "  let above = if lv <= 3 { 2.4em } else if lv == 4 { 1.9em }\n" +
+            "    else if lv == 5 { 1.0em } else { 0.75em }\n" +
+            "  let below = if lv <= 3 { 0.55em } else if lv == 4 { 0.38em }\n" +
+            "    else { 0.3em }\n" +
+            "  let track = if lv <= 3 { 1.8pt } else if lv == 4 { 1.4pt }\n" +
+            "    else { 1.0pt }\n" +
+            "  block(width: 100%, above: above, below: below, breakable: false)[\n" +
+            "    #set par(justify: false, first-line-indent: 0em)\n" +
+            "    #set text(hyphenate: false)\n" +
+            '    #text(size: size, weight: "bold", tracking: track, fill: book-accent)[#upper(it.body)]\n' +
+            "    #if lv <= 3 {\n" +
+            "      v(-0.35em)\n" +
+            "      line(length: 100%, stroke: 0.5pt + book-accent)\n" +
+            "    }\n" +
+            "  ]\n" +
+            "}",
         // The plate bleeds off the paper: the placed panel is the full width of
         // the sheet and starts a margin above and to the left of wherever the
         // flow has reached, which on an entry's first page is the top corner.
