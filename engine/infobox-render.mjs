@@ -360,9 +360,10 @@ export function infoboxTypstPreamble() {
         '#let infobox-rule = rgb("#7c3b1e")',
         '#let infobox-faint = rgb("#6b6357")',
         '#let infobox-hairline = rgb("#c9bfa8")',
+        '#let infobox-fill = rgb("#eae2d0")',
         "#let infobox-panel(body) = block(width: 100%, breakable: true, " +
-            "inset: (x: 9pt, y: 8pt), below: 0.8em, " +
-            "stroke: (top: 1.4pt + infobox-rule, bottom: 1.4pt + infobox-rule))[" +
+            "inset: (x: 9pt, y: 8pt), below: 0.8em, radius: 2pt, " +
+            "fill: infobox-fill, stroke: 0.5pt + infobox-hairline)[" +
             "#set par(first-line-indent: 0em, justify: false, leading: 0.40em)\n#body]",
         '#let infobox-title(t) = { text(size: 9pt, weight: "bold", tracking: 1.3pt, ' +
             "fill: infobox-rule)[#upper(t)]; v(0.20em) }",
@@ -373,7 +374,7 @@ export function infoboxTypstPreamble() {
         "#let infobox-cell(lab, val) = align(center)[" +
             "#text(size: 7pt, tracking: 0.6pt, fill: infobox-faint)[#lab]#h(2.5pt)" +
             '#text(size: 8.6pt, weight: "bold")[#val]]',
-        "#let infobox-runin(lab, body) = block(below: 0.28em, breakable: false)[" +
+        "#let infobox-runin(lab, body) = block(below: 0.78em, breakable: false)[" +
             "#set par(justify: false, first-line-indent: 0em, hanging-indent: 0.5cm, leading: 0.40em)\n" +
             '#text(size: 7.8pt)[#if lab != "" [ #text(weight: "bold")[#lab: ] ]#body]]',
         '#let infobox-statement(t) = text(size: 8pt, style: "italic", fill: infobox-faint)[#t]',

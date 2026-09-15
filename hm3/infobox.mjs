@@ -33,7 +33,7 @@ import { GEAR_UNITS, defineInfobox } from "../engine/infobox.mjs";
 import { HM3_ITEM_FIELDS } from "./item-fields.mjs";
 
 /** What this system's box is called. @type {string} */
-export const HM3_INFOBOX_TITLE = "HM3";
+export const HM3_INFOBOX_TITLE = "HârnMaster 3";
 
 /**
  * HM3's presentation overlay: what one of this system's fields is called where
