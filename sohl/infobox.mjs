@@ -67,7 +67,7 @@ import { NOTE_SCHEMAS } from "./note-schemas.mjs";
 import { GEAR_TYPE_TO_KEY } from "./being-info.mjs";
 
 /** What this system's box is called. @type {string} */
-export const SOHL_INFOBOX_TITLE = "SoHL";
+export const SOHL_INFOBOX_TITLE = "Song of Heroic Lands";
 
 /**
  * What a value nobody stated is shown as, where showing nothing would be the
