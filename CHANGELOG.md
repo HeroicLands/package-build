@@ -1,5 +1,29 @@
 # @heroiclands/package-build
 
+## 21.1.0
+
+### Minor Changes
+
+- 7577722: **Headings in the book**
+  
+  - A heading is set by its depth rather than every heading alike: a note's top-level heading opens large, keeps its underline and takes a clear run of space above it, and each level beneath is smaller and separated by space alone.
+  - Headings set in the sans face and in the case they were written in, so a section reads as words rather than as tracked capitals. A book that names no sans face still sets them in its book face, exactly as before.
+  - A parent section and the sections inside it can be told apart at a glance, without reading the words.
+- 57fee4c: **Infobox panels in the book**
+  
+  - Each panel is drawn as a closed box — a light border on all four sides over a tint a step below the paper — so a page carrying Profile, system and appearance panels reads as a stack of cards rather than a run of rules.
+  - Skill and equipment groups stand apart from one another, so a group that wraps onto a second line is no longer mistaken for the start of the next one.
+  
+  **Naming the systems**
+  
+  - The system panels are titled _Song of Heroic Lands_ and _HârnMaster 3_ in full, in the book and on the web, in place of the abbreviations.
+
+### Patch Changes
+
+- 705cdc8: **The book** — an entry's first paragraph sets like any other. A raised opening
+  letter is something a note asks for, not something the book decides on its
+  own, so nothing raises one.
+
 ## 21.0.0
 
 ### Major Changes
