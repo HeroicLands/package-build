@@ -1346,12 +1346,12 @@ from.
 
 ### Assets are types
 
-`icon`, `image`, `font` and `audio` are types in the type vocabulary, and an
-address reaches one exactly as it reaches a being or a skill. Their trees are
+`icon`, `image` and `audio` are types in the type vocabulary, and an address
+reaches one exactly as it reaches a being or a skill. Their trees are
 the one thing about them that differs: they sit beside `content/` rather than
 inside it, because the thing a note is addressing is a file rather than a note.
 
-**Four roots, one per type.** The directory is named for what it holds and the
+**Three roots, one per type.** The directory is named for what it holds and the
 type is named for what an address reaches, so the two differ by a letter and the
 mapping is declared rather than derived from the name:
 
@@ -1359,13 +1359,12 @@ mapping is declared rather than derived from the name:
 | --------------- | ------- |
 | `assets/icons`  | `icon`  |
 | `assets/images` | `image` |
-| `assets/fonts`  | `font`  |
 | `assets/audio`  | `audio` |
 
 **A file's extension decides whether it is an asset at all**, and its root
 decides which type. Every image-extensioned file anywhere under `assets/icons`
-is an icon; every font-extensioned file under `assets/fonts` is a font; and so
-on, however deep it sits.
+is an icon, and every audio-extensioned file under `assets/audio` is an audio
+asset, however deep it sits.
 
 That filter is load-bearing rather than tidy-minded: `provenance.yaml` files
 live **inside** these roots, at any level, and a walk that took every file would
@@ -1418,12 +1417,37 @@ to: a `.webp` carries no frontmatter and has nowhere to say what it is.
 
 So the two trees follow one rule about layout and differ on exactly one point:
 a note's type comes from the note, an asset's type comes from its root. That is
-also why the four roots are a closed list rather than a convention — a fifth
+also why the three roots are a closed list rather than a convention — a fourth
 directory under `assets/` declares nothing, so nothing in it is addressable.
+`assets/ui` and `assets/fonts` fall out of that rule rather than needing an
+exemption.
 
 **A shortcode is lowercase alphanumerics.** A filename that is not — a version
-string, a hyphen, a weight suffix — cannot be addressed and the build says so
+string, a hyphen, a date stamp — cannot be addressed, and the build says so
 rather than inventing a shortcode for it.
+
+#### A font is not an asset
+
+`assets/fonts` is not a root, and a font has no address.
+
+**An asset type exists so a note can name a file and a package can substitute
+it.** Nothing about a font answers to either half. No note names a typeface —
+the art slots are `icon`, `tokenIcon`, `bgImage` and `banner` — and substituting
+one package's font for another's is not something anyone wants.
+
+**Neither consumer of a font can use an address.** A stylesheet names a file
+with `url()`, resolved relative to the stylesheet and never through the content
+index. The book names a _family_ — `#set text(font: "Libertinus Serif")` — and
+the typesetter matches that against a directory it is pointed at. One wants a
+relative path, the other a family name; an address serves neither.
+
+**And the model fits badly.** An address holds one file whose format is free to
+change, which suits a picture. A font family is a matrix of family, weight and
+style, and a filename already says which cell a file is — a shortcode would have
+to re-encode that, worse.
+
+So fonts stay ordinary files a package ships and points a tool at, and their
+licences are recorded where a person reads them rather than in an index.
 
 #### `icon` and `image` are two types, not one
 
