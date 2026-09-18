@@ -1346,34 +1346,108 @@ from.
 
 ### Assets are types
 
-`icon`, `image`, `font` and `audio` are types in the type vocabulary, and an
-address reaches one exactly as it reaches a being or a skill. Their trees are
+`icon`, `image` and `audio` are types in the type vocabulary, and an address
+reaches one exactly as it reaches a being or a skill. Their trees are
 the one thing about them that differs: they sit beside `content/` rather than
 inside it, because the thing a note is addressing is a file rather than a note.
+
+**Three roots, one per type.** The directory is named for what it holds and the
+type is named for what an address reaches, so the two differ by a letter and the
+mapping is declared rather than derived from the name:
+
+| root            | type    |
+| --------------- | ------- |
+| `assets/icons`  | `icon`  |
+| `assets/images` | `image` |
+| `assets/audio`  | `audio` |
+
+**A file's extension decides whether it is an asset at all**, and its root
+decides which type. Every image-extensioned file anywhere under `assets/icons`
+is an icon, and every audio-extensioned file under `assets/audio` is an audio
+asset, however deep it sits.
+
+That filter is load-bearing rather than tidy-minded: `provenance.yaml` files
+live **inside** these roots, at any level, and a walk that took every file would
+read attribution records as assets. A directory under `assets/` that is not one
+of the four holds no addressable asset — `assets/ui` is a package's own
+furniture, and nothing addresses it.
 
 **An asset type carries no system.** Its addresses keep the fourth segment, and
 it is always `none` — `sohl-none-icon-anvil`, never `sohl-icon-anvil` — so key
 parsing stays uniform across every type. The path shape is a property of the
 type rather than a test on a value.
 
-#### An address holds exactly one file
+#### The filename is the shortcode
 
 ```text
-<address> → the single file the walk finds for it
+assets/icons/game-icons/lorc/anvil.svg   →   <package>-none-icon-anvil
+assets/images/beings/creatures/drake.webp →  <package>-none-image-drake
 ```
 
-**The extension is not part of the address.** The directory carries whatever the
-file is called, the walk finds it, and a second file in one address's directory
-is a build error. So a reference names an address and nothing else, a lookup is
-one step rather than two, and changing a format is dropping a different file
-into the same directory — no note changes. The extension is the property most
-likely to change while the subject does not, which is why it stays out of the
-name: `abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
+**The extension is not part of the address**, and neither are the directories
+above the file. A root's shortcodes are one flat namespace however deeply the
+tree nests, so two files under one root sharing a basename are two claims on one
+address and a build error naming both. Across roots they are no such thing:
+`icon-anvil` and `image-anvil` are different addresses.
 
-**The source tree need not mirror the address.** Organise it for the people who
-maintain it — `icons/game-icons/<contributor>/`, `images/beings/creatures/` —
-and let the walk derive the address from it. The filename is the shortcode; the
-directories above it are the package's own business.
+Leaving the extension out is what makes a format change free. Changing an icon
+from SVG to WebP is dropping a different file in place, and no note changes;
+`abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
+
+**Beneath the root the structure is arbitrary, exactly as it is under
+`assets/content`.** A note's address does not depend on where its `.md` sits,
+and an asset's address does not depend on where its file sits within its root.
+Both trees are arranged for the people who maintain them —
+`icons/game-icons/<contributor>/`, `images/beings/creatures/` — and either can be
+rearranged wholesale without a single reference changing.
+
+**That freedom is the point.** Whoever maintains a tree organises it however
+makes sense to them — by contributor, by subject, by the source a set came from,
+by whatever the next thousand files want — and the build has no opinion. A
+layout that carried meaning would spend that freedom to buy nothing: moving a
+file would become a breaking change, and the arrangement would answer to the
+walk rather than to the person reading it.
+
+**The root itself is the exception, and only because an asset root is
+homogeneous.** `assets/content` is mixed: it holds beings, places, skills and
+the rest side by side, and each note declares its own `type:`, so no directory
+needs to. An asset root holds one type and nothing else — everything under
+`assets/icons` is an icon — which is what lets the root supply the type. It has
+to: a `.webp` carries no frontmatter and has nowhere to say what it is.
+
+So the two trees follow one rule about layout and differ on exactly one point:
+a note's type comes from the note, an asset's type comes from its root. That is
+also why the three roots are a closed list rather than a convention — a fourth
+directory under `assets/` declares nothing, so nothing in it is addressable.
+`assets/ui` and `assets/fonts` fall out of that rule rather than needing an
+exemption.
+
+**A shortcode is lowercase alphanumerics.** A filename that is not — a version
+string, a hyphen, a date stamp — cannot be addressed, and the build says so
+rather than inventing a shortcode for it.
+
+#### A font is not an asset
+
+`assets/fonts` is not a root, and a font has no address.
+
+**An asset type exists so a note can name a file and a package can substitute
+it.** Nothing about a font answers to either half. No note names a typeface —
+the art slots are `icon`, `tokenIcon`, `bgImage` and `banner` — and substituting
+one package's font for another's is not something anyone wants.
+
+**Neither consumer of a font can use an address.** A stylesheet names a file
+with `url()`, resolved relative to the stylesheet and never through the content
+index. The book names a _family_ — `#set text(font: "Libertinus Serif")` — and
+the typesetter matches that against a directory it is pointed at. One wants a
+relative path, the other a family name; an address serves neither.
+
+**And the model fits badly.** An address holds one file whose format is free to
+change, which suits a picture. A font family is a matrix of family, weight and
+style, and a filename already says which cell a file is — a shortcode would have
+to re-encode that, worse.
+
+So fonts stay ordinary files a package ships and points a tool at, and their
+licences are recorded where a person reads them rather than in an index.
 
 #### `icon` and `image` are two types, not one
 
