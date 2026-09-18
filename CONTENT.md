@@ -1781,6 +1781,32 @@ asked for — a build that downloads silently is not reproducible and fails
 strangely offline. The cache is keyed by version, so changing the pinned version
 is a miss rather than a silent overwrite.
 
+### `packagebuild` needs no declaration
+
+package-build ships a set of images of its own — section banners chiefly — and a
+note reaches one without declaring anything:
+
+```yaml
+data:
+  banner: packagebuild-none-image-skillbnr
+```
+
+**There is nothing to declare and nothing to fetch.** package-build is an npm
+dependency of every consumer rather than a Foundry package, so there is no
+release archive behind the name and no reason to fetch one — the tree is already
+on disk under `node_modules/@heroiclands/package-build/assets/`. The records are
+walked from it on every load and join the index like any other package's, so a
+cold cache is not a failure mode here and every lookup stays one path.
+
+`packagebuild` is a **reserved** name: no repository may configure it as its
+`contentPackage`, and a configuration that tries is refused.
+
+**These addresses have no Foundry form.** Foundry installs no package for this
+one, so a resolver returns "no Foundry address" deliberately rather than
+deriving `modules/packagebuild/…`, which installs nowhere. That is not a
+limitation in practice: the only slot that names them is `banner`, which reaches
+no compiled document at all and is read by the website and the book.
+
 **A fetched catalogue is read one system at a time.** A dependency may ship a
 pack per system, and the two hold the same `(type, shortcode)` addresses with
 different data models — `skill:awar` is a real address in both vocabularies and

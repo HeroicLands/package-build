@@ -43,6 +43,12 @@ import fs from "node:fs";
 import path from "node:path";
 
 import { formatDiagnostic, positionOfLiteral } from "./diagnostics.mjs";
+// The artifact's name, declared with the package registry so the toolchain's
+// own index can name its file without importing this module back.
+import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
+import { packageBuildRecords } from "./packagebuild-index.mjs";
+
+export { metadataFileName };
 import { PACKAGE_BASE, readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
 
 /**
@@ -66,26 +72,6 @@ const STAMP = ".complete";
  * @type {readonly string[]}
  */
 export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]);
-
-/**
- * What a package's content index is called, wherever it is written or fetched.
- *
- * **The local index and the published artifact are one file.** A package emits
- * this, ships it as a release asset, and advertises it as `flags.metadataUrl`;
- * a consumer fetches that same file into its cache and reads it. Naming it in
- * one function is what keeps the emitter, the release and the fetcher from
- * drifting into three spellings of one artifact.
- *
- * The `-metadata` suffix earns its place: a bare `<package>.jsonl` says nothing
- * about what it holds, and these files land in a cache directory beside other
- * packages' artifacts where the name is all a reader has.
- *
- * @param {string} pkg - The content package name.
- * @returns {string} The file name, e.g. `sohl-metadata.jsonl`.
- */
-export function metadataFileName(pkg) {
-    return `${pkg}-metadata.jsonl`;
-}
 
 /**
  * Every dependency whose published index this build resolves addresses through.
@@ -312,22 +298,14 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     const packages = new Set();
     const stale = [];
 
-    for (const file of cachedMetadataFiles(config)) {
-        let records;
-        try {
-            records = fs
-                .readFileSync(file, "utf8")
-                .split("\n")
-                .filter((line) => line.trim())
-                .map((line) => JSON.parse(line));
-        } catch (err) {
-            stale.push({ package: packageOfCache(file), reason: `unreadable: ${err.message}` });
-            continue;
-        }
-
-        const pkg = records[0]?.package ?? packageOfCache(file);
-        if (local.has(pkg)) continue;
-
+    /**
+     * Fold one package's records into the index.
+     *
+     * @param {string} pkg - The package that published them.
+     * @param {Array<Record<string, any>>} records - Its index records.
+     * @returns {void}
+     */
+    const ingest = (pkg, records) => {
         // A base is only needed to resolve a page *URL*, so a pack-only
         // dependency — Foundry addresses and no site, which `kethira` is by
         // licensing rather than by accident — needs none. Demanding one would
@@ -376,6 +354,31 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
             });
         }
         packages.add(pkg);
+    };
+
+    // The toolchain's own files, first and unconditionally. `packagebuild` is
+    // an npm dependency of every consumer rather than a Foundry package, so
+    // there is nothing to declare and nothing to fetch — the tree is already on
+    // disk beside this module. The special case is entirely in the
+    // *acquisition*: the records join the index like any other package's, so
+    // every lookup stays one path.
+    ingest(PACKAGEBUILD_PACKAGE, packageBuildRecords());
+
+    for (const file of cachedMetadataFiles(config)) {
+        let records;
+        try {
+            records = fs
+                .readFileSync(file, "utf8")
+                .split("\n")
+                .filter((line) => line.trim())
+                .map((line) => JSON.parse(line));
+        } catch (err) {
+            stale.push({ package: packageOfCache(file), reason: `unreadable: ${err.message}` });
+            continue;
+        }
+        const pkg = records[0]?.package ?? packageOfCache(file);
+        if (local.has(pkg)) continue;
+        ingest(pkg, records);
     }
 
     return { index, packages, stale };

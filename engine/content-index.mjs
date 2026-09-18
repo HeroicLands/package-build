@@ -130,9 +130,18 @@ import {
     isNoteRecord,
     noteFile,
     recordPath,
+    sortKeysDeep,
 } from "./index-records.mjs";
 
-export { authoredFrontmatter, DERIVED_KEYS, isAssetRecord, isNoteRecord, noteFile, recordPath };
+export {
+    authoredFrontmatter,
+    DERIVED_KEYS,
+    isAssetRecord,
+    isNoteRecord,
+    noteFile,
+    recordPath,
+    sortKeysDeep,
+};
 
 /**
  * The address a wikilink writes to reach a note, or `null` when it has none.
@@ -182,27 +191,6 @@ export function noteAddress(frontmatter, contentPackage) {
             frontmatter.shortcode,
         ),
     };
-}
-
-/**
- * Recursively sort an object's keys, so serialization is order-independent.
- *
- * Arrays keep their order — it is authored — but every object inside one is
- * sorted too. Anything that is not a plain object is returned as it is.
- *
- * @param {unknown} value - The value to normalize.
- * @returns {unknown} The value with every plain object's keys in sorted order.
- */
-export function sortKeysDeep(value) {
-    if (Array.isArray(value)) return value.map(sortKeysDeep);
-    if (value === null || typeof value !== "object") return value;
-    // A Date or any other exotic object would lose itself in a rebuild from
-    // entries, and YAML frontmatter can produce one.
-    if (Object.getPrototypeOf(value) !== Object.prototype) return value;
-    /** @type {Record<string, unknown>} */
-    const out = {};
-    for (const key of Object.keys(value).sort()) out[key] = sortKeysDeep(value[key]);
-    return out;
 }
 
 /**

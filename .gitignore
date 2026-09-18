@@ -2,6 +2,12 @@
 # `prepack` runs, so the published tarball carries them and the tree does not.
 types/
 
+# This package's own content index. Derived from `assets/` by
+# `npm run build:asset-index`, which `prepack` runs, so the published tarball
+# carries it and the tree does not — a build inside this process walks the tree
+# instead and never reads the file.
+/packagebuild-metadata.jsonl
+
 # Build dir
 /build/
 
