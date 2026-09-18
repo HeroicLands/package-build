@@ -2752,14 +2752,31 @@ single Level is synthesised from `bgImage`, `overlay`, `levelName` and
 > Art is not system-specific — a Scene is a core Foundry document, and a second
 > system would want the identical art — so the field sits under `data:` rather
 > than inside a system block.
+>
+> **A map has no `img`.** `bgImage` is the only key naming a map's background,
+> and a note writing `img:` or `data.img:` is refused. The two are not
+> alternative spellings: `img` is a Foundry destination and no Scene has one.
 
-**A tile names its art with `image`, a sound its clip with `audio`.** Both are
-addresses and both default from the key: `image` to type `image`, `audio` to
-type `audio`. A tile placing a glyph rather than artwork qualifies —
-`image: sohl-none-icon-chest` — which is the ordinary short-form ladder and not
-an exception. The emitted `AmbientSound` field is still Foundry's own `path`;
-the note's key is named for the type it references, so the default needs no
-memorising.
+**Every art key inside a map is an address, and each is named for the type it
+reaches.** A map's geometry is authored in Foundry's own units, and its art is
+not authored in Foundry's own paths.
+
+| authored             | default type | emitted as                   |
+| -------------------- | ------------ | ---------------------------- |
+| `data.bgImage`       | `image`      | the level's `background.src` |
+| `tiles.<key>.image`  | `image`      | the tile's `texture.src`     |
+| `sounds.<key>.audio` | `audio`      | the `AmbientSound`'s `path`  |
+
+Naming each key for the type it references is what makes the default worth
+having: `audio:` reaches an `audio` address without a note ever writing the
+type segment. Where a tile places a glyph rather than artwork it qualifies —
+`image: sohl-none-icon-chest` — which is the ordinary short-form ladder rather
+than an exception to it.
+
+**The authored key and the emitted field differ where Foundry's name differs.**
+An `AmbientSound` stores its clip in `path`, and that is what the compiled
+document carries; the note writes `audio` because the note is naming an
+address, not filling in a Foundry field.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,
