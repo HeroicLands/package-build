@@ -64,7 +64,14 @@ import { collectAnchors } from "./anchors.mjs";
 // derives it. Nothing in the index's own import graph reaches this
 // module, so this is a plain static import rather than the deferred one
 // `sql-tables` needs to keep out of the compilers' cycle.
-import { authoredFrontmatter, indexRecordsFor, isNoteRecord, noteFile } from "./content-index.mjs";
+import {
+    authoredFrontmatter,
+    indexRecordsFor,
+    isAssetRecord,
+    isNoteRecord,
+    noteFile,
+} from "./content-index.mjs";
+import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -173,9 +180,20 @@ export function buildLinkIndex(
         records ?? indexRecordsFor({ contentBase, config: resolved, skipDirectories, problems });
 
     const byKey = new Map();
+    /** Canonical address to asset record, for the files this package ships. */
+    const byAssetKey = new Map();
     const anchors = new Map();
 
     for (const record of indexRecords) {
+        // An asset's record addresses a file rather than a note: there is no
+        // body to read links out of and no anchor to resolve one against, so it
+        // is keyed for resolution and nothing else. Keyed here rather than
+        // alongside the notes because `byKey` holds notes, and a caller that
+        // reaches for `.fm` or `.body` on one must not be handed a file.
+        if (isAssetRecord(record)) {
+            if (record.address?.canonical) byAssetKey.set(record.address.canonical, record);
+            continue;
+        }
         // A documentation journal has a record of its own but no file and no
         // authored frontmatter — it is a document this tree emits, not a note
         // in it. Its addresses are keyed below, from the note it documents.
@@ -228,7 +246,14 @@ export function buildLinkIndex(
     // documentation journal's `doc<type>` is deliberately not among them: it is
     // virtual, and `readQualifier` resolves it from the base type rather than
     // from a type any tree declares.
-    const types = new Set(notes.map((n) => n.type));
+    //
+    // The **asset** types join unconditionally, whether or not this tree holds
+    // a file of each. They are a closed vocabulary rather than a census of what
+    // was found, and the difference is the whole diagnostic: an unknown type
+    // does not parse, so a tree with no `audio/` directory would read
+    // `audio-swoosh` as prose and say nothing, where an address the vocabulary
+    // knows and nothing answers is reported as the dead reference it is.
+    const types = new Set([...notes.map((n) => n.type), ...ASSET_TYPE_NAMES]);
 
     // A foreign package may use a type this tree has never seen, so its types
     // join `types` — otherwise `readQualifier` reads the link as prose and it
@@ -366,7 +391,11 @@ export function buildLinkIndex(
         // plain `Map.set` — so two notes in one package sharing a
         // `(type, shortcode)` across systems silently overwrote each other, and
         // a bare link resolved to whichever was indexed second.
-        return byKey.get(expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) }));
+        const canonical = expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) });
+        // Assets are consulted after notes and never instead of them: the two
+        // namespaces cannot collide — an address carries its type — so the order
+        // is about which map holds the answer, not about precedence.
+        return byKey.get(canonical) ?? byAssetKey.get(canonical);
     }
 
     /**
@@ -431,13 +460,17 @@ export function buildLinkIndex(
      * to this one. That is the rule for a link, whose target is a document to
      * point at; a reference names an item to stand beside.
      *
+     * The files this package ships answer here too, and by the same rule: an
+     * asset's address is a `(type, shortcode)` pair like any other, so a field
+     * naming `icon-anvil` resolves to the record that carries the file's path.
+     *
      * @param {string} target - The reference as `type-shortcode`.
-     * @returns {object|null} The note or foreign entry declaring it.
+     * @returns {object|null} The note, asset record or foreign entry declaring it.
      */
     function referenceHit(target) {
         const q = readQualifier(target, types, packages);
         if (!q || q.reason) return null;
-        const local = matchAddress([...byKey], q);
+        const local = matchAddress([...byKey, ...byAssetKey], q);
         if (local.length) return local[0][1];
         const abroad = matchAddress([...foreign.index], q);
         return abroad.length ? abroad[0][1] : null;
@@ -449,6 +482,13 @@ export function buildLinkIndex(
         anchors,
         types,
         packages,
+        /**
+         * The files this package ships, by canonical address. Separate from the
+         * notes because the two record shapes are read differently, and exposed
+         * because a pass resolving art needs the address set without walking the
+         * index again.
+         */
+        assets: byAssetKey,
         /**
          * The one package this tree publishes. Distinct from `packages`, which
          * is the set an address may name and which a homepage-only tree leaves
@@ -805,9 +845,11 @@ export function auditLinks(index) {
             if (!anchor || !labelled) continue;
             const dest = target ? resolve(target) : note;
             // An unresolvable target is reported by the pass below; its anchor
-            // has nothing to be checked against.
+            // has nothing to be checked against. Neither has a file: an asset
+            // resolves but has no body, so it declares the empty set of anchors
+            // and every `#section` on one is dead.
             if (!dest) continue;
-            if (!anchors.get(dest).has(slugify(anchor))) {
+            if (!(anchors.get(dest) ?? new Set()).has(slugify(anchor))) {
                 deadAnchors.push({
                     note,
                     link: `${target}#${anchor}`,

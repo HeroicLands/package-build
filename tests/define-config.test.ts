@@ -203,6 +203,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
 
         expect(config.paths).toEqual({
             content: path.join("/repo", "assets/content"),
+            assets: path.join("/repo", "assets"),
             contentIndex: path.join("/repo", "build/content-index"),
             packJson: path.join("/repo", "build/packs-json"),
             stage: path.join("/repo", "build/stage/packs"),

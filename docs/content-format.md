@@ -1426,6 +1426,59 @@ exemption.
 string, a hyphen, a date stamp — cannot be addressed, and the build says so
 rather than inventing a shortcode for it.
 
+#### The asset record
+
+An asset reaches the content index as a record of its own — one line per
+addressable file, in the same JSON Lines index the notes publish into. It
+carries no frontmatter, no anchors and no `foundry` block: a file declares
+nothing about itself, compiles into no document, and publishes no page, so the
+`address` holds the canonical key and no page slug.
+
+| `asset` field | Source     | What it says                                                       |
+| ------------- | ---------- | ------------------------------------------------------------------ |
+| `path`        | the walk   | Where the file sits inside the emitting package's asset directory. |
+| `attribution` | provenance | Who made the file, or what tool generated it.                      |
+| `source`      | provenance | Where it came from — a URL, or a sentence.                         |
+| `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.       |
+| `notes`       | provenance | Anything else a person reading the attribution needs.              |
+
+Every field is present on every record, blank where nothing states one. A fixed
+shape is what lets a consumer read `asset.license` without first asking whether
+the package happened to record one.
+
+**`path` is what makes resolution one step.** The record is emitted by the
+package holding the bytes, so the path is that package's path and each consumer
+joins its own root onto it:
+
+| Consumer | `thalorna-none-image-thorn` resolves to                            |
+| -------- | ------------------------------------------------------------------ |
+| Web      | `<cdn base>/thalorna/images/beings/characters/thorn.webp`          |
+| Book     | `<asset base>/thalorna/images/beings/characters/thorn.webp`        |
+| Foundry  | `modules/sohl-thalorna/assets/images/beings/characters/thorn.webp` |
+
+Foundry names a **Foundry package id** rather than a content package, because
+the two are distinct — they are equal in the system only by coincidence, and in
+`sohl-thalorna` they differ.
+
+##### Where provenance comes from
+
+A `provenance.yaml` states `attribution`, `source`, `license` and `notes`, and
+nothing else: an unknown key is a finding rather than a silent drop, because
+`licence` beside `license` is otherwise an attribution record that looks
+complete and carries nothing.
+
+One address resolves its record in this order:
+
+1. A sibling `<filename.ext>.yaml`, which **replaces** an inherited record
+   wholesale rather than merging over it. A sidecar exists precisely because the
+   inherited answer is wrong for this one file, so carrying half of it forward
+   would make the record's meaning depend on a directory two levels up.
+2. Otherwise the nearest `provenance.yaml`, searching the file's own directory
+   and then its ancestors, **stopping at the type root**. A record above the root
+   would speak for trees it says nothing about.
+3. Otherwise nothing, and the provenance fields are blank. A package that
+   records no attribution is a fact to state, not a walk to fail.
+
 #### A font is not an asset
 
 `assets/fonts` is not a root, and a font has no address.
