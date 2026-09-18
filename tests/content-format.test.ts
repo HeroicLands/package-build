@@ -251,8 +251,8 @@ describe("the shipped specification", () => {
         expect(CONTENT_FORMAT_PATH.endsWith(path.join("docs", "content-format.md"))).toBe(true);
     });
 
-    it("makes the 95 mapping claims the audit counted", () => {
-        expect(format.claims).toHaveLength(95);
+    it("makes the 93 mapping claims the audit counted", () => {
+        expect(format.claims).toHaveLength(93);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
@@ -268,18 +268,13 @@ describe("the shipped specification", () => {
             "sohl actionDefs → system.actionDefs",
             "sohl notes → system.notes",
             "hm3 notes → system.notes",
-            // The actor table's one extra row.
-            "sohl data.portrait → system.portrait",
-            "hm3 data.portrait → system.bioImage",
         ]);
     });
 
     it("omits a shared row from the per-type tables that share it", () => {
-        // `data.portrait` and `data.templatePriority` were stated in `being`'s
-        // and `vehicle`'s tables as well, which is the duplication the section
-        // exists to remove.
+        // A shared row is stated once in the shared section. Restating it in a
+        // per-type table is the duplication that section exists to remove.
         const perType = format.claims.filter((c) => !c.shared);
-        expect(perType.some((c) => c.source === "data.portrait")).toBe(false);
         expect(perType.some((c) => c.source === "data.templatePriority")).toBe(false);
     });
 
@@ -359,7 +354,7 @@ describe("the specification against the committed fixture schema", () => {
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(76);
+        expect(checked).toBe(75);
     });
 });
 
