@@ -1785,6 +1785,12 @@ The following H1 headers are treated specially:
 - `# ... {#dossier}`: The contents of this header become the `doc.dossier` property in sohl and `doc.biography` in hm3.
 - `# ... {#spoilers}`: The contents of this header are not written to the actor at all.
 
+**The anchor is matched at H1 and only at H1.** A deeper heading carrying the
+same anchor is not a match, and the section it opens is extracted as empty
+rather than reported — so a whole tree can ship blank `appearance` and `dossier`
+fields with nothing said about it. Where a section wants sub-headings, they nest
+below the H1.
+
 For JournalEntries, the following rules apply:
 
 - `# ... {#spoilers}`: The contents of this header go into a page which is viewable only by the GM (`CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE`).
@@ -1841,6 +1847,18 @@ Generates a living (or undead, or spirit) being.
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+#### Every being carries both sections
+
+**A being writes `{#appearance}` and `{#dossier}`, both at H1, whether or not it
+has anything to say yet.** A being with no description written writes `TBD`
+under the appearance heading. A missing section and an unwritten one compile
+identically — to an empty field — so the sections are always present and the
+placeholder is what distinguishes the two for a reader.
+
+A being may carry further H1 sections beside those two, `# See Also` and
+`# Skills and Abilities` among them. They are peers rather than subsections, and
+nothing in them reaches an actor field.
 
 #### The lead image
 
