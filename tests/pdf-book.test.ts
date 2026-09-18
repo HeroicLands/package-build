@@ -305,4 +305,13 @@ describe.runIf(HAS_TYPST)("the compiled PDF", () => {
     it("names the document, so a viewer's title bar is not the file name", () => {
         expect(pdf.toString("latin1")).toMatch(/Title/);
     });
+
+    it("sets its headings in the sans, on a machine carrying no copy of it", () => {
+        // The embedded subsets are the only evidence that survives a compile:
+        // a heading rule naming a family the compiler cannot resolve falls back
+        // to the serif silently, and the source looks identical either way.
+        // The fixture configures a serif and leaves the other two roles to
+        // their defaults, so this is the shipped face being found.
+        expect(pdf.toString("latin1")).toMatch(/\+LibertinusSans/);
+    });
 });

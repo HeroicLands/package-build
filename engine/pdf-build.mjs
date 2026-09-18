@@ -64,6 +64,20 @@
  * `.typ` source on disk, which is both the diagnostic and the thing a consumer
  * can compile by hand.
  *
+ * ## The faces are the toolchain's and the compiler's, never the machine's
+ *
+ * Every face the book sets resolves from one of two places that travel with the
+ * build: the faces this package ships — see {@link BOOK_FONTS_PATH} — and the
+ * ones the compiler embeds. The compile passes the shipped directory as
+ * `--font-path` and `--ignore-system-fonts` alongside it, so a machine carrying
+ * its own copy of a named family cannot quietly set a different book from the
+ * same source.
+ *
+ * `pdf.fonts.path` is searched as well, so a consumer naming a face of its own
+ * in `pdf.fonts` still resolves it — and a name nothing resolves is reported,
+ * because the compiler says so and a compile that says it still exits 0 with a
+ * book set in the fallback.
+ *
  * @module
  */
 
@@ -71,6 +85,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { spawnSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 
 import YAML from "yaml";
 
@@ -613,6 +628,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     }
 
     const compiled = compileTypst(typPath, pdfPath, resolved.pdf);
+    findings.push(...compiled.findings);
     if (!compiled.ok) {
         findings.push({ file: typPath, severity: "error", message: compiled.message });
         return { built: false, reason: null, findings, typ: typPath, pdf: null, stats };
@@ -621,23 +637,112 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
 }
 
 /**
+ * The faces the book is set in that the compiler does not carry itself.
+ *
+ * Resolved from this module rather than from the working directory, on the same
+ * rule the specification and `--version` follow: a consumer runs the build
+ * inside its own repository, and the faces it sets the book in are the ones
+ * that came with the toolchain version it resolved.
+ *
+ * What is here is the **sans**, in the three styles a heading can ask for, the
+ * superfamily's **mono** for a package that names it, and the licence they
+ * travel under. The serif is not: the compiler embeds one, and a second copy of
+ * a face it already carries is a file nothing selects.
+ *
+ * It is **not** an addressable asset root: the compiler matches a face by
+ * family name, so nothing addresses these files and nothing needs to.
+ *
+ * @type {string}
+ */
+export const BOOK_FONTS_PATH = path.join(
+    path.dirname(fileURLToPath(import.meta.url)),
+    "..",
+    "assets",
+    "fonts",
+);
+
+/**
+ * The command line the compile runs, as data.
+ *
+ * Separate from running it so the flags that decide which faces are in play
+ * can be asserted without a compiler installed — which is the half of the
+ * invocation that changes what the book looks like.
+ *
+ * @param {string} typPath - The `.typ` file.
+ * @param {string} pdfPath - Where the PDF goes.
+ * @param {object} [pdf] - The resolved `pdf:` block.
+ * @returns {string[]} The arguments, in order.
+ */
+export function typstArgs(typPath, pdfPath, pdf = {}) {
+    // One flag, the paths joined by the platform's separator: the compiler
+    // takes a list, and the shipped faces come first so a consumer's own
+    // directory extends the set rather than standing in for it.
+    const fontPaths = [BOOK_FONTS_PATH];
+    if (pdf.fonts?.path) fontPaths.push(pdf.fonts.path);
+    return [
+        "compile",
+        "--ignore-system-fonts",
+        "--font-path",
+        fontPaths.join(path.delimiter),
+        typPath,
+        pdfPath,
+    ];
+}
+
+/**
+ * The compiler's own warnings, as findings.
+ *
+ * A compile that says `unknown font family` still exits 0 and still writes a
+ * book — one set in whatever face the fallback reached. That is the failure
+ * this surface is least able to see, so the compiler's warnings are read back
+ * and reported on the same terms as everything else the build finds.
+ *
+ * Typst writes a warning as a `warning:` line followed by a `┌─ file:line:col`
+ * locator over a source excerpt. The message and the position are taken; the
+ * excerpt is not, since the reader has the file.
+ *
+ * @param {string} output - What the compiler wrote to stderr.
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: string, message: string}>} One finding per warning.
+ */
+export function typstWarnings(output) {
+    const lines = String(output || "").split("\n");
+    const findings = [];
+    for (let i = 0; i < lines.length; i += 1) {
+        const warned = /^warning: (.+)$/.exec(lines[i]);
+        if (!warned) continue;
+        const finding = { file: "", severity: "warning", message: warned[1].trim() };
+        const at = /^\s*┌─ (.+):(\d+):(\d+)\s*$/.exec(lines[i + 1] ?? "");
+        if (at) {
+            // The compiler writes the path relative to its own working
+            // directory, which is this process's, so resolving it there is what
+            // recovers the file a reader can open.
+            finding.file = path.resolve(at[1]);
+            finding.line = Number(at[2]);
+            finding.column = Number(at[3]);
+        }
+        findings.push(finding);
+    }
+    return findings;
+}
+
+/**
  * Run Typst over the emitted source.
  *
  * @param {string} typPath - The `.typ` file.
  * @param {string} pdfPath - Where the PDF goes.
  * @param {object} pdf - The resolved `pdf:` block.
- * @returns {{ok: boolean, message: string}} What happened.
+ * @returns {{ok: boolean, message: string, findings: object[]}} What happened,
+ *   and what the compiler warned about on the way.
  */
 export function compileTypst(typPath, pdfPath, pdf = {}) {
     const binary = pdf.binary || "typst";
-    const args = ["compile"];
-    if (pdf.fonts?.path) args.push("--font-path", pdf.fonts.path);
-    args.push(typPath, pdfPath);
+    const args = typstArgs(typPath, pdfPath, pdf);
     let result;
     try {
         result = spawnSync(binary, args, { encoding: "utf8" });
     } catch (err) {
-        return { ok: false, message: `could not run \`${binary}\`: ${err.message}` };
+        return { ok: false, message: `could not run \`${binary}\`: ${err.message}`, findings: [] };
     }
     if (result.error) {
         const missing = /** @type {any} */ (result.error).code === "ENOENT";
@@ -649,13 +754,18 @@ export function compileTypst(typPath, pdfPath, pdf = {}) {
                     "`typst compile` over it produces the book. Name another binary with " +
                     "`pdf.binary`."
                 :   `could not run \`${binary}\`: ${result.error.message}`,
+            findings: [],
         };
     }
     if (result.status !== 0) {
         const detail = String(result.stderr || result.stdout || "")
             .trim()
             .split("\n")[0];
-        return { ok: false, message: `\`${binary} compile\` failed: ${detail}` };
+        return {
+            ok: false,
+            message: `\`${binary} compile\` failed: ${detail}`,
+            findings: [],
+        };
     }
-    return { ok: true, message: "" };
+    return { ok: true, message: "", findings: typstWarnings(result.stderr) };
 }

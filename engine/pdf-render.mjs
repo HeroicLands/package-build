@@ -1007,7 +1007,9 @@ export function bookTypstPreamble() {
  * @param {string} opts.title - The document's title.
  * @param {string} [opts.subtitle] - Shown under it on the title page.
  * @param {string[]} [opts.front] - Rendered Typst for each front-matter file.
- * @param {object} [opts.fonts] - `{ serif, sans, mono }` family names.
+ * @param {object} [opts.fonts] - `{ serif, sans, mono }` family names. Each
+ *   falls back to the face the toolchain ships or the compiler embeds, so a
+ *   caller that names none still sets the book in all three.
  * @param {string} [opts.version] - Stamped on the title page when given.
  * @param {string} [opts.preamble] - Definitions the bodies call, emitted once
  *   above the title page. A panel every entry draws is a set of rules stated
@@ -1029,8 +1031,13 @@ export function renderBook({
     preamble = "",
     banners = new Map(),
 } = {}) {
+    // The two halves of one superfamily, chosen together: matched metrics are
+    // most of why the sans can carry every heading over a serif body without
+    // the page reading as two books. The mono is a separate claim — the
+    // superfamily's own is missing the Latin Extended Additional letters this
+    // corpus spells names with, where the compiler's embedded face carries them.
     const serif = fonts.serif || "Libertinus Serif";
-    const sans = fonts.sans || serif;
+    const sans = fonts.sans || "Libertinus Sans";
     const mono = fonts.mono || "DejaVu Sans Mono";
     const out = [];
 
