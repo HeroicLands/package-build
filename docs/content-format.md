@@ -1444,8 +1444,9 @@ The width and position vocabularies are the ones above, and they are closed
 here for the same reason: a directive that is quietly ignored looks exactly
 like one that worked.
 
-**A being's portrait is one of these**, written first in the body by convention
-rather than declared in a field — see [the lead image](#the-lead-image).
+**A being's portrait is one of these**, opening its `{#appearance}` section by
+convention rather than declared in a field — see
+[the lead image](#the-lead-image).
 
 ### What a note produces
 
@@ -1843,17 +1844,26 @@ Generates a living (or undead, or spirit) being.
 
 #### The lead image
 
-**A being's portrait goes first in the body, always.**
+**A being's portrait is the first thing inside its `{#appearance}` section,
+always.**
 
 ```markdown
+# Appearance {#appearance}
+
 ![[<address>|<the being's full name>]]{float: top-left}
 ```
 
 **Nothing about that embed is special.** It is an ordinary embedded image with
 an ordinary directive, and no pass treats it differently for sitting where it
-sits. What is strict is the convention: the portrait is the first thing in the
-markdown, so a reader opening any being note finds the picture in the same
-place, and an author writing one never has to decide where it goes.
+sits. What is strict is the convention: the portrait opens the appearance
+section, so a reader opening any being note finds the picture in the same place,
+and an author writing one never has to decide where it goes.
+
+**The section is the part that is not a convention.** `{#appearance}` is what
+becomes an actor's `system.appearance`, so a picture written above that heading
+is outside the section and reaches no document. The heading carries the anchor
+at **H1** — a deeper heading is not matched, and its whole section is extracted
+as empty rather than reported.
 
 The label is the being's full name. That is what a reader needs when the picture
 does not load, and what a screen reader announces in its place.
@@ -1865,7 +1875,8 @@ image. A field puts it somewhere only a template can reach, and every template
 then has to agree about where that is.
 
 Later images are ordinary images too — a second picture of the being, a coat of
-arms, a map of its holding — and they sit wherever the prose wants them.
+arms, a map of its holding — and they sit wherever the prose wants them,
+including in `{#dossier}`.
 
 **A being with no portrait writes no lead image.** There is no empty form and no
 placeholder.
