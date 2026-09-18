@@ -551,10 +551,10 @@ the art it writes (`emitsArt`). A second table of iconless types would be a tabl
 free to drift from what is actually emitted, which is the defect rather than the
 check.
 
-#### The five art slots
+#### The four art slots
 
 A note declares the art its document needs, and every other image in it is
-inline. All five slots are ordinary `WikiLink` fields declaring a default type,
+inline. All four slots are ordinary `WikiLink` fields declaring a default type,
 exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
@@ -562,19 +562,22 @@ link uses.
 | field       | default type | resolves into                | on                                        |
 | ----------- | ------------ | ---------------------------- | ----------------------------------------- |
 | `icon`      | `icon`       | `document.img`               | every Actor/Item type, and embedded items |
-| `portrait`  | `image`      | the large sheet portrait     | Actor types                               |
 | `tokenIcon` | `icon`       | `prototypeToken.texture.src` | Actor types                               |
 | `bgImage`   | `image`      | `background.src`             | map types                                 |
 | `banner`    | `image`      | the site hero image          | any note; not a Foundry field             |
 
-All five are authored under `data:`:
+All four are authored under `data:`:
 
 ```yaml
 data:
   icon: anvil
-  portrait: thornportrait
   banner: packagebuild-none-image-skillbnr
 ```
+
+**A portrait is not one of them.** A picture of the subject is a picture, so it
+is authored in the prose that describes the subject, as an ordinary embedded
+image — see [the lead image](#the-lead-image). A slot exists for art a
+_document field_ needs; nothing else earns one.
 
 **A reference carries no slashes and no extension.** That is what keeps it from
 being read as a file name, and it is checked: a value shaped like a pathname is
@@ -584,20 +587,17 @@ an error naming the note and the key.
 a map is zoomed out, so it is an `icon` rather than an `image`, and its fallback
 has to be `icon`-typed too.
 
-Actor types (`being`, `vehicle`) therefore add two rows:
+Actor types (`being`, `vehicle`) therefore add one row:
 
 | shared source    | → sohl                       | → hm3                        |
 | ---------------- | ---------------------------- | ---------------------------- |
-| `data.portrait`  | `system.portrait`            | `system.bioImage`            |
 | `data.tokenIcon` | `prototypeToken.texture.src` | `prototypeToken.texture.src` |
 
-An actor carries three pieces of art and they are three different questions.
-`data.icon` is the profile art — what a directory listing shows beside the name
-and what the sheet header carries. `data.tokenIcon` is what a token on the
-canvas wears. `data.portrait` is the large sheet portrait, and what an infobox
-shows on the web and in the book. All three are wikilinks and all three resolve
-the same way; only the destination differs. An Item has one piece of art, so
-these two rows apply to actor types alone.
+An actor's two pieces of art are two different questions. `data.icon` is the
+profile art — what a directory listing shows beside the name and what the sheet
+header carries. `data.tokenIcon` is what a token on the canvas wears. Both are
+wikilinks and both resolve the same way; only the destination differs. An Item
+has one piece of art, so this row applies to actor types alone.
 
 **A `data:` source is still read at the top level, for now.** `data:` did
 not invent the facts it holds — it gathered them out of the top level — so every
@@ -606,11 +606,11 @@ one and reported as retiring. This is the shared level's counterpart to the
 in-block `<system>.<key>` retirement, and the two are separate: a note may have
 moved one and not the other.
 
-**Neither image key is one of those.** A top-level `img:` is not authored at
-all: `data.icon` is a different key holding a different kind of value, and a
-note writing `img:` is naming a file where an address belongs. `portrait:` is
-not merely relocated either — `data.portrait` stands beside `data.icon` and
-`data.tokenIcon`, and each of the three answers a question the others do not.
+**No image key is one of those.** A top-level `img:` is not authored at all:
+`data.icon` is a different key holding a different kind of value, and a note
+writing `img:` is naming a file where an address belongs. `portrait:` is not
+relocated either, at any level — a portrait is an embed in the body, and the
+key that used to declare one is not a key.
 
 **Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
 on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
@@ -722,7 +722,7 @@ is that package's by the same rule that claims `icons/…` and `images/…`.
 
 **Where a pathname is still authored, it follows this rule.** That is the
 address of an image in a note's body, and a map note's `overlay`. The art
-fields do not: `icon`, `portrait`, `tokenIcon`, `bgImage` and `banner` name
+fields do not: `icon`, `tokenIcon`, `bgImage` and `banner` name
 addresses, and the path comes from the record the resolved address points at —
 which already carries the owning package, so there is nothing for a first
 segment to state.
@@ -1432,6 +1432,21 @@ many documents, and only the referrer knows what it means where it sits.
 transclusion of an arbitrary note — so the restriction is a guard rather than a
 convention.
 
+**An embed takes the same directive an image does**, in the same place —
+immediately after the closing `]]`, with no space:
+
+```markdown
+![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+![[thalornamap|Map of Thalorna]]{.full-width}
+```
+
+The width and position vocabularies are the ones above, and they are closed
+here for the same reason: a directive that is quietly ignored looks exactly
+like one that worked.
+
+**A being's portrait is one of these**, written first in the body by convention
+rather than declared in a field — see [the lead image](#the-lead-image).
+
 ### What a note produces
 
 Note types fall into two groups, and only the first has a mapping table.
@@ -1523,7 +1538,7 @@ authored statement, three renderers, which is the single-sourcing every other
 part of this format follows.
 
 ```markdown
-![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
 
 ![Map of Thalorna](images/maps/thalorna.webp){.full-width}
 ```
@@ -1772,7 +1787,6 @@ The following H1 headers are treated specially:
 For JournalEntries, the following rules apply:
 
 - `# ... {#spoilers}`: The contents of this header go into a page which is viewable only by the GM (`CONST.DOCUMENT_OWNERSHIP_LEVELS.NONE`).
-- The `portrait` frontmatter property will be added as a new JournalPage of type image with the name "Portrait" and anchor "portrait".
 
 **Archetype** is often used to describe a character in broad terms. These are often useful when determining whether a character matches a particular adventure. The list of character archetypes are:
 
@@ -1807,7 +1821,6 @@ Generates a living (or undead, or spirit) being.
 | --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
 | `icon`                      | `WikiLink`                                     | The document's profile art — an `icon` address, resolved into `img`                              |
 | `tokenIcon`                 | `WikiLink`                                     | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
-| `portrait`                  | `WikiLink`                                     | The large sheet portrait — an `image` address                                                    |
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
 | `occupation`                | `string`                                       | Name of the character's occupation                                                               |
@@ -1827,6 +1840,35 @@ Generates a living (or undead, or spirit) being.
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+#### The lead image
+
+**A being's portrait goes first in the body, always.**
+
+```markdown
+![[<address>|<the being's full name>]]{float: top-left}
+```
+
+**Nothing about that embed is special.** It is an ordinary embedded image with
+an ordinary directive, and no pass treats it differently for sitting where it
+sits. What is strict is the convention: the portrait is the first thing in the
+markdown, so a reader opening any being note finds the picture in the same
+place, and an author writing one never has to decide where it goes.
+
+The label is the being's full name. That is what a reader needs when the picture
+does not load, and what a screen reader announces in its place.
+
+**There is no `portrait` field**, at any level. A portrait is a picture of the
+subject, and a picture of the subject belongs in the prose that describes it —
+where an author can see it, move it, caption it or remove it, as with any other
+image. A field puts it somewhere only a template can reach, and every template
+then has to agree about where that is.
+
+Later images are ordinary images too — a second picture of the being, a coat of
+arms, a map of its holding — and they sit wherever the prose wants them.
+
+**A being with no portrait writes no lead image.** There is no empty form and no
+placeholder.
 
 #### A being's embedded items
 
@@ -1954,13 +1996,12 @@ Represents a conveyance able to hold goods and people moving from one place to a
 | ------------------ | ---------- | ------------------------------------------------------------------------ |
 | `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img`      |
 | `tokenIcon`        | `WikiLink` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
-| `portrait`         | `WikiLink` | The large sheet portrait — an `image` address                            |
 | `templatePriority` | `number`   | Template priority, _null_ = not a template                               |
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
 It maps nothing beyond the shared rows above, actor row included: a vehicle
-carries a portrait and a template priority and no field of its own.
+carries a template priority and no field of its own.
 
 ### type: affiliation
 
