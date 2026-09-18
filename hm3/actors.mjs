@@ -49,7 +49,7 @@
  * @module
  */
 
-import { resolveName, resolveImg } from "../engine/helpers.mjs";
+import { resolveName } from "../engine/helpers.mjs";
 import { buildFromFields, readField, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
@@ -120,10 +120,12 @@ const BIO_IMAGE_FIELD = Object.freeze({
     name: "data.portrait",
     legacyKey: "portrait",
     to: "bioImage",
-    shape: "path",
-    read: (raw) => resolveImg(raw),
+    shape: "a wikilink",
+    // The value is an address, resolved by the caller: an address is answered
+    // by the compile's index, which a field declaration has no reach into.
+    read: (raw) => raw,
     default: null,
-    describe: "Path to the portrait image.",
+    describe: "An `image` address for the portrait.",
 });
 
 /**
@@ -285,7 +287,10 @@ export class Hm3Actors extends SystemActorCompiler {
                 absPath: this.currentNote?.absPath,
             })
         );
-        const defaultImg = defaultActorImg(subType);
+        // The being's own default sits above the subtype's: only the note's
+        // tags say whether it is a person or a creature, and only this pass
+        // reads them.
+        const art = this.actorArt(fm, defaultActorImg(subType));
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
@@ -330,7 +335,9 @@ export class Hm3Actors extends SystemActorCompiler {
             // subtype's default, one that writes `""` ships blank on purpose.
             // Resolved through the declaration so `data.portrait` is reached at
             // all — see {@link BIO_IMAGE_FIELD}.
-            bioImage: readField(BIO_IMAGE_FIELD, fm, reports) ?? defaultImg,
+            bioImage:
+                this.artPathOf(readField(BIO_IMAGE_FIELD, fm, reports), "portrait", "image") ??
+                art.img,
             description: renderSection(body || "", "appearance"),
             biography: renderSection(body || "", "dossier"),
             ...buildFromFields(ACTOR_FIELDS, reports)(fm),
@@ -356,12 +363,11 @@ export class Hm3Actors extends SystemActorCompiler {
         });
 
         const effects = blockProperty(fm, block, "effects");
-        const img = resolveImg(blockProperty(fm, block, "img")) ?? defaultImg;
 
         return {
             name,
             type: subType,
-            img,
+            img: art.img,
             _id: id,
             system,
             items,
@@ -369,7 +375,7 @@ export class Hm3Actors extends SystemActorCompiler {
                 name,
                 displayName: 0,
                 actorLink: false,
-                texture: { src: img },
+                texture: { src: art.token },
                 width: 1,
                 height: 1,
                 sight: { enabled: false },

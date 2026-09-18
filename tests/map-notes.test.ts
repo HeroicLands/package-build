@@ -40,7 +40,7 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         shortcode: "ambushdefile",
         type: "map",
         subType: "battlemap",
-        img: "sohl/assets/ui/parchment.jpg",
+        data: { bgImage: "parchment" },
         sohl: {
             dimensions: [1900, 2600],
             pxPerGrid: 100,
@@ -48,6 +48,31 @@ function makeNote(sohl: Record<string, unknown> = {}) {
         },
     };
 }
+
+/**
+ * The art resolver the surrounding pass supplies.
+ *
+ * A map's background, its tiles' textures and its sounds' clips are all
+ * addresses, so the compile answers them from its index; these cases stand in
+ * for that with the four files they name.
+ */
+const ART: Record<string, string> = {
+    "image:parchment": "systems/sohl/assets/images/parchment.jpg",
+    "icon:chest": "systems/sohl/assets/icons/chest.svg",
+    "audio:swoosh1": "systems/sohl/assets/audio/swoosh1.ogg",
+};
+const resolveArt = (value: unknown, _key: string, type: string): string | null => {
+    if (value == null) return null;
+    if (value === "") return "";
+    // A bare shortcode takes the slot's own type; anything carrying the
+    // separator states its own address, and the last two segments are the pair.
+    const parts = String(value).split("-");
+    const key =
+        parts.length > 1 ?
+            `${parts[parts.length - 2]}:${parts[parts.length - 1]}`
+        :   `${type}:${parts[0]}`;
+    return ART[key] ?? null;
+};
 
 /** The context a compiled scene needs from the surrounding passes. */
 function makeCtx(over: Record<string, unknown> = {}) {
@@ -61,6 +86,7 @@ function makeCtx(over: Record<string, unknown> = {}) {
         resolveEffectRef: () =>
             "Compendium.sohl.items.Item.IIIIIIIIIIIIIIII.ActiveEffect.EEEEEEEEEEEEEEEE",
         knownActions: new Set(["fearTest"]),
+        art: resolveArt,
         warnings: [] as string[],
         ...over,
     };
@@ -243,16 +269,27 @@ describe("embedded document ids", () => {
 });
 
 describe("buildScene — the whole document", () => {
-    it("synthesises exactly one inline Level from img/overlay and names it initial", () => {
-        const scene = buildSceneDoc(
-            makeNote({ overlay: "sohl/assets/ui/parchment.jpg" }),
-            makeCtx(),
-        );
+    it("refuses a map note that names no background", () => {
+        // A scene with no background is not a map, so the pass stops rather
+        // than compiling one with a blank canvas.
+        const note = makeNote();
+        delete (note as { data?: unknown }).data;
+        expect(() => buildSceneDoc(note, makeCtx())).toThrow(/needs a `bgImage`/);
+    });
+
+    it("refuses one whose background address nothing answers", () => {
+        expect(() =>
+            buildSceneDoc({ ...makeNote(), data: { bgImage: "nosuchthing" } }, makeCtx()),
+        ).toThrow(/needs a `bgImage`/);
+    });
+
+    it("synthesises exactly one inline Level from the art it names, and names it initial", () => {
+        const scene = buildSceneDoc(makeNote({ overlay: "parchment" }), makeCtx());
         expect(scene.levels).toHaveLength(1);
         const [level] = scene.levels;
         expect(level._id).toBe(DEFAULT_LEVEL_ID);
-        expect(level.background.src).toBe("systems/sohl/assets/ui/parchment.jpg");
-        expect(level.foreground.src).toBe("systems/sohl/assets/ui/parchment.jpg");
+        expect(level.background.src).toBe("systems/sohl/assets/images/parchment.jpg");
+        expect(level.foreground.src).toBe("systems/sohl/assets/images/parchment.jpg");
         expect(scene.initialLevel).toBe(DEFAULT_LEVEL_ID);
         // Every embedded document carries its own `_key`, or the compile fails
         // with "Key cannot be null or undefined".
@@ -361,14 +398,14 @@ describe("buildScene — the whole document", () => {
                     oak: {
                         position: [400, 500],
                         size: [200, 200],
-                        image: "sohl/assets/ui/parchment.jpg",
+                        image: "sohl-none-icon-chest",
                     },
                 },
                 sounds: {
                     river: {
                         position: [800, 1200],
                         radius: 40,
-                        path: "sohl/assets/audio/swoosh1.ogg",
+                        audio: "swoosh1",
                         volume: 0.4,
                     },
                 },
@@ -386,7 +423,7 @@ describe("buildScene — the whole document", () => {
             width: 200,
             height: 200,
         });
-        expect(scene.tiles[0].texture.src).toBe("systems/sohl/assets/ui/parchment.jpg");
+        expect(scene.tiles[0].texture.src).toBe("systems/sohl/assets/icons/chest.svg");
         expect(scene.sounds[0]).toMatchObject({
             x: 800,
             y: 1200,

@@ -53,7 +53,7 @@ import { SOHL_FIELD_PRESENTATION, UNSTATED, strikeModes } from "../sohl/infobox.
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { noteInfoboxes } from "../engine/infobox-registry.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 
 /**
@@ -166,8 +166,8 @@ describe("the note box's fields are the type's own vocabulary", () => {
 
     it("names no field the vocabulary does not declare", () => {
         const declared = new Set(
-            Object.entries(NOTE_VOCABULARY).flatMap(([type, entry]) =>
-                entry.data.flatMap((field: { name: string }) => [
+            Object.entries(NOTE_VOCABULARY).flatMap(([type]) =>
+                (dataFields(type) ?? []).flatMap((field: { name: string }) => [
                     field.name,
                     `${type}.${field.name}`,
                 ]),

@@ -91,12 +91,12 @@ describe("every shipped pass declares the art it emits", () => {
     });
 
     it("says an actor pass emits both, since a being carries two pictures", () => {
-        expect([...Actors.emitsArt].sort()).toEqual(["img", "portrait"]);
-        expect([...Hm3Actors.emitsArt].sort()).toEqual(["img", "portrait"]);
+        expect([...Actors.emitsArt].sort()).toEqual(["icon", "tokenIcon"]);
+        expect([...Hm3Actors.emitsArt].sort()).toEqual(["icon", "tokenIcon"]);
     });
 
-    it("says an item pass emits an icon and no portrait", () => {
-        expect([...Items.emitsArt]).toEqual(["img"]);
+    it("says an item pass emits an icon and no token art", () => {
+        expect([...Items.emitsArt]).toEqual(["icon"]);
     });
 });
 
@@ -110,16 +110,24 @@ function note(body: string, fm: Record<string, unknown>): string {
     return `---\n${lines.join("\n")}\n---\n\n${body}\n`;
 }
 
-const AUTHORED_ART = "images/mystery/parrot.webp";
+/** The address every note below names, and the file it resolves to. */
+const AUTHORED_ART = "parrot";
+const ART_FILE = "icons/mystery/parrot.webp";
 
 describe("the declaration matches what a pass actually emits", () => {
     let tmp: string;
     let content: string;
+    let assets: string;
 
     beforeAll(() => {
         tmp = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-inert-art-"));
         content = path.join(tmp, "content");
         fs.mkdirSync(content, { recursive: true });
+        // The file the address names. An art reference resolves through the
+        // index, so a fixture that names one has to ship it.
+        assets = path.join(tmp, "assets");
+        fs.mkdirSync(path.join(assets, "icons", "mystery"), { recursive: true });
+        fs.writeFileSync(path.join(assets, ART_FILE), "webp");
         fs.writeFileSync(
             path.join(content, "Parrot.md"),
             note("A bird of the totem traditions.", {
@@ -127,7 +135,7 @@ describe("the declaration matches what a pass actually emits", () => {
                 id: "PARROTPARROT001",
                 shortcode: "parrotttm",
                 type: "lore",
-                img: AUTHORED_ART,
+                data: { icon: AUTHORED_ART },
             }),
         );
         fs.writeFileSync(
@@ -137,7 +145,7 @@ describe("the declaration matches what a pass actually emits", () => {
                 id: "MACROMACROMAC001",
                 shortcode: "rollsomething",
                 type: "macro",
-                img: AUTHORED_ART,
+                data: { icon: AUTHORED_ART },
             }),
         );
     });
@@ -154,7 +162,12 @@ describe("the declaration matches what a pass actually emits", () => {
 
     async function compile(Pass: any): Promise<any[]> {
         const out = fs.mkdtempSync(path.join(tmp, "out-"));
-        const pack = new Pass({ skipDirectories: [], contentBase: content, dest: out });
+        const pack = new Pass({
+            skipDirectories: [],
+            contentBase: content,
+            assetsBase: assets,
+            dest: out,
+        });
         await pack.compile();
         return read(out);
     }
@@ -165,16 +178,16 @@ describe("the declaration matches what a pass actually emits", () => {
         const docs = await compile(Journals);
         const parrot = docs.find((d) => d.name === "Parrot");
         expect(parrot).toBeDefined();
-        expect(JSON.stringify(parrot)).not.toContain(AUTHORED_ART);
+        expect(JSON.stringify(parrot)).not.toContain(ART_FILE);
         expect(Journals.emitsArt).toHaveLength(0);
     });
 
-    it("declares `img` for the macros pass, and the path indeed reaches the document", async () => {
+    it("declares `icon` for the macros pass, and the file indeed reaches the document", async () => {
         const docs = await compile(Macros);
         const macro = docs.find((d) => d.name === "Roll Something");
         expect(macro).toBeDefined();
         expect(macro.img).toContain("parrot.webp");
-        expect([...Macros.emitsArt]).toEqual(["img"]);
+        expect([...Macros.emitsArt]).toEqual(["icon"]);
     });
 });
 
@@ -193,19 +206,19 @@ describe("emittedArtFor answers from the routing the compile follows", () => {
     it("gives a being both fields, from the actor pass's own declaration", () => {
         const being = emittedArtFor("being")!;
         expect(being.document).toBe("Actor");
-        expect([...being.art].sort()).toEqual(["img", "portrait"]);
+        expect([...being.art].sort()).toEqual(["icon", "tokenIcon"]);
     });
 
     it("gives an item type its icon", () => {
         // An open-set type: nothing names `weapon` in the routing table, and it
         // takes the Item default — which is exactly how the compile resolves it.
-        expect(emittedArtFor("weapon")).toEqual({ document: "Item", art: ["img"] });
+        expect(emittedArtFor("weapon")).toEqual({ document: "Item", art: ["icon"] });
     });
 
     it("gives a macro, a map and a bundle their art", () => {
-        expect(emittedArtFor("macro")).toEqual({ document: "Macro", art: ["img"] });
-        expect(emittedArtFor("map")).toEqual({ document: "Scene", art: ["img"] });
-        expect(emittedArtFor("bundle")).toEqual({ document: "Adventure", art: ["img"] });
+        expect(emittedArtFor("macro")).toEqual({ document: "Macro", art: ["icon"] });
+        expect(emittedArtFor("map")).toEqual({ document: "Scene", art: ["bgImage"] });
+        expect(emittedArtFor("bundle")).toEqual({ document: "Adventure", art: ["icon"] });
     });
 
     it("says a folder carries none — a Foundry Folder has no artwork", () => {
@@ -228,7 +241,7 @@ describe("emittedArtFor answers from the routing the compile follows", () => {
         // still on `armor` gets the same answer a swept one does — which is
         // what keeps the check from reporting an unswept note's live `img:`.
         expect(emittedArtFor("armor")).toEqual(emittedArtFor("armorgear"));
-        expect(emittedArtFor("armor")).toEqual({ document: "Item", art: ["img"] });
+        expect(emittedArtFor("armor")).toEqual({ document: "Item", art: ["icon"] });
     });
 });
 
@@ -260,70 +273,82 @@ function inertArt(findings: any[]): any[] {
 }
 
 describe("the frontmatter lint reports an art key the type never emits", () => {
-    it("reports `img:` on a lore note, naming the key and what it compiles into", () => {
-        const [finding, ...rest] = inertArt(lint({ type: "lore", img: AUTHORED_ART }));
+    it("reports `icon:` on a lore note, naming the key and what it compiles into", () => {
+        const [finding, ...rest] = inertArt(lint({ type: "lore", data: { icon: AUTHORED_ART } }));
         expect(rest).toEqual([]);
         expect(finding.severity).toBe("warning");
         expect(finding.file).toBe("Parrot.md");
-        expect(finding.message).toContain("`img:`");
+        expect(finding.message).toContain("`icon:`");
         expect(finding.message).toContain("`lore`");
         expect(finding.message).toContain("JournalEntry");
     });
 
     it("locates the key in the file, so the finding is a compiler-parseable line", () => {
-        const raw = `---\ntype: lore\nshortcode: parrotttm\nimg: ${AUTHORED_ART}\n---\n`;
-        const [finding] = inertArt(lint({ type: "lore", img: AUTHORED_ART }, raw));
-        expect(finding.line).toBe(4);
+        const raw = `---\ntype: lore\nshortcode: parrotttm\ndata:\n  icon: ${AUTHORED_ART}\n---\n`;
+        const [finding] = inertArt(lint({ type: "lore", data: { icon: AUTHORED_ART } }, raw));
+        expect(finding.line).toBe(5);
         expect(finding.column).toBeGreaterThan(0);
     });
 
     it("reports it inside the system block too, which is the other position", () => {
-        expect(inertArt(lint({ type: "lore", sohl: { img: AUTHORED_ART } }))).toHaveLength(1);
+        expect(inertArt(lint({ type: "lore", sohl: { icon: AUTHORED_ART } }))).toHaveLength(1);
     });
 
-    it('reports an `img: ""` once, as inert rather than as a lost default', () => {
+    it('reports an `icon: ""` once, as inert rather than as a lost default', () => {
         // Both rules could fire on this note. Only the one that is true does:
         // where nothing is emitted there is no default art to fall back to, so
         // the `""`-versus-`null` distinction has nothing to distinguish.
-        const findings = lint({ type: "lore", img: "" });
+        const findings = lint({ type: "lore", data: { icon: "" } });
         expect(inertArt(findings)).toHaveLength(1);
         expect(findings.filter((f) => String(f.message).includes("ship no art at all"))).toEqual(
             [],
         );
     });
 
-    it("says nothing about `img: null`, which is the blessed way to name none", () => {
+    it("says nothing about `icon: null`, which is the blessed way to name none", () => {
         // Twenty-six `sohl-thalorna` place notes are in this state. The key
         // compiles identically to writing nothing at all, so a finding on each
         // would bury the ones that name a path their author believes ships.
-        expect(inertArt(lint({ type: "place", img: null }))).toEqual([]);
+        expect(inertArt(lint({ type: "place", data: { icon: null } }))).toEqual([]);
         expect(inertArt(lint({ type: "place" }))).toEqual([]);
     });
 
     it("says a homepage compiles into a page rather than a document", () => {
-        const [finding] = inertArt(lint({ type: "homepage", img: AUTHORED_ART }));
+        const [finding] = inertArt(lint({ type: "homepage", data: { icon: AUTHORED_ART } }));
         expect(finding.message).toContain("page rather than a compendium document");
     });
 
     it("leaves a live art key alone", () => {
-        expect(inertArt(lint({ type: "being", img: AUTHORED_ART }))).toEqual([]);
-        expect(inertArt(lint({ type: "being", portrait: AUTHORED_ART }))).toEqual([]);
+        expect(inertArt(lint({ type: "being", data: { icon: AUTHORED_ART } }))).toEqual([]);
+        expect(inertArt(lint({ type: "being", data: { tokenIcon: AUTHORED_ART } }))).toEqual([]);
     });
 
-    it("reports a `portrait:` on a type that emits no portrait", () => {
-        // An item has an icon and nowhere to put a sheet portrait, so the two
-        // fields answer differently for one note — which is why the check is
-        // per field rather than per type.
-        const findings = inertArt(lint({ type: "lore", portrait: AUTHORED_ART }));
+    it("says nothing about a `banner:`, which reaches no document by design", () => {
+        // The page's hero image is meant to reach no compiled document, so it
+        // is not an inert key — and reporting every note that names one would
+        // bury the findings that matter.
+        expect(inertArt(lint({ type: "lore", data: { banner: AUTHORED_ART } }))).toEqual([]);
+        expect(inertArt(lint({ type: "being", data: { banner: AUTHORED_ART } }))).toEqual([]);
+    });
+
+    it("reports a `tokenIcon:` on a type that places no token", () => {
+        // An item has an icon and nowhere to put a token, so the two fields
+        // answer differently for one note — which is why the check is per field
+        // rather than per type.
+        const findings = inertArt(lint({ type: "lore", data: { tokenIcon: AUTHORED_ART } }));
         expect(findings).toHaveLength(1);
-        expect(findings[0].message).toContain("`portrait:`");
+        expect(findings[0].message).toContain("`tokenIcon:`");
     });
 
     it("makes no claim at all when the caller supplies no derivation", () => {
         // The pattern `index` and `vocabulary` set: an option's absence skips
         // its check rather than reporting every note.
         const findings = lintNote(
-            { fm: { type: "lore", img: AUTHORED_ART }, file: "Parrot.md", raw: "" } as never,
+            {
+                fm: { type: "lore", data: { icon: AUTHORED_ART } },
+                file: "Parrot.md",
+                raw: "",
+            } as never,
             { schemas: SCHEMAS } as never,
         );
         expect(inertArt(findings)).toEqual([]);

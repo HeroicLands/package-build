@@ -227,24 +227,58 @@ describe("the retiring top-level position is reported", () => {
 /*  The emitters — the acceptance criteria themselves                     */
 /* --------------------------------------------------------------------- */
 
+/**
+ * A compile index holding the files these cases name.
+ *
+ * A portrait is an `image` address, so the compile answers it from the index
+ * rather than from a path; these cases stand in for that with the files they
+ * name.
+ */
+function artIndex(): any {
+    const files: Record<string, [string, string]> = {
+        akhr: ["image", "images/beings/akhr.webp"],
+        donkey: ["image", "images/being/donkey-portrait.webp"],
+        newart: ["image", "images/new.webp"],
+        oldart: ["image", "images/old.webp"],
+        x: ["icon", "icons/x.svg"],
+        defaultcharhead: ["icon", "icons/other/defaultcharhead.webp"],
+    };
+    return {
+        types: new Set(["icon", "image", "audio"]),
+        packages: new Set(["sohl"]),
+        contentPackage: "sohl",
+        assets: new Map(
+            Object.entries(files).map(([shortcode, [type, assetPath]]) => [
+                `sohl-none-${type}-${shortcode}`,
+                { package: "sohl", asset: { path: assetPath } },
+            ]),
+        ),
+        foreign: new Map(),
+    };
+}
+
 /** The SoHL Actor compiler. Nothing here walks a tree or reads a pack. */
 function actors() {
     const config = loadPackConfig();
-    return new Actors({
+    const pack = new Actors({
         skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });
+    pack.linkIndex = artIndex();
+    return pack;
 }
 
 /** The HM3 Actor compiler, likewise. */
 function hm3Actors() {
     const config = loadPackConfig();
-    return new Hm3Actors({
+    const pack = new Hm3Actors({
         skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });
+    pack.linkIndex = artIndex();
+    return pack;
 }
 
 /** A being note, with whatever art positions a case needs. */
@@ -257,25 +291,24 @@ const beingNote = (extra: Record<string, unknown>) => ({
     ...extra,
 });
 
-/** The generic person icon a miss used to compile to. */
-const DEFAULT_BEING_ART = "systems/sohl/assets/icons/game-icons/delapouite/person.svg";
+/** The art a `character` falls back to, which this index answers locally. */
+const DEFAULT_BEING_ART = "systems/sohl/assets/icons/other/defaultcharhead.webp";
+
+/** The subtype's own default, beneath the being's. */
+const SUBTYPE_ART = "systems/sohl/assets/icons/game-icons/delapouite/person.svg";
 
 describe("a SoHL being's `system.portrait`", () => {
-    it("carries the path authored at `data.portrait`, resolved through resolveImg", () => {
+    it("carries the address authored at `data.portrait`", () => {
         const doc = actors().buildBeing(
             new Map(),
-            beingNote({ data: { templatePriority: null, portrait: "images/beings/akhr.webp" } }),
+            beingNote({ data: { templatePriority: null, portrait: "akhr" } }),
             "",
         );
         expect(doc.system.portrait).toBe("systems/sohl/assets/images/beings/akhr.webp");
     });
 
     it("keeps honouring the legacy top-level `portrait:` the bestiary writes", () => {
-        const doc = actors().buildBeing(
-            new Map(),
-            beingNote({ portrait: "images/being/donkey-portrait.webp" }),
-            "",
-        );
+        const doc = actors().buildBeing(new Map(), beingNote({ portrait: "donkey" }), "");
         expect(doc.system.portrait).toBe("systems/sohl/assets/images/being/donkey-portrait.webp");
     });
 
@@ -283,18 +316,24 @@ describe("a SoHL being's `system.portrait`", () => {
         const doc = actors().buildBeing(
             new Map(),
             beingNote({
-                data: { templatePriority: null, portrait: "images/new.webp" },
-                portrait: "images/old.webp",
+                data: { templatePriority: null, portrait: "newart" },
+                portrait: "oldart",
             }),
             "",
         );
         expect(doc.system.portrait).toBe("systems/sohl/assets/images/new.webp");
     });
 
-    it("still defaults to the subtype's art when no position names one", () => {
-        expect(actors().buildBeing(new Map(), beingNote({}), "").system.portrait).toBe(
-            DEFAULT_BEING_ART,
-        );
+    it("falls back to the being's own art when no position names one", () => {
+        expect(
+            actors().buildBeing(new Map(), beingNote({ tags: ["character"] }), "").system.portrait,
+        ).toBe(DEFAULT_BEING_ART);
+    });
+
+    it("falls back to the subtype's art for a being carrying no kind", () => {
+        // A being is tagged `character` or `creature`, and only the compiler
+        // reads the tag; a note carrying neither has nothing to choose by.
+        expect(actors().buildBeing(new Map(), beingNote({}), "").system.portrait).toBe(SUBTYPE_ART);
     });
 
     it('still ships blank for a deliberate `""`, at either shared position', () => {
@@ -310,17 +349,16 @@ describe("a SoHL being's `system.portrait`", () => {
         ).toBe("");
     });
 
-    it("leaves `img` alone — it is a top-level fact, and has no `data:` position", () => {
-        // The mapping table keeps token art at the note's top level, so the
-        // fix must not have quietly moved it too.
-        const doc = actors().buildBeing(new Map(), beingNote({ img: "icons/x.svg" }), "");
-        expect(doc.img).toBe("systems/sohl/assets/icons/x.svg");
-        const inData = actors().buildBeing(
+    it("keeps the profile art and the portrait independent", () => {
+        // Two pictures, two slots: the sheet portrait is not the profile art,
+        // and a note naming one must not move the other.
+        const doc = actors().buildBeing(
             new Map(),
-            beingNote({ data: { templatePriority: null, img: "icons/x.svg" } }),
+            beingNote({ tags: ["character"], data: { templatePriority: null, icon: "x" } }),
             "",
         );
-        expect(inData.img).toBe(DEFAULT_BEING_ART);
+        expect(doc.img).toBe("systems/sohl/assets/icons/x.svg");
+        expect(doc.system.portrait).toBe(doc.img);
     });
 });
 
@@ -331,21 +369,17 @@ describe("an HM3 actor's `system.bioImage`", () => {
         hm3: { type: "creature", ...((extra.hm3 as object) ?? {}) },
     });
 
-    it("carries the path authored at `data.portrait`", () => {
+    it("carries the address authored at `data.portrait`", () => {
         const doc = hm3Actors().buildActor(
             new Map(),
-            hm3Being({ data: { templatePriority: null, portrait: "images/beings/akhr.webp" } }),
+            hm3Being({ data: { templatePriority: null, portrait: "akhr" } }),
             "",
         );
         expect(doc.system.bioImage).toBe("systems/sohl/assets/images/beings/akhr.webp");
     });
 
     it("keeps honouring the legacy top-level `portrait:`", () => {
-        const doc = hm3Actors().buildActor(
-            new Map(),
-            hm3Being({ portrait: "images/being/donkey-portrait.webp" }),
-            "",
-        );
+        const doc = hm3Actors().buildActor(new Map(), hm3Being({ portrait: "donkey" }), "");
         expect(doc.system.bioImage).toBe("systems/sohl/assets/images/being/donkey-portrait.webp");
     });
 
@@ -360,23 +394,21 @@ describe("an HM3 actor's `system.bioImage`", () => {
 /*  The lint reads the same positions the compiler does                    */
 /* --------------------------------------------------------------------- */
 
-describe('the `""`-means-blank warning sees a portrait under `data:`', () => {
+describe("the lint reports a `data.portrait` the compiler still reads", () => {
     const lintOptions = { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY } as never;
 
     const findings = (fm: Record<string, unknown>) =>
         lintNote({ file: "Bestiary/Donkey.md", fm } as never, lintOptions).filter(
-            (f: { message: string }) => f.message.includes('`portrait: ""`'),
+            (f: { message: string }) => f.message.includes("`data.portrait:`"),
         );
 
-    it('warns on a top-level `portrait: ""`, as it always did', () => {
-        expect(findings({ type: "being", portrait: "" })).toHaveLength(1);
+    it("warns rather than refusing, because the note compiles either way", () => {
+        const [finding] = findings({ type: "being", data: { portrait: "donkey" } });
+        expect(finding.severity).toBe("warning");
+        expect(finding.message).toMatch(/\{#appearance\}/);
     });
 
-    it('warns on `data.portrait: ""` too, which it could not see before', () => {
-        expect(findings({ type: "being", data: { portrait: "" } })).toHaveLength(1);
-    });
-
-    it("stays quiet for a portrait that names a path", () => {
-        expect(findings({ type: "being", data: { portrait: "images/a.webp" } })).toHaveLength(0);
+    it("says nothing about a note that does not carry it", () => {
+        expect(findings({ type: "being", data: { icon: "x" } })).toHaveLength(0);
     });
 });

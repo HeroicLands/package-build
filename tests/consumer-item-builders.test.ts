@@ -40,8 +40,8 @@ const BARE_BUILDER = `{ relic: ${RELIC_SYSTEM} }`;
 /**
  * The paired entry: the same builder, with the consumer's own default art.
  *
- * Written as a bare `icons/…` path on purpose — it is resolved against *this*
- * consumer's asset root, the same way a note's own `img:` is.
+ * Written as a bare `icons/…` path on purpose — a registry's default art is a
+ * pathname, resolved against *this* consumer's asset root.
  */
 const RELIC_ART = "icons/relic.svg";
 const RELIC_ART_RESOLVED = "modules/sohl-relics/assets/icons/relic.svg";
@@ -132,6 +132,18 @@ const PREAMBLE = `
         contentBase: loadPackConfig().paths.content,
         dest: loadPackConfig().paths.packJson,
     });
+    // The one file these notes name. An art slot resolves through the compile's
+    // index, and \`buildEntry\` is called here without a compile behind it.
+    items.linkIndex = {
+        types: new Set(["icon", "image", "audio"]),
+        packages: new Set(["relics"]),
+        contentPackage: "relics",
+        assets: new Map([
+            ["relics-none-icon-itembag",
+                { package: "relics", asset: { path: "icons/svg/item-bag.svg" } }],
+        ]),
+        foreign: new Map(),
+    };
 `;
 
 /** One `relic` note's frontmatter, as the walk would hand it over. */
@@ -140,7 +152,7 @@ const RELIC_FM = `{
     type: "relic",
     shortcode: "relic1",
     name: { full: "Cracked Signet" },
-    img: "icons/svg/item-bag.svg",
+    data: { icon: "itembag" },
     sohl: { power: 7, archetype: null },
 }`;
 
@@ -194,7 +206,7 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
                     type: "skill",
                     shortcode: "skill1",
                     name: { full: "Intrusion" },
-                    img: "icons/svg/item-bag.svg",
+                    data: { icon: "itembag" },
                     sohl: { subType: "physical", archetype: null },
                 }, "");
             } catch (e) {
@@ -207,10 +219,10 @@ describe("a consumer's own itemBuilders table is the one that compiles", () => {
     });
 });
 
-/** `RELIC_FM`'s own `img:`, after the asset-root resolution every note gets. */
+/** The file `RELIC_FM` names, after the asset-root resolution every note gets. */
 const NOTE_IMG_RESOLVED = "modules/sohl-relics/assets/icons/svg/item-bag.svg";
 
-/** The same relic note, with no `img:` of its own — the case #7 is about. */
+/** The same relic note, with no art of its own — the case #7 is about. */
 const RELIC_FM_NO_IMG = `{
     id: "CCCCCCCCCCCCCCCC",
     type: "relic",
@@ -235,8 +247,8 @@ describe("a consumer's own item type has default art of its own (#7)", () => {
     });
 
     it("still lets a note override the configured default", () => {
-        // Paired art is a *default*, not a policy: `img:` on the note wins, as
-        // it always has.
+        // Paired art is a *default*, not a policy: the address the note names
+        // wins, as it always has.
         const entry = underConfig(
             consumerRepo(PAIRED_BUILDER),
             `${PREAMBLE}
@@ -248,8 +260,8 @@ describe("a consumer's own item type has default art of its own (#7)", () => {
         expect(entry.img).not.toBe(RELIC_ART_RESOLVED);
     });
 
-    it("keeps the bare-function entry working when every note carries an img", () => {
-        // Pairing art is opt-in. A consumer whose notes all set `img:` never
+    it("keeps the bare-function entry working when every note names its own art", () => {
+        // Pairing art is opt-in. A consumer whose notes all name art never
         // needs it, and its existing single-function table must keep compiling.
         const entry = underConfig(
             consumerRepo(BARE_BUILDER),

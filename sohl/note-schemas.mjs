@@ -146,26 +146,14 @@ const BEING_FIELDS = Object.freeze([
  * business; their authored vocabulary is the same, so they share one
  * declaration rather than three copies that could drift.
  *
- * `img` is the one required field — the compiler refuses a map note without it,
- * since a scene with no background is not a map. It was spelled `image` and
- * read from the `sohl:` block; both were read while the trees were
- * swept; that retirement has since completed and `image` is gone.
+ * `data.bgImage` is the one required piece of art — the compiler refuses a map
+ * note without it, since a scene with no background is not a map. It is
+ * declared in the note vocabulary rather than here, because it is an art slot
+ * like every other and a Scene has no `img` for the shared key to reach.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const MAP_FIELDS = Object.freeze([
-    {
-        name: "img",
-        ...STRING,
-        required: true,
-        // Art is not system-specific — a Scene is a core Foundry document, and
-        // every other note type carries its `img` at the note's top level.
-        shared: true,
-        describe:
-            "The scene's background image. Owned by whichever package its first segment " +
-            "names — `systems/…` and `modules/…` are emitted unchanged, anything else is " +
-            "this package's own and is rooted under its assets.",
-    },
     {
         name: "dimensions",
         ...LIST,

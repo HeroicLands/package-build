@@ -46,13 +46,7 @@
  * @module
  */
 
-import {
-    sohlField,
-    resolveName,
-    resolveImg,
-    systemTemplatePriority,
-    folderField,
-} from "../engine/helpers.mjs";
+import { sohlField, resolveName, systemTemplatePriority, folderField } from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into. Looked up in the
@@ -90,21 +84,23 @@ const DEFAULT_IMG = {
 };
 
 /**
- * The being's sheet portrait — the one row of the content format's actor
- * mapping table that is authored rather than derived.
+ * The being's sheet portrait, read from the position a tree still authors it at.
+ *
+ * `data.portrait` is a **retired** `data:` key: a picture of the subject is a
+ * picture, so it belongs in the prose that describes the subject. The key is
+ * read while the trees carry it and reported by the frontmatter lint, on the
+ * pattern every retirement in this package follows — the note compiles to the
+ * correct document either way.
  *
  * **Declared, because the position is not a spelling anyone can guess.** This
  * was read with `blockProperty(fm, SYSTEM, "portrait")`, which knows the block
- * and the note's top level and nothing else — so `data.portrait`, the position
- * the specification names and `sohl-thalorna` writes on 646 beings, was
- * invisible, and `?? defaultImg` on the next line turned every miss into the
- * generic person icon rather than into a complaint. Going through
- * {@link module:engine/field-spec.readField} is what makes the mapping table
- * executable here as it already is for HM3's `data.species`.
+ * and the note's top level and nothing else — so `data.portrait` was invisible,
+ * and `?? defaultImg` on the next line turned every miss into the generic person
+ * icon rather than into a complaint.
  *
- * `img` is deliberately **not** declared beside it: the mapping table keeps a
- * note's token art at the top level, so `blockProperty` is the whole of its
- * resolution and there is no `data.img` to reach for.
+ * The value is an **address**, and it is resolved by the caller: `read` yields
+ * it as authored because an address is answered by the compile's index, which a
+ * field declaration has no reach into.
  *
  * @type {import("../engine/field-spec.mjs").FieldSpec}
  */
@@ -112,13 +108,13 @@ const PORTRAIT_FIELD = Object.freeze({
     name: "data.portrait",
     legacyKey: "portrait",
     to: "portrait",
-    shape: "path",
+    shape: "a wikilink",
     // The two empties survive, because the caller's `?? defaultImg` is what
     // tells them apart: `null` and an absent key mean "no art named, default
     // me", `""` means "ship blank on purpose".
-    read: (raw) => resolveImg(raw),
+    read: (raw) => raw,
     default: null,
-    describe: "Path to the portrait image.",
+    describe: "An `image` address for the portrait.",
 });
 
 /**
@@ -366,7 +362,10 @@ export class Actors extends SystemActorCompiler {
                 absPath: this.currentNote?.absPath,
             })
         );
-        const defaultImg = defaultActorImg(subType);
+        // The being's own default sits above the subtype's: only the note's
+        // tags say whether it is a person or a creature, and only this pass
+        // reads them.
+        const art = this.actorArt(fm, defaultActorImg(subType));
 
         const items = this.buildEmbeddedItems(itemsMap, id, fm, ctx);
 
@@ -415,10 +414,15 @@ export class Actors extends SystemActorCompiler {
             // construction without a warning.
             templatePriority: systemTemplatePriority(fm, ctx),
             // Nullish, not `||`: a note that names no portrait gets the
-            // subtype's default, one that writes `""` ships blank on purpose.
+            // being's own default, one that writes `""` ships blank on purpose.
             // Resolved through the declaration so `data.portrait` is reached at
             // all — see {@link PORTRAIT_FIELD}.
-            portrait: readField(PORTRAIT_FIELD, fm, portraitReports) ?? defaultImg,
+            portrait:
+                this.artPathOf(
+                    readField(PORTRAIT_FIELD, fm, portraitReports),
+                    "portrait",
+                    "image",
+                ) ?? art.img,
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };
@@ -470,8 +474,7 @@ export class Actors extends SystemActorCompiler {
         return {
             name,
             type: subType,
-            // Nullish, not `||` — see the portrait above.
-            img: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? defaultImg,
+            img: art.img,
             _id: id,
             system,
             items,
@@ -479,7 +482,7 @@ export class Actors extends SystemActorCompiler {
                 name,
                 displayName: 0,
                 actorLink: false,
-                texture: { src: resolveImg(blockProperty(fm, SYSTEM, "img")) ?? defaultImg },
+                texture: { src: art.token },
                 width: 1,
                 height: 1,
                 sight: { enabled: false },

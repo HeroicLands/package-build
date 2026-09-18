@@ -59,7 +59,6 @@ import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.m
 // A map's background art is `img`, as every other note type's art is. `image`,
 // the spelling a map alone once used, is retired and gone.
 import { sohlField } from "./frontmatter.mjs";
-import { resolveImg } from "./helpers.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -880,7 +879,8 @@ function buildRegion(key, spec, geom, ctx) {
  *   `packageId`, `journalEntryId`, `journalPack` (the pack the note's derived
  *   JournalEntry landed in), `pageIds` (heading key → page id),
  *   `resolveRegionRef` / `resolveBehaviorRef` / `resolveEffectRef` (address →
- *   UUID), `knownActions`, `warnings`, and optionally `folder` and `stats`.
+ *   UUID), `art` (an art address → the path each surface serves),
+ *   `knownActions`, `warnings`, and optionally `folder` and `stats`.
  * @returns {object} The Scene document, keyed for the pack.
  * @throws {Error} On any authoring mistake Foundry would accept silently.
  */
@@ -905,11 +905,11 @@ export function buildScene(fm, ctx) {
                 "match the art",
         );
     }
-    // Read from the note rather than from its `sohl:` block: art is not
-    // system-specific, so `img` is authored at the top level like every other
-    // type's, and `sohlField` honours the block for anything already there.
-    const img = resolveImg(sohlField(fm, "img"));
-    if (!img) throw new Error("a map note needs an `img`");
+    // A Scene has no `img`, so a map's background is its own slot, authored
+    // under `data:` with the other art. It is an `image` address like every
+    // other art reference, and the record it resolves to carries the path.
+    const img = ctx.art(fm.data?.bgImage, "bgImage", "image");
+    if (!img) throw new Error("a map note needs a `bgImage`");
 
     const warn = (message) => {
         if (ctx.warnings) ctx.warnings.push(message);
@@ -934,7 +934,7 @@ export function buildScene(fm, ctx) {
         tokenVision: profile.tokenVision,
         fog: { mode: profile.fog.mode },
         initialLevel: DEFAULT_LEVEL_ID,
-        levels: [buildLevel(sohl, sceneId, img)],
+        levels: [buildLevel(sohl, sceneId, img, ctx.art)],
         drawings: [],
         tokens: [],
         lights: buildLights(sohl, geom, inner),
@@ -980,13 +980,16 @@ export function buildScene(fm, ctx) {
  *
  * @param {object} sohl - The note's `sohl:` block.
  * @param {string} sceneId - The owning scene's `_id`.
- * @param {string} [img] - The background art, already resolved from the note.
- *   Passed by {@link buildScene}, which reads it from the note rather than from
- *   the block; defaults to the block's own `img`, so a direct two-argument call
- *   still works.
+ * @param {string} img - The background art, already resolved from the note's
+ *   `bgImage` address by {@link buildScene}. Passed rather than resolved here,
+ *   because an address is answered by the compile's index and this function
+ *   takes none.
+ * @param {(value: unknown, key: string, type: string) => string|null} [art] -
+ *   The art resolver, for the foreground overlay. Omitted, a note naming one
+ *   gets no overlay rather than a path nothing serves.
  * @returns {object} The Level document, keyed for the pack.
  */
-export function buildLevel(sohl, sceneId, img = resolveImg(sohlField({ sohl }, "img"))) {
+export function buildLevel(sohl, sceneId, img, art = () => null) {
     const level = {
         _id: DEFAULT_LEVEL_ID,
         name: sohl.levelName ?? "Ground",
@@ -995,9 +998,9 @@ export function buildLevel(sohl, sceneId, img = resolveImg(sohlField({ sohl }, "
             color: sohl.backgroundColor ?? "#999999",
             src: img,
         },
-        // The overlay is a pathname like the background, and resolves by the
-        // same rule — a scene draws the two from one authored statement each.
-        foreground: { src: resolveImg(sohl.overlay ?? null) },
+        // The overlay is an `image` address like the background, and resolves
+        // by the same rule — a scene draws the two from one statement each.
+        foreground: { src: art(sohl.overlay ?? null, "overlay", "image") },
         sort: 0,
         _key: `!scenes.levels!${sceneId}.${DEFAULT_LEVEL_ID}`,
     };
@@ -1120,9 +1123,11 @@ export function buildTiles(sohl, geom, ctx) {
             rotation: spec.rotation ?? 0,
             alpha: spec.alpha ?? 1,
             sort: 0,
-            // A tile's texture is a pathname, resolved by the same rule the
-            // scene's own background is.
-            texture: { src: resolveImg(spec.image) },
+            // A tile's texture is an address, resolved by the same rule the
+            // scene's own background is. Its key is named for the type it
+            // reaches, so a tile placing a glyph rather than artwork qualifies
+            // — `sohl-none-icon-chest` — and the default needs no memorising.
+            texture: { src: ctx.art(spec.image, "image", "image") },
             _key: `!scenes.tiles!${ctx.sceneId}.${id}`,
         };
     });
@@ -1143,7 +1148,7 @@ export function buildSounds(sohl, geom, ctx) {
     return Object.entries(sohl.sounds ?? {}).map(([key, spec]) => {
         const label = `sounds.${key}`;
         const [x, y] = requirePosition(spec.position, { ...geom, label });
-        if (!spec.path) throw new Error(`${label}: an ambient sound needs a path`);
+        if (!spec.audio) throw new Error(`${label}: an ambient sound needs an \`audio\` address`);
         const id = spec._id || makeId("scene-sound", `${ctx.sceneId}:${key}`);
         return {
             _id: id,
@@ -1151,8 +1156,10 @@ export function buildSounds(sohl, geom, ctx) {
             x,
             y,
             radius: spec.radius ?? 0,
-            // An ambient sound is a file a package ships, like the pictures.
-            path: resolveImg(spec.path),
+            // An ambient sound is a file a package ships, like the pictures, so
+            // it is an address too. The emitted field stays Foundry's own
+            // `path`, which is what a Scene's AmbientSound calls it.
+            path: ctx.art(spec.audio, "audio", "audio"),
             repeat: spec.repeat ?? true,
             volume: spec.volume ?? 0.5,
             walls: spec.walls ?? true,

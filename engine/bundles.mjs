@@ -69,7 +69,7 @@ import { contentPackage } from "./content-package.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
-import { folderField, md, resolveImg, resolveName } from "./helpers.mjs";
+import { folderField, md, resolveName } from "./helpers.mjs";
 import { packForType } from "./ids.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
@@ -145,13 +145,13 @@ export class Bundles extends BasePackCompiler {
     static readsPackOutputOf = Object.freeze(["Actor", "Item", "JournalEntry", "Macro", "Scene"]);
 
     /**
-     * An Adventure carries an `img` — what Foundry shows on the import card.
-     * There is no default for it: a bundle naming none ships a blank tile,
+     * An Adventure carries one piece of art — what Foundry shows on the import
+     * card. There is no default for it: a bundle naming none ships a blank tile,
      * deliberately, since no stand-in artwork means "a set of documents".
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["img"]);
+    static emitsArt = Object.freeze(["icon"]);
 
     /**
      * The JSON directories this pass reads its members from, by document type.
@@ -309,7 +309,7 @@ export class Bundles extends BasePackCompiler {
             // Foundry shows this on the import card, so a bundle without one is
             // a blank tile. `null` rather than a stand-in: there is no sensible
             // default artwork for "a set of documents".
-            img: resolveImg(fm.img),
+            img: this.artPath(fm, "icon"),
             // A bundle is something you hand someone, so its prose belongs on
             // the document itself — `Adventure.description` is an `HTMLField`
             // Foundry renders on the import card. That is why a bundle earns no

@@ -142,7 +142,7 @@ describe("the art a compiled sohl item actually gets (#7)", () => {
         });
     }
 
-    /** A `skill` note with no `img:` — the case the default is for. */
+    /** A `skill` note naming no art — the case the default is for. */
     const SKILL_FM = {
         id: "DDDDDDDDDDDDDDDD",
         type: "skill",
@@ -163,10 +163,19 @@ describe("the art a compiled sohl item actually gets (#7)", () => {
     });
 
     it("still lets a note override it", () => {
-        const entry = compiler().buildEntry(
-            { ...SKILL_FM, img: "sohl/assets/icons/custom.svg" },
-            "",
-        );
+        const pack = compiler();
+        // The one file the note names. An art slot resolves through the
+        // compile's index, and `buildEntry` is called here without one behind it.
+        pack.linkIndex = {
+            types: new Set(["icon", "image", "audio"]),
+            packages: new Set(["sohl"]),
+            contentPackage: "sohl",
+            assets: new Map([
+                ["sohl-none-icon-custom", { package: "sohl", asset: { path: "icons/custom.svg" } }],
+            ]),
+            foreign: new Map(),
+        };
+        const entry = pack.buildEntry({ ...SKILL_FM, data: { icon: "custom" } }, "");
 
         expect(entry.img).toBe("systems/sohl/assets/icons/custom.svg");
     });

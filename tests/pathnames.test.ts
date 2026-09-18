@@ -252,26 +252,42 @@ describe("the website gets the same statement as the other three", () => {
         );
     });
 
-    it("rewrites `img:` and `data.portrait:` the same way", () => {
+    /** The art resolver: an address to the pathname `webSrc` takes. */
+    const artSrc = (value: unknown, type: string) =>
+        value === "banner" && type === "image" ? "thalorna/assets/images/sections/lore.webp"
+        : value === "thorn" && type === "icon" ? "thalorna/assets/icons/thorn.svg"
+        : null;
+
+    it("publishes an art slot at the address the asset host serves", () => {
         const data = pageFrontmatter(
             {
                 kind: "content",
                 name: "Athlwv Thrnd",
                 slug: "being-athlwvthrnd",
-                fm: {
-                    img: "images/beings/athlwvthrnd-token.webp",
-                    data: { portrait: "images/beings/athlwvthrnd-portrait.webp" },
-                },
+                fm: { data: { icon: "thorn", banner: "banner" } },
             } as never,
-            { webSrc } as never,
+            { webSrc, artSrc } as never,
         ) as Record<string, never>;
 
-        expect(data.img).toBe(
-            "https://cdn.example.org/thalorna/images/beings/athlwvthrnd-token.webp",
-        );
-        expect((data.data as Record<string, string>).portrait).toBe(
-            "https://cdn.example.org/thalorna/images/beings/athlwvthrnd-portrait.webp",
-        );
+        const art = data.data as Record<string, string>;
+        expect(art.icon).toBe("https://cdn.example.org/thalorna/icons/thorn.svg");
+        expect(art.banner).toBe("https://cdn.example.org/thalorna/images/sections/lore.webp");
+    });
+
+    it("drops an address nothing answers rather than publishing it as written", () => {
+        // The theme renders nothing where a value is absent; a raw address left
+        // in place would reach the reader as a broken image source.
+        const data = pageFrontmatter(
+            {
+                kind: "content",
+                name: "Nobody",
+                slug: "being-nobody",
+                fm: { data: { icon: "nosuchthing" } },
+            } as never,
+            { webSrc, artSrc } as never,
+        ) as Record<string, never>;
+
+        expect((data.data as Record<string, unknown>).icon).toBeUndefined();
     });
 
     it("leaves the two empties alone", () => {
@@ -280,12 +296,13 @@ describe("the website gets the same statement as the other three", () => {
                 kind: "content",
                 name: "Nobody",
                 slug: "being-nobody",
-                fm: { img: "", data: { portrait: null } },
+                fm: { data: { icon: "", banner: null } },
             } as never,
-            { webSrc } as never,
+            { webSrc, artSrc } as never,
         ) as Record<string, never>;
 
-        expect(data.img).toBe("");
-        expect((data.data as Record<string, unknown>).portrait).toBeNull();
+        const art = data.data as Record<string, unknown>;
+        expect(art.icon).toBe("");
+        expect(art.banner).toBeNull();
     });
 });
