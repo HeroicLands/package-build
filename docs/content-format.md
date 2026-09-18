@@ -107,11 +107,11 @@ the key is **machinery**, steering a build or an interface rather than
 describing the subject, or it is an **image**, which rule 2 keeps out of the
 box:
 
-| key                          | why it carries no row                            |
-| ---------------------------- | ------------------------------------------------ |
-| `templatePriority`           | template machinery, not a fact about the subject |
-| `color`                      | sidebar machinery, not a fact about the subject  |
-| `portrait`, `img`, `overlay` | an image, which rule 2 keeps out of the box      |
+| key                      | why it carries no row                            |
+| ------------------------ | ------------------------------------------------ |
+| `templatePriority`       | template machinery, not a fact about the subject |
+| `color`                  | sidebar machinery, not a fact about the subject  |
+| the art slots, `overlay` | an image, which rule 2 keeps out of the box      |
 
 A field whose value is a **mapping** carries no row either — a governance
 ladder or a wall layout has no summary shape — and neither does one the note
@@ -506,7 +506,7 @@ type.
 | shared source           | → sohl                    | → hm3                        |
 | ----------------------- | ------------------------- | ---------------------------- |
 | `name.full`             | `name`                    | `name`                       |
-| `img`                   | `img`                     | `img`                        |
+| `data.icon`             | `img`                     | `img`                        |
 | `id`                    | `_id`                     | `_id`                        |
 | `packFolder`            | `folder`                  | `folder`                     |
 | `shortcode`             | `system.shortcode`        | NA                           |
@@ -520,23 +520,30 @@ no SoHL form, so its SoHL column is. Nothing else varies — which is why these
 rows are worth stating once: repeated sixteen times they buried the differences
 that matter.
 
-**`img` maps onto a document that has one, and not every type's does.** The row
-is shared because the key is legal on every note whatever its type, not because
-every document carries artwork: `doc`, `place`, `lore` and `scenario` compile
-into a JournalEntry, which has no image of any kind, and a `folder` compiles into
-a Foundry `Folder`, which has none either. A `homepage` compiles into no
-compendium document at all. On any of those the mapping has no destination, so an
-authored path is simply dropped — the note validates, the tree compiles, and the
-value goes nowhere.
+**`data.icon` maps onto a document that has one, and not every type's does.**
+The row is shared because the key is legal on every note whatever its type, not
+because every document carries artwork: `doc`, `place`, `lore` and `scenario`
+compile into a JournalEntry, which has no image of any kind, and a `folder`
+compiles into a Foundry `Folder`, which has none either. A `homepage` compiles
+into no compendium document at all. On any of those the mapping has no
+destination, so the resolved value is simply dropped — the note validates, the
+tree compiles, and the value goes nowhere.
+
+**What a note writes is an address; what a document carries is a path.**
+`data.icon` is a `WikiLink` defaulting to type `icon`, so a being writes
+`icon: anvil` and never a file name. The compiler resolves that address to the
+file the owning package ships and writes the resulting path into `img`. The two
+sides of this row are therefore in two different currencies, which is why the
+row reads `data.icon → img` rather than naming one thing twice.
 
 Since a dropped value looks exactly like a value never written, the frontmatter
-lint **reports it**: an `img:` (or `portrait:`) authored on a type whose passes
-emit neither is a warning naming the note and the key. A warning rather than an
-error, because the note still compiles correctly and the key is not certainly
-unwanted — a note's top level is the generated page's front matter as well, so a
-site template may read there what no document carries. `img: null` is never
-reported: that is the blessed way to say "this note names no art", and on a type
-with no art it is a true and harmless thing to say.
+lint **reports it**: an art key authored on a type whose passes emit none is a
+warning naming the note and the key. A warning rather than an error, because the
+note still compiles correctly and the key is not certainly unwanted — a note's
+top level is the generated page's front matter as well, so a site template may
+read there what no document carries. `null` is never reported: that is the
+blessed way to say "this note names no art", and on a type with no art it is a
+true and harmless thing to say.
 
 Which types those are is **not a list**. It is asked of the passes: a type routes
 to a document, a document to the pass that compiles it, and each pass declares
@@ -544,29 +551,66 @@ the art it writes (`emitsArt`). A second table of iconless types would be a tabl
 free to drift from what is actually emitted, which is the defect rather than the
 check.
 
-Actor types (`being`, `vehicle`) add one more:
+#### The five art slots
 
-| shared source   | → sohl            | → hm3             |
-| --------------- | ----------------- | ----------------- |
-| `data.portrait` | `system.portrait` | `system.bioImage` |
+A note declares the art its document needs, and every other image in it is
+inline. All five slots are ordinary `WikiLink` fields declaring a default type,
+exactly as `seat` declares `place` — a bare shortcode takes its type from the
+declaration, and qualification climbs the same short-form ladder every other
+link uses.
 
-An actor carries `img` (its token art) and `portrait` (its sheet portrait)
-independently, which is why this is a row of its own rather than a second
-spelling of the one above. An Item has no second image, so the row applies to
-actor types alone. Note the asymmetry in where the two are authored: `img` stays
-at the note's top level and `portrait` moved under `data:`, because a note's
-token art is a fact about the _note as a published artefact_ while the portrait
-is a fact about the _subject_.
+| field       | default type | resolves into                | on                                        |
+| ----------- | ------------ | ---------------------------- | ----------------------------------------- |
+| `icon`      | `icon`       | `document.img`               | every Actor/Item type, and embedded items |
+| `portrait`  | `image`      | the large sheet portrait     | Actor types                               |
+| `tokenIcon` | `icon`       | `prototypeToken.texture.src` | Actor types                               |
+| `bgImage`   | `image`      | `background.src`             | map types                                 |
+| `banner`    | `image`      | the site hero image          | any note; not a Foundry field             |
+
+All five are authored under `data:`:
+
+```yaml
+data:
+  icon: anvil
+  portrait: thornportrait
+  banner: packagebuild-none-image-skillbnr
+```
+
+**A reference carries no slashes and no extension.** That is what keeps it from
+being read as a file name, and it is checked: a value shaped like a pathname is
+an error naming the note and the key.
+
+`tokenIcon` unset defaults to `icon`. A token has to read at grid scale and when
+a map is zoomed out, so it is an `icon` rather than an `image`, and its fallback
+has to be `icon`-typed too.
+
+Actor types (`being`, `vehicle`) therefore add two rows:
+
+| shared source    | → sohl                       | → hm3                        |
+| ---------------- | ---------------------------- | ---------------------------- |
+| `data.portrait`  | `system.portrait`            | `system.bioImage`            |
+| `data.tokenIcon` | `prototypeToken.texture.src` | `prototypeToken.texture.src` |
+
+An actor carries three pieces of art and they are three different questions.
+`data.icon` is the profile art — what a directory listing shows beside the name
+and what the sheet header carries. `data.tokenIcon` is what a token on the
+canvas wears. `data.portrait` is the large sheet portrait, and what an infobox
+shows on the web and in the book. All three are wikilinks and all three resolve
+the same way; only the destination differs. An Item has one piece of art, so
+these two rows apply to actor types alone.
 
 **A `data:` source is still read at the top level, for now.** `data:` did
-not invent the facts it holds — it gathered them out of the top level, where
-`portrait:` sat beside `img:` — so every key it collected has a **pre-`data:`
-spelling** that is read after the declared one and reported as retiring. Write
-`data.portrait`; a tree still on `portrait:` compiles to the identical document
-and gets a warning naming the line, until a later release removes the position.
-This is the shared level's counterpart to the in-block `<system>.<key>`
-retirement, and the two are separate: a note may have moved one and not the
-other.
+not invent the facts it holds — it gathered them out of the top level — so every
+key it collected has a **pre-`data:` spelling** that is read after the declared
+one and reported as retiring. This is the shared level's counterpart to the
+in-block `<system>.<key>` retirement, and the two are separate: a note may have
+moved one and not the other.
+
+**Neither image key is one of those.** A top-level `img:` is not authored at
+all: `data.icon` is a different key holding a different kind of value, and a
+note writing `img:` is naming a file where an address belongs. `portrait:` is
+not merely relocated either — `data.portrait` stands beside `data.icon` and
+`data.tokenIcon`, and each of the three answers a question the others do not.
 
 **Two of the eight are Item-only in SoHL.** `actionDefs` and `notes` are declared
 on every SoHL Item subtype and on no SoHL Actor, so on a `being` or a `vehicle`
@@ -607,9 +651,9 @@ shipped tree, and the one piece every derived form is built from. A pathname
 that does not open `<package>/assets/` belongs to the package being compiled,
 and the whole of it is the suffix.
 
-```yaml
-img: images/beings/athlwvthrnd-portrait.webp # this package's
-img: sohl/assets/icons/noun/shield.svg # the sohl package's
+```markdown
+![A map of the Vale](images/maps/valeofthorns.webp) <!-- this package's -->
+![A shield](sohl/assets/icons/noun/shield.svg) <!-- the sohl package's -->
 ```
 
 The four forms, for a `thalorna` note (the `thalorna` package ships as the
@@ -676,39 +720,28 @@ whole `assets/` tree and the directory names inside it are its own business:
 `sohl-kethira-basic` keeps art under `assets/artwork/`, and `artwork/deity.webp`
 is that package's by the same rule that claims `icons/…` and `images/…`.
 
-**Every pathname a note carries follows it.** `img:` and `data.portrait:`; a
-map note's background, overlay, tile textures and ambient sounds; and the
-address of every image in a note's body.
+**Where a pathname is still authored, it follows this rule.** That is the
+address of an image in a note's body, and a map note's `overlay`. The art
+fields do not: `icon`, `portrait`, `tokenIcon`, `bgImage` and `banner` name
+addresses, and the path comes from the record the resolved address points at —
+which already carries the owning package, so there is nothing for a first
+segment to state.
 
-#### `banner:` addresses the CDN, not the Foundry install
+#### `banner:` reaches no compiled document
 
-**`banner:` is a path, and it does not follow the rule above.** It is worth
-stating plainly, because the two fields look alike and a value written for one
-resolves somewhere else entirely under the other.
+`data.banner` is the page's hero image, and it is the one art slot with no
+Foundry destination: searching a built `packs-json` tree for it turns up
+nothing. It reaches the generated page and the book's section plates, and
+nothing else.
 
-`banner:` never reaches a compiled document — searching a built `packs-json`
-tree for it turns up nothing. It is a top-level key, so it passes through to the
-generated page, and its only consumer is the Hugo theme, whose
-`partials/banner-url.html` applies its own rule: an absolute URL passes through,
-and **anything else is prefixed with `images/`** and joined onto
-`params.cdnBaseURL`. A `banner:` written to the package rule therefore resolves
-to a doubled path:
+It is a `WikiLink` all the same, defaulting to type `image`, so a section note
+writes `banner: skillbnr` and a note borrowing another package's plate writes
+`banner: packagebuild-none-image-skillbnr`. The resolved record carries the
+owning package, and each surface joins the suffix onto its own root — the site
+onto `site.assets`, the book onto the directory it stages banners into.
 
-```text
-banner: sohl/assets/images/banners/lore.webp
-      → <cdnBaseURL>/images/sohl/assets/images/banners/lore.webp
-```
-
-That can be made to work by mirroring the path on the CDN, and one consumer
-does exactly that — but it is not what the author meant.
-
-**The two are not reconciled, because they are not two spellings of one thing.**
-A pathname names a file a package ships, and four surfaces derive an address
-from it. `banner:` names a hero image on the site's own asset host, reaches no
-compiled document and no book, and is resolved by the theme rather than by this
-toolchain — `banner: none` is not even a target. Write a `banner:` relative to
-the CDN's `images/` root — `banners/lore.webp`, not `images/banners/lore.webp`
-and not a package-qualified pathname.
+**`banner: null` is how a note says it wants no plate.** It is a true statement
+on any type, and the frontmatter lint never reports it.
 
 #### The pack a note compiles into
 
@@ -1060,7 +1093,7 @@ free-form value decides the headings there.
 
 ### WikiLinks
 
-Twenty-seven fields in the tables below take a `WikiLink`, and a link is written
+Many fields in the tables below take a `WikiLink`, and a link is written
 `[[target]]` or `[[target|label]]`. The target is an **address**.
 
 #### The canonical address
@@ -1311,6 +1344,94 @@ Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
 from.
 
+### Assets are types
+
+`icon`, `image`, `font` and `audio` are types in the type vocabulary, and an
+address reaches one exactly as it reaches a being or a skill. Their trees are
+the one thing about them that differs: they sit beside `content/` rather than
+inside it, because the thing a note is addressing is a file rather than a note.
+
+**An asset type carries no system.** Its addresses keep the fourth segment, and
+it is always `none` — `sohl-none-icon-anvil`, never `sohl-icon-anvil` — so key
+parsing stays uniform across every type. The path shape is a property of the
+type rather than a test on a value.
+
+#### An address holds exactly one file
+
+```text
+<address> → the single file the walk finds for it
+```
+
+**The extension is not part of the address.** The directory carries whatever the
+file is called, the walk finds it, and a second file in one address's directory
+is a build error. So a reference names an address and nothing else, a lookup is
+one step rather than two, and changing a format is dropping a different file
+into the same directory — no note changes. The extension is the property most
+likely to change while the subject does not, which is why it stays out of the
+name: `abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
+
+**The source tree need not mirror the address.** Organise it for the people who
+maintain it — `icons/game-icons/<contributor>/`, `images/beings/creatures/` —
+and let the walk derive the address from it. The filename is the shortcode; the
+directories above it are the package's own business.
+
+#### `icon` and `image` are two types, not one
+
+An icon has to stay coherent drawn into a 32×32 slot, which is why icons are
+SVG. An image is unbounded, expected to be large, and unreadable at that size.
+That is a fitness property of the asset itself, and one merged type would leave
+every consumer inferring the handling from the extension; two types let a guard
+assert it instead.
+
+So the two have **separate shortcode namespaces**. `icon-anvil` and
+`image-anvil` are different addresses for different purposes, and a rewrite rule
+reaches one without touching the other.
+
+**An asset address is its own name.** `image-thorn` is an image called `thorn`;
+any resemblance to `being-thorn` is coincidence, and nothing derives one from
+the other.
+
+#### `packagebuild` is a reserved package name
+
+package-build is an npm package rather than a system or a module, and it ships
+a set of images — section banners chiefly — that many packages draw on.
+Addressing them as `packagebuild-none-image-<shortcode>` lets a note reach one
+without declaring a dependency on some parent system or module it otherwise has
+no relationship with.
+
+`packagebuild` is therefore **reserved** in the package registry: nothing may
+create a real package that collides with it, and its resolution is special-cased,
+because no installed directory sits behind the name.
+
+#### An embedded image is a wikilink
+
+```text
+![[address|label]]
+```
+
+There is no image grammar. An embed is the wikilink above, with `!` meaning
+_render it here_ rather than _link to it_, and the syntax supplying the default
+type the way a field declaration does — `image`. The short-form ladder, the
+package and system defaults, the lowercase rule, the ambiguity reporting and the
+findings vocabulary all apply unchanged.
+
+| written                        | means                                    |
+| ------------------------------ | ---------------------------------------- |
+| `![[anvil\|]]`                 | decorative — the common case             |
+| `![[anvil\|An anvil]]`         | alt text where it carries meaning        |
+| `![[anvil]]`                   | unlabelled, and a finding like any other |
+| `![[sohl-image-anvil\|Anvil]]` | qualified, reaching another package      |
+
+The parser distinguishes a missing label from an empty one, so _deliberately
+decorative_ and _not written_ differ without an exemption.
+
+**The label is the alt text, and it stays with the referrer.** One image serves
+many documents, and only the referrer knows what it means where it sits.
+
+**An embed reaches asset types only.** The syntax invites the broader reading —
+transclusion of an arbitrary note — so the restriction is a guard rather than a
+convention.
+
 ### What a note produces
 
 Note types fall into two groups, and only the first has a mapping table.
@@ -1472,7 +1593,7 @@ a scheme of `http:` or `https:`, or none at all.
 
 ##### Where an address resolves
 
-An image's address follows the rule [`img:` follows](#an-asset-paths-first-segment-says-which-package-owns-it)
+An image's address follows [the pathname rule](#a-pathname-names-the-package-that-owns-the-file)
 — its first segment says which package owns the file — and each surface
 resolves it to what that surface serves:
 
@@ -1684,7 +1805,9 @@ Generates a living (or undead, or spirit) being.
 
 | `data` property             | Values                                         | Description                                                                                      |
 | --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `portrait`                  | `string`                                       | File path to the portrait image                                                                  |
+| `icon`                      | `WikiLink`                                     | The document's profile art — an `icon` address, resolved into `img`                              |
+| `tokenIcon`                 | `WikiLink`                                     | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
+| `portrait`                  | `WikiLink`                                     | The large sheet portrait — an `image` address                                                    |
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
 | `occupation`                | `string`                                       | Name of the character's occupation                                                               |
@@ -1827,10 +1950,12 @@ It will also generate a single JournalEntry located at the top level of the "jou
 
 Represents a conveyance able to hold goods and people moving from one place to another.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `portrait`         | `string` | File path to the portrait image            |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `data` property    | Values     | Description                                                              |
+| ------------------ | ---------- | ------------------------------------------------------------------------ |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img`      |
+| `tokenIcon`        | `WikiLink` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
+| `portrait`         | `WikiLink` | The large sheet portrait — an `image` address                            |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                               |
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
@@ -1930,6 +2055,7 @@ rank names the standing, and the standing says.
 
 | `data` property      | Values                    | Description                                                                                                |
 | -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `icon`               | `WikiLink`                | The document's profile art — an `icon` address, resolved into `img`                                        |
 | `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
 | `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
 | `epithet`            | `string`                  | The by-name it is known by — a god's, an order's, a company's                                              |
@@ -2046,6 +2172,7 @@ Represents an affliction.
 
 | `data` property               | Values              | Description                                                                               |
 | ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
+| `icon`                        | `WikiLink`          | The document's profile art — an `icon` address, resolved into `img`                       |
 | `templatePriority`            | `number`            | Template priority, _null_ = not a template                                                |
 | `transmission`                | `TransmissionTypes` | Method of transmission                                                                    |
 | `outcome`                     | `death \| cured`    | Result after affliction has run its course                                                |
@@ -2110,13 +2237,14 @@ model's `null` stands.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `weight`           | `number`   | Gear weight                                                         |
+| `value`            | `number`   | Gear value                                                          |
+| `quality`          | `number`   | Gear quality                                                        |
+| `durability`       | `number`   | Gear durability                                                     |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
 
@@ -2131,9 +2259,10 @@ The note type is `armorgear` in both cases. The `gear` suffix was briefly rename
 
 ### type: armorlocation
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
 
 if a `hm3` property is present, an HM3 item of type "armorlocation" will be created.
 
@@ -2143,9 +2272,10 @@ if a `hm3` property is present, an HM3 item of type "armorlocation" will be crea
 
 ### type: attribute
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
 
 if a `sohl` property is present, a SoHL item of type "attribute" will be created.
 
@@ -2160,16 +2290,17 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 - exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
 - elixir: An arcane alchemical concoction of great power.
 
-| `data` property    | Values                          | Description                                       |
-| ------------------ | ------------------------------- | ------------------------------------------------- |
-| `templatePriority` | `number`                        | Template priority, _null_ = not a template        |
-| `weight`           | `number`                        | Gear weight                                       |
-| `value`            | `number`                        | Gear value                                        |
-| `quality`          | `number`                        | Gear quality                                      |
-| `durability`       | `number`                        | Gear durability                                   |
-| `quantity`         | `number`                        | Gear quantity (default: 1)                        |
-| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
-| `strength`         | `number`                        | Strength: higher the number, greater the strength |
+| `data` property    | Values                          | Description                                                         |
+| ------------------ | ------------------------------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink`                      | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`                        | Template priority, _null_ = not a template                          |
+| `weight`           | `number`                        | Gear weight                                                         |
+| `value`            | `number`                        | Gear value                                                          |
+| `quality`          | `number`                        | Gear quality                                                        |
+| `durability`       | `number`                        | Gear durability                                                     |
+| `quantity`         | `number`                        | Gear quantity (default: 1)                                          |
+| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                     |
+| `strength`         | `number`                        | Strength: higher the number, greater the strength                   |
 
 if a `sohl` property is present, a SoHL item of type "concoctiongear" will be created.
 
@@ -2186,14 +2317,15 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" will be cr
 
 Note: `data.quantity` may not be specified; quantity is always set to 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `capacity`         | `number` | Container capacity (in lbs)                |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `weight`           | `number`   | Gear weight                                                         |
+| `value`            | `number`   | Gear value                                                          |
+| `quality`          | `number`   | Gear quality                                                        |
+| `durability`       | `number`   | Gear durability                                                     |
+| `capacity`         | `number`   | Container capacity (in lbs)                                         |
 
 if a `sohl` property is present, a SoHL item of type "containergear" will be created.
 
@@ -2209,14 +2341,15 @@ if a `hm3` property is present, an HM3 item of type "containergear" will be crea
 
 ### type: miscgear
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | Gear quantity (default: 1)                 |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `weight`           | `number`   | Gear weight                                                         |
+| `value`            | `number`   | Gear value                                                          |
+| `quality`          | `number`   | Gear quality                                                        |
+| `durability`       | `number`   | Gear durability                                                     |
+| `quantity`         | `number`   | Gear quantity (default: 1)                                          |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" will be created.
 
@@ -2244,15 +2377,16 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 
 **SkillAptitude**: either a single skill
 
-| `data` property    | Values                                  | Description                                                    |
-| ------------------ | --------------------------------------- | -------------------------------------------------------------- |
-| `templatePriority` | `number`                                | Template priority, _null_ = not a template                     |
-| `assocSkill`       | `WikiLink`                              | Associated skill                                               |
-| `assocAffiliation` | `WikiLink`                              | Associated affiliation                                         |
-| `skillAptitudes`   | `WikiLink` or `subType:<skill-subtype>` | Bonuses/penalties to skills (or types of skills)               |
-| `level`            | `number`                                | Magnitude of the mystery                                       |
-| `charges.value`    | `number`                                | Current number of charges available, _null_ = charges not used |
-| `charges.max`      | `number`                                | Maximum number of charges, _null_ = no maximum                 |
+| `data` property    | Values                                  | Description                                                         |
+| ------------------ | --------------------------------------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink`                              | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`                                | Template priority, _null_ = not a template                          |
+| `assocSkill`       | `WikiLink`                              | Associated skill                                                    |
+| `assocAffiliation` | `WikiLink`                              | Associated affiliation                                              |
+| `skillAptitudes`   | `WikiLink` or `subType:<skill-subtype>` | Bonuses/penalties to skills (or types of skills)                    |
+| `level`            | `number`                                | Magnitude of the mystery                                            |
+| `charges.value`    | `number`                                | Current number of charges available, _null_ = charges not used      |
+| `charges.max`      | `number`                                | Maximum number of charges, _null_ = no maximum                      |
 
 if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 
@@ -2281,15 +2415,16 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 - alchemy: The preparation of substances imbued with mystical potency.
 - divination: The practice of obtaining hidden knowledge or foreknowledge by mystical means.
 
-| `data` property    | Values     | Description                                                    |
-| ------------------ | ---------- | -------------------------------------------------------------- |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                     |
-| `assocSkill`       | `WikiLink` | Associated skill                                               |
-| `assocAffiliation` | `WikiLink` | Associated affiliation                                         |
-| `masteryLevel`     | `number`   | Mastery Level                                                  |
-| `level`            | `number`   | Magnitude of the mystery                                       |
-| `charges.value`    | `number`   | Current number of charges available, _null_ = charges not used |
-| `charges.max`      | `number`   | Maximum number of charges, _null_ = no maximum                 |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `assocSkill`       | `WikiLink` | Associated skill                                                    |
+| `assocAffiliation` | `WikiLink` | Associated affiliation                                              |
+| `masteryLevel`     | `number`   | Mastery Level                                                       |
+| `level`            | `number`   | Magnitude of the mystery                                            |
+| `charges.value`    | `number`   | Current number of charges available, _null_ = charges not used      |
+| `charges.max`      | `number`   | Maximum number of charges, _null_ = no maximum                      |
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" will be created.
 
@@ -2316,14 +2451,15 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 - dart
 - other
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | Gear quantity (default: 1)                 |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `weight`           | `number`   | Gear weight                                                         |
+| `value`            | `number`   | Gear value                                                          |
+| `quality`          | `number`   | Gear quality                                                        |
+| `durability`       | `number`   | Gear durability                                                     |
+| `quantity`         | `number`   | Gear quantity (default: 1)                                          |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" will be created.
 
@@ -2357,11 +2493,12 @@ HM3 side while remaining distinct on the SoHL side.
 - combat
 - combattechnique
 
-| `data` property    | Values     | Description                                |
-| ------------------ | ---------- | ------------------------------------------ |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template |
-| `masteryLevel`     | `number`   | Mastery Level                              |
-| `parentSkill`      | `WikiLink` | Parent skill this skill specializes        |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `masteryLevel`     | `number`   | Mastery Level                                                       |
+| `parentSkill`      | `WikiLink` | Parent skill this skill specializes                                 |
 
 if a `sohl` property is present, a SoHL item of type "skill" will be created.
 
@@ -2393,6 +2530,7 @@ Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Commu
 
 | `data` property                   | Values        | Description                                                            |
 | --------------------------------- | ------------- | ---------------------------------------------------------------------- |
+| `icon`                            | `WikiLink`    | The document's profile art — an `icon` address, resolved into `img`    |
 | `templatePriority`                | `number`      | Template priority, _null_ = not a template                             |
 | `healingCheckDurationFormula`     | `RollFormula` | Formula for the interval between healing checks                        |
 | `healingCheckDurationBase`        | `number`      | That interval in seconds, stated outright instead of rolled            |
@@ -2432,13 +2570,14 @@ build.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values   | Description                                |
-| ------------------ | -------- | ------------------------------------------ |
-| `templatePriority` | `number` | Template priority, _null_ = not a template |
-| `weight`           | `number` | Gear weight                                |
-| `value`            | `number` | Gear value                                 |
-| `quality`          | `number` | Gear quality                               |
-| `durability`       | `number` | Gear durability                            |
+| `data` property    | Values     | Description                                                         |
+| ------------------ | ---------- | ------------------------------------------------------------------- |
+| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `weight`           | `number`   | Gear weight                                                         |
+| `value`            | `number`   | Gear value                                                          |
+| `quality`          | `number`   | Gear quality                                                        |
+| `durability`       | `number`   | Gear durability                                                     |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" will be created,
 carrying every strike mode the weapon has — melee and missile alike — on
@@ -2525,23 +2664,23 @@ are subTypes of one type rather than three types.
 
 The `data:` fields, of which three are required:
 
-| `data` property   | Values           | Description                                                                                                                                                    |
-| ----------------- | ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `img`             | `string`         | **Required.** The path to the map art. Becomes the level's `background.src` — what tokens stand on. Authored at the note's **top level**, not here — see below |
-| `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                                                                            |
-| `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                                                                                 |
-| `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                                                                                  |
-| `levelName`       | `string`         | The name of the embedded level. Defaults to `Ground`                                                                                                           |
-| `backgroundColor` | `ColorHexValue`  | Shown where the art does not reach. Defaults to `#999999`                                                                                                      |
-| `overlay`         | `string`         | Path to **foreground** art                                                                                                                                     |
-| `walls`           | `WallSegment[]`  | List of wall segments                                                                                                                                          |
-| `doors`           | `Door[]`         | List of doors                                                                                                                                                  |
-| `lights`          | `Light[]`        | List of lights                                                                                                                                                 |
-| `tiles`           | `Tile[]`         | List of tiles                                                                                                                                                  |
-| `sounds`          | `Sound[]`        | List of sounds                                                                                                                                                 |
-| `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                          |
-| `place`           | `WikiLink`       | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere   |
-| `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                            |
+| `data` property   | Values           | Description                                                                                                                                                  |
+| ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `bgImage`         | `WikiLink`       | **Required.** The map art — an `image` address. Becomes the level's `background.src`, what tokens stand on                                                   |
+| `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                                                                          |
+| `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                                                                               |
+| `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                                                                                |
+| `levelName`       | `string`         | The name of the embedded level. Defaults to `Ground`                                                                                                         |
+| `backgroundColor` | `ColorHexValue`  | Shown where the art does not reach. Defaults to `#999999`                                                                                                    |
+| `overlay`         | `string`         | Path to **foreground** art                                                                                                                                   |
+| `walls`           | `WallSegment[]`  | List of wall segments                                                                                                                                        |
+| `doors`           | `Door[]`         | List of doors                                                                                                                                                |
+| `lights`          | `Light[]`        | List of lights                                                                                                                                               |
+| `tiles`           | `Tile[]`         | List of tiles, each naming its art in `image`                                                                                                                |
+| `sounds`          | `Sound[]`        | List of sounds, each naming its clip in `audio`                                                                                                              |
+| `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                        |
+| `place`           | `WikiLink`       | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere |
+| `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                          |
 
 Everything else a Scene holds is **derived**, not authored: padding, grid type,
 grid distance and units, token vision and fog mode all come from the subType, and
@@ -2554,16 +2693,21 @@ one Level or it has no map at all, and nothing supplies one after the fact: the
 client-side `_preCreate` that would create it does not run during offline pack
 compilation, and the server-side migration shim is version-gated on
 `_stats.coreVersion`, so a pack stamped 14.x or later skips it entirely. The
-single Level is synthesised from `img`, `overlay`, `levelName` and
+single Level is synthesised from `bgImage`, `overlay`, `levelName` and
 `backgroundColor`.
 
-> **`img`, at the note's top level, as every other type's artwork is.** Art is
-> not system-specific — a Scene is a core Foundry document, and a second system
-> would want the identical art — so the field sits beside every other note's
-> `img` rather than inside a system block.
->
-> `image` is **not a key a map has**: in a `sohl:` block it is reported as
-> unknown, and either way the note is refused for the `img` it never declared.
+> **`bgImage` is a `WikiLink` under `data:`, as every other type's artwork is.**
+> Art is not system-specific — a Scene is a core Foundry document, and a second
+> system would want the identical art — so the field sits under `data:` rather
+> than inside a system block.
+
+**A tile names its art with `image`, a sound its clip with `audio`.** Both are
+addresses and both default from the key: `image` to type `image`, `audio` to
+type `audio`. A tile placing a glyph rather than artwork qualifies —
+`image: sohl-none-icon-chest` — which is the ordinary short-form ladder and not
+an exception. The emitted `AmbientSound` field is still Foundry's own `path`;
+the note's key is named for the type it references, so the default needs no
+memorising.
 
 **Two unit conventions, deliberately.** Geometry — walls, doors, lights, tiles,
 sounds, region shapes — is authored in **pixels**, Foundry's native storage,
@@ -2762,8 +2906,8 @@ rules describe it, and compiling one through this path would ship a macro whose
 body was a code block posted verbatim into chat. Chat macros as content would
 need an authoring convention of their own.
 
-The note's `img` is a content-relative path resolved the way every other note's
-is; a note that authors none takes Foundry's own `icons/svg/dice-target.svg`.
+The note's `data.icon` resolves the way every other note's does; a note that
+authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
 ### type: bundle
 
