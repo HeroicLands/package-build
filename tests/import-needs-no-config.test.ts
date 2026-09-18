@@ -141,7 +141,12 @@ describe("the shipped package needs no configuration to be imported (#2)", () =>
         // Guards the guard: were a configuration reachable from the copy,
         // every case below would pass without proving anything.
         expect(findConfigFile(installed)).toBeUndefined();
-        expect(fs.existsSync(path.join(installed, "assets"))).toBe(false);
+        // A *content tree*, not `assets/` at large: the package ships
+        // `assets/images/` — the section banners a consumer addresses as
+        // `packagebuild-none-image-…` — and those are files it publishes, not
+        // configuration it reads. What must not be reachable is the tree a
+        // consumer's `content` root names.
+        expect(fs.existsSync(path.join(installed, "assets", "content"))).toBe(false);
         expect(MODULES.length).toBeGreaterThan(20);
     });
 

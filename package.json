@@ -102,6 +102,7 @@
         "CHANGELOG.md",
         "CONTENT.md",
         "README.md",
+        "assets",
         "bin",
         "bundle.mjs",
         "ci",
