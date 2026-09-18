@@ -1395,10 +1395,16 @@ Leaving the extension out is what makes a format change free. Changing an icon
 from SVG to WebP is dropping a different file in place, and no note changes;
 `abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
 
-**The tree is organised for the people who maintain it**, not to mirror
-addresses — `icons/game-icons/<contributor>/`, `images/beings/creatures/`. The
-walk derives the address from the file it finds, so the directories are the
-package's own business and can be rearranged without touching a note.
+**The directory structure is arbitrary, exactly as it is under
+`assets/content`.** A note's address does not depend on where its `.md` sits,
+and an asset's address does not depend on where its file sits. Both are derived
+from the file the walk finds; both trees are arranged for the people who
+maintain them — `icons/game-icons/<contributor>/`, `images/beings/creatures/` —
+and either can be rearranged wholesale without a single reference changing.
+
+That is the property worth protecting. A layout that carried meaning would make
+moving a file a breaking change, and the two trees would need two rules instead
+of one.
 
 **A shortcode is lowercase alphanumerics.** A filename that is not — a version
 string, a hyphen, a weight suffix — cannot be addressed and the build says so
