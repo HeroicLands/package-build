@@ -1400,8 +1400,14 @@ from SVG to WebP is dropping a different file in place, and no note changes;
 and an asset's address does not depend on where its file sits within its root.
 Both trees are arranged for the people who maintain them —
 `icons/game-icons/<contributor>/`, `images/beings/creatures/` — and either can be
-rearranged wholesale without a single reference changing. A layout that carried
-meaning would make moving a file a breaking change.
+rearranged wholesale without a single reference changing.
+
+**That freedom is the point.** Whoever maintains a tree organises it however
+makes sense to them — by contributor, by subject, by the source a set came from,
+by whatever the next thousand files want — and the build has no opinion. A
+layout that carried meaning would spend that freedom to buy nothing: moving a
+file would become a breaking change, and the arrangement would answer to the
+walk rather than to the person reading it.
 
 **The root itself is the exception, and only because an asset root is
 homogeneous.** `assets/content` is mixed: it holds beings, places, skills and
