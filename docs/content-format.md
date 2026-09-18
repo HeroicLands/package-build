@@ -1395,16 +1395,25 @@ Leaving the extension out is what makes a format change free. Changing an icon
 from SVG to WebP is dropping a different file in place, and no note changes;
 `abysdrksvg` and `abysdrkwebp` would be two addresses for one drake.
 
-**The directory structure is arbitrary, exactly as it is under
+**Beneath the root the structure is arbitrary, exactly as it is under
 `assets/content`.** A note's address does not depend on where its `.md` sits,
-and an asset's address does not depend on where its file sits. Both are derived
-from the file the walk finds; both trees are arranged for the people who
-maintain them — `icons/game-icons/<contributor>/`, `images/beings/creatures/` —
-and either can be rearranged wholesale without a single reference changing.
+and an asset's address does not depend on where its file sits within its root.
+Both trees are arranged for the people who maintain them —
+`icons/game-icons/<contributor>/`, `images/beings/creatures/` — and either can be
+rearranged wholesale without a single reference changing. A layout that carried
+meaning would make moving a file a breaking change.
 
-That is the property worth protecting. A layout that carried meaning would make
-moving a file a breaking change, and the two trees would need two rules instead
-of one.
+**The root itself is the exception, and only because an asset root is
+homogeneous.** `assets/content` is mixed: it holds beings, places, skills and
+the rest side by side, and each note declares its own `type:`, so no directory
+needs to. An asset root holds one type and nothing else — everything under
+`assets/icons` is an icon — which is what lets the root supply the type. It has
+to: a `.webp` carries no frontmatter and has nowhere to say what it is.
+
+So the two trees follow one rule about layout and differ on exactly one point:
+a note's type comes from the note, an asset's type comes from its root. That is
+also why the four roots are a closed list rather than a convention — a fifth
+directory under `assets/` declares nothing, so nothing in it is addressable.
 
 **A shortcode is lowercase alphanumerics.** A filename that is not — a version
 string, a hyphen, a weight suffix — cannot be addressed and the build says so
