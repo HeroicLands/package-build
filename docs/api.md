@@ -567,13 +567,14 @@ The asset types — `icon`, `image` and `audio` — and the three roots they are
 
 The asset record: one line of the content index per addressable file. The record is emitted by the package holding the bytes, so its `path` is that package's path and each consumer joins its own root onto it — Foundry its data directory, the website its CDN prefix, the book its asset base.
 
-| Export                      | Signature                                                       | Returns                       | Use it when                                                                       |
-| --------------------------- | --------------------------------------------------------------- | ----------------------------- | --------------------------------------------------------------------------------- |
-| `ASSET_RECORD_FIELDS`       | `const ASSET_RECORD_FIELDS`                                     | `readonly AssetRecordField[]` | reading what an `asset` block carries, and where each field comes from            |
-| `PROVENANCE_KEYS`           | `const PROVENANCE_KEYS`                                         | `ReadonlySet<string>`         | validating a provenance file, whose keys are derived from the record's own fields |
-| `PROVENANCE_FILE`           | `const PROVENANCE_FILE`                                         | `string` — `provenance.yaml`  | naming the file a directory records provenance for its subtree in                 |
-| `PROVENANCE_SIDECAR_SUFFIX` | `const PROVENANCE_SIDECAR_SUFFIX`                               | `string` — `.yaml`            | naming a per-file record, which replaces an inherited one wholesale               |
-| `collectAssetRecords`       | `collectAssetRecords(assetsBase, { contentPackage, problems })` | `Array<Record<string, any>>`  | reading a package's asset roots into index records, without walking its notes     |
+| Export                      | Signature                                                       | Returns                       | Use it when                                                                                                                                             |
+| --------------------------- | --------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ASSET_RECORD_FIELDS`       | `const ASSET_RECORD_FIELDS`                                     | `readonly AssetRecordField[]` | reading what an `asset` block carries, and where each field comes from                                                                                  |
+| `PROVENANCE_KEYS`           | `const PROVENANCE_KEYS`                                         | `ReadonlySet<string>`         | validating a provenance file, whose keys are derived from the record's own fields                                                                       |
+| `REQUIRED_PROVENANCE_KEYS`  | `const REQUIRED_PROVENANCE_KEYS`                                | `ReadonlySet<string>`         | the keys a provenance file must state — a record resolves wholesale, so one omitting them leaves every file it covers with no rights holder or no terms |
+| `PROVENANCE_FILE`           | `const PROVENANCE_FILE`                                         | `string` — `provenance.yaml`  | naming the file a directory records provenance for its subtree in                                                                                       |
+| `PROVENANCE_SIDECAR_SUFFIX` | `const PROVENANCE_SIDECAR_SUFFIX`                               | `string` — `.yaml`            | naming a per-file record, which replaces an inherited one wholesale                                                                                     |
+| `collectAssetRecords`       | `collectAssetRecords(assetsBase, { contentPackage, problems })` | `Array<Record<string, any>>`  | reading a package's asset roots into index records, without walking its notes                                                                           |
 
 ### `engine.packages`
 
