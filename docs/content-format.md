@@ -1584,11 +1584,17 @@ immediately after the closing `]]`, with no space:
 ```markdown
 ![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
 ![[thalornamap|Map of Thalorna]]{.full-width}
+![[thalornamap|Map of Thalorna]]{.full-width, float: top-left}
+![[thalornamap|Map of Thalorna]]{float: top-left, .full-width}
 ```
 
-The width and position vocabularies are the ones above, and they are closed
-here for the same reason: a directive that is quietly ignored looks exactly
-like one that worked.
+**The same parser reads both**, so an embed takes a width class, a `float:`, or
+both together in either order, comma-separated — everything
+[an image's directive](#width-is-a-class-and-the-ordinary-width-carries-no-marker)
+takes and nothing beyond it. The width and position vocabularies are the ones
+above, and they are closed here for the same reason: a directive that is quietly
+ignored looks exactly like one that worked, and a directive holding a problem is
+not honoured in part either.
 
 **A being's portrait is one of these**, opening its `{#appearance}` section by
 convention rather than declared in a field — see

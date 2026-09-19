@@ -72,6 +72,7 @@ import {
     noteFile,
 } from "./content-index.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
+import { resolveEmbeds } from "./content-embeds.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -267,6 +268,17 @@ export function buildLinkIndex(
 
     const packages = new Set([...(byKey.size ? [pkg] : []), ...foreign.packages]);
 
+    // The address space an `![[…]]` embed resolves against, shaped as every
+    // other asset resolver reads one so the checker cannot answer an authored
+    // embed differently from the builds that emit it.
+    const assetIndex = {
+        types,
+        packages,
+        contentPackage: pkg,
+        assets: byAssetKey,
+        foreign: foreign.index,
+    };
+
     /** The searchable universe a `dataview` table draws its rows from. */
     const tableDocs = notes.map((n) => ({
         // Package present for a `WHERE … package = "…"` clause, synthesised
@@ -278,7 +290,72 @@ export function buildLinkIndex(
     }));
 
     /**
+     * One note's body with its `dataview` and `sql` tables expanded.
+     *
+     * The body every body-level check reads, so a link and an embed in one note
+     * are found in the same text — a generated table is as free to carry either
+     * as prose is.
+     *
+     * @param {object} note - A note from this index.
+     * @returns {string} The markdown.
+     */
+    function expandedBody(note) {
+        const body = note.body;
+        if (!/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) return body;
+        return expandContentTables(body, {
+            // Unfiltered: every note in the tree is this package's, so
+            // there is no other package's note to exclude.
+            docs: tableDocs,
+            linkable: (d) => Boolean(d.fm.shortcode),
+            source: note.file,
+            // A `sql` table's links are checked like an authored one's, so
+            // its rows are prepared ahead of this walk — see
+            // {@link module:engine/sql-tables.prepareTreeSqlTables}.
+            sqlTables: sqlTables?.get(note.file),
+        }).markdown;
+    }
+
+    /**
+     * Every `![[…]]` embed in a note body, resolved against the files this tree
+     * and its dependencies ship.
+     *
+     * @param {object} note - A note from this index.
+     * @returns {Array<{text: string, occurrence: number, reason?: string,
+     *   target?: string, type?: string, message?: string}>} One entry per
+     *   defect, in the shape the finding reporter reads.
+     */
+    function embedsOf(note) {
+        const { unresolved, problems } = resolveEmbeds(expandedBody(note), { index: assetIndex });
+        const seen = new Map();
+        /**
+         * @param {string} text - The embed exactly as authored.
+         * @returns {number} Its nth appearance in the note.
+         */
+        const at = (text) => {
+            const occurrence = (seen.get(text) ?? 0) + 1;
+            seen.set(text, occurrence);
+            return occurrence;
+        };
+        return [
+            ...unresolved.map((u) => ({
+                text: u.link,
+                target: u.target,
+                reason: u.reason,
+                ...(u.type ? { type: u.type } : {}),
+            })),
+            ...problems.map((problem) => ({
+                text: problem.link,
+                message: problem.message,
+            })),
+        ].map((finding) => ({ ...finding, occurrence: at(finding.text) }));
+    }
+
+    /**
      * Every wikilink in a note body, with its `dataview` tables expanded.
+     *
+     * An `![[…]]` embed is not one: it names a file rather than a note, and
+     * {@link module:engine/wikilink-syntax.WIKILINK} excludes it so that no
+     * reader can take one for the other.
      *
      * @param {object} note - A note from this index.
      * @returns {Array<{target: string, anchor: string, text: string,
@@ -287,26 +364,13 @@ export function buildLinkIndex(
      *   `|` every link must have.
      */
     function linksOf(note) {
-        let body = note.body;
-        if (/^[ \t]*(?:`{3,}|~{3,})[ \t]*(?:dataview|sql)\b/im.test(body)) {
-            body = expandContentTables(body, {
-                // Unfiltered: every note in the tree is this package's, so
-                // there is no other package's note to exclude.
-                docs: tableDocs,
-                linkable: (d) => Boolean(d.fm.shortcode),
-                source: note.file,
-                // A `sql` table's links are checked like an authored one's, so
-                // its rows are prepared ahead of this walk — see
-                // {@link module:engine/sql-tables.prepareTreeSqlTables}.
-                sqlTables: sqlTables?.get(note.file),
-            }).markdown;
-        }
+        const body = expandedBody(note);
         const out = [];
         // How many times each authored link has been seen, so two identical
         // links in one note are reported at their own positions.
         const seen = new Map();
-        // Code is verbatim, so a `[[…]]` inside a fence, an indented block or
-        // an inline span is not a link — the compilers make none of it either.
+        // Code is verbatim, so a `[[…]]` inside a fence, an indented block or an
+        // inline span is not a link — the compilers make none of it either.
         for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
             const parsed = parseWikilink(rawInner);
             const { target, anchor } = parsed;
@@ -490,6 +554,10 @@ export function buildLinkIndex(
          */
         assets: byAssetKey,
         /**
+         * The address space an `![[…]]` embed resolves against.
+         */
+        assetIndex,
+        /**
          * The one package this tree publishes. Distinct from `packages`, which
          * is the set an address may name and which a homepage-only tree leaves
          * this package out of, having no keyed note to put it there.
@@ -497,6 +565,7 @@ export function buildLinkIndex(
         contentPackage: pkg,
         foreign,
         linksOf,
+        embedsOf,
         /**
          * Resolve a link target the way both builds do, or `undefined`. Every
          * link is an address, so this is {@link resolveAddress} under the name
@@ -837,7 +906,15 @@ export function auditHomepageLinks(index) {
  *   the three resolvers agree on severity for every class.
  */
 export function auditLinks(index) {
-    const { notes, anchors, linksOf, resolve, manifestHit, isAddress } = index;
+    const { notes, anchors, linksOf, embedsOf, resolve, manifestHit, isAddress } = index;
+
+    // An embed names a file, and is checked here rather than by the image pass
+    // because its grammar is the wikilink's: the same short-form ladder, the
+    // same package defaults and the same findings vocabulary.
+    const deadEmbeds = [];
+    for (const note of notes) {
+        for (const finding of embedsOf(note)) deadEmbeds.push({ note, ...finding });
+    }
 
     const deadAnchors = [];
     for (const note of notes) {
@@ -918,6 +995,7 @@ export function auditLinks(index) {
     return {
         deadAnchors,
         deadAddresses,
+        deadEmbeds,
         unlabelledLinks,
         frontmatterLinks: index.frontmatterLinks,
         homepageLinks: auditHomepageLinks(index),

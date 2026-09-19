@@ -61,6 +61,7 @@ import { slugify } from "./content-slug.mjs";
 /** KB heading/anchor slug: lowercase, non-alphanumerics to single hyphens. */
 export { slugify };
 import { authoredLabel, WIKILINK, isSamePage, parseWikilink } from "./wikilink-syntax.mjs";
+import { resolveEmbeds } from "./content-embeds.mjs";
 
 /**
  * The index key a **piped** target resolves to, or `null` when it does not
@@ -300,15 +301,25 @@ function isPlainMap(value) {
  * web pages, so the author wrote a real address and there is simply nothing to
  * link to.
  *
+ * ## Embeds first, and they are not links
+ *
+ * `![[address|label]]` names a file rather than a note, so it is resolved into
+ * an ordinary markdown image before anything looks for a link — which is what
+ * stops the link pass reading an embed's interior as a link to a note nobody
+ * wrote. The image the rewrite leaves behind is what
+ * {@link module:engine/content-images.renderImageFigures} turns into a figure
+ * for the website, and what the book reads its staging list out of.
+ *
  * @param {string} body - The markdown body.
- * @param {object} ctx - `{ index, collide, sections, contentTypes, packages,
- *   foreign, type, errors, src, file }`.
+ * @param {object} ctx - `{ index, assets, collide, sections, contentTypes,
+ *   packages, foreign, type, errors, src, file }`.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type; `foreign`
- *   is the cross-package manifest index. `src` is the page's display
+ *   is the cross-package manifest index; `assets` is the address space an embed
+ *   resolves against. `src` is the page's display
  *   path and `file` the source file a diagnostic should name — absent, `src`
  *   stands in.
- * @returns {string} The body with wikilinks rewritten.
+ * @returns {string} The body with embeds and wikilinks rewritten.
  */
 export function resolveWebWikilinks(body, ctx) {
     // How many times each authored link has been seen, so two identical links
@@ -317,15 +328,13 @@ export function resolveWebWikilinks(body, ctx) {
     // `file:line:column:` diagnostic rather than a note-wide one.
     const seen = new Map();
     /**
-     * Records a finding, and returns the marked-up link it renders as.
+     * Records a finding against one authored literal.
      *
-     * @param {string} all - The authored link, brackets and all.
-     * @param {object} finding - `{ target, reason }`, plus any extras the class
-     *   carries.
-     * @param {string} text - What the link renders as.
-     * @returns {string} The marked span.
+     * @param {string} all - The literal, exactly as authored.
+     * @param {object} finding - The finding's own fields.
+     * @returns {void}
      */
-    const report = (all, finding, text) => {
+    const record = (all, finding) => {
         const occurrence = (seen.get(all) ?? 0) + 1;
         seen.set(all, occurrence);
         ctx.errors.push({
@@ -337,12 +346,37 @@ export function resolveWebWikilinks(body, ctx) {
             occurrence,
             ...finding,
         });
+    };
+
+    /**
+     * Records a finding, and returns the marked-up link it renders as.
+     *
+     * @param {string} all - The authored link, brackets and all.
+     * @param {object} finding - `{ target, reason }`, plus any extras the class
+     *   carries.
+     * @param {string} text - What the link renders as.
+     * @returns {string} The marked span.
+     */
+    const report = (all, finding, text) => {
+        record(all, finding);
         return unresolvedLink(text, finding.target);
     };
 
+    // An embed names a file, so it resolves before anything looks for a link.
+    // Its findings are recorded rather than rendered: the rewrite already
+    // leaves an embed it cannot resolve exactly as authored, which is the
+    // visible degradation an unresolved link gets from `unresolvedLink`.
+    const embedded = resolveEmbeds(body, { index: ctx.assets });
+    for (const u of embedded.unresolved) {
+        record(u.link, { target: u.target, reason: u.reason, ...(u.type ? { type: u.type } : {}) });
+    }
+    for (const problem of embedded.problems) {
+        record(problem.link, { target: problem.link, message: problem.message });
+    }
+
     // Code is verbatim: a `[[…]]` inside a code fence, an indented block or an
     // inline span is source text, not a link.
-    return replaceOutsideCode(body, WIKILINK, (all, rawInner) => {
+    return replaceOutsideCode(embedded.markdown, WIKILINK, (all, rawInner) => {
         const parsed = parseWikilink(rawInner);
         const { target, anchor, display } = parsed;
         // An empty label is not a label: `[[x|]]` addresses the target and

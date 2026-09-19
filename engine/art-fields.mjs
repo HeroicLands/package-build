@@ -40,8 +40,10 @@
 
 import { expandAddress } from "./content-address.mjs";
 import { hasTag } from "./note-vocabulary.mjs";
-import { ASSET_SYSTEM } from "./asset-types.mjs";
+import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
+import { isAssetRecord } from "./index-records.mjs";
+import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
 /**
@@ -114,21 +116,79 @@ export function artTarget(value, defaultType) {
 }
 
 /**
- * The index record an art value resolves to, or `null`.
+ * The address space an asset reference resolves against, from a corpus.
+ *
+ * Shaped exactly as {@link module:engine/wikilinks.buildWikilinkIndex}'s result
+ * is in the parts a resolver reads, so the site, the book and the pack compilers
+ * answer one authored address the same way.
+ *
+ * **The note types belong in `types` as well as the asset ones.** Without them
+ * `being-thorn` does not parse as an address at all, and an embed naming a note
+ * is reported as an unknown type on one surface and as the wrong kind of type on
+ * another — one mistake, two verdicts, which is what the shared vocabulary
+ * exists to prevent.
+ *
+ * @param {readonly object[]} records - The corpus, from
+ *   {@link module:engine/content-index.indexRecordsFor}.
+ * @param {object} [opts]
+ * @param {object} [opts.config] - The resolved build configuration.
+ * @param {{index?: Map<string, object>, packages?: Iterable<string>}} [opts.foreign] -
+ *   The vendored indexes a dependency published.
+ * @param {Iterable<string>} [opts.types] - The note types this tree knows.
+ * @returns {object} The index.
+ */
+export function assetAddressIndex(records = [], { config, foreign, types = [] } = {}) {
+    return {
+        types: new Set([...ASSET_TYPE_NAMES, ...types]),
+        packages: new Set([config?.contentPackage, ...(foreign?.packages ?? [])].filter(Boolean)),
+        contentPackage: config?.contentPackage,
+        assets: new Map(
+            records
+                .filter(isAssetRecord)
+                .map((record) => [record.address?.canonical, record])
+                .filter(([key]) => key),
+        ),
+        foreign: foreign?.index ?? new Map(),
+    };
+}
+
+/**
+ * The asset one authored value names, or why it names none.
+ *
+ * The whole lookup in one place, because two callers need it and they need
+ * different halves of the answer: an art slot needs the record, and an embed
+ * needs to tell an address that resolves to nothing from one that reaches the
+ * wrong *kind* of type. Those are different mistakes with different fixes, and a
+ * single `null` would collapse them into one message.
  *
  * Local files answer first and foreign ones after, which is an ordering of maps
  * rather than a precedence rule: an address carries its own package, so the two
  * cannot both hold one.
  *
- * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex}.
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex},
+ *   or the equivalent the site and the book build.
  * @param {unknown} value - The value as authored.
- * @param {string} defaultType - The type the field declares.
- * @returns {{package: string, asset: {path: string}}|null} The record.
+ * @param {string} defaultType - The type a bare value takes.
+ * @returns {{record: {package: string, asset: {path: string}}, pathname: string}
+ *   |{record: null, reason: string, type?: string}} The asset and the pathname
+ *   it is at, or a reason from
+ *   {@link module:engine/wikilink-syntax.LINK_FINDING_REASONS}.
  */
-export function resolveArtRecord(index, value, defaultType) {
-    if (typeof value !== "string" || !value) return null;
-    const read = readQualifier(artTarget(value, defaultType), index?.types, index?.packages);
-    if (!read || read.reason) return null;
+export function readAssetAddress(index, value, defaultType) {
+    if (typeof value !== "string" || !value) {
+        return { record: null, reason: "not-an-address" };
+    }
+    const target = artTarget(value, defaultType);
+    const read = readQualifier(target, index?.types, index?.packages);
+    if (!read) return { record: null, reason: "not-an-address" };
+    if (read.reason) return { record: null, reason: read.reason };
+    // **Asset types only.** An address may name any type the vocabulary holds,
+    // and most of them name a note — which has no file to draw. Refused by its
+    // own reason rather than left to resolve to nothing, because the fix is a
+    // different one: an ordinary link, not a corrected shortcode.
+    if (!isAssetType(read.type)) {
+        return { record: null, reason: "not-an-asset", type: String(read.type) };
+    }
     // The system segment is fixed at `none` for an asset type, so where the
     // value was written does not enter into it — an embedded item's art is
     // authored inside a system block and still names the same file.
@@ -137,7 +197,20 @@ export function resolveArtRecord(index, value, defaultType) {
         system: ASSET_SYSTEM,
     });
     const hit = index?.assets?.get(canonical) ?? index?.foreign?.get(canonical) ?? null;
-    return hit?.asset?.path && hit.package ? hit : null;
+    if (!hit?.asset?.path || !hit.package) return { record: null, reason: "unresolved" };
+    return { record: hit, pathname: `${hit.package}/${ASSETS_SEGMENT}/${hit.asset.path}` };
+}
+
+/**
+ * The index record an art value resolves to, or `null`.
+ *
+ * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex}.
+ * @param {unknown} value - The value as authored.
+ * @param {string} defaultType - The type the field declares.
+ * @returns {{package: string, asset: {path: string}}|null} The record.
+ */
+export function resolveArtRecord(index, value, defaultType) {
+    return readAssetAddress(index, value, defaultType).record;
 }
 
 /**
@@ -158,12 +231,9 @@ export function resolveArtRecord(index, value, defaultType) {
 export function artPathname(index, value, defaultType) {
     if (value == null) return { pathname: null, resolved: true };
     if (value === "") return { pathname: "", resolved: true };
-    const record = resolveArtRecord(index, value, defaultType);
-    if (!record) return { pathname: null, resolved: false };
-    return {
-        pathname: `${record.package}/${ASSETS_SEGMENT}/${record.asset.path}`,
-        resolved: true,
-    };
+    const read = readAssetAddress(index, value, defaultType);
+    if (!read.record) return { pathname: null, resolved: false };
+    return { pathname: read.pathname, resolved: true };
 }
 
 /**

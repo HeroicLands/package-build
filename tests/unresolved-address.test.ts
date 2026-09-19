@@ -168,6 +168,7 @@ describe("one vocabulary of link findings", () => {
         expect([...LINK_FINDING_REASONS].sort()).toEqual([
             "ambiguous",
             "not-an-address",
+            "not-an-asset",
             "not-lowercase",
             "unknown-anchor",
             "unknown-type",

@@ -33,6 +33,7 @@ import unidecode from "unidecode";
 import markdownit from "markdown-it";
 import { iconPlugin } from "./content-icons.mjs";
 import { imagePlugin } from "./content-images.mjs";
+import { resolveEmbeds } from "./content-embeds.mjs";
 import { resolvePathname } from "./pathnames.mjs";
 import log from "loglevel";
 
@@ -833,7 +834,15 @@ export function convertNoteWikilinks(
     body,
     { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap },
 ) {
-    const result = convertWikilinks(body ?? "", {
+    const source = body ?? "";
+    // **Embeds first, and on the authored text.** An embed's interior is a
+    // wikilink, so resolving it here is what stops the link pass reading
+    // `![[wildboar|Wild Boar]]` as a link to a note called `wildboar`. The
+    // rewrite it produces carries no newline, so the line every later offset
+    // lands on — and the `lineMap` a generated table supplied — survive it, and
+    // only the embed's own findings need the authored text to locate against.
+    const embedded = resolveEmbeds(source, { index });
+    const result = convertWikilinks(embedded.markdown, {
         type,
         id,
         pack,
@@ -843,14 +852,15 @@ export function convertNoteWikilinks(
     /**
      * Where one unresolved link sits, in file coordinates.
      *
-     * @param {object} u - An entry of `result.unresolved`.
+     * @param {object} u - An entry of an `unresolved` list.
+     * @param {string} text - The body its `offset` indexes into.
      * @returns {{line?: number, column?: number, generated?: boolean}} Empty
      *   when the caller supplied no position to resolve against.
      */
-    const locate = (u) =>
+    const locate = (u, text) =>
         bodyLine === undefined || u.offset === undefined ?
             {}
-        :   positionInBody(body ?? "", u.offset, {
+        :   positionInBody(text, u.offset, {
                 bodyLine,
                 bodyColumn,
                 lineMap,
@@ -861,10 +871,11 @@ export function convertNoteWikilinks(
      *
      * @param {object} u - The offending link.
      * @param {string} message - What is wrong.
+     * @param {string} text - The body its `offset` indexes into.
      * @returns {never}
      */
-    const fail = (u, message) => {
-        const at = locate(u);
+    const fail = (u, message, text) => {
+        const at = locate(u, text);
         // A link this build wrote is not at any authored position, so say
         // where it came from rather than implying an edit site.
         const err = new Error(
@@ -875,6 +886,16 @@ export function convertNoteWikilinks(
         throw err;
     };
 
+    for (const u of embedded.unresolved) {
+        fail(u, `${linkFindingMessage(u)} — in "${name}".`, source);
+    }
+    // A directive that cannot be honoured is refused for the reason an image's
+    // is: rendering as the ordinary width looks exactly like a directive that
+    // worked, so it fails here rather than publishing a page nobody asked for.
+    for (const problem of embedded.problems) {
+        fail(problem, `${problem.message} — in "${name}".`, source);
+    }
+
     for (const u of result.unresolved) {
         // Every class fails, and every class is worded by the shared table.
         // The three resolvers read one authored link, so an author who
@@ -884,7 +905,7 @@ export function convertNoteWikilinks(
         //
         // The note's name is appended rather than woven in: the message is the
         // defect, the name is the context this build can add.
-        fail(u, `${linkFindingMessage(u)} — in "${name}".`);
+        fail(u, `${linkFindingMessage(u)} — in "${name}".`, embedded.markdown);
     }
     return result;
 }

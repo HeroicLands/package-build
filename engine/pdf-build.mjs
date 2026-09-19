@@ -98,6 +98,8 @@ import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
 import { resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { resolveWebWikilinks } from "./web-wikilinks.mjs";
+import { linkFindingMessage } from "./wikilink-syntax.mjs";
+import { assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imageSourcesIn } from "./content-images.mjs";
@@ -394,6 +396,13 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         skipDirectories: resolved.skipDirectories,
         records,
     });
+    // The address space an `![[…]]` embed resolves against — the same one the
+    // site builds, so one authored picture reaches both surfaces or neither.
+    const assets = assetAddressIndex(records, {
+        config: resolved,
+        foreign: gates.foreign,
+        types: gates.index?.contentTypes ?? [],
+    });
     const md = createParser(resolved.icons);
     const glyphs = resolveIconGlyphs(resolved.icons, resolved.pdf.iconFonts, findings);
 
@@ -493,6 +502,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             type: page.fm.type ?? null,
             errors: wikiErrors,
             foreignIndex: gates.foreign.index,
+            assets,
         });
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
@@ -502,7 +512,10 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
             findings.push({
                 file: page.file,
                 severity: "warning",
-                message: String(err.message ?? err),
+                // A link finding names a `reason` from the shared table and no
+                // sentence of its own; an embed's directive complaint carries
+                // the sentence instead.
+                message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
             });
         }
         stageImages(resolvedBody, page.file);
