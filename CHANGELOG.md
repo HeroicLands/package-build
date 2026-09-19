@@ -1,5 +1,209 @@
 # @heroiclands/package-build
 
+## 21.2.0
+
+### Minor Changes
+
+- 9ccd9e1: **Art and sound have addresses** — A package's pictures and sound clips are now
+  addressed the way its notes are. `icon`, `image` and `audio` are types a
+  reference can reach, one per tree: `assets/icons`, `assets/images` and
+  `assets/audio`. The filename is the name — `anvil.svg` is `icon-anvil` — and the
+  directories above it are the package's own business, so a tree can be tidied
+  into whatever arrangement suits the people who maintain it without a single
+  reference changing.
+  
+  - _The extension stays out of the name._ Changing a picture from SVG to WebP is
+    dropping a different file in place; nothing that names it has to be touched.
+  - _Two files cannot claim one name._ A root's names are one list however deeply
+    it nests, and the build says which two files collided.
+  - _Attribution travels with the file._ Who made it, where it came from and what
+    licence it carries are published beside it, taken from the `provenance.yaml`
+    nearest the file or from a record written for that one file alone.
+  - _A package can lend its art._ Every address says which package holds the
+    bytes, so a picture one package ships resolves for another that cites it — on
+    the website, in the book, and in Foundry.
+  - `packagebuild` is a reserved name, held for the files the toolchain itself
+    ships, so no package may claim it.
+  
+  Fonts are deliberately not addressable: nobody names a typeface the way they
+  name a picture, and a stylesheet and a typesetter each want something an address
+  cannot give them.
+- 888f64a: **An image a Foundry journal cannot serve is refused** — An image in a note's
+  body names the package that owns the file, and a journal can only draw one from
+  a package the install carries. An address naming a package the build declares no
+  relationship with — or `packagebuild`, whose shared banners travel with the
+  toolchain and belong to the website and the book — is reported with the file,
+  line and column it sits on, and the build stops rather than compiling a document
+  whose picture resolves against nothing.
+  
+  - _Both spellings, one answer._ `![alt](…)` and `![[address|label]]` are one
+    image, so an address is refused in the same words whichever way it is written.
+  - _`banner:` is where a shared banner belongs._ It reaches the page and the
+    book's section plates and no compiled document, so a note plating a section
+    with one of the toolchain's banners is doing the right thing.
+  - _An address naming no package still passes through._ A URL, a
+    protocol-relative `//host/…`, a `data:` URI and a `/`-rooted path reach a
+    journal untouched, which is how a note draws core Foundry art or art from a
+    package outside this constellation.
+- b34686f: **The shared banners can be named from anywhere** — A note borrows one of the
+  section banners the toolchain ships by naming it, and nothing has to be declared
+  or downloaded first:
+  
+  ```yaml
+  data:
+    banner: packagebuild-none-image-skillbnr
+  ```
+  
+  The pictures travel with the toolchain itself, so a package plates a section
+  without keeping its own copy and without taking on a dependency on some parent
+  system it has no other relationship with. They appear on the website and in the
+  book; Foundry installs nothing for them, which is why nothing in a compendium
+  ever names one.
+  
+  `packagebuild` is reserved, so no package can claim the name out from under
+  them.
+- 9a937e7: **A note names its art, and the art arrives** — The picture a document carries
+  is chosen by name now, the way everything else in a note is. `icon` is what a
+  directory listing shows beside the name, `tokenIcon` what a token on the canvas
+  wears, `bgImage` a map's background, and `banner` the hero image at the top of a
+  page. Write the name of the file and the build finds it.
+  
+  - _The art actually reaches the document._ Every compiled item took its type's
+    stock picture whatever its note said; it now carries the one it names, and the
+    same goes for a being's profile art, its token and its portrait.
+  - _A map is art all through._ Its background, the pictures on its tiles and the
+    sound clips placed around it are all named the same way and all resolved.
+  - _A being with no picture of its own gets one that suits it_ — a person and a
+    creature fall back to different art, chosen from what the note says it is.
+  - _A picture one package ships reaches another that names it_, on the website,
+    in the book and in Foundry, with each getting the address it serves.
+  - _`tokenIcon` unset follows `icon`._ A being naming one picture wears it on the
+    canvas too.
+  - _A name nothing answers is reported against the note_ rather than quietly
+    becoming the stock picture.
+  
+  A being's portrait is the first image inside its `{#appearance}` section now,
+  written in the prose that describes it rather than declared in a field — where
+  an author can see it, move it and caption it like any other picture.
+- 7661355: **A picture goes where it belongs in the prose** — `![[address|label]]` puts an
+  image where it is written, and every surface draws it there: a Foundry journal,
+  the website and the book alike. It is the wikilink already in use, with `!`
+  meaning _draw it here_ rather than _link to it_, so nothing new has to be
+  learned — the same short form, the same way of reaching another package's
+  artwork, the same complaint when an address names nothing.
+  
+  - _The label is what the picture says._ It is the caption in print, and the
+    words a screen reader announces when the image does not load. `![[anvil|]]`
+    says the picture is decoration and needs none.
+  - _It sits where it is told._ An embed takes the same `{…}` an image does — a
+    width, a position, or both in either order — and an unrecognised value is
+    refused with the file and line it is on rather than quietly ignored.
+  - _Only a picture can be embedded._ Naming a character or a skill where a file
+    belongs is refused, and the message says to link to it instead.
+  - _A being's portrait opens its appearance._ Every creature and every character
+    now shows its picture at the top of what it looks like, in the compendium, on
+    the page and in the book.
+- 84a6715: **Shared section banners** — package-build now ships the thirteen banner images
+  many packages draw on, and publishes them to consumers. A package can plate a
+  section without keeping its own copy, and without declaring a dependency on some
+  parent system or module to borrow one.
+  
+  They are licensed CC-BY-SA-4.0, recorded beside them.
+- 0c10ba5: **Everything a being carries now has a picture** — Gear and skills written out
+  inside a being's note, rather than copied from the catalogue, reached the sheet
+  with no artwork at all. They carry art now, by the same two rules everything
+  else does.
+  
+  - _An item can name its own._ Write an icon under `data:` and the sheet shows it.
+  - _And it takes one when it names none._ A whetstone somebody wrote out by hand
+    gets the picture every other piece of miscellaneous gear gets, instead of a
+    blank.
+- fc33f24: **The book sets in the faces the build carries, not the ones the machine has.**
+  Headings, running heads, table labels and captions are set in _Libertinus Sans_
+  — the toolchain ships it, so a book sets the same way on any machine, and the
+  sans no longer comes out in the body face because nothing could resolve it.
+  _Libertinus Mono_ is shipped beside it for a package that sets its code spans in
+  it; the default mono is unchanged.
+  
+  **A face that resolves to nothing is reported.** A compile that cannot find a
+  family still writes a book, set in whatever the fallback reached — a wrong face
+  that nobody sees. The compiler's warnings are now findings like any other, with
+  the file, the line and the column.
+
+### Patch Changes
+
+- d2d029a: **A system panel says what the module actually ships** — A page's SoHL or HM3
+  box reads _Not available_ only where that system really has no document for the
+  note, which is what a reader acts on.
+  
+  - _A note need not name a system to have one._ Where the whole of a subject
+    lives in its own fields — an affiliation, a being written without system
+    detail — the panel now carries the subject's fields instead of claiming the
+    page is outside the system's reach.
+  - _A system the module ships nothing for still says so_, on every page that
+    could have carried it.
+- 9d4ba48: **Content format** — A map names its art the way every other note does. Its
+  background is `bgImage`, an `image` address; a tile names its art with `image`
+  and an ambient sound names its clip with `audio`. A map carries no `img` — a
+  Scene has no such field.
+- acea050: **Content format** — The specification describes art as addresses rather than
+  file paths. A note names its artwork with a wikilink address, an asset lives at
+  an address that holds exactly one file with the extension outside the name, and
+  `icon`, `image`, `font` and `audio` are types a link can reach like any other.
+  
+  - The five art slots are `icon`, `portrait`, `tokenIcon`, `bgImage` and
+    `banner`, each a wikilink field with its own default type.
+  - An image in a note's body is written `![[address|alt text]]`, an empty label
+    marking it decorative.
+  - `packagebuild` is reserved, so any package can name a shared section banner
+    without declaring a dependency to reach it.
+  
+  The build reads art as file paths, so it refuses a tree written to this
+  specification. The specification is the target; the build is what runs today.
+- 60815eb: **A lint finding opens where it says it is** — Every path a content lint prints
+  is relative to the directory the command was run from, so one `content-build
+  lint` run reports every finding in the same shape and each one opens in an
+  editor, a CI annotation or a `$EDITOR +line` jump.
+  
+  - _Characters, icons, raw HTML and image directives_ report the note's path the
+    way the address and frontmatter rules beside them already do.
+- 7d79e70: **Content format** — A being's portrait is a picture in its prose, not a field.
+  It opens the note's `{#appearance}` section — the **lead image** — and
+  `data.portrait` is gone:
+  
+  ```markdown
+  # Appearance {#appearance}
+  
+  ![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+  ```
+  
+  Nothing about that embed is special: it is an ordinary embedded image with an
+  ordinary directive, and the strictness is the convention that the portrait opens
+  the section, so every being note reads the same way. The section matters as well
+  as the order — `{#appearance}` is what becomes an actor's appearance, so a
+  picture above that heading reaches no document. An author can move it, caption it
+  or drop it like any other picture.
+  
+  Four art slots remain — `icon`, `tokenIcon`, `bgImage` and `banner` — each
+  naming art that a document field needs. An embed also takes the same `{…}`
+  directive an image does, so a float or a width applies to either.
+- d6d837c: **Content format** — An asset's address is derived from where its file sits.
+  Three roots, one per type — `assets/icons`, `assets/images` and `assets/audio` —
+  and any file with a matching extension anywhere beneath one is an asset of that
+  type, however deep. The filename is the shortcode, the
+  extension is not part of the address, and the directories in between are the
+  package's own business.
+  
+  A root's shortcodes are one flat namespace, so two files under one root sharing
+  a basename are a build error naming both. Across roots they are different
+  addresses: `icon-anvil` and `image-anvil` name different pictures for different
+  purposes.
+  
+  A font is not an asset and has no address. Nothing names a typeface the way a
+  note names a picture, and neither consumer of a font could use an address
+  anyway: a stylesheet wants a relative `url()` and the book wants a family name.
+  Fonts stay ordinary files a package ships and points a tool at.
+
 ## 21.1.0
 
 ### Minor Changes
