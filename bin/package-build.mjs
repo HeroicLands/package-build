@@ -78,6 +78,7 @@ import yargs from "yargs";
 import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
+import { writeSiteRoot } from "../engine/site-root.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
@@ -462,6 +463,37 @@ function manifestCommand() {
                     `(${Object.keys(manifest).length} keys, ` +
                     `${manifest.packs.length} packs).`,
             );
+        }),
+    };
+}
+
+/**
+ * `package-build site-root` — the deployment's root files.
+ *
+ * Hugo owns everything under the `/<package>/` prefix; this owns what sits
+ * beside it, which is the pair Cloudflare Pages reads from the uploaded
+ * directory and nowhere else.
+ *
+ * @returns {object} The yargs command.
+ */
+function siteRootCommand() {
+    return {
+        command: "site-root",
+        describe: "Write the deployment's _headers and _redirects",
+        builder: (y) =>
+            y.option("out", {
+                type: "string",
+                describe: "The directory that is deployed (default: build/site)",
+            }),
+        handler: handler(async (argv) => {
+            const config = loadPackageBuildConfig();
+            const shared = loadPackConfig();
+            const out = path.resolve(config.rootDir, argv.out ?? "build/site");
+
+            const { files } = writeSiteRoot({ pkg: shared.contentPackage, out });
+            for (const file of files) {
+                console.log(`✅ Wrote ${path.relative(config.rootDir, file)}.`);
+            }
         }),
     };
 }
@@ -1214,6 +1246,7 @@ yargs(hideBin(process.argv))
     .command(cleanCommand())
     .command(assetsCommand())
     .command(manifestCommand())
+    .command(siteRootCommand())
     .command(schemaCommand())
     .command(langCommand())
     .command(labelsCommand())

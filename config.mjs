@@ -57,6 +57,7 @@
  */
 
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { loadPackConfig, locateConfigError, packConfigPath } from "./engine/pack-config.mjs";
 
 /** Keys the reserved section may declare. */
@@ -566,6 +567,39 @@ function normalizeExceptions(value, field, where) {
  */
 
 /**
+ * The asset transforms this package ships, by the name a consumer writes.
+ *
+ * `packageBuild.assetTransform` takes either one of these names or a path to a
+ * module of the consumer's own. A name is the answer where every package wants
+ * the same behaviour — theming an icon to the reader's colour scheme is not a
+ * per-package decision, and a copy in each consumer is a copy that drifts.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const BUILT_IN_ASSET_TRANSFORMS = Object.freeze({
+    "svg-theme": "./engine/svg-theme.mjs",
+});
+
+/**
+ * Where a declared `assetTransform` is loaded from.
+ *
+ * A built-in name resolves to the module this package ships. Anything else is a
+ * path, resolved against the repository root the way it always was — so a
+ * consumer with a transform of its own is unaffected.
+ *
+ * @param {string} declared - The authored value.
+ * @param {string} rootDir - The repository root.
+ * @returns {string} An absolute path to import.
+ */
+export function resolveAssetTransform(declared, rootDir) {
+    const builtIn = BUILT_IN_ASSET_TRANSFORMS[declared];
+    if (builtIn) {
+        return path.resolve(path.dirname(fileURLToPath(import.meta.url)), builtIn);
+    }
+    return path.resolve(rootDir, declared);
+}
+
+/**
  * Resolve a package-build configuration from an already-loaded shared one.
  *
  * Separate from {@link loadPackageBuildConfig} because this half is pure: it
@@ -703,9 +737,9 @@ export function resolvePackageBuildConfig(shared) {
         assetTransform:
             section.assetTransform === undefined ?
                 null
-            :   path.resolve(
-                    shared.rootDir,
+            :   resolveAssetTransform(
                     requireNonEmptyString(section.assetTransform, "packageBuild.assetTransform"),
+                    shared.rootDir,
                 ),
         manifest: normalizeManifest(section.manifest),
         manifestFlags:
