@@ -439,6 +439,7 @@ HeroicLands layout, resolved against `rootDir`:
 | Key                   | Default                | What it is                                                                                 |
 | --------------------- | ---------------------- | ------------------------------------------------------------------------------------------ |
 | `paths.content`       | `assets/content`       | The content tree root.                                                                     |
+| `paths.assets`        | `assets`               | The asset roots' parent, holding `icons/`, `images/` and `audio/`.                         |
 | `paths.contentIndex`  | `build/content-index`  | Where `content-index` writes this package's note index. Derived and disposable.            |
 | `paths.packJson`      | `build/packs-json`     | Build-only per-entry JSON intermediate.                                                    |
 | `paths.stage`         | `build/stage/packs`    | Compiled LevelDB packs.                                                                    |
@@ -457,7 +458,7 @@ An empty value is refused generically:
 
 Any other key is refused:
 
-> ``package-build config: `paths.<key>` is not a recognized option (expected one of: content, contentIndex, packJson, stage, unpack, foreignCache, metadataCache).``
+> ``package-build config: `paths.<key>` is not a recognized option (expected one of: content, assets, contentIndex, packJson, stage, unpack, foreignCache, metadataCache).``
 
 ### `skipDirectories`
 

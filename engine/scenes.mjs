@@ -53,7 +53,6 @@ import log from "loglevel";
 import {
     parseMarkdownFile,
     sohlField,
-    resolveImg,
     resolveName,
     slugify,
     defaultStats,
@@ -130,15 +129,15 @@ export class Scenes extends BasePackCompiler {
     static label = "map";
 
     /**
-     * A map note's `img` is its background art, and it is **required**: the map
-     * compiler refuses a note without one. It lands on the scene's level rather
-     * than on a property spelled `img`, which makes no difference to the
-     * question this declaration answers — the authored path reaches the output.
-     * The place Adventure this pass bundles carries it too.
+     * A map note's `bgImage` is its background art, and it is **required**: the
+     * map compiler refuses a note without one. It lands on the scene's level
+     * rather than on a property spelled `img`, which makes no difference to the
+     * question this declaration answers — the authored address reaches the
+     * output. The place Adventure this pass bundles carries it too.
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["img"]);
+    static emitsArt = Object.freeze(["bgImage"]);
 
     /** @type {string} */
     adventureDir;
@@ -152,13 +151,14 @@ export class Scenes extends BasePackCompiler {
 
     constructor({
         contentBase,
+        assetsBase,
         dest,
         skipDirectories,
         companionDests = {},
         folderResolver = () => null,
         repoRoot = process.cwd(),
     }) {
-        super({ contentBase, dest, folderResolver, skipDirectories });
+        super({ contentBase, assetsBase, dest, folderResolver, skipDirectories });
         if (!companionDests.adventures) {
             throw new Error("Scenes compiler requires an `adventures` companion destination");
         }
@@ -426,6 +426,9 @@ export class Scenes extends BasePackCompiler {
         const warnings = [];
         const scene = buildScene(fm, {
             packageId: foundryPackageId(),
+            // The art resolver, so the map pass turns an address into the path
+            // each surface serves without holding an index of its own.
+            art: (value, key, type) => this.artPathOf(value, key, type),
             name,
             folder,
             stats: this.stats,
@@ -473,7 +476,7 @@ export class Scenes extends BasePackCompiler {
             this.places.set(placeKey, {
                 key: placeKey,
                 name: sohlField(fm, "placeName", null) || name,
-                img: resolveImg(sohlField(fm, "img", null)),
+                img: this.artPath(fm, "bgImage"),
                 pinned: false,
                 scenes: [],
                 journal: [],

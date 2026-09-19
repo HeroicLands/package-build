@@ -39,7 +39,7 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS } from "../engine/content-images.mjs";
-import { DECLARED_TAGS, NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { DECLARED_TAGS, NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const SPEC = readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
@@ -63,7 +63,27 @@ function documentedTypes(): Map<string, string[]> {
     return out;
 }
 
+/**
+ * The `data:` keys the specification states **once**, for every type.
+ *
+ * A key legal on every type has nowhere to go in a per-type table, and
+ * repeating it in twenty-five of them would be twenty-five chances for one to
+ * disagree with the rest. So the specification states it in a table of its own,
+ * recognised by its own header, and the comparison below adds it to every
+ * type's documented set — which is exactly what `dataFields` does on the other
+ * side.
+ */
+function documentedSharedProperties(): string[] {
+    const table = SPEC.match(/^\|\s*shared `data` property.*?\n\|[-\s|]+\n((?:\|.*\n)+)/m);
+    return (table?.[1] ?? "")
+        .trim()
+        .split("\n")
+        .map((row) => row.trim().replace(/^\|/, "").split("|")[0].trim().replace(/`/g, ""))
+        .filter(Boolean);
+}
+
 const DOCUMENTED = documentedTypes();
+const SHARED = documentedSharedProperties();
 
 describe("the specification and the implementation agree", () => {
     it("parses a specification that still has type sections to read", () => {
@@ -85,12 +105,22 @@ describe("the specification and the implementation agree", () => {
         expect(missing).toEqual([]);
     });
 
+    it("states the keys every type accepts, so the shared half is not vacuous", () => {
+        // Guards the guard: were the shared table's header to change shape, the
+        // comparison below would report every type as declaring two keys the
+        // specification does not.
+        expect(SHARED).toEqual(["icon", "banner"]);
+    });
+
     it("declares exactly the `data` properties the specification lists", () => {
         const drift: Record<string, { documented?: string[]; declared?: string[] }> = {};
-        for (const [type, props] of DOCUMENTED) {
+        for (const [type, documented] of DOCUMENTED) {
             const spec = NOTE_VOCABULARY[type as keyof typeof NOTE_VOCABULARY];
             if (!spec) continue; // reported by the test above
-            const declared = (spec.data ?? []).map((f: { name: string }) => f.name);
+            // Both halves of what a type accepts: the keys its own table names,
+            // and the ones the specification states once for every type.
+            const props = [...SHARED, ...documented];
+            const declared = (dataFields(type) ?? []).map((f: { name: string }) => f.name);
             const undeclared = props.filter((p) => !declared.includes(p));
             const undocumented = declared.filter((p) => !props.includes(p));
             if (undeclared.length || undocumented.length) {

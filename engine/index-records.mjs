@@ -59,7 +59,29 @@ export const DERIVED_KEYS = Object.freeze([
     "foundry",
     "documentation",
     "documents",
+    "asset",
 ]);
+
+/**
+ * Recursively sort an object's keys, so serialization is order-independent.
+ *
+ * Arrays keep their order — it is authored — but every object inside one is
+ * sorted too. Anything that is not a plain object is returned as it is.
+ *
+ * @param {unknown} value - The value to normalize.
+ * @returns {unknown} The value with every plain object's keys in sorted order.
+ */
+export function sortKeysDeep(value) {
+    if (Array.isArray(value)) return value.map(sortKeysDeep);
+    if (value === null || typeof value !== "object") return value;
+    // A Date or any other exotic object would lose itself in a rebuild from
+    // entries, and YAML frontmatter can produce one.
+    if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+    /** @type {Record<string, unknown>} */
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = sortKeysDeep(value[key]);
+    return out;
+}
 
 /**
  * The file a record was read from, as an absolute path.
@@ -109,18 +131,55 @@ export function authoredFrontmatter(record) {
 }
 
 /**
- * Whether a record is a note's, rather than a documentation journal's.
+ * Whether a record addresses a **file** rather than a note.
+ *
+ * The index holds two record shapes in one file, and this is how a reader tells
+ * them apart. An asset record carries no frontmatter, no anchors and no
+ * `foundry` block — a `.webp` declares nothing about itself — so every pass that
+ * reads a note's fields has to skip it, and the `asset` block is what marks it.
+ *
+ * Asked of the block rather than of `type`, so a fourth asset type needs no
+ * edit here: what makes a record an asset's is that it describes a file, and the
+ * block is the description.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {boolean} True for an asset's record.
+ */
+export function isAssetRecord(record) {
+    return Boolean(record?.asset);
+}
+
+/**
+ * Whether a record is a note's, rather than a documentation journal's or an
+ * asset's.
  *
  * An item note yields two records — itself and the JournalEntry its prose
  * compiles into — and the second is a document, not a note: it has no file of
  * its own to read, no frontmatter an author wrote, and its `type` is the
  * virtual `doc<type>` that `readQualifier` resolves rather than a type any tree
- * declares. A reader enumerating the corpus wants the notes; one resolving an
- * address wants both.
+ * declares. An asset's record is not a note either, for the stronger reason that
+ * nobody authored it at all. A reader enumerating the corpus wants the notes;
+ * one resolving an address wants all three.
  *
  * @param {Record<string, any>} record - An index record.
  * @returns {boolean} True for a note's own record.
  */
 export function isNoteRecord(record) {
-    return !record?.documents;
+    return !record?.documents && !isAssetRecord(record);
+}
+
+/**
+ * The path a record names inside its package, whichever shape it is.
+ *
+ * The two shapes state it differently and honestly: a note names the `.md` it
+ * was parsed from, relative to the content root, while an asset names the file
+ * it *is*, relative to the package's asset directory. Both are paths within one
+ * package, so one total order covers the whole index — which is what keeps the
+ * artifact byte-stable across a rebuild.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {string} The path, or `""` for a record naming neither.
+ */
+export function recordPath(record) {
+    return String(record?.file?.path ?? record?.asset?.path ?? "");
 }

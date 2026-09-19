@@ -92,6 +92,7 @@ import path from "node:path";
 import unidecode from "unidecode";
 
 import { metadataFileName } from "./metadata-index.mjs";
+import { collectAssetRecords } from "./asset-index.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
@@ -122,9 +123,25 @@ import { loadPackConfig } from "./pack-config.mjs";
 // The record accessors, which live apart so that a module the compilers load
 // can read a record without importing this one and closing a cycle.
 // Re-exported because this is where callers have always addressed them.
-import { authoredFrontmatter, DERIVED_KEYS, isNoteRecord, noteFile } from "./index-records.mjs";
+import {
+    authoredFrontmatter,
+    DERIVED_KEYS,
+    isAssetRecord,
+    isNoteRecord,
+    noteFile,
+    recordPath,
+    sortKeysDeep,
+} from "./index-records.mjs";
 
-export { authoredFrontmatter, DERIVED_KEYS, isNoteRecord, noteFile };
+export {
+    authoredFrontmatter,
+    DERIVED_KEYS,
+    isAssetRecord,
+    isNoteRecord,
+    noteFile,
+    recordPath,
+    sortKeysDeep,
+};
 
 /**
  * The address a wikilink writes to reach a note, or `null` when it has none.
@@ -174,27 +191,6 @@ export function noteAddress(frontmatter, contentPackage) {
             frontmatter.shortcode,
         ),
     };
-}
-
-/**
- * Recursively sort an object's keys, so serialization is order-independent.
- *
- * Arrays keep their order — it is authored — but every object inside one is
- * sorted too. Anything that is not a plain object is returned as it is.
- *
- * @param {unknown} value - The value to normalize.
- * @returns {unknown} The value with every plain object's keys in sorted order.
- */
-export function sortKeysDeep(value) {
-    if (Array.isArray(value)) return value.map(sortKeysDeep);
-    if (value === null || typeof value !== "object") return value;
-    // A Date or any other exotic object would lose itself in a rebuild from
-    // entries, and YAML frontmatter can produce one.
-    if (Object.getPrototypeOf(value) !== Object.prototype) return value;
-    /** @type {Record<string, unknown>} */
-    const out = {};
-    for (const key of Object.keys(value).sort()) out[key] = sortKeysDeep(value[key]);
-    return out;
 }
 
 /**
@@ -537,12 +533,22 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
  * An item note yields two records — the item, and the documentation journal
  * that is a document in its own right.
  *
+ * **The asset roots are walked in the same pass.** A package's addressable files
+ * sit beside `content/` rather than inside it, and they publish into the same
+ * index under the same address grammar — so there is no second walk, no second
+ * artifact, and no notion of an "art module" anywhere in the toolchain. A
+ * package whose tree holds only assets is one by consequence.
+ *
  * @param {string} contentBase - The content tree to walk.
  * @param {object} options - Options.
  * @param {string} options.contentPackage - The package the tree compiles as.
  * @param {readonly string[]} options.skipDirectories - The walk's scope, stated
  *   by the caller. An absent one is the caller's omission, and
  *   {@link module:engine/helpers.walkMarkdownTree} throws on it.
+ * @param {string} [options.assetsBase] - The package's asset directory, holding
+ *   the three asset roots. Omitted, no asset is indexed — which is what a caller
+ *   walking a bare content fixture wants, and what an asset-free package gets
+ *   anyway.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
  * @param {object[]} [options.problems] - Supplied by a **reader**: a note that
@@ -554,7 +560,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
  */
 export function collectContentIndex(
     contentBase,
-    { contentPackage, skipDirectories, manifest, problems },
+    { contentPackage, skipDirectories, assetsBase, manifest, problems },
 ) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
@@ -621,16 +627,31 @@ export function collectContentIndex(
         }
     }
 
-    // Content path, then the canonical address, then the note id. The walk
+    if (assetsBase) {
+        // Sorted at every depth like a note's record, and for the same reason:
+        // the declaration order of the `asset` fields is a fact about the
+        // emitter, not about the content, and the artifact is meant to be
+        // byte-identical across two runs over an unchanged tree.
+        for (const record of collectAssetRecords(assetsBase, { contentPackage, problems })) {
+            records.push(/** @type {Record<string, any>} */ (sortKeysDeep(record)));
+        }
+    }
+
+    // Source path, then the canonical address, then the note id. The walk
     // yields in directory-read order, which is not a fact about the content,
     // and a rebuild that reordered lines would make every regeneration look
     // like a change. The address comes before the id because an item note's two
     // records share a file and carry two different ids — ordering on the id
     // first would sort the documentation against the item it documents by a
     // pair of hashes, which is no order at all.
+    //
+    // The path is read through {@link recordPath} because the two record shapes
+    // state it differently — a note names the `.md` it was parsed from, an asset
+    // the file it *is* — and both are paths within the package, so one order
+    // covers them.
     records.sort(
         (a, b) =>
-            String(a.file.path).localeCompare(String(b.file.path), "en") ||
+            recordPath(a).localeCompare(recordPath(b), "en") ||
             String(a.address?.canonical ?? "").localeCompare(
                 String(b.address?.canonical ?? ""),
                 "en",
@@ -664,6 +685,10 @@ export function serializeContentIndex(records) {
  *
  * @param {object} [opts]
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
+ * @param {string} [opts.assetsBase] - The asset roots' parent, defaulting to
+ *   the configured one. Stated separately from `contentBase` because the two
+ *   move independently — a caller walking an assembled fixture tree says where
+ *   that fixture's files are.
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
  * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, for a
  *   caller that resolved one of its own; defaults to the resolved
@@ -677,13 +702,20 @@ export function serializeContentIndex(records) {
  *   exist.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
-export function indexRecordsFor({ contentBase, config, skipDirectories, problems } = {}) {
+export function indexRecordsFor({
+    contentBase,
+    assetsBase,
+    config,
+    skipDirectories,
+    problems,
+} = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
     if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
+        assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.
         manifest: foundryIdentities(resolved),
         problems,
@@ -699,8 +731,9 @@ export function indexRecordsFor({ contentBase, config, skipDirectories, problems
  * @param {string} [options.outDir] - Where to write; defaults to the configured
  *   `paths.contentIndex`.
  * @param {object} [options.config] - A resolved configuration; loaded when omitted.
- * @returns {{file: string, notes: number, bytes: number}} Where it was written,
- *   how many notes it holds, and its size.
+ * @returns {{file: string, notes: number, assets: number, records: number,
+ *   bytes: number}} Where it was written, how many notes and how many assets it
+ *   holds, how many records that is in all, and its size.
  * @throws {Error} When the content tree is absent, or when it yields no note at
  *   all — an empty index is indistinguishable from a mis-pointed tree, and a
  *   reader would take it as the authoritative statement that this package has
@@ -739,8 +772,10 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     fs.writeFileSync(file, text);
 
     // Counted separately because they are genuinely different numbers: an item
-    // note yields a second record for its documentation journal, so reporting
-    // records as notes would overstate how large the tree is.
-    const notes = records.filter((r) => !r.documents).length;
-    return { file, notes, records: records.length, bytes: Buffer.byteLength(text) };
+    // note yields a second record for its documentation journal and a file
+    // yields an asset record, so reporting records as notes would overstate how
+    // large the tree is.
+    const notes = records.filter(isNoteRecord).length;
+    const assets = records.filter(isAssetRecord).length;
+    return { file, notes, assets, records: records.length, bytes: Buffer.byteLength(text) };
 }

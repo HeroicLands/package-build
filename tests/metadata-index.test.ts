@@ -24,6 +24,7 @@ import {
     loadForeignIndexes,
     newestVersionDir,
 } from "../engine/metadata-index.mjs";
+import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
 
 const LATEST = "https://github.com/HeroicLands/sohl/releases/latest/download/system.json";
 
@@ -233,10 +234,22 @@ describe("resolving foreign addresses from cached indexes", () => {
         ...over,
     });
 
+    /**
+     * The entries a *fetched* index contributed.
+     *
+     * The toolchain's own files join every load unconditionally — they are an
+     * npm dependency of every consumer, with nothing to declare and nothing to
+     * fetch — so a case about what a cache contributed reads past them.
+     */
+    const fetched = (index: Map<string, { package?: string }>) =>
+        [...index].filter(([, entry]) => entry.package !== PACKAGEBUILD_PACKAGE);
+
     it("keys every record by its canonical address", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
-        expect([...index.keys()]).toEqual(["thalorna-none-affiliation-aerarimmpr"]);
+        expect(fetched(index).map(([key]) => key)).toEqual([
+            "thalorna-none-affiliation-aerarimmpr",
+        ]);
     });
 
     // The bug that killed the vendored manifest: SoHL's committed copy held
@@ -285,7 +298,7 @@ describe("resolving foreign addresses from cached indexes", () => {
     it("ignores a cached index for a package this build publishes", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);
         const { index, packages } = loadForeignIndexes(config(), ["thalorna"]);
-        expect(index.size).toBe(0);
+        expect(fetched(index)).toEqual([]);
         expect(packages.has("thalorna")).toBe(false);
     });
 
@@ -295,7 +308,7 @@ describe("resolving foreign addresses from cached indexes", () => {
         fs.writeFileSync(path.join(dir, metadataFileName("thalorna")), "{ not json\n");
         fs.writeFileSync(path.join(dir, ".complete"), "");
         const { index, stale } = loadForeignIndexes(config(), ["sohl"]);
-        expect(index.size).toBe(0);
+        expect(fetched(index)).toEqual([]);
         expect(stale[0].package).toBe("thalorna");
     });
 
@@ -316,6 +329,31 @@ describe("resolving foreign addresses from cached indexes", () => {
 
     it("skips a record with no address at all", () => {
         cacheIndex("thalorna", "0.1.0", [record({ address: null })]);
-        expect(loadForeignIndexes(config(), ["sohl"]).index.size).toBe(0);
+        expect(fetched(loadForeignIndexes(config(), ["sohl"]).index)).toEqual([]);
+    });
+
+    // package-build is an npm dependency of every consumer rather than a
+    // Foundry package, so there is no release archive to fetch and nothing to
+    // declare. The special case is the acquisition alone: the records join the
+    // index like any other package's, and every lookup stays one path.
+    it("folds the toolchain's own files in, with nothing declared and no cache", () => {
+        // A configuration declaring no dependency at all, and a cache that was
+        // never filled: neither is a failure mode for this one package.
+        const bare = { paths: { metadataCache: root }, relationships: {} } as never;
+        const { index, packages, stale } = loadForeignIndexes(bare, ["sohl"]);
+        expect(stale).toEqual([]);
+        expect(packages.has(PACKAGEBUILD_PACKAGE)).toBe(true);
+        const entry = index.get("packagebuild-none-image-skillbnr")!;
+        expect(entry.package).toBe(PACKAGEBUILD_PACKAGE);
+        expect(entry.asset.path).toBe("images/banners/skillbnr.webp");
+    });
+
+    it("gives those entries no page URL and no uuid, having neither", () => {
+        const bare = { paths: { metadataCache: root }, relationships: {} } as never;
+        const entry = loadForeignIndexes(bare, ["sohl"]).index.get(
+            "packagebuild-none-image-skillbnr",
+        )!;
+        expect(entry.url).toBeUndefined();
+        expect(entry.uuid).toBeUndefined();
     });
 });

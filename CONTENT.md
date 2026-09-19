@@ -100,6 +100,9 @@ icons: assets/icon-registry.yaml
 # conventional layout shown here.
 paths:
   content: assets/content
+  # The asset roots' parent: `icons/`, `images/` and `audio/` sit directly under
+  # it, and the content tree beside them.
+  assets: assets
   # Vendored foreign manifests, read by `links`. Inbound.
   manifests: assets/manifests
   # Where `manifest` writes this package's own. Outbound, and a build artifact.
@@ -1778,6 +1781,32 @@ asked for — a build that downloads silently is not reproducible and fails
 strangely offline. The cache is keyed by version, so changing the pinned version
 is a miss rather than a silent overwrite.
 
+### `packagebuild` needs no declaration
+
+package-build ships a set of images of its own — section banners chiefly — and a
+note reaches one without declaring anything:
+
+```yaml
+data:
+  banner: packagebuild-none-image-skillbnr
+```
+
+**There is nothing to declare and nothing to fetch.** package-build is an npm
+dependency of every consumer rather than a Foundry package, so there is no
+release archive behind the name and no reason to fetch one — the tree is already
+on disk under `node_modules/@heroiclands/package-build/assets/`. The records are
+walked from it on every load and join the index like any other package's, so a
+cold cache is not a failure mode here and every lookup stays one path.
+
+`packagebuild` is a **reserved** name: no repository may configure it as its
+`contentPackage`, and a configuration that tries is refused.
+
+**These addresses have no Foundry form.** Foundry installs no package for this
+one, so a resolver returns "no Foundry address" deliberately rather than
+deriving `modules/packagebuild/…`, which installs nowhere. That is not a
+limitation in practice: the only slot that names them is `banner`, which reaches
+no compiled document at all and is read by the website and the book.
+
 **A fetched catalogue is read one system at a time.** A dependency may ship a
 pack per system, and the two hold the same `(type, shortcode)` addresses with
 different data models — `skill:awar` is a real address in both vocabularies and
@@ -1956,16 +1985,58 @@ frontmatter spreads **242 distinct leaf paths** unevenly over **15 types**, from
 authoring. A format with a fixed column set would turn that authoring into a
 schema migration; a document format has no such problem.
 
-Two keys are **derived** rather than authored, and a note carrying either is an
+Three keys are **derived** rather than authored, and a note carrying one is an
 error rather than a silent overwrite:
 
 | Key       | What it holds                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------- |
 | `package` | The configured `contentPackage`. A note may not declare its own, and the expander reads the same.  |
 | `file`    | `path`, `folder` and `name` below the content root — the same `file.*` a content-table query uses. |
+| `asset`   | The file an asset record addresses. Present on an asset's record and on no note's.                 |
 
 The location is namespaced under `file` precisely because `folder` is real
 frontmatter on most notes; a record states both, and they mean different things.
+
+### A file is a record too
+
+The same pass walks the package's **asset roots** — `assets/icons`,
+`assets/images` and `assets/audio` — and emits one record per addressable file
+into the same index. There is no second artifact and no asset-specific emitter:
+a package whose tree holds only pictures publishes an ordinary content index
+that happens to hold only asset records.
+
+The filename is the shortcode, the root supplies the type, and the layout in
+between is the package's own business:
+
+```json
+{
+  "type": "icon",
+  "shortcode": "anvil",
+  "package": "sohl",
+  "address": { "canonical": "sohl-none-icon-anvil" },
+  "asset": {
+    "path": "icons/game-icons/lorc/anvil.svg",
+    "attribution": "Lorc",
+    "source": "http://lorcblog.blogspot.com",
+    "license": "CC-BY-3.0",
+    "notes": "From game-icons.net"
+  }
+}
+```
+
+An asset record carries no frontmatter, no anchors and no `foundry` block, and
+its `address` holds the canonical key and no page slug — a file declares nothing
+about itself, compiles into no document, and publishes no page. The `asset`
+block is what a reader tells the two shapes apart by.
+
+`path` is relative to the emitting package's own asset directory, so each
+consumer joins its own root onto it and resolves in one step. Provenance comes
+from a sibling `<filename.ext>.yaml` where one exists, and otherwise from the
+nearest `provenance.yaml` above the file, searching no higher than the type
+root. `docs/content-format.md` states the whole rule.
+
+Two files under one root sharing a basename are two claims on one address, and
+the build fails naming both.
 
 ### Every note's address, and every anchor it defines
 

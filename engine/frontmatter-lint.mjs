@@ -72,11 +72,14 @@ import { isAddressSegment } from "./address-charset.mjs";
 // reads is exactly the disagreement to avoid.
 import { DEFAULT_PARENT } from "./folder-notes.mjs";
 import {
+    dataFields,
     declaredTags,
     exclusiveTagGroups,
     subTypeCharsetMessage,
     typeCharsetMessage,
 } from "./note-vocabulary.mjs";
+// The art slots, declared once. The linter states no art key of its own.
+import { ART_SLOTS } from "./art-fields.mjs";
 import {
     RETIRED_FIELD_ALIASES,
     declaresRetiredAlias,
@@ -770,28 +773,25 @@ function checkExclusiveTags(note, { type }) {
 }
 
 /**
- * The frontmatter fields that name artwork, and so resolve through
- * {@link module:engine/helpers.resolveImg}.
+ * The frontmatter fields that name artwork.
  *
- * Both, always: a being carries `img` and `portrait` independently — the token
- * art and the sheet portrait — and a rule about how the translator reads an
- * empty value belongs to the translator, not to whichever key happens to be
- * more common. Eleven `sohl-kethira-basic` beings write `portrait: ""` and no
- * note in any tree writes `img: ""` on a being; a check keyed on `img` alone
- * would have called that tree clean.
+ * {@link module:engine/art-fields.ART_SLOTS} is the declaration; this is that
+ * list in the shape the checks below read, so the linter states no art key of
+ * its own and a slot added there is checked here with no second edit. All four
+ * are authored under `data:`, which is what `inData` records.
  *
- * **Each carries where it is authored**, because the two no longer agree. The
- * specification puts an actor's portrait under `data:` and leaves its token art
- * at the note's top level, so `portrait` has a third position to read and `img`
- * does not — and a check that read only the two they share would pass a
- * `data.portrait: ""` it could not see.
+ * `document` separates the three that reach a compiled document from `banner`,
+ * which reaches none by design. The inert-art check reads it: a key that is
+ * *meant* to reach no document is not an inert key, and reporting every note
+ * that names a hero image would bury the finding that matters.
  *
- * @type {readonly {key: string, inData: boolean}[]}
+ * @type {readonly {key: string, inData: boolean, document: boolean}[]}
  */
-export const ART_FIELDS = Object.freeze([
-    Object.freeze({ key: "img", inData: false }),
-    Object.freeze({ key: "portrait", inData: true }),
-]);
+export const ART_FIELDS = Object.freeze(
+    ART_SLOTS.map((slot) =>
+        Object.freeze({ key: slot.key, inData: true, document: slot.document }),
+    ),
+);
 
 /**
  * The keys a field declaration is authored at **inside a system block**.
@@ -1159,7 +1159,11 @@ export function lintNote(
     const emitted = emittedArt ? emittedArt(currentType(type)) : null;
     /** The art fields this note's type reaches nothing through. */
     const inertArt = new Set(
-        emitted ? ART_FIELDS.filter(({ key }) => !emitted.art.includes(key)).map((f) => f.key) : [],
+        emitted ?
+            ART_FIELDS.filter(({ key, document }) => document && !emitted.art.includes(key)).map(
+                (f) => f.key,
+            )
+        :   [],
     );
     for (const { key, inData } of ART_FIELDS) {
         if (!inertArt.has(key)) continue;
@@ -1400,7 +1404,16 @@ export function lintNote(
     // to recognise it would be worse than not checking.
     const entry = vocabulary?.[current];
     if (entry) {
-        findings.push(...checkDataContainer(note, { type, fields: entry.data ?? [], packs }));
+        findings.push(
+            ...checkDataContainer(note, {
+                type,
+                // Read through `dataFields`, so the keys **every** type accepts
+                // are part of what this type declares rather than a second list
+                // the container check would have to be told about.
+                fields: dataFields(current, vocabulary) ?? [],
+                packs,
+            }),
+        );
         findings.push(...checkSubType(note, { type, entry }));
     }
 

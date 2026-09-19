@@ -204,8 +204,10 @@ const FM = {
     id: NOTE_ID,
     shortcode: "autoattack",
     name: { full: "Automated Attack" },
-    img: "icons/game-icons/lorc/crossed-swords.svg",
 };
+
+/** The art `buildMacroEntry` is handed, already resolved by the pass. */
+const RESOLVED_ART = "systems/sohl/assets/icons/game-icons/lorc/crossed-swords.svg";
 
 describe("buildMacroEntry", () => {
     it("keys into the macros collection", () => {
@@ -227,17 +229,15 @@ describe("buildMacroEntry", () => {
         expect(doc.command).toBe("const x = 1\nfoo(x)");
     });
 
-    it("rewrites a content-relative image into its Foundry path", () => {
-        expect(buildMacroEntry(FM, { command: "x();" }).img).toBe(
-            "systems/sohl/assets/icons/game-icons/lorc/crossed-swords.svg",
-        );
+    it("carries the art the pass resolved from the note's address", () => {
+        expect(buildMacroEntry(FM, { command: "x();", img: RESOLVED_ART }).img).toBe(RESOLVED_ART);
     });
 
-    it("falls back to a core icon when the note authors none", () => {
+    it("falls back to a core icon when the note names none", () => {
         // `null`, not `""` — the two stopped meaning the same thing.
         // A note that writes `""` means "ship no art", and is covered in
         // `img-unset-vs-blank.test.ts` alongside the rest of that rule.
-        const doc = buildMacroEntry({ ...FM, img: null }, { command: "x();" });
+        const doc = buildMacroEntry(FM, { command: "x();", img: null });
         expect(doc.img).toBe("icons/svg/dice-target.svg");
     });
 
