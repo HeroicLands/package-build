@@ -260,6 +260,60 @@ package-build: `packageKind: documentation` ships no Foundry package, so there i
 `content-build site`, `content-build pdf`, `package-build bundle check`,
 [Configuration](configuration.md).
 
+### `package-build site-root`
+
+**NAME**
+
+`package-build site-root` — write the deployment's `_headers` and `_redirects`.
+
+**SYNOPSIS**
+
+```
+package-build site-root [--out <dir>]
+```
+
+**DESCRIPTION**
+
+Hugo renders into `<out>/<contentPackage>/`, because the deployment carries the
+`/<contentPackage>/` prefix physically and the routing layer is a
+path-preserving pass-through. The directory that is _uploaded_ is its parent,
+and Cloudflare Pages reads `_headers` and `_redirects` from there and nowhere
+else — a copy inside the prefix is published as a text file and never applied.
+Hugo owns everything under the prefix; this owns what sits beside it.
+
+Two things are written. Indexing is suppressed on every address a deployment
+answers on but nobody advertises — the project's `pages.dev`, the per-deployment
+`pages.dev`, and the custom domain the routing layer fetches — each of which
+would otherwise compete with the canonical URL in search results. And both
+spellings of the prefix root redirect to the landing, with a lifetime pinned on
+the 301, because Pages sets no `Cache-Control` on a redirect it generates and a
+301 without one is cached indefinitely on the most-linked URL there is.
+
+The rules are scoped to those hostnames, so a site deployed under a domain of
+its own stays indexable.
+
+**OPTIONS**
+
+`--out <dir>` — the directory that is deployed. Defaults to `build/site`.
+
+**EXIT STATUS**
+
+1 when `<out>/<contentPackage>/` holds no rendered site, which means the site
+build has not run and writing root files would publish a deployment with nothing
+under the prefix. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build site-root
+✅ Wrote build/site/_headers.
+✅ Wrote build/site/_redirects.
+```
+
+**SEE ALSO**
+
+`content-build site`, [Configuration](configuration.md).
+
 `package-build lang <action>` asks three independent questions about this
 repository's localization, each blind to what the others see: `check`,
 `coverage` and `hardcoded`, one section below per action.
