@@ -51,7 +51,7 @@
 
 import log from "loglevel";
 
-import { sohlField, resolveName, resolveImg, defaultStats, folderField } from "./helpers.mjs";
+import { sohlField, resolveName, defaultStats, folderField } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { splitPages } from "./journals.mjs";
 
@@ -79,11 +79,11 @@ export const MACRO_TYPES = Object.freeze(["script", "chat"]);
 export const MACRO_SCOPES = Object.freeze(["global", "actors", "actor"]);
 
 /**
- * Foundry's own default macro artwork, used when a note authors no `img`.
+ * Foundry's own default macro artwork, used when a note names no `icon`.
  *
- * A core path, deliberately: it is not translated by {@link resolveImg} (which
- * roots `icons/…` under this system's assets), so it must be stated after that
- * translation rather than as authored frontmatter.
+ * A core path, deliberately: it names a file Foundry itself ships rather than an
+ * address in any package, so it is stated after the art resolution rather than
+ * as something a note could author.
  */
 export const DEFAULT_MACRO_IMG = "icons/svg/dice-target.svg";
 
@@ -248,10 +248,13 @@ export function resolveMacroScope(fm, label) {
  * @param {string} opts.command - The command, from {@link macroCommand}.
  * @param {string|null} [opts.folder] - The resolved folder id.
  * @param {object} [opts.stats] - The `_stats` block.
+ * @param {string|null} [opts.img] - The resolved art, from the note's `icon`
+ *   address. Passed in rather than resolved here, because an address is
+ *   answered by the compile's index and this function takes no index.
  * @returns {MacroDocument} The Macro document.
  * @throws {Error} When the frontmatter's macro type or scope is unusable.
  */
-export function buildMacroEntry(fm, { command, folder = null, stats = defaultStats() }) {
+export function buildMacroEntry(fm, { command, folder = null, stats = defaultStats(), img }) {
     const name = resolveName(fm);
     const id = fm.id;
     return {
@@ -262,8 +265,8 @@ export function buildMacroEntry(fm, { command, folder = null, stats = defaultSta
         type: resolveMacroType(fm, name),
         author: null,
         // Nullish, not `||`: a macro note that names no art gets the
-        // shared default, one that writes `img: ""` ships blank on purpose.
-        img: resolveImg(fm.img) ?? DEFAULT_MACRO_IMG,
+        // shared default, one that writes `icon: ""` ships blank on purpose.
+        img: (img === undefined ? null : img) ?? DEFAULT_MACRO_IMG,
         scope: resolveMacroScope(fm, name),
         command,
         folder,
@@ -289,19 +292,18 @@ export class Macros extends BasePackCompiler {
 
     /**
      * The command must be exactly what the author typed, so this pass reads the
-     * note as authored: no table expansion, no wikilink conversion, and no
-     * content-wide link index it would never consult. The journals pass
-     * compiles the converted copy of the same body independently.
+     * note as authored: no table expansion and no wikilink conversion. The
+     * journals pass compiles the converted copy of the same body independently.
      */
     static convertsWikilinks = false;
 
     /**
-     * A Macro carries an `img` — the tile art Foundry shows on the hotbar —
+     * A Macro carries one piece of art — the tile Foundry shows on the hotbar —
      * defaulting to {@link DEFAULT_MACRO_IMG} where the note names none.
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["img"]);
+    static emitsArt = Object.freeze(["icon"]);
 
     /**
      * @param {object} fm - The note's frontmatter.
@@ -323,6 +325,7 @@ export class Macros extends BasePackCompiler {
         const name = resolveName(fm);
         return buildMacroEntry(fm, {
             command: macroCommand(body, name),
+            img: this.artPath(fm, "icon"),
             folder: this.folderResolver(folderField(fm).value, {
                 isAddress: folderField(fm).isAddress,
             }),

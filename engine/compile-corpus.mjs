@@ -48,6 +48,8 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  *
  * @param {object} opts - Options.
  * @param {string} opts.contentBase - Root of the content tree.
+ * @param {string} [opts.assetsBase] - The asset roots' parent, whose files the
+ *   art addresses resolve against. Defaults to the configured one.
  * @param {readonly string[]} opts.skipDirectories - The scope, stated by the
  *   caller as every corpus read requires.
  * @param {object} opts.router - The pack router this compile resolved. Shared
@@ -64,6 +66,7 @@ import { prepareTreeSqlTables } from "./sql-tables.mjs";
  */
 export async function buildCompileCorpus({
     contentBase,
+    assetsBase,
     skipDirectories,
     router,
     config,
@@ -73,6 +76,7 @@ export async function buildCompileCorpus({
     const collected = problems ?? [];
     const records = indexRecordsFor({
         contentBase,
+        assetsBase,
         config: resolved,
         skipDirectories,
         problems: collected,

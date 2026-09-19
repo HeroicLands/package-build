@@ -56,7 +56,7 @@
  *    appears before it.
  * 2. **It contains no image.** A picture is authored in the text with its own
  *    directive, and its position governs. {@link NOTE_FIELD_PRESENTATION}
- *    withholds `portrait`, `img` and `overlay` for that reason and no other.
+ *    withholds the art slots and `overlay` for that reason and no other.
  * 3. **A section is the unit that flows.** Sections are whole and unbreakable;
  *    the panel breaks between them. This is what lets a long box cross a
  *    column or page boundary without splitting a stat grid.
@@ -266,8 +266,10 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     color: Object.freeze({
         withheld: "sidebar machinery, not a fact about the subject",
     }),
-    portrait: Object.freeze({ withheld: "an image, which the box never carries" }),
-    img: Object.freeze({ withheld: "an image, which the box never carries" }),
+    icon: Object.freeze({ withheld: "an image, which the box never carries" }),
+    tokenIcon: Object.freeze({ withheld: "an image, which the box never carries" }),
+    bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
+    banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
 
     birthday: Object.freeze({ label: "Born" }),

@@ -55,7 +55,6 @@ import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
-import { ART_FIELDS } from "./frontmatter-lint.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { loadForeignIndexes } from "./metadata-index.mjs";
@@ -66,7 +65,9 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
-import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { isAssetRecord, isNoteRecord, noteFile } from "./index-records.mjs";
+import { ART_SLOTS, artPathname } from "./art-fields.mjs";
+import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import {
     checkHomepageCount,
     homepageDestination,
@@ -627,13 +628,16 @@ export function sectionFrontmatter(meta) {
  *   for.
  * @param {(data: object, page: object) => void} [options.decorate] - Called
  *   with each page's frontmatter, for whatever a consumer's own pass adds.
+ * @param {(value: unknown, type: string) => string|null} [options.artSrc] -
+ *   Translates an art address into the pathname the website resolver takes, or
+ *   `null` where nothing answers it.
  * @param {(src: string) => string} [options.webSrc] - Translates an authored
  *   pathname into the address the website serves. Every artwork field goes
  *   through it, so a page's `img:` and its body images name the same file the
  *   same way.
  * @returns {object} The frontmatter to write.
  */
-export function pageFrontmatter(page, { readmeSections = {}, decorate, webSrc }) {
+export function pageFrontmatter(page, { readmeSections = {}, decorate, webSrc, artSrc }) {
     const { fm, name, slug, sec, isReadme } = page;
     let data;
     if (page.kind === "content") {
@@ -665,29 +669,39 @@ export function pageFrontmatter(page, { readmeSections = {}, decorate, webSrc })
         if (meta) Object.assign(data, sectionFrontmatter(meta));
     }
     delete data.aliases;
-    if (webSrc) resolveArtFields(data, webSrc);
+    if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
 }
 
 /**
- * Rewrite a page's artwork fields into the addresses the website serves.
+ * Rewrite a page's artwork addresses into the URLs the website serves.
  *
- * The same fields the linter holds to the pathname rule, read from the same
- * list, so a third art field added to the vocabulary reaches the page without
- * anyone remembering this function exists. Only an authored **string** is
- * touched: `null` is a note naming no art and `""` is one naming none on
- * purpose, and neither is a pathname to resolve.
+ * The slots are read from {@link module:engine/art-fields.ART_SLOTS}, so a slot
+ * added to the vocabulary reaches the page without anyone remembering this
+ * function exists. Only an authored **string** is touched: `null` is a note
+ * naming no art and `""` is one naming none on purpose, and neither is an
+ * address to resolve.
+ *
+ * **An address nothing answers is dropped**, not emitted as written. The theme
+ * renders nothing where a value is absent — its silent-disappear convention —
+ * and a raw address left in place would reach the reader as a broken image
+ * source with nothing saying why.
  *
  * @param {object} data - The frontmatter being emitted, rewritten in place.
- * @param {(src: string) => string} webSrc - The website's resolver.
+ * @param {(src: string) => string} webSrc - The website's pathname resolver.
+ * @param {(value: unknown, type: string) => string|null} artSrc - The address
+ *   resolver, yielding the pathname `webSrc` takes.
  * @returns {void}
  */
-function resolveArtFields(data, webSrc) {
-    for (const { key, inData } of ART_FIELDS) {
-        const holder = inData && isPlainObject(data.data) ? data.data : data;
-        const value = holder?.[key];
+function resolveArtFields(data, webSrc, artSrc) {
+    for (const { key, type } of ART_SLOTS) {
+        const holder = isPlainObject(data.data) ? data.data : null;
+        if (!holder) continue;
+        const value = holder[key];
         if (typeof value !== "string" || value === "") continue;
-        holder[key] = webSrc(value);
+        const pathname = artSrc(value, type);
+        if (pathname === null) delete holder[key];
+        else holder[key] = webSrc(pathname);
     }
 }
 
@@ -758,7 +772,24 @@ export function renderPages(pages, options) {
         linkable = (d) => Boolean(d.fm.shortcode),
         sqlTables,
         config,
+        records = [],
     } = options;
+
+    // The address space the art slots resolve against: the files this package
+    // ships, and the ones a dependency published. Shaped as the compile index
+    // is, so one resolver answers for both surfaces.
+    const artIndex = {
+        types: new Set(ASSET_TYPE_NAMES),
+        packages: new Set([config?.contentPackage, ...(foreign?.packages ?? [])].filter(Boolean)),
+        contentPackage: config?.contentPackage,
+        assets: new Map(
+            records
+                .filter(isAssetRecord)
+                .map((record) => [record.address?.canonical, record])
+                .filter(([key]) => key),
+        ),
+        foreign: foreign?.index ?? new Map(),
+    };
 
     const tableErrors = [];
     const wikiErrors = [];
@@ -820,6 +851,7 @@ export function renderPages(pages, options) {
         });
 
         const webSrc = webAddresses(page.file);
+        const artSrc = (value, type) => artPathname(artIndex, value, type).pathname;
         const resolve = (text) => {
             let t = text;
             if (pass.beforeLinks) t = pass.beforeLinks(t, page);
@@ -851,7 +883,7 @@ export function renderPages(pages, options) {
             body = markdown;
         }
 
-        const data = pageFrontmatter(page, { readmeSections, decorate, webSrc });
+        const data = pageFrontmatter(page, { readmeSections, decorate, webSrc, artSrc });
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(protectCode(body, resolve), data));
@@ -1235,6 +1267,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
         outRoot: out,
         sqlTables,
         config: resolved,
+        records: ctx.records,
         index: gates.index,
         foreign: gates.foreign,
         universe: tableUniverse(pages),

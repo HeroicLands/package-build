@@ -574,6 +574,25 @@ data:
   banner: packagebuild-none-image-skillbnr
 ```
 
+**Two of them are legal on _every_ note**, whatever its type. `data:` is a
+closed container and the per-type vocabularies below are the only lists there
+are, so a key legal everywhere is stated once here rather than repeated in
+twenty-five tables where the one that was mistyped would be the one nobody
+noticed:
+
+| shared `data` property | Values     | Description                                                          |
+| ---------------------- | ---------- | -------------------------------------------------------------------- |
+| `icon`                 | `WikiLink` | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `WikiLink` | The page's hero image — an `image` address.                          |
+
+`icon` is legal everywhere because most types compile into a document that
+carries one; where a type's passes emit none, the lint says so and the value is
+left alone, because a page template may still read it. `banner` reaches no
+compiled document at all, and a page is what every note publishes.
+
+The other two are narrower, and each type's own table names them: `tokenIcon`
+on the Actor types, `bgImage` on a map.
+
 **A portrait is not one of them.** A picture of the subject is a picture, so it
 is authored in the prose that describes the subject, as an ordinary embedded
 image — see [the lead image](#the-lead-image). A slot exists for art a
@@ -1947,7 +1966,6 @@ Generates a living (or undead, or spirit) being.
 
 | `data` property             | Values                                         | Description                                                                                      |
 | --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `icon`                      | `WikiLink`                                     | The document's profile art — an `icon` address, resolved into `img`                              |
 | `tokenIcon`                 | `WikiLink`                                     | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
@@ -2132,7 +2150,6 @@ Represents a conveyance able to hold goods and people moving from one place to a
 
 | `data` property    | Values     | Description                                                              |
 | ------------------ | ---------- | ------------------------------------------------------------------------ |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img`      |
 | `tokenIcon`        | `WikiLink` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
 | `templatePriority` | `number`   | Template priority, _null_ = not a template                               |
 
@@ -2234,7 +2251,6 @@ rank names the standing, and the standing says.
 
 | `data` property      | Values                    | Description                                                                                                |
 | -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `icon`               | `WikiLink`                | The document's profile art — an `icon` address, resolved into `img`                                        |
 | `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
 | `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
 | `epithet`            | `string`                  | The by-name it is known by — a god's, an order's, a company's                                              |
@@ -2351,7 +2367,6 @@ Represents an affliction.
 
 | `data` property               | Values              | Description                                                                               |
 | ----------------------------- | ------------------- | ----------------------------------------------------------------------------------------- |
-| `icon`                        | `WikiLink`          | The document's profile art — an `icon` address, resolved into `img`                       |
 | `templatePriority`            | `number`            | Template priority, _null_ = not a template                                                |
 | `transmission`                | `TransmissionTypes` | Method of transmission                                                                    |
 | `outcome`                     | `death \| cured`    | Result after affliction has run its course                                                |
@@ -2416,14 +2431,13 @@ model's `null` stands.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `weight`           | `number`   | Gear weight                                                         |
-| `value`            | `number`   | Gear value                                                          |
-| `quality`          | `number`   | Gear quality                                                        |
-| `durability`       | `number`   | Gear durability                                                     |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
 
 If a `sohl` property is present, a SoHL item of type "armorgear" will be created.
 
@@ -2438,10 +2452,9 @@ The note type is `armorgear` in both cases. The `gear` suffix was briefly rename
 
 ### type: armorlocation
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
 
 if a `hm3` property is present, an HM3 item of type "armorlocation" will be created.
 
@@ -2451,10 +2464,9 @@ if a `hm3` property is present, an HM3 item of type "armorlocation" will be crea
 
 ### type: attribute
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
 
 if a `sohl` property is present, a SoHL item of type "attribute" will be created.
 
@@ -2469,17 +2481,16 @@ if a `sohl` property is present, a SoHL item of type "attribute" will be created
 - exotic: A complex and valuable concoction, often a mixture of different herbs and/or chemicals, with medicinal or other unique properties or effects, but not magical in nature.
 - elixir: An arcane alchemical concoction of great power.
 
-| `data` property    | Values                          | Description                                                         |
-| ------------------ | ------------------------------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink`                      | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`                        | Template priority, _null_ = not a template                          |
-| `weight`           | `number`                        | Gear weight                                                         |
-| `value`            | `number`                        | Gear value                                                          |
-| `quality`          | `number`                        | Gear quality                                                        |
-| `durability`       | `number`                        | Gear durability                                                     |
-| `quantity`         | `number`                        | Gear quantity (default: 1)                                          |
-| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)                     |
-| `strength`         | `number`                        | Strength: higher the number, greater the strength                   |
+| `data` property    | Values                          | Description                                       |
+| ------------------ | ------------------------------- | ------------------------------------------------- |
+| `templatePriority` | `number`                        | Template priority, _null_ = not a template        |
+| `weight`           | `number`                        | Gear weight                                       |
+| `value`            | `number`                        | Gear value                                        |
+| `quality`          | `number`                        | Gear quality                                      |
+| `durability`       | `number`                        | Gear durability                                   |
+| `quantity`         | `number`                        | Gear quantity (default: 1)                        |
+| `potency`          | `na \| mild \| strong \| great` | Concoction Potency (mundane/exotic concoctions)   |
+| `strength`         | `number`                        | Strength: higher the number, greater the strength |
 
 if a `sohl` property is present, a SoHL item of type "concoctiongear" will be created.
 
@@ -2496,15 +2507,14 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" will be cr
 
 Note: `data.quantity` may not be specified; quantity is always set to 1.
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `weight`           | `number`   | Gear weight                                                         |
-| `value`            | `number`   | Gear value                                                          |
-| `quality`          | `number`   | Gear quality                                                        |
-| `durability`       | `number`   | Gear durability                                                     |
-| `capacity`         | `number`   | Container capacity (in lbs)                                         |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `capacity`         | `number` | Container capacity (in lbs)                |
 
 if a `sohl` property is present, a SoHL item of type "containergear" will be created.
 
@@ -2520,15 +2530,14 @@ if a `hm3` property is present, an HM3 item of type "containergear" will be crea
 
 ### type: miscgear
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `weight`           | `number`   | Gear weight                                                         |
-| `value`            | `number`   | Gear value                                                          |
-| `quality`          | `number`   | Gear quality                                                        |
-| `durability`       | `number`   | Gear durability                                                     |
-| `quantity`         | `number`   | Gear quantity (default: 1)                                          |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `quantity`         | `number` | Gear quantity (default: 1)                 |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" will be created.
 
@@ -2556,16 +2565,15 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 
 **SkillAptitude**: either a single skill
 
-| `data` property    | Values                                  | Description                                                         |
-| ------------------ | --------------------------------------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink`                              | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`                                | Template priority, _null_ = not a template                          |
-| `assocSkill`       | `WikiLink`                              | Associated skill                                                    |
-| `assocAffiliation` | `WikiLink`                              | Associated affiliation                                              |
-| `skillAptitudes`   | `WikiLink` or `subType:<skill-subtype>` | Bonuses/penalties to skills (or types of skills)                    |
-| `level`            | `number`                                | Magnitude of the mystery                                            |
-| `charges.value`    | `number`                                | Current number of charges available, _null_ = charges not used      |
-| `charges.max`      | `number`                                | Maximum number of charges, _null_ = no maximum                      |
+| `data` property    | Values                                  | Description                                                    |
+| ------------------ | --------------------------------------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`                                | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `WikiLink`                              | Associated skill                                               |
+| `assocAffiliation` | `WikiLink`                              | Associated affiliation                                         |
+| `skillAptitudes`   | `WikiLink` or `subType:<skill-subtype>` | Bonuses/penalties to skills (or types of skills)               |
+| `level`            | `number`                                | Magnitude of the mystery                                       |
+| `charges.value`    | `number`                                | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`                                | Maximum number of charges, _null_ = no maximum                 |
 
 if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 
@@ -2594,16 +2602,15 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 - alchemy: The preparation of substances imbued with mystical potency.
 - divination: The practice of obtaining hidden knowledge or foreknowledge by mystical means.
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `assocSkill`       | `WikiLink` | Associated skill                                                    |
-| `assocAffiliation` | `WikiLink` | Associated affiliation                                              |
-| `masteryLevel`     | `number`   | Mastery Level                                                       |
-| `level`            | `number`   | Magnitude of the mystery                                            |
-| `charges.value`    | `number`   | Current number of charges available, _null_ = charges not used      |
-| `charges.max`      | `number`   | Maximum number of charges, _null_ = no maximum                      |
+| `data` property    | Values     | Description                                                    |
+| ------------------ | ---------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `WikiLink` | Associated skill                                               |
+| `assocAffiliation` | `WikiLink` | Associated affiliation                                         |
+| `masteryLevel`     | `number`   | Mastery Level                                                  |
+| `level`            | `number`   | Magnitude of the mystery                                       |
+| `charges.value`    | `number`   | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`   | Maximum number of charges, _null_ = no maximum                 |
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" will be created.
 
@@ -2630,15 +2637,14 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 - dart
 - other
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `weight`           | `number`   | Gear weight                                                         |
-| `value`            | `number`   | Gear value                                                          |
-| `quality`          | `number`   | Gear quality                                                        |
-| `durability`       | `number`   | Gear durability                                                     |
-| `quantity`         | `number`   | Gear quantity (default: 1)                                          |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
+| `quantity`         | `number` | Gear quantity (default: 1)                 |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" will be created.
 
@@ -2672,12 +2678,11 @@ HM3 side while remaining distinct on the SoHL side.
 - combat
 - combattechnique
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `masteryLevel`     | `number`   | Mastery Level                                                       |
-| `parentSkill`      | `WikiLink` | Parent skill this skill specializes                                 |
+| `data` property    | Values     | Description                                |
+| ------------------ | ---------- | ------------------------------------------ |
+| `templatePriority` | `number`   | Template priority, _null_ = not a template |
+| `masteryLevel`     | `number`   | Mastery Level                              |
+| `parentSkill`      | `WikiLink` | Parent skill this skill specializes        |
 
 if a `sohl` property is present, a SoHL item of type "skill" will be created.
 
@@ -2709,7 +2714,6 @@ Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Commu
 
 | `data` property                   | Values        | Description                                                            |
 | --------------------------------- | ------------- | ---------------------------------------------------------------------- |
-| `icon`                            | `WikiLink`    | The document's profile art — an `icon` address, resolved into `img`    |
 | `templatePriority`                | `number`      | Template priority, _null_ = not a template                             |
 | `healingCheckDurationFormula`     | `RollFormula` | Formula for the interval between healing checks                        |
 | `healingCheckDurationBase`        | `number`      | That interval in seconds, stated outright instead of rolled            |
@@ -2749,14 +2753,13 @@ build.
 
 Note: `data.quantity` may not be specified. Quantity is always 1.
 
-| `data` property    | Values     | Description                                                         |
-| ------------------ | ---------- | ------------------------------------------------------------------- |
-| `icon`             | `WikiLink` | The document's profile art — an `icon` address, resolved into `img` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                          |
-| `weight`           | `number`   | Gear weight                                                         |
-| `value`            | `number`   | Gear value                                                          |
-| `quality`          | `number`   | Gear quality                                                        |
-| `durability`       | `number`   | Gear durability                                                     |
+| `data` property    | Values   | Description                                |
+| ------------------ | -------- | ------------------------------------------ |
+| `templatePriority` | `number` | Template priority, _null_ = not a template |
+| `weight`           | `number` | Gear weight                                |
+| `value`            | `number` | Gear value                                 |
+| `quality`          | `number` | Gear quality                               |
+| `durability`       | `number` | Gear durability                            |
 
 if a `sohl` property is present, a SoHL item of type "weapongear" will be created,
 carrying every strike mode the weapon has — melee and missile alike — on

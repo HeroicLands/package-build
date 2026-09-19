@@ -110,7 +110,9 @@ describe("both spellings reach the same declaration", () => {
 
     it("reads the same `data:` vocabulary under either spelling", () => {
         for (const [retired, current] of Object.entries(RENAMED_TYPES)) {
-            expect(dataFields(retired), retired).toBe(dataFields(current));
+            // By value, not by identity: `dataFields` composes the shared keys
+            // with the type's own, so each call builds its answer.
+            expect(dataFields(retired), retired).toEqual(dataFields(current));
             expect(subTypes(retired), retired).toBe(subTypes(current));
         }
     });

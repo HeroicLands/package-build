@@ -68,6 +68,7 @@ import log from "loglevel";
 import {
     parseMarkdownFile,
     makeFilename,
+    resolveImg,
     resolveName,
     convertNoteWikilinks,
     expandNoteTables,
@@ -76,6 +77,7 @@ import {
 // The record accessors only — see `engine/index-records.mjs` for why they live
 // apart from the index that builds them.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { artPathname, artSlot, unresolvedArtMessage } from "./art-fields.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
@@ -229,6 +231,13 @@ export class BasePackCompiler {
 
     /** @type {string} */
     contentBase;
+
+    /**
+     * The asset roots' parent, whose files the art addresses resolve against.
+     *
+     * @type {string|undefined}
+     */
+    assetsBase;
     /** @type {string} */
     outputDir;
     /** @type {(path: string|null) => string|null} */
@@ -296,6 +305,11 @@ export class BasePackCompiler {
     /**
      * @param {object} options
      * @param {string} options.contentBase - Root of the content tree.
+     * @param {string} [options.assetsBase] - The asset roots' parent, whose
+     *   files the art addresses resolve against. Stated beside `contentBase`
+     *   because the two move independently: a caller compiling a tree it
+     *   assembled states where that tree's files are, and one compiling the
+     *   repository's own leaves it to the configuration.
      * @param {string} options.dest - Where this pass writes its JSON.
      * @param {readonly string[]} options.skipDirectories - Directories the walk
      *   never descends into. Required: see {@link assertStatedScope}.
@@ -317,6 +331,7 @@ export class BasePackCompiler {
      */
     constructor({
         contentBase,
+        assetsBase,
         dest,
         skipDirectories,
         folderResolver = () => null,
@@ -342,6 +357,10 @@ export class BasePackCompiler {
         }
         Object.defineProperty(this, "contentBase", {
             value: contentBase,
+            writable: false,
+        });
+        Object.defineProperty(this, "assetsBase", {
+            value: assetsBase,
             writable: false,
         });
         Object.defineProperty(this, "outputDir", {
@@ -542,6 +561,7 @@ export class BasePackCompiler {
         if (!this.corpus) {
             this.corpus = await buildCompileCorpus({
                 contentBase: this.contentBase,
+                assetsBase: this.assetsBase,
                 skipDirectories: this.skipDirectories,
                 router: this.router,
             });
@@ -551,8 +571,11 @@ export class BasePackCompiler {
             // the same thing six times.
             this.reportsCorpusProblems = true;
         }
+        // The index is taken whatever the pass does with a body: it answers
+        // the art fields, which name a file rather than a document, and a pass
+        // that converts no prose still compiles a document that carries art.
+        this.linkIndex = this.corpus.linkIndex;
         if (this.constructor.convertsWikilinks) {
-            this.linkIndex = this.corpus.linkIndex;
             this.contentDocs = this.corpus.contentDocs;
             this.sqlTables = this.corpus.sqlTables;
         }
@@ -600,6 +623,51 @@ export class BasePackCompiler {
         });
         this.unresolvedLinks += unresolved.length;
         return markdown;
+    }
+
+    /**
+     * The Foundry path one authored art address names, or `null`.
+     *
+     * **The two empties survive.** `null` and an absent key mean *no art named*,
+     * so the caller's own default applies with nullish coalescing; `""` means
+     * *ship blank on purpose* and no default may replace it. That is
+     * {@link module:engine/helpers.resolveImg}'s rule, reached through it rather
+     * than restated, which is also what puts an art address and a body image
+     * through one ownership rule.
+     *
+     * An address nothing answers is reported against the note and treated as
+     * unnamed, so the document takes its default rather than shipping a path
+     * that installs nowhere.
+     *
+     * @param {unknown} value - The value as authored.
+     * @param {string} key - The key it was authored at, for the message.
+     * @param {string} type - The asset type a bare value takes.
+     * @returns {string|null} The Foundry-relative path, `""` for a deliberate
+     *   blank, or `null` where the note names none.
+     */
+    artPathOf(value, key, type) {
+        const { pathname, resolved } = artPathname(this.linkIndex, value, type);
+        if (!resolved) {
+            this.noteWarn(unresolvedArtMessage(key, value, type));
+            return null;
+        }
+        return resolveImg(pathname);
+    }
+
+    /**
+     * The Foundry path one art slot of a note names, or `null`.
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @param {string} key - The slot's key under `data:`.
+     * @returns {string|null} As {@link BasePackCompiler#artPathOf}.
+     */
+    artPath(fm, key) {
+        const slot = artSlot(key);
+        if (!slot) throw new Error(`package-build: \`${key}\` is not an art slot`);
+        const data = fm?.data;
+        const value =
+            data && typeof data === "object" && !Array.isArray(data) ? data[key] : undefined;
+        return this.artPathOf(value, key, slot.type);
     }
 
     /**

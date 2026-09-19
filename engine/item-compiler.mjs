@@ -48,7 +48,7 @@
 
 import log from "loglevel";
 
-import { resolveName, resolveImg } from "./helpers.mjs";
+import { resolveName } from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { journalPageId, splitPages } from "./journals.mjs";
 import { foundryPackageId } from "./content-package.mjs";
@@ -117,15 +117,15 @@ export class SystemItemCompiler extends BasePackCompiler {
     static requiresSystemBlock = true;
 
     /**
-     * An Item carries an `img` — its icon — which this pass writes from the
-     * note's own path, falling back to the type's default art.
+     * An Item carries one piece of art — its icon — which this pass writes from
+     * the address the note names, falling back to the type's default art.
      *
-     * `portrait` is **not** among them: a portrait is a being's sheet picture,
-     * and an item has nowhere to put one.
+     * `tokenIcon` is **not** among them: an Item places no token, so it has
+     * nowhere to put a second picture.
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["img"]);
+    static emitsArt = Object.freeze(["icon"]);
 
     /**
      * The note-type → document-subtype map this pass compiles against.
@@ -372,10 +372,10 @@ export class SystemItemCompiler extends BasePackCompiler {
             // both registries are keyed by content type — while the document's
             // own subtype comes from the system's map.
             type: subType,
-            // Nullish, not `||`: `resolveImg` returns `null` for a
-            // note that names no art and `""` for one that wants none, and only
-            // the first may be replaced by the type's default.
-            img: resolveImg(blockProperty(fm, system, "img")) ?? itemArt(type, system),
+            // Nullish, not `||`: an art address resolves to `null` for a note
+            // that names none and `""` for one that wants none, and only the
+            // first may be replaced by the type's default.
+            img: this.artPath(fm, "icon") ?? itemArt(type, system),
             _id: id,
             system: built,
             effects: Array.isArray(effects) ? [...effects] : [],

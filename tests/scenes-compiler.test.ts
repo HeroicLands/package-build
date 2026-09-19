@@ -25,7 +25,6 @@ id: AAAAAAAAAAAAAAAA
 shortcode: testground
 type: map
 subType: battlemap
-img: sohl/assets/ui/parchment.jpg
 sohl:
   place: testplace
   placeName: Test Place
@@ -47,6 +46,8 @@ sohl:
         up:
           teleportToken:
             to: { map: testloft, region: stair-head }
+data:
+  bgImage: parchment
 ---
 
 Prose before the first heading becomes the map's own page.
@@ -63,7 +64,6 @@ id: BBBBBBBBBBBBBBBB
 shortcode: testloft
 type: map
 subType: battlemap
-img: sohl/assets/ui/parchment.jpg
 sohl:
   place: testplace
   dimensions: [512, 512]
@@ -77,6 +77,8 @@ sohl:
         down:
           trigger:
             events: [tokenEnter]
+data:
+  bgImage: parchment
 ---
 
 The loft.
@@ -102,6 +104,11 @@ beforeAll(async () => {
     fs.mkdirSync(content, { recursive: true });
     fs.writeFileSync(path.join(content, "Ground.md"), GROUND);
     fs.writeFileSync(path.join(content, "Loft.md"), LOFT);
+    // The file both maps name as their background. An art address resolves
+    // through the index, so a fixture that names one has to ship it.
+    const assets = path.join(tmp, "assets");
+    fs.mkdirSync(path.join(assets, "images"), { recursive: true });
+    fs.writeFileSync(path.join(assets, "images", "parchment.webp"), "webp");
 
     sceneDir = path.join(tmp, "scenes");
     adventureDir = path.join(tmp, "adventures");
@@ -111,6 +118,7 @@ beforeAll(async () => {
     const pack = new Scenes({
         skipDirectories: [],
         contentBase: content,
+        assetsBase: assets,
         dest: sceneDir,
         companionDests: { adventures: adventureDir },
     });
