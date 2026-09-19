@@ -2328,10 +2328,17 @@ export function defineConfig(config) {
         }
     }
 
-    if (!documentation) {
-        if (!Array.isArray(input.packs)) fail("packs", "must be an array");
-        if (input.packs.length === 0) fail("packs", "must declare at least one pack");
-    }
+    // A Foundry package need not compile anything. A module may ship assets and
+    // nothing else — alternative art for another package is the case, and it is
+    // an ordinary module that installs, is enabled, and supplies files. So
+    // `packs: []` is a package saying it compiles no documents, not a package
+    // that forgot to say which.
+    //
+    // What that leaves uncovered is a tree of notes with no pack to compile them
+    // into, which would be silently ignored. `packs` cannot see the tree, so the
+    // walk reports it: a declared pack that compiles nothing from a non-empty
+    // tree already fails, and so does a note whose `pack:` names none.
+    if (!documentation && !Array.isArray(input.packs)) fail("packs", "must be an array");
     const declaredPacks = Array.isArray(input.packs) ? input.packs : [];
     const packs = declaredPacks.map((pack, index) => normalizePack(pack, `packs[${index}]`));
 

@@ -580,7 +580,9 @@ packs:
 
 > ``package-build config: `packs` must be an array.``
 
-> ``package-build config: `packs` must declare at least one pack.``
+A package may declare **no** packs. A module that ships assets and compiles
+nothing — alternative art for another package is the case — writes `packs: []`,
+and the manifest carries an empty pack list.
 
 Two packs (including companions, anywhere in the tree) may not share a name
 — two packs both named `x` produce:

@@ -573,6 +573,7 @@ describe("emitContentIndex", () => {
         paths: { content: root, contentIndex: path.join(root, "..", "out") },
         contentPackage: "sohl",
         skipDirectories: [],
+        packs: [{ name: "items", type: "Item" }],
     });
 
     it("writes <package>-metadata.jsonl and reports what it holds", () => {
@@ -637,6 +638,32 @@ describe("emitContentIndex", () => {
                 config: config(tmp) as any,
             }),
         ).toThrow(/no content tree at/);
+    });
+
+    // A package that declares no packs ships assets and nothing else, so it has
+    // no tree to point at and an absent one is not a misconfiguration.
+    it("indexes a package that declares no packs and has no tree", () => {
+        const assets = path.join(tmp, "assets");
+        fs.mkdirSync(path.join(assets, "icons"), { recursive: true });
+        fs.writeFileSync(path.join(assets, "icons", "anvil.svg"), "<svg/>");
+        fs.writeFileSync(
+            path.join(assets, "icons", "provenance.yaml"),
+            "attribution: Tom Rodriguez\nlicense: CC-BY-SA-4.0\n",
+        );
+
+        const result = emitContentIndex({
+            contentBase: path.join(tmp, "absent"),
+            config: {
+                ...config(tmp),
+                packs: [],
+                paths: { ...config(tmp).paths, assets },
+            } as any,
+        });
+
+        expect(result.notes).toBe(0);
+        const lines = fs.readFileSync(result.file, "utf8").trim().split("\n");
+        expect(lines).toHaveLength(1);
+        expect(JSON.parse(lines[0]).address.canonical).toBe("sohl-none-icon-anvil");
     });
 
     it("refuses to state that a package has no content", () => {

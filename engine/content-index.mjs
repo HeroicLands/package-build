@@ -567,10 +567,13 @@ export function collectContentIndex(
     // caller's omission, and `walkMarkdownTree` says so.
     const walkOpts = { skipDirectories };
 
-    for (const { frontmatter, body, bodyLine, absPath } of walkMarkdownTree(
-        contentBase,
-        walkOpts,
-    )) {
+    // A package may ship assets and no notes at all, in which case there is no
+    // tree to walk and the index is its asset records. The caller decides
+    // whether an absent tree is a mistake; by the time the walk is reached it
+    // is simply a package with nothing to compile.
+    const notes = fs.existsSync(contentBase) ? walkMarkdownTree(contentBase, walkOpts) : [];
+
+    for (const { frontmatter, body, bodyLine, absPath } of notes) {
         const fm = frontmatter ?? {};
         // The id the note's document is filed under, resolved before
         // the record is built so the index publishes the address *and* the id
@@ -675,6 +678,20 @@ export function serializeContentIndex(records) {
 }
 
 /**
+ * Whether an absent content tree is a mistake.
+ *
+ * A package that declares a pack has notes to compile into it, so a missing
+ * tree is a misconfigured path and the build says so. A package that declares
+ * none ships assets and nothing else, and its index is its asset records.
+ *
+ * @param {object} resolved - The resolved configuration.
+ * @returns {boolean} Whether a tree is required.
+ */
+function needsContentTree(resolved) {
+    return (resolved.packs ?? []).length > 0;
+}
+
+/**
  * The index records for a content tree, without writing anything.
  *
  * The half of {@link emitContentIndex} that derives rather than emits, so a
@@ -711,7 +728,9 @@ export function indexRecordsFor({
 } = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
-    if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
+    if (!fs.existsSync(tree) && needsContentTree(resolved)) {
+        throw new Error(`no content tree at ${tree}`);
+    }
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
@@ -745,7 +764,7 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     const dir = outDir ?? resolved.paths.contentIndex;
     const contentPackage = resolved.contentPackage;
 
-    if (!fs.existsSync(tree)) {
+    if (!fs.existsSync(tree) && needsContentTree(resolved)) {
         throw new Error(`no content tree at ${tree}`);
     }
 

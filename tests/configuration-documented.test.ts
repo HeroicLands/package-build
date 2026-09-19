@@ -561,12 +561,6 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
 
     it("`packs`", () => {
         assertQuoted(
-            thrown(() => defineConfig(minimal({ packs: [] }))).replace(
-                /^package-build config: `packs` /,
-                "",
-            ),
-        );
-        assertQuoted(
             thrown(() =>
                 defineConfig(
                     minimal({
