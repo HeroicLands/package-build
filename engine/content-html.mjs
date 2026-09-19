@@ -125,6 +125,10 @@ export function checkHtml(body, file, { bodyLine = 1, bodyColumn = 1 } = {}) {
  * whole: it is not a note, but a stray `.md` in the tree carrying markup is the
  * same problem for the same reason.
  *
+ * A finding names its file **relative to the working directory**, which is
+ * where a reader is standing and what `formatDiagnostic` emits. The content
+ * root is where the walk starts, not what a path is measured from.
+ *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
@@ -163,7 +167,7 @@ export function lintContentHtml(contentBase, { skipDirectories = [] } = {}) {
                 continue;
             }
             files += 1;
-            findings.push(...checkHtml(...bodyOf(content, path.relative(contentBase, full))));
+            findings.push(...checkHtml(...bodyOf(content, path.relative(process.cwd(), full))));
         }
     };
 
