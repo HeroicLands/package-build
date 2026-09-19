@@ -160,13 +160,14 @@ id: EEEEEEEEEEEEEEEE
 shortcode: foreignmap
 type: map
 subType: battlemap
-img: sohl/assets/ui/parchment.jpg
 sohl:
   archetype: null
   place: foreignplace
   placeName: Foreign Place
   dimensions: [512, 512]
   pxPerGrid: 64
+data:
+  bgImage: parchment
 ---
 
 A map belonging to the configured content package.
@@ -174,6 +175,7 @@ A map belonging to the configured content package.
 
 let tmp: string;
 let content: string;
+let assets: string;
 const dirs: Record<string, string> = {};
 const compilers: Record<string, any> = {};
 
@@ -203,6 +205,11 @@ beforeAll(async () => {
     fs.writeFileSync(path.join(content, "OwnDoc.md"), OWN_DOC);
     fs.writeFileSync(path.join(content, "OwnMacro.md"), OWN_MACRO);
     fs.writeFileSync(path.join(content, "OwnMap.md"), OWN_MAP);
+    // The file the map names as its background. An art address resolves
+    // through the index, so a fixture that names one has to ship it.
+    assets = path.join(tmp, "assets");
+    fs.mkdirSync(path.join(assets, "images"), { recursive: true });
+    fs.writeFileSync(path.join(assets, "images", "parchment.webp"), "webp");
 
     // Items first: the actors pass reads the compiled items as its sibling.
     compilers.items = new Items({ skipDirectories: [], contentBase: content, dest: dest("items") });
@@ -236,6 +243,7 @@ beforeAll(async () => {
     compilers.scenes = new Scenes({
         skipDirectories: [],
         contentBase: content,
+        assetsBase: assets,
         dest: dest("scenes"),
         companionDests: { adventures: dest("adventures") },
     });

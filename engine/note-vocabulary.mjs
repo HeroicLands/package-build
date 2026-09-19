@@ -105,6 +105,10 @@ import { currentType } from "./ids.mjs";
  *   entry of the map is. A finding names the entry at fault rather than
  *   quoting the whole map back, so the string an author has to correct is the
  *   one the message holds.
+ * @property {string} [ref] - The type a bare value takes. An art slot declares
+ *   one — `icon` for `icon` and `tokenIcon`, `image` for `bgImage` and
+ *   `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
+ *   separator states its own address.
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
  *   `"pack"` means each is a pack this package declares, so a key naming none
  *   is a finding of its own: it addresses a hierarchy nothing will ever read.
@@ -184,6 +188,57 @@ const TEMPLATE_PRIORITY = Object.freeze({
     ...NUM,
     describe: "Template priority; unset means the note is not a template.",
 });
+
+/**
+ * What a token on the canvas wears — an Actor type's second piece of art.
+ *
+ * Declared once and shared by the two Actor types, beside
+ * {@link TEMPLATE_PRIORITY} and for the same reason. Unset it follows `icon`:
+ * a token has to read at grid scale and when a map is zoomed out, so it is an
+ * `icon` rather than an `image` and its fallback has to be `icon`-typed too.
+ *
+ * @type {DataFieldSpec}
+ */
+const TOKEN_ICON = Object.freeze({
+    name: "tokenIcon",
+    ...LINK,
+    ref: "icon",
+    describe: "What a token on the canvas wears — an `icon` address; unset, it follows `icon`.",
+});
+
+/**
+ * The `data:` keys **every** note type accepts, whatever it is.
+ *
+ * `data:` is a closed container and the per-type vocabularies are the only
+ * lists there are, so a key legal on every type needs somewhere that is not one
+ * type's list — including the types whose own vocabulary is empty. Repeating a
+ * row in twenty-five tables would be twenty-five chances for one of them to
+ * disagree with the rest.
+ *
+ * Both are art slots, and they are legal everywhere for different reasons.
+ * `icon` is the document's profile art and most types compile into a document
+ * that carries one; where a type's passes emit none, the frontmatter lint says
+ * so as a warning rather than the vocabulary refusing the key, because the
+ * value may still be read by a page template. `banner` reaches no compiled
+ * document at all — it is the page's hero image — and a page is what every note
+ * publishes.
+ *
+ * @type {readonly DataFieldSpec[]}
+ */
+export const SHARED_DATA_FIELDS = Object.freeze([
+    Object.freeze({
+        name: "icon",
+        ...LINK,
+        ref: "icon",
+        describe: "The document's profile art — an `icon` address, resolved into `img`.",
+    }),
+    Object.freeze({
+        name: "banner",
+        ...LINK,
+        ref: "image",
+        describe: "The page's hero image — an `image` address. Reaches no compiled document.",
+    }),
+]);
 
 /**
  * The four gear values every carried thing declares.
@@ -477,14 +532,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         // values here would put a second, weaker answer beside the real one.
         subTypes: null,
         data: Object.freeze([
-            {
-                name: "portrait",
-                ...TEXT,
-                describe:
-                    "Path to the portrait image. Its first segment says which package owns " +
-                    "the file: `systems/…` and `modules/…` are emitted unchanged, anything " +
-                    "else is this package's own and is rooted under its assets.",
-            },
+            TOKEN_ICON,
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
@@ -527,17 +575,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     vehicle: Object.freeze({
         subTypes: null,
-        data: Object.freeze([
-            {
-                name: "portrait",
-                ...TEXT,
-                describe:
-                    "Path to the portrait image. Its first segment says which package owns " +
-                    "the file: `systems/…` and `modules/…` are emitted unchanged, anything " +
-                    "else is this package's own and is rooted under its assets.",
-            },
-            TEMPLATE_PRIORITY,
-        ]),
+        data: Object.freeze([TOKEN_ICON, TEMPLATE_PRIORITY]),
     }),
 
     /* ----- items ---------------------------------------------------- */
@@ -999,16 +1037,13 @@ export const NOTE_VOCABULARY = Object.freeze({
         // derived for them, which is precisely what a subType decides.
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),
         data: Object.freeze([
-            // `img`, as every other note type spells its artwork. A map alone
-            // read `image` out of its `sohl:` block; that spelling is retired
-            // and gone, so the two names are one again.
+            // A Scene has no `img`, so the shared art key reaches nothing here:
+            // a map's background is its own slot, and an `image` address.
             {
-                name: "img",
-                ...TEXT,
-                describe:
-                    "Path to the map art, owned by whichever package its first segment " +
-                    "names — `systems/…` and `modules/…` unchanged, anything else this " +
-                    "package's own.",
+                name: "bgImage",
+                ...LINK,
+                ref: "image",
+                describe: "The map's background art — an `image` address.",
             },
             {
                 name: "dimensions",
@@ -1150,12 +1185,19 @@ assertVocabularyCharset(NOTE_VOCABULARY);
  * @param {string} type - The note's `type`.
  * @param {Readonly<Record<string, TypeVocabulary>>} [vocabulary] - The registry
  *   to read, defaulting to {@link NOTE_VOCABULARY}.
+ * {@link SHARED_DATA_FIELDS} come first, because they are part of every type's
+ * declaration and a caller asking what a type accepts must be told all of it.
+ *
  * @returns {readonly DataFieldSpec[]|undefined} The declaration, or `undefined`
  *   when the type declares none — which is not the same as declaring an empty
  *   one, and is why the lint makes no claim rather than refusing every key.
  */
 export function dataFields(type, vocabulary = NOTE_VOCABULARY) {
-    return vocabulary?.[currentType(type)]?.data;
+    const entry = vocabulary?.[currentType(type)];
+    if (!entry) return undefined;
+    // The shared keys first, so a type's own declarations keep their authored
+    // order behind them and a reader meets the art before the mechanics.
+    return Object.freeze([...SHARED_DATA_FIELDS, ...(entry.data ?? [])]);
 }
 
 /**

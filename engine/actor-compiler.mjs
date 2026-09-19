@@ -56,6 +56,7 @@ import { emitDiagnostic } from "./diagnostics.mjs";
 // extraction is shared; which field a section lands in stays the system's.
 export { extractAnchorSection, renderSection } from "./anchored-sections.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
+import { beingDefaultArt } from "./art-fields.mjs";
 import { contentPackage } from "./content-package.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into, and which note
 // types are actors at all. Looked up in the system's declared map, never
@@ -387,11 +388,10 @@ export class SystemActorCompiler extends BasePackCompiler {
     static label = "actor";
 
     /**
-     * **Both**, and they are two independent pictures: `img` is the actor's
-     * token art — written onto `document.img` and the prototype token's texture
-     * — and `portrait` is the sheet portrait, a declared field each system
-     * lands under its own name (`system.portrait` for SoHL,
-     * `system.bioImage` for HM3).
+     * **Both**, and they are two independent pictures. `icon` is the actor's
+     * profile art — what a directory listing shows beside the name and what the
+     * sheet header carries — and `tokenIcon` is what a token on the canvas
+     * wears; unset, the token follows the profile.
      *
      * Declared on the shared class because both subclasses emit both. A system
      * whose actor genuinely carried only one would override it here rather than
@@ -399,7 +399,36 @@ export class SystemActorCompiler extends BasePackCompiler {
      *
      * @type {readonly string[]}
      */
-    static emitsArt = Object.freeze(["img", "portrait"]);
+    static emitsArt = Object.freeze(["icon", "tokenIcon"]);
+
+    /**
+     * The actor's two pieces of art, resolved, with the being default beneath
+     * them.
+     *
+     * **The default is chosen from the note's tags**, which only a compiler can
+     * read: a `character` falls back to one file and a `creature` to another,
+     * and both are addresses in the package that ships them. A tree whose index
+     * cannot answer that address — a dependency not yet fetched — falls through
+     * to the subtype's own default, so the document is never left with no art.
+     *
+     * `tokenIcon` unset follows `icon`, and the fallback is applied after
+     * resolution rather than before: a note naming an icon and no token icon
+     * means "the token wears the profile art", not "the token wears the
+     * default".
+     *
+     * @param {object} fm - The note's frontmatter.
+     * @param {string} fallback - The subtype's own default art path.
+     * @returns {{img: string, token: string}} The two paths.
+     */
+    actorArt(fm, fallback) {
+        const address = beingDefaultArt(fm);
+        const byTag = address ? this.artPathOf(address, "icon", "icon") : null;
+        const base = byTag ?? fallback;
+        // Nullish, not `||`: a note that names no art takes the default, one
+        // that writes `""` ships blank on purpose.
+        const img = this.artPath(fm, "icon") ?? base;
+        return { img, token: this.artPath(fm, "tokenIcon") ?? img };
+    }
 
     /**
      * Which `(actor, subType:identity)` each resolved entry claimed, and the

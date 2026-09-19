@@ -86,6 +86,7 @@ import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
+import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isSystemSegment, NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -354,11 +355,15 @@ export function anchorPageId(noteId, anchorSlug) {
  *   vendored manifests of packages this build links into but does not publish.
  * @param {string} [contentPackage] - This build's *content* package, which an
  *   authored address may name explicitly. Defaults to `packageId`.
+ * @param {object} [opts] - Options.
+ * @param {Map<string, object>} [opts.assets] - The files this package ships, by
+ *   canonical address. They resolve no link — an asset is not a document — and
+ *   answer only the art fields, which name a file and never a document.
  * @returns {{byShortcode: Map<string, object>, types: Set<string>}} `types` is
  *   every type the tree actually contains, so a qualifier naming no real type
  *   can be told apart from a missing target.
  */
-export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
+export function buildWikilinkIndex(docs, packageId, foreign, contentPackage, { assets } = {}) {
     if (!packageId) {
         throw new Error(
             "buildWikilinkIndex: packageId is required — it is the first " +
@@ -368,7 +373,11 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
     }
 
     const byShortcode = new Map();
-    const types = new Set();
+    // The **asset** types join unconditionally, whether or not this tree holds
+    // a file of each: they are a closed vocabulary rather than a census of what
+    // was found, and an art field hands the resolver `icon-<shortcode>` whose
+    // type has to parse before anything can be looked up.
+    const types = new Set(ASSET_TYPE_NAMES);
 
     // Each note's address is computed once, here, and every reference to it is
     // that stored value. Nothing downstream assembles a UUID from parts, so a
@@ -439,8 +448,12 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage) {
         types,
         uuidByDoc,
         packageId,
+        /** The content package this build publishes, which an art address defaults to. */
+        contentPackage: contentPackage ?? packageId,
         packages,
         foreign: foreignByKey,
+        /** The files this package ships, by canonical address. */
+        assets: assets ?? new Map(),
     };
 }
 

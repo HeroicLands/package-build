@@ -12,12 +12,14 @@
  */
 
 /**
- * `img` says "unset" and "blank on purpose" with two different values.
+ * An art slot says "unset" and "blank on purpose" with two different values.
  *
  * `resolveImg` used to open with `if (!raw) return ""`, and every caller then
  * applied its own default with `||`. That made `""`, `null` and an absent key
  * one case: all three landed on the type's default art, and a note had no way
- * to say "ship no image" at all.
+ * to say "ship no image" at all. The rule survives the move to addresses: a slot
+ * resolves to `null` where the note names nothing and to `""` where it names
+ * blank, and only the first may be replaced.
  *
  * The rule this suite pins is the one the project already holds for an optional
  * "not specified" DataModel string — `nullable, initial: null`, so "unset" is
@@ -42,6 +44,24 @@ import { buildMacroEntry, DEFAULT_MACRO_IMG } from "../engine/macros.mjs";
 import { Items } from "../sohl/items.mjs";
 import { DEFAULT_ITEM_ART } from "../sohl/default-item-art.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
+
+/**
+ * A compile index holding one file, so a note naming its address resolves.
+ *
+ * The compilers resolve an art slot through the index rather than through a
+ * path, so a unit case that names one has to supply a tree holding it.
+ */
+function indexWith(shortcode: string, type: string, assetPath: string): any {
+    return {
+        types: new Set(["icon", "image", "audio"]),
+        packages: new Set(["sohl"]),
+        contentPackage: "sohl",
+        assets: new Map([
+            [`sohl-none-${type}-${shortcode}`, { package: "sohl", asset: { path: assetPath } }],
+        ]),
+        foreign: new Map(),
+    };
+}
 
 /** This package's own root — where its test fixtures live. */
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -113,21 +133,25 @@ describe("an item note's `img`", () => {
     it("falls back to the type's default art when the note writes `null`", () => {
         // The 45 `sohl-thalorna` notes this rule was written for say exactly
         // this, and must keep the art they have always compiled with.
-        expect(compiler().buildEntry({ ...SKILL_FM, img: null }, "").img).toBe(SKILL_ART);
+        expect(compiler().buildEntry({ ...SKILL_FM, data: { icon: null } }, "").img).toBe(
+            SKILL_ART,
+        );
     });
 
     it('ships no art at all when the note writes `""`', () => {
-        expect(compiler().buildEntry({ ...SKILL_FM, img: "" }, "").img).toBe("");
+        expect(compiler().buildEntry({ ...SKILL_FM, data: { icon: "" } }, "").img).toBe("");
     });
 
     it("still lets a note name its own art", () => {
-        expect(
-            compiler().buildEntry({ ...SKILL_FM, img: "sohl/assets/icons/custom.svg" }, "").img,
-        ).toBe("systems/sohl/assets/icons/custom.svg");
+        const pack = compiler();
+        pack.linkIndex = indexWith("custom", "icon", "icons/custom.svg");
+        expect(pack.buildEntry({ ...SKILL_FM, data: { icon: "custom" } }, "").img).toBe(
+            "systems/sohl/assets/icons/custom.svg",
+        );
     });
 });
 
-describe("a macro note's `img`", () => {
+describe("a macro note's `icon`", () => {
     const FM = {
         id: "HSNwLca3kMYLN3Ag",
         type: "macro",
@@ -141,12 +165,10 @@ describe("a macro note's `img`", () => {
     });
 
     it("falls back to the macro default when the note writes `null`", () => {
-        expect(buildMacroEntry({ ...FM, img: null }, { command: "x();" }).img).toBe(
-            DEFAULT_MACRO_IMG,
-        );
+        expect(buildMacroEntry(FM, { command: "x();", img: null }).img).toBe(DEFAULT_MACRO_IMG);
     });
 
     it('ships no art at all when the note writes `""`', () => {
-        expect(buildMacroEntry({ ...FM, img: "" }, { command: "x();" }).img).toBe("");
+        expect(buildMacroEntry(FM, { command: "x();", img: "" }).img).toBe("");
     });
 });

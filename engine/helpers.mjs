@@ -46,7 +46,7 @@ import { loadForeignIndexes } from "./metadata-index.mjs";
 // The record accessors only — deriving records reaches the pack router and the
 // manifest emitter, which reach the compilers, which load this module. Reading
 // a record needs none of that.
-import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
+import { authoredFrontmatter, isAssetRecord, isNoteRecord, noteFile } from "./index-records.mjs";
 import { buildWikilinkIndex, convertWikilinks } from "./wikilinks.mjs";
 // One vocabulary of link findings, and one message per class, so the three
 // resolvers cannot word the same defect differently.
@@ -704,9 +704,18 @@ export function buildContentLinkIndex(
     { skipDirectories, config, records, problems } = {},
 ) {
     const docs = [];
+    /** The files this package ships, by canonical address. */
+    const assets = new Map();
     const resolved = config ?? loadPackConfig();
     assertSuppliedCorpus(records, "buildContentLinkIndex");
     for (const record of records) {
+        // An asset's record addresses a file rather than a note, so it becomes
+        // no `doc` and takes no part in link resolution — it is keyed for the
+        // art fields, which name a file and never a document.
+        if (isAssetRecord(record)) {
+            if (record.address?.canonical) assets.set(record.address.canonical, record);
+            continue;
+        }
         // A documentation journal is a document this tree emits, not a note in
         // it; the note it documents is indexed here and carries its address.
         if (!isNoteRecord(record)) continue;
@@ -782,7 +791,9 @@ export function buildContentLinkIndex(
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
-    return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage);
+    return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage, {
+        assets,
+    });
 }
 
 /**

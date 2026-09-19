@@ -448,7 +448,7 @@ describe("a being's kind is one slot, and a note fills it once or not at all", (
 /*  `img: ""` — the old spelling of "unset"                       */
 /* -------------------------------------------------------------------- */
 
-describe('an authored `img: ""`', () => {
+describe('an authored `icon: ""`', () => {
     const schemas = { skill: [] as any[] };
 
     it("is warned about, because it reads as the opposite", () => {
@@ -456,47 +456,48 @@ describe('an authored `img: ""`', () => {
         // conflated the two empties; it now says "ship no art". Forty-five
         // `sohl-thalorna` notes were written under the old reading and would
         // have lost their default art silently.
-        const findings = lintNote(note("skill", {}, { img: "" }), { schemas });
-        const img = findings.filter((f) => /`img: ""`/.test(f.message));
+        const findings = lintNote(note("skill", {}, { data: { icon: "" } }), { schemas });
+        const icon = findings.filter((f) => /`icon: ""`/.test(f.message));
 
-        expect(img).toHaveLength(1);
-        expect(img[0].severity).toBe("warning");
-        expect(img[0].message).toMatch(/img: null/);
+        expect(icon).toHaveLength(1);
+        expect(icon[0].severity).toBe("warning");
+        expect(icon[0].message).toMatch(/icon: null/);
     });
 
     it("is warned about under a system block too, where a note may also write it", () => {
-        const findings = lintNote(note("skill", { img: "" }), { schemas });
+        const findings = lintNote(note("skill", { icon: "" }), { schemas });
 
-        expect(findings.filter((f) => /`img: ""`/.test(f.message))).toHaveLength(1);
+        expect(findings.filter((f) => /`icon: ""`/.test(f.message))).toHaveLength(1);
     });
 
-    it("says nothing about `img: null`, which is the spelling it asks for", () => {
-        const findings = lintNote(note("skill", {}, { img: null }), { schemas });
+    it("says nothing about `icon: null`, which is the spelling it asks for", () => {
+        const findings = lintNote(note("skill", {}, { data: { icon: null } }), { schemas });
 
-        expect(findings.filter((f) => /`img: ""`/.test(f.message))).toHaveLength(0);
+        expect(findings.filter((f) => /`icon: ""`/.test(f.message))).toHaveLength(0);
     });
 
     it("says nothing about a note that names art, or names none at all", () => {
         expect(
-            lintNote(note("skill", {}, { img: "icons/other/sword.svg" }), { schemas }).filter((f) =>
-                /`img: ""`/.test(f.message),
+            lintNote(note("skill", {}, { data: { icon: "sword" } }), { schemas }).filter((f) =>
+                /`icon: ""`/.test(f.message),
             ),
         ).toHaveLength(0);
         expect(
-            lintNote(note("skill"), { schemas }).filter((f) => /`img: ""`/.test(f.message)),
+            lintNote(note("skill"), { schemas }).filter((f) => /`icon: ""`/.test(f.message)),
         ).toHaveLength(0);
     });
 
-    it("is warned about for `portrait` too, which resolves through the same translator", () => {
-        // Eleven `sohl-kethira-basic` beings write `portrait: ""` and no note
-        // in any tree writes `img: ""` on a being. A check keyed on `img`
-        // alone called that tree clean and let it lose every default portrait.
-        const findings = lintNote(note("skill", {}, { portrait: "" }), { schemas });
-        const art = findings.filter((f) => /`portrait: ""`/.test(f.message));
+    it("is warned about for every slot, since the rule belongs to the resolution", () => {
+        // A check keyed on one slot would call a tree clean that loses its
+        // default art through another.
+        for (const key of ["tokenIcon", "bgImage", "banner"]) {
+            const findings = lintNote(note("skill", {}, { data: { [key]: "" } }), { schemas });
+            const art = findings.filter((f) => new RegExp(`\`${key}: ""\``).test(f.message));
 
-        expect(art).toHaveLength(1);
-        expect(art[0].severity).toBe("warning");
-        expect(art[0].message).toMatch(/portrait: null/);
+            expect(art, key).toHaveLength(1);
+            expect(art[0].severity).toBe("warning");
+            expect(art[0].message).toMatch(new RegExp(`${key}: null`));
+        }
     });
 
     it('warns on `title: ""` too, for the page\'s heading', () => {
@@ -566,17 +567,16 @@ describe("a system field that merely shares a note-level field's name", () => {
     });
 
     it("applies to the art fields too, where a type claims the block key", () => {
-        // `img` and `portrait` are checked the same way. No shipped type
-        // declares a system field of either name today — which is why
-        // `sohl.img: ""` still answers for the art check, the emitter reading
-        // the block first — so the exemption is exercised with a declaration of
-        // its own. `sohl.image` is a map's legacy art key, and the next such
-        // collision must not need this fixed a second time.
+        // An art slot is checked the same way. No shipped type declares a
+        // system field of any slot's name today — which is why `sohl.icon: ""`
+        // still answers for the art check, the emitter reading the block first
+        // — so the exemption is exercised with a declaration of its own, and
+        // the next such collision must not need this fixed a second time.
         const schemas = {
             widget: [
                 {
-                    name: "img",
-                    to: "img",
+                    name: "icon",
+                    to: "icon",
                     ...STRING,
                     default: "",
                     topLevelMeans: "the note's own artwork, not the widget's stamped badge",
@@ -585,10 +585,12 @@ describe("a system field that merely shares a note-level field's name", () => {
             ],
         } as any;
         const art = (findings: Array<{ message: string }>) =>
-            findings.filter((f) => /`img: ""`/.test(f.message));
+            findings.filter((f) => /`icon: ""`/.test(f.message));
 
-        expect(art(lintNote(note("widget", { img: "" }), { schemas }))).toHaveLength(0);
-        expect(art(lintNote(note("widget", {}, { img: "" }), { schemas }))).toHaveLength(1);
+        expect(art(lintNote(note("widget", { icon: "" }), { schemas }))).toHaveLength(0);
+        expect(art(lintNote(note("widget", {}, { data: { icon: "" } }), { schemas }))).toHaveLength(
+            1,
+        );
     });
 });
 

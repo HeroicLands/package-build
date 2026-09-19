@@ -697,6 +697,10 @@ export function serializeContentIndex(records) {
  *
  * @param {object} [opts]
  * @param {string} [opts.contentBase] - The tree, defaulting to the configured one.
+ * @param {string} [opts.assetsBase] - The asset roots' parent, defaulting to
+ *   the configured one. Stated separately from `contentBase` because the two
+ *   move independently — a caller walking an assembled fixture tree says where
+ *   that fixture's files are.
  * @param {object} [opts.config] - Resolved configuration, defaulting to ambient.
  * @param {readonly string[]} [opts.skipDirectories] - The walk's scope, for a
  *   caller that resolved one of its own; defaults to the resolved
@@ -710,14 +714,20 @@ export function serializeContentIndex(records) {
  *   exist.
  * @returns {object[]} One record per note, plus one per documentation entry.
  */
-export function indexRecordsFor({ contentBase, config, skipDirectories, problems } = {}) {
+export function indexRecordsFor({
+    contentBase,
+    assetsBase,
+    config,
+    skipDirectories,
+    problems,
+} = {}) {
     const resolved = config ?? loadPackConfig();
     const tree = contentBase ?? resolved.paths.content;
     if (!fs.existsSync(tree)) throw new Error(`no content tree at ${tree}`);
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
-        assetsBase: resolved.paths.assets,
+        assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.
         manifest: foundryIdentities(resolved),
         problems,

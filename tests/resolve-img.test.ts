@@ -202,94 +202,121 @@ describe("resolveImg for a non-`sohl` consumer", () => {
 /**
  * The unit assertions above pin the translator. These pin the *compilers* that
  * call it, because the acceptance the rule is really about is what lands in
- * `build/packs-json` — the only place the rule could otherwise be
- * observed at all. One item type and one actor type, since those are the two
- * shapes: an Item carries a single `img`, an Actor carries `img` and
- * `portrait` independently.
+ * `build/packs-json` — the only place the rule could otherwise be observed at
+ * all. One item type and one actor type, since those are the two shapes: an
+ * Item carries one piece of art, an Actor carries its profile art and its token
+ * art independently.
+ *
+ * **The art is named by address**, and an address is answered by the compile's
+ * index — so each case supplies a tree holding the file it names. What the
+ * assertions pin is the rest of the journey: the record's path is joined onto
+ * the owning package's root by the same rule a body image follows.
  */
+
+/** A compile index holding the files these cases name. */
+function artIndex(): any {
+    const files: Record<string, [string, string]> = {
+        awareness: ["icon", "icons/awareness.webp"],
+        headgear: ["icon", "icons/other/head-gear.svg"],
+        custom: ["icon", "icons/custom.svg"],
+        folktoken: ["icon", "icons/folk-token.webp"],
+        person: ["icon", "icons/game-icons/delapouite/person.svg"],
+    };
+    return {
+        types: new Set(["icon", "image", "audio"]),
+        packages: new Set(["sohl"]),
+        contentPackage: "sohl",
+        assets: new Map(
+            Object.entries(files).map(([shortcode, [type, assetPath]]) => [
+                `sohl-none-${type}-${shortcode}`,
+                { package: "sohl", asset: { path: assetPath } },
+            ]),
+        ),
+        foreign: new Map(),
+    };
+}
 
 /** The Item compiler, against this repository's own configuration. */
 function items() {
     const config = loadPackConfig();
-    return new Items({
+    const pack = new Items({
         skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });
+    pack.linkIndex = artIndex();
+    return pack;
 }
 
 /** The Actor compiler. Nothing here walks a tree or reads a pack. */
 function actors() {
     const config = loadPackConfig();
-    return new Actors({
+    const pack = new Actors({
         skipDirectories: [],
         contentBase: path.join(PKG_ROOT, "tests/fixtures"),
         dest: config.paths.packJson,
     });
+    pack.linkIndex = artIndex();
+    return pack;
 }
 
 /** A `skill` note, with whatever art a case needs. */
-const skillNote = (fm: Record<string, unknown>) => ({
+const skillNote = (data: Record<string, unknown>) => ({
     id: "DDDDDDDDDDDDDDDD",
     type: "skill",
     shortcode: "awar",
     name: { full: "Awareness" },
     sohl: { subType: "physical", archetype: null },
-    ...fm,
+    data,
 });
 
-/** A `being` note, likewise. `img` is token art, `portrait` the sheet's. */
-const beingNote = (sohl: Record<string, unknown>) => ({
+/** A `being` note, likewise. `icon` is profile art, `portrait` the sheet's. */
+const beingNote = (data: Record<string, unknown>) => ({
     id: "EEEEEEEEEEEEEEEE",
     type: "being",
     shortcode: "folk",
     name: { full: "Basic Folk" },
-    sohl: { archetype: null, ...sohl },
+    tags: ["character"],
+    sohl: { archetype: null },
+    data,
 });
 
 describe("an item note's art obeys the ownership rule", () => {
-    it("prefixes a bare relative path with this package's asset root", () => {
-        expect(items().buildEntry(skillNote({ img: "artwork/awareness.webp" }), "").img).toBe(
-            "systems/sohl/assets/artwork/awareness.webp",
+    it("joins the record's path onto this package's asset root", () => {
+        expect(items().buildEntry(skillNote({ icon: "awareness" }), "").img).toBe(
+            "systems/sohl/assets/icons/awareness.webp",
         );
-        expect(items().buildEntry(skillNote({ img: "icons/other/head-gear.svg" }), "").img).toBe(
+        expect(items().buildEntry(skillNote({ icon: "headgear" }), "").img).toBe(
             "systems/sohl/assets/icons/other/head-gear.svg",
         );
     });
 
-    it("resolves a package-qualified pathname to that package's install path", () => {
-        expect(items().buildEntry(skillNote({ img: "sohl/assets/icons/custom.svg" }), "").img).toBe(
+    it("reads a qualified address as the same file a bare one names", () => {
+        expect(items().buildEntry(skillNote({ icon: "sohl-none-icon-custom" }), "").img).toBe(
             "systems/sohl/assets/icons/custom.svg",
         );
     });
 });
 
-describe("an actor note's art obeys the ownership rule, on both fields", () => {
-    it("prefixes bare relative `img` and `portrait` alike", () => {
-        // Both go through the translator, so both follow the rule — a check
-        // keyed on `img` alone would miss the eleven `sohl-kethira-basic`
-        // beings that author only `portrait`.
+describe("an actor note's art obeys the ownership rule, on every slot", () => {
+    it("resolves profile art and token art alike", () => {
         const doc = actors().buildBeing(
             new Map(),
-            beingNote({ img: "artwork/folk-token.webp", portrait: "artwork/folk.webp" }),
-            "",
-        );
-
-        expect(doc.img).toBe("systems/sohl/assets/artwork/folk-token.webp");
-        expect(doc.system.portrait).toBe("systems/sohl/assets/artwork/folk.webp");
-    });
-
-    it("resolves a package-qualified pathname on both fields alike", () => {
-        const doc = actors().buildBeing(
-            new Map(),
-            beingNote({
-                img: "sohl/assets/icons/game-icons/delapouite/person.svg",
-                portrait: "sohl/assets/images/folk.webp",
-            }),
+            beingNote({ icon: "person", tokenIcon: "folktoken" }),
             "",
         );
 
         expect(doc.img).toBe("systems/sohl/assets/icons/game-icons/delapouite/person.svg");
-        expect(doc.system.portrait).toBe("systems/sohl/assets/images/folk.webp");
+        expect(doc.prototypeToken.texture.src).toBe("systems/sohl/assets/icons/folk-token.webp");
+    });
+
+    it("writes no `system.portrait` — a being's portrait is an image in its prose", () => {
+        const doc = actors().buildBeing(new Map(), beingNote({ icon: "person" }), "");
+        expect(doc.system).not.toHaveProperty("portrait");
+    });
+
+    it("lets a token follow the profile art where the note names only one", () => {
+        const doc = actors().buildBeing(new Map(), beingNote({ icon: "person" }), "");
+        expect(doc.prototypeToken.texture.src).toBe(doc.img);
     });
 });
