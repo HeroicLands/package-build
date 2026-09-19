@@ -88,6 +88,10 @@ export const PROVENANCE_SIDECAR_SUFFIX = ".yaml";
  * @property {string} name - The key inside `asset`.
  * @property {"walk"|"provenance"} from - Where the value comes from: the walk
  *   itself, or the provenance record resolved for the address.
+ * @property {boolean} [required] - Whether a provenance record that exists must
+ *   state this key. Omitting one is a finding rather than a blank, because a
+ *   record resolves wholesale: the nearest one is the whole answer, so a key it
+ *   leaves out is not inherited from above but simply absent.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -119,6 +123,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "attribution",
         from: "provenance",
+        required: true,
         describe: "The person holding the rights, to whom attribution is legally due.",
     }),
     Object.freeze({
@@ -134,6 +139,7 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "license",
         from: "provenance",
+        required: true,
         describe: "The licence it is used under — an SPDX identifier, or terms.",
     }),
     Object.freeze({
@@ -154,6 +160,22 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
 export const PROVENANCE_KEYS = Object.freeze(
     new Set(
         ASSET_RECORD_FIELDS.filter((field) => field.from === "provenance").map(
+            (field) => field.name,
+        ),
+    ),
+);
+
+/**
+ * The keys a provenance file must state.
+ *
+ * Derived from {@link ASSET_RECORD_FIELDS} for the same reason the key set is:
+ * the rule and the record cannot disagree about which keys are required.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const REQUIRED_PROVENANCE_KEYS = Object.freeze(
+    new Set(
+        ASSET_RECORD_FIELDS.filter((field) => field.from === "provenance" && field.required).map(
             (field) => field.name,
         ),
     ),
@@ -218,6 +240,25 @@ function readProvenanceFile(file, findings) {
         }
         out[key] = value == null ? "" : String(value);
     }
+
+    // A record resolves wholesale — the nearest one is the whole answer, and no
+    // ancestor fills a key it leaves out. So an omitted `attribution` or
+    // `license` is not a value inherited from above; it is a file with no stated
+    // rights holder and no stated terms, which is the one thing a provenance
+    // record exists to prevent. Reported against the file rather than a line,
+    // because the fault is an absence and has no position.
+    for (const key of REQUIRED_PROVENANCE_KEYS) {
+        if (out[key]) continue;
+        findings.push({
+            file,
+            severity: "error",
+            message:
+                `a provenance record states \`${key}\`, and this one does not. ` +
+                "A record replaces rather than extends the one above it, so every " +
+                "file it covers would carry no " +
+                (key === "license" ? "licence" : key),
+        });
+    }
     return out;
 }
 
@@ -239,6 +280,9 @@ function inheritedProvenance(dir, root, cache, findings) {
     const own = path.join(dir, PROVENANCE_FILE);
     let answer;
     if (fs.existsSync(own)) {
+        // The nearest record is the whole answer. It is not merged with the one
+        // above it, so a record states every key it means to claim and a reader
+        // needs only the file in front of them to know what a file carries.
         answer = readProvenanceFile(own, findings);
     } else if (path.resolve(dir) === path.resolve(root)) {
         // The search stops at the type root: `assets/` above it is the

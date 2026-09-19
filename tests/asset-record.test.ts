@@ -18,8 +18,9 @@
  * **A guard proves every field is named, never that a claim about one is
  * true**, so the cases after it sample: a record's `path` is walked back to a
  * file that exists, a sidecar replaces an inherited record rather than merging
- * over it, the ancestor walk stops at the type root, and an unknown key is a
- * finding rather than a silent drop.
+ * over it, the ancestor walk stops at the type root, a nearer record replaces
+ * rather than extends the one above it, and a record that states no rights
+ * holder or no terms is a finding.
  */
 
 import fs from "node:fs";
@@ -142,7 +143,10 @@ describe("an address is derived from the file, and from nothing above it", () =>
             "icons/NOTICE.md": "notice",
             "icons/game-icons-codepoints.json": "{}",
             "icons/save.af": "af",
-            [`icons/${PROVENANCE_FILE}`]: "attribution: Tom Rodriguez",
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+            ].join("\n"),
         });
         const records = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(records.map((r) => r.address.canonical)).toEqual(["sohl-none-icon-anvil"]);
@@ -216,11 +220,33 @@ describe("provenance resolves per address", () => {
         // A record above the root would speak for trees it says nothing about,
         // so `assets/provenance.yaml` reaches no address.
         const base = assetTree({
-            [PROVENANCE_FILE]: "attribution: Nobody",
+            [PROVENANCE_FILE]: ["attribution: Nobody", "license: CC0"].join("\n"),
             "icons/anvil.svg": "<svg/>",
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.attribution).toBe("");
+    });
+
+    // The nearest record is the whole answer, so a deeper one that states less
+    // carries less — nothing is filled in from the record above it.
+    it("does not merge a nearer record with the one above it", () => {
+        const base = assetTree({
+            [`icons/${PROVENANCE_FILE}`]: [
+                "attribution: Tom Rodriguez",
+                "license: CC-BY-SA-4.0",
+                "notes: everything in this tree",
+            ].join("\n"),
+            [`icons/game-icons/${PROVENANCE_FILE}`]: [
+                "attribution: Lorc",
+                "license: CC-BY-3.0",
+                "source: https://game-icons.net",
+            ].join("\n"),
+            "icons/game-icons/anvil.svg": "<svg/>",
+        });
+        const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
+        expect(record.asset.attribution).toBe("Lorc");
+        expect(record.asset.source).toBe("https://game-icons.net");
+        expect(record.asset.notes).toBe("");
     });
 
     it("lets a sidecar replace an inherited record wholesale", () => {
@@ -231,13 +257,13 @@ describe("provenance resolves per address", () => {
                 "notes: everything in this tree",
             ].join("\n"),
             "icons/anvil.svg": "<svg/>",
-            "icons/anvil.svg.yaml": "attribution: Lorc",
+            "icons/anvil.svg.yaml": ["attribution: Lorc", "license: CC-BY-3.0"].join("\n"),
         });
         const [record] = collectAssetRecords(base, { contentPackage: "sohl" });
         expect(record.asset.attribution).toBe("Lorc");
-        // Replaced, not merged: the inherited licence does not survive, which is
-        // the whole reason a sidecar is written.
-        expect(record.asset.license).toBe("");
+        expect(record.asset.license).toBe("CC-BY-3.0");
+        // Replaced, not merged: the inherited note does not survive, which is
+        // the whole reason a sidecar is written rather than a nearer directory.
         expect(record.asset.notes).toBe("");
     });
 
@@ -260,9 +286,14 @@ describe("provenance resolves per address", () => {
         const problems: any[] = [];
         const records = collectAssetRecords(base, { contentPackage: "sohl", problems });
         expect(records).toHaveLength(1);
-        expect(problems).toHaveLength(1);
-        expect(problems[0].message).toMatch(/licence/);
-        expect(problems[0].file).toContain(PROVENANCE_FILE);
+
+        const unknown = problems.find((p) => /`licence` is not a provenance key/.test(p.message));
+        expect(unknown).toBeDefined();
+        expect(unknown.file).toContain(PROVENANCE_FILE);
+
+        // And the record is short a licence because of it, which is the finding
+        // that makes the typo impossible to ship rather than merely reported.
+        expect(problems.some((p) => /states `license`/.test(p.message))).toBe(true);
         expect(problems[0].line).toBe(1);
     });
 });

@@ -1508,6 +1508,17 @@ One address resolves its record in this order:
 3. Otherwise nothing, and the provenance fields are blank. A package that
    records no attribution is a fact to state, not a walk to fail.
 
+**The nearest record is the whole answer.** It is never merged with the one
+above it, so a record states every key it means to claim — which is what lets a
+reader open one file and know what the tree beneath it carries, instead of
+resolving a chain by hand.
+
+That is also why `attribution` and `license` are **required in any record that
+exists**: a key left out is not inherited from above, it is simply absent, so a
+record stating neither leaves every file it covers with no rights holder and no
+terms. Omitting one is a finding. `source`, `ai` and `notes` stay optional,
+because a blank is a truthful answer for each of them.
+
 #### A font is not an asset
 
 `assets/fonts` is not a root, and a font has no address.
