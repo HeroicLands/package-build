@@ -1137,10 +1137,11 @@ function e2eCommand() {
  * `bump [packages..]` — take a newer version of a dependency.
  *
  * npm does the resolving, so a bump whose dependency set changed is as correct
- * as one that moves three lines. What this adds is the indentation: every
- * repository here writes `package-lock.json` with four spaces and
- * prettier-ignores it, and npm rewrites it with two, so the version change
- * arrives buried in a whole-file reformat.
+ * as one that moves three lines; patching the lockfile by hand is right only
+ * while the two dependency sets match, and nothing says when they stop
+ * matching. npm writes the lockfile with `package.json`'s indentation, and
+ * this holds each file to the indent it already carried, so a lockfile indented
+ * unlike its manifest keeps its own.
  *
  * Named nothing, it takes the first-party packages — the ones a person bumps
  * by hand, the moment a release publishes, usually to unblock the change that
@@ -1151,7 +1152,7 @@ function e2eCommand() {
 function bumpCommand() {
     return {
         command: "bump [packages..]",
-        describe: "Take a newer version of a dependency, keeping the lockfile's formatting",
+        describe: "Take a newer published version of a declared dependency",
         builder: (y) =>
             y
                 .positional("packages", {

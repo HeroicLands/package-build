@@ -167,6 +167,7 @@ describe("writeManifest reporting", () => {
     /** A resolved-config stand-in carrying only what the manifest reads. */
     const configWith = (packFolders: unknown, names: string[]) => ({
         foundryPackage: "x",
+        contentPackage: "x",
         stats: { systemId: "x" },
         packs: names.map((name) => ({
             name,
