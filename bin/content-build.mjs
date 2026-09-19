@@ -969,6 +969,10 @@ function lintCommand() {
                 // so these are errors and they fail the run.
                 const images = lintContentImages(root, {
                     skipDirectories: config.skipDirectories,
+                    // Which packages this build can reach is configuration, and
+                    // an address naming one it cannot reaches a journal as a
+                    // path that resolves against nothing.
+                    config,
                 });
 
                 const findings = [
