@@ -150,6 +150,9 @@ export * as contentHtml from "./content-html.mjs";
 /** An image saying how wide it is and where it sits, in two closed vocabularies. */
 export * as contentImages from "./content-images.mjs";
 
+/** `![[…]]` — the wikilink that renders a picture where it stands. */
+export * as contentEmbeds from "./content-embeds.mjs";
+
 /** One authored pathname, and the four addresses the surfaces derive from it. */
 export * as pathnames from "./pathnames.mjs";
 

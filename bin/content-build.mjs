@@ -1250,6 +1250,7 @@ function linksCommand() {
                 const {
                     deadAnchors,
                     deadAddresses,
+                    deadEmbeds,
                     unlabelledLinks,
                     frontmatterLinks,
                     homepageLinks,
@@ -1271,12 +1272,15 @@ function linksCommand() {
                 // differently because the corrections differ. The wording comes
                 // from the shared table, so the checker cannot describe a
                 // defect differently from the build that also refuses it.
-                for (const d of [...deadAddresses, ...unlabelledLinks]) {
+                for (const d of [...deadAddresses, ...unlabelledLinks, ...deadEmbeds]) {
                     emitDiagnostic({
                         file: d.note.file,
                         ...positionOfLiteral(d.note.raw, d.text, d.occurrence),
                         severity: "error",
-                        message: linkFindingMessage(d),
+                        // An embed's directive speaks the image vocabulary and
+                        // carries its own sentence; everything else is worded
+                        // by the shared table.
+                        message: d.message ?? linkFindingMessage(d),
                     });
                 }
                 for (const f of frontmatterLinks) {
@@ -1306,6 +1310,7 @@ function linksCommand() {
                 const failures =
                     deadAnchors.length +
                     deadAddresses.length +
+                    deadEmbeds.length +
                     unlabelledLinks.length +
                     frontmatterLinks.length +
                     homepageLinks.length;
@@ -1315,8 +1320,9 @@ function linksCommand() {
                 } else {
                     log.info(
                         `${index.notes.length} notes: every link is a labelled ` +
-                            `address, every anchor link lands and every ` +
-                            `address resolves (${usedManifest.size} ` +
+                            `address, every embed names a file, every anchor ` +
+                            `link lands and every address resolves ` +
+                            `(${usedManifest.size} ` +
                             `cross-package reference(s) via manifest), no ` +
                             `wikilink in frontmatter, every homepage address ` +
                             `resolvable.`,
@@ -1576,7 +1582,11 @@ function siteCommand() {
                         file: e.file,
                         ...positionOfLiteral(readRawNote(e.file), e.link, e.occurrence),
                         severity: "error",
-                        message: linkFindingMessage(e),
+                        // An embed's directive speaks the image vocabulary
+                        // rather than the link one, and carries its own
+                        // sentence; everything else is worded by the shared
+                        // table.
+                        message: e.message ?? linkFindingMessage(e),
                     });
                 }
                 // An image whose pathname the site cannot resolve, located the

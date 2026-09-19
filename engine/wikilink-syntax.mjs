@@ -57,8 +57,15 @@
  * unclosed `[[` is a typo, and the alternative is letting it swallow arbitrary
  * prose in search of a closer. Erring towards "not a link" leaves the author's
  * text as written, which is the safe direction for a rewriter.
+ *
+ * **A leading `!` makes it an embed, not a link**, and the lookbehind is what
+ * keeps every reader from seeing one as the other. Stated here rather than in
+ * each reader for the reason the rest of this module exists: the checker, the
+ * pack compilers and the web resolver all match on this pattern, and three
+ * copies of the exclusion is three places for it to be forgotten. An embed's
+ * own grammar is {@link module:engine/content-embeds}.
  */
-export const WIKILINK = /\[\[([^\]\n]+)\]\]/g;
+export const WIKILINK = /(?<!!)\[\[([^\]\n]+)\]\]/g;
 
 /**
  * The parts of a wikilink's interior.
@@ -171,7 +178,9 @@ export function unlabelledLinkMessage(target) {
  *
  * - `unlabelled` — no `|`, so the link addresses nothing.
  * - `not-an-address` — labelled, but the target does not parse as an address.
+ * - `not-lowercase` — a package, system or type segment carries a capital.
  * - `unknown-type` — definitely qualified, but names no type this build knows.
+ * - `not-an-asset` — a real address, embedded where only a file can be drawn.
  * - `unresolved` — parses as an address, and nothing publishes it.
  * - `ambiguous` — more than one package publishes the short address.
  * - `unknown-anchor` — the address resolved, the `#section` it names did not.
@@ -184,6 +193,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "not-an-address",
         "not-lowercase",
         "unknown-type",
+        "not-an-asset",
         "unresolved",
         "ambiguous",
         "unknown-anchor",
@@ -262,11 +272,13 @@ export function ambiguousAddressMessage(target, packages = []) {
  * @param {Iterable<string>} [finding.packages] - For `ambiguous`, the
  *   claimants.
  * @param {string} [finding.anchor] - For `unknown-anchor`, the section named.
+ * @param {string} [finding.type] - For `not-an-asset`, the type the address
+ *   named.
  * @returns {string} The message.
  * @throws {Error} On a reason outside the closed set — a resolver inventing one
  *   would otherwise report a link with no explanation at all.
  */
-export function linkFindingMessage({ reason, target, packages, anchor }) {
+export function linkFindingMessage({ reason, target, packages, anchor, type }) {
     switch (reason) {
         case "unlabelled":
             return unlabelledLinkMessage(target);
@@ -285,6 +297,12 @@ export function linkFindingMessage({ reason, target, packages, anchor }) {
             );
         case "unknown-type":
             return `address [[${target}]] names no known content type`;
+        case "not-an-asset":
+            return (
+                `![[${target}]] embeds a \`${type ?? "note"}\`, and an embed draws a ` +
+                `file — only an \`icon\`, an \`image\` or an \`audio\` address can be ` +
+                `embedded. Write [[${target}|Text]] to link to it instead`
+            );
         case "ambiguous":
             return ambiguousAddressMessage(target, packages ?? []);
         case "unknown-anchor":

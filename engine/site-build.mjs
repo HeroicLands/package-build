@@ -65,9 +65,8 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
-import { isAssetRecord, isNoteRecord, noteFile } from "./index-records.mjs";
-import { ART_SLOTS, artPathname } from "./art-fields.mjs";
-import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
+import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
 import {
     checkHomepageCount,
     homepageDestination,
@@ -775,21 +774,13 @@ export function renderPages(pages, options) {
         records = [],
     } = options;
 
-    // The address space the art slots resolve against: the files this package
-    // ships, and the ones a dependency published. Shaped as the compile index
-    // is, so one resolver answers for both surfaces.
-    const artIndex = {
-        types: new Set(ASSET_TYPE_NAMES),
-        packages: new Set([config?.contentPackage, ...(foreign?.packages ?? [])].filter(Boolean)),
-        contentPackage: config?.contentPackage,
-        assets: new Map(
-            records
-                .filter(isAssetRecord)
-                .map((record) => [record.address?.canonical, record])
-                .filter(([key]) => key),
-        ),
-        foreign: foreign?.index ?? new Map(),
-    };
+    // The address space the art slots and the body's embeds resolve against:
+    // the files this package ships, and the ones a dependency published.
+    const artIndex = assetAddressIndex(records, {
+        config,
+        foreign,
+        types: index?.contentTypes ?? [],
+    });
 
     const tableErrors = [];
     const wikiErrors = [];
@@ -848,6 +839,7 @@ export function renderPages(pages, options) {
             type: page.fm.type ?? null,
             errors: wikiErrors,
             foreignIndex: foreign.index,
+            assets: artIndex,
         });
 
         const webSrc = webAddresses(page.file);

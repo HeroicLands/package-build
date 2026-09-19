@@ -322,6 +322,8 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  *   diagnostic names. Absent, `src` stands in.
  * @param {Map<string, object>} [options.foreignIndex] - The foreign index, for
  *   resolvers that distinguish a foreign hit from a local one.
+ * @param {object} [options.assets] - The address space an `![[…]]` embed
+ *   resolves against, shaped as every asset resolver reads one.
  * @returns {object} The resolver context.
  *
  * There is deliberately **no `manifestsComplete`**. It used to let a resolver
@@ -330,10 +332,17 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
  * checker never had it and one authored link must not get two verdicts. A
  * caller still passing it is ignored rather than obeyed.
  */
-export function wikiContext(built, { src, file, type = null, errors, foreignIndex = new Map() }) {
+export function wikiContext(
+    built,
+    { src, file, type = null, errors, foreignIndex = new Map(), assets },
+) {
     return {
         index: built.index,
         foreign: foreignIndex,
+        // The address space an embed resolves against. Separate from `index`
+        // because the two hold different record shapes: a note's entry carries
+        // a URL and a name, an asset's carries the path to a file.
+        assets,
         collide: built.ambiguous,
         sections: built.sections,
         contentTypes: built.contentTypes,
