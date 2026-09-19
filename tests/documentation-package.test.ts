@@ -219,10 +219,16 @@ describe("the two Foundry kinds are unaffected", () => {
         expect(config.stats?.lastModifiedBy).toBe("sohlbuilder00000");
     });
 
-    it("still requires a Foundry package to declare a pack", () => {
-        expect(() =>
-            defineConfig({ ...foundry("modules"), packs: [] } as ContentBuildConfigInput),
-        ).toThrow(/must declare at least one pack/);
+    // A module that ships assets and compiles nothing is an ordinary Foundry
+    // module: it installs, it is enabled, and it supplies files. Alternative
+    // art for another package is the case this exists for.
+    it("lets a Foundry package ship assets and compile nothing", () => {
+        const config = defineConfig({
+            ...foundry("modules"),
+            packs: [],
+        } as ContentBuildConfigInput);
+        expect(config.packs).toEqual([]);
+        expect(config.packageKind).toBe("modules");
     });
 });
 
