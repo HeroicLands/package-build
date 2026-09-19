@@ -66,6 +66,27 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
 ]);
 
 /**
+ * The map a pack declaring no `system:` compiles its documents against.
+ *
+ * A pack names the system its documents are shaped for, and one declaring none
+ * is compiled by the fallback pass for its document type — a single-system
+ * package's ordinary arrangement, and the one `sohl-thalorna` ships. That pass
+ * follows one map whatever a note carries, which makes this the answer to "a
+ * document compiled here belongs to *which* system?" wherever a pack has not
+ * said.
+ *
+ * Stated here rather than read off the compiler classes because those are not
+ * reachable from a leaf: `engine/item-compiler.mjs` imports the journals pass,
+ * which draws infoboxes, so anything the infobox reads cannot import a pass.
+ * `tests/default-document-subtypes.test.ts` holds this to `compilerFor`, which
+ * is where the fallback is actually decided — so the two cannot drift apart in
+ * silence.
+ *
+ * @type {import("./document-subtypes.mjs").DocumentSubtypeMap}
+ */
+export const DEFAULT_DOCUMENT_SUBTYPES = SOHL_DOCUMENT_SUBTYPES;
+
+/**
  * Every note type any shipped map compiles into an **Actor**.
  *
  * Derived from the maps rather than written out, so a system that adds an actor

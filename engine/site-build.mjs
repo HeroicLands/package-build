@@ -62,6 +62,7 @@ import { noteInfoboxes } from "./infobox-registry.mjs";
 import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { routerFor } from "./pack-router.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
@@ -1279,6 +1280,7 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
             // book from one definition.
             data.infoboxes = noteInfoboxes(page.fm, {
                 resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
+                router: routerFor(resolved),
             });
         },
     });
