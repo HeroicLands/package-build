@@ -13,8 +13,10 @@ import path from "node:path";
 
 import {
     buildManifest,
+    HOMEPAGE_ORIGIN,
     manifestPacks,
     normalizeRepoUrl,
+    packageHomepage,
     publishedRelationships,
     releaseUrls,
     writeManifest,
@@ -53,9 +55,30 @@ describe("normalizeRepoUrl", () => {
     });
 });
 
+describe("packageHomepage", () => {
+    it("addresses the package by its content-package name", () => {
+        expect(packageHomepage("thalorna")).toBe(`${HOMEPAGE_ORIGIN}/thalorna/`);
+        expect(packageHomepage("harnensemble")).toBe(`${HOMEPAGE_ORIGIN}/harnensemble/`);
+    });
+
+    // The site build writes the same address as its `baseURL`, with the slash.
+    // A reader following `url` lands on a directory, not on a redirect to one.
+    it("keeps the trailing slash", () => {
+        expect(packageHomepage("sohl").endsWith("/sohl/")).toBe(true);
+    });
+
+    // `<origin>/undefined/` resolves, so it would be advertised until somebody
+    // followed the link and found the 404.
+    it("refuses a missing name rather than interpolating it", () => {
+        expect(() => packageHomepage(undefined as unknown as string)).toThrow(/contentPackage/);
+        expect(() => packageHomepage("  ")).toThrow(/contentPackage/);
+    });
+});
+
 describe("releaseUrls", () => {
     const urls = releaseUrls({
         repoUrl: "https://github.com/HeroicLands/sohl",
+        homeUrl: packageHomepage("sohl"),
         version: "0.8.2",
         artifact: "system",
     });
@@ -74,14 +97,22 @@ describe("releaseUrls", () => {
         );
     });
 
-    it("derives url and bugs from the same root", () => {
-        expect(urls.url).toBe("https://github.com/HeroicLands/sohl");
+    // `url` is the Project Homepage link a reader follows from the package
+    // listing before installing. The repository answers a different question.
+    it("sends url to the homepage and bugs to the repository", () => {
+        expect(urls.url).toBe(`${HOMEPAGE_ORIGIN}/sohl/`);
         expect(urls.bugs).toBe("https://github.com/HeroicLands/sohl/issues");
+    });
+
+    it("keeps the release artefacts on the repository holding them", () => {
+        expect(urls.manifest.startsWith("https://github.com/HeroicLands/sohl/")).toBe(true);
+        expect(urls.download.startsWith("https://github.com/HeroicLands/sohl/")).toBe(true);
     });
 
     it("names the module artifact for a module", () => {
         const m = releaseUrls({
             repoUrl: "https://github.com/HeroicLands/sohl-thalorna",
+            homeUrl: packageHomepage("thalorna"),
             version: "0.1.0",
             artifact: "module",
         });
@@ -197,6 +228,7 @@ describe("buildManifest", () => {
     function config(over: Record<string, unknown> = {}) {
         return {
             foundryPackage: "sohl",
+            contentPackage: "sohl",
             stats: { systemId: "sohl" },
             compatibility: { minimum: "14.359", verified: "14.364" },
             relationships: {},
@@ -254,12 +286,14 @@ describe("buildManifest", () => {
     // build the URL is always written. The guard
     // is for a caller holding a partial config, and is asserted so that a later
     // change making the flag unconditional is a deliberate one.
-    it("advertises no index when the config names no content package", () => {
+    // Every package names a content package, so every manifest advertises the
+    // index consumers resolve its addresses through.
+    it("always advertises the content index", () => {
         const manifest = build() as Record<string, unknown>;
 
-        expect(
-            (manifest.flags as Record<string, unknown> | undefined)?.metadataUrl,
-        ).toBeUndefined();
+        expect((manifest.flags as Record<string, string>).metadataUrl).toContain(
+            "sohl-metadata.jsonl",
+        );
     });
 
     // Namespaced flags and this one share the object, so adding a namespace
@@ -273,6 +307,19 @@ describe("buildManifest", () => {
 
         expect(flags.metadataUrl).toContain("sohl-metadata.jsonl");
         expect(flags.hm3).toEqual({ archetype: 0 });
+    });
+
+    // `url` is the Project Homepage link a reader follows from the package
+    // listing *before* installing, so it answers "what is this?". The
+    // repository answers a different question and keeps `bugs` and the release
+    // artefacts.
+    it("sends url to the package's homepage, and the rest to the repository", () => {
+        const manifest = build({ contentPackage: "sohl" });
+
+        expect(manifest.url).toBe(`${HOMEPAGE_ORIGIN}/sohl/`);
+        expect(manifest.bugs).toBe("https://github.com/HeroicLands/sohl/issues");
+        expect(manifest.manifest).toContain("github.com/HeroicLands/sohl/releases/");
+        expect(manifest.download).toContain("github.com/HeroicLands/sohl/releases/");
     });
 
     it("emits what the repository declared, unchanged", () => {
@@ -296,7 +343,9 @@ describe("buildManifest", () => {
 
         expect(manifest.id).toBe("sohl");
         expect(manifest.version).toBe("1.2.3");
-        expect(manifest.url).toBe("https://github.com/HeroicLands/sohl");
+        // The homepage, not the repository — `url` is the Project Homepage link
+        // a reader follows from the package listing before installing.
+        expect(manifest.url).toBe(`${HOMEPAGE_ORIGIN}/sohl/`);
         expect(manifest.bugs).toBe("https://github.com/HeroicLands/sohl/issues");
         expect(manifest.manifest).toBe(
             "https://github.com/HeroicLands/sohl/releases/latest/download/system.json",
@@ -383,6 +432,7 @@ describe("buildManifest", () => {
 
         expect(manifest.flags).toEqual({
             allowBugReporter: true,
+            metadataUrl: expect.stringContaining("sohl-metadata.jsonl"),
             sohl: { keep: "me", creditsUuid: "Compendium.sohl.journals.x" },
         });
     });
@@ -392,7 +442,12 @@ describe("buildManifest", () => {
             packageBuild: { manifest: { flags: { allowBugReporter: true } } },
         });
 
-        expect(manifest.flags).toEqual({ allowBugReporter: true });
+        // The index URL is always written, so it stands beside the declared
+        // flags rather than in place of them.
+        expect(manifest.flags).toEqual({
+            allowBugReporter: true,
+            metadataUrl: expect.stringContaining("sohl-metadata.jsonl"),
+        });
     });
 
     it("writes its keys in a fixed order, so the file diffs", () => {
@@ -425,6 +480,7 @@ describe("writeManifest", () => {
         const { path: written, manifest } = await writeManifest({
             config: {
                 foundryPackage: "sohl-thalorna",
+                contentPackage: "thalorna",
                 stats: { systemId: "sohl" },
                 compatibility: { minimum: "14.359" },
                 relationships: {},

@@ -95,6 +95,49 @@ export function normalizeRepoUrl(repository) {
 }
 
 /**
+ * Where every HeroicLands package's homepage is served from.
+ *
+ * Stated once here and read by {@link packageHomepage}, so the origin a
+ * manifest advertises and the origin the configuration documents cannot come
+ * to disagree.
+ *
+ * @type {string}
+ */
+export const HOMEPAGE_ORIGIN = "https://www.heroiclands.org";
+
+/**
+ * A package's homepage — the page `url` sends a reader to.
+ *
+ * Derived from the content package rather than declared, because the address is
+ * already fixed: every package publishes an authored homepage at
+ * `<origin>/<contentPackage>/`, and the shared site-deploy workflow publishes
+ * it there. A declared copy would be a second spelling of a settled fact, free
+ * to drift — and the one that drifts is this one, because nothing fetches `url`
+ * the way Foundry fetches `manifest`, so a wrong value is never reported.
+ *
+ * The site's own `baseURL` says the same thing, and is deliberately not the
+ * source: it sits at `site/hugo.toml` in most repositories and `kb/hugo.toml`
+ * in the system, so reading it would mean the packaging half knowing where each
+ * repository keeps its site configuration.
+ *
+ * @param {string} contentPackage - The package's content-package name.
+ * @returns {string} The homepage URL, with its trailing slash.
+ * @throws {TypeError} When no name is given. Interpolating a missing one yields
+ *   `<origin>/undefined/`, a URL that resolves and is wrong — and nothing
+ *   fetches `url`, so it would be advertised for as long as nobody clicked it.
+ */
+export function packageHomepage(contentPackage) {
+    const name = String(contentPackage ?? "").trim();
+    if (!name) {
+        throw new TypeError(
+            "the configuration declares no `contentPackage`, so the manifest has " +
+                "no homepage to advertise.",
+        );
+    }
+    return `${HOMEPAGE_ORIGIN}/${name}/`;
+}
+
+/**
  * The addresses a Foundry manifest advertises.
  *
  * `manifest` deliberately points at **`releases/latest`** rather than at this
@@ -103,15 +146,23 @@ export function normalizeRepoUrl(repository) {
  * install at that release forever. `download` points at this exact version,
  * because that is the archive this manifest describes.
  *
+ * **`url` is the homepage, not the repository.** It is the Project Homepage
+ * link a reader follows from the package listing *before* installing anything,
+ * so it answers "what is this?" — which a page written for that question does
+ * and a source tree does not. `bugs`, `manifest` and `download` address release
+ * artefacts and stay on the repository that holds them.
+ *
  * @param {object} opts
  * @param {string} opts.repoUrl - Normalised repository URL.
+ * @param {string} opts.homeUrl - The package's homepage, from
+ *   {@link packageHomepage}.
  * @param {string} opts.version - The version being built.
  * @param {"system"|"module"} opts.artifact - Which artifact is shipped.
  * @returns {{url: string, bugs: string, manifest: string, download: string}}
  */
-export function releaseUrls({ repoUrl, version, artifact }) {
+export function releaseUrls({ repoUrl, homeUrl, version, artifact }) {
     return {
-        url: repoUrl,
+        url: homeUrl,
         bugs: `${repoUrl}/issues`,
         manifest: `${repoUrl}/releases/latest/download/${artifact}.json`,
         download: `${repoUrl}/releases/download/v${version}/${artifact}.zip`,
@@ -434,7 +485,12 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
         id: config.foundryPackage,
         version: packageJson.version,
         packs: manifestPacks(config),
-        ...releaseUrls({ repoUrl, version: packageJson.version, artifact }),
+        ...releaseUrls({
+            repoUrl,
+            homeUrl: packageHomepage(config.contentPackage),
+            version: packageJson.version,
+            artifact,
+        }),
     };
     if (config.compatibility) derived.compatibility = config.compatibility;
 
@@ -482,16 +538,14 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     // A flag rather than a top-level key because Foundry's manifest schema is
     // closed and `flags` is its declared extension point; an unknown key at the
     // top level is dropped by some readers and rejected by others.
-    if (config.contentPackage) {
-        merged.flags = {
-            ...(declared.flags ?? {}),
-            metadataUrl: metadataUrl({
-                repoUrl,
-                version: packageJson.version,
-                contentPackage: config.contentPackage,
-            }),
-        };
-    }
+    merged.flags = {
+        ...(declared.flags ?? {}),
+        metadataUrl: metadataUrl({
+            repoUrl,
+            version: packageJson.version,
+            contentPackage: config.contentPackage,
+        }),
+    };
 
     if (flags && Object.keys(flags).length) {
         merged.flags = { ...(merged.flags ?? declared.flags ?? {}) };
