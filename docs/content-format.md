@@ -1465,8 +1465,9 @@ nothing about itself, compiles into no document, and publishes no page, so the
 | `asset` field | Source     | What it says                                                       |
 | ------------- | ---------- | ------------------------------------------------------------------ |
 | `path`        | the walk   | Where the file sits inside the emitting package's asset directory. |
-| `attribution` | provenance | Who made the file, or what tool generated it.                      |
+| `attribution` | provenance | The person holding the rights, to whom attribution is legally due. |
 | `source`      | provenance | Where it came from — a URL, or a sentence.                         |
+| `ai`          | provenance | Whether the file is machine-generated — `true` or `false`.         |
 | `license`     | provenance | The licence it is used under — an SPDX identifier, or terms.       |
 | `notes`       | provenance | Anything else a person reading the attribution needs.              |
 
@@ -1490,10 +1491,10 @@ the two are distinct — they are equal in the system only by coincidence, and i
 
 ##### Where provenance comes from
 
-A `provenance.yaml` states `attribution`, `source`, `license` and `notes`, and
-nothing else: an unknown key is a finding rather than a silent drop, because
-`licence` beside `license` is otherwise an attribution record that looks
-complete and carries nothing.
+A `provenance.yaml` states the provenance fields in the table above, and nothing
+else: an unknown key is a finding rather than a silent drop, because `licence`
+beside `license` is otherwise an attribution record that looks complete and
+carries nothing.
 
 One address resolves its record in this order:
 
