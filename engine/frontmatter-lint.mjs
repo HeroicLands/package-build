@@ -81,9 +81,7 @@ import {
 // The art slots, declared once. The linter states no art key of its own.
 import { ART_SLOTS } from "./art-fields.mjs";
 import {
-    RETIRED_DATA_KEYS,
     RETIRED_FIELD_ALIASES,
-    retiredDataKeyMessage,
     declaresRetiredAlias,
     aliasesRetiredMessage,
     declaresRetiredAliasesField,
@@ -459,19 +457,6 @@ function checkDataContainer(note, { type, fields, packs }) {
 
     for (const key of Object.keys(entries)) {
         if (declared.has(key)) continue;
-        // A key no type declares any more is a **retirement**, not a typo: the
-        // compiler still reads it while the trees carry it, so the finding says
-        // what to write instead of the key rather than offering a nearest match
-        // that does not exist.
-        if (Object.hasOwn(RETIRED_DATA_KEYS, key)) {
-            findings.push({
-                file: note.file,
-                ...positionOfFrontmatterPath(raw, ["data", key], { key: true }),
-                severity: "warning",
-                message: retiredDataKeyMessage(key),
-            });
-            continue;
-        }
         const guess = nearest(key, declared);
         findings.push({
             file: note.file,

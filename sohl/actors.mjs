@@ -57,14 +57,6 @@ import { SOHL_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 // verbatim, and `sohl.img` / `sohl.effects` / `sohl.flags` overriding their
 // shared top-level forms for this system alone.
 import { blockProperty, mergeSystemData } from "../engine/system-block.mjs";
-import { readField, retiredTopLevelKey } from "../engine/field-spec.mjs";
-// The retirement window's reports, shared with the frontmatter lint so the two
-// cannot say different things about the same key.
-import {
-    legacyKeyMessage,
-    locateFrontmatterKey,
-    retiredTopLevelMessage,
-} from "../engine/retired-fields.mjs";
 
 /**
  * The system this pass compiles for — the block its notes write.
@@ -82,40 +74,6 @@ const SYSTEM = SOHL_DOCUMENT_SUBTYPES.block;
 const DEFAULT_IMG = {
     being: "systems/sohl/assets/icons/game-icons/delapouite/person.svg",
 };
-
-/**
- * The being's sheet portrait, read from the position a tree still authors it at.
- *
- * `data.portrait` is a **retired** `data:` key: a picture of the subject is a
- * picture, so it belongs in the prose that describes the subject. The key is
- * read while the trees carry it and reported by the frontmatter lint, on the
- * pattern every retirement in this package follows — the note compiles to the
- * correct document either way.
- *
- * **Declared, because the position is not a spelling anyone can guess.** This
- * was read with `blockProperty(fm, SYSTEM, "portrait")`, which knows the block
- * and the note's top level and nothing else — so `data.portrait` was invisible,
- * and `?? defaultImg` on the next line turned every miss into the generic person
- * icon rather than into a complaint.
- *
- * The value is an **address**, and it is resolved by the caller: `read` yields
- * it as authored because an address is answered by the compile's index, which a
- * field declaration has no reach into.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-const PORTRAIT_FIELD = Object.freeze({
-    name: "data.portrait",
-    legacyKey: "portrait",
-    to: "portrait",
-    shape: "a wikilink",
-    // The two empties survive, because the caller's `?? defaultImg` is what
-    // tells them apart: `null` and an absent key mean "no art named, default
-    // me", `""` means "ship blank on purpose".
-    read: (raw) => raw,
-    default: null,
-    describe: "An `image` address for the portrait.",
-});
 
 /**
  * The default art for an actor subtype.
@@ -372,36 +330,6 @@ export class Actors extends SystemActorCompiler {
         const { value: authoredFolder, isAddress } = folderField(fm);
         const folder = this.folderResolver(authoredFolder, { isAddress });
 
-        // The two retiring positions a declared field may be read from.
-        // **Warnings**, on the pattern every retirement in this package
-        // follows: the note compiles to the correct document either way, so
-        // reddening a tree over one would refuse before the sweep rather than
-        // after it. What they buy is a count — without one, nothing says which
-        // position a value came from, and a default is indistinguishable from
-        // a miss.
-        const portraitReports = {
-            block: SYSTEM,
-            onLegacyKey: (field) =>
-                this.noteWarn(
-                    legacyKeyMessage(SYSTEM, field),
-                    locateFrontmatterKey(this.currentNote?.absPath, field.legacyKey),
-                ),
-            // Anchored at column 1: the two positions share a spelling here —
-            // `sohl.portrait` and `portrait` — so a locator that took the first
-            // match would point at the block key while the message named the
-            // top-level one.
-            onRetiredTopLevel: (field) =>
-                this.noteWarn(
-                    retiredTopLevelMessage(field),
-                    locateFrontmatterKey(
-                        this.currentNote?.absPath,
-                        retiredTopLevelKey(field),
-                        undefined,
-                        { topLevel: true },
-                    ),
-                ),
-        };
-
         const system = {
             // The frontmatter shortcode is the actor's stable `(type, shortcode)`
             // key — and, for a being that is an archetype, its archetype
@@ -413,16 +341,11 @@ export class Actors extends SystemActorCompiler {
             // with the schema, since an undeclared `system` key is discarded at
             // construction without a warning.
             templatePriority: systemTemplatePriority(fm, ctx),
-            // Nullish, not `||`: a note that names no portrait gets the
-            // being's own default, one that writes `""` ships blank on purpose.
-            // Resolved through the declaration so `data.portrait` is reached at
-            // all — see {@link PORTRAIT_FIELD}.
-            portrait:
-                this.artPathOf(
-                    readField(PORTRAIT_FIELD, fm, portraitReports),
-                    "portrait",
-                    "image",
-                ) ?? art.img,
+            // `system.portrait` is **not** written here. A picture of the
+            // subject is a picture, so a being's portrait is the lead image of
+            // its `{#appearance}` section — which is the markup below — and the
+            // key that used to declare one is not a key. With no authored
+            // source left, the field keeps the schema's own initial.
             appearance: renderSection(body || "", "appearance"),
             dossier: renderSection(body || "", "dossier"),
         };

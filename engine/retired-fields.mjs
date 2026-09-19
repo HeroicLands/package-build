@@ -460,47 +460,6 @@ export const RETIRED_FIELD_ALIASES = Object.freeze({
 });
 
 /**
- * `data:` keys no type declares any more, and what a note carrying one is told.
- *
- * Distinct from {@link RETIRED_FIELD_ALIASES}, which renames a key: there is no
- * key to write instead. The subject's picture is a picture, so it is authored in
- * the prose that describes the subject rather than in a field only a template
- * can reach.
- *
- * Reported as a **warning** and read by the compiler while a tree still carries
- * it, on the pattern every retirement in this package follows: the note compiles
- * to the correct document either way, so reddening a tree would refuse before
- * the sweep rather than after it.
- *
- * @type {Readonly<Record<string, string>>}
- */
-export const RETIRED_DATA_KEYS = Object.freeze({
-    portrait:
-        "a being's portrait is the first image inside its `{#appearance}` " +
-        "section, written as an ordinary embed — `![[<address>|<full name>]]` " +
-        "— where an author can see it, move it and caption it",
-});
-
-/**
- * What a note writing a retired `data:` key is told.
- *
- * @param {string} key - The key the note carries.
- * @param {string} [file] - The note's path, named in the message. Omit it where
- *   the caller emits through a diagnostic, whose locator already starts the
- *   line.
- * @returns {string} The message, unpunctuated at the end as a finding is.
- */
-export function retiredDataKeyMessage(key, file) {
-    return (
-        `\`data.${key}:\` is a retired \`data:\` key — ` +
-        RETIRED_DATA_KEYS[key] +
-        (file ? ` — ${file}` : "") +
-        `. It is still read while the trees carry it, so the note compiles ` +
-        `unchanged; delete the key once the image is in the prose`
-    );
-}
-
-/**
  * What a note writing a renamed field is told, in one place.
  *
  * Shared by the compile-time report and the frontmatter lint, because an author

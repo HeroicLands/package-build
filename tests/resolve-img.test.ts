@@ -220,7 +220,6 @@ function artIndex(): any {
         headgear: ["icon", "icons/other/head-gear.svg"],
         custom: ["icon", "icons/custom.svg"],
         folktoken: ["icon", "icons/folk-token.webp"],
-        folk: ["image", "images/folk.webp"],
         person: ["icon", "icons/game-icons/delapouite/person.svg"],
     };
     return {
@@ -300,16 +299,20 @@ describe("an item note's art obeys the ownership rule", () => {
 });
 
 describe("an actor note's art obeys the ownership rule, on every slot", () => {
-    it("resolves profile art, token art and the sheet portrait alike", () => {
+    it("resolves profile art and token art alike", () => {
         const doc = actors().buildBeing(
             new Map(),
-            beingNote({ icon: "person", tokenIcon: "folktoken", portrait: "folk" }),
+            beingNote({ icon: "person", tokenIcon: "folktoken" }),
             "",
         );
 
         expect(doc.img).toBe("systems/sohl/assets/icons/game-icons/delapouite/person.svg");
         expect(doc.prototypeToken.texture.src).toBe("systems/sohl/assets/icons/folk-token.webp");
-        expect(doc.system.portrait).toBe("systems/sohl/assets/images/folk.webp");
+    });
+
+    it("writes no `system.portrait` — a being's portrait is an image in its prose", () => {
+        const doc = actors().buildBeing(new Map(), beingNote({ icon: "person" }), "");
+        expect(doc.system).not.toHaveProperty("portrait");
     });
 
     it("lets a token follow the profile art where the note names only one", () => {

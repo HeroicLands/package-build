@@ -258,7 +258,7 @@ Which content package a note belongs to: the repository's configured `contentPac
 
 ### `engine.retiredFields`
 
-Frontmatter fields a note may no longer declare — `draft:`, a top-level `aliases:`, `section:`, a top-level `traits:` block, a retired `data:` key, and any field with a renamed spelling or in-block position — each reported by presence alone, naming the file and line and saying what to write instead.
+Frontmatter fields a note may no longer declare — `draft:`, a top-level `aliases:`, `section:`, a top-level `traits:` block, and any field with a renamed spelling or in-block position — each refused by presence alone, naming the file and line and saying what to write instead.
 
 | Export                        | Signature                                        | Returns                  | Use it when                                                                                        |
 | ----------------------------- | ------------------------------------------------ | ------------------------ | -------------------------------------------------------------------------------------------------- |
@@ -270,8 +270,6 @@ Frontmatter fields a note may no longer declare — `draft:`, a top-level `alias
 | `sectionRetiredMessage`       | `sectionRetiredMessage(file)`                    | `string`                 | building the shared message for `section:`                                                         |
 | `assertNoSectionField`        | `assertNoSectionField(fm, ...)`                  | throws                   | refusing a note that declares `section:` at all                                                    |
 | `traitsRetiredMessage`        | `traitsRetiredMessage(file)`                     | `string`                 | building the shared message for a top-level `traits:` block, stating where each key moved          |
-| `RETIRED_DATA_KEYS`           | `const RETIRED_DATA_KEYS`                        | `Record<string, string>` | reading which `data:` keys no type declares any more, and what a note carrying one is told instead |
-| `retiredDataKeyMessage`       | `retiredDataKeyMessage(key, file)`               | `string`                 | building the shared warning for a retired `data:` key the compiler still reads                     |
 | `assertNoTraitsField`         | `assertNoTraitsField(fm, ...)`                   | throws                   | refusing a note that declares a top-level `traits:` block at all                                   |
 | `locateFrontmatterKey`        | `locateFrontmatterKey(absPath, key, value, ...)` | `{line?, column?}`       | finding a frontmatter key's position in a note's file, by reading it                               |
 | `RETIRED_FIELD_ALIASES`       | `const RETIRED_FIELD_ALIASES`                    | —                        | looking up the current field name a retired spelling was renamed to                                |

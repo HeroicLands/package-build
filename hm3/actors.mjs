@@ -50,7 +50,7 @@
  */
 
 import { resolveName } from "../engine/helpers.mjs";
-import { buildFromFields, readField, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
+import { buildFromFields, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
@@ -98,35 +98,6 @@ const ACTOR_FIELDS = Object.freeze([
         describe: "The kind of creature this is.",
     },
 ]);
-
-/**
- * The actor's bio image — the fourth row of the specification's `being` table,
- * and the last one that was still read by hand.
- *
- * Declared for the reason {@link ACTOR_FIELDS} is, and fixed for the reason
- * `data.species` was: read with `blockProperty(fm, block, "portrait")` it saw
- * the block and the note's top level and nothing else, so the `data.portrait`
- * the specification names never reached the document and the `?? defaultImg`
- * beside it dressed the miss up as "this note names no art".
- *
- * It is **not** in `ACTOR_FIELDS`, because `buildFromFields` has no seam for
- * the subtype default that has to follow it — the `?? defaultImg` is the whole
- * of what distinguishes an unnamed portrait from a deliberately blank one,
- * and it needs a subtype the coercion is not handed.
- *
- * @type {import("../engine/field-spec.mjs").FieldSpec}
- */
-const BIO_IMAGE_FIELD = Object.freeze({
-    name: "data.portrait",
-    legacyKey: "portrait",
-    to: "bioImage",
-    shape: "a wikilink",
-    // The value is an address, resolved by the caller: an address is answered
-    // by the compile's index, which a field declaration has no reach into.
-    read: (raw) => raw,
-    default: null,
-    describe: "An `image` address for the portrait.",
-});
 
 /**
  * The two `data:` facts HM3 declares on a `character` and not on a `creature`.
@@ -331,13 +302,9 @@ export class Hm3Actors extends SystemActorCompiler {
         });
 
         const system = {
-            // Nullish, not `||`: a note that names no portrait gets the
-            // subtype's default, one that writes `""` ships blank on purpose.
-            // Resolved through the declaration so `data.portrait` is reached at
-            // all — see {@link BIO_IMAGE_FIELD}.
-            bioImage:
-                this.artPathOf(readField(BIO_IMAGE_FIELD, fm, reports), "portrait", "image") ??
-                art.img,
+            // `system.bioImage` is **not** written here, for the reason SoHL's
+            // `system.portrait` is not: a being's portrait is the lead image of
+            // its `{#appearance}` section, which is the markup below.
             description: renderSection(body || "", "appearance"),
             biography: renderSection(body || "", "dossier"),
             ...buildFromFields(ACTOR_FIELDS, reports)(fm),

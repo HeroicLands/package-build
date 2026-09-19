@@ -22,7 +22,6 @@ page. Write the name of the file and the build finds it.
 - _A name nothing answers is reported against the note_ rather than quietly
   becoming the stock picture.
 
-A being's portrait moves into the prose that describes it, as the first image
-inside its `{#appearance}` section. A note still carrying a `portrait` field
-compiles exactly as before and says so, so a setting can be swept at its own
-pace.
+A being's portrait is the first image inside its `{#appearance}` section now,
+written in the prose that describes it rather than declared in a field — where
+an author can see it, move it and caption it like any other picture.
