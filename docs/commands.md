@@ -441,7 +441,7 @@ None.
 
 **NAME**
 
-Take a newer version of a dependency, keeping the lockfile's formatting.
+Take a newer published version of a declared dependency.
 
 **SYNOPSIS**
 
@@ -453,17 +453,20 @@ package-build bump [packages..] [--tag <tag>] [--check]
 
 Takes the newest published version of one or more declared dependencies,
 updating `package-lock.json` — and `package.json` when the declared range has to
-move — then restoring both files to the indentation they already used.
+move — and holding both files to the indentation they already carry.
 
-npm performs the resolution, so a version whose dependency set differs from the
-one it replaces is handled as correctly as one that moves three lines. Editing
-those three lines by hand is only right while the two dependency sets are
-identical, and nothing tells the author when they are not.
+npm performs the resolution, which is what this exists for. A version whose
+dependency set differs from the one it replaces is handled as correctly as one
+that moves three lines, while editing the `version` / `resolved` / `integrity`
+lines by hand is only right while the two dependency sets are identical — and
+nothing tells the author when they are not.
 
-The indentation is the reason this exists rather than `npm install` being run
-directly. Every repository consuming this toolchain writes `package-lock.json`
-with four spaces and prettier-ignores it; npm rewrites it with two, turning a
-three-line version change into a whole-file reformat no reviewer can read past.
+npm writes `package-lock.json` with the indentation `package.json` uses, so a
+consumer whose manifest is formatted gets a formatted lockfile back and the
+diff is the version change alone. The indentation step covers the case where
+the two files disagree: each is written back with the indent it already
+carried, rather than the lockfile taking the manifest's. A run that had to put
+an indent back names the file it rewrote.
 
 Named no packages, it takes every `@heroiclands/*` dependency the manifest
 declares. That scope is the one a person bumps by hand — a first-party release
@@ -496,7 +499,6 @@ every package is already current.
 ```
 $ package-build bump
 @heroiclands/package-build  20.6.0 → 20.7.0
-   kept the existing indentation of package-lock.json
 
 Install it with `npm ci`, which resolves from the lockfile this just moved.
 ```
