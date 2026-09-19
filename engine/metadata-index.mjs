@@ -367,6 +367,11 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // an infobox sorting a being's skills — has no other way to
                 // learn it about a note another package publishes.
                 subType: record.subType ?? undefined,
+                // A file the other package ships, carried through whole. Its
+                // `path` is that package's path, so a consumer joins its own
+                // root onto it and resolves in one step — which is the point of
+                // the record naming a path at all.
+                asset: record.asset ?? undefined,
                 package: pkg,
             });
         }

@@ -120,6 +120,15 @@ export * as foundryEntries from "./foundry-entries.mjs";
 /** Publishing the note tree as a queryable JSON Lines index. */
 export * as contentIndex from "./content-index.mjs";
 
+/** The asset types — `icon`, `image`, `audio` — and the roots they are walked from. */
+export * as assetTypes from "./asset-types.mjs";
+
+/** The asset record: one index line per addressable file, and its provenance. */
+export * as assetIndex from "./asset-index.mjs";
+
+/** The `<package>` segment's registry: the names no repository may claim. */
+export * as packages from "./packages.mjs";
+
 /** Publishing a content tree as a website: the pass, and its integrity gates. */
 export * as siteBuild from "./site-build.mjs";
 

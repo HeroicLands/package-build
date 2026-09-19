@@ -100,6 +100,9 @@ icons: assets/icon-registry.yaml
 # conventional layout shown here.
 paths:
   content: assets/content
+  # The asset roots' parent: `icons/`, `images/` and `audio/` sit directly under
+  # it, and the content tree beside them.
+  assets: assets
   # Vendored foreign manifests, read by `links`. Inbound.
   manifests: assets/manifests
   # Where `manifest` writes this package's own. Outbound, and a build artifact.
@@ -1956,16 +1959,58 @@ frontmatter spreads **242 distinct leaf paths** unevenly over **15 types**, from
 authoring. A format with a fixed column set would turn that authoring into a
 schema migration; a document format has no such problem.
 
-Two keys are **derived** rather than authored, and a note carrying either is an
+Three keys are **derived** rather than authored, and a note carrying one is an
 error rather than a silent overwrite:
 
 | Key       | What it holds                                                                                      |
 | --------- | -------------------------------------------------------------------------------------------------- |
 | `package` | The configured `contentPackage`. A note may not declare its own, and the expander reads the same.  |
 | `file`    | `path`, `folder` and `name` below the content root — the same `file.*` a content-table query uses. |
+| `asset`   | The file an asset record addresses. Present on an asset's record and on no note's.                 |
 
 The location is namespaced under `file` precisely because `folder` is real
 frontmatter on most notes; a record states both, and they mean different things.
+
+### A file is a record too
+
+The same pass walks the package's **asset roots** — `assets/icons`,
+`assets/images` and `assets/audio` — and emits one record per addressable file
+into the same index. There is no second artifact and no asset-specific emitter:
+a package whose tree holds only pictures publishes an ordinary content index
+that happens to hold only asset records.
+
+The filename is the shortcode, the root supplies the type, and the layout in
+between is the package's own business:
+
+```json
+{
+  "type": "icon",
+  "shortcode": "anvil",
+  "package": "sohl",
+  "address": { "canonical": "sohl-none-icon-anvil" },
+  "asset": {
+    "path": "icons/game-icons/lorc/anvil.svg",
+    "attribution": "Lorc",
+    "source": "http://lorcblog.blogspot.com",
+    "license": "CC-BY-3.0",
+    "notes": "From game-icons.net"
+  }
+}
+```
+
+An asset record carries no frontmatter, no anchors and no `foundry` block, and
+its `address` holds the canonical key and no page slug — a file declares nothing
+about itself, compiles into no document, and publishes no page. The `asset`
+block is what a reader tells the two shapes apart by.
+
+`path` is relative to the emitting package's own asset directory, so each
+consumer joins its own root onto it and resolves in one step. Provenance comes
+from a sibling `<filename.ext>.yaml` where one exists, and otherwise from the
+nearest `provenance.yaml` above the file, searching no higher than the type
+root. `docs/content-format.md` states the whole rule.
+
+Two files under one root sharing a basename are two claims on one address, and
+the build fails naming both.
 
 ### Every note's address, and every anchor it defines
 

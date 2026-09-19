@@ -46,6 +46,10 @@ import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so
 // the direction is toward the leaf and cannot close a cycle.
 import { NO_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
+// The asset vocabulary, for the one thing the address grammar asks of it:
+// whether a type's `<system>` segment is fixed. `engine/asset-types.mjs` is a
+// leaf, so the direction cannot close a cycle.
+import { isAssetType } from "./asset-types.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 
@@ -267,8 +271,16 @@ export function blockSystem(keyPath) {
 export function expandAddress(read, where) {
     const pkg = read.package ?? where.package;
     // A documentation journal is a core document, so it is `none` however it was
-    // reached; otherwise the block's system, which body prose reports as `none`.
-    const system = read.itemDoc ? NO_SYSTEM : (read.system ?? where.system ?? NO_SYSTEM);
+    // reached, and an **asset** is `none` for a stronger reason: a file belongs
+    // to no game system, so the segment is a property of the type rather than of
+    // where the reference was written. Without that, a `sohl:` block naming
+    // `icon-anvil` would expand to `sohl-sohl-icon-anvil` and resolve to
+    // nothing, which is exactly where an embedded item's art is written.
+    // Otherwise the block's system, which body prose reports as `none`.
+    const system =
+        read.itemDoc || isAssetType(read.type) ?
+            NO_SYSTEM
+        :   (read.system ?? where.system ?? NO_SYSTEM);
     const redirected = system === NO_SYSTEM && isSystemBearing(read.type);
     const type = read.itemDoc || redirected ? `doc${read.type}` : read.type;
     return canonicalKey(pkg, system, type, read.shortcode);

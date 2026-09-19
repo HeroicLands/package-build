@@ -70,6 +70,8 @@ import YAML from "yaml";
 // Leaves with no local imports of their own, so naming them here cannot close
 // a cycle around a consumer's config file (see `engine/pack-config.mjs`).
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-charset.mjs";
+import { ASSET_TYPE_NAMES } from "./engine/asset-types.mjs";
+import { isReservedPackage } from "./engine/packages.mjs";
 import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
 import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
@@ -149,6 +151,12 @@ const DOCUMENTATION_REFUSES = Object.freeze({
  */
 export const DEFAULT_PATHS = /** @type {const} */ ({
     content: "assets/content",
+    // The asset roots' parent — `icons/`, `images/` and `audio/` sit directly
+    // under it, and the content tree beside them. Named separately from
+    // `content` rather than derived from its parent, because the two are free to
+    // move independently and deriving one from the other would make relocating
+    // either a surprise for the other.
+    assets: "assets",
     // Where `content-index` writes this package's note index. Under `build/`
     // because it is derived and disposable — regenerating it costs a
     // frontmatter parse — and emphatically not under `stage`, which is mirrored
@@ -361,6 +369,9 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} PathsInput
  * @property {string} [content]          Content tree root.
+ * @property {string} [assets]           The asset roots' parent — the directory
+ *                                       holding `icons/`, `images/` and
+ *                                       `audio/`.
  * @property {string} [contentIndex]     Where `content-index` writes this
  *                                       package's note index. Outbound, and a
  *                                       derived artifact — never a source, and
@@ -383,6 +394,7 @@ export function publishesContentPages(config) {
  *
  * @typedef {object} ResolvedPaths
  * @property {string} content
+ * @property {string} assets
  * @property {string} contentIndex
  * @property {string} packJson
  * @property {string} stage
@@ -827,7 +839,7 @@ function requireNonEmptyString(value, field) {
 }
 
 /**
- * The `contentPackage`, checked against the two rules an address puts on it.
+ * The `contentPackage`, checked against the three rules an address puts on it.
  *
  * It is the first segment of every canonical address this repository publishes
  * (`package-system-type-shortcode`, so `sohl-none-doc-gear`), and an address is
@@ -856,6 +868,13 @@ function requireNonEmptyString(value, field) {
  *    package's id to *be* its system id, and `sohl-sohl-skill-clmb` is the
  *    honest address that results — which is the reason to prevent the ones that
  *    are avoidable.
+ * 3. _Not reserved_. `packagebuild` addresses the files this toolchain ships
+ *    itself, so a repository claiming the name would publish addresses that
+ *    collide with them — see {@link module:engine/packages}.
+ *
+ * The type vocabulary rule reaches the **asset** types too: `icon`, `image` and
+ * `audio` are types an address names exactly as it names a being, so a package
+ * called `image` would make `image-thorn` readable two ways.
  *
  * @param {unknown} value - The configured `contentPackage`.
  * @param {ReadonlySet<string>} docEntryTypes - Every type whose prose compiles
@@ -878,6 +897,15 @@ function requireContentPackage(value, docEntryTypes) {
                 "than merely ugly. `harn-adventures` became `harnadventures`",
         );
     }
+    if (isReservedPackage(pkg)) {
+        fail(
+            "contentPackage",
+            `is \`${pkg}\`, which is a reserved package name. ` +
+                `\`${pkg}-none-image-<shortcode>\` already addresses a file the ` +
+                "toolchain itself ships, so a package claiming the name would " +
+                "publish addresses that collide with it. Rename the package",
+        );
+    }
     // The closed vocabulary is read alongside the configured registries, not
     // instead of them, because neither is a superset of the other. The format's
     // vocabulary holds every type a note may declare *however this repository
@@ -891,6 +919,7 @@ function requireContentPackage(value, docEntryTypes) {
     const typeNames = new Set([
         ...Object.keys(PACK_BY_TYPE),
         ...Object.keys(NOTE_VOCABULARY),
+        ...ASSET_TYPE_NAMES,
         ...docEntryTypes,
         ...[...docEntryTypes].map((type) => `doc${type}`),
     ]);
