@@ -90,6 +90,7 @@ import { fileURLToPath } from "node:url";
 import YAML from "yaml";
 
 import { loadPackConfig } from "./pack-config.mjs";
+import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -532,6 +533,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         // first, because the image lives in the body and the body follows.
         const boxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
+            router: routerFor(resolved),
         });
         const panel = infoboxesToTypst(boxes, {
             link: (value) => linkToTypst(value, plan.links, labelFor),

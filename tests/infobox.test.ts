@@ -52,7 +52,8 @@ import {
 import { SOHL_FIELD_PRESENTATION, UNSTATED, strikeModes } from "../sohl/infobox.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
-import { noteInfoboxes } from "../engine/infobox-registry.mjs";
+import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registry.mjs";
+import { createPackRouter } from "../engine/pack-router.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
 
@@ -444,7 +445,8 @@ describe("a system box", () => {
                         },
                     }),
                 ],
-                carriesBlock: (fm: Record<string, unknown>, block: string) => Boolean(fm[block]),
+                compilesDocument: (fm: Record<string, unknown>, map: { block: string }) =>
+                    Boolean(fm[map.block]),
                 resolveField: (
                     field: { to?: string; default?: unknown },
                     fm: Record<string, Record<string, Record<string, unknown>>>,
@@ -461,6 +463,73 @@ describe("a system box", () => {
         expect(sohl.sections[0].rows).toEqual([
             { label: "Mastery level base", kind: "number", value: 40 },
         ]);
+    });
+});
+
+describe("a system box is available when that system compiles a document", () => {
+    /** A package built for one system: one pack per document class, none declaring a system. */
+    const oneSystem = createPackRouter([
+        { name: "items", type: "Item" },
+        { name: "journals", type: "JournalEntry" },
+        { name: "actors", type: "Actor" },
+    ]);
+
+    /** A package feeding two systems: one Item pack each, both the default of their own. */
+    const twoSystems = createPackRouter([
+        { name: "items-sohl", type: "Item", system: "sohl", default: true },
+        { name: "items-hm3", type: "Item", system: "hm3", default: true },
+    ]);
+
+    const affiliation = {
+        type: "affiliation",
+        subType: "arcanetradition",
+        name: { full: "Hydälis" },
+        data: { demonym: null },
+    };
+
+    it("is available where the pack declaring no system compiles the note", () => {
+        // The whole of an affiliation is in `data:`; the note authors no `sohl:`
+        // block and the Item pass compiles one regardless.
+        const sohl = noteInfoboxes(affiliation, { router: oneSystem }).find(
+            (box) => box.id === "sohl",
+        );
+        expect(sohl.available).toBe(true);
+        expect(sohl.statement).not.toBe(NOT_AVAILABLE);
+    });
+
+    it("is unavailable for a system no pack compiles for", () => {
+        // HM3 maps `weapongear`, and a package whose only Item pack is compiled
+        // by the fallback pass ships no HM3 document for it.
+        const boxes = noteInfoboxes(
+            { type: "weapongear", name: { full: "Spear" }, sohl: { system: { lengthBase: 5 } } },
+            { router: oneSystem },
+        );
+        expect(boxes.find((box) => box.id === "hm3").statement).toBe(NOT_AVAILABLE);
+        expect(boxes.find((box) => box.id === "sohl").available).toBe(true);
+    });
+
+    it("takes the block where the pack compiling the note declares a system", () => {
+        const spear = { type: "weapongear", name: { full: "Spear" }, sohl: { system: {} } };
+        const boxes = noteInfoboxes(spear, { router: twoSystems });
+        expect(boxes.find((box) => box.id === "sohl").available).toBe(true);
+        expect(boxes.find((box) => box.id === "hm3").statement).toBe(NOT_AVAILABLE);
+    });
+
+    it("says nothing of a type the system does not map", () => {
+        // No row, no document, no box — asked of the predicate directly, since
+        // the box set never offers one to answer for.
+        const hm3 = KNOWN_DOCUMENT_SUBTYPE_MAPS.find(
+            (map: { system: string }) => map.system === "hm3",
+        );
+        expect(compilesSystemDocument(affiliation, hm3, oneSystem)).toBe(false);
+    });
+
+    it("compiles nothing where the note routes nowhere", () => {
+        const noItemPack = createPackRouter([{ name: "journals", type: "JournalEntry" }]);
+        const sohl = KNOWN_DOCUMENT_SUBTYPE_MAPS.find(
+            (map: { system: string }) => map.system === "sohl",
+        );
+        expect(compilesSystemDocument(affiliation, sohl, noItemPack)).toBe(false);
     });
 });
 

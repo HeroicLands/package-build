@@ -23,9 +23,11 @@
  * @module
  */
 
+import { subtypeRow } from "./document-subtypes.mjs";
 import { assertInfoboxSet, buildInfoboxes } from "./infobox.mjs";
+import { packRouter } from "./pack-router.mjs";
 import { carriesSystemBlock, resolveFieldValue } from "./system-block.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
+import { DEFAULT_DOCUMENT_SUBTYPES, KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 import { SOHL_INFOBOX } from "../sohl/infobox.mjs";
 import { HM3_INFOBOX } from "../hm3/infobox.mjs";
 
@@ -53,6 +55,49 @@ export function infoboxFor(system) {
 }
 
 /**
+ * Whether one system compiles a document for one note.
+ *
+ * This is what a system box's _available_ asserts, and it is the compile's own
+ * question rather than a reading of the frontmatter. A note carrying no block
+ * is not a note a system has nothing for: where the pack compiling its document
+ * declares no `system:`, the document is built from `data:` and the field
+ * defaults and ships exactly like any other.
+ *
+ * Three statements answer it, and they are the three the compile itself
+ * follows:
+ *
+ * 1. **The map** says which document class this system makes of the note's
+ *    type. No row, no document — and no box either, which is why a caller
+ *    reaching here already has one.
+ * 2. **The router** says which pack that document goes to, read from the pack
+ *    list this build is driven by.
+ * 3. **That pack's `system:`** decides the rest. Declaring one, it writes that
+ *    system's data and takes only notes that say something about it — the rule
+ *    {@link module:engine/base-compiler.BasePackCompiler#eligibleFor} applies,
+ *    asked here from outside. Declaring none, it is compiled by the fallback
+ *    pass, which needs no block and answers for
+ *    {@link module:engine/subtype-registry.DEFAULT_DOCUMENT_SUBTYPES} alone —
+ *    so a tree with no HM3 pack ships no HM3 document however a note is
+ *    written.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {object} map - The system's note-type → document-subtype map.
+ * @param {object} router - The pack router this build is driven by.
+ * @returns {boolean} True when this system compiles a document for this note.
+ */
+export function compilesSystemDocument(fm, map, router) {
+    const row = subtypeRow(map, fm?.type);
+    if (!row?.document) return false;
+
+    const packName = router.resolveOrNull(fm, row.document, map.system);
+    if (!packName) return false;
+
+    const packSystem = router.systemOf(packName);
+    if (!packSystem) return map.system === DEFAULT_DOCUMENT_SUBTYPES.system;
+    return packSystem === map.system && carriesSystemBlock(fm, map.block);
+}
+
+/**
  * Every box one note carries, wired to the registries this toolchain ships.
  *
  * The one call each medium makes. What varies between them is the resolver —
@@ -63,15 +108,17 @@ export function infoboxFor(system) {
  * @param {object} [options] - Options.
  * @param {(ref: unknown, hint?: object) => object|undefined} [options.resolve] -
  *   Resolves a reference to `{name, url?, uuid?, address?, subType?}`.
+ * @param {object} [options.router] - The pack router deciding which system
+ *   compiles a document for this note. Defaults to the consuming repository's.
  * @returns {object[]} The boxes, in the order every medium renders them.
  * @throws {Error} When the built set disagrees with what the note's type maps
  *   to — see {@link module:engine/infobox.assertInfoboxSet}.
  */
-export function noteInfoboxes(fm, { resolve } = {}) {
+export function noteInfoboxes(fm, { resolve, router = packRouter() } = {}) {
     const boxes = buildInfoboxes(fm, {
         maps: KNOWN_DOCUMENT_SUBTYPE_MAPS,
         providers: KNOWN_INFOBOXES,
-        carriesBlock: carriesSystemBlock,
+        compilesDocument: (note, map) => compilesSystemDocument(note, map, router),
         resolveField: resolveFieldValue,
         resolve,
     });

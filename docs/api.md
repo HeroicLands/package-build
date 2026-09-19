@@ -389,11 +389,12 @@ The declared infobox: what a note's summary panel holds, decided once and render
 
 The infobox declarations this toolchain ships, one per system, and the single call each medium makes to build a note's boxes.
 
-| Export            | Signature                    | Returns               | Use it when                                                                    |
-| ----------------- | ---------------------------- | --------------------- | ------------------------------------------------------------------------------ |
-| `KNOWN_INFOBOXES` | `const KNOWN_INFOBOXES`      | —                     | enumerating every system's infobox declaration, in the order a page shows them |
-| `infoboxFor`      | `infoboxFor(system)`         | `object \| undefined` | looking up one system's declaration by its id                                  |
-| `noteInfoboxes`   | `noteInfoboxes(fm, options)` | `object[]`, throws    | building every box one note carries, wired to the shipped registries           |
+| Export                   | Signature                                 | Returns               | Use it when                                                                                                  |
+| ------------------------ | ----------------------------------------- | --------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `KNOWN_INFOBOXES`        | `const KNOWN_INFOBOXES`                   | —                     | enumerating every system's infobox declaration, in the order a page shows them                               |
+| `infoboxFor`             | `infoboxFor(system)`                      | `object \| undefined` | looking up one system's declaration by its id                                                                |
+| `noteInfoboxes`          | `noteInfoboxes(fm, options)`              | `object[]`, throws    | building every box one note carries, wired to the shipped registries                                         |
+| `compilesSystemDocument` | `compilesSystemDocument(fm, map, router)` | `boolean`             | asking whether one system compiles a document for one note, which is what a system box's _available_ asserts |
 
 ### `engine.infoboxRender`
 
@@ -463,6 +464,7 @@ Which note-type → document-subtype maps this toolchain ships, and the two ques
 | ----------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
 | `KNOWN_DOCUMENT_SUBTYPE_MAPS` | `const KNOWN_DOCUMENT_SUBTYPE_MAPS`      | —                                                                                                                                 | The note-type → document-subtype maps this toolchain ships.                                                                            |
 | `ACTOR_TYPES`                 | `const ACTOR_TYPES`                      | —                                                                                                                                 | Every note type any shipped map compiles into an **Actor**.                                                                            |
+| `DEFAULT_DOCUMENT_SUBTYPES`   | `const DEFAULT_DOCUMENT_SUBTYPES`        | —                                                                                                                                 | The map a pack declaring no `system:` compiles its documents against.                                                                  |
 | `subtypeMapFor`               | `function subtypeMapFor(system)`         | {import("./document-subtypes.mjs").DocumentSubtypeMap\|undefined} Its map, or `undefined` where this toolchain ships none for it. | The map one system ships, by its id.                                                                                                   |
 | `schemaSubtypeOf`             | `function schemaSubtypeOf(system, type)` | {string} The document subtype to look up.                                                                                         | The document subtype a note type compiles into for one system — the translation the _schema_ check needs, and the reason it needs one. |
 

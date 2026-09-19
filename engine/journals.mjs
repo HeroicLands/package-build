@@ -440,6 +440,9 @@ export class Journals extends BasePackCompiler {
         // URLs: a player reading this at the table stays in Foundry.
         const boxes = noteInfoboxes(fm, {
             resolve: (ref, hint) => resolveReference(this.linkIndex, ref, hint),
+            // This compile's own router, so the panel's `available` is decided
+            // by the pack list this build is being driven by.
+            router: this.router,
         });
 
         return buildJournalEntry({
