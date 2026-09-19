@@ -2609,11 +2609,11 @@ pdf:
   out: build/dist # default
   front: # prose before the contents
     - prose/colophon.md
-  fonts:
+  fonts: # every key optional — the defaults below
     serif: Libertinus Serif
     sans: Libertinus Sans
     mono: DejaVu Sans Mono
-    path: assets/fonts # where to find them, beyond the system's
+    path: assets/fonts # faces of your own, searched as well as the shipped ones
   iconFonts: # icon family → the font carrying its glyphs
     fontawesome: assets/fonts/fa-solid-900.ttf
   binary: typst # when it is not simply `typst` on PATH
@@ -2621,6 +2621,39 @@ pdf:
 
 Nothing here is an address or a brand: the title, the front matter and the faces
 are the publishing repository's to choose, which is why they are configuration.
+
+### The faces come with the build, not with the machine
+
+All three defaults resolve on a machine that has none of them installed. The
+serif and the mono the defaults name are faces the compiler embeds; the sans is
+one the toolchain ships, under `assets/fonts`, along with the superfamily's own
+mono for a package that names it. The compile searches that directory, and
+`pdf.fonts.path` when a package names one, and **nothing the machine has
+installed** — `--font-path` and `--ignore-system-fonts` together — so the same
+source sets the same book everywhere, and a machine carrying its own copy of a
+named family does not quietly change what it prints.
+
+The default mono is the compiler's rather than the superfamily's because the
+superfamily's mono carries none of the dot-below and dot-above letters this
+corpus spells names with. A package whose fenced blocks stay inside what it does
+carry can name it instead, and the compiler reports nothing when a glyph is
+missing, so that is a claim to measure against the fences rather than assume.
+
+A face nothing resolves is a **finding** — the compiler says so, and a compile
+that says it still exits 0 and writes a book set in the fallback, which is the
+one way a wrong face reaches a reader unnoticed.
+
+Compiling an emitted `.typ` by hand takes the same two flags to set it the way
+the build does:
+
+```bash
+typst compile --ignore-system-fonts \
+  --font-path node_modules/@heroiclands/package-build/assets/fonts \
+  build/dist/the-book.typ
+```
+
+The shipped face is licensed under the SIL Open Font License, which travels with
+it.
 
 ### Typst is a binary, not a dependency
 

@@ -1,0 +1,11 @@
+attribution: The Libertinus Project Authors
+source: https://github.com/alerque/libertinus/releases/tag/v7.051
+license: OFL-1.1
+notes: >-
+    Libertinus Sans in the three styles a heading can ask for, and Libertinus
+    Mono, which a package may name for its code spans. Taken unmodified from the
+    release's static/OTF directory; the licence text travels with them as
+    OFL.txt, as the OFL requires. The serif half of the superfamily is not here
+    because the compiler embeds it, and the remaining faces of the release —
+    Math, Display, Initials, Keyboard and the Semibold weights — are ones no
+    book sets.

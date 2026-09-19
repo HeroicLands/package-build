@@ -898,7 +898,10 @@ The content tree, built into a book. The I/O half of the PDF surface: it reads t
 | `buildPdf`        | `async buildPdf({ config, out, version, compile })`        | {Promise<object>} `{ built, reason, findings, typ, pdf, stats }`.                               | Build the book.                                                      |
 | `stagedImagePath` | `function stagedImagePath(src, config)`                    | {{from: string, to: string}\|null} The file, and where under the output directory it is staged. | The file on disk an authored image address names, or `null`.         |
 | `stageBanners`    | `function stageBanners(entries, config, outDir, findings)` | {Map<string, string>} Declared path → the staged file's path, relative to the `.typ`.           | Copy every banner the document tree names into the output directory. |
-| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`              | {{ok: boolean, message: string}} What happened.                                                 | Run Typst over the emitted source.                                   |
+| `compileTypst`    | `function compileTypst(typPath, pdfPath, pdf`              | {{ok: boolean, message: string, findings: object[]}} What happened.                             | Run Typst over the emitted source.                                   |
+| `typstArgs`       | `function typstArgs(typPath, pdfPath, pdf)`                | {string[]} The arguments, in order.                                                             | The command line the compile runs, as data.                          |
+| `typstWarnings`   | `function typstWarnings(output)`                           | {object[]} One finding per warning the compiler wrote.                                          | The compiler's own warnings, as findings.                            |
+| `BOOK_FONTS_PATH` | `const BOOK_FONTS_PATH`                                    | {string} The directory holding them.                                                            | The faces the book is set in, shipped with this package.             |
 
 ### `engine.baseCompiler`
 

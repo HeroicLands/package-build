@@ -851,12 +851,20 @@ reader downloaded, and a title with no document has nothing to print:
 `pdf.fonts` names font **families**, not files — the renderer asks the font
 stack for a family by name:
 
-| Key (under `pdf.fonts`) | Type          | Required | Default                                                          |
-| ----------------------- | ------------- | -------- | ---------------------------------------------------------------- |
-| `pdf.fonts.serif`       | string        | no       | `""`                                                             |
-| `pdf.fonts.sans`        | string        | no       | `""`                                                             |
-| `pdf.fonts.mono`        | string        | no       | `""`                                                             |
-| `pdf.fonts.path`        | string (path) | no       | `""` — where the renderer may look beyond the system's own fonts |
+| Key (under `pdf.fonts`) | Type          | Required | Default                                                   |
+| ----------------------- | ------------- | -------- | --------------------------------------------------------- |
+| `pdf.fonts.serif`       | string        | no       | `""` — the book is set in `Libertinus Serif`              |
+| `pdf.fonts.sans`        | string        | no       | `""` — its headings in `Libertinus Sans`                  |
+| `pdf.fonts.mono`        | string        | no       | `""` — its raw and code spans in `DejaVu Sans Mono`       |
+| `pdf.fonts.path`        | string (path) | no       | `""` — faces of your own, searched as well as the shipped |
+
+Each role falls back to a face that resolves on a machine carrying none of them:
+the toolchain ships the sans and the compiler embeds the other two. The compile
+searches the shipped directory, and `pdf.fonts.path` when one is given, and
+nothing the machine has installed — so a face named here has to come from one of
+those two places, and a name nothing resolves is reported rather than set in the
+fallback. Shipped alongside the sans, and available to a package that names it,
+is `Libertinus Mono`.
 
 > ``package-build config: `pdf.fonts` must be a mapping.``
 
