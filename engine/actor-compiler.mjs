@@ -65,8 +65,10 @@ import { mapsNoteType, noteTypesFor, referencedSubtype } from "./document-subtyp
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 // An `items:` entry's `system:` overlay is merged verbatim, so it reaches the
 // document by a path no field declaration sits on — including the
-// fields the document is supposed to write for itself in play.
-import { itemFields } from "./item-registry.mjs";
+// fields the document is supposed to write for itself in play. `itemArt` is
+// the same table the Item pass defaults from, so an entry that copies no
+// template and names no art of its own carries what a note of its type would.
+import { itemArt, itemFields } from "./item-registry.mjs";
 import { runtimeOnlyIn, runtimeOnlyMessage } from "./runtime-only-fields.mjs";
 // A `model:` is an address, read by the same grammar every wikilink is,
 // so an author writes one form and meets one set of messages.
@@ -666,6 +668,12 @@ export class SystemActorCompiler extends BasePackCompiler {
      * every embedded id exactly where it was.
      * Returns null if the descriptor cannot be resolved.
      *
+     * **An entry's `data:` is the authoring container, not a document field.**
+     * Its art slot is read here and the container itself goes no further, so an
+     * entry writing `data.icon` reaches the document as a resolved `img` and an
+     * entry writing none takes its type's default — the same two rules an item
+     * note compiles under, reached by the same functions.
+     *
      * @param {Map<string, object>} itemsMap - The predefined items, by address.
      * @param {string} actorId - The owning actor's id, seeding embedded ids.
      * @param {string} type - The **note** type the reference names.
@@ -765,8 +773,20 @@ export class SystemActorCompiler extends BasePackCompiler {
             this.errorCount++;
             return null;
         }
-        const merged = overlay ? deepMerge(base, overlay) : base;
+        // `data:` is where a note names art, and it is an authoring container:
+        // the compiled document takes the resolved path and never the container.
+        // Held back from the merge rather than deleted after it, so there is no
+        // window in which a document carries one.
+        const { data: _authored, ...fields } = overlay ?? {};
+        const merged = overlay ? deepMerge(base, fields) : base;
         merged.type = subType;
+        // The two art rules an item note compiles under, applied to an entry
+        // that is one in every respect but where it is written: the address it
+        // names wins, the template it copies answers next, and the type's own
+        // default answers last. Nullish coalescing throughout, so `icon: ""`
+        // ships blank on purpose rather than collecting a default.
+        merged.img =
+            this.artPath(overlay ?? {}, "icon") ?? merged.img ?? itemArt(type, this.system);
         const identity = embeddedIdentity(merged);
         const claim = `${actorId}\u0000${itemAddress(/** @type {string} */ (subType), identity)}`;
         const first = this.#embeddedClaims.get(claim);
