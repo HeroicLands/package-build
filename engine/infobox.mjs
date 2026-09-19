@@ -836,9 +836,11 @@ export function systemRowsSection(
  *   build ships, which decide the box set.
  * @param {readonly object[]} [options.providers] - The systems' infobox
  *   declarations, keyed by `system`.
- * @param {(fm: object, block: string) => boolean} options.carriesBlock -
- *   Whether the note says anything about a system, which decides
- *   {@link NOT_AVAILABLE}.
+ * @param {(fm: object, map: object) => boolean} options.compilesDocument -
+ *   Whether that system compiles a document for this note, which decides
+ *   {@link NOT_AVAILABLE}. Asked of the routing and the passes rather than of
+ *   the frontmatter: a pack declaring no `system:` compiles a note from `data:`
+ *   and the field defaults, so the block's presence is not the question.
  * @param {(field: object, fm: object, opts: object) => object} options.resolveField -
  *   Resolves one declared field against the note.
  * @param {(ref: unknown) => object|undefined} [options.resolve] - Resolves a
@@ -850,7 +852,7 @@ export function buildInfoboxes(fm, options) {
     const {
         maps,
         providers = [],
-        carriesBlock,
+        compilesDocument,
         resolveField,
         resolve,
         vocabulary = NOTE_VOCABULARY,
@@ -862,7 +864,7 @@ export function buildInfoboxes(fm, options) {
     for (const map of maps ?? []) {
         if (!subtypeRow(map, fm?.type)) continue;
         const provider = providers.find((entry) => entry.system === map.system);
-        const available = Boolean(carriesBlock(fm, map.block));
+        const available = Boolean(compilesDocument(fm, map));
         const box = {
             id: map.system,
             kind: "system",

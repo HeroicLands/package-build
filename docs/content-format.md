@@ -196,6 +196,15 @@ A system that does not map the note's type gets **no box**. A box reading
 _Not available_ on every affiliation page would suggest a gap in the note when
 the truth is about the system's scope.
 
+Whether a document was produced is the compile's own answer rather than a
+reading of the frontmatter. The note's type must map to the system; the note
+must route to a pack of the document class that map names; and where **that
+pack declares a `system:`**, the note must carry that system's block, which is
+the same rule the pack itself compiles under. A pack declaring **no** system
+compiles every note it claims from `data:` and the field defaults, so a note
+with no block still produces a document and its box still carries content —
+which is the ordinary arrangement in a package built for one system.
+
 #### Four section layouts
 
 A section says how it is arranged, and a renderer switches on that and on a

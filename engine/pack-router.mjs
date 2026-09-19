@@ -372,6 +372,20 @@ export function createPackRouter(packs) {
         },
 
         /**
+         * The system one pack declares, if it declares one.
+         *
+         * A pack declaring none takes the compiler its document type falls
+         * back to, so `undefined` here is an answer rather than a gap: it says
+         * the pack's documents are whichever system that pass writes.
+         *
+         * @param {string} name - The pack name.
+         * @returns {string|undefined} Its `system:`, or `undefined`.
+         */
+        systemOf(name) {
+            return byName.get(name)?.system || undefined;
+        },
+
+        /**
          * The pack of a type that receives notes declaring none.
          *
          * @param {string} docType - The Foundry document type.
