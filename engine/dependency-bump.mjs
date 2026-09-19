@@ -12,19 +12,17 @@
  */
 
 /**
- * Taking a newer version of a dependency, without reformatting the lockfile.
+ * Taking a newer version of a dependency.
  *
- * npm resolves the bump; this module's whole job is what npm does badly here.
- * Every repository in the constellation indents `package-lock.json` with four
- * spaces and prettier-ignores it, and npm rewrites it with two — so a
- * three-line version change arrives as a seventeen-thousand-line diff that no
- * reviewer can read past.
+ * npm does the resolution, and that is the point of the command: editing the
+ * three `version` / `resolved` / `integrity` lines by hand is correct only
+ * while the new version's dependency set is identical to the old one's, and
+ * nothing tells the author when it is not. npm is what knows.
  *
- * The alternative — editing the three `version` / `resolved` / `integrity`
- * lines by hand — is only correct while the new version's dependency set is
- * identical to the old one's, and nothing tells the author when it is not. npm
- * is what knows; so npm does the resolution and the indentation is restored
- * afterwards.
+ * npm writes `package-lock.json` with the indentation `package.json` uses, so
+ * a consumer whose two files agree sees only the lines that moved. Each file
+ * is written back with the indent it already carried, so a lockfile indented
+ * unlike its manifest keeps its own.
  */
 
 import fs from "node:fs";
@@ -121,8 +119,8 @@ export function lockedVersion(lock, name) {
  * Take the newest published version of one or more dependencies.
  *
  * npm performs the resolution — so a bump that changes the dependency set is
- * as correct as one that moves three lines — and both JSON files are restored
- * to the indentation they already used.
+ * as correct as one that moves three lines — and both JSON files are written
+ * back with the indentation they already used.
  *
  * @param {object} options - Options.
  * @param {string} options.rootDir - The repository root holding `package.json`.
@@ -196,9 +194,9 @@ export function bumpDependencies({ rootDir, packages, tag = "latest", check = fa
         rootDir,
     );
 
-    // Restore what npm reformatted. Both files, because npm rewrites the
-    // manifest too when a range has to move — which below 1.0 it always does,
-    // a caret there being locked to the minor.
+    // Hold each file to the indent it already carried. Both, because npm
+    // rewrites the manifest too when a range has to move — which below 1.0 it
+    // always does, a caret there being locked to the minor.
     const reindented = [];
     if (reindentJsonFile(lockPath, detectJsonIndent(lockText))) reindented.push(lockPath);
     if (reindentJsonFile(manifestPath, detectJsonIndent(manifestText))) {

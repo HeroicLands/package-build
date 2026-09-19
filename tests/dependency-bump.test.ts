@@ -8,10 +8,11 @@
 /**
  * Taking a newer version of a dependency.
  *
- * The cases that matter are the two failure modes this command exists to
- * remove: npm reformatting a lockfile every consumer indents with four spaces,
- * and a hand-patched lockfile being silently incomplete when the new version's
- * dependency set is not the old one's.
+ * The case that matters is the failure this command exists to remove: a
+ * hand-patched lockfile being silently incomplete when the new version's
+ * dependency set is not the old one's. The indentation assertions pin the
+ * second guarantee — each file keeps the indent it already carried, whatever
+ * the other one uses.
  *
  * npm is injected throughout — the suite reaches no registry, and a test that
  * needed one would be testing npm rather than this.
@@ -145,10 +146,10 @@ describe("what a bump targets", () => {
 });
 
 describe("taking a newer version", () => {
-    it("restores the lockfile's indentation after npm rewrites it", () => {
-        // The whole reason this command exists: npm writes two-space, every
-        // consumer here writes four and prettier-ignores the file, so the
-        // three-line change arrives as a whole-file reformat.
+    it("leaves a four-space consumer on four spaces", () => {
+        // npm takes the lockfile's indentation from `package.json`, so a
+        // lockfile indented unlike its manifest would follow the manifest.
+        // Writing each file back with its own indent is what holds it.
         consumer();
         const result = bumpDependencies({
             rootDir: root,
@@ -163,7 +164,7 @@ describe("taking a newer version", () => {
     });
 
     it("leaves a two-space consumer on two spaces", () => {
-        // The restoration is of whatever was there, not of four spaces.
+        // What is held is whatever was there, not four spaces.
         consumer(
             { "@heroiclands/hugo-theme": "^0.5.0" },
             { "@heroiclands/hugo-theme": "0.5.0" },
