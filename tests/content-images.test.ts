@@ -269,9 +269,19 @@ describe("the book prints the picture at the measure the class names", () => {
         expect(out).not.toContain("#place(");
     });
 
-    it("spans the page for a full-width image, which a block cannot do", () => {
-        expect(typst("![A map](images/m.webp){.full-width}\n")).toContain(
-            '#place(top, float: true, scope: "parent"',
+    it("spans the page in document order for a full-width image", () => {
+        // A float is the only thing that spans every column, and it is placed
+        // where the page has room rather than where the picture was written —
+        // above the prose introducing it, or on the next page past the prose
+        // that follows. `book-figure` breaks first so neither can happen.
+        const out = typst("![A map](images/m.webp){.full-width}\n");
+        expect(out).toContain("#book-figure[");
+        expect(out).not.toContain("#place(");
+    });
+
+    it("keeps the float where a full-width image asks for one", () => {
+        expect(typst("![A map](images/m.webp){.full-width, float: bottom-right}\n")).toContain(
+            '#place(bottom + right, float: true, scope: "parent"',
         );
     });
 

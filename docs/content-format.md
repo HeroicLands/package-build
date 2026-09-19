@@ -1745,8 +1745,17 @@ not. The website and a Foundry journal get true CSS wrap from the same
 directive. Expect the same statement, not the same page.
 
 An image with no `float:` is an ordinary block in the flow, where it was
-written. A `.full-width` image is placed at the top of the page it falls on,
-since a block cannot leave the column it is set in.
+written. A `.full-width` image is set at the **top of a new page**: the book is
+set in two columns, only a float spans them both, and a float is placed where
+the page has room rather than where it was written — so the page breaks before
+the picture, and the prose that follows it runs below it on the same page. The
+picture can therefore never print above the prose that introduces it or after
+the prose that follows it, at the cost of the page before it ending short. A
+picture taller than the page takes a page of its own.
+
+A `.full-width` image that **also states a `float:`** is asking for a float and
+gets one, with no break before it. A float is placed where it fits, which may be
+the next page.
 
 ##### Both vocabularies are closed
 
