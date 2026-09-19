@@ -398,6 +398,10 @@ export function checkText(text, file) {
  * theoretical exclusion — it was the first thing a run over `sohl-thalorna`
  * reported before the skip existed.
  *
+ * A finding names its file **relative to the working directory**, which is
+ * where a reader is standing and what `formatDiagnostic` emits. The content
+ * root is where the walk starts, not what a path is measured from.
+ *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
@@ -438,7 +442,7 @@ export function lintContentCharset(contentBase, { skipDirectories = [], extensio
                 continue;
             }
             files += 1;
-            findings.push(...checkText(text, path.relative(contentBase, full)));
+            findings.push(...checkText(text, path.relative(process.cwd(), full)));
         }
     };
 
