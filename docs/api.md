@@ -577,11 +577,24 @@ The asset record: one line of the content index per addressable file. The record
 
 The `<package>` segment's own registry: the names no repository may claim. A content package names itself, and exactly one name is held back — `packagebuild`, which addresses the files the toolchain ships itself.
 
-| Export                 | Signature                    | Returns                   | Use it when                                                           |
-| ---------------------- | ---------------------------- | ------------------------- | --------------------------------------------------------------------- |
-| `PACKAGEBUILD_PACKAGE` | `const PACKAGEBUILD_PACKAGE` | `string` — `packagebuild` | naming the address namespace package-build's own assets publish under |
-| `RESERVED_PACKAGES`    | `const RESERVED_PACKAGES`    | `ReadonlySet<string>`     | listing the names a configuration is refused for claiming             |
-| `isReservedPackage`    | `isReservedPackage(pkg)`     | `boolean`                 | checking one candidate `contentPackage` against the reservation       |
+| Export                 | Signature                    | Returns                               | Use it when                                                                    |
+| ---------------------- | ---------------------------- | ------------------------------------- | ------------------------------------------------------------------------------ |
+| `PACKAGEBUILD_PACKAGE` | `const PACKAGEBUILD_PACKAGE` | `string` — `packagebuild`             | naming the address namespace package-build's own assets publish under          |
+| `metadataFileName`     | `metadataFileName(pkg)`      | `string` — `<package>-metadata.jsonl` | naming a package's content index, wherever it is written, published or fetched |
+| `RESERVED_PACKAGES`    | `const RESERVED_PACKAGES`    | `ReadonlySet<string>`                 | listing the names a configuration is refused for claiming                      |
+| `isReservedPackage`    | `isReservedPackage(pkg)`     | `boolean`                             | checking one candidate `contentPackage` against the reservation                |
+
+### `engine.packagebuildIndex`
+
+The toolchain's own content index — the files it ships, addressed. Every other package's index is fetched; this one is read from disk, because package-build is an npm dependency of every consumer rather than a Foundry package. The records join `foreign.index` like any other package's, so every lookup stays one path, and the special case is entirely about acquisition.
+
+| Export                    | Signature                                     | Returns                                         | Use it when                                                               |
+| ------------------------- | --------------------------------------------- | ----------------------------------------------- | ------------------------------------------------------------------------- |
+| `PACKAGEBUILD_ROOT`       | `const PACKAGEBUILD_ROOT`                     | `string`                                        | naming this package's own root, wherever it is installed                  |
+| `PACKAGEBUILD_ASSETS`     | `const PACKAGEBUILD_ASSETS`                   | `string`                                        | naming the asset directory it ships                                       |
+| `PACKAGEBUILD_INDEX_FILE` | `const PACKAGEBUILD_INDEX_FILE`               | `string`                                        | naming where the published index sits, beside the files it describes      |
+| `packageBuildRecords`     | `packageBuildRecords(assetsBase)`             | `Array<Record<string, any>>`                    | reading the records for the files it ships, walked rather than read back  |
+| `emitPackageBuildIndex`   | `emitPackageBuildIndex({ assetsBase, file })` | `{file: string, assets: number, bytes: number}` | publishing that walk as a file, for the readers that are not this process |
 
 ### `engine.siteBuild`
 

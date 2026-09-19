@@ -103,6 +103,7 @@
         "CONTENT.md",
         "README.md",
         "assets",
+        "packagebuild-metadata.jsonl",
         "bin",
         "bundle.mjs",
         "ci",
@@ -161,8 +162,9 @@
     "scripts": {
         "test": "vitest run",
         "test:watch": "vitest",
-        "prepack": "npm run build:types",
+        "prepack": "run-s build:types build:asset-index",
         "build:types": "tsc -p tsconfig.dts.json",
+        "build:asset-index": "node ci/emit-asset-index.mjs",
         "format": "prettier --write .",
         "format:check": "prettier --check .",
         "lint": "run-p --aggregate-output -c --max-parallel 4 format:check lint:markdown lint:yaml lint:labels lint:content-format",

@@ -129,6 +129,9 @@ export * as assetIndex from "./asset-index.mjs";
 /** The `<package>` segment's registry: the names no repository may claim. */
 export * as packages from "./packages.mjs";
 
+/** The toolchain's own content index — the files it ships, addressed. */
+export * as packagebuildIndex from "./packagebuild-index.mjs";
+
 /** Publishing a content tree as a website: the pass, and its integrity gates. */
 export * as siteBuild from "./site-build.mjs";
 

@@ -49,6 +49,30 @@ export const PACKAGEBUILD_PACKAGE = "packagebuild";
 export const RESERVED_PACKAGES = Object.freeze(new Set([PACKAGEBUILD_PACKAGE]));
 
 /**
+ * What a package's content index is called, wherever it is written or fetched.
+ *
+ * **The local index and the published artifact are one file.** A package emits
+ * this, ships it as a release asset, and advertises it as `flags.metadataUrl`;
+ * a consumer fetches that same file into its cache and reads it. Naming it in
+ * one function is what keeps the emitter, the release and the fetcher from
+ * drifting into three spellings of one artifact.
+ *
+ * The `-metadata` suffix earns its place: a bare `<package>.jsonl` says nothing
+ * about what it holds, and these files land in a cache directory beside other
+ * packages' artifacts where the name is all a reader has.
+ *
+ * It lives here rather than beside the loader because the loader reaches the
+ * toolchain's own index, which has to name its file without importing the
+ * loader back.
+ *
+ * @param {string} pkg - The content package name.
+ * @returns {string} The file name, e.g. `sohl-metadata.jsonl`.
+ */
+export function metadataFileName(pkg) {
+    return `${pkg}-metadata.jsonl`;
+}
+
+/**
  * Whether a package name is held back from the open registry.
  *
  * @param {unknown} pkg - The candidate `contentPackage`.

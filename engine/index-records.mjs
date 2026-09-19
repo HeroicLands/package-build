@@ -63,6 +63,27 @@ export const DERIVED_KEYS = Object.freeze([
 ]);
 
 /**
+ * Recursively sort an object's keys, so serialization is order-independent.
+ *
+ * Arrays keep their order — it is authored — but every object inside one is
+ * sorted too. Anything that is not a plain object is returned as it is.
+ *
+ * @param {unknown} value - The value to normalize.
+ * @returns {unknown} The value with every plain object's keys in sorted order.
+ */
+export function sortKeysDeep(value) {
+    if (Array.isArray(value)) return value.map(sortKeysDeep);
+    if (value === null || typeof value !== "object") return value;
+    // A Date or any other exotic object would lose itself in a rebuild from
+    // entries, and YAML frontmatter can produce one.
+    if (Object.getPrototypeOf(value) !== Object.prototype) return value;
+    /** @type {Record<string, unknown>} */
+    const out = {};
+    for (const key of Object.keys(value).sort()) out[key] = sortKeysDeep(value[key]);
+    return out;
+}
+
+/**
  * The file a record was read from, as an absolute path.
  *
  * **The one composition, because there were four.** `file.path` is recorded
