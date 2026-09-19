@@ -73,6 +73,7 @@ import {
 } from "./content-index.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { resolveEmbeds } from "./content-embeds.mjs";
+import { foundryAddressProblem, servesFoundry } from "./pathnames.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -325,7 +326,25 @@ export function buildLinkIndex(
      *   defect, in the shape the finding reporter reads.
      */
     function embedsOf(note) {
-        const { unresolved, problems } = resolveEmbeds(expandedBody(note), { index: assetIndex });
+        const { unresolved, problems, images } = resolveEmbeds(expandedBody(note), {
+            index: assetIndex,
+        });
+        // **The address an embed resolved to, held to the Foundry surface.** An
+        // embed becomes the ordinary image every surface renders, so a file
+        // the website serves and the book stages can still be one no Foundry
+        // install carries — and the journal would take the pathname as
+        // authored. Reported against the embed the note actually wrote, which
+        // is what a reader can open and edit. A build that installs nothing in
+        // Foundry has no such surface and is not asked.
+        const dead =
+            servesFoundry(resolved) ?
+                images
+                    .map((image) => ({
+                        text: image.link,
+                        message: foundryAddressProblem(image.pathname, resolved),
+                    }))
+                    .filter((finding) => finding.message)
+            :   [];
         const seen = new Map();
         /**
          * @param {string} text - The embed exactly as authored.
@@ -347,6 +366,7 @@ export function buildLinkIndex(
                 text: problem.link,
                 message: problem.message,
             })),
+            ...dead,
         ].map((finding) => ({ ...finding, occurrence: at(finding.text) }));
     }
 

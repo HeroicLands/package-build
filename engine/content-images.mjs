@@ -77,7 +77,7 @@ import path from "node:path";
 
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { positionInBody } from "./diagnostics.mjs";
-import { pathnameProblem } from "./pathnames.mjs";
+import { foundryAddressProblem, pathnameProblem, servesFoundry } from "./pathnames.mjs";
 
 /**
  * The width classes an image may carry, and what each means to a renderer.
@@ -436,11 +436,16 @@ export function imageSourcesIn(body) {
  * @param {object} [opts]
  * @param {number} [opts.bodyLine=1] - The 1-based file line the body starts on.
  * @param {number} [opts.bodyColumn=1] - The 1-based file column it starts at.
+ * @param {object} [opts.config] - The resolved build configuration. Supplied,
+ *   an address is also held to the one surface a pathname can be dead on
+ *   without any other pass noticing — see the Foundry address below. Omitted,
+ *   the config-free checks run alone, which is what lets a caller with no
+ *   repository to resolve still read a body.
  * @returns {Array<{file: string, line: number, column: number|undefined,
  *   severity: "error", message: string}>} One finding per defect, in source
  *   order.
  */
-export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1 } = {}) {
+export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1, config } = {}) {
     const text = String(body ?? "");
     if (!text) return [];
 
@@ -455,8 +460,17 @@ export function checkImages(body, file, { bodyLine = 1, bodyColumn = 1 } = {}) {
         findings.push({ file, line, column, severity: /** @type {"error"} */ ("error"), message });
     };
 
+    // The Foundry address is the one form a pathname can lack while every other
+    // surface resolves it, and the renderer that hands a journal its markup has
+    // no channel to say so — so it is asked here, where a line and a column are
+    // at hand. A build that installs nothing in Foundry has no such surface and
+    // is not asked.
+    const foundry = config && servesFoundry(config);
     for (const image of imagesIn(text)) {
-        const problem = imageSourceProblem(image.src) || pathnameProblem(image.src);
+        const problem =
+            imageSourceProblem(image.src) ||
+            pathnameProblem(image.src) ||
+            (foundry ? foundryAddressProblem(image.src, config) : "");
         if (problem) report(image.index, problem);
         if (image.title) {
             report(
@@ -529,11 +543,13 @@ function bodyOf(content, file) {
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
  *   in addition to the dot-directories always skipped.
+ * @param {object} [opts.config] - The resolved build configuration, passed to
+ *   {@link checkImages} so an address is held to the Foundry surface too.
  * @returns {{findings: Array<{file: string, line: number, column: number|undefined,
  *   severity: "error", message: string}>, files: number}} The findings, and how
  *   many files were read.
  */
-export function lintContentImages(contentBase, { skipDirectories = [] } = {}) {
+export function lintContentImages(contentBase, { skipDirectories = [], config } = {}) {
     const skip = new Set(skipDirectories);
     /** @type {Array<{file: string, line: number, column: number|undefined, severity: "error", message: string}>} */
     const findings = [];
@@ -563,7 +579,8 @@ export function lintContentImages(contentBase, { skipDirectories = [] } = {}) {
                 continue;
             }
             files += 1;
-            findings.push(...checkImages(...bodyOf(content, path.relative(process.cwd(), full))));
+            const [body, rel, at] = bodyOf(content, path.relative(process.cwd(), full));
+            findings.push(...checkImages(body, rel, { ...at, config }));
         }
     };
 
