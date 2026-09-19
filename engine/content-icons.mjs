@@ -563,6 +563,10 @@ export function checkIconRegistry(registry, where = "icons") {
  * with nothing imported between them. The cost is one extra pass over the tree,
  * which is the cheaper half of a lint that already parses every note.
  *
+ * A finding names its file **relative to the working directory**, which is
+ * where a reader is standing and what `formatDiagnostic` emits. The content
+ * root is where the walk starts, not what a path is measured from.
+ *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore.
@@ -599,7 +603,7 @@ export function lintContentIcons(contentBase, { skipDirectories = [], registry }
                 continue;
             }
             files += 1;
-            findings.push(...lintIcons(text, path.relative(contentBase, full), registry));
+            findings.push(...lintIcons(text, path.relative(process.cwd(), full), registry));
         }
     };
 

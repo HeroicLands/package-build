@@ -521,6 +521,10 @@ function bodyOf(content, file) {
  * Its own walk, like the icon and HTML checks beside it, so all three stay
  * leaves with nothing imported between them.
  *
+ * A finding names its file **relative to the working directory**, which is
+ * where a reader is standing and what `formatDiagnostic` emits. The content
+ * root is where the walk starts, not what a path is measured from.
+ *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
  * @param {readonly string[]} [opts.skipDirectories] - Directory names to ignore
@@ -559,7 +563,7 @@ export function lintContentImages(contentBase, { skipDirectories = [] } = {}) {
                 continue;
             }
             files += 1;
-            findings.push(...checkImages(...bodyOf(content, path.relative(contentBase, full))));
+            findings.push(...checkImages(...bodyOf(content, path.relative(process.cwd(), full))));
         }
     };
 

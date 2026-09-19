@@ -2063,6 +2063,7 @@ sohl:
 | `model`  | yes      | The address of the item this entry is a copy of               |
 | `system` | no       | Values that override the model's                              |
 | `name`   | no       | A name of this entry's own, where it differs from the model's |
+| `data`   | no       | Art this entry names — see _An entry's art_ below             |
 
 **`type:` is not written beside a `model`.** The address already names the type,
 so a second statement of it is a place to be wrong, and it is refused.
@@ -2096,6 +2097,38 @@ sohl:
 things — and it could not say which package a template came from, so an address
 resolved into a dependency only because no local pack claimed it and would have
 retargeted silently the day one did.
+
+#### An entry's art
+
+An entry is an item in every respect but where it is written, so it carries art
+by the two rules [an item note](#the-four-art-slots) does. It names an `icon`
+address under its own `data:`, and that resolves into the embedded document's
+`img`:
+
+```yaml
+sohl:
+  items:
+    - name: Quiver (leather)
+      type: miscgear
+      data:
+        icon: quiver
+      system:
+        shortcode: quiver
+```
+
+`icon` is the only slot an entry has. The other three belong to a note: two
+describe an Actor or a map, and `banner` is a page's hero image, which an
+embedded document has no page for.
+
+**Naming none is the common case, and it takes a default.** An entry copying a
+`model:` carries the catalogue item's art, and an entry copying nothing takes
+the default its type pairs in `itemBuilders` — the same default an item note of
+that type compiles with. An entry naming an address of its own overrides either.
+Writing `icon: ""` ships the document blank on purpose, and no default replaces
+it.
+
+**`data:` reaches no compiled document.** It is where a note names art, and a
+compiled Item has `img` instead; the container is read and goes no further.
 
 #### Identifying a being's embedded items
 

@@ -273,7 +273,11 @@ describe("walking a tree", () => {
         const { findings, files } = lintContentCharset(root);
         expect(files).toBe(2);
         expect(findings).toHaveLength(1);
-        expect(findings[0].file).toBe(path.join("Skills", "Dirty.md"));
+        // Relative to the working directory, which is what an editor opens
+        // a finding against — not to the tree the walk started from.
+        expect(findings[0].file).toBe(
+            path.relative(process.cwd(), path.join(root, "Skills", "Dirty.md")),
+        );
     });
 
     it("honours skipDirectories as well", () => {

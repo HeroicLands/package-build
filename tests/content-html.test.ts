@@ -187,7 +187,7 @@ describe("lintContentHtml", () => {
         fs.writeFileSync(bare, "<p>loose</p>\n");
         try {
             const { findings } = lintContentHtml(root);
-            const found = findings.filter((f) => f.file === "Bare.md");
+            const found = findings.filter((f) => f.file === path.relative(process.cwd(), bare));
             expect(found).toHaveLength(2);
             expect(found[0].line).toBe(1);
         } finally {
