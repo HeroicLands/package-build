@@ -1,5 +1,5 @@
 ---
-"@heroiclands/package-build": minor
+"@heroiclands/package-build": patch
 ---
 
 **A provenance record may state `ai`.** It says whether the file is
