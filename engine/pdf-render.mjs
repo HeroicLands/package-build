@@ -667,14 +667,22 @@ function renderLink(href, inner, ctx) {
  * ## The width class is the measure
  *
  * An image with no class is one column wide. That is `width: 100%` of whatever
- * container it is set in — the page today, and a column once the book is set in
- * two — so the ordinary case needs nothing but an ordinary block and stays
- * correct through the change.
+ * container it is set in — a column of the two the body is set in — so the
+ * ordinary case needs nothing but an ordinary block, and lands exactly where it
+ * was written.
  *
- * `.full-width` has to leave its column, and a block cannot: only a float
- * placed with `scope: "parent"` spans every column of the page. So a
- * full-width image is always placed, whether or not it states a `float:`, and
- * an image that states neither is left in the flow where it was written.
+ * `.full-width` has to leave its column, and only a float placed with
+ * `scope: "parent"` spans every column of a page. A float, though, is placed
+ * where the page has room rather than where it was written: it is set at the
+ * top of the page, above the prose that introduces it, and where the page is
+ * too far along to take it, on the next page — after prose that follows it in
+ * the note. Document order governs what follows an image, so
+ * {@link bookTypstPreamble}'s `book-figure` breaks the page first and places
+ * the figure at the top of the fresh one, where nothing is above it to displace
+ * it and nothing that follows it can print first.
+ *
+ * A `.full-width` image that **also states a `float:`** is asking for a float,
+ * and keeps one — deferral is the honest consequence of the request.
  *
  * ## A float occupies the measure
  *
@@ -712,8 +720,10 @@ function renderImage(token, ctx) {
     // In the flow where it was written: no class asking for the page, and no
     // position asking for the top or the bottom of the column.
     if (!float && scope === "column") return `\n${figure}\n\n`;
-    const align = float?.align ?? "top";
-    return `\n#place(${align}, float: true, scope: "${scope}", clearance: 0.7em)[\n${figure}\n]\n\n`;
+    // The page, in document order: a width class says how wide the picture is
+    // and not when it appears.
+    if (!float) return `\n#book-figure[\n${figure}\n]\n\n`;
+    return `\n#place(${float.align}, float: true, scope: "${scope}", clearance: 0.7em)[\n${figure}\n]\n\n`;
 }
 
 /**
@@ -903,6 +913,26 @@ export function bookTypstPreamble() {
             "  pagebreak(weak: true)\n" +
             "  place(top + left)[#book-plate(kicker, title, banner, 9cm, body)]\n" +
             "  pagebreak()\n" +
+            "}",
+        // A full-width figure spans the page in document order. Only a float
+        // spans every column, and a float is placed where the page has room
+        // rather than where it was written — at the top, above the prose that
+        // introduces it, or on the next page when this one is too far along.
+        // Breaking first puts it at the top of a page whose float region is
+        // empty, which is the one place it cannot be displaced. A picture
+        // taller than the page takes a page of its own, for the reason
+        // `book-wide` states.
+        //
+        // `measure` alone is stable here. A rule reading `here().position()`
+        // to keep the break for the cases that need it does not converge: the
+        // position decides the layout and the layout decides the position.
+        "#let book-figure(body) = context {\n" +
+            "  if measure(block(width: book-text-width)[#body]).height >= book-text-height * 0.88 {\n" +
+            "    page(columns: 1)[#body]\n" +
+            "  } else {\n" +
+            "    pagebreak(weak: true)\n" +
+            '    place(top, float: true, scope: "parent", clearance: 0.7em)[#body]\n' +
+            "  }\n" +
             "}",
         // Wide content spans the page, and how it spans depends on how tall it
         // is: a float is unbreakable and silently overflows, so anything taller
