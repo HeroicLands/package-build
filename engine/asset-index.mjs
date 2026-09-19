@@ -119,12 +119,17 @@ export const ASSET_RECORD_FIELDS = Object.freeze([
     Object.freeze({
         name: "attribution",
         from: "provenance",
-        describe: "Who made the file, or what tool generated it.",
+        describe: "The person holding the rights, to whom attribution is legally due.",
     }),
     Object.freeze({
         name: "source",
         from: "provenance",
         describe: "Where it came from — a URL, or a sentence.",
+    }),
+    Object.freeze({
+        name: "ai",
+        from: "provenance",
+        describe: "Whether the file is machine-generated — `true` or `false`.",
     }),
     Object.freeze({
         name: "license",
