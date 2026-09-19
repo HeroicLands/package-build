@@ -93,6 +93,8 @@
  * @module
  */
 
+import { PACKAGEBUILD_PACKAGE } from "./packages.mjs";
+
 /**
  * The directory a package ships its files in, and the segment that marks a
  * pathname's first segment as a package name.
@@ -217,6 +219,78 @@ export function pathnameProblem(raw) {
         `${root}/` +
         "` path is only one of those three, so the other two serve a file that " +
         "is not there"
+    );
+}
+
+/**
+ * Whether this build installs anything into a Foundry data directory.
+ *
+ * A `documentation` package compiles no packs and installs nowhere, so no note
+ * of its reaches a Foundry document and no pathname of its can be dead on a
+ * surface it never touches. A check that reports a missing Foundry address asks
+ * this first, so the one kind with no Foundry surface is not told about it.
+ *
+ * Read from {@link packageAddresses} rather than from a key, so "does this
+ * package have a Foundry root?" is answered in one place by the map that
+ * derives every other package's.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {boolean} Whether the package being built has a Foundry root.
+ */
+export function servesFoundry(config) {
+    const own = config?.contentPackage ? packageAddresses(config).get(config.contentPackage) : null;
+    return Boolean(own?.root);
+}
+
+/**
+ * Why a pathname has no Foundry address, or `""` when it has one.
+ *
+ * The sibling of {@link pathnameProblem} one step further on: that one asks
+ * whether a pathname is written correctly at all, and this one asks whether
+ * *this* build can turn a correctly written pathname into a path a Foundry
+ * install serves. Both answer in a sentence rather than a code, so the caller
+ * that holds a line and a column and the caller that holds only a file say the
+ * same thing about the same value.
+ *
+ * `""` for every pathname that resolves — and for the three shapes that
+ * legitimately reach Foundry untranslated: a URL, a protocol-relative
+ * `//host/…`, and a `/`-rooted path Foundry serves from its data root. A blank
+ * pathname is a deliberate blank and resolves to a blank on every surface, so
+ * it is not a problem either.
+ *
+ * `""` as well for a pathname {@link pathnameProblem} already refuses. That
+ * defect has its own finding naming its own replacement, and reporting a second
+ * one about the same characters would send the author to one mistake twice.
+ *
+ * @param {string|null|undefined} raw - The pathname, as authored.
+ * @param {object} config - The resolved build configuration.
+ * @returns {string} The problem, as a finding's sentence, or `""`.
+ */
+export function foundryAddressProblem(raw, config) {
+    if (pathnameProblem(raw)) return "";
+    const forms = resolvePathname(raw, config);
+    if (forms === null || forms.foundry !== null) return "";
+    if (forms.package === PACKAGEBUILD_PACKAGE) {
+        return (
+            `\`${forms.authored}\` names a file the \`${PACKAGEBUILD_PACKAGE}\` package ` +
+            "ships, and Foundry installs no package of that name — package-build is an " +
+            "npm dependency of a package rather than a package of its own, so its files " +
+            "reach the website and the book and never a Foundry document. Address a " +
+            "`/`-rooted path or a URL"
+        );
+    }
+    if (forms.own) {
+        return (
+            `\`${forms.authored}\` names a file this package serves, and a ` +
+            "`documentation` package has no asset root to serve it from — Foundry " +
+            "installs no such package. Address a `/`-rooted path or a URL"
+        );
+    }
+    return (
+        `\`${forms.authored}\` names a file the \`${forms.package}\` package ships, and ` +
+        "this build declares no relationship with a package of that name, so there is " +
+        "no Foundry address to derive. Declare it under `relationships`, or address " +
+        "the file by a `/`-rooted path"
     );
 }
 

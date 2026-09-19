@@ -721,13 +721,15 @@ An image saying how wide it is and where it sits. A markdown image carries no in
 
 One authored pathname, and the four addresses it resolves to. A note names a file once — in `img:`, in `data.portrait:`, in the body of a markdown image — and the first segment says which package owns it when an `assets/` follows. Every surface derives its own address from that one statement: the path inside a Foundry install, the file in the owning repository's tree, the address the website serves, and where the book stages its copy.
 
-| Export              | Signature                               | Returns                                                                                            | Use it when                                                         |
-| ------------------- | --------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
-| `ASSETS_SEGMENT`    | `const ASSETS_SEGMENT`                  | —                                                                                                  | The directory a package ships its files in.                         |
-| `PATHNAME_SURFACES` | `const PATHNAME_SURFACES`               | —                                                                                                  | The surfaces one authored pathname resolves for.                    |
-| `pathnameProblem`   | `function pathnameProblem(raw)`         | {string} The problem, as a finding's sentence, or `""`.                                            | What is wrong with an authored pathname, or `""` when nothing is.   |
-| `packageAddresses`  | `function packageAddresses(config)`     | {Map<string, {root: string\|null, id: string\|null, own: boolean}>} The packages, by package name. | Every content package this build can resolve a pathname against.    |
-| `resolvePathname`   | `function resolvePathname(raw, config)` | {PathnameForms\|null} The four forms, or `null` when the note names no file.                       | Resolve one authored pathname into the address each surface serves. |
+| Export                  | Signature                                     | Returns                                                                                            | Use it when                                                         |
+| ----------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
+| `ASSETS_SEGMENT`        | `const ASSETS_SEGMENT`                        | —                                                                                                  | The directory a package ships its files in.                         |
+| `PATHNAME_SURFACES`     | `const PATHNAME_SURFACES`                     | —                                                                                                  | The surfaces one authored pathname resolves for.                    |
+| `pathnameProblem`       | `function pathnameProblem(raw)`               | {string} The problem, as a finding's sentence, or `""`.                                            | What is wrong with an authored pathname, or `""` when nothing is.   |
+| `packageAddresses`      | `function packageAddresses(config)`           | {Map<string, {root: string\|null, id: string\|null, own: boolean}>} The packages, by package name. | Every content package this build can resolve a pathname against.    |
+| `resolvePathname`       | `function resolvePathname(raw, config)`       | {PathnameForms\|null} The four forms, or `null` when the note names no file.                       | Resolve one authored pathname into the address each surface serves. |
+| `servesFoundry`         | `function servesFoundry(config)`              | {boolean} Whether the package being built has a Foundry root.                                      | Whether this build installs anything into a Foundry data directory. |
+| `foundryAddressProblem` | `function foundryAddressProblem(raw, config)` | {string} The problem, as a finding's sentence, or `""`.                                            | Why a pathname has no Foundry address, or `""` when it has one.     |
 
 ### `engine.contentLinks`
 

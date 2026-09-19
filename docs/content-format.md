@@ -1554,6 +1554,12 @@ Addressing them as `packagebuild-none-image-<shortcode>` lets a note reach one
 without declaring a dependency on some parent system or module it otherwise has
 no relationship with.
 
+**Its files reach the website and the book and no Foundry document.** Foundry
+installs no package of that name and no relationship can be declared with one,
+so `banner:` — the one art slot with no Foundry destination — is where a
+`packagebuild` address belongs. A body image naming one, written either way, is
+refused with the line and column it sits on.
+
 `packagebuild` is therefore **reserved** in the package registry: nothing may
 create a real package that collides with it, and its resolution is special-cased,
 because no installed directory sits behind the name.
@@ -1775,7 +1781,13 @@ An image's address follows [the pathname rule](#a-pathname-names-the-package-tha
 resolves it to what that surface serves:
 
 - **Foundry** is handed the path inside the install, so `images/map.webp`
-  reaches a journal page as `modules/<package>/assets/images/map.webp`.
+  reaches a journal page as `modules/<package>/assets/images/map.webp`. An
+  address with no such path — a package this build declares no relationship
+  with, or `packagebuild`, which Foundry installs nothing of — is **refused,
+  located by file, line and column**, and the build fails. Foundry is the one
+  surface a correctly written pathname can be dead on while the other two
+  resolve it, and a `src` that resolves against nothing looks exactly like an
+  address that worked.
 - **The book** is handed a copy of the file, staged out of this package's own
   asset tree into the build directory before the compiler runs. An address
   naming a file this package does not ship — another package's, or a URL —

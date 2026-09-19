@@ -32,9 +32,9 @@ import yaml from "yaml";
 import unidecode from "unidecode";
 import markdownit from "markdown-it";
 import { iconPlugin } from "./content-icons.mjs";
-import { imagePlugin } from "./content-images.mjs";
+import { imagePlugin, imagesIn } from "./content-images.mjs";
 import { resolveEmbeds } from "./content-embeds.mjs";
-import { resolvePathname } from "./pathnames.mjs";
+import { foundryAddressProblem, pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
@@ -101,13 +101,16 @@ export const md = markdownit({ html: true })
     // translated by the same rule `img:` follows.
     .use(
         imagePlugin((src) => {
-            // **Reported elsewhere, never here.** A renderer has no channel to
+            // **Reported upstream, never here.** A renderer has no channel to
             // report through, and this one runs inside the very passes whose
             // job is to collect findings — a throw would take the whole lint
-            // down and lose every other finding in the tree. A pathname this
-            // rule refuses is a Foundry address, so emitting it unchanged is
-            // right on the one surface this renderer serves, and the passes
-            // that own the other three refuse it with a line and a column.
+            // down and lose every other finding in the tree. So nothing reaches
+            // this point unreported: {@link convertNoteWikilinks} refuses a body
+            // image with no address inside the install before a compiler renders
+            // one, and the address passes report the same pathname with a line
+            // and a column. What is left here is a fallback for a caller with no
+            // configuration to resolve against, where the authored pathname is
+            // the most honest thing to emit.
             try {
                 return resolveImg(src, loadPackConfig()) ?? src;
             } catch {
@@ -495,19 +498,9 @@ export function resolveImg(raw, config = loadPackConfig()) {
     const forms = resolvePathname(raw, config);
     if (forms === null) return null;
     if (forms.foundry !== null) return forms.foundry;
-    if (forms.own) {
-        throw new Error(
-            `package-build: \`${forms.authored}\` names a file this package serves, ` +
-                `and a \`documentation\` package has no asset root to serve it from — ` +
-                `Foundry installs no such package. Address a \`/\`-rooted path or a URL.`,
-        );
-    }
-    throw new Error(
-        `package-build: \`${forms.authored}\` names a file the \`${forms.package}\` ` +
-            `package ships, and this build declares no relationship with a package of ` +
-            `that name, so there is no Foundry address to derive. Declare it under ` +
-            `\`relationships\`, or address the file by a \`/\`-rooted path.`,
-    );
+    // One sentence per class, stated where the rule is, so an art field that
+    // refuses and a body image that refuses tell an author the same thing.
+    throw new Error(`package-build: ${foundryAddressProblem(raw, config)}.`);
 }
 
 /**
@@ -819,6 +812,9 @@ export function buildContentLinkIndex(
  *   in, addressing a self-link the same way.
  * @param {object} ctx.index - The address index every link resolves through.
  * @param {string} ctx.name - The note, for the message.
+ * @param {object} [ctx.config] - The resolved build configuration, which is
+ *   what says which packages this build can address a file in. Loaded when
+ *   omitted, exactly as an art field's resolution loads it.
  * @param {string} [ctx.file] - The note's file, so a report names it.
  * @param {number} [ctx.bodyLine] - 1-based file line of the body's first line.
  * @param {number} [ctx.bodyColumn] - 1-based file column of the same character.
@@ -826,13 +822,14 @@ export function buildContentLinkIndex(
  *   authored line each body line came from, from {@link expandNoteTables}.
  * @returns {{markdown: string, unresolved: Array<object>}}
  * @throws {Error} On any link that does not resolve — an unlabelled one, a
- *   target that is not an address, or an address nothing publishes. The error
+ *   target that is not an address, or an address nothing publishes — and on a
+ *   body image whose pathname names no file a Foundry install serves. The error
  *   carries `file` and `position`, so a caller reports it in the same form
  *   rather than re-deriving one.
  */
 export function convertNoteWikilinks(
     body,
-    { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap },
+    { type, id, pack, docPack, index, name, file, bodyLine, bodyColumn, lineMap, config },
 ) {
     const source = body ?? "";
     // **Embeds first, and on the authored text.** An embed's interior is a
@@ -894,6 +891,29 @@ export function convertNoteWikilinks(
     // worked, so it fails here rather than publishing a page nobody asked for.
     for (const problem of embedded.problems) {
         fail(problem, `${problem.message} — in "${name}".`, source);
+    }
+
+    // **One scan, both spellings.** By here an `![[…]]` embed has been
+    // rewritten into the ordinary image every surface renders, so a single walk
+    // of the rewritten body holds an authored `![alt](…)` and an embed to the
+    // same rule — there is no second image path to keep in step.
+    //
+    // A pathname the rule refuses is **refused here too, not emitted**. The
+    // renderer below has no channel to report through and hands the journal the
+    // pathname as authored — which for one class resolves against nothing
+    // Foundry serves, and for the other resolves here and on neither of the
+    // remaining two surfaces. Every surface refuses such a value rather than
+    // deriving an address from it, and this is that refusal on the Foundry one:
+    // the same one an art field already makes through {@link resolveImg}.
+    const images = imagesIn(embedded.markdown);
+    if (images.length) {
+        const resolved = config ?? loadPackConfig();
+        for (const image of images) {
+            const problem =
+                pathnameProblem(image.src) || foundryAddressProblem(image.src, resolved);
+            if (!problem) continue;
+            fail({ offset: image.index }, `${problem} — in "${name}".`, embedded.markdown);
+        }
     }
 
     for (const u of result.unresolved) {

@@ -221,10 +221,18 @@ export function embedProblems(embed) {
  * @param {object} ctx.index - The address index assets resolve through.
  * @returns {{markdown: string, unresolved: Array<{link: string, target: string,
  *   offset: number, reason: string, type?: string}>,
- *   problems: Array<{link: string, offset: number, message: string}>}} The body, the embeds
- *   that named nothing, and the directives that could not be honoured. Every
- *   `offset` is 0-based in `body`, which is what lets a caller report a line and
- *   a column and tell two identical embeds apart.
+ *   problems: Array<{link: string, offset: number, message: string}>,
+ *   images: Array<{link: string, offset: number, pathname: string}>}} The body,
+ *   the embeds that named nothing, the directives that could not be honoured,
+ *   and the pathname each embed that did resolve now names. Every `offset` is
+ *   0-based in `body`, which is what lets a caller report a line and a column
+ *   and tell two identical embeds apart.
+ *
+ *   **`images` is how a surface holds an embed to its own rule.** The rewrite
+ *   is surface-agnostic — a file the website serves and the book stages is not
+ *   always one a Foundry install carries — so a caller that cares asks about
+ *   the pathname while it still knows which embed produced it, rather than
+ *   searching a rewritten body for a literal the note never wrote.
  */
 export function resolveEmbeds(body, { index }) {
     const text = String(body ?? "");
@@ -232,6 +240,8 @@ export function resolveEmbeds(body, { index }) {
     const unresolved = [];
     /** @type {Array<{link: string, offset: number, message: string}>} */
     const problems = [];
+    /** @type {Array<{link: string, offset: number, pathname: string}>} */
+    const images = [];
     let out = "";
     let last = 0;
 
@@ -255,9 +265,10 @@ export function resolveEmbeds(body, { index }) {
         // decorative — {@link authoredLabel} is where that reading lives, so an
         // embed and a link cannot draw the line in two places.
         out += `![${authoredLabel(embed) ?? ""}](${resolved.pathname})${embed.directive}`;
+        images.push({ link: embed.all, offset: embed.index, pathname: resolved.pathname });
         last = embed.index + embed.length;
     }
-    return { markdown: out + text.slice(last), unresolved, problems };
+    return { markdown: out + text.slice(last), unresolved, problems, images };
 }
 
 /**
