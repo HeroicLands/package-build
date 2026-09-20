@@ -1282,11 +1282,12 @@ const config = loadPackageBuildConfig();
 console.log(config.stageDir);
 ```
 
-| Export                      | Signature                           | Returns                        | Use it when                                                                                                                                  |
-| --------------------------- | ----------------------------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`       | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)           |
-| `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)` | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk             |
-| `loadPackageBuildConfig`    | `loadPackageBuildConfig()`          | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import |
+| Export                      | Signature                                           | Returns                        | Use it when                                                                                                                                                                           |
+| --------------------------- | --------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`                       | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                                    |
+| `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`                 | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                      |
+| `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                          | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                          |
+| `checkHomepage`             | `checkHomepage(homepage, contentPackage, siteMode)` | `void`                         | validating a resolved `homepage` against `contentPackage` and `publish.site` — called by whichever caller reads `homepage` to build a site, not by `resolvePackageBuildConfig` itself |
 
 ## `./prettier`
 

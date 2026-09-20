@@ -578,6 +578,15 @@ export function publishesContentPages(config) {
  *                                          Refused by a `documentation`
  *                                          package, which ships no Foundry
  *                                          package.
+ * @property {string} [homepage]            `package.json`'s own `homepage` —
+ *                                          the site build's `baseURL`. Checked
+ *                                          against `contentPackage` by
+ *                                          `checkHomepage` in `config.mjs`,
+ *                                          which is not called here — this
+ *                                          field is read through unvalidated.
+ * @property {string|{name: string, email?: string, url?: string}} [author]
+ *                                          `package.json`'s own `author`, in
+ *                                          either of npm's forms.
  * @property {PackageKind} packageKind      Whether the package is a system, a
  *                                          module, or documentation — the kind
  *                                          that publishes a site and a book
@@ -637,6 +646,14 @@ export function publishesContentPages(config) {
  * @property {string} contentPackage
  * @property {string|null} foundryPackage  `null` for a `documentation`
  *                                     package, which ships no Foundry package.
+ * @property {string|null} homepage    `package.json`'s own `homepage`, read
+ *                                     through unvalidated — `checkHomepage` in
+ *                                     `config.mjs` is what requires and
+ *                                     checks it.
+ * @property {Readonly<{name: string, email?: string, url?: string}>|null} author
+ *                                     `package.json`'s own `author`, normalised
+ *                                     from either of npm's forms; `null` when
+ *                                     the package declares none.
  * @property {PackageKind} packageKind
  * @property {string|null} assetRoot   Derived, and **conditional**: the served
  *                                     Foundry asset root,
@@ -705,6 +722,8 @@ const CONFIG_KEYS = [
     "rootDir",
     "contentPackage",
     "foundryPackage",
+    "homepage",
+    "author",
     "packageKind",
     "stats",
     "itemBuilders",
@@ -753,6 +772,7 @@ const RELATIONSHIP_KEYS = [
     "compatibility",
     "itemCatalog",
 ];
+const AUTHOR_KEYS = ["name", "email", "url"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
 const ITEM_REGISTRY_KEYS = ["system", "builders"];
 const PACK_KEYS = [
@@ -962,6 +982,56 @@ function optionalBoolean(value, field, fallback) {
 function optionalString(value, field) {
     if (typeof value !== "string") fail(field, "must be a string");
     return value;
+}
+
+/**
+ * npm's `author` field, in either of its two forms.
+ *
+ * `package.json` accepts a single string — `"Name <email> (url)"`, with the
+ * email and the URL both optional — or an object carrying the same three
+ * parts. Both normalise to one shape, so the site build reads one field
+ * instead of branching on which form a repository happened to write.
+ *
+ * @type {RegExp}
+ */
+const AUTHOR_STRING = /^([^<(]*?)\s*(?:<([^>]*)>)?\s*(?:\(([^)]*)\))?\s*$/;
+
+/**
+ * @param {unknown} value - The declared `author`, or `undefined`.
+ * @returns {Readonly<{name: string, email?: string, url?: string}>|null}
+ *   `null` when the package declares none.
+ */
+function normalizeAuthor(value) {
+    if (value === undefined) return null;
+    if (typeof value === "string") {
+        const match = AUTHOR_STRING.exec(value.trim());
+        const name = match?.[1]?.trim();
+        if (!match || !name) {
+            fail(
+                "author",
+                'must be `"Name"`, `"Name <email>"`, `"Name (url)"` or ' +
+                    '`"Name <email> (url)"` — npm\'s own `author` forms',
+            );
+        }
+        return Object.freeze({
+            name: /** @type {string} */ (name),
+            ...(match[2] ? { email: match[2] } : {}),
+            ...(match[3] ? { url: match[3] } : {}),
+        });
+    }
+    if (!isPlainObject(value)) {
+        fail("author", "must be a string or an object with `name`, `email` and `url`");
+    }
+    const author = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(author, AUTHOR_KEYS, "author.");
+    const name = requireNonEmptyString(author.name, "author.name");
+    return Object.freeze({
+        name,
+        ...(author.email !== undefined ?
+            { email: optionalString(author.email, "author.email") }
+        :   {}),
+        ...(author.url !== undefined ? { url: optionalString(author.url, "author.url") } : {}),
+    });
 }
 
 /**
@@ -2493,6 +2563,13 @@ export function defineConfig(config) {
         rootDir,
         contentPackage: requireContentPackage(input.contentPackage, docEntryTypes),
         foundryPackage,
+        // `package.json`'s own address and byline. `homepage` is read through
+        // unvalidated: checking it against `contentPackage` is
+        // `checkHomepage` in `config.mjs`, for a caller that reads `homepage`
+        // to build a site.
+        homepage:
+            input.homepage === undefined ? null : requireNonEmptyString(input.homepage, "homepage"),
+        author: normalizeAuthor(input.author),
         packageKind: /** @type {PackageKind} */ (packageKind),
         // Foundry serves a package's files from `<kind>/<id>/`, so this is the
         // one place `systems/sohl` (or `modules/sohl-thalorna`) is spelled.

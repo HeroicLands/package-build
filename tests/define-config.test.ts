@@ -197,6 +197,77 @@ describe("defineConfig", () => {
     });
 });
 
+describe("defineConfig — homepage and author", () => {
+    it("is null for both when a package declares neither", () => {
+        const config = defineConfig(minimal());
+
+        expect(config.homepage).toBeNull();
+        expect(config.author).toBeNull();
+    });
+
+    it("carries a declared homepage through unchanged", () => {
+        const config = defineConfig({
+            ...minimal(),
+            homepage: "https://www.heroiclands.org/sohl/",
+        } as ContentBuildConfigInput);
+
+        expect(config.homepage).toBe("https://www.heroiclands.org/sohl/");
+    });
+
+    // npm's own two forms, both normalising to the object shape.
+    it("normalises author's string form", () => {
+        const config = defineConfig({
+            ...minimal(),
+            author: "Toasty <toasty@heroiclands.org> (https://heroiclands.org)",
+        } as ContentBuildConfigInput);
+
+        expect(config.author).toEqual({
+            name: "Toasty",
+            email: "toasty@heroiclands.org",
+            url: "https://heroiclands.org",
+        });
+    });
+
+    it("normalises author's string form with no email or url", () => {
+        const config = defineConfig({
+            ...minimal(),
+            author: "Toasty",
+        } as ContentBuildConfigInput);
+
+        expect(config.author).toEqual({ name: "Toasty" });
+    });
+
+    it("normalises author's object form", () => {
+        const config = defineConfig({
+            ...minimal(),
+            author: { name: "Toasty", email: "toasty@heroiclands.org" },
+        } as ContentBuildConfigInput);
+
+        expect(config.author).toEqual({
+            name: "Toasty",
+            email: "toasty@heroiclands.org",
+        });
+    });
+
+    it("refuses an author object with an unrecognised key", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                author: { name: "Toasty", handle: "@toasty" },
+            } as unknown as ContentBuildConfigInput),
+        ).toThrow(/author\.handle/);
+    });
+
+    it("refuses an author with no name", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                author: { email: "toasty@heroiclands.org" },
+            } as unknown as ContentBuildConfigInput),
+        ).toThrow(/author\.name/);
+    });
+});
+
 describe("defineConfig — the layout a consumer supplies", () => {
     it("defaults every path to the conventional repository layout", () => {
         const config = defineConfig(minimal());

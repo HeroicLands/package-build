@@ -28,9 +28,10 @@
  *
  * - **Declared** — the `packageBuild.manifest` block, emitted unchanged, so a
  *   key Foundry adds in a later version needs no release of this package.
- * - **Derived** — the identity, the version, the release addresses, the
- *   compatibility ranges and the pack list. Declaring one of these is an error
- *   rather than an override: the authored copy would be silently overwritten.
+ * - **Derived** — the identity, the description, the version, the release
+ *   addresses, the compatibility ranges and the pack list. Declaring one of
+ *   these is an error rather than an override: the authored copy would be
+ *   silently overwritten.
  * - **Computed** — namespaced `flags` a repository works out for itself.
  *
  * **Nothing here invents an address.** The repository URL is read from
@@ -459,10 +460,10 @@ function withoutBuildKeys(entry) {
  *
  * - **Declared** — everything in `packageBuild.manifest`, emitted unchanged, so
  *   a key Foundry adds later needs no release of this package.
- * - **Derived** — the identity, the release addresses, the version, the Foundry
- *   and system compatibility ranges, and the pack list. These are refused if
- *   also declared: an authored copy would be overwritten and the two would
- *   disagree with nothing to say so.
+ * - **Derived** — the identity, the description, the release addresses, the
+ *   version, the Foundry and system compatibility ranges, and the pack list.
+ *   These are refused if also declared: an authored copy would be overwritten
+ *   and the two would disagree with nothing to say so.
  * - **Computed** — namespaced `flags` a repository works out for itself, merged
  *   over any it declared.
  *
@@ -492,6 +493,10 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
             artifact,
         }),
     };
+    // Own-property presence, not just value, decides whether a key survives
+    // into `ordered` below — an explicit `undefined` would still occupy a slot
+    // in it. Set only when `package.json` actually declares one.
+    if (packageJson.description !== undefined) derived.description = packageJson.description;
     if (config.compatibility) derived.compatibility = config.compatibility;
 
     // `requiresSystem` is the gate half of the declare/require split. It
