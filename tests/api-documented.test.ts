@@ -98,6 +98,7 @@ describe("docs/api.md documents the real export surface", () => {
             "./release",
             "./stage",
             "./templates",
+            "./changelog",
         ]);
         for (const entry of MODULE_SUBPATHS) {
             const heading = entry === "." ? "`.` —" : `\`${entry}\``;
@@ -123,7 +124,13 @@ describe("docs/api.md documents the real export surface", () => {
                     "@heroiclands/package-build"
                 :   `@heroiclands/package-build/${subpath.slice(2)}`;
             const mod: Record<string, unknown> = await import(specifier);
-            const missing = Object.keys(mod).filter((name) => !DOCUMENTED.has(name));
+            // Node's CJS-ESM interop (`./changelog` is CommonJS) synthesizes
+            // these two extra keys on every namespace it builds from a
+            // `module.exports` object; neither is a real export to document.
+            const CJS_INTEROP_KEYS = new Set(["default", "module.exports"]);
+            const missing = Object.keys(mod).filter(
+                (name) => !DOCUMENTED.has(name) && !CJS_INTEROP_KEYS.has(name),
+            );
             expect(missing, subpath).toEqual([]);
 
             // A namespace re-export (`export * as ids from "./ids.mjs"`, as
