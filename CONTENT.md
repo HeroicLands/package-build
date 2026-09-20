@@ -1407,21 +1407,9 @@ mount's `_index.md` as the `home` kind at `baseURL`, which is
 `https://www.heroiclands.org/<package>/`. `package-build site-root` writes no
 `_redirects` beside the site — and removes one an earlier build left there,
 since Cloudflare Pages would apply it. Its `_headers` suppress indexing on
-every host-assigned address and pin a lifetime on both spellings of the prefix
-root:
-
-```text
-# _headers
-/sohl/
-  Cache-Control: max-age=3600
-/sohl
-  Cache-Control: max-age=3600
-```
-
-Both spellings, because Pages matches the raw path: `/sohl` and `/sohl/` are
-distinct keys and a rule on one does not catch the other. The root is the
-most-linked address a package has, and an hour bounds how long a cached copy
-of it outlives a deploy on every path between the origin and a reader.
+every host-assigned address and nothing else: no `Cache-Control` is pinned on
+the prefix root, because a lifetime on the homepage would hold a stale copy at
+the most-linked address after a deploy.
 
 ### The homepage's own links
 
@@ -2253,7 +2241,6 @@ site:
   passOptions:
     apiBase: /sohl/api/
     symbolMap: kb/data/api-symbols.json
-  list: { shortcodes: true }
   notfound:
     tagline: Song of Heroic Lands has no page at
     sitenoun: site
@@ -2268,7 +2255,6 @@ site:
 | `pass`        | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
 | `passOptions` | That bundle's options.                                                                                                                                                                                                                                |
 | `assets`      | The host every package's imagery is served from; the generated `params.cdnBaseURL`.                                                                                                                                                                   |
-| `list`        | How a listing renders; the generated `params.list`.                                                                                                                                                                                                   |
 | `notfound`    | The wording of the "page not found" page; the generated `params.notfound`.                                                                                                                                                                            |
 | `hugo`        | A mapping deep-merged over the generated Hugo configuration, last. Every key the generator writes is refused here — see `docs/configuration.md`.                                                                                                      |
 
@@ -2329,7 +2315,8 @@ content table that lists a type surfaces each note once.
 
 A configuration that asks the build to generate an index — `site.sections`
 (with the `listType` / `listSubType` an entry carried), `site.landing`,
-`site.backfillSections` — is refused by name, with one message:
+`site.backfillSections`, and `site.list`, which said how such a listing
+renders — is refused by name, with one message:
 
 ```text
 package-build config: `site.sections` is retired — a site is its homepage and

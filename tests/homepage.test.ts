@@ -312,7 +312,7 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         const config = configFor({
             site: {
                 packages: ["demo"],
-                list: { shortcodes: true },
+                passOptions: { apiBase: "/demo/api/" },
             },
             publish: {
                 site: "homepage",

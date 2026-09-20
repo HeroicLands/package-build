@@ -278,14 +278,13 @@ and Cloudflare Pages reads `_headers` and `_redirects` from there and nowhere
 else — a copy inside the prefix is published as a text file and never applied.
 Hugo owns everything under the prefix; this owns what sits beside it.
 
-One file is written, `_headers`, and it says two things. Indexing is
+One file is written, `_headers`, and it says one thing: indexing is
 suppressed on every address a deployment answers on but nobody advertises —
 the project's `pages.dev`, the per-deployment `pages.dev`, and the custom
 domain the routing layer fetches — each of which would otherwise compete with
-the canonical URL in search results. And both spellings of the prefix root
-carry a pinned lifetime, because the root is the homepage and the most-linked
-address a package has, and an hour bounds how long a cached copy outlives a
-deploy.
+the canonical URL in search results. No `Cache-Control` is pinned on the
+prefix root: it is the homepage, and a lifetime on it would hold a stale copy
+at the most-linked address after a deploy.
 
 No `_redirects` is written: the prefix root _is_ the homepage, which the site
 build writes as the mount's `_index.md`, so nothing redirects. A `_redirects`
@@ -1586,8 +1585,8 @@ Three things are written, and nothing outside `build/`:
 
 - `build/hugo/hugo.toml`, generated on every run from `package.json`
   (`homepage`, `description`, `author`), `package-build.config.yaml`
-  (`packageBuild.manifest.title`, `site.assets`, `site.list`,
-  `site.notfound`, `site.hugo`), the organisation's constants, the installed
+  (`packageBuild.manifest.title`, `site.assets`, `site.notfound`,
+  `site.hugo`), the organisation's constants, the installed
   `@heroiclands/hugo-theme`'s location, and the navigation `deps fetch`
   cached. Every value's source is listed under
   [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).

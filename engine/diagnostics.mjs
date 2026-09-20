@@ -297,7 +297,7 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
  *
  * **`key: true` addresses the declaration rather than the value.** A finding
  * about a *value* — this pack name is not in `packs[]` — belongs on the value,
- * which is the default. A finding that names a **field** — `\`site.list.x\`
+ * which is the default. A finding that names a **field** — `\`site.notfound.x\`
  * is not a recognized option` — sends the reader to look for that field, so the
  * position should be the field's own, and in a flow mapping
  * (`{ title: X, banner: Y }`) the two are different columns on one line. The

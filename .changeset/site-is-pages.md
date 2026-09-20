@@ -12,14 +12,15 @@ any other page.
 
 **What a consumer changes**
 
-- Delete `site.sections`, `site.landing` and `site.backfillSections` from
-  `package-build.config.yaml`; each is refused by name with a message saying an
-  index is a `doc` note.
+- Delete `site.sections`, `site.landing`, `site.backfillSections` and
+  `site.list` from `package-build.config.yaml`; each is refused by name with a
+  message saying an index is a `doc` note.
 - Delete the `landing:` block from the homepage note; it is refused. The
   homepage is a page with a body, and its links are markdown links in that
   body.
 - Delete any root redirect the repository authors itself: `site-root` writes
-  `_headers` only, and removes a `_redirects` left beside the site.
+  `_headers` only — the `noindex` rules, with no `Cache-Control` on the root —
+  and removes a `_redirects` left beside the site.
 
 **What stops answering**
 
@@ -32,6 +33,7 @@ any other page.
 
 - `HOMEPAGE_DESTINATION` names the homepage's file; `homepageDestination`,
   `writeSectionLandings`, `sectionFrontmatter`, `pluralTitle`, `landingPath`,
-  `redirects`, `HOMEPAGE_ADDRESS_KEYS` and `hasAnyTag` are gone.
+  `redirects`, `HOMEPAGE_ADDRESS_KEYS` and `hasAnyTag` are gone; `headers()`
+  takes no package.
   `homepageAddresses` takes the body alone, `hugoConfig` and
   `generateHugoConfig` take no `hasTags`, and `buildSite` reports none.

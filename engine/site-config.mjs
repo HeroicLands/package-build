@@ -32,8 +32,8 @@
  * and the site build writes `[menu.main]` from the cache.
  *
  * What a repository still says for itself is the residue that is genuinely
- * its own — the wording of its "page not found" page, whether its listings
- * show shortcodes — and, through `site.hugo`, the one key nobody anticipated.
+ * its own — the wording of its "page not found" page — and, through
+ * `site.hugo`, the one key nobody anticipated.
  * {@link module:content-config.DERIVED_HUGO_KEYS} refuses everything the
  * generator writes from being authored there too.
  *
@@ -397,7 +397,6 @@ export function hugoConfig({ config, navigation, themesDir }) {
     if (config.author?.name) params.author = config.author.name;
     if (config.site.assets) params.cdnBaseURL = config.site.assets;
     params.brand = { ...BRAND };
-    params.list = { ...config.site.list };
     if (config.site.notfound) params.notfound = structuredClone(config.site.notfound);
 
     const generated = {

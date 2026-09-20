@@ -75,7 +75,7 @@ describe("a transform is named, or it is a path", () => {
 
 describe("a deployment's root files", () => {
     it("suppresses indexing on every host-assigned address", () => {
-        const out = headers("thalorna");
+        const out = headers();
 
         expect(out).toContain("https://:project.pages.dev/*");
         expect(out).toContain("https://:version.:project.pages.dev/*");
@@ -83,13 +83,10 @@ describe("a deployment's root files", () => {
         expect(out.match(/X-Robots-Tag: noindex/g)).toHaveLength(3);
     });
 
-    // Pages matches the raw path, before any trailing-slash handling, so the
-    // two spellings of the prefix root are distinct keys and one rule does not
-    // catch the other.
-    it("pins a lifetime on both spellings of the prefix root", () => {
-        const out = headers("thalorna");
-        expect(out).toContain("/thalorna/\n  Cache-Control: max-age=3600");
-        expect(out).toContain("/thalorna\n  Cache-Control: max-age=3600");
+    // The prefix root is the homepage: a pinned lifetime would hold a stale
+    // copy at the most-linked address after a deploy.
+    it("pins no lifetime on the prefix root", () => {
+        expect(headers()).not.toContain("Cache-Control");
     });
 
     it("writes `_headers` beside the rendered site", () => {
@@ -100,7 +97,7 @@ describe("a deployment's root files", () => {
         const { files } = writeSiteRoot({ pkg: "kethira", out });
 
         expect(files.map((f) => path.basename(f))).toEqual(["_headers"]);
-        expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toContain("/kethira/");
+        expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toBe(headers());
         expect(fs.existsSync(path.join(out, "_redirects"))).toBe(false);
     });
 

@@ -767,11 +767,9 @@ const SITE_KEYS = [
     "packages",
     "pass",
     "passOptions",
-    "list",
     "notfound",
     "hugo",
 ];
-const SITE_LIST_KEYS = ["shortcodes"];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
 const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
@@ -1553,27 +1551,10 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     "params.author": "package.json `author`",
     "params.cdnBaseURL": "`site.assets`",
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
-    "params.list": "`site.list`",
     "params.notfound": "`site.notfound`",
     "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
     menu: "the navigation `content-build deps fetch` caches from heroiclands.org",
 });
-
-/**
- * The `site.list` block — how a listing page renders.
- *
- * @param {unknown} value - The block, or `undefined`.
- * @returns {Readonly<{shortcodes: boolean}>} It, frozen, with every default filled.
- */
-function normalizeSiteList(value) {
-    if (value === undefined) return Object.freeze({ shortcodes: false });
-    if (!isPlainObject(value)) fail("site.list", "must be a mapping");
-    const input = /** @type {Record<string, unknown>} */ (value);
-    rejectUnknownKeys(input, SITE_LIST_KEYS, "site.list.");
-    return Object.freeze({
-        shortcodes: optionalBoolean(input.shortcodes, "site.list.shortcodes", false),
-    });
-}
 
 /**
  * The `site.notfound` block — the wording of the "page not found" page.
@@ -1660,16 +1641,17 @@ function normalizeSiteHugo(value) {
  * generated listing between them — `sections` (with `listType` and
  * `listSubType` inside an entry) a type-wide alphabetical one per entry,
  * `backfillSections` one for every other directory under the mount, `landing`
- * the mount's own. None of those is a page anyone chose the contents of, and
- * every one of them is authored instead: a `doc` note, addressed by its
- * shortcode, carrying a content table over the notes it introduces.
+ * the mount's own, `list` how such a listing renders. None of those is a page
+ * anyone chose the contents of, and every one of them is authored instead: a
+ * `doc` note, addressed by its shortcode, carrying a content table over the
+ * notes it introduces, with the columns it chooses.
  *
  * Refused rather than ignored, for the reason {@link RETIRED_ADDRESS_KEYS}
  * gives: a key left ignored reads to its author as though it still works.
  *
  * @type {readonly string[]}
  */
-const SITE_INDEX_KEYS = Object.freeze(["sections", "landing", "backfillSections"]);
+const SITE_INDEX_KEYS = Object.freeze(["sections", "landing", "backfillSections", "list"]);
 
 /**
  * The message every key in {@link SITE_INDEX_KEYS} is refused with.
@@ -1716,7 +1698,6 @@ function normalizeSite(value) {
         packages: Object.freeze([]),
         pass: "",
         passOptions: Object.freeze({}),
-        list: Object.freeze({ shortcodes: false }),
         notfound: null,
         hugo: Object.freeze({}),
     });
@@ -1772,7 +1753,6 @@ function normalizeSite(value) {
             input.passOptions === undefined ?
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
-        list: normalizeSiteList(input.list),
         notfound: normalizeSiteNotfound(input.notfound),
         hugo: normalizeSiteHugo(input.hugo),
     });

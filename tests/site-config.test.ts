@@ -192,7 +192,6 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         const parsed = parseToml(
             hugoToml(
                 generated({
-                    list: { shortcodes: true },
                     notfound: { tagline: "No page at", sitenoun: "module" },
                 }),
             ),
@@ -267,7 +266,6 @@ describe("the generated configuration", () => {
         expect(out.params.author).toBe("Ann Author");
         expect(out.params.cdnBaseURL).toBe("https://cdn.example.org");
         expect(out.params.brand).toEqual(BRAND);
-        expect(out.params.list).toEqual({ shortcodes: false });
         expect(out.params).not.toHaveProperty("notfound");
     });
 
@@ -293,9 +291,8 @@ describe("the generated configuration", () => {
         expect(out).not.toHaveProperty("outputs");
     });
 
-    it("writes `site.notfound` and `site.list` through", () => {
+    it("writes `site.notfound` through", () => {
         const out = generated({
-            list: { shortcodes: true },
             notfound: {
                 tagline: "This module has one page, and it is not at",
                 sitenoun: "module",
@@ -303,7 +300,6 @@ describe("the generated configuration", () => {
                 links: [{ title: "Home", url: "/", text: "From the top." }],
             },
         });
-        expect(out.params.list).toEqual({ shortcodes: true });
         expect(out.params.notfound).toEqual({
             tagline: "This module has one page, and it is not at",
             sitenoun: "module",
@@ -551,18 +547,12 @@ describe("the Hugo source tree lands under build/", () => {
     });
 });
 
-describe("`site.list` and `site.notfound` are validated", () => {
-    it("`site.list.shortcodes` is a boolean, default false", () => {
-        expect(configFor().site.list).toEqual({ shortcodes: false });
-        expect(configFor({}, { list: { shortcodes: true } }).site.list).toEqual({
-            shortcodes: true,
-        });
-        expect(() => configFor({}, { list: { shortcodes: "yes" } })).toThrow(
-            /`site\.list\.shortcodes` must be a boolean/,
+describe("`site.notfound` is validated", () => {
+    it("`site.list` is refused — how a listing renders is a content table's", () => {
+        expect(() => configFor({}, { list: { shortcodes: true } })).toThrow(
+            /`site\.list` is retired — a site is its homepage and its pages/,
         );
-        expect(() => configFor({}, { list: { nope: true } })).toThrow(
-            /`site\.list\.nope` is not a recognized option/,
-        );
+        expect("list" in configFor().site).toBe(false);
     });
 
     it("`site.notfound` requires its wording and checks its links", () => {

@@ -208,12 +208,6 @@ describe("every nested key list is documented", () => {
             allowedKeys(() => defineConfig(minimal({ site: { __unrecognised__: true } }))),
         );
         assertDocuments(
-            "site.list",
-            allowedKeys(() =>
-                defineConfig(minimal({ site: { list: { __unrecognised__: true } } })),
-            ),
-        );
-        assertDocuments(
             "site.notfound",
             allowedKeys(() =>
                 defineConfig(
@@ -711,11 +705,12 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         );
     });
 
-    it("`site.sections`, `site.landing` and `site.backfillSections`", () => {
+    it("`site.sections`, `site.landing`, `site.backfillSections` and `site.list`", () => {
         for (const site of [
             { sections: { foo: { title: "t" } } },
             { landing: { title: "t" } },
             { backfillSections: true },
+            { list: { shortcodes: true } },
         ]) {
             assertQuoted(
                 thrown(() => defineConfig(minimal({ site }))).replace(

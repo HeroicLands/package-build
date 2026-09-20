@@ -110,6 +110,12 @@ describe("a configured index between the homepage and the pages is refused", () 
         );
     });
 
+    it("refuses `site.list` — how a listing renders is a content table's to say", () => {
+        expect(() => defineConfig(minimal({ site: { list: { shortcodes: true } } }))).toThrow(
+            /`site\.list`.*a site is its homepage and its pages/s,
+        );
+    });
+
     it("refuses `site.landing` — the mount's own index is the homepage", () => {
         expect(() =>
             defineConfig(
@@ -123,6 +129,7 @@ describe("a configured index between the homepage and the pages is refused", () 
         expect("sections" in config.site).toBe(false);
         expect("landing" in config.site).toBe(false);
         expect("backfillSections" in config.site).toBe(false);
+        expect("list" in config.site).toBe(false);
     });
 
     it("exports no section writer", () => {
@@ -412,16 +419,17 @@ describe("the deployment root is `_headers` alone", () => {
 
             expect(files.map((f) => path.basename(f))).toEqual(["_headers"]);
             expect(fs.existsSync(path.join(out, "_redirects"))).toBe(false);
-            expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toBe(headers("kethira"));
+            expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toBe(headers());
         } finally {
             fs.rmSync(out, { recursive: true, force: true });
         }
     });
 
-    it("still suppresses indexing on every host-assigned address", () => {
-        const out = headers("thalorna");
+    it("suppresses indexing on every host-assigned address, and pins no lifetime", () => {
+        const out = headers();
         expect(out.match(/X-Robots-Tag: noindex/g)).toHaveLength(3);
         expect(out).not.toContain("301");
+        expect(out).not.toContain("Cache-Control");
     });
 });
 
@@ -472,6 +480,7 @@ describe("the generated Hugo configuration renders `home` and `page` only", () =
     it("keeps the three keys refused under `site.hugo`, naming the toolchain", () => {
         for (const key of ["disableKinds", "taxonomies", "outputs"]) {
             expect(DERIVED_HUGO_KEYS[key]).toMatch(/homepage and its pages/);
+            expect(DERIVED_HUGO_KEYS).not.toHaveProperty("params.list");
             expect(() =>
                 defineConfig(
                     minimal({

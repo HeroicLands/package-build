@@ -20,11 +20,11 @@
  * `_redirects` is written. One left beside the site by an earlier build is
  * removed rather than left to send every reader somewhere nothing publishes.
  *
- * **One implementation, because it is one policy.** What is indexable and how
- * long the prefix root is cached are decisions about the hosting rather than
- * about any one package. Held in each consumer they are the same file with one
- * constant changed, which is a file that drifts — and the drift is invisible,
- * because nobody reads all of the copies at once.
+ * **One implementation, because it is one policy.** What is indexable is a
+ * decision about the hosting rather than about any one package. Held in each
+ * consumer it is the same file with one constant changed, which is a file that
+ * drifts — and the drift is invisible, because nobody reads all of the copies
+ * at once.
  *
  * @module
  */
@@ -76,36 +76,16 @@ export function noindexHeaders() {
 }
 
 /**
- * The lifetime pinned on the prefix root, both spellings.
+ * The `_headers` file's contents: the `noindex` rules, and nothing else.
  *
- * The root is the homepage, the most-linked address a package has. An hour
- * bounds how long a cached copy of it outlives a deploy, on every path between
- * the origin and a reader. Both spellings, because Pages matches the raw path:
- * `/<pkg>` and `/<pkg>/` are distinct keys and a rule on one does not catch the
- * other.
+ * No `Cache-Control` is pinned on the prefix root. It is the homepage, and a
+ * lifetime on it would hold a stale copy at the most-linked address after a
+ * deploy; Pages' own defaults for a page apply.
  *
- * @param {string} pkg - The content package name.
- * @returns {string[]} The header block's lines.
- */
-export function cacheHeaders(pkg) {
-    return [
-        `/${pkg}/`,
-        "  Cache-Control: max-age=3600",
-        "",
-        `/${pkg}`,
-        "  Cache-Control: max-age=3600",
-        "",
-    ];
-}
-
-/**
- * The `_headers` file's contents.
- *
- * @param {string} pkg - The content package name.
  * @returns {string} The file's contents.
  */
-export function headers(pkg) {
-    return [...noindexHeaders(), ...cacheHeaders(pkg)].join("\n");
+export function headers() {
+    return noindexHeaders().join("\n");
 }
 
 /**
@@ -135,7 +115,7 @@ export function writeSiteRoot({ pkg, out }) {
     }
 
     const file = path.join(root, "_headers");
-    fs.writeFileSync(file, headers(pkg));
+    fs.writeFileSync(file, headers());
     fs.rmSync(path.join(root, "_redirects"), { force: true });
     return { files: [file] };
 }

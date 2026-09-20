@@ -170,16 +170,16 @@ describe("positionOfYamlPath, addressing the key rather than its value", () => {
 
 describe("a configuration error carries the position of its key", () => {
     it("locates an unrecognised key, path first", () => {
-        const text = `${MINIMAL}\nsite:\n    list: { shortcodes: true, shortcdes: Nope }\n`;
+        const text = `${MINIMAL}\nsite:\n    notfound: { tagline: T, sitenoun: S, sitenown: Nope }\n`;
         const { err, file } = failureFor(text);
 
         expect(err.message).toBe(
-            `${file}:11:31: error: package-build config: ` +
-                "`site.list.shortcdes` is not a recognized option " +
-                "(expected one of: shortcodes).",
+            `${file}:11:42: error: package-build config: ` +
+                "`site.notfound.sitenown` is not a recognized option " +
+                "(expected one of: tagline, sitenoun, heroimage, links).",
         );
         const { line, column } = locatorOf(err.message);
-        expect(textAt(text, line, column)).toMatch(/^shortcdes/);
+        expect(textAt(text, line, column)).toMatch(/^sitenown/);
     });
 
     it("locates a wrong-typed value nested in a sequence", () => {
