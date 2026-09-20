@@ -25,12 +25,18 @@
  *
  * **What is here is the pass, not the framing.** The walk, the frontmatter read,
  * the address derivation, the address index, table expansion, wikilink
- * resolution, code-fence protection, the foreign-manifest merge, the page
- * emission and the section-landing backfill are the same job everywhere. Where a
- * page's address comes from (`publish.address`), what a section is called, and
- * what a repository's own rewrites are, are not — they arrive as configuration
- * and as a **named** pass bundle, since a configuration is data and cannot hold
- * a function.
+ * resolution, code-fence protection, the foreign-manifest merge and the page
+ * emission are the same job everywhere. Where a page's address comes from
+ * (`publish.address`) and what a repository's own rewrites are, are not — they
+ * arrive as configuration and as a **named** pass bundle, since a configuration
+ * is data and cannot hold a function.
+ *
+ * **A site is its homepage and its pages.** The homepage is the mount's
+ * `_index.md`, rendered at `/<package>/`; every other note is one page at
+ * `/<package>/<type>-<shortcode>/`. Nothing is generated between them — no
+ * section directory, no listing, no `_index.md` but the root's. An index of
+ * what the package publishes is a `doc` note carrying a content table, and it
+ * is authored where every other page is.
  *
  * **Every gate reports; none exits.** The integrity checks a site build needs —
  * a wikilink authored in frontmatter, a name that yields no slug, an unusable
@@ -62,14 +68,13 @@ import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
-import { hasAnyTag } from "./note-vocabulary.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
 import {
+    HOMEPAGE_DESTINATION,
     checkHomepageCount,
-    homepageDestination,
     homepageFrontmatter,
     homepageTitle,
     isHomepage,
@@ -87,20 +92,12 @@ const require = createRequire(import.meta.url);
  * which files are the content. The note is still read for its `{fm, body}`: the
  * index carries no note text, and a page *is* its text.
  *
- * **The order changes, and that is the point of stating it here.** The walk this
- * replaces yielded directory order, and this module kept it deliberately —
- * "a site's emitted pages should not reorder for no reason". Records are in
- * content-path order, which is the same set in a different sequence. Nothing
- * downstream depends on it any more: the first-writer-wins fallbacks that made
- * order load-bearing went with the bare `[[Name]]` form, each page is
- * emitted to its own file at an address derived from its frontmatter, and the
- * one place order could still show — a section's page list — is sorted by the
- * theme. Verified rather than argued: over `sohl`'s tree the emitted mount is
- * byte-identical, all 1,749 files.
- *
- * A **content-path** order is also the better of the two. Directory-read order
- * is a fact about the filesystem, not about the content, so it can differ
- * between two checkouts of one tree; this order cannot.
+ * **Records are in content-path order**, and nothing downstream depends on
+ * it: each page is emitted to its own file at an address derived from its
+ * frontmatter, and a content table orders what it lists by its own clause.
+ * A content-path order is a fact about the content, where directory-read
+ * order is a fact about the filesystem and can differ between two checkouts
+ * of one tree.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} ctx - The build context. `ctx.records` is the corpus when the
@@ -216,8 +213,8 @@ export function collectContentPages(contentBase, ctx) {
             // Location below the content root, POSIX-separated — what a
             // generated table reads as `file.path` and scopes on with `FROM`.
             relPath: rel.split(path.sep).join("/"),
-            // The immediate source subfolder, the only surviving record of the
-            // authoring folder, for grouped landings.
+            // The immediate source subfolder — what a content table reads as
+            // `file.folder`, and the page's `kbfolder`.
             folder: path.basename(path.dirname(file)),
             // Every page is addressed by `(type, shortcode)` at the package
             // root, which takes no content mount. The file is written
@@ -275,25 +272,24 @@ export function collectHomepages(contentBase, ctx) {
 }
 
 /**
- * Writes each homepage at its address, below the package's own root.
+ * Writes each homepage as the package root's `_index.md`.
  *
  * Its own writer, deliberately small. A homepage is authored markdown published
- * verbatim — no table expansion, no section landing and no link resolution — so
- * routing it through {@link renderPages} would buy it a pipeline it has no input
- * for, and would make homepage-only mode depend on the index, the foreign
- * manifests and the table universe that mode exists to not build.
+ * verbatim — no table expansion and no link resolution — so routing it through
+ * {@link renderPages} would buy it a pipeline it has no input for, and would
+ * make homepage-only mode depend on the index, the foreign manifests and the
+ * table universe that mode exists to not build.
  *
- * **Verbatim is the answer, not a gap.** A landing's links
- * could not be *resolved* here without giving `homepage` mode the index its
- * licensing fence exists to not build, so they are **checked** instead:
- * {@link auditHomepageLinks} reads the `landing:` addresses and the body's
- * markdown links, and reports a wikilink on the page rather than resolving one.
+ * **Verbatim is the answer, not a gap.** A homepage's links could not be
+ * *resolved* here without giving `homepage` mode the index its licensing fence
+ * exists to not build, so they are **checked** instead:
+ * {@link auditHomepageLinks} reads the body's markdown links, and reports a
+ * wikilink on the page rather than resolving one.
  *
- * **Its destination is no longer fixed**. The file is written at the
- * note's address, flat at the package's site root, and the page states that
- * address as its `url` — the same separation of file from URL every other page
- * has. Nothing is written at `/<package>/` itself: that becomes a redirect the
- * package's own repository authors, which is a routing fact rather than a page.
+ * **Its destination is fixed**: {@link HOMEPAGE_DESTINATION}, at the package's
+ * site root, which Hugo renders as the `home` kind at `/<package>/`. The page
+ * states no `url` — the home kind has none to state — and the mount below it
+ * holds pages and nothing else, so this is the only `_index.md` in the tree.
  *
  * @param {string} outRoot - The package's site root — the content mount's
  *   root, `build/hugo/content`, one level above the mount itself.
@@ -308,7 +304,7 @@ export function writeHomepages(outRoot, pages, config) {
             contentPackage: config.contentPackage,
             title: homepageTitle(page.fm, config),
         });
-        const dest = path.join(outRoot, homepageDestination(page.fm));
+        const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(page.body, data));
     }
@@ -325,7 +321,7 @@ export function writeHomepages(outRoot, pages, config) {
  * - **Frontmatter wikilinks** first, because frontmatter is copied to the page
  *   verbatim and a link written in one reaches the reader as literal `[[…]]`.
  * - **Addresses** next: a note that has no address — no shortcode to be
- *   addressed by, or no section to be filed under — would silently drop a page.
+ *   addressed by — would silently drop a page.
  *   There is no collision gate beside it: an address is `(type, shortcode)`,
  *   which is unique within a package by rule, so two pages cannot claim one URL.
  * - **Foreign manifests** last, in two steps. *Unusable* is a file this build
@@ -442,39 +438,6 @@ export function tableUniverse(pages) {
 }
 
 /**
- * The front matter a section's landing states about itself.
- *
- * The section metadata a configuration resolved, ready to be written or merged
- * onto a page. Two things happen here and nothing else does:
- *
- * - **`title` leads.** It is the one key every landing has carried since the
- *   first one, and a landing whose block opened with `banner:` would be a
- *   gratuitous diff on every consumer's tree.
- * - **An absent value is left off**, not written as `undefined` — which is not
- *   a value YAML can carry, and would abort the serializer.
- *
- * Everything else the section declared is passed through. That is the point of
- * the function: two writers transcribing `title` and `banner` by
- * name, so the vocabulary lived in three places — the schema that admits a key
- * and the two writers that copy it — and a key added to the schema alone
- * validated cleanly and then reached no page. The *schema* is the bound worth
- * keeping (see `normalizeSectionMeta`, which refuses a key it does not know and
- * names it); a second, silent bound in the writers is not.
- *
- * @param {object} meta - A resolved `site.sections` / `site.readmeSections`
- *   entry.
- * @returns {object} Its front matter, `title` first.
- */
-export function sectionFrontmatter(meta) {
-    const data = { title: meta.title };
-    for (const [key, value] of Object.entries(meta)) {
-        if (key === "title" || value === undefined) continue;
-        data[key] = value;
-    }
-    return data;
-}
-
-/**
  * The frontmatter a page publishes with.
  *
  * An authored `aliases` is retired and refused before a build reaches
@@ -504,10 +467,8 @@ export function sectionFrontmatter(meta) {
  * A content page carries the package the build **derived**. No note
  * declares one — `package:` is retired — so the note's frontmatter alone
  * would publish a page that does not say which package it belongs to. The
- * emitted page is what a
- * theme reads: `breadcrumbs.html` builds its middle crumb from
- * `.Params.package`, so without it that crumb degrades from a linked, labelled
- * section to a bare type slug. Writing the derived value keeps a page
+ * emitted page is what a theme reads: `breadcrumbs.html` reads
+ * `.Params.package`. Writing the derived value keeps a page
  * self-describing and makes sweeping the field out of a content tree
  * output-preserving for a site as it already is for the packs.
  *
@@ -592,16 +553,15 @@ function isPlainObject(value) {
  * Where a page is written, relative to the output root.
  *
  * **Flat, under the mount, named by its address**. A content page's URL
- * is its address — `/<package>/<type>-<shortcode>/` — and the file is now named
- * the same way, so the two agree. Filing it into `<section>/` so that
- * Hugo would read a section off its path; a section appears in no address, and
- * a directory chosen only to satisfy a rendering engine's idea of what a
- * section is has no business in the note format.
+ * is its address — `/<package>/<type>-<shortcode>/` — and the file is named
+ * the same way, so the two agree. No page creates a directory: a section is
+ * a Hugo listing over a content directory, the `section` kind is disabled on
+ * every site, and a directory chosen only to satisfy a rendering engine's idea
+ * of what a section is has no business in the note format.
  *
- * The name is the *whole* address rather than a section-relative half of it, so
- * two types cannot fight over one file: a `doc` note's `subType` may be spelled
- * the same as another note's `type`, and `doc-gear.md` and `weapongear-gear.md`
- * are distinct whatever the sections.
+ * The name is the *whole* address, so two types cannot fight over one file: a
+ * `doc` note's `subType` may be spelled the same as another note's `type`, and
+ * `doc-gear.md` and `weapongear-gear.md` are distinct.
  *
  * @param {object} page - The page.
  * @returns {string} The file, relative to the mount.
@@ -699,8 +659,7 @@ export function renderPages(pages, options) {
 
     for (const page of pages) {
         // The page's path in the tree an author edits, below the content
-        // root. It is not composed as `<section>/<basename>`, which named a
-        // directory that was never the note's.
+        // root.
         const src = page.relPath ?? page.base;
         const ctx = wikiContext(index, {
             src,
@@ -747,111 +706,6 @@ export function renderPages(pages, options) {
     }
 
     return { written: pages.length, byKind, tableErrors, wikiErrors, imageErrors };
-}
-
-/**
- * Writes the Hugo sections a published tree declares.
- *
- * **This is where a section lives now, and the only place**. A content
- * note carries none: it is addressed by `(type, shortcode)` and emitted flat
- * under the mount, so nothing a page does creates a directory. A site that wants
- * `/<package>/<prefix><section>/` to answer — with a title, a hero, and whatever
- * listing its layout builds — says so here, in configuration, and this writes
- * the `_index.md` that makes Hugo agree it is a section.
- *
- * Three jobs, all of them Hugo's directory semantics rather than the note
- * format's:
- *
- * - **The mount's own landing**, so `/<package>/<prefix>` is a page rather than
- *   a directory listing. It carries a `type` of its own: Hugo's template lookup
- *   walks up a page's path, so an untyped landing template at the mount would
- *   also serve every section below it that has none.
- * - **Declared sections** get a titled `_index.md` with their hero, so a landing
- *   matches the card that links to it instead of showing Hugo's auto-humanised
- *   directory name. The body is empty, which lets the theme decide what to list.
- * - **Every other directory directly under the mount** gets a bare `_index.md`,
- *   or its own address publishes nothing. Hugo generates a section page
- *   automatically only for a *top-level* content directory; below that, a
- *   directory without an `_index.md` is not a section, so its URL 404s while its
- *   children publish normally. With content pages flat, no note creates a
- *   directory below the mount, so this reaches only what something else
- *   placed there.
- *
- * **A section listing is not a page listing any more.** A layout that reads
- * `.Pages` off a section it declares here will find nothing, because no file is
- * filed into it; one that queries `site.RegularPages` by `Params.type` — which
- * is how `sohl`'s eleven catalog layouts already work — is unaffected. That is a
- * consumer's layout to choose, and it is stated here because the choice is no
- * longer free.
- *
- * Scoped to one level on purpose. A directory further down was not a section
- * before either, and giving it one here would silently re-scope the prev/next
- * navigation of every page inside it.
- *
- * @param {string} outRoot - The mount directory.
- * @param {object} options
- * @param {Record<string, object>} [options.sections] - The declared sections,
- *   each written as a titled `_index.md` carrying its own frontmatter.
- * @param {object} [options.landing] - The mount's own landing frontmatter.
- *   Omitted, the mount gets no `_index.md` of its own.
- * @param {((name: string) => string)|null} [options.sectionTitle] - Titles a
- *   directory below the mount that declared no section. `null` leaves such a
- *   directory without an `_index.md`.
- * @returns {number} How many landings were written.
- */
-export function writeSectionLandings(outRoot, { sections = {}, landing, sectionTitle }) {
-    let written = 0;
-
-    if (landing) {
-        fs.mkdirSync(outRoot, { recursive: true });
-        fs.writeFileSync(path.join(outRoot, "_index.md"), matter.stringify("", landing));
-        written += 1;
-    }
-
-    for (const [sec, meta] of Object.entries(sections)) {
-        const dir = path.join(outRoot, sec);
-        fs.mkdirSync(dir, { recursive: true });
-        // Whatever the section declared, not a list of keys named here — see
-        // {@link sectionFrontmatter} for why the two lists were one too many.
-        fs.writeFileSync(
-            path.join(dir, "_index.md"),
-            matter.stringify("", sectionFrontmatter(meta)),
-        );
-        written += 1;
-    }
-
-    if (!sectionTitle) return written;
-    for (const entry of fs.readdirSync(outRoot, { withFileTypes: true })) {
-        if (!entry.isDirectory()) continue;
-        const index = path.join(outRoot, entry.name, "_index.md");
-        if (fs.existsSync(index)) continue;
-        fs.writeFileSync(index, matter.stringify("", { title: sectionTitle(entry.name) }));
-        written += 1;
-    }
-    return written;
-}
-
-/**
- * A section landing's title, from its directory name — `macro` → `Macros`.
- *
- * Hugo derives exactly this for a section page it generates itself, but not for
- * one backed by an `_index.md`: an explicit file with no `title` renders a blank
- * heading. So a backfilled landing states its own, in plain English
- * pluralisation rather than Hugo's inflector, which spells that section
- * "Macroes".
- *
- * @param {string} name - The directory name.
- * @returns {string} The display title.
- */
-export function pluralTitle(name) {
-    const plural =
-        /(?:s|x|z|ch|sh)$/.test(name) ? `${name}es`
-        : /[^aeiou]y$/.test(name) ? `${name.slice(0, -1)}ies`
-        : `${name}s`;
-    return plural
-        .split("-")
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(" ");
 }
 
 /**
@@ -905,10 +759,7 @@ export function resolveSitePass(name, options) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], manifests: object|null,
- *   hasTags: boolean}} `hasTags` is whether any note the walk read carries
- *   `tags:` — what {@link module:engine/site-config.hugoConfig} reads to
- *   decide whether the site emits taxonomy pages.
+ *   wikiErrors: object[], imageErrors: object[], manifests: object|null}}
  */
 export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
@@ -927,8 +778,8 @@ export function buildSite({ config, sqlTables } = {}) {
     const base = site.base || `/${resolved.contentPackage}/`;
     const mount = `${base}${scheme.prefix}`;
 
-    // The Hugo content tree mirrors that mount: a page written to
-    // `<out>/<prefix>/<section>/` publishes at `<base><prefix><section>/`.
+    // The Hugo content tree mirrors that mount: the homepage is written at
+    // `<out>/_index.md` and every page under `<out>/<prefix>/`.
     // The root is fixed — `build/hugo/content`, beside the generated
     // `hugo.toml` — and resolved against the repository root for the same
     // reason every configured path is, so the build reads and writes the same
@@ -942,9 +793,9 @@ export function buildSite({ config, sqlTables } = {}) {
             // Homepage-only has no content mount, so the package's root *is*
             // the output root.
         :   outBase;
-    // The homepage publishes at `/<contentPackage>/<type>-<shortcode>/`, so its
-    // file goes at the package's own root — one level above the content mount,
-    // and the same directory in homepage-only mode.
+    // The homepage publishes at `/<contentPackage>/`, so its file goes at the
+    // package's own root — one level above the content mount, and the same
+    // directory in homepage-only mode.
     const homeRoot = publishesContent ? outBase : out;
 
     const packages = new Set(site.packages.length ? site.packages : [resolved.contentPackage]);
@@ -1007,7 +858,6 @@ export function buildSite({ config, sqlTables } = {}) {
             wikiErrors: [],
             imageErrors: [],
             stats: null,
-            hasTags: homepages.some((p) => hasAnyTag(p.fm)),
         };
     }
 
@@ -1027,23 +877,21 @@ export function buildSite({ config, sqlTables } = {}) {
             imageErrors: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
-                landings: 0,
                 out: homeRoot,
             },
-            hasTags: homepages.some((p) => hasAnyTag(p.fm)),
         };
     }
 
     const content = collectContentPages(resolved.paths.content, ctx);
     const { pages } = content;
 
-    // The homepage is **indexed but not rendered**. Now that it has an
-    // address, `[[homepage-root|Text]]` is an ordinary wikilink and has to
-    // resolve to the page the build publishes — which means the address index
-    // must hold it. It still takes no part in `renderPages`: a homepage is
-    // authored markdown published verbatim, with no table expansion and no link
-    // resolution of its own, and routing it through that pipeline would buy it
-    // a pass it has no input for.
+    // The homepage is **indexed but not rendered**. `[[homepage-root|Text]]`
+    // is an ordinary wikilink and has to resolve to the page the build
+    // publishes — which means the address index must hold it, at the address
+    // it publishes at: the package root. It takes no part in `renderPages`: a
+    // homepage is authored markdown published verbatim, with no table
+    // expansion and no link resolution of its own, and routing it through
+    // that pipeline would buy it a pass it has no input for.
     const homepageEntries = homepages.map((page) => ({
         kind: "content",
         fm: page.fm,
@@ -1051,7 +899,7 @@ export function buildSite({ config, sqlTables } = {}) {
         name: page.fm.name?.full ?? homepageTitle(page.fm, resolved),
         slug: addressSlug(page.fm),
         base: path.basename(page.file),
-        url: `${base}${addressSlug(page.fm)}/`,
+        url: base,
     }));
 
     const gates = siteGates([...pages, ...homepageEntries], content, { config: resolved });
@@ -1062,7 +910,6 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             wikiErrors: [],
             imageErrors: [],
-            hasTags: [...pages, ...homepageEntries].some((p) => hasAnyTag(p.fm)),
         };
     }
 
@@ -1099,12 +946,6 @@ export function buildSite({ config, sqlTables } = {}) {
         },
     });
 
-    const landings = writeSectionLandings(out, {
-        sections: site.sections,
-        landing: site.landing,
-        sectionTitle: site.backfillSections ? pluralTitle : null,
-    });
-
     // Last, and outside the mount: the package's front page is not part of the
     // content tree it introduces.
     const homepagesWritten = writeHomepages(homeRoot, homepages, resolved);
@@ -1117,10 +958,8 @@ export function buildSite({ config, sqlTables } = {}) {
         stats: {
             ...rendered.byKind,
             homepages: homepagesWritten,
-            landings,
             out,
         },
-        hasTags: [...pages, ...homepageEntries].some((p) => hasAnyTag(p.fm)),
     };
 }
 

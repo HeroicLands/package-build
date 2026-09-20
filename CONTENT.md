@@ -179,10 +179,8 @@ publish:
 # How this repository frames the website `content-build site` publishes.
 # Framing only: addresses come from `publish.address` above.
 site:
-  out: kb/content
-  landing: { title: Knowledgebase, type: knowledgebase }
-  sections:
-    being: { title: Beings, banner: banners/creature.webp }
+  assets: https://cdn.heroiclands.org
+  description: The rules, the setting, and the reference material.
 ```
 
 The loader validates the document, resolves every path against the directory
@@ -1033,7 +1031,7 @@ npx content-build links [root] [--manifests <dir>]
 npx content-build format [paths..] [--write]
 npx content-build markdown [paths..] [--fix]
 npx content-build content-index [root] [--out <dir>]
-npx content-build site [--out <dir>]
+npx content-build site
 npx content-build reachability <dir> [file] [--index <shortcode>]
 npx content-build addresses diff --from <zip|dir> [--strict]
 ```
@@ -1105,12 +1103,11 @@ package whose front page is not the page a person chose.
   authored homepage exists to prevent, and a silent one: the site build reports
   `wrote 0 homepage(s)` and exits 0.
 - _Two_ and it serves a page nobody chose. **This is a cardinality rule, and
-  only that.** A homepage is written at its own address, so two of them publish
-  two pages and collide over nothing: the duplicate-address
-  check catches only the pair that happen to share a shortcode, and says nothing
-  at all about a `homepage-root` beside a `homepage-front`. Which of the two the
-  redirect at `/<package>/` should name is a question nothing here can answer,
-  and both being reachable is not an answer to it.
+  only that.** Both are written to the mount's `_index.md`, so the second
+  silently overwrites the first: the duplicate-address check catches only the
+  pair that happen to share a shortcode, and says nothing at all about a
+  `homepage-root` beside a `homepage-front`. Which of the two should be the
+  front page is a question nothing here can answer.
 
 Neither has a safe default, so neither is a warning: a build that proceeded past
 either would publish the wrong front page while reporting success, which is
@@ -1136,7 +1133,7 @@ naming the other, because each note is a place an author has to open and edit:
 
 ```text
 assets/content: error: holds no `type: homepage` note, so package "sohl" publishes nothing at its own address /sohl/ — a package's front page is one authored note in this tree, routed by `type:` rather than by filename
-assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and each of these publishes at an address of its own — so nothing here can say which one that address should redirect to. Keep one, and make the rest ordinary notes
+assets/content/homepage.md:3:7: error: duplicate `type: homepage` note, also declared by assets/content/Landing.md; a package has one front page, at /sohl/, and nothing here can say which of these it should be. Keep one, and make the rest ordinary notes
 ```
 
 ### Frontmatter, against the schema its type declares
@@ -1332,190 +1329,125 @@ because the emitter spreads a note's frontmatter wholesale and stripping it
 there would mean referencing it. Write it if you have a use for it later —
 nothing today will read it.
 
-### The homepage is addressed like every other note
+### The homepage is the package root, addressed like every other note
 
-A homepage declares a `shortcode` — conventionally `root` — and publishes at its
-address, `/<package>/homepage-root/`, written by the same rule as everything
-else. So `[[homepage-root|Read the introduction]]` is an ordinary
-wikilink, resolving to the page the build actually writes.
+A homepage declares a `shortcode` — conventionally `root` — because that is
+what a link is written with: `[[homepage-root|Read the introduction]]` is an
+ordinary wikilink. It resolves to `/<package>/`, because the homepage _is_ the
+package root: the site build writes it as the mount's `_index.md`, and Hugo
+renders that as the `home` kind at `baseURL`. The shortcode names the page in
+links; the address is the package root, and `[[thalorna-homepage-root]]` from
+another package lands on `/thalorna/` for the same reason.
 
-It did not use to be. A page's URL derived from `name.full` while a homepage's
-destination was fixed at `_index.md`, so `content-build lint` **refused** `name`
-and `shortcode` on one — not out of tidiness, but because they were not
-inert. A `shortcode` put the note in the address index, so
-`[[homepage-<shortcode>]]` resolved _green_ to a page the site build never
-wrote, and a build reporting a live link to a 404 is worse than one saying
-nothing.
-
-[A page's URL is its address](#a-pages-url-is-its-address) removed the premise:
-the address a `shortcode` computes is now the address the build publishes. Both
-fields are therefore permitted, and `shortcode` is **required**, like every
-other note's. A homepage that declares none is refused, located at the `type:`
+A homepage that declares no `shortcode` is refused, located at the `type:`
 value that makes it necessary:
 
 ```text
-assets/content/homepage.md:3:7: error: a `type: homepage` note declares a `shortcode`, like every other note: it is addressed as `homepage-<shortcode>` and published at `/<package>/homepage-<shortcode>/`, which is where `[[homepage-<shortcode>|Text]]` lands. Write `shortcode: root` — the package landing is `homepage-root` in every package
+assets/content/homepage.md:3:7: error: a `type: homepage` note declares a `shortcode`, like every other note: it is addressed as `homepage-<shortcode>`, which is what `[[homepage-<shortcode>|Text]]` is written with to reach the package's front page at `/<package>/`. Write `shortcode: root` — the front page is `homepage-root` in every package
 ```
 
 `root` is a **convention, not a rule**: the address only has to be unique within
 the package, which `(type, shortcode)` already guarantees, and nothing here
-knows better than an author what their landing is called. What the convention
-buys is one spelling shared by all six trees, so `[[homepage-root|…]]` is the
-same link in every package.
+knows better than an author what their front page is called. What the
+convention buys is one spelling shared by every tree, so `[[homepage-root|…]]`
+is the same link in every package.
 
 **Not a bare `[[homepage]]`.** With no hyphen it does not parse as an address,
-so it would need a hardcoded single-token exception in the grammar — the one
-thing the addressing work removes.
+so it would need a hardcoded single-token exception in the grammar.
 
-#### `id` is still refused
+#### `id` and `landing` are refused
 
-One field is left in the class, and on ground the change does not touch: `id` is
-the Foundry document id a compendium UUID is built from, and a homepage compiles
-into **no document**.
+Two top-level keys are refused, because neither decides anything on a page.
+`id` is the Foundry document id a compendium UUID is built from, and a
+homepage compiles into **no document**:
 
 ```text
-assets/content/homepage.md:4:1: error: `id` decides nothing on a `type: homepage` note: it is the Foundry document id a compendium UUID is built from, and a homepage compiles into no document — it appears in no pack and states no Foundry address. Delete it
+assets/content/homepage.md:4:1: error: `id` decides nothing on a `type: homepage` note: it is the Foundry document id a compendium UUID is built from, and a homepage compiles into no document — it appears in no pack and in no link manifest. Delete it
 ```
 
-That is also why a homepage states **no Foundry address**, now that a
-shortcode alone would put it in. A manifest entry is how another package
-resolves a _document_; a cross-package link to a package's front page is its
-bare `/<package>/` address, which needs no index.
+`landing` is a card block. The homepage is a page with a body, rendered as
+one, and no card block is read off it — an index of what the package
+publishes is a `doc` note carrying a content table, linked from the homepage
+like any other page:
+
+```text
+assets/content/homepage.md:5:1: error: `landing` decides nothing on a `type: homepage` note: the homepage is a page with a body, rendered as one, and no card block is read off it. Write the page's links in its body, and author an index of what the package publishes as a `doc` note carrying a content table. Delete it
+```
+
+That is also why a homepage states **no Foundry address**. A manifest entry is
+how another package resolves a _document_; a cross-package link to a package's
+front page is its bare `/<package>/` address, which needs no index.
 
 **A named class, not an allow-list.** The documented envelope is `type` and
-`shortcode`, with `name`, `title`, `landing`, `description` and `banner`
-legitimate beside them — but an unknown top-level key is **not** refused, and
-that boundary is the decision rather than an omission. A homepage's frontmatter
-is emitted into the published page, so an unrecognised key is a Hugo or theme
-parameter this build has never heard of and has no standing to reject; a closed
-list would make every new theme parameter wait on a package-build release.
-`aliases` is not in the class either — it is a retired field now, refused on
-every note whatever its type.
+`shortcode`, with `name`, `title`, `description` and `banner` legitimate beside
+them — but an unknown top-level key is **not** refused, and that boundary is
+the decision rather than an omission. A homepage's frontmatter is emitted into
+the published page, so an unrecognised key is a Hugo or theme parameter this
+build has never heard of and has no standing to reject; a closed list would
+make every new theme parameter wait on a package-build release. `aliases` is
+not in the class either — it is a retired field, refused on every note
+whatever its type.
 
 **Where it fires: `content-build lint` only.** Unlike a rule about the shape of
 the _tree_, which the site build has its own reason to gate on, this is a
 _frontmatter-schema_ rule and `content-build site` runs none of them — wiring in
 one type's field rule would have the site build refuse `id` on a homepage while
 accepting `weight: heavy` on a weapon. The site build does refuse a homepage it
-cannot address, because it cannot write the page otherwise, and it reports that
-beside the count so the finding reaches `publish.site: homepage` mode as well.
-The remaining gap is `HarnMaster-3-FoundryVTT`, which runs no `content-build
-lint` at all and so receives no frontmatter finding of any kind; that is a
-missing script in that repository, not a rule to duplicate one at a time.
+cannot address, because a link to it could not resolve otherwise, and it
+reports that beside the count so the finding reaches `publish.site: homepage`
+mode as well. The remaining gap is `HarnMaster-3-FoundryVTT`, which runs no
+`content-build lint` at all and so receives no frontmatter finding of any kind;
+that is a missing script in that repository, not a rule to duplicate one at a
+time.
 
-### `/<package>/` is a redirect the package authors
+### `/<package>/` is the homepage, and nothing redirects
 
-Nothing is written at `/<package>/` any more. The package's own address is a
-**routing fact**, and it belongs in the package's own `_redirects`:
-
-```text
-# _redirects
-/sohl/   /sohl/homepage-root/   301
-/sohl    /sohl/homepage-root/   301
-```
-
-Both forms, because Cloudflare Pages matches the raw path: redirect matching
-runs before any trailing-slash or `index.html` handling, so `/sohl` and `/sohl/`
-are distinct keys and a rule on one does not catch the other. A redirect also
-**wins over a static asset at the same path** — _"Redirects are always followed,
-regardless of whether or not an asset matches the incoming request"_ — so the
-rule fires whatever else happens to be published there.
-
-**The 301 carries a pinned lifetime**, and that is the part worth being
-deliberate about:
-
-```text
-# _headers
-/sohl/
-  Cache-Control: max-age=3600
-/sohl
-  Cache-Control: max-age=3600
-```
-
-Cloudflare Pages sets **no** `Cache-Control` on a redirect it generates — its
-redirect responses carry `location` and nothing else — and a 301 with no
-`Cache-Control` is cacheable indefinitely by default under RFC 9111. Browsers
-persist one to disk and stop asking the server, so a scheme that later changed
-would strand every returning visitor on the package's most-linked URL. An
-explicit `Cache-Control` overrides that heuristic and keeps the 301's canonical
-signal without the permanence.
-
-**`_headers` does apply to a `_redirects` response, and this is verified rather
-than documented.** Cloudflare's docs say only that _"redirects are applied
-before headers, so when a request matches both a redirect and a header, the
-redirect takes priority"_ — a sentence routinely misread as "headers are skipped
-on a redirect". Its open-source asset server settles it: the redirect response
-returns from `generateResponse()` and then flows through `attachHeaders()`, and
-the only short-circuit past that is `status >= 500`. The one documented "headers
-are not applied" carve-out is Pages Functions, not redirects.
-
-Because that is observed behaviour rather than a documented guarantee, **verify
-it once after deploying** and treat a regression as a Cloudflare change rather
-than a content bug:
-
-```bash
-curl -sSI https://www.heroiclands.org/sohl/ | grep -i 'location\|cache-control'
-```
-
-If it ever stops holding, the documented alternative is a zone-level **Response
-Header Transform Rule** (or Bulk Redirects, which sets both), not a Pages
-Function — `_redirects` and `_headers` both stop applying to a route a Function
-serves.
+The package's own address serves the homepage directly: Hugo renders the
+mount's `_index.md` as the `home` kind at `baseURL`, which is
+`https://www.heroiclands.org/<package>/`. `package-build site-root` writes no
+`_redirects` beside the site — and removes one an earlier build left there,
+since Cloudflare Pages would apply it. Its `_headers` suppress indexing on
+every host-assigned address and nothing else: no `Cache-Control` is pinned on
+the prefix root, because a lifetime on the homepage would hold a stale copy at
+the most-linked address after a deploy.
 
 ### The homepage's own links
 
-The homepage is the page a reader arrives at, and it is the one page
-nothing checked. SoHL's landing pointed at `kb/creature/` and `kb/character/`
-from the day those two types merged into `being` — two 404s on the package's
-front page, through every build, because a landing's links went through no
-checker at all.
+The homepage is the page a reader arrives at, and it is the one page no
+wikilink resolver reaches: a homepage is published verbatim in every
+publishing mode, so its links are markdown links in its body, and `links`
+audits them. A body link is emitted as written and resolved by the browser
+against the homepage's own address, which _is_ the package root, so a
+package-relative one (`kb/rules/`) lands where a reader expects.
 
-`links` therefore audits a `type: homepage` note as well, and it reads **both**
-halves of it. Of the six homepages authored today four carry every link in the
-body as ordinary markdown and two carry them in `landing:` — and the one whose
-dead links prompted this has an _empty body_. A dead link in a card is exactly
-as broken as one in a paragraph, so `landing.install.url`, every
-`cards…​.url` / `.href`, the markdown links inside the prose fields (`lead`,
-`closing`, `install.intro`, `install.note`, a card's `description`, a link's
-`note`) and the body's own markdown links are all read.
-
-**`url` and `href` are not the same address and are not checked the same way.**
-The theme resolves a `url` against the site with `relURL`, so a package writes
-`kb/rules/` and is served `/sohl/kb/rules/` without naming its own prefix; an
-`href` is an address that is _already_ resolved and is used verbatim, which is
-what `cards.source: sections` fills in. A leading `/` is therefore a defect in a
-`url` — Hugo prefixes it a second time — and correct in an `href`.
-
-Four findings, and each one names the form to write instead:
+Three findings, and each one names the form to write instead:
 
 | Finding                      | Why                                                                               |
 | ---------------------------- | --------------------------------------------------------------------------------- |
 | A **retired content type**   | `kb/creature/` when `creature` became `being`. The engine knows what was retired. |
-| A **hardcoded absolute URL** | Into this package's own prefix, or into one a vendored manifest names.            |
-| A **root-relative `url:`**   | `relURL` prefixes it again. `href:` is exempt — verbatim is what it means.        |
+| A **hardcoded absolute URL** | Into this package's own prefix, or into one a fetched index names.                |
 | A **wikilink**               | Nothing resolves one here: a homepage is published verbatim in every mode.        |
 
 That last one is why a homepage does **not** get the wikilink resolution every
 other note body gets. In `homepage` mode the content tree is never walked, so
 there is no index for a wikilink to resolve against — and giving the page one
 would make the mode depend on exactly the machinery its licensing fence exists
-to not build. So a landing addresses the web the way the web does, and a
+to not build. So a homepage addresses the web the way the web does, and a
 wikilink on one is reported rather than resolved.
 
 **What is checkable, and what is not.** Only an address into this site is, and
 only against facts the build already holds — the retired-type table and the
-package prefixes a vendored manifest names. Two things are deliberately not
+package prefixes a fetched index names. Two things are deliberately not
 attempted:
 
 - **Whether an external URL answers.** There is no network at build time, and a
   build must not go red because a third party is down.
 - **Whether a live in-site address names a page that exists.** Several surfaces
-  a landing routes to are produced by other tools entirely — generated API
-  documentation, hand-authored Hugo sections — so this build does not hold the
-  set of published pages and would report a working link as dead. A bare
-  `https://www.heroiclands.org/<package>/` is left alone for the same reason it
-  cannot be improved: a package homepage compiles into no document, so there is no
-  better form to write.
+  a homepage routes to are produced by other tools entirely — generated API
+  documentation, say — so this build does not hold the set of published pages
+  and would report a working link as dead. A bare `/<package>/` names another
+  package's front page and needs no index: it is left alone because it cannot
+  be improved.
 
 ## The content format specification
 
@@ -1895,18 +1827,16 @@ to the legacy-URL map" — and no such map was ever written, here or in any
 consumer. All of it is gone.
 
 The `type-` half earns its place: it keeps every content address clear of the
-package's fixed mounts (`/<package>/` for the landing page, `/<package>/api/` for
+package's fixed mounts (`/<package>/` for the homepage, `/<package>/api/` for
 generated API docs), neither of which contains a hyphen or names a type. So the
 namespace is provably disjoint rather than conventionally so.
 
-**A page is written flat, named by its address**, not filed
-into `<section>/`, because Hugo derives a page's section from where the file is
-written and a section gave it a landing page, `.CurrentSection` and a per-section
-layout lookup. But a section appears in no address, so the note format was
-carrying a key, a filename convention, a landing rule and a synthesis pass in
-order to satisfy a rendering engine's directory semantics. The file is now
-`<mount>/<type>-<shortcode>.md` and the front-matter `url:` still publishes it at
-the package root, one level above.
+**A page is written flat, named by its address**, not filed into a
+directory, because Hugo derives a page's section from where the file is
+written, and a section appears in no address. The file is
+`<mount>/<type>-<shortcode>.md` and the front-matter `url:` publishes it at
+the package root, one level above; the `section` kind is disabled on every
+site, so no directory would answer even if one were written.
 
 **A page states its address without the package base; everything pointing _at_
 it composes one**. They read as one quantity and are two:
@@ -1923,15 +1853,11 @@ its own base to a value that already carried one and published every content
 page a segment too deep — `/sohl/sohl/doc-rulesintro/`, 404 at the address the
 manifest, the sitemap and every inbound link named.
 
-**There is no landing page.** A `README.md` was its section's landing and
-addressed the section itself; that is retired with the section. A page that
-introduces the notes of a type is an ordinary note addressed `doc-<type>`, with
-no build path of its own — exactly as the package's own front page is
-`homepage-root`.
-
-**Sections stay, as configuration.** `site.sections` still writes an `_index.md`
-per section, and that is now the _only_ thing that makes one exist — see
-[What a section may declare](#what-a-section-may-declare).
+**There is no landing page and no section.** A page that introduces the notes
+of a type is an ordinary note addressed `doc-<type>`, with no build path of its
+own, carrying a content table over what it introduces. A site is its homepage
+and its pages, and nothing is generated between them — see
+[What the site publishes](#what-the-site-publishes).
 
 ### The address scheme
 
@@ -1961,9 +1887,7 @@ publish:
 `section:` key are refused by name.
 
 A note's `subType` is checked against the values its type declares, and only
-those. It briefly had a second reading — a `README` landing's `subType` was the
-_address_ it landed at, so the closed genre list could not answer for it. The
-cause is removed rather than the vocabulary widened again.
+those.
 
 The only note the scheme yields no address for is one carrying no `shortcode`.
 It is **reported and omitted**, never guessed: the command prints one located
@@ -2217,15 +2141,15 @@ indistinguishable from one built against a mis-pointed tree.
 ## Publishing a website
 
 ```bash
-npx content-build site               # the configured tree and output
-npx content-build site --out tmp/kb  # or somewhere else
+npx content-build site               # the configured tree, under build/hugo/
 ```
 
 The sibling of `package compile`: the same content tree, rendered as pages
 instead of compiled into packs. It does the walk, the frontmatter read, the
 address derivation, the address index, table expansion, wikilink resolution,
-code-fence protection, the foreign-manifest merge, the page emission and the
-section-landing synthesis.
+code-fence protection, the foreign-manifest merge and the page emission. A
+site is its homepage and its pages — see
+[What the site publishes](#what-the-site-publishes).
 
 ### The homepage, and how much else is published
 
@@ -2249,15 +2173,14 @@ A package declares **exactly one** of these, and both `content-build lint` and
 
 That is the whole envelope. A homepage **compiles into no compendium
 document**, and so appears in no pack and in no link manifest — which is why it
-still refuses `id`. Everything else about its address is ordinary: it declares a
-`shortcode`, publishes at `/<contentPackage>/homepage-root/`, and is cited as
-`[[homepage-root|Text]]` (see
-[The homepage is addressed like every other note](#the-homepage-is-addressed-like-every-other-note)).
-`/<contentPackage>/` itself is a redirect the package authors, not a page this
-build writes. It is dispatched on `type` like every other note, not on a
-filename — nothing in this format is decided by a file's name, which is why
-`sohl-thalorna` can keep a `README.md` in its content tree as a developer
-explainer about the source tree.
+refuses `id`. It is the package root: written as the mount's `_index.md`,
+rendered at `/<contentPackage>/`, and cited as `[[homepage-root|Text]]` by
+the `shortcode` it declares (see
+[The homepage is the package root](#the-homepage-is-the-package-root-addressed-like-every-other-note)).
+It is dispatched on `type` like every other note, not on a filename — nothing
+in this format is decided by a file's name, which is why `sohl-thalorna` can
+keep a `README.md` in its content tree as a developer explainer about the
+source tree.
 
 `type: homepage` is declared by the **engine**, not by the `sohl` item registry,
 so a package that configures no `itemBuilders` at all — `HarnMaster-3-FoundryVTT`
@@ -2284,8 +2207,7 @@ content_ — journal text, artwork, item descriptions, compiled notes — and a 
 announcing the module discloses none of it. Because the failure mode is silent,
 the mode **fences the content surfaces off** rather than trusting a
 configuration to stay empty: in `homepage` mode the tree is never walked for
-pages, and `sections`, `landing` and `backfillSections` emit nothing even when
-they are declared.
+pages, whatever else the `site:` block declares.
 
 That is separate from the **dependency** edge, which such a module also
 declines: being cited by another package is what would stop it being
@@ -2294,60 +2216,47 @@ address anyone links to. A package publishes its content index regardless — th
 licensing constraint is against publishing _pages_, not against the artifact
 existing — but nothing may declare it as a dependency.
 
-The homepage's file is written at the root of the content mount,
-`build/hugo/content/` — the package's own site root, one level above the
-content mount, which is where `publish.address.prefix` puts everything else —
-under the name its address gives it, `homepage-root.md`. As with every other page, the front matter's `url`
-decides where it publishes, and states it relative to the site root — `site.base`
-does not reach it.
+The homepage's file is the mount's `_index.md`, written at the root of the
+content tree, `build/hugo/content/` — the package's own site root, one level
+above the content mount, which is where `publish.address.prefix` puts
+everything else. Hugo renders it as the `home` kind at `baseURL`, so it states
+no `url` of its own.
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the content index reads, so a page and its index record cannot
 disagree about where the page is. Everything under `site:` is _framing_ —
-what a section is called, and the residue of the generated Hugo configuration
-that is this repository's own. What the site publishes is the content tree and
-nothing beside it: a page of documentation is a note (`type: doc`, with
-`pack: none` where it compiles into no document), so there is no second
-mechanism for mounting a directory of markdown, and a `trees:` or
-`readmeSections:` key is refused with a message saying so.
+the repository's own body rewrites, and the residue of the generated Hugo
+configuration that is this repository's own. What the site publishes is the
+homepage and the content tree and nothing beside them: a page of
+documentation is a note (`type: doc`, with `pack: none` where it compiles into
+no document), so there is no second mechanism for mounting a directory of
+markdown, and a `trees:` or `readmeSections:` key is refused with a message
+saying so.
 
 ```yaml
 site:
   base: /sohl/ # default: /<contentPackage>/ — hrefs only, never a page's `url:`
   packages: [sohl, thalorna] # default: just contentPackage
-  backfillSections: true
-  landing: { title: Knowledgebase, type: knowledgebase }
   pass: sohlKb
   passOptions:
     apiBase: /sohl/api/
     symbolMap: kb/data/api-symbols.json
-  sections:
-    being:
-      title: Beings
-      banner: banners/creature.webp
-      description: Folk, animals and the things that walk the world.
-    reference: { title: Reference, listType: doc, listSubType: reference }
-  list: { shortcodes: true }
   notfound:
     tagline: Song of Heroic Lands has no page at
     sitenoun: site
     links:
-      - { title: Knowledgebase, url: kb/, text: Every section, with the full content catalog. }
+      - { title: Rules, url: doc-rulesintro/, text: Success and opposed tests, injury, healing. }
 ```
 
-| Key                | What it decides                                                                                                                                                                                                                                       |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `base`             | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
-| `packages`         | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
-| `sections`         | The Hugo sections this site declares, and what each says about itself — see below.                                                                                                                                                                    |
-| `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.                                                                                                                                                          |
-| `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                                                                                                                                                                            |
-| `pass`             | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
-| `passOptions`      | That bundle's options.                                                                                                                                                                                                                                |
-| `assets`           | The host every package's imagery is served from; the generated `params.cdnBaseURL`.                                                                                                                                                                   |
-| `list`             | How a listing page renders; the generated `params.list`.                                                                                                                                                                                              |
-| `notfound`         | The wording of the "page not found" page; the generated `params.notfound`.                                                                                                                                                                            |
-| `hugo`             | A mapping deep-merged over the generated Hugo configuration, last. Every key the generator writes is refused here — see `docs/configuration.md`.                                                                                                      |
+| Key           | What it decides                                                                                                                                                                                                                                       |
+| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `base`        | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
+| `packages`    | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
+| `pass`        | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
+| `passOptions` | That bundle's options.                                                                                                                                                                                                                                |
+| `assets`      | The host every package's imagery is served from; the generated `params.cdnBaseURL`.                                                                                                                                                                   |
+| `notfound`    | The wording of the "page not found" page; the generated `params.notfound`.                                                                                                                                                                            |
+| `hugo`        | A mapping deep-merged over the generated Hugo configuration, last. Every key the generator writes is refused here — see `docs/configuration.md`.                                                                                                      |
 
 Where the tree is written is not among them. `content-build site` writes the
 whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`, the
@@ -2356,99 +2265,66 @@ script runs `hugo --source build/hugo` over it. The generated file's every
 value has a source the repository already states; `docs/configuration.md`
 lists them.
 
-### What a section may declare
+### What the site publishes
 
-**`sections` is what a section _is_ now**. A content page is addressed
-`(type, shortcode)` and written flat under the mount, so no page creates a
-directory and nothing else makes `/<package>/<prefix><section>/` answer at all.
-A site that wants that address says so here, and this build writes the
-`_index.md` that makes Hugo agree it is a section.
+**A site is its homepage and its pages, and nothing is generated between
+them.** The `type: homepage` note is `/<package>/`; every other note is one
+page at `/<package>/<type>-<shortcode>/`. No section directory is written, no
+listing of a type, no tag page: the generated Hugo configuration disables the
+`section`, `taxonomy`, `term` and `RSS` kinds on every site, so `home` and
+`page` are the only kinds that render, and a request for `/<package>/being/`
+is a 404.
 
-Two consequences follow, and neither is optional:
+Every structure above the pages — which notes belong together, in what order,
+under which headings, with which columns — is **authored**, as a `doc` note
+carrying a content table over the content index:
 
-- **Declare every section the site links to.** A card, a menu entry or a
-  breadcrumb pointing at a section nobody declared is a 404.
-- **A section landing lists no child pages.** Its directory holds only its own
-  `_index.md`, so a layout reading `.Pages` finds nothing. A layout that queries
-  `site.RegularPages` by `Params.type` is unaffected, and that is the shape a
-  content catalog wants anyway — it groups by what a page _is_, not by where its
-  file happened to be written. A section that wants that query run for it says
-  so with `listType` — see below.
-
-Whatever the entry may carry is the whole of what the section can say.
-
-| Key           | Required | What it does                                                              |
-| ------------- | -------- | ------------------------------------------------------------------------- |
-| `title`       | yes      | The landing's heading, so it matches the card that links to it.           |
-| `banner`      | no       | The hero image, resolved as a CDN asset like any other `banner:`.         |
-| `description` | no       | The hero standfirst under the heading, and the blurb a landing card uses. |
-| `listType`    | no       | The content **type** whose pages this section lists.                      |
-| `listSubType` | no       | Narrows that to one **subType**. Only with a `listType`.                  |
-
-#### Saying what a section lists
-
-A generic list layout has nothing to render, because the membership a section
-landing used to get free from Hugo's page tree no longer exists anywhere the
-theme can read: not on the page, not on the landing, not in any URL — only here.
-So a section states its own query, and a layout substitutes it when `.Pages` is
-empty:
-
-```yaml
-sections:
-  being: { title: Beings, listType: being }
-  rules: { title: Rules, listType: doc, listSubType: rules }
-  user-guide: { title: User Guide, listType: doc, listSubType: userguide }
-```
-
-emits, for the last of those, `user-guide/_index.md`:
-
-```yaml
+````markdown
 ---
-title: User Guide
-listType: doc
-listSubType: userguide
+type: doc
+subType: reference
+shortcode: beings
+pack: none
+name:
+  full: Beings
 ---
+
+Every person and creature of the setting, by realm.
+
+```dataview
+TABLE name.full AS Name, subType AS Kind, data.realm AS Realm
+FROM type = "being"
+SORT data.realm, name.full
 ```
+````
 
-Three things about the spelling, each of them load-bearing:
+````
 
-- **Not `type`.** On an `_index.md` that is Hugo's own layout selector — a
-  landing carrying `type: doc` is rendered by `layouts/doc/list.html` rather
-  than the default list template — so writing the content type there would
-  silently change which template serves the landing. This build already relies
-  on that behaviour for the mount's own `landing`.
-- **Not inferred from the section's name.** A section is named for a URL the
-  site chose; a type and a subType are addresses. They need not agree, and on
-  `sohl` they do not: the section is `user-guide`, because that is a published
-  URL, while the subType is `userguide` because an address segment is
-  lowercase alphanumeric. Both values are checked against that charset here, so
-  copying the section's name in is refused rather than quietly matching nothing.
-- **`listSubType` needs a `listType`.** A subType only tells pages apart within
-  a type — `rules`, `userguide` and `reference` are all `doc` — so alone it
-  names no query.
+That page is `doc-beings`, published at `/<package>/doc-beings/`, and it is the
+index — linked from the homepage like any other page, and choosing its own
+membership, order, headings and columns. A tag is a field such a table
+filters on, not a page of its own.
 
-**The vocabulary is closed, and a key outside it is refused by name:**
+**One page per note, whatever it compiles into.** A system-bearing note — an
+`affiliation`, a `being`, every item type — compiles into two Foundry
+documents, the Item and the JournalEntry carrying its prose, addressed
+`doc<type>-<shortcode>`. On the web it renders as one page, which is its own
+documentation: the site index keys that page under both `<type>/<shortcode>`
+and `doc<type>/<shortcode>`, so a link written either way lands on it, and a
+content table that lists a type surfaces each note once.
+
+A configuration that asks the build to generate an index — `site.sections`
+(with the `listType` / `listSubType` an entry carried), `site.landing`,
+`site.backfillSections`, and `site.list`, which said how such a listing
+renders — is refused by name, with one message:
 
 ```text
-package-build config: `site.sections.affliction.descrption` is not a
-recognized option (expected one of: title, banner, description, listType,
-listSubType).
-```
-
-That refusal is the point. `landing` is passed through unvalidated because it is
-written once, for the mount, in one landing template's own vocabulary. A section
-entry is written fourteen to twenty times per build against a contract every
-package and every section shares, so an unbounded one would let a mistyped
-`descrption:` publish into front matter, be read by nobody, and say nothing to
-anyone. Refusing it costs one line here when the vocabulary genuinely grows, and
-buys a build that cannot quietly emit a key no theme reads. `listType` and
-`listSubType` are that growth: two named keys, checked, rather than an open
-passthrough in which `listTpye:` would publish and no landing would list
-anything.
-
-The **writers** name no keys: a section's `_index.md` is whatever the entry
-resolved to, `title` first. So extending the vocabulary is a change to the
-schema alone, and the two can no longer drift apart.
+package-build config: `site.sections` is retired — a site is its homepage and
+its pages, and any index between them is a `doc` note: write one with
+`type: doc`, a `shortcode` and `pack: none`, carrying a content table over the
+notes it lists, and link it from the homepage. Nothing is generated between
+the homepage and the pages, so delete the key.
+````
 
 ### Why the output location is fixed
 
@@ -2833,7 +2709,7 @@ path now rides on the error, and the loader that read the file resolves it
 against the YAML, so all of them come out located:
 
 ```text
-package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner, description, listType, listSubType).
+package-build.config.yaml:382:64: error: package-build config: `site.notfound.links[0].descrption` is not a recognized option (expected one of: title, url, text).
 ```
 
 The same two rules apply. A key the file never declares — a required one that is

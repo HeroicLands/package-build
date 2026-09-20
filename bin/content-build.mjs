@@ -1506,18 +1506,17 @@ function pdfCommand() {
  * The sibling of `package compile`: the same tree, rendered as pages instead of
  * compiled into packs. Everything a consumer would otherwise write for itself —
  * the walk, the address derivation, the address index, table expansion,
- * wikilink resolution, code-fence protection, the foreign-manifest merge and
- * the section-landing backfill — happens here, from configuration. So does the
- * Hugo configuration: the whole source tree Hugo reads lands under
- * `build/hugo/`, and the consumer's script runs Hugo over it.
+ * wikilink resolution, code-fence protection and the foreign-manifest merge —
+ * happens here, from configuration. So does the Hugo configuration: the whole
+ * source tree Hugo reads lands under `build/hugo/`, and the consumer's script
+ * runs Hugo over it.
  *
  * **The Hugo configuration is generated before anything is written.** Its
  * sources — `package.json`'s `homepage`, the cached navigation, the installed
  * theme — are each a way the build can fail, and failing before the output
- * tree is cleared leaves the last good site in place to be looked at. It is
- * generated again once the site walk completes, because whether the site
- * emits taxonomy pages is read from the walk — whether any note carries
- * `tags:` — and that is not known until then.
+ * tree is cleared leaves the last good site in place to be looked at. Nothing
+ * the walk reads changes it: a site renders its homepage and its pages, and
+ * the kinds Hugo disables are the same on every site.
  *
  * **Each gate is reported and the run stops at the first that fires.** They are
  * ordered so the report names the cause rather than its symptoms: an unusable
@@ -1535,14 +1534,12 @@ function siteCommand() {
         handler: async () => {
             try {
                 const config = loadPackConfig();
-                // Generated once before the walk, purely to fail fast on a
-                // missing or mismatched source — `homepage`, the manifest
-                // title, the cached navigation, the installed theme — while
-                // the last good site is still in place to be looked at. Its
-                // `disableKinds`/`taxonomies`/`outputs` are provisional: only
-                // the site walk below knows whether any note carries `tags:`,
-                // so the value actually written is regenerated after it runs.
-                generateHugoConfig(config);
+                // Generated before the walk, to fail fast on a missing or
+                // mismatched source — `homepage`, the manifest title, the
+                // cached navigation, the installed theme — while the last
+                // good site is still in place to be looked at. Written only
+                // once the walk has succeeded.
+                const hugo = generateHugoConfig(config);
                 const result = buildSite({
                     config,
                     sqlTables: await prepareTreeSqlTables(config.paths.content, {
@@ -1653,11 +1650,9 @@ function siteCommand() {
                 const s = result.stats;
                 log.info(
                     `wrote ${s.homepages ?? 0} homepage(s) + ` +
-                        `${s.content ?? 0} content page(s) + ` +
-                        `${s.tree ?? 0} tree page(s) + ${s.landings} ` +
-                        `landing(s) to ${path.relative(process.cwd(), s.out)}`,
+                        `${s.content ?? 0} content page(s) to ` +
+                        `${path.relative(process.cwd(), s.out)}`,
                 );
-                const hugo = generateHugoConfig(config, { hasTags: result.hasTags });
                 const { file } = writeHugoConfig(config, hugo);
                 log.info(`wrote ${path.relative(process.cwd(), file)}`);
             } catch (err) {

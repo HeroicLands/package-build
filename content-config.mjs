@@ -256,10 +256,9 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  * and the default.
  *
  * - `homepage` — the authored homepage, and **no other page**. The content tree
- *   is not walked for pages, `site.sections` / `site.landing` emit nothing,
- *   and nothing serves a page for its addresses.
- * - `content` — the homepage *plus* every page the content tree publishes: the
- *   knowledgebase and the section landings.
+ *   is not walked for pages, and nothing serves a page for its addresses.
+ * - `content` — the homepage *plus* every page the content tree publishes, one
+ *   per note.
  *
  * **Homepage-only is a first-class mode, not an accommodation.**
  * `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
@@ -766,22 +765,16 @@ const SITE_KEYS = [
     "assets",
     "description",
     "packages",
-    "sections",
-    "landing",
     "pass",
     "passOptions",
-    "backfillSections",
-    "list",
     "notfound",
     "hugo",
 ];
-const SITE_LIST_KEYS = ["shortcodes"];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
 const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
-const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
 const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = [
@@ -1466,102 +1459,6 @@ function normalizeDocs(value) {
 }
 
 /**
- * One section's landing metadata — what a section says about itself on the
- * `_index.md` this build generates for it.
- *
- * A generated landing is the *only* place a section can speak, and it
- * is the only place a section **exists**: a content page is addressed
- * `(type, shortcode)` and written flat under the mount, so no page creates a
- * directory and nothing else makes `<prefix><section>/` answer. This is
- * therefore the whole vocabulary, and it is deliberately a **closed** one.
- *
- * The alternative — passing whatever a section declared straight through, as
- * `site.landing` does — was weighed and refused. `landing` is written once, for
- * the mount, and its keys are one landing template's own; a section entry is
- * written fourteen to twenty times per build against a contract every package
- * and every section shares. Unbounded there, a mistyped `descrption:` publishes
- * into front matter, is read by nobody, and says nothing to anyone — which is
- * the same failure, moved one step downstream where no build can
- * see it. So the keys are named here, and the writers emit what this produced
- * rather than transcribing a second list of their own.
- *
- * `banner` and `description` are optional — the hero images are external assets
- * and not every section has one, and a section may reasonably have nothing to
- * add to its title. Each is left off entirely rather than written as
- * `undefined`, which is not a value YAML can carry.
- *
- * **`listType` / `listSubType` say what the section lists.** A section's
- * directory holds nothing but the `_index.md` written here, so a layout
- * reading Hugo's `.Pages` finds
- * no members and renders an empty landing. The membership survives in this map
- * and nowhere a theme can reach it, so the landing states it and a layout
- * substitutes the equivalent `site.RegularPages` query — the same one `sohl`'s
- * catalog layouts already run, which is why `sohl`'s landings never broke.
- *
- * They are two keys of their own rather than `type` / `subType` because `type`
- * on an `_index.md` is **Hugo's own layout selector**: verified against Hugo
- * 0.165, a section landing carrying `type: doc` renders through
- * `layouts/doc/list.html` rather than the default list template, so spelling
- * the content type there would silently change which template serves the
- * landing. (This build already uses that behaviour deliberately, for the
- * mount's own landing.)
- *
- * Both are checked as **address segments**, which is the trap this came from:
- * a section is named for the URL a consumer chose and a subType is an address
- * segment, and the two need not agree — `/sohl/kb/user-guide/` is the section,
- * `userguide` the subType. Copying the section's name into the
- * declaration would select no page at all, and an empty landing reported by
- * nobody is the failure being fixed. A `listSubType` with no `listType` is
- * refused for the same reason: a subType is only distinguishing *within* a
- * type — `rules`, `userguide` and `reference` are all `doc` — so alone it names
- * no query.
- *
- * @param {unknown} value - The declared entry.
- * @param {string} where - Dotted path, for the error.
- * @returns {Readonly<{title: string, banner?: string, description?: string,
- *   listType?: string, listSubType?: string}>}
- */
-function normalizeSectionMeta(value, where) {
-    if (!isPlainObject(value)) fail(where, "must be a mapping");
-    const input = /** @type {Record<string, unknown>} */ (value);
-    rejectUnknownKeys(input, SECTION_META_KEYS, `${where}.`);
-    const out = { title: requireNonEmptyString(input.title, `${where}.title`) };
-    if (input.banner !== undefined) {
-        out.banner = requireNonEmptyString(input.banner, `${where}.banner`);
-    }
-    if (input.description !== undefined) {
-        out.description = requireNonEmptyString(input.description, `${where}.description`);
-    }
-    for (const key of ["listType", "listSubType"]) {
-        if (input[key] === undefined) continue;
-        const segment = requireNonEmptyString(input[key], `${where}.${key}`);
-        if (!isAddressSegment(segment)) {
-            fail(
-                `${where}.${key}`,
-                `is \`${segment}\`, which is not lowercase alphanumeric. It names a ` +
-                    "content type or subType, and those are address segments " +
-                    `(${ADDRESS_SEGMENT_PATTERN.source}) — not the section's ` +
-                    "own name, which is a URL this site chose and need not " +
-                    "match (`user-guide` is the section, `userguide` the " +
-                    "subType). A value no page carries selects nothing and " +
-                    "leaves the landing empty",
-            );
-        }
-        out[key] = segment;
-    }
-    if (out.listSubType !== undefined && out.listType === undefined) {
-        fail(
-            `${where}.listSubType`,
-            "is declared without a `listType`. A subType tells pages apart " +
-                "only within a type — `rules`, `userguide` and `reference` " +
-                "are all `doc` — so on its own it names no query for a layout " +
-                "to run",
-        );
-    }
-    return Object.freeze(out);
-}
-
-/**
  * The asset host the website resolves a pathname against.
  *
  * The one address in this configuration that is not this repository's own. A
@@ -1621,23 +1518,6 @@ function normalizeSiteDescription(value) {
 }
 
 /**
- * A map of section name → landing metadata.
- *
- * @param {unknown} value - The declared mapping.
- * @param {string} where - Dotted path, for the error.
- * @returns {Readonly<Record<string, object>>}
- */
-function normalizeSectionMap(value, where) {
-    if (value === undefined) return Object.freeze({});
-    if (!isPlainObject(value)) fail(where, "must be a mapping");
-    const out = {};
-    for (const [name, meta] of Object.entries(/** @type {Record<string, unknown>} */ (value))) {
-        out[name] = normalizeSectionMeta(meta, `${where}.${name}`);
-    }
-    return Object.freeze(out);
-}
-
-/**
  * Hugo keys a repository may **not** declare under `site.hugo`, because the
  * site build generates them and would only overwrite what was written.
  *
@@ -1658,34 +1538,23 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     contentDir: "the fixed content mount, `build/hugo/content`",
     themesDir: "where `@heroiclands/hugo-theme` is installed",
     theme: "the installed `@heroiclands/hugo-theme`",
-    disableKinds: "whether any note in the tree carries `tags:`, which the site walk discovers",
-    taxonomies: "whether any note in the tree carries `tags:`, which the site walk discovers",
-    outputs: "whether any note in the tree carries `tags:`, which the site walk discovers",
+    disableKinds:
+        "the toolchain, which renders a site as its homepage and its pages: " +
+        "`section`, `taxonomy`, `term` and `RSS` are disabled on every site",
+    taxonomies:
+        "the toolchain, which renders a site as its homepage and its pages: no " +
+        "taxonomy is declared, because `taxonomy` and `term` are disabled kinds",
+    outputs:
+        "the toolchain, which renders a site as its homepage and its pages: no " +
+        "output format is declared, because every listing kind is disabled",
     "params.description": "`site.description`",
     "params.author": "package.json `author`",
     "params.cdnBaseURL": "`site.assets`",
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
-    "params.list": "`site.list`",
     "params.notfound": "`site.notfound`",
     "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
     menu: "the navigation `content-build deps fetch` caches from heroiclands.org",
 });
-
-/**
- * The `site.list` block — how a listing page renders.
- *
- * @param {unknown} value - The block, or `undefined`.
- * @returns {Readonly<{shortcodes: boolean}>} It, frozen, with every default filled.
- */
-function normalizeSiteList(value) {
-    if (value === undefined) return Object.freeze({ shortcodes: false });
-    if (!isPlainObject(value)) fail("site.list", "must be a mapping");
-    const input = /** @type {Record<string, unknown>} */ (value);
-    rejectUnknownKeys(input, SITE_LIST_KEYS, "site.list.");
-    return Object.freeze({
-        shortcodes: optionalBoolean(input.shortcodes, "site.list.shortcodes", false),
-    });
-}
 
 /**
  * The `site.notfound` block — the wording of the "page not found" page.
@@ -1765,24 +1634,58 @@ function normalizeSiteHugo(value) {
 }
 
 /**
+ * The keys that asked the site build to write an index between the homepage
+ * and the pages, each refused with the one message.
+ *
+ * A site is its homepage and its pages. Each of these keys asks for a
+ * generated listing between them — `sections` (with `listType` and
+ * `listSubType` inside an entry) a type-wide alphabetical one per entry,
+ * `backfillSections` one for every other directory under the mount, `landing`
+ * the mount's own, `list` how such a listing renders. None of those is a page
+ * anyone chose the contents of, and every one of them is authored instead: a
+ * `doc` note, addressed by its shortcode, carrying a content table over the
+ * notes it introduces, with the columns it chooses.
+ *
+ * Refused rather than ignored, for the reason {@link RETIRED_ADDRESS_KEYS}
+ * gives: a key left ignored reads to its author as though it still works.
+ *
+ * @type {readonly string[]}
+ */
+const SITE_INDEX_KEYS = Object.freeze(["sections", "landing", "backfillSections", "list"]);
+
+/**
+ * The message every key in {@link SITE_INDEX_KEYS} is refused with.
+ *
+ * @type {string}
+ */
+const SITE_INDEX_MESSAGE =
+    "is retired — a site is its homepage and its pages, and any index between " +
+    "them is a `doc` note: write one with `type: doc`, a `shortcode` and " +
+    "`pack: none`, carrying a content table over the notes it lists, and link " +
+    "it from the homepage. Nothing is generated between the homepage and the " +
+    "pages, so delete the key";
+
+/**
  * The `site` section — how this repository frames the website it publishes.
  *
- * Everything here is *framing*: what a section is called, which named pass
- * bundle supplies the repository's own body rewrites, and the residue of the
- * generated Hugo configuration that is genuinely this repository's own. Where
- * the Hugo tree is written is not a choice: `content-build site` writes it
- * under `build/hugo/`, and a `site.out` is refused by name. How a page gets
- * its **address** is deliberately not here either — that is
- * `publish.address`, shared with the link manifest so the two cannot disagree
- * about where a page is.
+ * Everything here is *framing*: which named pass bundle supplies the
+ * repository's own body rewrites, and the residue of the generated Hugo
+ * configuration that is genuinely this repository's own. Where the Hugo tree
+ * is written is not a choice: `content-build site` writes it under
+ * `build/hugo/`, and a `site.out` is refused by name. How a page gets its
+ * **address** is deliberately not here either — that is `publish.address`,
+ * shared with the link manifest so the two cannot disagree about where a
+ * page is.
  *
- * **What the site publishes is the content tree, and nothing beside it.** A
- * page of documentation is a note — `type: doc`, addressed by its shortcode,
- * compiling into no document where it says `pack: none` — so there is no
- * second mechanism for mounting a directory of markdown, and a configuration
- * that names one (`site.trees`, and the `site.readmeSections` that titled
- * such a tree's landing) is refused with a message saying where the page
- * goes instead.
+ * **What the site publishes is the homepage and the content tree, and nothing
+ * beside them.** A page of documentation is a note — `type: doc`, addressed
+ * by its shortcode, compiling into no document where it says `pack: none` —
+ * so there is no second mechanism for mounting a directory of markdown, and a
+ * configuration that names one (`site.trees`, and the `site.readmeSections`
+ * that titled such a tree's landing) is refused with a message saying where
+ * the page goes instead. An index between the homepage and the pages is a
+ * `doc` note too, so the keys that asked the build to generate one
+ * ({@link SITE_INDEX_KEYS}) are refused the same way.
  *
  * @param {unknown} value - The `site` block, or `undefined`.
  * @returns {Readonly<object>} It, frozen, with every default filled.
@@ -1793,12 +1696,8 @@ function normalizeSite(value) {
         assets: "",
         description: "",
         packages: Object.freeze([]),
-        sections: Object.freeze({}),
-        landing: null,
         pass: "",
         passOptions: Object.freeze({}),
-        backfillSections: false,
-        list: Object.freeze({ shortcodes: false }),
         notfound: null,
         hugo: Object.freeze({}),
     });
@@ -1824,9 +1723,15 @@ function normalizeSite(value) {
             `site.${key}`,
             "is retired — a page is a note in the content tree. Give each page " +
                 "`type: doc`, a `shortcode` and `pack: none`, file it under " +
-                "`assets/content/`, and declare the section that lists it under " +
-                "`site.sections`",
+                "`assets/content/`, and link it from the homepage or from a " +
+                "`doc` note that indexes it",
         );
+    }
+    // And by name, for the same reason: an index between the homepage and
+    // the pages is a `doc` note, and the useful thing to say is that.
+    for (const key of SITE_INDEX_KEYS) {
+        if (input[key] === undefined) continue;
+        fail(`site.${key}`, SITE_INDEX_MESSAGE);
     }
     rejectUnknownKeys(input, SITE_KEYS, "site.");
 
@@ -1838,30 +1743,16 @@ function normalizeSite(value) {
         packages = input.packages.map((p, i) => requireNonEmptyString(p, `site.packages[${i}]`));
     }
 
-    let landing = null;
-    if (input.landing !== undefined) {
-        if (!isPlainObject(input.landing)) {
-            fail("site.landing", "must be a mapping");
-        }
-        // Passed through rather than validated field by field: it is Hugo
-        // frontmatter, whose vocabulary is the theme's and not this package's.
-        landing = Object.freeze({ ...input.landing });
-    }
-
     return Object.freeze({
         base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
         assets: normalizeSiteAssets(input.assets),
         description: normalizeSiteDescription(input.description),
         packages: Object.freeze(packages),
-        sections: normalizeSectionMap(input.sections, "site.sections"),
-        landing,
         pass: input.pass === undefined ? "" : requireNonEmptyString(input.pass, "site.pass"),
         passOptions:
             input.passOptions === undefined ?
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
-        backfillSections: optionalBoolean(input.backfillSections, "site.backfillSections", false),
-        list: normalizeSiteList(input.list),
         notfound: normalizeSiteNotfound(input.notfound),
         hugo: normalizeSiteHugo(input.hugo),
     });

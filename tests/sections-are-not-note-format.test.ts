@@ -339,22 +339,18 @@ describe("every page's `url:` survives the move, byte for byte", () => {
         }
     });
 
-    it("still writes the mount's own landing and each declared section's", () => {
-        // Flat pages are why these matter *more*, not less: with no page filed
-        // into `<section>/`, the only thing that makes `/demo/kb/` and
-        // `/demo/kb/being/` exist at all is this synthesis.
-        buildSite({
-            config: configFor({
-                landing: { title: "Knowledgebase", type: "knowledgebase" },
-                sections: { being: { title: "Beings" } },
-            }),
-        });
-        const mount = path.join(root, "build/hugo/content", "kb");
-        expect(fs.readFileSync(path.join(mount, "_index.md"), "utf8")).toContain(
-            "type: knowledgebase",
-        );
-        expect(fs.readFileSync(path.join(mount, "being", "_index.md"), "utf8")).toContain(
-            "title: Beings",
-        );
+    it("writes no `_index.md` under the mount — the only one is the homepage's", () => {
+        // Flat pages create no directory, and nothing else does either: a
+        // section is a listing Hugo would generate, and the site is its
+        // homepage and its pages.
+        buildSite({ config: configFor() });
+        const out = path.join(root, "build/hugo/content");
+        expect(fs.existsSync(path.join(out, "_index.md"))).toBe(true);
+        expect(fs.existsSync(path.join(out, "kb", "_index.md"))).toBe(false);
+        expect(
+            fs
+                .readdirSync(path.join(out, "kb"), { withFileTypes: true })
+                .filter((e) => e.isDirectory()),
+        ).toEqual([]);
     });
 });

@@ -10,9 +10,8 @@
  *
  * Both are policy rather than per-package behaviour — how an icon follows the
  * reader's colour scheme, and what a deployment's root says about indexing and
- * redirects — so a copy per consumer was a copy free to drift, and the copies
- * did. The cases below pin the behaviour the copies shared, which is the whole
- * of what they were for.
+ * caching — so a copy per consumer is a copy free to drift. The cases below
+ * pin the behaviour the toolchain owns.
  */
 
 import fs from "node:fs";
@@ -22,7 +21,7 @@ import path from "node:path";
 import { describe, it, expect } from "vitest";
 
 import { injectAdaptiveFill, transform } from "../engine/svg-theme.mjs";
-import { headers, redirects, landingPath, writeSiteRoot } from "../engine/site-root.mjs";
+import { headers, writeSiteRoot } from "../engine/site-root.mjs";
 import { BUILT_IN_ASSET_TRANSFORMS, resolveAssetTransform } from "../config.mjs";
 
 describe("an icon follows the reader's colour scheme", () => {
@@ -75,17 +74,8 @@ describe("a transform is named, or it is a path", () => {
 });
 
 describe("a deployment's root files", () => {
-    // Pages matches the raw path, before any trailing-slash handling, so the
-    // two spellings are distinct keys and one rule does not catch the other.
-    it("redirects both spellings of the prefix root to the landing", () => {
-        const out = redirects("thalorna");
-
-        expect(out).toContain(`/thalorna/   ${landingPath("thalorna")}   301`);
-        expect(out).toContain(`/thalorna    ${landingPath("thalorna")}   301`);
-    });
-
     it("suppresses indexing on every host-assigned address", () => {
-        const out = headers("thalorna");
+        const out = headers();
 
         expect(out).toContain("https://:project.pages.dev/*");
         expect(out).toContain("https://:version.:project.pages.dev/*");
@@ -93,21 +83,22 @@ describe("a deployment's root files", () => {
         expect(out.match(/X-Robots-Tag: noindex/g)).toHaveLength(3);
     });
 
-    // A 301 with no lifetime is cached by a browser indefinitely, on the
-    // most-linked URL there is.
-    it("pins a lifetime on the redirect", () => {
-        expect(headers("thalorna")).toContain("Cache-Control: max-age=3600");
+    // The prefix root is the homepage: a pinned lifetime would hold a stale
+    // copy at the most-linked address after a deploy.
+    it("pins no lifetime on the prefix root", () => {
+        expect(headers()).not.toContain("Cache-Control");
     });
 
-    it("writes both files beside the rendered site", () => {
+    it("writes `_headers` beside the rendered site", () => {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "site-root-"));
         fs.mkdirSync(path.join(out, "kethira"), { recursive: true });
         fs.writeFileSync(path.join(out, "kethira", "index.html"), "<html></html>");
 
         const { files } = writeSiteRoot({ pkg: "kethira", out });
 
-        expect(files.map((f) => path.basename(f)).sort()).toEqual(["_headers", "_redirects"]);
-        expect(fs.readFileSync(path.join(out, "_redirects"), "utf8")).toContain("/kethira/");
+        expect(files.map((f) => path.basename(f))).toEqual(["_headers"]);
+        expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toBe(headers());
+        expect(fs.existsSync(path.join(out, "_redirects"))).toBe(false);
     });
 
     // Writing root files over an unbuilt site would publish a deployment with

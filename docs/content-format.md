@@ -2249,11 +2249,26 @@ A SoHL "being" document will be created, as will an "HM3" document.
 
 ### type: homepage
 
-A homepage for the module will be created.
+The package's front page, published at `https://www.heroiclands.org/<package>/`.
+Exactly one note in a content tree declares this type, and it compiles into
+no Foundry document: it is a page and nothing else.
 
-The contents will be available in a page at `https://www.heroiclands.org/<package>/`.
+It declares a `shortcode` — conventionally `root` — because that is what a
+link is written with: `[[homepage-root|Text]]` is an ordinary wikilink, and it
+resolves to `/<package>/`. The shortcode names the page in links; its address
+is the package root. `title` defaults to `packageBuild.manifest.title`; a
+`description` and a `banner` are read by the theme's hero; any other
+top-level key is passed through to the page as a theme parameter.
 
-It will also generate a single JournalEntry located at the top level of the "journals" compendium named "\_Introduction".
+The page is its body, published verbatim: no wikilink is resolved on it and
+no table expanded, so its links are markdown links, package-relative
+(`kb/rules/`) or external. An index of what the package publishes is not
+written here and is not generated anywhere — it is a `doc` note carrying a
+content table, linked from this page like any other.
+
+Two top-level keys are refused, because neither decides anything on a page:
+`id`, the Foundry document id a compendium UUID is built from, and `landing`,
+a card block — the homepage is a page with a body, rendered as one.
 
 ### type: vehicle
 
@@ -3137,21 +3152,16 @@ any other, and the audience is the section it sits in.
 Write `type: doc`, `subType: reference`, `shortcode: <type>` — so the
 affiliations introduction is `doc-affiliation`, addressed and linked like
 anything else, and typically carrying a generated table of what it introduces.
-It has no build path of its own; the package's own front page already works this
-way (`homepage-root`).
+It has no build path of its own, and it is the only kind of index there is: a
+site is its homepage and its pages, and nothing is generated between them.
 
-There is no landing page and no section. A `README.md` used to _be_ its
-section's landing, and a `subType: collection` note with a top-level `section:`
-key was a second way to say the same thing. All of it is retired, because a
-section appears in **no address**: a
+There is no landing page and no section. A section appears in **no address**: a
 page publishes at `/<package>/<type>-<shortcode>/`, which names no directory. A
 section is what Hugo calls a content directory, and the note format does not
 carry one.
 
-So a `doc`'s `subType` is a **genre** and nothing else, closed to the three
-values above. It briefly had to accept a content type as well, because a
-landing's `subType` named the section it addressed; with no landings, one field
-has one reading again.
+So a `doc`'s `subType` is a **genre** and nothing else, closed to the values
+above.
 
 ### type: macro
 

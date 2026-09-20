@@ -127,13 +127,13 @@ describe("what a documentation package declares", () => {
             ...minimal(),
             skipDirectories: ["Templates"],
             paths: { content: "docs" },
-            site: { sections: { guides: { title: "Guides" } } },
+            site: { description: "The toolkit's guides." },
             publish: { site: "content", address: { prefix: "guide/" } },
         } as ContentBuildConfigInput);
 
         expect(config.skipDirectories).toEqual(["Templates"]);
         expect(config.paths.content).toBe(path.resolve("/repo", "docs"));
-        expect(config.site.sections.guides.title).toBe("Guides");
+        expect(config.site.description).toBe("The toolkit's guides.");
         expect(config.publish.address.prefix).toBe("guide/");
     });
 
@@ -365,9 +365,9 @@ describe("what the pipeline does with one", () => {
         expect(status).toBe(0);
         const guide = path.join(dir, HUGO_CONTENT, "guide");
         expect(fs.existsSync(path.join(guide, "doc-commands.md"))).toBe(true);
-        // The homepage publishes at the package's own root, one level above the
+        // The homepage is the package's own root, one level above the
         // content mount.
-        expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "_index.md"))).toBe(true);
         // The Hugo configuration lands beside the mount, generated from the
         // sources the repository already states.
         const toml = fs.readFileSync(path.join(dir, HUGO_SOURCE, "hugo.toml"), "utf8");

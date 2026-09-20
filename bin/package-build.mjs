@@ -455,15 +455,16 @@ function manifestCommand() {
  * `package-build site-root` — the deployment's root files.
  *
  * Hugo owns everything under the `/<package>/` prefix; this owns what sits
- * beside it, which is the pair Cloudflare Pages reads from the uploaded
- * directory and nowhere else.
+ * beside it, which is what Cloudflare Pages reads from the uploaded directory
+ * and nowhere else: `_headers`, and no `_redirects`, since the prefix root is
+ * the homepage.
  *
  * @returns {object} The yargs command.
  */
 function siteRootCommand() {
     return {
         command: "site-root",
-        describe: "Write the deployment's _headers and _redirects",
+        describe: "Write the deployment's _headers",
         builder: (y) =>
             y.option("out", {
                 type: "string",

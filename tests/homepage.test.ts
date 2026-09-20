@@ -27,9 +27,9 @@ import type { ContentBuildConfigInput } from "../content-config.mjs";
 import { SITE_MODES, publishesContentPages } from "../content-config.mjs";
 import * as homepageModule from "../engine/homepage.mjs";
 import {
+    HOMEPAGE_DESTINATION,
     HOMEPAGE_SHORTCODE,
     HOMEPAGE_TYPE,
-    homepageDestination,
     homepageTitle,
     isHomepage,
 } from "../engine/homepage.mjs";
@@ -170,46 +170,28 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         expect(pages.every((p) => p.kind === "content")).toBe(true);
     });
 
-    it("publishes at its own address, like every other note", () => {
+    it("publishes at the package root, as the mount's `_index.md`", () => {
         const config = configFor();
         buildSite({ config });
-        // `/demo/homepage-root/` — the note's address — written at the root of
-        // the content mount, one level above the `kb/` content mount.
-        // The package's own `/demo/` is a redirect a consumer authors, not a
-        // page this build writes.
-        expect(fs.existsSync(path.join(root, "build/hugo/content/_index.md"))).toBe(false);
-        const dest = path.join(
-            root,
-            "build/hugo/content",
-            homepageDestination({ type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE }),
-        );
+        // `/demo/` — written at the root of the content tree, one level above
+        // the `kb/` content mount, where Hugo renders it as the `home` kind.
+        expect(HOMEPAGE_DESTINATION).toBe("_index.md");
+        expect(homepageModule).not.toHaveProperty("homepageDestination");
+        const dest = path.join(root, "build/hugo/content", HOMEPAGE_DESTINATION);
         expect(fs.existsSync(dest)).toBe(true);
         const page = fs.readFileSync(dest, "utf8");
         expect(page).toMatch(/^title: The Demo Module$/m);
         expect(page).toMatch(/^package: demo$/m);
-        // Site-root relative, like every other page's: Hugo resolves it
-        // against a `baseURL` whose path is already the package's base.
-        expect(page).toMatch(/^url: \/homepage-root\/$/m);
-        expect(page).toMatch(/^slug: homepage-root$/m);
+        // The home kind publishes at `baseURL`, so the page states no address.
+        expect(page).not.toMatch(/^url:/m);
+        expect(page).not.toMatch(/^slug:/m);
         expect(page).toContain("The module, in the author's own words.");
     });
 
-    it("no longer has a fixed destination of its own", () => {
-        // `HOMEPAGE_DESTINATION` named `_index.md`, and it was the whole reason
-        // a `shortcode` was refused: the computed address named a page nothing
-        // wrote. With the address published, there is nothing left for a fixed
-        // destination to be.
-        expect(homepageModule).not.toHaveProperty("HOMEPAGE_DESTINATION");
-        expect(homepageDestination({ type: HOMEPAGE_TYPE, shortcode: "front" })).toBe(
-            "homepage-front.md",
-        );
-    });
-
-    it("resolves `[[homepage-root|Text]]` to the page it publishes", () => {
-        // The whole point of giving the landing an address: it is citable like
-        // any other note, and the address the citation computes is the one the
-        // build writes. Indexed but not rendered — a homepage takes no part in
-        // the content pipeline, so this asserts the index holds it.
+    it("resolves `[[homepage-root|Text]]` to the package root", () => {
+        // The shortcode names the page in links; its address is the package
+        // root. Indexed but not rendered — a homepage takes no part in the
+        // content pipeline, so this asserts the index holds it.
         note(
             "Rules/Welcome.md",
             `type: doc
@@ -226,7 +208,8 @@ name:
             path.join(root, "build/hugo/content/kb/doc-welcome.md"),
             "utf8",
         );
-        expect(page).toContain("(/demo/homepage-root/)");
+        expect(page).toContain("(/demo/)");
+        expect(page).not.toContain("homepage-root/");
         expect(page).toContain("the module's front page");
     });
 
@@ -316,21 +299,20 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
 
         // Measured, not assumed: the tree holds a weapon and a rules note, and
         // neither may reach the web.
-        expect(emitted(out)).toEqual(["homepage-root.md"]);
+        expect(emitted(out)).toEqual([HOMEPAGE_DESTINATION]);
         expect(result.stats?.homepages).toBe(1);
         expect(result.stats?.content ?? 0).toBe(0);
     });
 
     it("ignores the content framing entirely, rather than trusting it to be absent", () => {
-        // A `site:` block naming sections and a landing cannot re-open a
+        // A `site:` block naming packages and a pass cannot re-open a
         // content surface: homepage-only is a mode, not the absence of
         // configuration.
         const out = path.join(root, "build/hugo/content");
         const config = configFor({
             site: {
-                sections: { weapongear: { title: "Weapons" } },
-                backfillSections: true,
-                landing: { title: "Knowledgebase", type: "knowledgebase" },
+                packages: ["demo"],
+                passOptions: { apiBase: "/demo/api/" },
             },
             publish: {
                 site: "homepage",
@@ -338,14 +320,14 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             },
         });
         buildSite({ config });
-        expect(emitted(out)).toEqual(["homepage-root.md"]);
+        expect(emitted(out)).toEqual([HOMEPAGE_DESTINATION]);
     });
 
     it("still publishes every content page in content mode", () => {
         const config = configFor();
         const result = buildSite({ config });
         const files = emitted(path.join(root, "build/hugo/content"));
-        expect(files).toContain("homepage-root.md");
+        expect(files).toContain(HOMEPAGE_DESTINATION);
         // Written flat under the mount and published at its address,
         // `/demo/weapongear-dagger/`.
         expect(files).toContain("kb/weapongear-dagger.md");
@@ -381,10 +363,10 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         } as ContentBuildConfigInput);
 
         const result = buildSite({ config });
-        expect(emitted(path.join(solo, "build/hugo/content"))).toEqual(["homepage-root.md"]);
+        expect(emitted(path.join(solo, "build/hugo/content"))).toEqual([HOMEPAGE_DESTINATION]);
         expect(result.stats?.homepages).toBe(1);
         expect(
-            fs.readFileSync(path.join(solo, "build/hugo/content/homepage-root.md"), "utf8"),
+            fs.readFileSync(path.join(solo, "build/hugo/content", HOMEPAGE_DESTINATION), "utf8"),
         ).toMatch(/^title: HârnMaster 3$/m);
         fs.rmSync(solo, { recursive: true, force: true });
     });

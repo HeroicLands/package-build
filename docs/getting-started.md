@@ -780,10 +780,11 @@ values, and the content mount — for `hugo --source build/hugo` to render
 into `build/site/<contentPackage>/`. There is no Hugo configuration to
 write: the file is generated on every run, and what is genuinely the
 package's own — the wording of its "page not found" page — goes in the
-`site:` block as `site.notfound`. Set `publish.site: content` and name the
-sections under `site.sections`, and the same command publishes the content
-tree's every page beside the homepage. [`project-setup.md`](project-setup.md)
-gives the npm scripts.
+`site:` block as `site.notfound`. Set `publish.site: content`, and the same
+command publishes the content tree's every page beside the homepage — one
+page per note, and nothing generated between them; an index of what the
+package publishes is a `doc` note carrying a content table.
+[`project-setup.md`](project-setup.md) gives the npm scripts.
 
 **Another package's content.** Declare a dependency under `relationships`, and
 `content-build deps fetch` caches that release's published content index so

@@ -297,7 +297,7 @@ export function positionOfLiteral(text, needle, occurrence = 1) {
  *
  * **`key: true` addresses the declaration rather than the value.** A finding
  * about a *value* — this pack name is not in `packs[]` — belongs on the value,
- * which is the default. A finding that names a **field** — `\`site.sections.x\`
+ * which is the default. A finding that names a **field** — `\`site.notfound.x\`
  * is not a recognized option` — sends the reader to look for that field, so the
  * position should be the field's own, and in a flow mapping
  * (`{ title: X, banner: Y }`) the two are different columns on one line. The
@@ -347,7 +347,7 @@ export function positionOfYamlPath(text, keyPath, { key = false } = {}) {
  * The YAML key path a **dotted field path** addresses.
  *
  * Configuration checks report the offending key as the path a reader would
- * write it — `packs[1].name`, `site.sections.affliction.title` — because that
+ * write it — `packs[1].name`, `site.notfound.links[0].url` — because that
  * is what the message has to say. {@link positionOfYamlPath} addresses a node
  * by segments instead, so this is the one translation between them: `.`
  * separates map keys, and a bracketed suffix is a sequence index.
