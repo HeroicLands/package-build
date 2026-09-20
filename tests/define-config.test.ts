@@ -757,3 +757,28 @@ describe("prebuilt packs and per-pack systems", () => {
         ).toThrow();
     });
 });
+
+describe("site.description", () => {
+    it("carries a plain sentence through", () => {
+        const config = defineConfig({
+            ...minimal(),
+            site: { description: "The system, in one sentence." },
+        });
+        expect(config.site.description).toBe("The system, in one sentence.");
+    });
+
+    it("defaults to empty", () => {
+        expect(defineConfig(minimal()).site.description).toBe("");
+    });
+
+    // Markup is the Foundry pitch's job — `packageBuild.manifest.descriptionHtml`
+    // — not the site's, whose `<meta name="description">` wants plain text.
+    it("refuses a value containing markup, naming descriptionHtml as where it belongs", () => {
+        expect(() =>
+            defineConfig({
+                ...minimal(),
+                site: { description: "The system, <em>emphasised</em>." },
+            }),
+        ).toThrow(/site\.description.*descriptionHtml/);
+    });
+});

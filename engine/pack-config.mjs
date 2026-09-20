@@ -570,9 +570,22 @@ export function configFromData(data, configPath) {
             );
         }
     }
-    const { pkg } = readPackageJson(rootDir);
+    const { manifestPath, pkg } = readPackageJson(rootDir);
     if (pkg.homepage !== undefined) input.homepage = pkg.homepage;
     if (pkg.author !== undefined) input.author = pkg.author;
+    // `description` is npm metadata nothing displays for a private package —
+    // read by neither the manifest nor the site, so a declared one is a
+    // warning rather than a silent no-op that looks like it did something.
+    if (pkg.description !== undefined) {
+        emitDiagnostic({
+            file: manifestPath,
+            severity: "warning",
+            message:
+                "`description` is read by nothing; the Foundry pitch is " +
+                "`packageBuild.manifest.descriptionHtml` and the site's is " +
+                "`site.description`",
+        });
+    }
 
     if (input.itemBuilders !== undefined) {
         const declared = input.itemBuilders;

@@ -168,6 +168,23 @@ describe("the manifest specification", () => {
         );
     });
 
+    // `description` itself is refused, but the source that replaced
+    // `package.json` is `descriptionHtml` — the message points there.
+    it("refuses a declared description, naming descriptionHtml as the key to write", () => {
+        expect(() =>
+            resolvePackageBuildConfig(shared({ manifest: { description: "The system." } })),
+        ).toThrow(/packageBuild\.manifest\.description.*descriptionHtml/);
+    });
+
+    // `descriptionHtml` is not itself derived — it is the authored source —
+    // so it passes straight through like any other declared manifest key.
+    it("passes descriptionHtml through, unlike description", () => {
+        const manifest = resolvePackageBuildConfig(
+            shared({ manifest: { descriptionHtml: "<p>The system.</p>" } }),
+        ).manifest;
+        expect(manifest).toEqual({ descriptionHtml: "<p>The system.</p>" });
+    });
+
     it("resolves the flags module against the repository root", () => {
         expect(
             resolvePackageBuildConfig(shared({ manifestFlags: "./utils/manifest-flags.mjs" }))
