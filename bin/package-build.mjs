@@ -334,9 +334,11 @@ async function formatGenerated(text, filepath) {
  * so the system publishes the field sets as data — the same shape the link
  * manifest already uses for addresses.
  *
- * `--check` fails when the committed copy disagrees with what the source would
- * produce now, because a generated file nothing checks drifts from its
- * generator silently — and this one is read by other repositories.
+ * Writes under `build/`, alongside every other generated artifact: a release
+ * publishes it beside the archive and the manifest (see `package-build
+ * release`), and `packageBuild.assets` carries it into the staged tree from
+ * there. There is nothing committed to compare it against, so there is no
+ * `--check`.
  *
  * @returns {object} The yargs command module.
  */
@@ -344,15 +346,8 @@ function schemaCommand() {
     return {
         command: "schema",
         describe: "Publish this package's DataModel field sets as schema.json",
-        builder: (y) =>
-            y.option("check", {
-                type: "boolean",
-                default: false,
-                describe:
-                    "Fail when the committed schema.json is out of date " +
-                    "rather than rewriting it",
-            }),
-        handler: handler(async (argv) => {
+        builder: (y) => y,
+        handler: handler(async () => {
             const config = loadPackageBuildConfig();
             if (!config.schema.length) {
                 console.log(
@@ -369,25 +364,13 @@ function schemaCommand() {
                 version: pkg.version,
             });
 
-            const out = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
+            const out = path.join(config.rootDir, "build", SCHEMA_ARTIFACT_FILE);
             const text = await formatGenerated(JSON.stringify(artifact), out);
             const counts = Object.entries(artifact.documents)
                 .map(([kind, subtypes]) => `${Object.keys(subtypes).length} ${kind}`)
                 .join(", ");
 
-            if (argv.check) {
-                const current = fs.existsSync(out) ? fs.readFileSync(out, "utf8") : null;
-                if (current !== text) {
-                    die(
-                        `${SCHEMA_ARTIFACT_FILE} does not match what this ` +
-                            `package's data models would produce — regenerate ` +
-                            `it with \`package-build schema\`.`,
-                    );
-                }
-                console.log(`✅ ${SCHEMA_ARTIFACT_FILE} is up to date ` + `(${counts} subtypes).`);
-                return;
-            }
-
+            fs.mkdirSync(path.dirname(out), { recursive: true });
             fs.writeFileSync(out, text, "utf8");
             console.log(
                 `✅ Wrote ${SCHEMA_ARTIFACT_FILE} for ${artifact.system} ` +

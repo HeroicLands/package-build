@@ -196,11 +196,12 @@ describe("a note carrying no system block", () => {
 /*  An undeclared key is an error, not a silent drop                      */
 /* --------------------------------------------------------------------- */
 
-/** A system repository whose own `schema.json` is the one to check against. */
+/** A system repository whose own `build/schema.json` is the one to check against. */
 function systemRepo(): Record<string, unknown> {
     const root = fs.mkdtempSync(path.join(os.tmpdir(), "sohl-schema-"));
+    fs.mkdirSync(path.join(root, "build"), { recursive: true });
     fs.writeFileSync(
-        path.join(root, "schema.json"),
+        path.join(root, "build", "schema.json"),
         JSON.stringify({
             version: 1,
             system: "sohl",

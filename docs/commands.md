@@ -166,7 +166,7 @@ Publish this package's DataModel field sets as `schema.json`.
 **SYNOPSIS**
 
 ```
-package-build schema [--check]
+package-build schema
 ```
 
 **DESCRIPTION**
@@ -174,23 +174,20 @@ package-build schema [--check]
 Publishes the registries named in `packageBuild.schema` as `schema.json`, read
 by `content-build content-format schema` and, in a consuming package, by
 `content-build lint`'s emitted-versus-declared check. A repository that
-declares no registries has nothing to publish. `--check` compares the
-committed file against what the source would produce now instead of
-rewriting it, so CI can gate on the file being current. Reads the registries
-`packageBuild.schema` names; writes (or checks) `schema.json` at the
-repository root.
+declares no registries has nothing to publish. Reads the registries
+`packageBuild.schema` names; writes `build/schema.json`. A release publishes
+it beside the archive and the manifest when `packageBuild.assets` names
+`build/schema.json` (see `package-build release`); a module's
+`content-build deps fetch` keeps the copy from the archive it downloads.
 
 **OPTIONS**
 
-| Option    | Type    | Default | Description                                                                    |
-| --------- | ------- | ------- | ------------------------------------------------------------------------------ |
-| `--check` | boolean | `false` | Fail when the committed `schema.json` is out of date rather than rewriting it. |
+None.
 
 **EXIT STATUS**
 
-1 when `--check` finds the committed file does not match what the source
-would produce. 1 on any other thrown error. Otherwise 0 — including when
-`packageBuild.schema` is empty, which logs and publishes nothing.
+1 on any thrown error. Otherwise 0 — including when `packageBuild.schema` is
+empty, which logs and publishes nothing.
 
 **EXAMPLES**
 
@@ -202,7 +199,7 @@ package-build: no `packageBuild.schema` declared; nothing to publish.
 **SEE ALSO**
 
 `content-build content-format schema`, `content-build lint [root]`,
-[Configuration](configuration.md).
+`package-build release`, [Configuration](configuration.md).
 
 ### `package-build manifest`
 
@@ -670,14 +667,17 @@ package-build release [--no-pdf]
 
 The artifact name comes from `packageKind` — a system ships as
 `system.json`'s sibling, a module as `module.json`'s — so no repository
-states it a second time. When the package publishes content
-(`publish.site: content`), it also builds the content-tree book (see
-`content-build pdf`) and reports it alongside the archive; `--no-pdf` skips
-that step for a release that has a tree but does not want the book this
-time. A book that fails to build is reported, never fatal — the archive
-above is the release regardless. Reads the staged package and (for the book)
-the content tree; writes `<artifact>.zip` and, unless skipped, the book,
-both under `build/dist`.
+states it a second time. It also publishes the content index the manifest
+advertises (`flags.metadataUrl`) and, when the stage carries one,
+`schema.json` — a repository that names `build/schema.json` in
+`packageBuild.assets` gets it released beside the archive; one that does not
+gets none. When the package publishes content (`publish.site: content`), it
+also builds the content-tree book (see `content-build pdf`) and reports it
+alongside the archive; `--no-pdf` skips that step for a release that has a
+tree but does not want the book this time. A book that fails to build is
+reported, never fatal — the archive above is the release regardless. Reads
+the staged package and (for the book) the content tree; writes
+`<artifact>.zip` and, unless skipped, the book, both under `build/dist`.
 
 **OPTIONS**
 
@@ -701,7 +701,7 @@ $ package-build release
 
 **SEE ALSO**
 
-`content-build pdf`, [Configuration](configuration.md).
+`content-build pdf`, `package-build schema`, [Configuration](configuration.md).
 
 ### `package-build deploy <stage>`
 
