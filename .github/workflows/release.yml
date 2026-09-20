@@ -3,8 +3,9 @@ name: Publish to npm
 # The whole release process, from a merged pull request to a version on the
 # registry. Nothing here is started by hand.
 #
-#   1. A pull request declares its bump as a `.changeset/*.md` file (CI fails it
-#      otherwise — see the "Changeset declared" job in build.yml).
+#   1. A pull request declares its bump as a `.changeset/*.md` file when a
+#      consumer will notice the change; `build.yml` checks the quality of one
+#      that exists but does not require one to exist.
 #   2. Merging it to `main` runs this workflow, which opens or updates the
 #      **Version Packages** pull request: the version bump plus the rewritten
 #      CHANGELOG.md. An unreleased state is therefore a pull request sitting in
@@ -143,8 +144,7 @@ jobs:
             # so the `pull_request` checks never run on it and a required check
             # would leave it unmergeable forever. Report the one required
             # context here instead. It is not a rubber stamp: that pull request
-            # *is* the declared bump, consuming the changesets the gate exists
-            # to require.
+            # *is* the declared bump, consuming the changesets that made it.
             #
             # The output is `pr-number`. v2 renamed it from v1's
             # `pullRequestNumber`, and an unset output reads as the empty
@@ -158,7 +158,7 @@ jobs:
             # as. `published` below stays dotted deliberately — it is the one
             # output name v2 kept unchanged, so a blanket kebab-case sweep of
             # this file would break the step that currently works.
-            - name: Mark the version pull request as having declared its bump
+            - name: Mark the version pull request as having passed the build
               if: steps.changesets.outputs['pr-number'] != ''
               env:
                   GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -166,7 +166,7 @@ jobs:
                   SHA=$(gh api "repos/${{ github.repository }}/pulls/${{ steps.changesets.outputs['pr-number'] }}" --jq .head.sha)
                   gh api --method POST "repos/${{ github.repository }}/statuses/$SHA" \
                       -f state=success \
-                      -f context='Changeset declared' \
+                      -f context='Build & Test' \
                       -f description='This pull request is the bump; it consumes the changesets.'
 
             # Report what reached the registry. `npm view <pkg> version` lags a
