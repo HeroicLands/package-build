@@ -759,6 +759,7 @@ const DOCS_KEYS = ["itemFields"];
 const SITE_KEYS = [
     "base",
     "assets",
+    "description",
     "packages",
     "sections",
     "readmeSections",
@@ -1576,6 +1577,33 @@ function normalizeSiteAssets(value) {
 }
 
 /**
+ * The site's `<meta name="description">`, plain text.
+ *
+ * Foundry's package browser wants a pitch — HTML, any length,
+ * `packageBuild.manifest.descriptionHtml` — and a `<meta>` tag wants one
+ * plain sentence. The two audiences are different enough that one string
+ * cannot serve both, so this is the site's own, checked for markup rather
+ * than trusted to carry none: a value with a `<` in it is refused, naming
+ * `descriptionHtml` as where markup belongs.
+ *
+ * @param {unknown} value - The configured value, or `undefined`.
+ * @returns {string} The description; `""` when unset.
+ */
+function normalizeSiteDescription(value) {
+    if (value === undefined) return "";
+    const description = requireNonEmptyString(value, "site.description");
+    if (description.includes("<")) {
+        fail(
+            "site.description",
+            "contains `<` — this is plain text for the site's " +
+                '`<meta name="description">`; markup belongs in ' +
+                "`packageBuild.manifest.descriptionHtml`",
+        );
+    }
+    return description;
+}
+
+/**
  * A map of section name → landing metadata.
  *
  * @param {unknown} value - The declared mapping.
@@ -1616,7 +1644,7 @@ export const DERIVED_HUGO_KEYS = Object.freeze({
     disableKinds: "whether any note in the tree carries `tags:`, which the site walk discovers",
     taxonomies: "whether any note in the tree carries `tags:`, which the site walk discovers",
     outputs: "whether any note in the tree carries `tags:`, which the site walk discovers",
-    "params.description": "package.json `description`",
+    "params.description": "`site.description`",
     "params.author": "package.json `author`",
     "params.cdnBaseURL": "`site.assets`",
     "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
@@ -1739,6 +1767,7 @@ function normalizeSite(value) {
     const empty = Object.freeze({
         base: "",
         assets: "",
+        description: "",
         packages: Object.freeze([]),
         sections: Object.freeze({}),
         readmeSections: Object.freeze({}),
@@ -1807,6 +1836,7 @@ function normalizeSite(value) {
     return Object.freeze({
         base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
         assets: normalizeSiteAssets(input.assets),
+        description: normalizeSiteDescription(input.description),
         packages: Object.freeze(packages),
         sections: normalizeSectionMap(input.sections, "site.sections"),
         readmeSections: normalizeSectionMap(input.readmeSections, "site.readmeSections"),

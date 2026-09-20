@@ -26,7 +26,7 @@
  * suite, which runs against this package's own YAML configuration.
  */
 
-import { describe, it, expect } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -174,6 +174,39 @@ describe("what the loader derives from where the file sits", () => {
             "package.json": JSON.stringify({ name: "sohl" }),
         });
         expect(() => resolveIn(root, minimal())).toThrow(/version/);
+    });
+
+    // `description` is npm metadata nothing displays for a private package —
+    // neither the Foundry manifest nor the site reads it, so a declared one is
+    // a warning rather than a silent no-op.
+    describe("package.json `description`", () => {
+        let warn: ReturnType<typeof vi.spyOn>;
+
+        beforeEach(() => {
+            warn = vi.spyOn(console, "warn").mockImplementation(() => {});
+        });
+        afterEach(() => vi.restoreAllMocks());
+
+        it("warns, naming the two keys read instead, and does not fail the build", () => {
+            const root = repoDir({
+                "package.json": JSON.stringify({
+                    name: "sohl",
+                    version: "1.2.3",
+                    description: "The SoHL Foundry VTT system.",
+                }),
+            });
+            expect(() => resolveIn(root, minimal())).not.toThrow();
+            expect(warn).toHaveBeenCalledWith(
+                expect.stringMatching(
+                    /package\.json: warning: `description` is read by nothing; the Foundry pitch is `packageBuild\.manifest\.descriptionHtml` and the site's is `site\.description`$/,
+                ),
+            );
+        });
+
+        it("stays silent when package.json declares none", () => {
+            resolveIn(repoDir(), minimal());
+            expect(warn).not.toHaveBeenCalled();
+        });
     });
 });
 

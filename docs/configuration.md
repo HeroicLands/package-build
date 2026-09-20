@@ -756,6 +756,7 @@ Any other key under `docs.itemFields` is refused:
 | ----------------------- | -------- | ------------------------------------------- |
 | `site.base`             | string   | `""`                                        |
 | `site.assets`           | string   | `""`, but required for `content-build site` |
+| `site.description`      | string   | `""`, but required for `content-build site` |
 | `site.packages`         | string[] | `[]`                                        |
 | `site.sections`         | object   | `{}`                                        |
 | `site.readmeSections`   | object   | `{}`                                        |
@@ -785,7 +786,7 @@ published. A `site.out` is refused by name:
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections, list, notfound, hugo).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections, list, notfound, hugo).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -808,6 +809,19 @@ The generated Hugo configuration carries the same host as
 `params.cdnBaseURL`, which the theme resolves a relative asset path against.
 The two are one value read by two readers: the toolchain emits it into a
 page, and the theme joins it onto anything the toolchain left relative.
+
+`site.description` is the site's `<meta name="description">` — one plain
+sentence, distinct from the Foundry package browser's pitch
+([`packageBuild.manifest.descriptionHtml`](#packagebuildmanifest), which
+allows HTML). Required for `content-build site`, the way `packageBuild.manifest.title`
+is:
+
+> ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
+
+Markup belongs in `descriptionHtml`, not here — a value containing `<` is
+refused:
+
+> ``package-build config: `site.description` contains `<` — this is plain text for the site's `<meta name="description">`; markup belongs in `packageBuild.manifest.descriptionHtml`.``
 
 `site.packages` names which content packages' notes the site walks, beyond
 this one's own; `site.pass` names a repository's own body-rewrite bundle
@@ -974,7 +988,7 @@ in it has one source, and that source is where it is edited:
 | `disableKinds`                    | whether any note in the tree carries `tags:`, which the site walk discovers: `["taxonomy", "term", "RSS"]` when none does, `["RSS"]` when at least one does |
 | `taxonomies`                      | the same fact — written as `{ tag = "tags" }` when at least one note carries `tags:`, absent otherwise                                                      |
 | `outputs`                         | the same fact — written as `{ taxonomy = ["HTML"], term = ["HTML"] }` when at least one note carries `tags:`, absent otherwise                              |
-| `params.description`              | `package.json` `description`; absent when the package declares none                                                                                         |
+| `params.description`              | `site.description`, which is required                                                                                                                       |
 | `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                                  |
 | `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                            |
 | `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                           |
@@ -996,6 +1010,11 @@ And a site's title reads from the manifest's, so a configuration declaring
 none fails the site build:
 
 > ``package-build config: `packageBuild.manifest.title` is not declared, and the site's `title` reads from it.``
+
+`params.description` reads from `site.description` the same way, and fails
+the same way when it is absent:
+
+> ``package-build config: `site.description` is not declared, and the site's `<meta name="description">` reads from it.``
 
 `params.cdnBaseURL` reads from `site.assets`, and the theme resolves every
 relative asset against it, so a configuration declaring none fails the site
@@ -1448,11 +1467,22 @@ that has a wrong answer rather than an unknown one: a key the build
 silently overwritten and the two would be free to disagree with nothing to
 say so.
 
+`packageBuild.manifest.descriptionHtml` is the exception worth calling out on
+its own: it is not forbidden, it **is** how `description` is authored. It is
+the pitch Foundry's package browser shows — HTML allowed, any length — and it
+is emitted into the generated manifest as `description`; the key itself never
+survives into the manifest under its own name. `package.json`'s own
+`description` is read by neither this nor the site (see
+[`site.description`](#site)) — a declared one is reported as a warning naming
+both real keys, so it cannot drift back into use:
+
+> `package.json: warning: \`description\` is read by nothing; the Foundry pitch is \`packageBuild.manifest.descriptionHtml\` and the site's is \`site.description\`` — a JSON manifest carries no line to point at, so only the file is named.
+
 | Forbidden key                         | Derived from                                                     |
 | ------------------------------------- | ---------------------------------------------------------------- |
 | `packageBuild.manifest.id`            | `foundryPackage`, itself derived from `package.json` `name`      |
 | `packageBuild.manifest.version`       | `package.json` `version`                                         |
-| `packageBuild.manifest.description`   | `package.json` `description`                                     |
+| `packageBuild.manifest.description`   | `packageBuild.manifest.descriptionHtml`                          |
 | `packageBuild.manifest.url`           | `package.json` `repository`                                      |
 | `packageBuild.manifest.bugs`          | `package.json` `repository`                                      |
 | `packageBuild.manifest.manifest`      | `package.json` `repository` and the release tag                  |
@@ -1463,7 +1493,7 @@ say so.
 
 > ``package-build config: `packageBuild.manifest.version` is derived from package.json `version` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
 
-> ``package-build config: `packageBuild.manifest.description` is derived from package.json `description` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
+> ``package-build config: `packageBuild.manifest.description` is derived from `packageBuild.manifest.descriptionHtml` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
 
 > ``package-build config: `packageBuild.manifest` must be a mapping.``
 

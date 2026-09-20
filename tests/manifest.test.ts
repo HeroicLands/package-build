@@ -356,18 +356,39 @@ describe("buildManifest", () => {
     });
 
     // `packageBuild.manifest.description` is refused (see `config.test.ts`),
-    // so the only source left is `package.json`.
-    it("derives the description from package.json", () => {
+    // so the only source is `packageBuild.manifest.descriptionHtml`.
+    it("derives the description from packageBuild.manifest.descriptionHtml", () => {
         const manifest = buildManifest({
-            config: config() as never,
-            packageJson: { ...packageJson, description: "The SoHL Foundry VTT system." },
+            config: config({
+                packageBuild: {
+                    manifest: {
+                        title: "Song of Heroic Lands",
+                        descriptionHtml: "<p>The SoHL Foundry VTT system.</p>",
+                    },
+                },
+            }) as never,
+            packageJson,
             artifact: "system",
         });
 
-        expect(manifest.description).toBe("The SoHL Foundry VTT system.");
+        expect(manifest.description).toBe("<p>The SoHL Foundry VTT system.</p>");
     });
 
-    it("omits description rather than emitting one, when package.json declares none", () => {
+    it("does not carry descriptionHtml through under its own name", () => {
+        const manifest = buildManifest({
+            config: config({
+                packageBuild: {
+                    manifest: { descriptionHtml: "<p>The SoHL Foundry VTT system.</p>" },
+                },
+            }) as never,
+            packageJson,
+            artifact: "system",
+        });
+
+        expect(manifest).not.toHaveProperty("descriptionHtml");
+    });
+
+    it("omits description rather than emitting one, when nothing declares descriptionHtml", () => {
         expect(build()).not.toHaveProperty("description");
     });
 

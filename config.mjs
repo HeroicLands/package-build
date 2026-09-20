@@ -91,7 +91,7 @@ const SECTION_KEYS = [
 export const DERIVED_MANIFEST_KEYS = Object.freeze({
     id: "`foundryPackage`, itself derived from package.json `name`",
     version: "package.json `version`",
-    description: "package.json `description`",
+    description: "`packageBuild.manifest.descriptionHtml`",
     url: "package.json `repository`",
     bugs: "package.json `repository`",
     manifest: "package.json `repository` and the release tag",
