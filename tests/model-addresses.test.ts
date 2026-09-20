@@ -18,6 +18,8 @@ import {
     packagedItemAddress,
     catalogueKey,
     loadItemsMap,
+    shortcodeOf,
+    embeddedIdentity,
 } from "../engine/actor-compiler.mjs";
 
 /**
@@ -96,6 +98,174 @@ describe("loadItemsMap keys a dependency's items under its own package", () => {
         // states the package gets what it asked for rather than whatever the
         // shadowing happened to leave.
         expect(map.get(packagedItemAddress("sohl", "weapongear", "dgr")).name).toBe("Their Dagger");
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+});
+
+describe("shortcodeOf", () => {
+    it("reads `system.shortcode` regardless of `systemId`", () => {
+        expect(shortcodeOf({ system: { shortcode: "awar" } }, "hm3")).toBe("awar");
+        expect(shortcodeOf({ system: { shortcode: "awar" } })).toBe("awar");
+    });
+
+    it("falls back to `flags.<systemId>.shortcode` where `system.shortcode` is absent", () => {
+        // HM3's data model has no `system.shortcode` field, so its published
+        // Item compendium carries the handle at `flags.hm3.shortcode` instead.
+        expect(shortcodeOf({ system: {}, flags: { hm3: { shortcode: "awar" } } }, "hm3")).toBe(
+            "awar",
+        );
+    });
+
+    it("`system.shortcode` wins where both are present", () => {
+        expect(
+            shortcodeOf(
+                { system: { shortcode: "sys" }, flags: { hm3: { shortcode: "flag" } } },
+                "hm3",
+            ),
+        ).toBe("sys");
+    });
+
+    it("reads no flag namespace without a `systemId`", () => {
+        expect(shortcodeOf({ system: {}, flags: { hm3: { shortcode: "awar" } } })).toBeUndefined();
+        expect(
+            shortcodeOf({ system: {}, flags: { hm3: { shortcode: "awar" } } }, null),
+        ).toBeUndefined();
+    });
+
+    it("never reads another system's flag namespace", () => {
+        // The defect this reader must not grow back: HM3 ships its handle at
+        // `flags.sohl.shortcode` today, a system writing outside its own
+        // namespace. An `hm3` catalogue reader must not honour it.
+        expect(
+            shortcodeOf({ system: {}, flags: { sohl: { shortcode: "awar" } } }, "hm3"),
+        ).toBeUndefined();
+    });
+
+    it("returns undefined where a document states no shortcode at all", () => {
+        expect(shortcodeOf({ system: {}, flags: {} }, "hm3")).toBeUndefined();
+        expect(shortcodeOf({}, "hm3")).toBeUndefined();
+    });
+});
+
+describe("embeddedIdentity reads the same shortcode shortcodeOf does", () => {
+    it("prefers `system.shortcode` to the entry's name", () => {
+        expect(embeddedIdentity({ system: { shortcode: "Dgr" }, name: "A Dagger" })).toBe("Dgr");
+    });
+
+    it("falls back to the flag namespace named by `systemId`", () => {
+        expect(
+            embeddedIdentity(
+                { system: {}, flags: { hm3: { shortcode: "awar" } }, name: "Awareness" },
+                "hm3",
+            ),
+        ).toBe("awar");
+    });
+
+    it("falls back to the entry's name when neither namespace names one", () => {
+        expect(
+            embeddedIdentity(
+                { system: {}, flags: { sohl: { shortcode: "awar" } }, name: "Awareness" },
+                "hm3",
+            ),
+        ).toBe("Awareness");
+    });
+});
+
+describe("loadItemsMap resolves an item whose shortcode lives in its system's flags", () => {
+    /** A compiled item document carrying no `system.shortcode` field, as HM3's do. */
+    const flagItem = (type: string, systemId: string, shortcode: string, name: string) => ({
+        _id: "BBBBBBBBBBBBBBBB",
+        _key: "!items!BBBBBBBBBBBBBBBB",
+        type,
+        name,
+        system: {},
+        flags: { [systemId]: { shortcode } },
+    });
+
+    /** A fresh `{ localDir, foreignDir }`, cleaned up by the caller. */
+    async function tempDirs() {
+        const fs = await import("node:fs");
+        const os = await import("node:os");
+        const path = await import("node:path");
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "model-addresses-flags-"));
+        const localDir = path.join(root, "local");
+        const foreignDir = path.join(root, "foreign");
+        fs.mkdirSync(localDir);
+        fs.mkdirSync(foreignDir);
+        return { fs, path, root, localDir, foreignDir };
+    }
+
+    it("resolves a foreign HM3-shaped entry (`flags.hm3.shortcode`, no `system.shortcode`)", async () => {
+        const { fs, path, root, foreignDir } = await tempDirs();
+        fs.writeFileSync(
+            path.join(foreignDir, "a.json"),
+            JSON.stringify(flagItem("skill", "hm3", "awar", "Awareness")),
+        );
+
+        const map = loadItemsMap([], [{ dir: foreignDir, package: "hm3" }]);
+        expect(map.get(itemAddress("skill", "awar"))?.name).toBe("Awareness");
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("does NOT resolve an entry carrying the wrong system's flag namespace", async () => {
+        // The defect being guarded against: HM3 ships its handle at
+        // `flags.sohl.shortcode` today, and an `hm3` catalogue reader must
+        // ignore it rather than silently honour a system writing outside its
+        // own namespace. This stays red until HM3 ships the rename.
+        const { fs, path, root, foreignDir } = await tempDirs();
+        fs.writeFileSync(
+            path.join(foreignDir, "a.json"),
+            JSON.stringify(flagItem("skill", "sohl", "awar", "Awareness")),
+        );
+
+        const map = loadItemsMap([], [{ dir: foreignDir, package: "hm3" }]);
+        expect(map.has(itemAddress("skill", "awar"))).toBe(false);
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("still skips a document carrying neither field", async () => {
+        const { fs, path, root, foreignDir } = await tempDirs();
+        fs.writeFileSync(
+            path.join(foreignDir, "a.json"),
+            JSON.stringify({
+                _id: "BBBBBBBBBBBBBBBB",
+                type: "skill",
+                name: "Awareness",
+                system: {},
+            }),
+        );
+
+        const map = loadItemsMap([], [{ dir: foreignDir, package: "hm3" }]);
+        expect(map.size).toBe(0);
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("resolves a local Item pack entry the same way, given its system", async () => {
+        const { fs, path, root, localDir } = await tempDirs();
+        fs.writeFileSync(
+            path.join(localDir, "a.json"),
+            JSON.stringify(flagItem("skill", "hm3", "awar", "Awareness")),
+        );
+
+        const map = loadItemsMap([localDir], [], "hm3");
+        expect(map.get(itemAddress("skill", "awar"))?.name).toBe("Awareness");
+
+        fs.rmSync(root, { recursive: true, force: true });
+    });
+
+    it("leaves a local flags-only entry unresolved when no system is named", async () => {
+        const { fs, path, root, localDir } = await tempDirs();
+        fs.writeFileSync(
+            path.join(localDir, "a.json"),
+            JSON.stringify(flagItem("skill", "hm3", "awar", "Awareness")),
+        );
+
+        const map = loadItemsMap([localDir]);
+        expect(map.size).toBe(0);
 
         fs.rmSync(root, { recursive: true, force: true });
     });

@@ -201,12 +201,38 @@ export function catalogueKey(subType, shortcode, pkg) {
 }
 
 /**
+ * An item's own shortcode, read off its compiled document.
+ *
+ * **`system.shortcode`**, where a system's data model declares such a field.
+ * Where it does not — HM3's has no such field — the handle instead lives in
+ * that system's own flag namespace, `flags.<systemId>.shortcode`: a system
+ * writes its per-document handle into its own flags and never another
+ * system's, so a document extracted from one system's catalogue is read
+ * through that system's namespace and no other. `system.shortcode` wins where
+ * both are present.
+ *
+ * @param {object} doc - A compiled Item document, or an embedded item merged
+ *   from one.
+ * @param {string|null} [systemId] - The system whose catalogue `doc` was read
+ *   from. Omitted or `null`, only `system.shortcode` is read.
+ * @returns {string|undefined} The shortcode, or `undefined` when the document
+ *   states neither.
+ */
+export function shortcodeOf(doc, systemId = null) {
+    const own = doc?.system?.shortcode;
+    if (own) return own;
+    if (!systemId) return undefined;
+    return doc?.flags?.[systemId]?.shortcode;
+}
+
+/**
  * What identifies one embedded item on its actor.
  *
- * **Its own `system.shortcode`** — not the entry's top-level `shortcode`, which
- * merely *selects* the catalogue template the entry is written from and is
- * never written to the document. Two daggers may share a selector; they are two
- * embodiments and each must declare its own.
+ * **Its own shortcode** — read by {@link shortcodeOf} — not the entry's
+ * top-level `shortcode`, which merely *selects* the catalogue template the
+ * entry is written from and is never written to the document. Two daggers
+ * may share a selector; they are two embodiments and each must declare its
+ * own.
  *
  * The name is a last resort, for a **stand-alone** entry that names no template
  * and states no shortcode. It is a poor identity — presentation, and free to be
@@ -215,10 +241,13 @@ export function catalogueKey(subType, shortcode, pkg) {
  * message says to state a `system.shortcode`.
  *
  * @param {object} item - The merged embedded item.
+ * @param {string|null} [systemId] - The system this item's document was
+ *   compiled or extracted for, so a document whose own data model carries no
+ *   `system.shortcode` field is still read by its own flag namespace.
  * @returns {string} The identity, for {@link embeddedItemId}.
  */
-export function embeddedIdentity(item) {
-    const own = item?.system?.shortcode;
+export function embeddedIdentity(item, systemId = null) {
+    const own = shortcodeOf(item, systemId);
     if (typeof own === "string" && own.trim()) return own.trim();
     return typeof item?.name === "string" ? item.name : "";
 }
@@ -253,9 +282,9 @@ export function embeddedItemId(actorId, subType, identity) {
 /**
  * Load every JSON file under each of `itemsSourceDirs`, returning one Map keyed
  * by {@link itemAddress} — the compiled document's **subtype** and its
- * `system.shortcode`. Folder docs and entries without a shortcode are skipped.
- * The `_key` field is stripped from each entry — it is not part of the item
- * data model.
+ * shortcode, read by {@link shortcodeOf}. Folder docs and entries without a
+ * shortcode are skipped. The `_key` field is stripped from each entry — it is
+ * not part of the item data model.
  *
  * The directories are read as one address space, because an actor names an item
  * by `(type, shortcode)` and never by the pack it happens to ship in. Two local
@@ -269,12 +298,22 @@ export function embeddedItemId(actorId, subType, identity) {
  * colliding with it. Local directories are therefore read first, and anything
  * already claimed is left alone.
  *
+ * **Each foreign directory reads its own flag namespace.** A foreign entry's
+ * `package` is the system whose catalogue it was extracted from, and that is
+ * the only namespace {@link shortcodeOf} is asked to fall back to for it — a
+ * document carrying another system's flag, sitting in this system's catalogue,
+ * is exactly the defect a system writing outside its own namespace produces,
+ * and is silently skipped rather than resolved.
+ *
  * @param {readonly string[]} itemsSourceDirs - Every local Item pack's JSON tree.
  * @param {readonly string[]} [foreignSourceDirs] - Extracted dependency
  *   catalogues, consulted only for addresses no local pack defines.
+ * @param {string|null} [system] - The system `itemsSourceDirs` were compiled
+ *   for, so a local document whose data model carries no `system.shortcode`
+ *   field is still read by its own flag namespace.
  * @returns {Map<string, object>} The predefined items, by address.
  */
-export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
+export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = [], system = null) {
     const map = new Map();
     const source = new Map();
     const shadowed = [];
@@ -307,7 +346,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
                 });
                 continue;
             }
-            const shortcode = doc?.system?.shortcode;
+            const shortcode = shortcodeOf(doc, system);
             if (!doc?.type || !shortcode) continue;
             const address = catalogueKey(doc.type, shortcode);
             const owner = source.get(address);
@@ -349,7 +388,7 @@ export function loadItemsMap(itemsSourceDirs, foreignSourceDirs = []) {
                 });
                 continue;
             }
-            const shortcode = doc?.system?.shortcode;
+            const shortcode = shortcodeOf(doc, foreignPackage);
             if (!doc?.type || !shortcode) continue;
             const address = catalogueKey(doc.type, shortcode);
             // eslint-disable-next-line no-unused-vars
@@ -574,7 +613,7 @@ export class SystemActorCompiler extends BasePackCompiler {
      */
     async prepare() {
         await super.prepare();
-        this.itemsMap = loadItemsMap(this.itemsSourceDirs, this.foreignSourceDirs);
+        this.itemsMap = loadItemsMap(this.itemsSourceDirs, this.foreignSourceDirs, this.system);
         log.info(`Loaded ${this.itemsMap.size} predefined items for actor resolution`);
     }
 
@@ -787,7 +826,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         // ships blank on purpose rather than collecting a default.
         merged.img =
             this.artPath(overlay ?? {}, "icon") ?? merged.img ?? itemArt(type, this.system);
-        const identity = embeddedIdentity(merged);
+        const identity = embeddedIdentity(merged, this.system);
         const claim = `${actorId}\u0000${itemAddress(/** @type {string} */ (subType), identity)}`;
         const first = this.#embeddedClaims.get(claim);
         if (first !== undefined) {
