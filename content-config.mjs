@@ -175,6 +175,10 @@ export const DEFAULT_PATHS = /** @type {const} */ ({
     // dependency — so nesting one under the other would imply a containment
     // that does not hold.
     metadataCache: "build/cache/metadata",
+    // Where the site navigation heroiclands.org publishes is fetched to.
+    // Beside the other two: it is fetched by the same command and read under
+    // the same complete-marker rule.
+    navigationCache: "build/cache/navigation",
 });
 
 /**
@@ -387,6 +391,8 @@ export function publishesContentPages(config) {
  *                                       index is fetched to. Inbound,
  *                                       for *every* declared dependency, not
  *                                       only those supplying a catalogue.
+ * @property {string} [navigationCache]  Where the site navigation is fetched
+ *                                       to, for the generated Hugo menu.
  */
 
 /**
@@ -401,6 +407,7 @@ export function publishesContentPages(config) {
  * @property {string} unpack
  * @property {string} foreignCache
  * @property {string} metadataCache
+ * @property {string} navigationCache
  */
 
 /**
@@ -742,7 +749,6 @@ const SYSTEM_KEYS = ["manifest", "compatibility"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
 const DOCS_KEYS = ["itemFields"];
 const SITE_KEYS = [
-    "out",
     "base",
     "assets",
     "packages",
@@ -753,8 +759,14 @@ const SITE_KEYS = [
     "pass",
     "passOptions",
     "backfillSections",
+    "list",
+    "notfound",
+    "hugo",
 ];
 const SITE_TREE_KEYS = ["from", "section"];
+const SITE_LIST_KEYS = ["shortcodes"];
+const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
+const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
 const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
@@ -1572,20 +1584,148 @@ function normalizeSectionMap(value, where) {
 }
 
 /**
+ * Hugo keys a repository may **not** declare under `site.hugo`, because the
+ * site build generates them and would only overwrite what was written.
+ *
+ * The same rule `DERIVED_MANIFEST_KEYS` states for the manifest, for the same
+ * reason: an authored `baseURL` would look authoritative, sit there unread,
+ * and disagree with the site forever. Each key names where its value comes
+ * from. A dotted key names a nested one, and covers everything beneath it —
+ * `params.brand` refuses `params.brand.logo` too — so `site.hugo` reaches only
+ * what the generator does not write.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+export const DERIVED_HUGO_KEYS = Object.freeze({
+    baseURL: "package.json `homepage`",
+    title: "`packageBuild.manifest.title`",
+    locale: "the organisation's locale, in `engine/site-config.mjs`",
+    publishDir: "`contentPackage`, under the deployment root `build/site`",
+    contentDir: "the fixed content mount, `build/hugo/content`",
+    themesDir: "where `@heroiclands/hugo-theme` is installed",
+    theme: "the installed `@heroiclands/hugo-theme`",
+    disableKinds: "the toolchain, which renders the same kinds on every site",
+    "params.description": "package.json `description`",
+    "params.author": "package.json `author`",
+    "params.cdnBaseURL": "`site.assets`",
+    "params.brand": "the organisation's brand links, in `engine/site-config.mjs`",
+    "params.list": "`site.list`",
+    "params.notfound": "`site.notfound`",
+    "markup.goldmark.renderer.unsafe": "the toolchain, whose pages carry raw HTML",
+    menu: "the navigation `content-build deps fetch` caches from heroiclands.org",
+});
+
+/**
+ * The `site.list` block — how a listing page renders.
+ *
+ * @param {unknown} value - The block, or `undefined`.
+ * @returns {Readonly<{shortcodes: boolean}>} It, frozen, with every default filled.
+ */
+function normalizeSiteList(value) {
+    if (value === undefined) return Object.freeze({ shortcodes: false });
+    if (!isPlainObject(value)) fail("site.list", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, SITE_LIST_KEYS, "site.list.");
+    return Object.freeze({
+        shortcodes: optionalBoolean(input.shortcodes, "site.list.shortcodes", false),
+    });
+}
+
+/**
+ * The `site.notfound` block — the wording of the "page not found" page.
+ *
+ * The theme renders the page for every site; what a repository supplies is
+ * the tagline, the noun the body prose calls the site, and the routes back.
+ * `tagline` and `sitenoun` are required once the block is present: a block
+ * declaring only links would render the theme's generic wording above a list
+ * of this site's routes, which reads as two sites.
+ *
+ * @param {unknown} value - The block, or `undefined`.
+ * @returns {Readonly<object>|null} It, frozen; `null` when absent.
+ */
+function normalizeSiteNotfound(value) {
+    if (value === undefined) return null;
+    if (!isPlainObject(value)) fail("site.notfound", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, SITE_NOTFOUND_KEYS, "site.notfound.");
+    const out = {
+        tagline: requireNonEmptyString(input.tagline, "site.notfound.tagline"),
+        sitenoun: requireNonEmptyString(input.sitenoun, "site.notfound.sitenoun"),
+    };
+    if (input.heroimage !== undefined) {
+        out.heroimage = requireNonEmptyString(input.heroimage, "site.notfound.heroimage");
+    }
+    if (input.links !== undefined) {
+        if (!Array.isArray(input.links)) fail("site.notfound.links", "must be a list");
+        out.links = Object.freeze(
+            input.links.map((link, i) => {
+                const where = `site.notfound.links[${i}]`;
+                if (!isPlainObject(link)) fail(where, "must be a mapping");
+                const entry = /** @type {Record<string, unknown>} */ (link);
+                rejectUnknownKeys(entry, SITE_NOTFOUND_LINK_KEYS, `${where}.`);
+                return Object.freeze({
+                    title: requireNonEmptyString(entry.title, `${where}.title`),
+                    url: requireNonEmptyString(entry.url, `${where}.url`),
+                    text: requireNonEmptyString(entry.text, `${where}.text`),
+                });
+            }),
+        );
+    }
+    return Object.freeze(out);
+}
+
+/**
+ * The `site.hugo` block — a mapping deep-merged over the generated Hugo
+ * configuration, last.
+ *
+ * The escape hatch for the key nobody anticipated. Every key the generator
+ * writes is refused here by {@link DERIVED_HUGO_KEYS}, naming its source, so
+ * the block cannot grow into a second configuration file.
+ *
+ * @param {unknown} value - The block, or `undefined`.
+ * @returns {Readonly<Record<string, unknown>>} It, frozen; `{}` when absent.
+ */
+function normalizeSiteHugo(value) {
+    if (value === undefined) return Object.freeze({});
+    if (!isPlainObject(value)) fail("site.hugo", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    for (const [dotted, source] of Object.entries(DERIVED_HUGO_KEYS)) {
+        /** @type {unknown} */
+        let at = input;
+        for (const part of dotted.split(".")) {
+            at = isPlainObject(at) ? /** @type {Record<string, unknown>} */ (at)[part] : undefined;
+            if (at === undefined) break;
+        }
+        if (at !== undefined) {
+            fail(
+                `site.hugo.${dotted}`,
+                `is derived from ${source} and must not be declared — it ` +
+                    `would be overwritten, and the two would disagree with ` +
+                    `nothing to say so`,
+            );
+        }
+    }
+    return Object.freeze(structuredClone(input));
+}
+
+/**
  * The `site` section — how this repository frames the website it publishes.
  *
- * Everything here is *framing*: where the Hugo tree is written, what a section
- * is called, which extra trees are published beside the content, and which
- * named pass bundle supplies the repository's own body rewrites. How a page gets
- * its **address** is deliberately not here — that is `publish.address`, shared
- * with the link manifest so the two cannot disagree about where a page is.
+ * Everything here is *framing*: what a section is called, which extra trees
+ * are published beside the content, which named pass bundle supplies the
+ * repository's own body rewrites, and the residue of the generated Hugo
+ * configuration that is genuinely this repository's own. Where the Hugo tree
+ * is written is not a choice: `content-build site` writes it under
+ * `build/hugo/`, and a `site.out` is refused by name. How a page gets its
+ * **address** is deliberately not here either — that is `publish.address`,
+ * shared with the link manifest so the two cannot disagree about where a
+ * page is.
  *
  * @param {unknown} value - The `site` block, or `undefined`.
  * @returns {Readonly<object>} It, frozen, with every default filled.
  */
 function normalizeSite(value) {
     const empty = Object.freeze({
-        out: "",
         base: "",
         assets: "",
         packages: Object.freeze([]),
@@ -1596,10 +1736,23 @@ function normalizeSite(value) {
         pass: "",
         passOptions: Object.freeze({}),
         backfillSections: false,
+        list: Object.freeze({ shortcodes: false }),
+        notfound: null,
+        hugo: Object.freeze({}),
     });
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
     const input = /** @type {Record<string, unknown>} */ (value);
+    // Refused by name, ahead of the vocabulary check: the useful thing to say
+    // is not "no such key" but that the location is fixed.
+    if (input.out !== undefined) {
+        fail(
+            "site.out",
+            "is retired — the site build writes its content mount at " +
+                "`build/hugo/content`, beside the generated `hugo.toml`, and " +
+                "the location is not configurable. Remove the key",
+        );
+    }
     rejectUnknownKeys(input, SITE_KEYS, "site.");
 
     const trees = [];
@@ -1641,7 +1794,6 @@ function normalizeSite(value) {
     }
 
     return Object.freeze({
-        out: input.out === undefined ? "" : requireNonEmptyString(input.out, "site.out"),
         base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
         assets: normalizeSiteAssets(input.assets),
         packages: Object.freeze(packages),
@@ -1655,6 +1807,9 @@ function normalizeSite(value) {
                 Object.freeze({})
             :   Object.freeze({ ...input.passOptions }),
         backfillSections: optionalBoolean(input.backfillSections, "site.backfillSections", false),
+        list: normalizeSiteList(input.list),
+        notfound: normalizeSiteNotfound(input.notfound),
+        hugo: normalizeSiteHugo(input.hugo),
     });
 }
 

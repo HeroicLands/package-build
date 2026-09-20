@@ -30,6 +30,13 @@ import { defineConfig } from "../index.mjs";
 import { CONFIG_BASENAME, configFromData } from "../engine/pack-config.mjs";
 import { resolveImg } from "../engine/helpers.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
+import {
+    HUGO_CONTENT,
+    HUGO_SOURCE,
+    NAVIGATION_FILE,
+    THEME_PACKAGE,
+    navigationCacheDir,
+} from "../engine/site-config.mjs";
 import type { ContentBuildConfigInput } from "../content-config.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
@@ -120,13 +127,13 @@ describe("what a documentation package declares", () => {
             ...minimal(),
             skipDirectories: ["Templates"],
             paths: { content: "docs" },
-            site: { out: "site/content" },
+            site: { sections: { guides: { title: "Guides" } } },
             publish: { site: "content", address: { prefix: "guide/" } },
         } as ContentBuildConfigInput);
 
         expect(config.skipDirectories).toEqual(["Templates"]);
         expect(config.paths.content).toBe(path.resolve("/repo", "docs"));
-        expect(config.site.out).toBe("site/content");
+        expect(config.site.sections.guides.title).toBe("Guides");
         expect(config.publish.address.prefix).toBe("guide/");
     });
 
@@ -263,10 +270,32 @@ describe("a path with no asset root to be served from", () => {
  * A documentation repository, complete enough for every command below.
  *
  * One homepage — the floor every package publishes — and two `doc` notes, which
- * with `homepage` is the whole vocabulary a package compiling nothing has.
+ * with `homepage` is the whole vocabulary a package compiling nothing has. The
+ * site build also reads `package.json`'s `homepage`, the installed theme and
+ * the cached navigation, so the fixture carries each.
  */
 function documentationRepo(): string {
     const dir = repo("doc-pkg-");
+    fs.writeFileSync(
+        path.join(dir, "package.json"),
+        JSON.stringify({
+            name: "docpkg",
+            version: "3.1.0",
+            description: "The toolkit, documented.",
+            homepage: "https://www.heroiclands.org/toolkit/",
+        }),
+    );
+    const theme = path.join(dir, "node_modules", THEME_PACKAGE);
+    fs.mkdirSync(theme, { recursive: true });
+    fs.writeFileSync(path.join(theme, "theme.toml"), 'name = "Heroic Lands"\n');
+    const config = defineConfig(minimal(dir));
+    const cache = navigationCacheDir(config);
+    fs.mkdirSync(cache, { recursive: true });
+    fs.writeFileSync(
+        path.join(cache, NAVIGATION_FILE),
+        JSON.stringify([{ name: "Home", url: "https://www.heroiclands.org/" }]),
+    );
+    fs.writeFileSync(path.join(cache, ".complete"), "");
     const content = path.join(dir, "assets", "content");
     fs.mkdirSync(path.join(content, "Guides"), { recursive: true });
     fs.writeFileSync(
@@ -297,8 +326,9 @@ function documentationRepo(): string {
             ...MINIMAL_YAML,
             "    address:",
             "        prefix: guide/",
-            "site:",
-            "    out: site/content",
+            "packageBuild:",
+            "    manifest:",
+            "        title: The Toolkit",
             "pdf:",
             "    title: The Toolkit",
             "    document: book.yaml",
@@ -330,13 +360,34 @@ describe("what the pipeline does with one", () => {
 
         expect(out).not.toMatch(/error:/);
         expect(status).toBe(0);
-        const guide = path.join(dir, "site", "content", "guide");
+        const guide = path.join(dir, HUGO_CONTENT, "guide");
         expect(fs.existsSync(path.join(guide, "doc-commands.md"))).toBe(true);
         // The homepage publishes at the package's own root, one level above the
         // content mount.
-        expect(fs.existsSync(path.join(dir, "site", "content", "homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(dir, HUGO_CONTENT, "homepage-root.md"))).toBe(true);
+        // The Hugo configuration lands beside the mount, generated from the
+        // sources the repository already states.
+        const toml = fs.readFileSync(path.join(dir, HUGO_SOURCE, "hugo.toml"), "utf8");
+        expect(toml).toMatch(/^baseURL = "https:\/\/www\.heroiclands\.org\/toolkit\/"$/m);
+        expect(toml).toMatch(/^title = "The Toolkit"$/m);
+        expect(toml).toMatch(/^description = "The toolkit, documented\."$/m);
+        expect(toml).toMatch(/^publishDir = "\.\.\/site\/toolkit"$/m);
         // Nothing anywhere is a compiled pack.
         expect(fs.existsSync(path.join(dir, "build", "packs"))).toBe(false);
+    });
+
+    it("refuses to build the site from a cold navigation cache, naming `deps fetch`", () => {
+        const dir = documentationRepo();
+        fs.rmSync(navigationCacheDir(defineConfig(minimal(dir))), { recursive: true });
+        const { out, status } = run(dir, "content-build", "site");
+
+        expect(status).not.toBe(0);
+        expect(out).toMatch(
+            /navigation has not been fetched\. Run `content-build deps fetch` first/,
+        );
+        // Nothing was written: the sources are read before the output tree is
+        // touched, so the previous site is intact to look at.
+        expect(fs.existsSync(path.join(dir, HUGO_SOURCE))).toBe(false);
     });
 
     it("builds the book from the same tree", () => {

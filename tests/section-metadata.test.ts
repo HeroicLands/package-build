@@ -56,7 +56,7 @@ function resolveWithSite(site: Record<string, unknown>) {
             compatibility: { minimum: "14.359" },
             stats: { lastModifiedBy: "sohlbuilder00000" },
             packs: [{ name: "items", type: "Item" }],
-            site: { out: "kb/content", ...site },
+            site: { ...site },
         },
         path.join(root, `${CONFIG_BASENAME}.yaml`),
     );

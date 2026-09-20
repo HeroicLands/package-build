@@ -143,7 +143,7 @@ function configFor(site: Record<string, unknown> = {}) {
             site: "content",
             address: { prefix: "kb/" },
         },
-        site: { out: "out", ...site },
+        site: { ...site },
     });
 }
 
@@ -319,7 +319,7 @@ describe("every page's `url:` survives the move, byte for byte", () => {
     it("publishes each page at `/<type>-<shortcode>/`, wherever the file lands", () => {
         // The core claim: the emitted *paths* move, and no emitted
         // address does. Read back off the tree the build actually wrote.
-        const out = path.join(root, "out");
+        const out = path.join(root, "build/hugo/content");
         const result = buildSite({ config: configFor() });
         expect(result.gates.addressErrors).toEqual([]);
         expect(result.wikiErrors).toEqual([]);
@@ -358,7 +358,7 @@ describe("every page's `url:` survives the move, byte for byte", () => {
                 sections: { being: { title: "Beings" } },
             }),
         });
-        const mount = path.join(root, "out", "kb");
+        const mount = path.join(root, "build/hugo/content", "kb");
         expect(fs.readFileSync(path.join(mount, "_index.md"), "utf8")).toContain(
             "type: knowledgebase",
         );

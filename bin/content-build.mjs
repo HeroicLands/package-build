@@ -79,6 +79,7 @@ import {
     unaddressableForeignPackages,
     formatUnaddressableFinding,
 } from "../engine/metadata-index.mjs";
+import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
@@ -1484,7 +1485,14 @@ function pdfCommand() {
  * compiled into packs. Everything a consumer would otherwise write for itself —
  * the walk, the address derivation, the address index, table expansion,
  * wikilink resolution, code-fence protection, the foreign-manifest merge and
- * the section-landing backfill — happens here, from configuration.
+ * the section-landing backfill — happens here, from configuration. So does the
+ * Hugo configuration: the whole source tree Hugo reads lands under
+ * `build/hugo/`, and the consumer's script runs Hugo over it.
+ *
+ * **The Hugo configuration is generated before anything is written.** Its
+ * sources — `package.json`'s `homepage`, the cached navigation, the installed
+ * theme — are each a way the build can fail, and failing before the output
+ * tree is cleared leaves the last good site in place to be looked at.
  *
  * **Each gate is reported and the run stops at the first that fires.** They are
  * ordered so the report names the cause rather than its symptoms: an unusable
@@ -1497,20 +1505,17 @@ function pdfCommand() {
 function siteCommand() {
     return {
         command: "site",
-        describe: "Build a Hugo content tree from the content tree",
-        builder: (yargs) => {
-            yargs.option("out", {
-                describe: "Write the mount here instead of the configured `site.out`.",
-                type: "string",
-            });
-        },
-        handler: async (argv) => {
+        describe: "Build the Hugo source tree from the content tree",
+        builder: () => {},
+        handler: async () => {
             try {
+                const config = loadPackConfig();
+                const hugo = generateHugoConfig(config);
                 const result = buildSite({
-                    sqlTables: await prepareTreeSqlTables(loadPackConfig().paths.content, {
-                        skipDirectories: loadPackConfig().skipDirectories,
+                    config,
+                    sqlTables: await prepareTreeSqlTables(config.paths.content, {
+                        skipDirectories: config.skipDirectories,
                     }),
-                    ...(argv.out ? { outRoot: argv.out } : {}),
                 });
                 const { gates } = result;
 
@@ -1623,6 +1628,8 @@ function siteCommand() {
                         `${s.tree ?? 0} tree page(s) + ${s.landings} ` +
                         `landing(s) to ${path.relative(process.cwd(), s.out)}`,
                 );
+                const { file } = writeHugoConfig(config, hugo);
+                log.info(`wrote ${path.relative(process.cwd(), file)}`);
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
@@ -1782,16 +1789,19 @@ async function fetchFromLocalArtifact(config, argv) {
 
 /**
  * `deps fetch` — fill the caches this build resolves other packages through:
- * the **content index** of every declared dependency, and the **item
- * catalogue** of those additionally declaring `itemCatalog: true`.
+ * the **content index** of every declared dependency, the **item catalogue**
+ * of those additionally declaring `itemCatalog: true`, and the **site
+ * navigation** heroiclands.org publishes, which the site build writes its
+ * menu from.
  *
- * The two sets differ deliberately. Citing another package's *addresses* and
- * embedding its *items* are separate edges, and a package may have either
- * without the other — `harn-ensemble` cites no foreign address and embeds
- * 324,016 item references.
+ * The two dependency sets differ deliberately. Citing another package's
+ * *addresses* and embedding its *items* are separate edges, and a package may
+ * have either without the other — `harn-ensemble` cites no foreign address and
+ * embeds 324,016 item references. The navigation is fetched for every package,
+ * because every package publishes a site.
  *
- * Its own command rather than a step of `package compile`, so that a compile
- * never reaches the network. A build that downloads silently is not
+ * Its own command rather than a step of `package compile` or `site`, so that
+ * neither reaches the network. A build that downloads silently is not
  * reproducible, breaks offline, and hides a dependency's version change behind
  * a passing run.
  *
@@ -1838,6 +1848,14 @@ function depsCommand() {
                     await fetchFromLocalArtifact(config, argv);
                     return;
                 }
+                // First, because every package needs it and it depends on
+                // nothing a repository declares: a dependency whose release
+                // cannot be read stops the run after the navigation is cached,
+                // not before.
+                const navigation = await fetchNavigation(config);
+                log.info(
+                    `Fetched the site navigation to ${path.relative(process.cwd(), navigation)}.`,
+                );
                 const indexes = await fetchAllMetadata(config);
                 if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);

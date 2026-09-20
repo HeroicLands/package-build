@@ -79,6 +79,7 @@ import { hideBin } from "yargs/helpers";
 
 import { loadPackageBuildConfig } from "../config.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
+import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
 import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
@@ -483,12 +484,12 @@ function siteRootCommand() {
         builder: (y) =>
             y.option("out", {
                 type: "string",
-                describe: "The directory that is deployed (default: build/site)",
+                describe: `The directory that is deployed (default: ${DEPLOY_ROOT})`,
             }),
         handler: handler(async (argv) => {
             const config = loadPackageBuildConfig();
             const shared = loadPackConfig();
-            const out = path.resolve(config.rootDir, argv.out ?? "build/site");
+            const out = path.resolve(config.rootDir, argv.out ?? DEPLOY_ROOT);
 
             const { files } = writeSiteRoot({ pkg: shared.contentPackage, out });
             for (const file of files) {

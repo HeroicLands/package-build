@@ -95,7 +95,7 @@ packageBuild:
 
   clean:
     # Beyond the conventional build artifacts, which the library already knows.
-    extra: [site/content, site/public, site/resources]
+    extra: [coverage]
 
   lang:
     sources: lang/*.json

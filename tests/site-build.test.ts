@@ -32,7 +32,6 @@ import {
     pageDestination,
     pageFrontmatter,
     pluralTitle,
-    resolveOutputRoot,
     resolveSitePass,
     siteGates,
     walkSiteTree,
@@ -115,7 +114,7 @@ function configFor(site: Record<string, unknown> = {}) {
             site: "content",
             address: { prefix: "kb/" },
         },
-        site: { out: "out", ...site },
+        site: { ...site },
     });
 }
 
@@ -496,35 +495,22 @@ describe("section landings", () => {
     });
 });
 
-describe("the output root is refused unless it is safe to delete", () => {
-    // Not hypothetical: an unset `site.out` resolved to the repository root and
-    // the wipe deleted the working tree, on a configuration that simply had no
-    // `site` section yet. Both failing shapes are ordinary, so neither is left
-    // to care.
-    it("refuses an unset output, which resolves to the repository root", () => {
-        expect(() => resolveOutputRoot("/repo", "")).toThrow(/not set/);
-        expect(() => resolveOutputRoot("/repo", undefined as never)).toThrow(/not set/);
-    });
-
-    it("refuses the repository root itself", () => {
-        expect(() => resolveOutputRoot("/repo", ".")).toThrow(/not inside/);
-    });
-
-    it("refuses a path that climbs out of the repository", () => {
-        expect(() => resolveOutputRoot("/repo", "../elsewhere")).toThrow(/not inside/);
-        expect(() => resolveOutputRoot("/repo", "/tmp/x")).toThrow(/not inside/);
-    });
-
-    it("accepts an ordinary build directory", () => {
-        expect(resolveOutputRoot("/repo", "kb/content")).toBe(path.join("/repo", "kb/content"));
-    });
-
-    it("stops the whole build rather than wiping anything", () => {
+describe("the output root is fixed, which is what makes wiping it safe", () => {
+    // The whole tree is a build artifact and is wiped on every run, so the
+    // resolution is the difference between clearing a build directory and
+    // clearing the repository. A configured output could be unset, or climb
+    // out of the tree; a fixed one under `build/` can do neither.
+    it("writes under build/hugo/content and touches nothing beside it", () => {
         const sandbox = fs.mkdtempSync(path.join(os.tmpdir(), "cb-safe-"));
         fs.writeFileSync(path.join(sandbox, "precious.txt"), "keep me");
         fs.writeFileSync(
             path.join(sandbox, "package.json"),
             JSON.stringify({ name: "s", version: "1.0.0" }),
+        );
+        fs.mkdirSync(path.join(sandbox, "assets/content"), { recursive: true });
+        fs.writeFileSync(
+            path.join(sandbox, "assets/content/homepage.md"),
+            "---\ntype: homepage\nshortcode: root\n---\n\nFront.\n",
         );
         const config = defineConfig({
             rootDir: sandbox,
@@ -537,7 +523,9 @@ describe("the output root is refused unless it is safe to delete", () => {
             packs: [{ name: "items", type: "Item" }],
             publish: { site: "content" },
         });
-        expect(() => buildSite({ config })).toThrow(/not set/);
+        const result = buildSite({ config });
+        expect(result.stats?.out).toBe(path.join(sandbox, "build/hugo/content"));
+        expect(fs.existsSync(path.join(sandbox, "build/hugo/content/homepage-root.md"))).toBe(true);
         expect(fs.existsSync(path.join(sandbox, "precious.txt"))).toBe(true);
         fs.rmSync(sandbox, { recursive: true, force: true });
     });
@@ -563,7 +551,7 @@ describe("buildSite end to end", () => {
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
-        const out = path.join(root, "out/kb");
+        const out = path.join(root, "build/hugo/content/kb");
         expect(fs.existsSync(path.join(out, "weapongear-dagger.md"))).toBe(true);
         // A section directory exists only where the configuration declares one
         // — no page creates it.
@@ -573,7 +561,10 @@ describe("buildSite end to end", () => {
 
     it("resolves a wikilink to the page's published address", () => {
         buildSite({ config: configFor() });
-        const page = fs.readFileSync(path.join(root, "out/kb/weapongear-dagger.md"), "utf8");
+        const page = fs.readFileSync(
+            path.join(root, "build/hugo/content/kb/weapongear-dagger.md"),
+            "utf8",
+        );
         // Both the resolved wikilink and the page's own stated address — two
         // quantities, and only the link carries the package base.
         expect(page).toContain("](/demo/weapongear-dagger/)");
@@ -593,7 +584,10 @@ name:
         try {
             const result = buildSite({ config: configFor() });
             expect(gatesFailed(result.gates)).toBe(false);
-            const page = fs.readFileSync(path.join(root, "out/kb/weapongear-sling.md"), "utf8");
+            const page = fs.readFileSync(
+                path.join(root, "build/hugo/content/kb/weapongear-sling.md"),
+                "utf8",
+            );
             expect(page).toMatch(/^package: demo$/m);
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Sling.md"));
@@ -609,7 +603,7 @@ name:
     full: Dagger
 summary: "see [[weapongear-dagger]]"`,
         );
-        const out = path.join(root, "out");
+        const out = path.join(root, "build/hugo/content");
         fs.rmSync(out, { recursive: true, force: true });
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(true);

@@ -281,6 +281,7 @@ describe("defineConfig — the layout a consumer supplies", () => {
             unpack: path.join("/repo", "build/tmp/packs"),
             foreignCache: path.join("/repo", "build/cache/foreign"),
             metadataCache: path.join("/repo", "build/cache/metadata"),
+            navigationCache: path.join("/repo", "build/cache/navigation"),
         });
     });
 

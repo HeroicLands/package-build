@@ -50,7 +50,7 @@ const thalorna = defineConfig({
     stats: { lastModifiedBy: "thalornabuild000" },
     packs: [{ name: "items", type: "Item" }],
     relationships: { systems: [{ id: "sohl", type: "system" }] },
-    site: { out: "site/content", assets: "https://cdn.example.org" },
+    site: { assets: "https://cdn.example.org" },
 } as never) as never;
 
 /** A package that publishes a site and a book and installs nowhere. */
@@ -59,7 +59,7 @@ const docsOnly = defineConfig({
     contentPackage: "handbook",
     packageKind: "documentation",
     publish: { site: "content" },
-    site: { out: "site/content", assets: "https://cdn.example.org" },
+    site: { assets: "https://cdn.example.org" },
 } as never) as never;
 
 /** The banner package-build ships, as a note addresses it. */

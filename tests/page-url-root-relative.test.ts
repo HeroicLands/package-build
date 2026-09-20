@@ -95,7 +95,6 @@ function configFor(site: Record<string, unknown> = {}) {
             address: { prefix: "kb/" },
         },
         site: {
-            out: "out",
             sections: { rules: { title: "The Rules" } },
             trees: [{ from: "docs", section: "dev-docs" }],
             ...site,
@@ -112,9 +111,9 @@ const ctx = {
     scheme: { prefix: "kb/" },
 };
 
-/** The emitted page for an address, under a build's output mount. */
-function page(out: string, slug: string) {
-    return fs.readFileSync(path.join(root, out, "kb", `${slug}.md`), "utf8");
+/** The emitted page for an address, under the build's output mount. */
+function page(slug: string) {
+    return fs.readFileSync(path.join(root, "build/hugo/content/kb", `${slug}.md`), "utf8");
 }
 
 describe("a page states its address relative to the site root", () => {
@@ -186,21 +185,21 @@ describe("end to end, the two quantities are written to the same page", () => {
         const result = buildSite({ config: configFor() });
         expect(result.gates.addressErrors).toEqual([]);
         expect(result.wikiErrors).toEqual([]);
-        const dagger = page("out", "weapongear-dagger");
+        const dagger = page("weapongear-dagger");
         expect(dagger).toMatch(/^url: \/weapongear-dagger\/$/m);
         // Nothing on the page states a doubled address.
         expect(dagger).not.toContain("/demo/weapongear-dagger/");
         // The citing page's resolved wikilink is site-absolute.
-        expect(page("out", "doc-combat")).toContain("](/demo/weapongear-dagger/)");
+        expect(page("doc-combat")).toContain("](/demo/weapongear-dagger/)");
     });
 
     it("applies an explicitly configured `site.base` to hrefs, not to the address", () => {
         // A consumer that *is* mounted somewhere other than
         // `/<contentPackage>/` still says so, and it still reaches every href.
-        const result = buildSite({ config: configFor({ out: "out-based", base: "/served/" }) });
+        const result = buildSite({ config: configFor({ base: "/served/" }) });
         expect(result.wikiErrors).toEqual([]);
-        expect(page("out-based", "weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
-        expect(page("out-based", "doc-combat")).toContain("](/served/weapongear-dagger/)");
+        expect(page("weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
+        expect(page("doc-combat")).toContain("](/served/weapongear-dagger/)");
     });
 
     it('publishes the same address under the consumers\' `site.base: "/"` stopgap', () => {
@@ -208,29 +207,35 @@ describe("end to end, the two quantities are written to the same page", () => {
         // addresses. With the split in place that setting must
         // not double-correct into a *third* answer: the address is the same
         // one, and only the hrefs are short — the state those PRs already ship.
-        const result = buildSite({ config: configFor({ out: "out-stopgap", base: "/" }) });
+        const result = buildSite({ config: configFor({ base: "/" }) });
         expect(result.wikiErrors).toEqual([]);
-        expect(page("out-stopgap", "weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
-        expect(page("out-stopgap", "doc-combat")).toContain("](/weapongear-dagger/)");
+        expect(page("weapongear-dagger")).toMatch(/^url: \/weapongear-dagger\/$/m);
+        expect(page("doc-combat")).toContain("](/weapongear-dagger/)");
     });
 
     it("states the homepage's address at the package's site root", () => {
-        buildSite({ config: configFor({ out: "out-home" }) });
-        const home = fs.readFileSync(path.join(root, "out-home/homepage-root.md"), "utf8");
+        buildSite({ config: configFor() });
+        const home = fs.readFileSync(
+            path.join(root, "build/hugo/content/homepage-root.md"),
+            "utf8",
+        );
         expect(home).toMatch(/^url: \/homepage-root\/$/m);
     });
 
     it("leaves a `trees` page and a section landing addressed by their paths", () => {
-        buildSite({ config: configFor({ out: "out-trees" }) });
+        buildSite({ config: configFor() });
         // Neither states a `url:` at all: a tree page keeps its source layout
         // below its section and a landing is its directory's `_index.md`, so
         // both take their address from where they are written.
         const tree = fs.readFileSync(
-            path.join(root, "out-trees/kb/dev-docs/how-to/testing.md"),
+            path.join(root, "build/hugo/content/kb/dev-docs/how-to/testing.md"),
             "utf8",
         );
         expect(tree).not.toMatch(/^url:/m);
-        const landing = fs.readFileSync(path.join(root, "out-trees/kb/rules/_index.md"), "utf8");
+        const landing = fs.readFileSync(
+            path.join(root, "build/hugo/content/kb/rules/_index.md"),
+            "utf8",
+        );
         expect(landing).not.toMatch(/^url:/m);
     });
 });

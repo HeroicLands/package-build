@@ -147,6 +147,7 @@
         "markdown-it": "^15.0.0",
         "markdownlint-cli2": "^0.23.2",
         "prettier": "^3.9.6",
+        "smol-toml": "^1.7.0",
         "ssh2-sftp-client": "^12.1.1",
         "typescript": "^6.0.3",
         "unidecode": "^1.1.0",
