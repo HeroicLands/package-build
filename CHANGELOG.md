@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 22.2.0
+
+### Minor Changes
+
+- 241451e: **`schema.json` is a release asset, not a committed file.** `package-build schema` writes `build/schema.json` instead of the repository root, and `--check` is gone — there is no committed copy left to compare against. `package-build release` publishes `schema.json` beside the archive and the manifest, the way it already publishes the content index, whenever the staged tree carries one.
+  
+  To keep publishing a schema: drop the committed `schema.json` and any lint step that runs `package-build schema --check`; add `{ from: build/schema.json, to: schema.json }` to `packageBuild.assets`, and run `package-build schema` before `package-build assets` in the build chain so the release never ships one older than the source it was cut from.
+- 483b630: **`content-build site` refuses to generate a configuration with no `site.assets`.** The theme resolves every relative asset — the brand logo, the 404 hero, every CDN-resolved image — against `site.assets`, and there is no defensible default: a package that built a site with the key absent published every one of those as a broken relative path. Declare `site.assets` — the `https://` host every package's imagery is served from — in `package-build.config.yaml` for any package that publishes a site.
+- 985f599: **A package now describes itself once for Foundry and once for the site.** Foundry's package browser wants a pitch — HTML, any length — and a site's `<meta name="description">` wants one plain sentence; deriving both from `package.json`'s `description` forced one string onto both. Declare `packageBuild.manifest.descriptionHtml` in `package-build.config.yaml` for the Foundry pitch (HTML allowed, emitted as the manifest's `description`) and `site.description` for the site's meta description (plain text, required for `content-build site`). `package.json`'s own `description` is read by neither any more — a warning names both keys when one is still declared — and the field can be deleted.
+
 ## 22.1.1
 
 ### Patch Changes
