@@ -611,6 +611,73 @@ package-build: 2 file(s) checked · 0 error(s) · 0 warning(s)
 
 [Diagnostics](diagnostics.md).
 
+### `package-build changelog check`
+
+**NAME**
+
+Lint release prose — pending changesets, or a `CHANGELOG.md` release section
+— against the rules a changeset is actually held to (`check` is the only
+action).
+
+**SYNOPSIS**
+
+```
+package-build changelog check [--release] [paths..]
+```
+
+**DESCRIPTION**
+
+A changeset answers one question — who notices, and what do they see — and
+nothing enforced that, so a pull-request description pasted into one ships
+verbatim as a release note: commit hashes, issue references, code fences,
+"Verified" paragraphs, byte counts and test tallies, a paragraph disguised as
+a bullet, a nested checklist, a `#` heading that outranks the version heading
+above it once wrapped into a list item, or simply too many bullets or too
+many lines for one entry. Each finding names the rule it tripped and says
+what to write instead.
+
+Default reads every pending changeset (`.changeset/*.md`; `config.json` and
+`README.md` excluded) and checks each one's body, frontmatter fence dropped.
+`--release` reads the first `## <version>` section of `CHANGELOG.md` instead
+— the section a **Version Packages** branch is about to publish — with its
+generated `## <version>` and `### <Bump> Changes` scaffold lines exempted
+from the heading rule, since neither is authored.
+
+A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
+`SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
+user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
+rarely. Every other finding is an error. Reads the files given, or resolves
+its own defaults; writes nothing.
+
+**OPTIONS**
+
+| Positional  | Type      | Default                                                                                     | Description                                                                             |
+| ----------- | --------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------- |
+| `paths`     | string(s) | `.changeset/*.md` (`config.json`, `README.md` excluded), or `CHANGELOG.md` with `--release` | Files to check.                                                                         |
+| `--release` | boolean   | `false`                                                                                     | Check the first `## <version>` section of `CHANGELOG.md` instead of pending changesets. |
+
+**EXIT STATUS**
+
+1 if a named file does not exist. 1 if any finding is an error. A run with
+only warnings — the code-like-token case — exits 0.
+
+**EXAMPLES**
+
+```
+$ package-build changelog check
+package-build: 1 file(s) checked · 0 error(s) · 0 warning(s)
+```
+
+```
+$ package-build changelog check --release
+CHANGELOG.md:5:3: error: changelog-check/commit-hash a commit hash is a commit-log artefact; the changelog generator should not write one — set `changelog` to `@changesets/cli/changelog`
+package-build: 1 file(s) checked · 1 error(s) · 0 warning(s)
+```
+
+**SEE ALSO**
+
+[Diagnostics](diagnostics.md).
+
 ### `package-build bundle check`
 
 **NAME**
