@@ -1,5 +1,20 @@
 # @heroiclands/package-build
 
+## 22.1.1
+
+### Patch Changes
+
+- f02b25a: **A relationship may declare `contentIndex: false`.** A `requires` or
+  `systems` entry naming a package Foundry installs but the content tree never
+  cites by wikilink no longer needs a fetched index just to satisfy
+  `deps fetch`. `contentIndex` (default `true`) narrows a relationship declaring
+  it `false` to the Foundry manifest only: `deps fetch` fetches nothing for it,
+  and a wikilink into it fails at the link, naming the key, rather than
+  resolving against a stale declaration or an index nobody fetched. It cannot be
+  combined with `itemCatalog: true`, which extracts items from the same index
+  this declares there is none of.
+- 07bf15d: **The generated Hugo configuration emits tag pages for a site whose notes carry `tags:`.** `content-build site` reads whether any note in the tree carries `tags:` and, when at least one does, writes `[taxonomies] tag = "tags"` and `[outputs] taxonomy = ["HTML"], term = ["HTML"]` into `build/hugo/hugo.toml`, and leaves `taxonomy` and `term` enabled among `disableKinds`. A site whose notes carry no `tags:` gets the same configuration as before — `taxonomy`, `term` and `RSS` all disabled, no `[taxonomies]` or `[outputs]` block. `site.hugo.disableKinds`, `.taxonomies` and `.outputs` stay refused under `site.hugo`, each naming this derivation as the source.
+
 ## 22.1.0
 
 ### Minor Changes
