@@ -1,7 +1,0 @@
----
-"@heroiclands/package-build": minor
----
-
-**A note may declare `pack: none`.** The universal `pack` key accepts one more value: `none` says the note publishes to the site and compiles into no Foundry document. Such a note is walked, published as a page, present in the content index with an address and no UUID, and addressable by wikilink like any other — on the web the link reaches the page, and in a compiled journal the reader gets the link's text with no document to open. Every pack compiler passes over it without a finding. It is accepted only on a type whose sole document is the JournalEntry its prose becomes (`doc`, `place`, `lore`, `scenario`) and refused by name on a type that compiles an Item, an Actor, a Macro, a Scene or an Adventure, naming the document it would drop. It is read per system like any other `pack:`, and a configured pack may not be called `none`.
-
-**`site.trees` and `site.readmeSections` are refused.** A page is a note in the content tree, and there is no second mechanism for mounting a directory of markdown beside it. A configuration declaring either key fails with a message saying so. A package that mounted a directory of pages moves them into `assets/content/` as `doc` notes — each with a `shortcode` and `pack: none` — rewrites their relative links as wikilinks, and declares the section that lists them under `site.sections`. The `sohlKb` site pass no longer rewrites repository-relative links, and its `blob` option has no reader.
