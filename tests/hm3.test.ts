@@ -25,7 +25,8 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import log from "loglevel";
 
 import { defineConfig } from "../content-config.mjs";
-import { configFromData } from "../engine/pack-config.mjs";
+import { configFromData, loadPackConfig } from "../engine/pack-config.mjs";
+import { itemArt } from "../engine/item-registry.mjs";
 import { documentSubtype, mapsNoteType, noteTypesFor } from "../engine/document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/note-claims.mjs";
 import { compilerFor } from "../engine/generate.mjs";
@@ -771,6 +772,69 @@ Seeing what is not there.
             "Broadsword",
             "Second Sight",
         ]);
+    });
+});
+
+describe("an embedded reference naming a mysticalability subtype carries default art", () => {
+    /** A fresh HM3 Actor pass. Nothing here walks a tree or reads a pack. */
+    function hm3Actors() {
+        const config = loadPackConfig();
+        return new Hm3Actors({
+            skipDirectories: [],
+            contentBase: path.join(PKG_ROOT, "tests/fixtures"),
+            dest: config.paths.packJson,
+        });
+    }
+
+    // `spell`, `invocation` and `psionic` are HM3's document subtypes, never a
+    // note's own `type` — only `mysticalability` is, discriminated by its own
+    // `hm3.type`. So the note-type-keyed table `itemArt` reads has no row for
+    // any of the three, which is the defect: a reference naming one directly,
+    // with no shortcode template and no `data.icon` of its own, had nowhere
+    // left to take a default from.
+    it("has no note-type entry for any of the three, which is exactly the gap", () => {
+        for (const subType of ["spell", "invocation", "psionic"]) {
+            expect(() => itemArt(subType, "hm3")).toThrow(/No default art for item type/);
+        }
+    });
+
+    it.each([
+        ["spell", "systems/hm3/images/icons/svg/pentacle.svg"],
+        ["invocation", "systems/hm3/images/icons/svg/circle.svg"],
+        ["psionic", "systems/hm3/images/icons/svg/psionics.svg"],
+    ])("gives a standalone %s entry its subtype's own default art", (subType, expected) => {
+        const pack = hm3Actors();
+        const doc = pack.resolveEmbedded(
+            new Map(),
+            "AAAAAAAAAAAAAAAA",
+            subType,
+            null,
+            { name: `Test ${subType}`, system: {} },
+            "items:0",
+            'actor "Test Being"',
+        );
+        expect(pack.errorCount).toBe(0);
+        expect(doc).not.toBeNull();
+        expect(doc!.img).toBe(expected);
+    });
+
+    it("still refuses a subtype this map pairs with no default, unchanged", () => {
+        // The fail-fast contract itself is not weakened: the override answers
+        // for exactly `spell`, `invocation` and `psionic` and falls through to
+        // the engine's table for anything else, which still throws rather than
+        // shipping a document with no image.
+        const pack = hm3Actors();
+        expect(() =>
+            pack.resolveEmbedded(
+                new Map(),
+                "AAAAAAAAAAAAAAAA",
+                "no-such-subtype",
+                null,
+                { name: "Nothing", system: {} },
+                "items:0",
+                'actor "Test Being"',
+            ),
+        ).toThrow(/No default art for item type "no-such-subtype"/);
     });
 });
 
