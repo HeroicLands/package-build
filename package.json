@@ -179,7 +179,6 @@
         "lint:content-format:schema": "node bin/content-build.mjs content-format schema --schema sohl=tests/fixtures/content-format/schema-sohl.json --schema hm3=tests/fixtures/content-format/schema-hm3.json",
         "lint:content-format:fields": "node bin/content-build.mjs content-format fields --fields sohl && node bin/content-build.mjs content-format fields --fields hm3",
         "changeset": "changeset",
-        "changeset:check": "changeset status --since=origin/main",
         "changeset:version": "changeset version && node bin/package-build.mjs changelog group && npm install --package-lock-only",
         "prepare": "git config core.hooksPath .githooks || true"
     },

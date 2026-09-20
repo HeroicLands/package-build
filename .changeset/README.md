@@ -13,9 +13,9 @@ npx changeset              # pick major / minor / patch, write the summary
 npx changeset add --empty  # this change ships nothing a consumer can see
 ```
 
-`npm run changeset:check` is what CI runs: it fails when the branch changes the
-package but adds no changeset. An empty changeset satisfies it — that is the
-"this needs no release" declaration, made explicitly rather than by omission.
+Nothing requires one: a pull request that ships nothing a consumer meets carries
+no changeset at all. Add `npx changeset add --empty` only for the record when
+that is worth saying explicitly; otherwise write no file.
 
 ## Which bump
 

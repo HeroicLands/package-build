@@ -86,6 +86,14 @@ jobs:
             # this repository's. The fixture says so at the top of the file.
             - name: Content format
               run: npm run lint:content-format
+            # A changeset answers one question — who notices, and what do they
+            # see — and this is the check that holds a pending one to that
+            # standard. It reads whatever `.changeset/*.md` files exist and
+            # passes trivially when there are none: no pull request is
+            # required to carry a changeset, only to write one that reads
+            # well when it does.
+            - name: Changeset quality
+              run: node bin/package-build.mjs changelog check
             # The book tests compile a real PDF and assert on it — the outline,
             # the `/ToUnicode` map that makes it searchable. Without a compiler
             # they skip, and a criterion that skips is not a criterion. Pinned
@@ -106,73 +114,3 @@ jobs:
             # failure here would otherwise only surface during a release.
             - name: Declaration emit
               run: npm run build:types
-
-    # Every pull request declares the release it intends — a bump, or an empty
-    # changeset saying it needs none. This is the gate that keeps a version from
-    # being merged and then forgotten: the release pipeline versions from
-    # changesets, so a change that adds none ships nothing.
-    #
-    # This job's name is the required status context — and, since it is the only
-    # required one, a pull request it fails cannot be merged at all. So it has to
-    # *report* on every pull request, including the two that legitimately carry
-    # no changeset: the Version Packages one, which consumes them, and
-    # Dependabot's, which bumps a `devDependency` no consumer installs. The check
-    # step is skipped for those and the job still succeeds, rather than the job
-    # being skipped, because a skipped job reports a skipped check and a required
-    # context wants a passing one.
-    #
-    # Leaving it to not run at all there rests on the assumption that a branch
-    # pushed with GITHUB_TOKEN starts no workflow runs. That assumption does not
-    # hold, and a gate whose correctness depends on a workflow *not* triggering
-    # is one bad assumption away from blocking every release.
-    changeset:
-        name: Changeset declared
-        if: github.event_name == 'pull_request'
-        runs-on: ubuntu-latest
-        steps:
-            - uses: actions/checkout@v7
-              with:
-                  fetch-depth: 0
-            - uses: actions/setup-node@v7
-              with:
-                  node-version: 24
-                  cache: npm
-            - run: npm ci
-            # `changeset status --since` compares against a ref, so `main` has
-            # to exist locally: a pull-request checkout is a detached merge
-            # commit with no branches.
-            - name: Fetch main
-              run: git fetch --no-tags origin main:refs/remotes/origin/main
-            # Two pull requests legitimately declare no release, and each is
-            # recognised by what it *is* rather than by what it contains:
-            #
-            #   - `changeset-release/*` — the branch the changesets action opens
-            #     the Version Packages pull request from. It consumes changesets;
-            #     requiring it to add one would be circular.
-            #   - Dependabot's — a dependency bump has no changelog line to
-            #     write. Every dependency here is a `devDependency`, so it
-            #     reaches no consumer: nothing about the published package
-            #     changes, and an entry saying so would be noise in a file that
-            #     describes the setting rather than the work.
-            #
-            # Dependabot is matched on the pull request's **author**, not on its
-            # branch name. The branch prefix (`dependabot/…`) is the obvious
-            # alternative and is what the `changeset-release/` case uses, but a
-            # branch name is anybody's to choose, while the author is GitHub's
-            # to set — and unlike `github.actor` it does not change to a human
-            # when one reopens the pull request or pushes a fixup to it.
-            - name: Changeset present
-              if: >-
-                  ${{ !startsWith(github.head_ref, 'changeset-release/')
-                  && github.event.pull_request.user.login != 'dependabot[bot]' }}
-              run: npx changeset status --since=origin/main
-            - name: This pull request is the bump
-              if: ${{ startsWith(github.head_ref, 'changeset-release/') }}
-              run: >-
-                  echo 'Version Packages pull request: it consumes the
-                  changesets rather than declaring one.'
-            - name: This pull request is a dependency bump
-              if: ${{ github.event.pull_request.user.login == 'dependabot[bot]' }}
-              run: >-
-                  echo 'Dependabot pull request: a devDependency bump reaches no
-                  consumer, so it declares no release.'

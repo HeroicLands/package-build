@@ -638,12 +638,12 @@ the first import.
 Releasing is not a command anyone runs. It is a consequence of merging, in two
 steps, and each step is visible while it is pending.
 
-**Every pull request declares its bump.** Run `npx changeset` and pick
-major/minor/patch; the summary you write becomes the changelog entry and the
-release note. If the change ships nothing a consumer can see, say so explicitly
-with `npx changeset add --empty`. CI's **Changeset declared** job fails a pull
-request that declares neither — `npm run changeset:check` is the same check,
-locally.
+**A pull request declares its bump when a consumer will notice.** Run
+`npx changeset` and pick major/minor/patch; the summary you write becomes the
+changelog entry and the release note. Nothing a consumer meets means no
+changeset at all — CI carries no gate demanding one. What CI does check is the
+quality of a changeset that exists: `node bin/package-build.mjs changelog check`
+lints every pending one against the rules a changeset is held to.
 
 **Merging to `main` opens a Version Packages pull request** carrying the version
 bump and the rewritten `CHANGELOG.md`. That pull request _is_ the pending

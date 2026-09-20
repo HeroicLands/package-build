@@ -82,12 +82,13 @@ carries no hook files of its own and cannot drift from the others. `|| true` so
 that an install outside a git checkout — a Docker build, a CI cache step —
 does not fail on it.
 
-Three hooks arrive with it, each with its own switch, read with git's normal
+Four hooks arrive with it, each with its own switch, read with git's normal
 precedence: a plain `git config` sets one clone, `--global` sets a machine.
 
 | Hook                             | What it does                                                    | Key                                  | Default |
 | -------------------------------- | --------------------------------------------------------------- | ------------------------------------ | ------- |
 | `pre-commit`, `pre-merge-commit` | Refuse a commit on a protected branch.                          | `hooks.allowCommitOnMain` (inverted) | on      |
+| `pre-commit`                     | Lint any `.changeset/*.md` the commit stages.                   | `hooks.changelogCheck`               | on      |
 | `commit-msg`                     | Refuse AI attribution in a commit message.                      | `hooks.noAttribution`                | on      |
 | `pre-push`                       | Run this repository's own Build & Test workflow in a container. | `hooks.prePushCi`                    | off     |
 
@@ -130,19 +131,20 @@ anything to remove.
 
 ### `lint:*` — the checks, one per question
 
-Six checks, each answering one question and blind to what the others see. They
-are separate scripts rather than one because a failing chain stops at its first
-failure, and knowing _which_ question failed is most of the diagnosis.
+Seven checks, each answering one question and blind to what the others see.
+They are separate scripts rather than one because a failing chain stops at its
+first failure, and knowing _which_ question failed is most of the diagnosis.
 
 ```json
-"lint": "run-s lint:format lint:markdown lint:addresses lint:content-links lint:lang lint:labels",
+"lint": "run-s lint:format lint:markdown lint:addresses lint:content-links lint:lang lint:labels lint:changelog",
 "lint:format": "content-build format",
 "lint:markdown": "content-build markdown",
 "lint:markdown:fix": "content-build markdown --fix",
 "lint:addresses": "content-build lint",
 "lint:content-links": "content-build links",
 "lint:lang": "package-build lang check",
-"lint:labels": "package-build labels check"
+"lint:labels": "package-build labels check",
+"lint:changelog": "package-build changelog check"
 ```
 
 - **`lint:format`** — is every file formatted to the shared Prettier options?
@@ -165,6 +167,10 @@ failure, and knowing _which_ question failed is most of the diagnosis.
 - **`lint:labels`** — do `.github/labels.yml` and §3 of
   `.github/ISSUE_REPORTING.md` still list the same labels? Neither derives from
   the other, so nothing else notices when they drift.
+- **`lint:changelog`** — does every pending `.changeset/*.md` read like a
+  release note rather than a pasted pull-request description? Passes
+  trivially when nothing is pending: no pull request is required to carry a
+  changeset, only to write one that reads well when it does.
 
 `run-s` comes from `npm-run-all`, a devDependency. It runs scripts in sequence
 and stops at the first failure, which is what makes a named chain readable.
@@ -227,16 +233,19 @@ reads better with one and a CI workflow reads better with the other.
 
 ```json
 "changeset": "changeset",
-"changeset:check": "changeset status --since=origin/main",
 "changeset:version": "changeset version && npm install --package-lock-only"
 ```
 
-`changeset` adds one. `changeset:check` reports what is pending against `main`,
-which is what a CI job gates on so that a behaviour change cannot merge without
-declaring its bump. `changeset:version` consumes the pending changesets, writes
-`CHANGELOG.md` and bumps `package.json` — and the `npm install --package-lock-only`
-after it is what keeps `package-lock.json`'s recorded version in step, since
-changesets does not touch the lockfile.
+`changeset` adds one, written only when a consumer will notice the change —
+nothing gates a pull request on carrying one. `changeset:version` consumes the
+pending changesets, writes `CHANGELOG.md` and bumps `package.json` — and the
+`npm install --package-lock-only` after it is what keeps `package-lock.json`'s
+recorded version in step, since changesets does not touch the lockfile.
+
+What a pending changeset is held to is quality, not existence: `lint:changelog`
+and the `pre-commit` hook `prepare` installs both run
+`package-build changelog check` against it, in CI and at commit time
+respectively, and both pass trivially when there is none.
 
 ### The site scripts
 
