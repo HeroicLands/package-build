@@ -1,5 +1,19 @@
 # @heroiclands/package-build
 
+## 22.4.2
+
+### Patch Changes
+
+- 8dedb23: **A module embedding HM3 spells, invocations or psionics compiles.** A being's
+  embedded `spell`, `invocation` or `psionic` reference that names no shortcode
+  template and no `data.icon` of its own now takes that subtype's own default
+  art — the icon HM3 itself assigns a freshly created item of that kind —
+  instead of the build refusing the actor outright.
+- 54109cf: **A module embedding HârnMaster 3 weapons compiles.** A being's `(type,
+  shortcode)` reference into HM3's one-to-many `weapongear` row resolves when
+  its `type` names one of the row's own subtypes — `weapongear` or
+  `missilegear` — instead of being refused as ambiguous.
+
 ## 22.4.1
 
 ### Patch Changes
