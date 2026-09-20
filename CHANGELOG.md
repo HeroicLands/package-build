@@ -1,5 +1,23 @@
 # @heroiclands/package-build
 
+## 22.4.1
+
+### Patch Changes
+
+- 37d874d: Adds `package-build changelog check`, which lints a pending changeset or a
+  `CHANGELOG.md` release section for the marks a pull-request description
+  leaves behind — a commit hash, an issue reference, a code fence, a
+  "Verified" paragraph, a byte or test count, an over-long or nested bullet,
+  a stray heading, or simply too many bullets or lines for one entry — and
+  refuses to let one merge. The shipped `pre-commit` hook runs it on a staged
+  changeset automatically.
+- 0007964: **A module that embeds HârnMaster 3 items resolves them from a release that
+  stores their shortcodes under the system's own flags.** The actor pass reads
+  an item's `(type, shortcode)` address from `system.shortcode` where a system's
+  data model declares one, and otherwise from that system's own flag namespace —
+  never another system's, so a catalogue extracted for one system resolves
+  against its own handles only.
+
 ## 22.4.0
 
 ### Minor Changes
