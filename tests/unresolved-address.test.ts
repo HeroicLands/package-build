@@ -167,6 +167,7 @@ describe("one vocabulary of link findings", () => {
     it("is a closed set the three resolvers draw from", () => {
         expect([...LINK_FINDING_REASONS].sort()).toEqual([
             "ambiguous",
+            "no-content-index",
             "not-an-address",
             "not-an-asset",
             "not-lowercase",
@@ -572,6 +573,89 @@ describe("the three resolvers agree on severity", () => {
             src: "Skills/Jumping.md",
         } as never);
         expect(errors).toEqual([]);
+    });
+});
+
+describe("a package declared `contentIndex: false`, in all three", () => {
+    /*
+     * thalornaaltart `requires` thalorna so Foundry installs the base module,
+     * and its content tree links nowhere. There is no cache for such a
+     * relationship — `deps fetch` never fetches one — so all three resolvers
+     * must fail the link naming `no-content-index` from nothing more than the
+     * declaration, never demanding a fetched index that will not exist.
+     */
+    const LINK = "[[thalorna-sohl-creature-wolf|a wolf]]";
+
+    it("the checker", () => {
+        const config = {
+            paths: { metadataCache: "/does/not/exist" },
+            relationships: {
+                requires: [
+                    {
+                        id: "thalorna",
+                        manifest: "https://x/y.json",
+                        contentIndex: false,
+                    },
+                ],
+            },
+        } as never;
+        const index = buildLinkIndex(tree(corpus(`See ${LINK}.`)), {
+            skipDirectories: [],
+            config,
+        });
+        const r = auditLinks(index);
+        expect(r.deadAddresses).toHaveLength(1);
+        expect(r.deadAddresses[0]).toMatchObject({
+            reason: "no-content-index",
+            target: "thalorna-sohl-creature-wolf",
+        });
+    });
+
+    it("the pack build", () => {
+        const DOCS = [{ type: "skill", id: "aaaaaaaaaaaaaaa1", shortcode: "clmb" }];
+        const index = buildWikilinkIndex(DOCS, "sohl", new Map(), "sohl", {
+            noIndexPackages: new Set(["thalorna"]),
+        });
+        const { unresolved } = convertWikilinks(LINK, {
+            type: "skill",
+            id: "aaaaaaaaaaaaaaa2",
+            index,
+        });
+        expect(unresolved).toHaveLength(1);
+        expect(unresolved[0]).toMatchObject({
+            reason: "no-content-index",
+            target: "thalorna-sohl-creature-wolf",
+        });
+    });
+
+    it("the site build", () => {
+        const errors: Record<string, unknown>[] = [];
+        resolveWebWikilinks(LINK, {
+            index: new Map<string, object>(),
+            collide: new Set<string>(),
+            sections: new Set<string>(),
+            contentTypes: new Set<string>(["creature"]),
+            packages: new Set<string>(["sohl"]),
+            noIndexPackages: new Set<string>(["thalorna"]),
+            foreign: new Map<string, object>(),
+            type: "skill",
+            errors,
+            src: "Skills/Jumping.md",
+        } as never);
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toMatchObject({
+            reason: "no-content-index",
+            target: "thalorna-sohl-creature-wolf",
+        });
+    });
+
+    it("names `contentIndex` in the message every build shares", () => {
+        const message = linkFindingMessage({
+            reason: "no-content-index",
+            target: "thalorna-sohl-creature-wolf",
+        });
+        expect(message).toContain("thalorna-sohl-creature-wolf");
+        expect(message).toContain("contentIndex");
     });
 });
 

@@ -43,7 +43,7 @@ import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
-import { loadForeignIndexes } from "./metadata-index.mjs";
+import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 // The record accessors only — deriving records reaches the pack router and the
 // manifest emitter, which reach the compilers, which load this module. Reading
 // a record needs none of that.
@@ -787,6 +787,7 @@ export function buildContentLinkIndex(
     );
     return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage, {
         assets,
+        noIndexPackages: noContentIndexPackages(resolved),
     });
 }
 

@@ -279,9 +279,10 @@ function isPlainMap(value) {
  *
  * **Every target that resolves nowhere fails the build**, and is
  * classified into the vocabulary all three resolvers share — `unlabelled`,
- * `not-an-address`, `unknown-type`, `ambiguous`, `unresolved`. Failures are
- * collected in `ctx.errors`, each carrying the authored `link` and its
- * `occurrence` so a caller can report the line and column it sits on.
+ * `not-an-address`, `unknown-type`, `ambiguous`, `unresolved`,
+ * `no-content-index`. Failures are collected in `ctx.errors`, each carrying
+ * the authored `link` and its `occurrence` so a caller can report the line and
+ * column it sits on.
  *
  * There is deliberately no exception letting a hyphen-form address through while
  * any linkable package had no vendored manifest, since a real cross-package
@@ -312,9 +313,12 @@ function isPlainMap(value) {
  *
  * @param {string} body - The markdown body.
  * @param {object} ctx - `{ index, assets, collide, sections, contentTypes,
- *   packages, foreign, type, errors, src, file }`.
+ *   packages, noIndexPackages, foreign, type, errors, src, file }`.
  *   `packages` is every package an address may name, without which the leading
- *   package segment of a canonical address reads as an unknown type; `foreign`
+ *   package segment of a canonical address reads as an unknown type;
+ *   `noIndexPackages` is every package declared `contentIndex: false`, so a
+ *   qualified address naming one fails with `no-content-index` rather than
+ *   `not-an-address`; `foreign`
  *   is the cross-package manifest index; `assets` is the address space an embed
  *   resolves against. `src` is the page's display
  *   path and `file` the source file a diagnostic should name — absent, `src`
@@ -402,7 +406,12 @@ export function resolveWebWikilinks(body, ctx) {
         // The canonical separator has to be resolved, not merely
         // recognised. `null` here means the target is not an address at all,
         // which is a defect: there is no other namespace to try.
-        const read = readQualifier(target, ctx.contentTypes ?? new Set(), ctx.packages);
+        const read = readQualifier(
+            target,
+            ctx.contentTypes ?? new Set(),
+            ctx.packages,
+            ctx.noIndexPackages,
+        );
         const rawKey = target.toLowerCase();
         const hit =
             lookupRead(ctx.index, read, ctx.contentPackage) ??
@@ -478,6 +487,7 @@ export function resolveWebWikilinks(body, ctx) {
                 // a key: a partial address has no single key to be non-null.
             : (read && !read.reason) || siteAddress ? "unresolved"
             : read?.reason === "unknown-type" ? "unknown-type"
+            : read?.reason === "no-content-index" ? "no-content-index"
                 // Every link is an address, and this is not one. Distinct from
                 // a dead address, because the fix is different: a name has to
                 // become an address, not be corrected.

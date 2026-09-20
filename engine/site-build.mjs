@@ -57,7 +57,7 @@ import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
 import { frontmatterWikilinks, resolveWebWikilinks } from "./web-wikilinks.mjs";
-import { loadForeignIndexes } from "./metadata-index.mjs";
+import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { formatUnaddressableFinding, unaddressableForeignPackages } from "./metadata-index.mjs";
 import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
@@ -476,7 +476,10 @@ export function siteGates(pages, findings, { config }) {
     out.unaddressable = unaddressableForeignPackages(foreign.index);
     if (out.unaddressable.length) return out;
 
-    const index = buildSiteIndex(pages, { foreignIndex: foreign.index });
+    const index = buildSiteIndex(pages, {
+        foreignIndex: foreign.index,
+        noIndexPackages: noContentIndexPackages(config),
+    });
     out.conflicts = index.conflicts;
     if (out.conflicts.length) return out;
 

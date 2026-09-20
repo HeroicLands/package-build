@@ -184,6 +184,9 @@ export function unlabelledLinkMessage(target) {
  * - `unresolved` — parses as an address, and nothing publishes it.
  * - `ambiguous` — more than one package publishes the short address.
  * - `unknown-anchor` — the address resolved, the `#section` it names did not.
+ * - `no-content-index` — the address names a package declared
+ *   `contentIndex: false`, a Foundry dependency only, so no index was fetched
+ *   for it to resolve against.
  *
  * @type {ReadonlySet<string>}
  */
@@ -197,6 +200,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "unresolved",
         "ambiguous",
         "unknown-anchor",
+        "no-content-index",
     ]),
 );
 
@@ -312,6 +316,12 @@ export function linkFindingMessage({ reason, target, packages, anchor, type }) {
             );
         case "unresolved":
             return unresolvedAddressMessage(target);
+        case "no-content-index":
+            return (
+                `address [[${target}]] names a package declared \`contentIndex: false\` — ` +
+                `it is a Foundry dependency only, and no content index was fetched for it, ` +
+                `so nothing it publishes can be cited`
+            );
         default:
             throw new Error(
                 `linkFindingMessage: "${reason}" is not one of ` +

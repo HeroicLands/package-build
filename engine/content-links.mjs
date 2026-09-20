@@ -86,7 +86,7 @@ import {
     PACKAGE_BASE,
     readCanonicalKey,
 } from "./content-address.mjs";
-import { loadForeignIndexes } from "./metadata-index.mjs";
+import { loadForeignIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { frontmatterWikilinks, slugify } from "./web-wikilinks.mjs";
 import { homepageAddresses, isHomepage } from "./homepage.mjs";
 import { RETIRED_TYPES } from "./ids.mjs";
@@ -268,6 +268,10 @@ export function buildLinkIndex(
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
     const packages = new Set([...(byKey.size ? [pkg] : []), ...foreign.packages]);
+    // Packages declared `contentIndex: false` — a Foundry dependency only, with
+    // no fetched index. A link naming one is refused with a diagnostic that
+    // names the key, rather than reading as an undeclared package or a typo.
+    const noIndexPackages = config ? noContentIndexPackages(config) : new Set();
 
     // The address space an `![[…]]` embed resolves against, shaped as every
     // other asset resolver reads one so the checker cannot answer an authored
@@ -464,7 +468,7 @@ export function buildLinkIndex(
      * @returns {object|undefined} The note it addresses.
      */
     function resolveAddress(target, keyPath) {
-        const qualified = readQualifier(target, types, packages);
+        const qualified = readQualifier(target, types, packages, noIndexPackages);
         if (!qualified || qualified.reason) return undefined;
         // Every omitted segment defaults from where the link is written,
         // so the target expands to exactly one canonical address and this is a
@@ -501,7 +505,7 @@ export function buildLinkIndex(
      * @returns {object[]} The foreign entries, each carrying its `package`.
      */
     function foreignHits(target, keyPath) {
-        const q = readQualifier(target, types, packages);
+        const q = readQualifier(target, types, packages, noIndexPackages);
         if (!q || q.reason) return [];
         // An omitted package means *this* package, so a short form
         // addresses nothing foreign and never reaches a dependency's index.
@@ -552,7 +556,7 @@ export function buildLinkIndex(
      * @returns {object|null} The note, asset record or foreign entry declaring it.
      */
     function referenceHit(target) {
-        const q = readQualifier(target, types, packages);
+        const q = readQualifier(target, types, packages, noIndexPackages);
         if (!q || q.reason) return null;
         const local = matchAddress([...byKey, ...byAssetKey], q);
         if (local.length) return local[0][1];
@@ -566,6 +570,8 @@ export function buildLinkIndex(
         anchors,
         types,
         packages,
+        /** Packages declared `contentIndex: false`, a Foundry dependency only. */
+        noIndexPackages,
         /**
          * The files this package ships, by canonical address. Separate from the
          * notes because the two record shapes are read differently, and exposed
@@ -597,7 +603,7 @@ export function buildLinkIndex(
         foreignHits,
         referenceHit,
         /** Whether a target reads as a qualified address at all. */
-        isAddress: (target) => Boolean(readQualifier(target, types, packages)),
+        isAddress: (target) => Boolean(readQualifier(target, types, packages, noIndexPackages)),
     };
 }
 
@@ -922,8 +928,9 @@ export function auditHomepageLinks(index) {
  *   which addresses a foreign manifest answered. Each `deadAddresses` entry
  *   carries a `reason` from {@link LINK_FINDING_REASONS} —
  *   `"not-an-address"`, `"unknown-type"`, `"ambiguous"` (with the claiming
- *   `packages`), or `"unresolved"` — and every one of them is an **error**:
- *   the three resolvers agree on severity for every class.
+ *   `packages`), `"no-content-index"`, or `"unresolved"` — and every one of
+ *   them is an **error**: the three resolvers agree on severity for every
+ *   class.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, embedsOf, resolve, manifestHit, isAddress } = index;
@@ -1004,10 +1011,13 @@ export function auditLinks(index) {
                 });
                 continue;
             }
-            const read = readQualifier(target, index.types, index.packages);
+            const read = readQualifier(target, index.types, index.packages, index.noIndexPackages);
             deadAddresses.push({
                 ...at,
-                reason: read?.reason === "unknown-type" ? "unknown-type" : "unresolved",
+                reason:
+                    read?.reason === "unknown-type" ? "unknown-type"
+                    : read?.reason === "no-content-index" ? "no-content-index"
+                    : "unresolved",
             });
         }
     }

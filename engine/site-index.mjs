@@ -166,9 +166,16 @@ function mergeForeign(index, foreignIndex) {
  * @param {Map<string, {package: string, type?: string}>} [options.foreignIndex]
  *   The merged index from `loadForeignIndexes`. Omit when the build publishes
  *   no cross-package links.
+ * @param {Set<string>} [options.noIndexPackages] - Packages declared
+ *   `contentIndex: false` — a Foundry dependency only, with no fetched index.
+ *   A link naming one fails naming the key, rather than reading as prose or an
+ *   ordinary dead address.
  * @returns {SiteIndex} The index, and what could not be addressed unambiguously.
  */
-export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
+export function buildSiteIndex(
+    entries,
+    { foreignIndex = new Map(), noIndexPackages = new Set() } = {},
+) {
     const index = new Map();
     const contentTypes = new Set();
     const sections = new Set();
@@ -298,6 +305,7 @@ export function buildSiteIndex(entries, { foreignIndex = new Map() } = {}) {
         contentTypes,
         sections,
         packages,
+        noIndexPackages,
         refIndex,
         conflicts,
     };
@@ -347,6 +355,7 @@ export function wikiContext(
         sections: built.sections,
         contentTypes: built.contentTypes,
         packages: built.packages,
+        noIndexPackages: built.noIndexPackages,
         // The package a link written on this page defaults to when it names
         // none. Taken from the resolved configuration, the same source
         // the index's own addresses are built from, so a bare link cannot

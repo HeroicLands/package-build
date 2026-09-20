@@ -230,6 +230,65 @@ describe("auditLinks", () => {
     });
 });
 
+describe("a wikilink into a package declared `contentIndex: false`", () => {
+    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // and its content tree links nowhere. There is no cache directory for
+    // such a relationship — `metadataRelationships` excludes it — so building
+    // the index must not demand one.
+    const config = (over: Record<string, unknown> = {}) =>
+        ({
+            contentPackage: "thalornaaltart",
+            paths: { metadataCache: "/does/not/exist" },
+            relationships: {
+                requires: [
+                    {
+                        id: "thalorna",
+                        contentPackage: "thalorna",
+                        manifest: "https://example.invalid/module.json",
+                        contentIndex: false,
+                    },
+                ],
+            },
+            ...over,
+        }) as never;
+
+    it("builds the index without a fetched cache for it", () => {
+        const root = tree({
+            "Home.md": note(
+                { type: "doc", shortcode: "home" },
+                "See [[thalorna-none-doc-homepage|Thalorna]].",
+            ),
+        });
+        expect(() => buildLinkIndex(root, { skipDirectories: [], config: config() })).not.toThrow();
+    });
+
+    it("reports the link naming `no-content-index`, not a cold-cache error", () => {
+        const root = tree({
+            "Home.md": note(
+                { type: "doc", shortcode: "home" },
+                "See [[thalorna-none-doc-homepage|Thalorna]].",
+            ),
+        });
+        const index = buildLinkIndex(root, { skipDirectories: [], config: config() });
+        const { deadAddresses } = auditLinks(index);
+        expect(deadAddresses).toHaveLength(1);
+        expect(deadAddresses[0]).toMatchObject({
+            target: "thalorna-none-doc-homepage",
+            reason: "no-content-index",
+        });
+    });
+
+    it("leaves a link into a package with no such declaration unaffected", () => {
+        const root = tree({
+            "Home.md": note({ type: "doc", shortcode: "home" }, "See [[skill-clmb|Climbing]]."),
+            "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
+        });
+        const index = buildLinkIndex(root, { skipDirectories: [], config: config() });
+        const { deadAddresses } = auditLinks(index);
+        expect(deadAddresses).toEqual([]);
+    });
+});
+
 describe("walkReachability", () => {
     /** A corpus of `doc` notes under `Guide/`, linked as described. */
     const guide = (files: Record<string, string>) =>

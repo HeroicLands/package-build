@@ -1782,6 +1782,28 @@ asked for — a build that downloads silently is not reproducible and fails
 strangely offline. The cache is keyed by version, so changing the pinned version
 is a miss rather than a silent overwrite.
 
+### A relationship may be a Foundry dependency only
+
+`requires` and `systems` install with Foundry whether or not the tree cites
+them, and a package may need the one without the other — thalornaaltart
+`requires` Thalorna so Foundry installs the base module, and its one homepage
+note links nowhere. Declare `contentIndex: false` on that entry to say so:
+
+```yaml
+relationships:
+  requires:
+    - id: thalorna
+      type: module
+      manifest: https://github.com/HeroicLands/thalorna/releases/latest/download/module.json
+      contentIndex: false
+```
+
+`deps fetch` fetches nothing for it — no cache directory, nothing to go stale —
+and a wikilink into it fails at the link, naming `contentIndex`, rather than
+resolving against a stale declaration or an index nobody fetched. It cannot be
+combined with `itemCatalog: true`, which extracts items from the same index
+this declares there is none of.
+
 ### `packagebuild` needs no declaration
 
 package-build ships a set of images of its own — section banners chiefly — and a

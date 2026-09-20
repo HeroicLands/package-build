@@ -203,13 +203,18 @@ export function resolveItemDocType(qualifier, types) {
  * @param {Set<string>} types - Every type the content tree contains.
  * @param {Set<string>} [packages] - Every package an address may name. Omitted
  *   by callers that resolve within one package, where the form cannot occur.
+ * @param {Set<string>} [noIndexPackages] - Packages declared `contentIndex:
+ *   false` — a Foundry dependency only, with no fetched index. A fully
+ *   qualified target naming one is refused with `no-content-index` before its
+ *   type is even considered, since there is no index to resolve it against.
  * @returns {{type: string, shortcode: string, itemDoc: boolean,
  *   package?: string, system?: string, reason?: undefined}
- *   | {reason: "unknown-type"} | null}
+ *   | {reason: "unknown-type"|"no-content-index", package?: string} | null}
  *   The resolved qualifier; a `reason` when the target is definitely qualified
- *   but names no known type; or `null` when it is not an address at all.
+ *   but names no known type or no fetched index; or `null` when it is not an
+ *   address at all.
  */
-export function readQualifier(target, types, packages) {
+export function readQualifier(target, types, packages, noIndexPackages) {
     // **Package, system and type are lowercase; the shortcode is not.** A
     // shortcode is case-sensitive and routinely mixed — `Clb`, `LtShoe`,
     // `HsTunic` — so it is written as the note declares it. The three segments
@@ -221,7 +226,7 @@ export function readQualifier(target, types, packages) {
     // (`[[Shock State]]`), and calling that a badly-cased address rather than
     // not an address would name the wrong mistake. Neither tree carries a
     // violation — 10,538 authored targets — so this pins a rule already kept.
-    const read = readQualifierCased(target, types, packages);
+    const read = readQualifierCased(target, types, packages, noIndexPackages);
     if (read && !read.reason && qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
         return { reason: "not-lowercase" };
     }
@@ -249,9 +254,10 @@ function qualifyingSegments(target) {
  * @param {string} target
  * @param {Set<string>} types
  * @param {Set<string>} [packages]
+ * @param {Set<string>} [noIndexPackages]
  * @returns {object|null}
  */
-function readQualifierCased(target, types, packages) {
+function readQualifierCased(target, types, packages, noIndexPackages) {
     // The slash form is legacy and states neither package nor system, so it is
     // read first and separately. A slash is unconditionally a qualifier —
     // nothing else uses one — which is why an unknown type before it is
@@ -281,6 +287,10 @@ function readQualifierCased(target, types, packages) {
         // qualified.
         case 4: {
             const pkg = norm(parts[0]);
+            // Checked before the type: a package with no fetched index has no
+            // vocabulary to resolve the rest of the target against, and the
+            // fix is the config declaration, not the shortcode.
+            if (noIndexPackages?.has(pkg)) return { reason: "no-content-index", package: pkg };
             if (!packages?.has(pkg)) return null;
             const system = norm(parts[1]);
             if (!isSystemSegment(system)) return null;
@@ -359,11 +369,21 @@ export function anchorPageId(noteId, anchorSlug) {
  * @param {Map<string, object>} [opts.assets] - The files this package ships, by
  *   canonical address. They resolve no link — an asset is not a document — and
  *   answer only the art fields, which name a file and never a document.
+ * @param {Set<string>} [opts.noIndexPackages] - Packages declared
+ *   `contentIndex: false` — a Foundry dependency only. A link naming one fails
+ *   with `no-content-index` rather than resolving, ambiguously, as either a
+ *   typo or an undeclared package.
  * @returns {{byShortcode: Map<string, object>, types: Set<string>}} `types` is
  *   every type the tree actually contains, so a qualifier naming no real type
  *   can be told apart from a missing target.
  */
-export function buildWikilinkIndex(docs, packageId, foreign, contentPackage, { assets } = {}) {
+export function buildWikilinkIndex(
+    docs,
+    packageId,
+    foreign,
+    contentPackage,
+    { assets, noIndexPackages } = {},
+) {
     if (!packageId) {
         throw new Error(
             "buildWikilinkIndex: packageId is required — it is the first " +
@@ -454,6 +474,8 @@ export function buildWikilinkIndex(docs, packageId, foreign, contentPackage, { a
         foreign: foreignByKey,
         /** The files this package ships, by canonical address. */
         assets: assets ?? new Map(),
+        /** Packages declared `contentIndex: false`, a Foundry dependency only. */
+        noIndexPackages: noIndexPackages ?? new Set(),
     };
 }
 
@@ -656,7 +678,12 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         if (target === "" && slug) {
             doc = { type, id, pack, docPack };
         } else {
-            const qualified = readQualifier(target, index.types, index.packages);
+            const qualified = readQualifier(
+                target,
+                index.types,
+                index.packages,
+                index.noIndexPackages,
+            );
             qualifiedRead = qualified;
             // A target that does not parse as an address is a defect: there is
             // no second namespace left to fall through to.

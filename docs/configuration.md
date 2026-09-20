@@ -1149,6 +1149,7 @@ Each entry, in any of the four lists:
 | `relationships.systems[].manifest`       | string                          | no       | none    |
 | `relationships.systems[].compatibility`  | object, `{minimum?, verified?}` | no       | none    |
 | `relationships.systems[].itemCatalog`    | boolean                         | no       | `false` |
+| `relationships.systems[].contentIndex`   | boolean                         | no       | `true`  |
 
 (the same keys apply under `requires[]`, `recommends[]` and
 `conflicts[]`.)
@@ -1157,7 +1158,7 @@ Each entry, in any of the four lists:
 
 > ``package-build config: `relationships.<kind>[<index>].id` must be a non-empty string.``
 
-> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog).``
+> ``package-build config: `relationships.<kind>[<index>].<key>` is not a recognized option (expected one of: id, contentPackage, type, manifest, compatibility, itemCatalog, contentIndex).``
 
 `contentPackage` names what the other package's _content_ is called, where
 that differs from its Foundry id. A note addresses a file by the content
@@ -1175,6 +1176,20 @@ item catalogue at build time. It requires a `manifest`:
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` must be true or false.``
 
 > ``package-build config: `relationships.<kind>[<index>].itemCatalog` needs a `manifest` naming the package to fetch.``
+
+`contentIndex` and `itemCatalog` are the two edges a relationship may declare,
+and a package may have either without the other. `itemCatalog` says a
+dependency supplies _items_; `contentIndex`, `true` by default, says
+`deps fetch` fetches its published note index and this tree may cite its
+addresses by wikilink. Declaring `contentIndex: false` narrows the
+relationship to the Foundry manifest only — a dependency Foundry installs but
+this tree never cites — so `deps fetch` fetches nothing for it and a wikilink
+into it fails, naming the key, rather than resolving against a stale
+declaration or an index nobody fetched:
+
+> ``package-build config: `relationships.<kind>[<index>].contentIndex` must be true or false.``
+
+> ``package-build config: `relationships.<kind>[<index>].contentIndex` cannot be false together with `itemCatalog: true` — a catalogue is fetched from the same index.``
 
 ### `systems`
 

@@ -503,6 +503,14 @@ export function publishesContentPages(config) {
  *                                   package this one targets — for a system
  *                                   relationship, `verified` is what
  *                                   `_stats.systemVersion` is stamped from.
+ * @property {boolean} [contentIndex]  Whether `deps fetch` fetches this
+ *                                   dependency's content index. Default
+ *                                   `true`. `false` declares the dependency
+ *                                   for the Foundry manifest only — nothing
+ *                                   this tree cites by wikilink — and refuses
+ *                                   `itemCatalog: true` on the same entry,
+ *                                   since a catalogue is fetched from the same
+ *                                   index.
  */
 
 /**
@@ -780,6 +788,7 @@ const RELATIONSHIP_KEYS = [
     "manifest",
     "compatibility",
     "itemCatalog",
+    "contentIndex",
 ];
 const AUTHOR_KEYS = ["name", "email", "url"];
 const ITEM_BUILDER_KEYS = ["system", "img", "fields"];
@@ -2146,6 +2155,24 @@ function normalizeRelationships(value) {
                         fail(`${at}.itemCatalog`, "needs a `manifest` naming the package to fetch");
                     }
                     spec.itemCatalog = rel.itemCatalog;
+                }
+                // Opt-out: declares the dependency for the Foundry manifest
+                // only, so `deps fetch` fetches no content index for it and a
+                // wikilink into it is refused rather than silently dead. A
+                // catalogue is fetched from the same index, so it cannot be
+                // declared alongside `itemCatalog: true`.
+                if (rel.contentIndex !== undefined) {
+                    if (typeof rel.contentIndex !== "boolean") {
+                        fail(`${at}.contentIndex`, "must be true or false");
+                    }
+                    if (rel.contentIndex === false && spec.itemCatalog) {
+                        fail(
+                            `${at}.contentIndex`,
+                            "cannot be false together with `itemCatalog: true` — a catalogue is " +
+                                "fetched from the same index",
+                        );
+                    }
+                    spec.contentIndex = rel.contentIndex;
                 }
                 return Object.freeze(spec);
             }),
