@@ -163,6 +163,35 @@ function defaultActorImg(subType) {
 }
 
 /**
+ * Default art for the three subtypes HM3's one-to-many `mysticalability` row
+ * permits — `spell`, `invocation` and `psionic` — keyed by the **document**
+ * subtype rather than the note type.
+ *
+ * `hm3/default-item-art.mjs` is keyed the other way on purpose: a registry
+ * entry is addressed by what a note calls itself, and no note ever authors
+ * `type: spell` — only `mysticalability`, discriminated by its own
+ * `hm3.type`. But a being's `(type, shortcode)` reference has no note to
+ * discriminate, so it names the subtype it wants directly, and an embedded
+ * entry that supplies neither a template's own `img` nor a `data.icon` of its
+ * own reaches {@link Hm3Actors#embeddedItemArt} in exactly that vocabulary.
+ *
+ * Each path is the icon HM3's own item sheet assigns a freshly created item
+ * of that subtype — `HM3.defaultMagicIconName`, `HM3.defaultRitualIconName`
+ * and `HM3.defaultPsionicsIconName` in the system's own `config.js` — so a
+ * compiled item looks like one created in the client. `weapongear` and
+ * `missilegear` need no row here: a reference spelled either resolves through
+ * `HM3_DEFAULT_ITEM_ART`'s own `weapongear` key (see #582), and every
+ * predefined weapon and missile in HM3's catalogue carries its own `img`.
+ *
+ * @type {Readonly<Record<string, string>>}
+ */
+const EMBEDDED_ITEM_ART = Object.freeze({
+    invocation: "systems/hm3/images/icons/svg/circle.svg",
+    psionic: "systems/hm3/images/icons/svg/psionics.svg",
+    spell: "systems/hm3/images/icons/svg/pentacle.svg",
+});
+
+/**
  * HM3's Actor compile pass.
  *
  * Declares HM3's note-type → document-subtype map and builds a `being` note's
@@ -190,6 +219,19 @@ export class Hm3Actors extends SystemActorCompiler {
      */
     buildEntry(fm, markdown) {
         return this.buildActor(this.itemsMap, fm, markdown);
+    }
+
+    /**
+     * @inheritdoc
+     *
+     * Answers for `spell`, `invocation` and `psionic` too — see
+     * {@link EMBEDDED_ITEM_ART} — falling back to the engine's note-type
+     * table for every other reference, `weapongear` and `missilegear`
+     * included.
+     */
+    embeddedItemArt(type, subType) {
+        const art = /** @type {Record<string, string|undefined>} */ (EMBEDDED_ITEM_ART)[subType];
+        return art ?? super.embeddedItemArt(type, subType);
     }
 
     /**

@@ -647,6 +647,29 @@ export class SystemActorCompiler extends BasePackCompiler {
     }
 
     /**
+     * The default art for an embedded item's type, when the entry names none
+     * of its own and copies no template that carries one.
+     *
+     * **The base case is {@link itemArt}**, keyed by the note vocabulary — the
+     * same table an item note's own compile defaults from, because most
+     * references are written in that vocabulary too (`weapongear`, `skill`,
+     * `armorgear`). It is not the whole answer: a reference into a one-to-many
+     * row may instead name one of the row's own **subtypes** directly — HM3's
+     * `spell`, `invocation` and `psionic` are never a note's own `type`, only
+     * `mysticalability`'s `hm3.type` discriminator ever writes them, so no
+     * note-type table has a row for them. A system whose one-to-many rows are
+     * addressed that way overrides this to answer for those subtypes too; see
+     * `hm3/actors.mjs`.
+     *
+     * @param {string} type - The **note** type the reference names.
+     * @param {string} subType - The document subtype it resolved to.
+     * @returns {string} The default image path.
+     */
+    embeddedItemArt(type, subType) {
+        return itemArt(type, this.system);
+    }
+
+    /**
      * Read an entry's `model:` — the address of the item it is a copy of.
      *
      * The address grammar is the wikilink one, so a `model` is written at
@@ -825,7 +848,9 @@ export class SystemActorCompiler extends BasePackCompiler {
         // default answers last. Nullish coalescing throughout, so `icon: ""`
         // ships blank on purpose rather than collecting a default.
         merged.img =
-            this.artPath(overlay ?? {}, "icon") ?? merged.img ?? itemArt(type, this.system);
+            this.artPath(overlay ?? {}, "icon") ??
+            merged.img ??
+            this.embeddedItemArt(type, /** @type {string} */ (subType));
         const identity = embeddedIdentity(merged, this.system);
         const claim = `${actorId}\u0000${itemAddress(/** @type {string} */ (subType), identity)}`;
         const first = this.#embeddedClaims.get(claim);
