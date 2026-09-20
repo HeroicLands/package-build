@@ -1784,6 +1784,13 @@ fetch time, so a cache filled before this rule existed is treated as incomplete
 and `deps fetch` refills it — the alternative is a lookup that answers with the
 wrong system's document and reports nothing.
 
+**Within one document, the shortcode itself comes from `system.shortcode`
+where the data model declares such a field, and otherwise from
+`flags.<systemId>.shortcode` in that same system's own flag namespace** — a
+system writes its per-document handle into its own flags and never another
+system's, so a document carrying its shortcode under a different system's flag
+namespace is not resolved by it.
+
 **`--from` is for two packages changing together.** It fills the cache from a
 locally built artifact — a package zip or the directory it was built from — so a
 consumer can be built against a dependency that has not shipped. Without it,
