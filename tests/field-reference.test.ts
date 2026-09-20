@@ -26,9 +26,18 @@
  */
 
 import { describe, it, expect } from "vitest";
+import path from "node:path";
 import prettier from "prettier";
+import matter from "gray-matter";
 
-import { renderItemFieldReference } from "../engine/field-reference.mjs";
+import {
+    renderItemFieldReference,
+    isUnderContentTree,
+    shortcodeFromBasename,
+    itemFieldsEnvelope,
+    renderItemFieldsPage,
+} from "../engine/field-reference.mjs";
+import { defineConfig } from "../content-config.mjs";
 
 /** The page as the command writes it, trailing newline and all. */
 const page = `${renderItemFieldReference({
@@ -158,5 +167,178 @@ describe("emphasis in a field description", () => {
 
         const formatted = await prettier.format(page, { parser: "markdown" });
         expect(formatted).toBe(page);
+    });
+});
+
+describe("isUnderContentTree", () => {
+    const contentRoot = "/repo/assets/content";
+
+    it("is true for a file directly under the content root", () => {
+        expect(isUnderContentTree("/repo/assets/content/item-frontmatter.md", contentRoot)).toBe(
+            true,
+        );
+    });
+
+    it("is true for a file nested inside the content tree", () => {
+        expect(
+            isUnderContentTree("/repo/assets/content/Dev_Docs/item-frontmatter.md", contentRoot),
+        ).toBe(true);
+    });
+
+    it("is false for a file outside the content tree", () => {
+        expect(isUnderContentTree("/repo/docs/item-fields.md", contentRoot)).toBe(false);
+    });
+
+    it("is false for the content root itself, which is a directory, not a note", () => {
+        expect(isUnderContentTree(contentRoot, contentRoot)).toBe(false);
+    });
+
+    it("is false for a sibling directory whose name merely starts with the root's", () => {
+        // `path.relative` is what keeps `assets/content-templates` from being
+        // read as inside `assets/content` — a naive prefix check would not.
+        expect(isUnderContentTree("/repo/assets/content-templates/x.md", contentRoot)).toBe(false);
+    });
+});
+
+describe("shortcodeFromBasename", () => {
+    it("lowercases and strips everything but letters and digits", () => {
+        expect(shortcodeFromBasename("/repo/assets/content/Item-Frontmatter.md")).toBe(
+            "itemfrontmatter",
+        );
+    });
+
+    it("drops the extension", () => {
+        expect(shortcodeFromBasename("/repo/docs/gettingStarted.markdown")).toBe("gettingstarted");
+    });
+});
+
+describe("itemFieldsEnvelope", () => {
+    it("writes the universal keys, `name.full` from the title", () => {
+        expect(
+            itemFieldsEnvelope({ title: "Item Note Frontmatter", shortcode: "itemfrontmatter" }),
+        ).toEqual({
+            type: "doc",
+            subType: "reference",
+            shortcode: "itemfrontmatter",
+            name: { full: "Item Note Frontmatter" },
+            pack: "none",
+        });
+    });
+
+    it("deep-merges the consumer's frontmatter over the derived envelope", () => {
+        const envelope = itemFieldsEnvelope({
+            title: "Item Note Frontmatter",
+            shortcode: "itemfrontmatter",
+            frontmatter: { description: "The generated per-type field tables.", tags: ["ref"] },
+        });
+        expect(envelope).toEqual({
+            type: "doc",
+            subType: "reference",
+            shortcode: "itemfrontmatter",
+            name: { full: "Item Note Frontmatter" },
+            pack: "none",
+            description: "The generated per-type field tables.",
+            tags: ["ref"],
+        });
+    });
+
+    it("lets the consumer's frontmatter override a derived key, shortcode included", () => {
+        const envelope = itemFieldsEnvelope({
+            title: "Item Note Frontmatter",
+            shortcode: "itemfrontmatter",
+            frontmatter: { shortcode: "itmfrntmtr" },
+        });
+        expect(envelope.shortcode).toBe("itmfrntmtr");
+    });
+
+    it("merges into `name` rather than replacing it wholesale", () => {
+        const envelope = itemFieldsEnvelope({
+            title: "Item Note Frontmatter",
+            shortcode: "itemfrontmatter",
+            frontmatter: { name: { aliases: ["Item Frontmatter"] } },
+        });
+        expect(envelope.name).toEqual({
+            full: "Item Note Frontmatter",
+            aliases: ["Item Frontmatter"],
+        });
+    });
+});
+
+describe("renderItemFieldsPage", () => {
+    const contentRoot = "/repo/assets/content";
+    const body = "# Item Note Frontmatter\n\nSome tables.\n";
+
+    it("writes the envelope when the destination is under the content tree", () => {
+        const rendered = renderItemFieldsPage(body, {
+            title: "Item Note Frontmatter",
+            destination: path.join(contentRoot, "item-frontmatter.md"),
+            contentRoot,
+        });
+        const parsed = matter(rendered);
+        expect(parsed.data).toEqual({
+            type: "doc",
+            subType: "reference",
+            shortcode: "itemfrontmatter",
+            name: { full: "Item Note Frontmatter" },
+            pack: "none",
+        });
+        expect(parsed.content.trim()).toBe(body.trim());
+    });
+
+    it("carries the consumer's declared frontmatter into the note", () => {
+        const rendered = renderItemFieldsPage(body, {
+            title: "Item Note Frontmatter",
+            destination: path.join(contentRoot, "item-frontmatter.md"),
+            contentRoot,
+            frontmatter: { description: "The generated per-type field tables." },
+        });
+        const parsed = matter(rendered);
+        expect(parsed.data.description).toBe("The generated per-type field tables.");
+    });
+
+    it("writes the body alone when the destination is outside the content tree", () => {
+        const rendered = renderItemFieldsPage(body, {
+            title: "Item Note Frontmatter",
+            destination: "/repo/docs/item-fields.md",
+            contentRoot,
+            frontmatter: { description: "Ignored outside the content tree." },
+        });
+        expect(rendered).toBe(body);
+    });
+});
+
+describe("`docs.itemFields.frontmatter` in configuration", () => {
+    function configWith(itemFields: Record<string, unknown>) {
+        return defineConfig({
+            rootDir: "/repo",
+            contentPackage: "acme",
+            foundryPackage: "acme",
+            packageKind: "systems",
+            stats: { lastModifiedBy: "acmebuilder0000" },
+            packs: [{ name: "items", type: "Item" }],
+            docs: { itemFields },
+        });
+    }
+
+    it("accepts a mapping", () => {
+        const config = configWith({ frontmatter: { description: "x" } });
+        expect(config.docs.itemFields.frontmatter).toEqual({ description: "x" });
+    });
+
+    it("refuses a non-mapping", () => {
+        expect(() => configWith({ frontmatter: "nope" })).toThrow(
+            /`docs\.itemFields\.frontmatter` must be a mapping/,
+        );
+    });
+
+    it("is absent by default, so `itemFieldsEnvelope` sees `undefined`", () => {
+        const config = configWith({});
+        expect(config.docs.itemFields.frontmatter).toBeUndefined();
+    });
+
+    it("still refuses a key outside the vocabulary, naming the new one", () => {
+        expect(() => configWith({ nope: 1 })).toThrow(
+            /expected one of: title, out, preamble, frontmatter/,
+        );
     });
 });

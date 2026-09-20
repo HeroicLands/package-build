@@ -528,6 +528,11 @@ export function publishesContentPages(config) {
  *                                 Without it the page goes to stdout.
  * @property {string[]} [preamble] Lines between the generated banner and the
  *                                 first table. Markdown, emitted verbatim.
+ * @property {Record<string, unknown>} [frontmatter] Further note frontmatter,
+ *                                 deep-merged over the generated envelope
+ *                                 (`type: doc`, `subType: reference`,
+ *                                 `shortcode`, `name.full`, `pack: none`)
+ *                                 when `out` is under the content tree.
  */
 
 /**
@@ -777,7 +782,7 @@ const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "ico
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
 const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
-const DOC_PAGE_KEYS = ["title", "out", "preamble"];
+const DOC_PAGE_KEYS = ["title", "out", "preamble", "frontmatter"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = [
     "id",
@@ -1434,6 +1439,12 @@ function normalizeDocPage(value, where) {
                 return line;
             }),
         );
+    }
+    if (input.frontmatter !== undefined) {
+        if (!isPlainObject(input.frontmatter)) {
+            fail(`${where}.frontmatter`, "must be a mapping");
+        }
+        out.frontmatter = deepFreeze({ .../** @type {object} */ (input.frontmatter) });
     }
     return Object.freeze(out);
 }
