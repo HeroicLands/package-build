@@ -50,13 +50,22 @@ const CHANGES_HEADING_RE = /^### (?:Major|Minor|Patch) Changes$/gm;
  *
  * @param {string} blockText - One block, as {@link topLevelBlocks} collects
  *   it — its first line is the label line for a labelled block.
- * @returns {{labelLine: string, rest: string}} `rest` has its leading blank
- *   line dropped; a block with nothing but the label line yields `""`.
+ * @returns {{labelLine: string, rest: string, hadBlankLine: boolean}} `rest`
+ *   has its leading blank line dropped; a block with nothing but the label
+ *   line yields `""`. `hadBlankLine` says whether the label line was
+ *   followed by a blank line in `blockText` — false for a bold sentence a
+ *   hard-wrapped paragraph continues directly beneath, with no blank line
+ *   of its own.
  */
 function splitLabelLine(blockText) {
     const nl = blockText.indexOf("\n");
-    if (nl === -1) return { labelLine: blockText, rest: "" };
-    return { labelLine: blockText.slice(0, nl), rest: blockText.slice(nl + 1).replace(/^\n+/, "") };
+    if (nl === -1) return { labelLine: blockText, rest: "", hadBlankLine: false };
+    const after = blockText.slice(nl + 1);
+    return {
+        labelLine: blockText.slice(0, nl),
+        rest: after.replace(/^\n+/, ""),
+        hadBlankLine: after.startsWith("\n"),
+    };
 }
 
 /**
@@ -115,6 +124,14 @@ function joinItems(items) {
  * One label's blocks (or every unlabelled one), folded into the single
  * block `group` writes for it.
  *
+ * A single, unmerged block — the common case, one changeset writing one
+ * label once — keeps its own label-to-body separator rather than forcing a
+ * blank line: a bold sentence a hard-wrapped paragraph continues directly
+ * beneath must round-trip unchanged, not gain a blank line it never had.
+ * Merging two or more blocks, or a label whose lone block carries several
+ * items (bullets), still separates the label from its body with a blank
+ * line — the convention every existing multi-item block already uses.
+ *
  * @param {Array<{label: string|null, text: string}>} blocks - Every block
  *   sharing one label, in file order. All carry the same `label`.
  * @returns {string}
@@ -123,9 +140,13 @@ function mergeGroup(blocks) {
     if (blocks[0].label === null) {
         return joinItems(dedupeItems(blocks.flatMap((block) => itemsOf(block.text))));
     }
-    const { labelLine } = splitLabelLine(blocks[0].text);
+    const { labelLine, hadBlankLine } = splitLabelLine(blocks[0].text);
     const items = dedupeItems(blocks.flatMap((block) => itemsOf(splitLabelLine(block.text).rest)));
-    return items.length ? `${labelLine}\n\n${joinItems(items)}` : labelLine;
+    if (items.length === 0) return labelLine;
+    if (blocks.length === 1 && items.length === 1) {
+        return `${labelLine}${hadBlankLine ? "\n\n" : "\n"}${items[0]}`;
+    }
+    return `${labelLine}\n\n${joinItems(items)}`;
 }
 
 /**

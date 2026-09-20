@@ -11,7 +11,7 @@ import { fileURLToPath } from "node:url";
 
 import { describe, it, expect } from "vitest";
 
-import { lintChangesetText, lintReleaseText } from "../engine/changelog-lint.mjs";
+import { lintChangesetText, lintReleaseText, topLevelBlocks } from "../engine/changelog-lint.mjs";
 
 const ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const FIXTURES = path.join(ROOT, "tests", "fixtures", "changelog");
@@ -213,6 +213,49 @@ describe("changelog check — `changelog.labels`", () => {
         const { findings } = lintReleaseText(release, { labels: ["Characters"] });
         expect(findings.some((f) => f.message.includes("changelog-check/unknown-label"))).toBe(
             true,
+        );
+    });
+});
+
+describe("topLevelBlocks — a hard-wrapped paragraph stays one block", () => {
+    const noCode = new Set<number>();
+
+    it("a three-line unlabelled paragraph, wrapped at column 0, is one lead block", () => {
+        const text = "First line of the paragraph\nsecond line of the paragraph\nthird line.";
+        const blocks = topLevelBlocks(text, noCode);
+
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].label).toBeNull();
+        expect(blocks[0].startLine).toBe(1);
+        expect(blocks[0].text).toBe(text);
+    });
+
+    it("a label line followed by three wrapped lines is one labelled block", () => {
+        const text =
+            "**A bold label.** This is the first line of its paragraph\n" +
+            "continuing on a second line\n" +
+            "and wrapping onto a third.";
+        const blocks = topLevelBlocks(text, noCode);
+
+        expect(blocks).toHaveLength(1);
+        expect(blocks[0].label).toBe("A bold label.");
+        expect(blocks[0].text).toBe(text);
+    });
+
+    it("a label, a blank line, then a wrapped paragraph is a label block followed by one lead block", () => {
+        const text =
+            "**A bold label.** Its own first line.\n" +
+            "\n" +
+            "An unrelated lead paragraph, wrapped at column 0,\n" +
+            "continuing here.";
+        const blocks = topLevelBlocks(text, noCode);
+
+        expect(blocks).toHaveLength(2);
+        expect(blocks[0].label).toBe("A bold label.");
+        expect(blocks[0].text).toBe("**A bold label.** Its own first line.\n");
+        expect(blocks[1].label).toBeNull();
+        expect(blocks[1].text).toBe(
+            "An unrelated lead paragraph, wrapped at column 0,\ncontinuing here.",
         );
     });
 });
