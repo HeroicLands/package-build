@@ -34,6 +34,9 @@
  * @module
  */
 
+import path from "node:path";
+import matter from "gray-matter";
+
 import { authoredFields, runtimeOnlyFields } from "./field-spec.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
@@ -308,4 +311,136 @@ export function renderItemFieldReference({
     // formatter by one character is rewritten on the consumer's next format run
     // and then reported stale by `--check` forever after.
     return lines.join("\n").replace(/\n+$/, "");
+}
+
+/**
+ * @param {unknown} value - Anything.
+ * @returns {boolean} Whether it is a mapping a field may be read out of.
+ */
+function isPlainObject(value) {
+    return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+/**
+ * Recursively merge `overlay` onto `base`. Plain objects merge key-by-key;
+ * everything else (arrays, primitives, `null`) replaces. Inputs are not
+ * mutated.
+ *
+ * @param {any} base - The generated envelope.
+ * @param {any} overlay - The consumer's declared `frontmatter`.
+ * @returns {any} The merged value.
+ */
+function deepMerge(base, overlay) {
+    if (overlay === undefined) return base;
+    if (!isPlainObject(base) || !isPlainObject(overlay)) return overlay;
+    const out = { ...base };
+    for (const [key, value] of Object.entries(overlay)) {
+        out[key] = key in base ? deepMerge(base[key], value) : value;
+    }
+    return out;
+}
+
+/**
+ * Whether a destination file sits under a content tree.
+ *
+ * The one question that decides whether `docs item-fields` writes a note
+ * envelope: `assets/content/` walks every file under it for its `type:`, so a
+ * generated page filed there needs one to publish at all, while a page filed
+ * anywhere else — a repository's own `docs/` — is read by nobody but Hugo's
+ * `--check` guard and the reader following a link, neither of which wants
+ * frontmatter.
+ *
+ * @param {string} destination - Absolute path of the file being written.
+ * @param {string} contentRoot - Absolute path of the content tree root
+ *   (`config.paths.content`).
+ * @returns {boolean} Whether `destination` resolves inside `contentRoot`.
+ */
+export function isUnderContentTree(destination, contentRoot) {
+    const relative = path.relative(contentRoot, destination);
+    return (
+        relative !== "" &&
+        relative !== ".." &&
+        !relative.startsWith(`..${path.sep}`) &&
+        !path.isAbsolute(relative)
+    );
+}
+
+/**
+ * A note's `shortcode`, derived from the basename of its destination file.
+ *
+ * Lowercase alphanumerics only — the address charset every other shortcode in
+ * the tree is held to — so `item-frontmatter.md` derives `itemfrontmatter`
+ * rather than carrying a hyphen no address segment permits.
+ *
+ * @param {string} destination - Where the note is written.
+ * @returns {string} The derived shortcode.
+ */
+export function shortcodeFromBasename(destination) {
+    return path
+        .basename(destination, path.extname(destination))
+        .toLowerCase()
+        .replace(/[^a-z0-9]/g, "");
+}
+
+/**
+ * The note envelope `docs item-fields` writes when its page lives in the
+ * content tree.
+ *
+ * The universal keys every note in the format carries: `type: doc`,
+ * `subType: reference` — this page is out-of-world lookup material, the same
+ * genre as every other generated reference — a `shortcode`, `name.full` from
+ * the page's title, and `pack: none`, since the page publishes to the website
+ * and compiles into no compendium document. A consumer's own
+ * `docs.itemFields.frontmatter` is deep-merged over it, so it may add keys or
+ * override any of the derived ones, `shortcode` included.
+ *
+ * @param {object} options
+ * @param {string} options.title - The page's H1, and `name.full`'s default.
+ * @param {string} options.shortcode - The derived shortcode, from
+ *   {@link shortcodeFromBasename}.
+ * @param {Record<string, unknown>} [options.frontmatter] - The consumer's
+ *   declared `docs.itemFields.frontmatter`.
+ * @returns {Record<string, unknown>} The envelope, ready for `matter.stringify`.
+ */
+export function itemFieldsEnvelope({ title, shortcode, frontmatter }) {
+    return deepMerge(
+        {
+            type: "doc",
+            subType: "reference",
+            shortcode,
+            name: { full: title },
+            pack: "none",
+        },
+        frontmatter,
+    );
+}
+
+/**
+ * Wrap the rendered item-fields page in the note envelope, when its
+ * destination is under the content tree.
+ *
+ * `--check` compares the **whole** file this returns, envelope included — a
+ * page committed with its old envelope by hand, or with none at all, is
+ * exactly the staleness the guard exists to catch.
+ *
+ * @param {string} body - The page {@link renderItemFieldReference} rendered.
+ * @param {object} options
+ * @param {string} options.title - The page's H1, threaded through to
+ *   `name.full`.
+ * @param {string} options.destination - Absolute path the page is written to.
+ * @param {string} options.contentRoot - Absolute path of the content tree
+ *   root (`config.paths.content`).
+ * @param {Record<string, unknown>} [options.frontmatter] - The consumer's
+ *   declared `docs.itemFields.frontmatter`.
+ * @returns {string} `body`, unchanged when `destination` is outside the
+ *   content tree; otherwise `body` with the note envelope stringified above it.
+ */
+export function renderItemFieldsPage(body, { title, destination, contentRoot, frontmatter }) {
+    if (!isUnderContentTree(destination, contentRoot)) return body;
+    const envelope = itemFieldsEnvelope({
+        title,
+        shortcode: shortcodeFromBasename(destination),
+        frontmatter,
+    });
+    return matter.stringify(body, envelope);
 }

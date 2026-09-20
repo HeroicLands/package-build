@@ -727,11 +727,12 @@ How this repository frames the documentation pages it generates.
 registry and are the same wherever rendered; everything here is the
 consumer's: heading, orientation, where the page is filed.
 
-| Key                        | Type     | Required | Default                                                                |
-| -------------------------- | -------- | -------- | ---------------------------------------------------------------------- |
-| `docs.itemFields.title`    | string   | no       | none — the page's H1                                                   |
-| `docs.itemFields.out`      | string   | no       | none — without it, the page goes to stdout                             |
-| `docs.itemFields.preamble` | string[] | no       | none — markdown lines between the generated banner and the first table |
+| Key                           | Type     | Required | Default                                                                |
+| ----------------------------- | -------- | -------- | ---------------------------------------------------------------------- |
+| `docs.itemFields.title`       | string   | no       | none — the page's H1                                                   |
+| `docs.itemFields.out`         | string   | no       | none — without it, the page goes to stdout                             |
+| `docs.itemFields.preamble`    | string[] | no       | none — markdown lines between the generated banner and the first table |
+| `docs.itemFields.frontmatter` | object   | no       | none — extra note frontmatter, deep-merged over the generated envelope |
 
 > ``package-build config: `docs.itemFields` must be a mapping.``
 
@@ -744,9 +745,14 @@ consumer's: heading, orientation, where the page is filed.
 
 > ``package-build config: `docs.itemFields.preamble[<index>]` must be a string.``
 
+`frontmatter` is deep-merged over the note envelope written when `out` is
+under the content tree — see [`content-build docs item-fields`](commands.md#content-build-docs-item-fields):
+
+> ``package-build config: `docs.itemFields.frontmatter` must be a mapping.``
+
 Any other key under `docs.itemFields` is refused:
 
-> ``package-build config: `docs.itemFields.<key>` is not a recognized option (expected one of: title, out, preamble).``
+> ``package-build config: `docs.itemFields.<key>` is not a recognized option (expected one of: title, out, preamble, frontmatter).``
 
 ### `site`
 
