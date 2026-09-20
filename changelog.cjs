@@ -34,17 +34,14 @@
 /**
  * @param {{summary: string}} changeset - The pending changeset. Only
  *   `summary` is read; a known `commit` is deliberately ignored.
- * @returns {string} The summary as a release line — its first line as the
- *   bullet, every following line indented two spaces under it, blank lines
- *   preserved.
+ * @returns {string} The summary rendered as a block, verbatim — no leading
+ *   `- `, no indentation of the following lines — wrapped in a single
+ *   newline on each side so Changesets' own joiner (which counts, rather
+ *   than reads, the newlines bracketing a release line) always separates
+ *   this block from its neighbours by one blank line.
  */
 function getReleaseLine(changeset) {
-    const [firstLine, ...restLines] = changeset.summary.split("\n").map((line) => line.trimEnd());
-    let releaseLine = `- ${firstLine}`;
-    if (restLines.length > 0) {
-        releaseLine += `\n${restLines.map((line) => (line.length > 0 ? `  ${line}` : line)).join("\n")}`;
-    }
-    return releaseLine;
+    return `\n${changeset.summary}\n`;
 }
 
 /**
