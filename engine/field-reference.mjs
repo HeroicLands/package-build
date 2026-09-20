@@ -442,5 +442,11 @@ export function renderItemFieldsPage(body, { title, destination, contentRoot, fr
         shortcode: shortcodeFromBasename(destination),
         frontmatter,
     });
-    return matter.stringify(body, envelope);
+    const page = matter.stringify(body, envelope);
+    // `matter.stringify` closes the frontmatter fence directly onto the
+    // body's first line; Prettier's markdown printer requires a blank line
+    // between them, so a page written without one fails a consumer's
+    // `lint:format` the moment it is committed. Insert it here rather than
+    // let the generator and the formatter rewrite the file back and forth.
+    return page.replace(/^(---\n[\s\S]*?\n---\n)/, "$1\n");
 }
