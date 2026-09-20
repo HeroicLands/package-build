@@ -646,8 +646,11 @@ from the heading rule, since neither is authored.
 A token that reads as code — `camelCase()`, a `path/with/slashes.ext`,
 `SCREAMING_SNAKE` — outside any code span is a warning, not a failure: a
 user-facing note sometimes needs one (`Compendium.hm3.items.Item.<id>`), but
-rarely. Every other finding is an error. Reads the files given, or resolves
-its own defaults; writes nothing.
+rarely. A block's bold label absent from a declared `changelog.labels` is
+also a warning — the drift `**Character data**` beside `**Characters**`
+produces — and checks nothing when the repository declares no
+`changelog.labels`. Every other finding is an error. Reads the files given,
+or resolves its own defaults; writes nothing.
 
 **OPTIONS**
 
@@ -677,6 +680,71 @@ package-build: 1 file(s) checked · 1 error(s) · 0 warning(s)
 **SEE ALSO**
 
 [Diagnostics](diagnostics.md).
+
+### `package-build changelog group`
+
+**NAME**
+
+Fold a release section's changeset blocks together by their bold label
+(`group` is a sibling of `check`, not one of its actions).
+
+**SYNOPSIS**
+
+```
+package-build changelog group [paths..]
+```
+
+**DESCRIPTION**
+
+`@heroiclands/package-build/changelog` writes each changeset's summary into
+`CHANGELOG.md` as its own block, verbatim, under `### <Bump> Changes` — one
+per changeset, in whatever order Changesets read the files. Three pull
+requests each touching compendium content each write their own
+`**Compendiums**` block, and nothing merges them: the release reads as three
+scattered entries instead of one.
+
+`group` rewrites the first `## <version>` section of `CHANGELOG.md` in
+place. Within each `### <Bump> Changes` body, every block sharing one bold
+label is merged into a single block for that label — its bullets kept in
+the order they were originally written, an exact-duplicate bullet kept
+once — and the merged blocks are reordered: the unlabelled lead paragraph a
+changeset writes with no category first, then every label
+[`changelog.labels`](configuration.md#changelog) declares, in the order
+given, then any label absent from that list last, in the order it first
+appeared — each reported as a warning naming it. With no `changelog.labels`
+declared, every group instead keeps the order its label first appeared in,
+lead paragraph first, and nothing is reported as unknown. Every earlier
+release section is untouched, byte for byte. Running `group` on its own
+output is a no-op.
+
+**OPTIONS**
+
+| Positional | Type      | Default        | Description                         |
+| ---------- | --------- | -------------- | ----------------------------------- |
+| `paths`    | string(s) | `CHANGELOG.md` | Files to group, rewritten in place. |
+
+**EXIT STATUS**
+
+1 if a named file does not exist. 0 otherwise — an undeclared label is a
+warning, never a failure.
+
+**EXAMPLES**
+
+```
+$ package-build changelog group
+package-build: 1 file(s) grouped · 0 warning(s)
+```
+
+```
+$ package-build changelog group
+CHANGELOG.md:12: warning: changelog-group/unknown-label "Scenery" is not declared in `changelog.labels` — filed last, in order of first appearance
+package-build: 1 file(s) grouped · 1 warning(s)
+```
+
+**SEE ALSO**
+
+[`changelog check`](#package-build-changelog-check),
+[`changelog.labels`](configuration.md#changelog).
 
 ### `package-build bundle check`
 
