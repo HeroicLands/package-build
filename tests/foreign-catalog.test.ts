@@ -22,6 +22,8 @@ import {
     foreignItemCatalogDirs,
     fetchCatalogFromPath,
     itemPackManifest,
+    fetchAllMetadata,
+    fetchAllCatalogs,
 } from "../engine/foreign-catalog.mjs";
 import { defineConfig } from "../index.mjs";
 import { Actors } from "../sohl/actors.mjs";
@@ -130,6 +132,92 @@ describe("which relationships supply an item catalogue", () => {
                 systems: [{ id: "sohl", manifest: LATEST, itemCatalog: "yes" }],
             }),
         ).toThrow(/true or false/);
+    });
+});
+
+describe("declaring a relationship as a Foundry dependency only", () => {
+    /** A config carrying the given relationships block. */
+    const withRelationships = (relationships: unknown) =>
+        defineConfig({
+            rootDir: "/repo",
+            contentPackage: "thalornaaltart",
+            foundryPackage: "thalornaaltart",
+            packageKind: "modules",
+            stats: {
+                lastModifiedBy: "sohlbuilder00000",
+            },
+            packs: [{ name: "items", type: "Item" }],
+            compatibility: { minimum: "14.359", verified: "14.359" },
+            relationships,
+        } as never);
+
+    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // and its content tree links nowhere — there is nothing for `deps fetch`
+    // to fetch and no index to resolve a wikilink against.
+    it("accepts `contentIndex: false` on its own", () => {
+        const config = withRelationships({
+            requires: [{ id: "thalorna", manifest: LATEST, contentIndex: false }],
+        });
+        expect(config.relationships.requires[0].contentIndex).toBe(false);
+    });
+
+    it("defaults to true, so an ordinary dependency is unaffected", () => {
+        const config = withRelationships({ requires: [{ id: "thalorna", manifest: LATEST }] });
+        expect(config.relationships.requires[0].contentIndex).toBeUndefined();
+    });
+
+    it("refuses a non-boolean", () => {
+        expect(() =>
+            withRelationships({
+                requires: [{ id: "thalorna", manifest: LATEST, contentIndex: "no" }],
+            }),
+        ).toThrow(/true or false/);
+    });
+
+    // A catalogue is fetched from the same index `contentIndex: false` says
+    // there is none of, so the two cannot be declared on one relationship.
+    it("refuses `itemCatalog: true` on the same entry", () => {
+        expect(() =>
+            withRelationships({
+                requires: [
+                    { id: "thalorna", manifest: LATEST, itemCatalog: true, contentIndex: false },
+                ],
+            }),
+        ).toThrow(/itemCatalog: true/);
+    });
+
+    it("lists `contentIndex` among the recognised relationship keys", () => {
+        // Asserted against the key list a real unrecognised-key error reports,
+        // not against hand-typed message text — so a renamed or removed key
+        // fails this rather than going unnoticed.
+        expect(() =>
+            withRelationships({ requires: [{ id: "thalorna", __unrecognised__: true }] }),
+        ).toThrow(/contentIndex/);
+    });
+
+    describe("`deps fetch` fetches nothing for it", () => {
+        let root: string;
+
+        beforeEach(() => {
+            root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-no-index-"));
+        });
+        afterEach(() => {
+            fs.rmSync(root, { recursive: true, force: true });
+        });
+
+        it("succeeds with no cache directory for it", async () => {
+            const config = withRelationships({
+                requires: [{ id: "thalorna", manifest: LATEST, contentIndex: false }],
+            });
+            const withPaths = {
+                ...config,
+                paths: { metadataCache: path.join(root, "metadata"), foreignCache: root },
+            };
+            await expect(fetchAllMetadata(withPaths)).resolves.toBe(0);
+            await expect(fetchAllCatalogs(withPaths)).resolves.toBe(0);
+            expect(fs.existsSync(path.join(root, "metadata"))).toBe(false);
+            expect(fs.readdirSync(root)).toEqual([]);
+        });
     });
 });
 

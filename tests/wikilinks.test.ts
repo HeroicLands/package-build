@@ -761,6 +761,49 @@ describe("readQualifier — the strict address grammar", () => {
             shortcode: "lang",
         });
     });
+
+    // A relationship declared `contentIndex: false` is a Foundry dependency
+    // only — thalornaaltart `requires` thalorna and links nowhere — so a
+    // fully qualified target naming it fails at the qualifier, before its type
+    // is even considered: there is no fetched index to resolve the rest
+    // against.
+    describe("a package with no fetched content index", () => {
+        const NO_INDEX = new Set(["thalorna"]);
+
+        it("refuses it with `no-content-index`, naming the package", () => {
+            expect(readQualifier("thalorna-sohl-being-grod", TYPES, PACKAGES, NO_INDEX)).toEqual({
+                reason: "no-content-index",
+                package: "thalorna",
+            });
+        });
+
+        it("refuses it whatever the type segment names", () => {
+            // Unlike an ordinary qualified target, the type is never checked:
+            // there is no index to hold a vocabulary for it.
+            expect(readQualifier("thalorna-sohl-nosuchtype-x", TYPES, PACKAGES, NO_INDEX)).toEqual({
+                reason: "no-content-index",
+                package: "thalorna",
+            });
+        });
+
+        it("does not affect a target naming a different package", () => {
+            expect(readQualifier("sohl-skill-lang", TYPES, PACKAGES, NO_INDEX)).toMatchObject({
+                system: "sohl",
+                type: "skill",
+                shortcode: "lang",
+            });
+        });
+
+        it("does nothing when the caller supplies no such set", () => {
+            expect(readQualifier("thalorna-sohl-being-grod", TYPES, PACKAGES)).toEqual({
+                package: "thalorna",
+                system: "sohl",
+                type: "being",
+                shortcode: "grod",
+                itemDoc: false,
+            });
+        });
+    });
 });
 
 describe("an unresolved link keeps its text and is marked", () => {
@@ -886,5 +929,37 @@ describe("a `#section` the target does not declare", () => {
         const out = convertWikilinks("[[doc-extshock#whatever|X]]", { ...here, index });
         const reasons = (out.unresolved ?? []).map((u: any) => u.reason);
         expect(reasons).not.toContain("unknown-anchor");
+    });
+});
+
+describe("convertWikilinks — a package declared `contentIndex: false`", () => {
+    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // and its content tree links nowhere: `deps fetch` never fetches an index
+    // for it, and a wikilink naming it must fail at compile time rather than
+    // silently reading as prose or resolving against nothing.
+    const noIndexPackages = new Set(["thalorna"]);
+    const withNoIndex = buildWikilinkIndex(DOCS, "sohl", new Map(), "sohl", {
+        noIndexPackages,
+    });
+    const here = { type: "doc", id: "aaaaaaaaaaaaaaa2" };
+    const run = (src: string) => convertWikilinks(src, { ...here, index: withNoIndex });
+
+    it("fails a link into it, naming `no-content-index`", () => {
+        const out = run("[[thalorna-none-doc-homepage|Home]]");
+        expect(out.unresolved[0]).toMatchObject({
+            reason: "no-content-index",
+            target: "thalorna-none-doc-homepage",
+        });
+    });
+
+    it("marks the link rather than silently dropping it", () => {
+        const out = run("[[thalorna-none-doc-homepage|Home]]");
+        expect(out.markdown).toBe(
+            '<span class="sohl-unresolved-link" title="Unresolved link: thalorna-none-doc-homepage">Home</span>',
+        );
+    });
+
+    it("leaves a link into a package with no such declaration unaffected", () => {
+        expect(run("[[doc-shock|Shock]]").markdown).toContain("@UUID[");
     });
 });

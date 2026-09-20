@@ -420,6 +420,33 @@ describe("cross-package addresses (link manifest)", () => {
     });
 });
 
+describe("a package declared `contentIndex: false`", () => {
+    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // and its content tree links nowhere — there is no fetched index for the
+    // site build to resolve a wikilink into it against.
+    it("fails a qualified link into it, naming `no-content-index`", () => {
+        const ctx = makeCtx({ noIndexPackages: new Set(["thalorna"]) });
+        expect(resolveWebWikilinks("[[thalorna-sohl-creature-grkrahk|Grukar-ahk]]", ctx)).toBe(
+            unresolved("Grukar-ahk", "thalorna-sohl-creature-grkrahk"),
+        );
+        expect(findings(ctx)).toEqual([
+            {
+                file: "rules/Bleeding.md",
+                target: "thalorna-sohl-creature-grkrahk",
+                reason: "no-content-index",
+            },
+        ]);
+    });
+
+    it("leaves a link into a different package unaffected", () => {
+        const ctx = makeCtx({ noIndexPackages: new Set(["thalorna"]) });
+        expect(resolveWebWikilinks("[[skill-climb|Climbing]]", ctx)).toBe(
+            "[Climbing](/skill/climbing/)",
+        );
+        expect(ctx.errors).toHaveLength(0);
+    });
+});
+
 /**
  * Marking an unresolved link.
  *

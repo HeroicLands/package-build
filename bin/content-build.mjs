@@ -1871,7 +1871,22 @@ function depsCommand() {
                 if (indexes) log.info(`Fetched ${indexes} dependency content index(es).`);
                 const count = await fetchAllCatalogs(config);
                 if (count) log.info(`Fetched ${count} dependency catalogue(s).`);
-                if (!indexes && !count) log.info("This package declares no dependencies.");
+                if (!indexes && !count) {
+                    // Distinguished from a package declaring nothing at all: a
+                    // relationship may still be declared, just narrowed to the
+                    // Foundry manifest by `contentIndex: false` — reporting
+                    // "no dependencies" there would read as though the
+                    // declaration itself had gone missing.
+                    const declared = Object.values(config.relationships ?? {}).some(
+                        (entries) => entries?.length,
+                    );
+                    log.info(
+                        declared ?
+                            "No declared dependency needs a fetched content index or item " +
+                                "catalogue."
+                        :   "This package declares no dependencies.",
+                    );
+                }
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;

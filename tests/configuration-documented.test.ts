@@ -647,6 +647,34 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         );
     });
 
+    it("relationships `contentIndex`", () => {
+        assertQuoted(
+            thrown(() =>
+                defineConfig(
+                    minimal({ relationships: { systems: [{ id: "sohl", contentIndex: "yes" }] } }),
+                ),
+            ).replace(/^package-build config: `relationships\.systems\[0\]\.contentIndex` /, ""),
+        );
+        assertQuoted(
+            thrown(() =>
+                defineConfig(
+                    minimal({
+                        relationships: {
+                            systems: [
+                                {
+                                    id: "sohl",
+                                    manifest: "https://example.invalid/system.json",
+                                    itemCatalog: true,
+                                    contentIndex: false,
+                                },
+                            ],
+                        },
+                    }),
+                ),
+            ).replace(/^package-build config: `relationships\.systems\[0\]\.contentIndex` /, ""),
+        );
+    });
+
     it("`icons`", () => {
         assertQuoted(
             thrown(() => defineConfig(minimal({ icons: "" }))).replace(

@@ -84,6 +84,11 @@ export const METADATA_RELATIONSHIP_KINDS = Object.freeze(["systems", "requires"]
  * and needing no items is the mirror of it. Gating the index on the catalogue
  * flag would serve neither.
  *
+ * **Excludes a relationship declaring `contentIndex: false`.** That opts a
+ * dependency out of both edges at once: it is a Foundry dependency only, cited
+ * by neither a wikilink nor an item reference, so there is nothing here for
+ * `deps fetch` to fill and no cache this build will ever read.
+ *
  * The declaration is the one already in the emitted `system.json` /
  * `module.json`, so it cannot drift from what Foundry itself installs, and
  * there is no new configuration key to keep in step. Each entry carries the
@@ -98,6 +103,7 @@ export function metadataRelationships(config) {
     const out = [];
     for (const kind of METADATA_RELATIONSHIP_KINDS) {
         for (const rel of config?.relationships?.[kind] ?? []) {
+            if (rel.contentIndex === false) continue;
             out.push({
                 id: rel.id,
                 manifest: rel.manifest,
@@ -107,6 +113,32 @@ export function metadataRelationships(config) {
         }
     }
     return out;
+}
+
+/**
+ * Every package a relationship declares `contentIndex: false` on, keyed by
+ * the content package name a link into it would use.
+ *
+ * A separate set from {@link metadataRelationships}, which answers "what does
+ * `deps fetch` fill" — this answers "what does the link resolver recognise as
+ * a package with no fetched index", which a wikilink checker or pack compiler
+ * needs to tell that case apart from a package nobody declared at all.
+ *
+ * Walked across every relationship kind, not only the citable ones: the
+ * config validation refuses the flag nowhere by kind, so a resolver reading it
+ * back should not assume one either.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @returns {ReadonlySet<string>} The content package names.
+ */
+export function noContentIndexPackages(config) {
+    const out = new Set();
+    for (const entries of Object.values(config?.relationships ?? {})) {
+        for (const rel of entries ?? []) {
+            if (rel.contentIndex === false) out.add(rel.contentPackage ?? rel.id);
+        }
+    }
+    return Object.freeze(out);
 }
 
 /**

@@ -267,6 +267,19 @@ describe("the resolver context", () => {
         // now, so there is no flag left for a caller to soften it with.
         expect("manifestsComplete" in ctx).toBe(false);
     });
+
+    it("defaults `noIndexPackages` to empty, and carries a declared set through", () => {
+        const bare = buildSiteIndex([entry()]);
+        expect(wikiContext(bare, { src: "x", errors: [] }).noIndexPackages).toEqual(new Set());
+
+        // thalornaaltart `requires` thalorna so Foundry installs the base
+        // module, and its content tree links nowhere — there is no fetched
+        // index for the site build to resolve a wikilink into it against.
+        const built = buildSiteIndex([entry()], { noIndexPackages: new Set(["thalorna"]) });
+        const ctx = wikiContext(built, { src: "x", errors: [] });
+        expect(ctx.noIndexPackages).toBe(built.noIndexPackages);
+        expect(ctx.noIndexPackages).toEqual(new Set(["thalorna"]));
+    });
 });
 
 describe("sections and the reference index", () => {

@@ -23,6 +23,7 @@ import {
     cachedMetadataFiles,
     loadForeignIndexes,
     newestVersionDir,
+    noContentIndexPackages,
 } from "../engine/metadata-index.mjs";
 import { PACKAGEBUILD_PACKAGE } from "../engine/packages.mjs";
 
@@ -88,6 +89,62 @@ describe("which dependencies an index is fetched for", () => {
         // `sohl` is the base: a system depending on a module is backwards.
         expect(metadataRelationships({ relationships: {} } as never)).toEqual([]);
         expect(metadataRelationships({} as never)).toEqual([]);
+    });
+
+    // thalornaaltart `requires` thalorna so Foundry installs the base module,
+    // and its content tree links nowhere — the dependency is for the Foundry
+    // manifest only, and there is nothing here for `deps fetch` to fill.
+    it("excludes a relationship declared `contentIndex: false`", () => {
+        const config = withRelationships({
+            requires: [
+                { id: "thalorna", manifest: LATEST, contentIndex: false },
+                { id: "kethira", manifest: LATEST },
+            ],
+        });
+        expect(metadataRelationships(config).map((r) => r.id)).toEqual(["kethira"]);
+    });
+});
+
+describe("which packages have no fetched content index", () => {
+    const withRelationships = (relationships: unknown) => ({ relationships }) as never;
+
+    it("is empty when nothing opts out", () => {
+        const config = withRelationships({ requires: [{ id: "sohl", manifest: LATEST }] });
+        expect(noContentIndexPackages(config)).toEqual(new Set());
+    });
+
+    it("names the package a `contentIndex: false` relationship declares", () => {
+        const config = withRelationships({
+            requires: [{ id: "thalorna", manifest: LATEST, contentIndex: false }],
+        });
+        expect(noContentIndexPackages(config)).toEqual(new Set(["thalorna"]));
+    });
+
+    it("keys by `contentPackage`, not the Foundry id, where they differ", () => {
+        const config = withRelationships({
+            requires: [
+                {
+                    id: "sohl-thalorna",
+                    contentPackage: "thalorna",
+                    manifest: LATEST,
+                    contentIndex: false,
+                },
+            ],
+        });
+        expect(noContentIndexPackages(config)).toEqual(new Set(["thalorna"]));
+    });
+
+    it("walks every relationship kind, not only the citable ones", () => {
+        const config = withRelationships({
+            systems: [{ id: "a", contentIndex: false }],
+            recommends: [{ id: "b", contentIndex: false }],
+        });
+        expect(noContentIndexPackages(config)).toEqual(new Set(["a", "b"]));
+    });
+
+    it("is empty for a package declaring no relationships", () => {
+        expect(noContentIndexPackages({ relationships: {} } as never)).toEqual(new Set());
+        expect(noContentIndexPackages({} as never)).toEqual(new Set());
     });
 });
 
