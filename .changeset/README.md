@@ -42,5 +42,11 @@ When a change moves a floor, the changeset is where that gets recorded.
 
 The summary becomes the `CHANGELOG.md` entry and the GitHub Release body, so write
 it for someone deciding whether to upgrade — what changed for them, not what the
-patch touched. Reference the issue. Do not use `#` headings inside a summary: it
+patch touched. One to six one-sentence bullets, symptom rather than mechanism, no
+verification, no commit hashes or issue/pull-request numbers — a released package
+has no tracker for its reader to open, and the pull request's own `Closes #<n>`
+line is where that reference belongs. Do not use `#` headings inside a summary: it
 is wrapped into a list item, so a heading breaks the document outline.
+
+`package-build changelog check` lints a pending changeset against these rules
+before it merges.

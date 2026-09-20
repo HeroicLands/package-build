@@ -1,7 +1,12 @@
 #!/usr/bin/env sh
 #
-# Refuse to commit on a protected branch. See protected-branch.sh for the rule
-# and its opt-outs; pre-merge-commit is this hook's counterpart for merges.
+# Refuse to commit on a protected branch, and refuse a staged changeset that
+# reads like a pull-request description.
+#
+# See protected-branch.sh for the branch rule and its opt-outs;
+# pre-merge-commit is that guard's counterpart for merges. The changeset check
+# below has no merge-commit counterpart — a merge commit stages no new
+# changeset of its own.
 #
 # Installed for everyone via the package.json "prepare" script, which points git
 # at this directory (`git config core.hooksPath .githooks`) on `npm install`.
@@ -9,3 +14,49 @@
 . "$(dirname "$0")/protected-branch.sh"
 
 guard_protected_branch
+
+# On unless refused: `changelog check` reads only the files this commit is
+# about to stage and runs in-process, so it costs a fraction of what the
+# pre-push container check does and stays on by the same default as the
+# no-attribution guard.
+. "$(dirname "$0")/hook-enabled.sh"
+
+hook_enabled changelogCheck true || exit 0
+
+# Pending changesets this commit actually stages — added, copied or modified.
+# A deleted changeset has nothing left to lint, and a changeset already on
+# `main` was linted by the commit that staged it. `README.md` documents the
+# changeset format; it is not one.
+staged=""
+while IFS= read -r file; do
+    [ -z "$file" ] && continue
+    case "$file" in
+        */README.md | README.md) continue ;;
+    esac
+    staged="$staged $file"
+done <<EOF
+$(git diff --cached --name-only --diff-filter=ACM -- '.changeset/*.md')
+EOF
+
+if [ -z "$staged" ]; then
+    exit 0
+fi
+
+# The binary lives beside this hook inside the package. If it is not there,
+# this hook is being used from somewhere else — a global `core.hooksPath`, a
+# copy — in a repository that does not install the package, and there is
+# nothing to run.
+runner="$(dirname "$0")/../bin/package-build.mjs"
+if [ ! -f "$runner" ]; then
+    exit 0
+fi
+
+# shellcheck disable=SC2086
+node "$runner" changelog check $staged
+status=$?
+
+if [ "$status" -ne 0 ]; then
+    echo ""
+    echo "pre-commit: fix the changeset above, or skip this check with 'git commit --no-verify'."
+    exit 1
+fi

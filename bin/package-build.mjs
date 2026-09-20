@@ -53,6 +53,7 @@
  *   npx package-build lang check
  *   npx package-build lang coverage [--unused]
  *   npx package-build lang hardcoded
+ *   npx package-build changelog check [--release] [paths..]
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
@@ -88,6 +89,7 @@ import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
 import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
 import { lintYaml } from "../engine/yaml-lint.mjs";
+import { lintChangesetText, lintReleaseText } from "../engine/changelog-lint.mjs";
 import { bumpDependencies } from "../engine/dependency-bump.mjs";
 import {
     analyzeCoverage,
@@ -777,6 +779,86 @@ function yamlCommand() {
 }
 
 /**
+ * `changelog check` — lint release prose against the rules a changeset is
+ * actually held to (`check` is the only action).
+ *
+ * A changeset answers one question — who notices, and what do they see — and
+ * nothing enforced it, so a pull-request description pasted into one ships
+ * verbatim as a release note. Default reads every pending changeset;
+ * `--release` reads the first `## <version>` section of `CHANGELOG.md`
+ * instead, for the **Version Packages** branch a merge to `main` opens.
+ *
+ * @returns {object} The yargs command module.
+ */
+function changelogCommand() {
+    return {
+        command: "changelog <action> [paths..]",
+        describe: "Release-prose checks",
+        builder: (y) =>
+            y
+                .positional("action", {
+                    choices: ["check"],
+                    describe: "check: lint pending changesets, or a release section",
+                })
+                .positional("paths", {
+                    describe:
+                        "Files to check. Defaults to `.changeset/*.md` (config.json and " +
+                        "README.md excluded), or `CHANGELOG.md` with --release.",
+                    type: "string",
+                })
+                .option("release", {
+                    type: "boolean",
+                    default: false,
+                    describe:
+                        "Check the first `## <version>` section of CHANGELOG.md instead of " +
+                        "pending changesets",
+                }),
+        handler: handler(async (args) => changelogCheck(args)),
+    };
+}
+
+/**
+ * The files `changelog check` reads by default: every pending changeset, or
+ * `CHANGELOG.md` alone under `--release`.
+ *
+ * `config.json` is excluded by the glob itself (it is not `.md`); `README.md`
+ * is excluded by name, since it is prose about changesets rather than one.
+ *
+ * @param {object} args - Parsed CLI arguments.
+ * @returns {string[]} Paths, relative to the working directory.
+ */
+function changelogFiles(args) {
+    if (args.paths?.length) return args.paths;
+    if (args.release) return ["CHANGELOG.md"];
+    return globSync(".changeset/*.md", { cwd: process.cwd() }).filter(
+        (file) => path.basename(file) !== "README.md",
+    );
+}
+
+/**
+ * Run `changelog check` over every resolved file and report the result.
+ *
+ * @param {object} args - Parsed CLI arguments.
+ */
+function changelogCheck(args) {
+    const files = changelogFiles(args);
+    let errors = 0;
+    let total = 0;
+    for (const file of files) {
+        if (!fs.existsSync(file)) die(`changelog check: ${file} does not exist.`);
+        const text = fs.readFileSync(file, "utf8");
+        const { findings } = args.release ? lintReleaseText(text) : lintChangesetText(text);
+        errors += reportFindings(findings, { file });
+        total += findings.length;
+    }
+    console.log(
+        `package-build: ${files.length} file(s) checked · ` +
+            `${errors} error(s) · ${total - errors} warning(s)`,
+    );
+    if (errors) process.exitCode = 1;
+}
+
+/**
  * `labels check` — do the machine registry and the documented table agree?
  *
  * `.github/labels.yml` is synced to GitHub and the §3 table in
@@ -1237,6 +1319,7 @@ yargs(hideBin(process.argv))
     .command(labelsCommand())
     .command(bumpCommand())
     .command(yamlCommand())
+    .command(changelogCommand())
     .command(bundleCommand())
     .command(releaseCommand())
     .command(deployCommand())
