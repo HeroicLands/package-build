@@ -611,4 +611,29 @@ summary: "see [[weapongear-dagger]]"`,
         expect(fs.existsSync(path.join(out, "kb"))).toBe(false);
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger3.md"));
     });
+
+    it("reports `hasTags: false` when no note in the tree carries `tags:`", () => {
+        const result = buildSite({ config: configFor() });
+        expect(gatesFailed(result.gates)).toBe(false);
+        expect(result.hasTags).toBe(false);
+    });
+
+    it("reports `hasTags: true` when a note carries `tags:`", () => {
+        note(
+            "Gear/Axe.md",
+            `type: weapongear
+shortcode: axe
+name:
+    full: Axe
+tags:
+    - throwing`,
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            expect(gatesFailed(result.gates)).toBe(false);
+            expect(result.hasTags).toBe(true);
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Gear/Axe.md"));
+        }
+    });
 });
