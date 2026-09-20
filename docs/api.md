@@ -1290,6 +1290,7 @@ console.log(config.stageDir);
 | `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`       | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                |
 | `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                    |
 | `checkHomepage`             | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `content-build site` before the generated `baseURL` is written, not by `resolvePackageBuildConfig` itself |
+| `fail`                      | `fail(where, problem)`                    | `never`                        | rejecting a configured value from a sibling module, naming the dotted key path it was written under, so the loader can resolve it to a line and column                          |
 
 ## `./prettier`
 

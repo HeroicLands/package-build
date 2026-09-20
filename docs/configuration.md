@@ -752,21 +752,21 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                     | Type     | Default               |
-| ----------------------- | -------- | --------------------- |
-| `site.base`             | string   | `""`                  |
-| `site.assets`           | string   | `""`                  |
-| `site.packages`         | string[] | `[]`                  |
-| `site.sections`         | object   | `{}`                  |
-| `site.readmeSections`   | object   | `{}`                  |
-| `site.landing`          | object   | `null`                |
-| `site.trees`            | array    | `[]`                  |
-| `site.pass`             | string   | `""`                  |
-| `site.passOptions`      | object   | `{}`                  |
-| `site.backfillSections` | boolean  | `false`               |
-| `site.list`             | object   | `{shortcodes: false}` |
-| `site.notfound`         | object   | `null`                |
-| `site.hugo`             | object   | `{}`                  |
+| Key                     | Type     | Default                                     |
+| ----------------------- | -------- | ------------------------------------------- |
+| `site.base`             | string   | `""`                                        |
+| `site.assets`           | string   | `""`, but required for `content-build site` |
+| `site.packages`         | string[] | `[]`                                        |
+| `site.sections`         | object   | `{}`                                        |
+| `site.readmeSections`   | object   | `{}`                                        |
+| `site.landing`          | object   | `null`                                      |
+| `site.trees`            | array    | `[]`                                        |
+| `site.pass`             | string   | `""`                                        |
+| `site.passOptions`      | object   | `{}`                                        |
+| `site.backfillSections` | boolean  | `false`                                     |
+| `site.list`             | object   | `{shortcodes: false}`                       |
+| `site.notfound`         | object   | `null`                                      |
+| `site.hugo`             | object   | `{}`                                        |
 
 How much of a package reaches the web at all is **not** here — it is
 [`publish.site`](#publish). `site` is framing: what a section is called,
@@ -797,6 +797,12 @@ carrying a package-owned image with none set is an error naming this key.
 Absolute, and the trailing slash is trimmed:
 
 > ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
+
+`content-build site` refuses to generate a configuration with no
+`site.assets` at all — there is no defensible default, because the theme
+resolves every relative asset against it:
+
+> ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
 
 The generated Hugo configuration carries the same host as
 `params.cdnBaseURL`, which the theme resolves a relative asset path against.
@@ -970,7 +976,7 @@ in it has one source, and that source is where it is edited:
 | `outputs`                         | the same fact — written as `{ taxonomy = ["HTML"], term = ["HTML"] }` when at least one note carries `tags:`, absent otherwise                              |
 | `params.description`              | `package.json` `description`; absent when the package declares none                                                                                         |
 | `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                                  |
-| `params.cdnBaseURL`               | `site.assets`; absent when unset                                                                                                                            |
+| `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                            |
 | `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                           |
 | `params.list`                     | `site.list`                                                                                                                                                 |
 | `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                     |
@@ -990,6 +996,12 @@ And a site's title reads from the manifest's, so a configuration declaring
 none fails the site build:
 
 > ``package-build config: `packageBuild.manifest.title` is not declared, and the site's `title` reads from it.``
+
+`params.cdnBaseURL` reads from `site.assets`, and the theme resolves every
+relative asset against it, so a configuration declaring none fails the site
+build the same way:
+
+> ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
 
 Nothing else is emitted. A site whose notes carry no `tags:` publishes no
 taxonomy pages — `[taxonomies]` and `[outputs]` go unwritten, and Hugo's

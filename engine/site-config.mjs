@@ -44,7 +44,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { stringify as stringifyToml } from "smol-toml";
 
-import { checkHomepage } from "../config.mjs";
+import { checkHomepage, fail } from "../config.mjs";
 import { slugify } from "./content-slug.mjs";
 
 /** The Hugo source directory, relative to the repository root. */
@@ -388,8 +388,9 @@ function deepMerge(base, overrides) {
  *   carries `tags:`, from {@link module:engine/site-build.buildSite}'s
  *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
- * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
- *   configuration declares no `packageBuild.manifest.title`.
+ * @throws {TypeError} When `homepage` fails `checkHomepage`, the
+ *   configuration declares no `packageBuild.manifest.title`, or it declares
+ *   no `site.assets`.
  */
 export function hugoConfig({ config, description, navigation, themesDir, hasTags = false }) {
     checkHomepage(config.homepage, config.contentPackage);
@@ -399,6 +400,15 @@ export function hugoConfig({ config, description, navigation, themesDir, hasTags
         throw new TypeError(
             "package-build config: `packageBuild.manifest.title` is not declared, " +
                 "and the site's `title` reads from it.",
+        );
+    }
+
+    if (!config.site.assets) {
+        fail(
+            "site.assets",
+            "is not declared, and a site build needs one — it is the host every " +
+                "package's imagery is served from, and the theme resolves every " +
+                "relative asset against it",
         );
     }
 
