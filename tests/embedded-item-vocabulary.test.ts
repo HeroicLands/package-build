@@ -32,6 +32,7 @@ import { fileURLToPath } from "node:url";
 import { defineDocumentSubtypes, referencedSubtype } from "../engine/document-subtypes.mjs";
 import { RENAMED_TYPES } from "../engine/ids.mjs";
 import { SOHL_DOCUMENT_SUBTYPES } from "../sohl/document-subtypes.mjs";
+import { HM3_DOCUMENT_SUBTYPES } from "../hm3/document-subtypes.mjs";
 import { loadPackConfig } from "../engine/pack-config.mjs";
 import { Actors } from "../sohl/actors.mjs";
 
@@ -119,6 +120,54 @@ describe("referencedSubtype (the note vocabulary → the document vocabulary)", 
             expect(referencedSubtype(SOHL_DOCUMENT_SUBTYPES, type, "Item"), type).toEqual({
                 subType: type,
             });
+        }
+    });
+
+    it("resolves an HM3 one-to-many reference spelled with one of its own permitted subtypes", () => {
+        // `weapongear` is both the row's key and one of its two permitted
+        // subtypes — the reference already says which HM3 subtype it wants,
+        // so it is not the ambiguous case the row exists to guard.
+        expect(referencedSubtype(HM3_DOCUMENT_SUBTYPES, "weapongear", "Item")).toEqual({
+            subType: "weapongear",
+        });
+        // `missilegear` names no row at all (only `projectilegear` does, and
+        // it renames to `missilegear`), so it already resolves through the
+        // unmapped fallback — proof the two spellings behave alike.
+        expect(referencedSubtype(HM3_DOCUMENT_SUBTYPES, "missilegear", "Item")).toEqual({
+            subType: "missilegear",
+        });
+    });
+
+    it("still refuses an HM3 one-to-many row named by neither the row nor a subtype", () => {
+        // `mysticalability` names the row itself, but none of its three
+        // permitted subtypes (`psionic`, `spell`, `invocation`) is spelled
+        // `mysticalability` — a reference this way still cannot say which.
+        const { subType, problem } = referencedSubtype(
+            HM3_DOCUMENT_SUBTYPES,
+            "mysticalability",
+            "Item",
+        );
+        expect(subType).toBeUndefined();
+        expect(problem).toMatch(/psionic/);
+        expect(problem).toMatch(/spell/);
+        expect(problem).toMatch(/invocation/);
+
+        // Likewise `trauma`, whose permitted subtypes (`injury`, `trait`)
+        // share no spelling with the row's own key.
+        const trauma = referencedSubtype(HM3_DOCUMENT_SUBTYPES, "trauma", "Item");
+        expect(trauma.subType).toBeUndefined();
+        expect(trauma.problem).toMatch(/injury/);
+        expect(trauma.problem).toMatch(/trait/);
+    });
+
+    it("declares no one-to-many Item row in the SoHL registry", () => {
+        // SoHL's map is the identity in every Item row, so nothing here
+        // exercises the one-to-many branch at all — a future SoHL row of this
+        // shape should be noticed by a failing assertion, not silence.
+        for (const row of Object.values(SOHL_DOCUMENT_SUBTYPES.types)) {
+            if (row.document !== "Item") continue;
+            expect(row.subType).toBeTruthy();
+            expect(row.discriminator).toBeUndefined();
         }
     });
 

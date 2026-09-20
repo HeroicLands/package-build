@@ -329,7 +329,7 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  * dependency catalogue actually carry, and a reference is translated forward
  * here before it is looked up.
  *
- * Four answers, and only the first resolves:
+ * Five answers, and only the last refuses:
  *
  * - _A one-to-one row_ → the subtype it declares. `armor` addresses an
  *   `armorgear`.
@@ -340,12 +340,19 @@ export function documentSubtype(map, noteType, fm, { file, absPath } = {}) {
  *   existed.
  * - _A row for another document class_ → a problem. A being is not an item,
  *   however the address is spelled.
- * - _A one-to-many row_ → a problem naming the candidates. The note that owns
- *   such a row resolves it from its own frontmatter block; a reference has no
- *   block, so nothing here can choose, and choosing anyway would be right about
- *   half the time. No system declares a one-to-many **Item** row today, so this
- *   is a guard rather than a behaviour — but it is a loud one, which is the
- *   whole point of the issue.
+ * - _A one-to-many row, named by one of its own permitted subtypes_ → that
+ *   subtype. HM3's `weapongear` row is keyed by the note type `weapongear` but
+ *   permits `["weapongear", "missilegear"]`; a reference spelled `weapongear`
+ *   is not ambiguous — it already names the subtype it wants, the same as a
+ *   reference spelled `missilegear` does by matching no row at all and taking
+ *   the unmapped fallback above. Only the row's own key can coincide with one
+ *   of its subtypes, so this is never a second guess at the note's
+ *   frontmatter — the row was looked up by this exact spelling.
+ * - _A one-to-many row, named by neither the row's other permitted subtypes
+ *   nor resolved above_ → a problem naming the candidates. The note that owns
+ *   such a row resolves it from its own frontmatter block; a reference naming
+ *   only the row has no block to read a discriminator from, so nothing here
+ *   can choose, and choosing anyway would be right about half the time.
  *
  * A **retired** spelling is refused by name before any of that. Without it a
  * reference left behind by a merge would take the unmapped fallback and address
@@ -392,6 +399,16 @@ export function referencedSubtype(map, noteType, document) {
     }
     if (!row.subType) {
         const permitted = /** @type {readonly string[]} */ (row.subTypes);
+        // The reference is not ambiguous when its own spelling names one of the
+        // row's permitted subtypes rather than merely the row itself: a
+        // `weapongear` reference into HM3's one-to-many `weapongear` row already
+        // says which subtype it wants, in the same way a `missilegear`
+        // reference does by never matching this row's key at all. Only a
+        // reference that names the row without naming a subtype is genuinely
+        // undecidable.
+        if (permitted.includes(currentType(noteType))) {
+            return { subType: currentType(noteType) };
+        }
         return {
             problem:
                 `a "${noteType}" note compiles into more than one ${map.system} ` +
