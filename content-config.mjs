@@ -580,10 +580,8 @@ export function publishesContentPages(config) {
  *                                          package.
  * @property {string} [homepage]            `package.json`'s own `homepage` —
  *                                          the site build's `baseURL`. Checked
- *                                          against `contentPackage` by
- *                                          `checkHomepage` in `config.mjs`,
- *                                          which is not called here — this
- *                                          field is read through unvalidated.
+ *                                          by `checkHomepage` in
+ *                                          `config.mjs`.
  * @property {string|{name: string, email?: string, url?: string}} [author]
  *                                          `package.json`'s own `author`, in
  *                                          either of npm's forms.
@@ -646,10 +644,9 @@ export function publishesContentPages(config) {
  * @property {string} contentPackage
  * @property {string|null} foundryPackage  `null` for a `documentation`
  *                                     package, which ships no Foundry package.
- * @property {string|null} homepage    `package.json`'s own `homepage`, read
- *                                     through unvalidated — `checkHomepage` in
- *                                     `config.mjs` is what requires and
- *                                     checks it.
+ * @property {string|null} homepage    `package.json`'s own `homepage`,
+ *                                     checked by `checkHomepage` in
+ *                                     `config.mjs`.
  * @property {Readonly<{name: string, email?: string, url?: string}>|null} author
  *                                     `package.json`'s own `author`, normalised
  *                                     from either of npm's forms; `null` when
@@ -2563,10 +2560,8 @@ export function defineConfig(config) {
         rootDir,
         contentPackage: requireContentPackage(input.contentPackage, docEntryTypes),
         foundryPackage,
-        // `package.json`'s own address and byline. `homepage` is read through
-        // unvalidated: checking it against `contentPackage` is
-        // `checkHomepage` in `config.mjs`, for a caller that reads `homepage`
-        // to build a site.
+        // `package.json`'s own address and byline. `homepage` is checked by
+        // `checkHomepage` in `config.mjs`.
         homepage:
             input.homepage === undefined ? null : requireNonEmptyString(input.homepage, "homepage"),
         author: normalizeAuthor(input.author),

@@ -607,9 +607,7 @@ export function resolveAssetTransform(declared, rootDir) {
  * `contentPackage` (`packageHomepage` in `manifest.mjs`); `homepage` states
  * the same address a second time, in `package.json`, for the generated Hugo
  * configuration to read a `baseURL` from without knowing where each
- * repository keeps its own site configuration. Left unchecked, the two are
- * free to disagree — `harn-ensemble`'s `homepage` names a directory
- * Cloudflare never wrote.
+ * repository keeps its own site configuration.
  *
  * Required unconditionally: every package publishes a site, so there is no
  * package this does not apply to.
