@@ -38,6 +38,7 @@ import {
     renderItemFieldsPage,
 } from "../engine/field-reference.mjs";
 import { defineConfig } from "../content-config.mjs";
+import { sharedPrettierOptionsFor } from "../engine/prose-config.mjs";
 
 /** The page as the command writes it, trailing newline and all. */
 const page = `${renderItemFieldReference({
@@ -304,6 +305,27 @@ describe("renderItemFieldsPage", () => {
             frontmatter: { description: "Ignored outside the content tree." },
         });
         expect(rendered).toBe(body);
+    });
+
+    it("writes a note that is already what Prettier would format it to", async () => {
+        // The property that decides whether a consumer can commit this page:
+        // `content-build format` (Prettier) and `docs item-fields --check`
+        // (this generator) have to agree on one file. Proven by running the
+        // generator's own output — envelope and all — through the shared
+        // Prettier configuration and comparing, the same proof
+        // `formatGenerated` applies before a consumer ever sees the page.
+        const destination = path.join(contentRoot, "item-frontmatter.md");
+        const rendered = renderItemFieldsPage(page, {
+            title: "Item Note Frontmatter",
+            destination,
+            contentRoot,
+        });
+        const formatted = await prettier.format(rendered, {
+            ...sharedPrettierOptionsFor(destination),
+            parser: "markdown",
+        });
+
+        expect(formatted).toBe(rendered);
     });
 });
 
