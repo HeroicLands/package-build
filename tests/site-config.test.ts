@@ -329,16 +329,15 @@ describe("the generated configuration", () => {
 
     it("leaves an absent optional value off rather than writing an empty one", () => {
         const out = hugoConfig({
-            config: configFor({ author: undefined }, { assets: undefined }),
+            config: configFor({ author: undefined }),
             description: undefined,
             navigation: NAVIGATION,
             themesDir: THEMES_DIR,
         });
         expect(out.params).not.toHaveProperty("author");
         expect(out.params).not.toHaveProperty("description");
-        expect(out.params).not.toHaveProperty("cdnBaseURL");
         const toml = hugoToml(out);
-        expect(toml).not.toMatch(/author|description|cdnBaseURL/);
+        expect(toml).not.toMatch(/author|description/);
     });
 
     it("fails through `checkHomepage` before anything is written", () => {
@@ -368,6 +367,16 @@ describe("the generated configuration", () => {
                 themesDir: "x",
             }),
         ).toThrow(/`packageBuild\.manifest\.title` is not declared/);
+    });
+
+    it("requires `site.assets`, the host the theme resolves every relative asset against", () => {
+        expect(() =>
+            hugoConfig({
+                config: configFor({}, { assets: undefined }),
+                navigation: NAVIGATION,
+                themesDir: "x",
+            }),
+        ).toThrow(/`site\.assets` is not declared/);
     });
 
     it("serialises to TOML Hugo reads, with the menu as a table array", () => {

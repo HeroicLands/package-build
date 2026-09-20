@@ -181,6 +181,23 @@ function requireNonEmptyString(value, where) {
 }
 
 /**
+ * Reject a configured value, naming the key it was written under.
+ *
+ * The dotted path rides on the error as `field` as well as appearing in the
+ * message, so `locateConfigError` in `engine/pack-config.mjs` — the half that
+ * knows which file was read — can resolve it to a line and column.
+ *
+ * @param {string} where - Dotted path of the offending key.
+ * @param {string} problem - What is wrong with it.
+ * @returns {never}
+ */
+function fail(where, problem) {
+    throw Object.assign(new TypeError(`package-build config: \`${where}\` ${problem}.`), {
+        field: where,
+    });
+}
+
+/**
  * Check a navigation's shape, and return it.
  *
  * `[{name, url, children?: [{name, url}]}]`, every `url` absolute. Checked
@@ -388,8 +405,9 @@ function deepMerge(base, overrides) {
  *   carries `tags:`, from {@link module:engine/site-build.buildSite}'s
  *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
- * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
- *   configuration declares no `packageBuild.manifest.title`.
+ * @throws {TypeError} When `homepage` fails `checkHomepage`, the
+ *   configuration declares no `packageBuild.manifest.title`, or it declares
+ *   no `site.assets`.
  */
 export function hugoConfig({ config, description, navigation, themesDir, hasTags = false }) {
     checkHomepage(config.homepage, config.contentPackage);
@@ -399,6 +417,15 @@ export function hugoConfig({ config, description, navigation, themesDir, hasTags
         throw new TypeError(
             "package-build config: `packageBuild.manifest.title` is not declared, " +
                 "and the site's `title` reads from it.",
+        );
+    }
+
+    if (!config.site.assets) {
+        fail(
+            "site.assets",
+            "is not declared, and a site build needs one — it is the host every " +
+                "package's imagery is served from, and the theme resolves every " +
+                "relative asset against it",
         );
     }
 

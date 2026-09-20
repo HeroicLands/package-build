@@ -326,6 +326,8 @@ function documentationRepo(): string {
             ...MINIMAL_YAML,
             "    address:",
             "        prefix: guide/",
+            "site:",
+            "    assets: https://cdn.example.org",
             "packageBuild:",
             "    manifest:",
             "        title: The Toolkit",
