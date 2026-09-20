@@ -756,10 +756,12 @@ const CONFIG_KEYS = [
     "requiresSystem",
     "packageBuild",
     "publish",
+    "changelog",
 ];
 const SYSTEM_KEYS = ["manifest", "compatibility"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
 const DOCS_KEYS = ["itemFields"];
+const CHANGELOG_KEYS = ["labels"];
 const SITE_KEYS = [
     "base",
     "assets",
@@ -1456,6 +1458,37 @@ function normalizeDocs(value) {
     return Object.freeze({
         itemFields: normalizeDocPage(input.itemFields, "docs.itemFields"),
     });
+}
+
+/**
+ * `changelog.labels` — the vocabulary and display order `changelog check`
+ * and `changelog group` read a release block's bold label against.
+ *
+ * Optional: a repository that groups nothing declares none, and `group`
+ * falls back to ordering every label by first appearance. Declared, it is a
+ * list of non-empty strings with no duplicate — a repeated label could never
+ * be told apart from a genuine drift (`Compendiums` twice would silently
+ * swallow the `Character data` beside `Characters` the list exists to catch).
+ *
+ * @param {unknown} value - The configured value, or `undefined`.
+ * @returns {Readonly<{labels: readonly string[]|null}>}
+ */
+function normalizeChangelog(value) {
+    if (value === undefined) return Object.freeze({ labels: null });
+    if (!isPlainObject(value)) fail("changelog", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, CHANGELOG_KEYS, "changelog.");
+    if (input.labels === undefined) return Object.freeze({ labels: null });
+    if (!Array.isArray(input.labels)) fail("changelog.labels", "must be an array");
+    const labels = input.labels.map((label, index) =>
+        requireNonEmptyString(label, `changelog.labels[${index}]`),
+    );
+    const seen = new Set();
+    for (const label of labels) {
+        if (seen.has(label)) fail("changelog.labels", `declares \`${label}\` more than once`);
+        seen.add(label);
+    }
+    return Object.freeze({ labels: Object.freeze(labels) });
 }
 
 /**
@@ -2758,5 +2791,6 @@ export function defineConfig(config) {
         requiresSystem,
         packageBuild: normalizePackageBuild(input.packageBuild),
         publish: normalizePublish(input.publish),
+        changelog: normalizeChangelog(input.changelog),
     });
 }

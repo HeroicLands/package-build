@@ -54,6 +54,7 @@
  *   npx package-build lang coverage [--unused]
  *   npx package-build lang hardcoded
  *   npx package-build changelog check [--release] [paths..]
+ *   npx package-build changelog group [paths..]
  *   npx package-build bundle check
  *   npx package-build release
  *   npx package-build deploy <stage>
@@ -82,7 +83,7 @@ import { loadPackageBuildConfig } from "../config.mjs";
 import { writeSiteRoot } from "../engine/site-root.mjs";
 import { DEPLOY_ROOT } from "../engine/site-config.mjs";
 import { compilesFoundryDocuments } from "../content-config.mjs";
-import { loadPackConfig, packConfigPath } from "../engine/pack-config.mjs";
+import { loadPackConfig, packConfigPath, resolveConfigFile } from "../engine/pack-config.mjs";
 import { cleanBuildArtifacts, stageAssets } from "../stage.mjs";
 import { buildSchemaArtifact } from "../engine/schema-extract.mjs";
 import { SCHEMA_ARTIFACT_FILE } from "../engine/foreign-catalog.mjs";
@@ -90,6 +91,7 @@ import { validateLangSource } from "../lang.mjs";
 import { checkLabelRegistry } from "../labels.mjs";
 import { lintYaml } from "../engine/yaml-lint.mjs";
 import { lintChangesetText, lintReleaseText } from "../engine/changelog-lint.mjs";
+import { groupChangelogText } from "../engine/changelog-group.mjs";
 import { bumpDependencies } from "../engine/dependency-bump.mjs";
 import {
     analyzeCoverage,
@@ -779,41 +781,53 @@ function yamlCommand() {
 }
 
 /**
- * `changelog check` — lint release prose against the rules a changeset is
- * actually held to (`check` is the only action).
+ * `changelog check` / `changelog group` — release-prose checks, and folding
+ * a release's changeset blocks together by their bold label.
  *
- * A changeset answers one question — who notices, and what do they see — and
- * nothing enforced it, so a pull-request description pasted into one ships
- * verbatim as a release note. Default reads every pending changeset;
- * `--release` reads the first `## <version>` section of `CHANGELOG.md`
- * instead, for the **Version Packages** branch a merge to `main` opens.
+ * `check` answers one question a changeset otherwise goes unheld to — who
+ * notices, and what do they see — so a pull-request description pasted into
+ * one does not ship verbatim as a release note. Default reads every pending
+ * changeset; `--release` reads the first `## <version>` section of
+ * `CHANGELOG.md` instead, for the **Version Packages** branch a merge to
+ * `main` opens.
+ *
+ * `group` rewrites that same first `## <version>` section in place: every
+ * changeset in it writes its own `**Compendiums**` block, and nothing merges
+ * the three a release with three compendium fixes ends up with. It reads
+ * `changelog.labels` for the vocabulary and display order, when the
+ * repository declares one.
  *
  * @returns {object} The yargs command module.
  */
 function changelogCommand() {
     return {
         command: "changelog <action> [paths..]",
-        describe: "Release-prose checks",
+        describe: "Release-prose checks, and folding a release's blocks by label",
         builder: (y) =>
             y
                 .positional("action", {
-                    choices: ["check"],
-                    describe: "check: lint pending changesets, or a release section",
+                    choices: ["check", "group"],
+                    describe:
+                        "check: lint pending changesets, or a release section. " +
+                        "group: fold a release section's blocks together by label",
                 })
                 .positional("paths", {
                     describe:
-                        "Files to check. Defaults to `.changeset/*.md` (config.json and " +
-                        "README.md excluded), or `CHANGELOG.md` with --release.",
+                        "Files to act on. Defaults to `.changeset/*.md` (config.json and " +
+                        "README.md excluded) for check, or `CHANGELOG.md` for check --release " +
+                        "and for group.",
                     type: "string",
                 })
                 .option("release", {
                     type: "boolean",
                     default: false,
                     describe:
-                        "Check the first `## <version>` section of CHANGELOG.md instead of " +
-                        "pending changesets",
+                        "check only: check the first `## <version>` section of CHANGELOG.md " +
+                        "instead of pending changesets",
                 }),
-        handler: handler(async (args) => changelogCheck(args)),
+        handler: handler(async (args) =>
+            args.action === "group" ? changelogGroup(args) : changelogCheck(args),
+        ),
     };
 }
 
@@ -836,18 +850,34 @@ function changelogFiles(args) {
 }
 
 /**
+ * `changelog.labels`, when this repository declares a configuration — `null`
+ * otherwise, so `check` and `group` both work in a tree with no
+ * `package-build.config.yaml` at all, exactly as `check` already does for
+ * pending changesets with no configuration to read.
+ *
+ * @returns {readonly string[]|null}
+ */
+function loadChangelogLabels() {
+    const found = resolveConfigFile();
+    if (!found.path) return null;
+    return loadPackConfig().changelog.labels;
+}
+
+/**
  * Run `changelog check` over every resolved file and report the result.
  *
  * @param {object} args - Parsed CLI arguments.
  */
 function changelogCheck(args) {
+    const labels = loadChangelogLabels();
     const files = changelogFiles(args);
     let errors = 0;
     let total = 0;
     for (const file of files) {
         if (!fs.existsSync(file)) die(`changelog check: ${file} does not exist.`);
         const text = fs.readFileSync(file, "utf8");
-        const { findings } = args.release ? lintReleaseText(text) : lintChangesetText(text);
+        const { findings } =
+            args.release ? lintReleaseText(text, { labels }) : lintChangesetText(text, { labels });
         errors += reportFindings(findings, { file });
         total += findings.length;
     }
@@ -856,6 +886,26 @@ function changelogCheck(args) {
             `${errors} error(s) · ${total - errors} warning(s)`,
     );
     if (errors) process.exitCode = 1;
+}
+
+/**
+ * Run `changelog group` over every resolved file, writing each back in place.
+ *
+ * @param {object} args - Parsed CLI arguments.
+ */
+function changelogGroup(args) {
+    const labels = loadChangelogLabels();
+    const files = args.paths?.length ? args.paths : ["CHANGELOG.md"];
+    let warnings = 0;
+    for (const file of files) {
+        if (!fs.existsSync(file)) die(`changelog group: ${file} does not exist.`);
+        const original = fs.readFileSync(file, "utf8");
+        const { text, findings } = groupChangelogText(original, { labels });
+        reportFindings(findings, { file });
+        warnings += findings.length;
+        if (text !== original) fs.writeFileSync(file, text, "utf8");
+    }
+    console.log(`package-build: ${files.length} file(s) grouped · ${warnings} warning(s)`);
 }
 
 /**

@@ -49,6 +49,9 @@ const TOP_BULLET_RE = /^-\s+/;
 /** A list item indented under something else. */
 const NESTED_BULLET_RE = /^[ \t]+[-*+]\s+/;
 
+/** A bold label opening a block at column 0: `**Compendiums**`. */
+const LABEL_LINE_RE = /^\*\*([^*]+)\*\*/;
+
 /** A commit-hash prefix: `- abc1234: …`, or a bare hex token opening the bullet. */
 const COMMIT_HASH_RE = /^-\s+([0-9a-fA-F]{7,40})(?=[:\s]|$)/;
 
@@ -92,7 +95,7 @@ const MAX_SECTION_LINES = 60;
  * @param {number} index - 0-based character offset.
  * @returns {{line: number, column: number}}
  */
-function lineColOf(text, index) {
+export function lineColOf(text, index) {
     const before = text.slice(0, Math.max(0, index));
     const nl = before.lastIndexOf("\n");
     return { line: before.split("\n").length, column: index - nl };
@@ -108,7 +111,7 @@ function lineColOf(text, index) {
  * @param {string} text - The section text.
  * @returns {Set<number>} Lines that fall inside a fenced or indented block.
  */
-function codeLineSet(text) {
+export function codeLineSet(text) {
     const lines = new Set();
     for (const region of codeRegions(text, { spans: false })) {
         const from = lineColOf(text, region.start).line;
@@ -185,7 +188,7 @@ function checkCodeFences(text) {
  *   {@link codeLineSet}.
  * @returns {Array<{startLine: number, text: string}>}
  */
-function topLevelBullets(text, codeLines) {
+export function topLevelBullets(text, codeLines) {
     const lines = text.split("\n");
     /** @type {Array<{startLine: number, text: string}>} */
     const bullets = [];
@@ -211,11 +214,91 @@ function topLevelBullets(text, codeLines) {
             continue;
         }
         // Column 0, not a bullet: a bold subsection label or a scaffold
-        // heading closes whatever bullet was open.
+        // heading closes whatever bullet was open — pushed here, or it is
+        // lost rather than merely closed.
+        if (current) bullets.push({ startLine: current.startLine, text: current.parts.join("\n") });
         current = null;
     }
     if (current) bullets.push({ startLine: current.startLine, text: current.parts.join("\n") });
     return bullets;
+}
+
+/**
+ * Every top-level block of release prose — one rendered changeset entry, or
+ * one unlabelled paragraph standing in for one.
+ *
+ * `@heroiclands/package-build/changelog` (`changelog.cjs`) writes a
+ * changeset's whole summary as one block, verbatim, so a block here holds
+ * together the same way that summary is authored: a bold label opening a
+ * line at column 0 (`**Compendiums**`) starts a new block, and — unlike
+ * {@link topLevelBullets}, where a bullet marker *is* the top-level
+ * construct — a `-` bullet at column 0 belongs to whatever block is
+ * already open, since a label's bullets sit unindented directly under it.
+ * Any other column-0 line (plain prose with no label, a bullet with no
+ * block open yet) starts the one "lead" block (`label: null`) a changeset
+ * with no category writes — the case `changelog group` sorts first and
+ * `check` never flags. Nested detail — a wrapped line, a bullet's own
+ * continuation — stays indented and belongs to whatever it follows.
+ * `changelog group` folds same-label blocks together; `check` warns when a
+ * block's label is not in the declared vocabulary.
+ *
+ * @param {string} text - Section text.
+ * @param {Set<number>} codeLines - Lines inside a code region, from
+ *   {@link codeLineSet}.
+ * @param {Set<number>} [scaffoldLines] - Generated heading lines that close
+ *   whatever block is open without starting one, from
+ *   {@link scaffoldLineSet} — empty for a caller that already isolated one
+ *   `### <Bump> Changes` body, since no heading falls inside it.
+ * @returns {Array<{startLine: number, label: string|null, text: string}>}
+ */
+export function topLevelBlocks(text, codeLines, scaffoldLines = new Set()) {
+    const lines = text.split("\n");
+    /** @type {Array<{startLine: number, label: string|null, text: string}>} */
+    const blocks = [];
+    /** @type {{startLine: number, label: string|null, parts: string[]}|null} */
+    let current = null;
+    const close = () => {
+        if (current)
+            blocks.push({
+                startLine: current.startLine,
+                label: current.label,
+                text: current.parts.join("\n"),
+            });
+        current = null;
+    };
+
+    for (let i = 0; i < lines.length; i++) {
+        const lineNo = i + 1;
+        const raw = lines[i];
+
+        if (codeLines.has(lineNo)) {
+            if (current) current.parts.push(raw);
+            continue;
+        }
+        if (scaffoldLines.has(lineNo)) {
+            close();
+            continue;
+        }
+        const atColumnZero = raw.trim() !== "" && !/^[ \t]/.test(raw);
+        if (!atColumnZero) {
+            if (current) current.parts.push(raw);
+            continue;
+        }
+        const label = LABEL_LINE_RE.exec(raw)?.[1] ?? null;
+        if (label !== null) {
+            close();
+            current = { startLine: lineNo, label, parts: [raw] };
+            continue;
+        }
+        if (TOP_BULLET_RE.test(raw) && current) {
+            current.parts.push(raw);
+            continue;
+        }
+        close();
+        current = { startLine: lineNo, label: null, parts: [raw] };
+    }
+    close();
+    return blocks;
 }
 
 /**
@@ -503,6 +586,41 @@ function checkCodeLikeTokens(text, maskedRegions) {
 }
 
 /**
+ * A block's bold label absent from the declared `changelog.labels`
+ * vocabulary — the drift `**Character data**` beside `**Characters**`
+ * produces, invisible until something reads the declared list against what a
+ * changeset actually wrote. A warning, not an error: an undeclared label
+ * still ships and still groups (`changelog group` files it last), so nothing
+ * here blocks a release — it only says the vocabulary and the prose have
+ * drifted apart.
+ *
+ * @param {Array<{startLine: number, label: string|null}>} blocks - From
+ *   {@link topLevelBlocks}.
+ * @param {readonly string[]|null|undefined} labels - `changelog.labels`, or
+ *   `null`/`undefined` when the repository declares none, in which case
+ *   nothing is checked — there is no vocabulary for a label to drift from.
+ * @returns {RelativeFinding[]}
+ */
+function checkUnknownLabels(blocks, labels) {
+    if (!labels) return [];
+    /** @type {RelativeFinding[]} */
+    const findings = [];
+    for (const block of blocks) {
+        if (block.label === null || labels.includes(block.label)) continue;
+        findings.push({
+            line: block.startLine,
+            column: 3, // right after the opening `**`
+            severity: "warning",
+            message:
+                `changelog-check/unknown-label "${block.label}" is not declared in ` +
+                "`changelog.labels` (declared: " +
+                `${labels.join(", ")}) — add it there, or correct the label`,
+        });
+    }
+    return findings;
+}
+
+/**
  * The 1-based lines a caller drops from the heading rule because they are the
  * generated scaffold, never authored prose: the section's own `## <version>`
  * opening and any `### <Bump> Changes` line.
@@ -524,13 +642,17 @@ function scaffoldLineSet(text) {
  * Run every rule over one section of release prose.
  *
  * @param {string} text - The section, already isolated by the caller.
+ * @param {object} [opts]
+ * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, for
+ *   {@link checkUnknownLabels}. `null`/absent checks nothing.
  * @returns {RelativeFinding[]} Findings with line numbers relative to `text`.
  */
-function lintSection(text) {
+function lintSection(text, { labels = null } = {}) {
     const codeLines = codeLineSet(text);
     const maskedRegions = codeRegions(text, { spans: true });
     const scaffoldLines = scaffoldLineSet(text);
     const bullets = topLevelBullets(text, codeLines);
+    const blocks = topLevelBlocks(text, codeLines, scaffoldLines);
 
     return [
         ...checkCommitHash(text, codeLines, scaffoldLines),
@@ -544,6 +666,7 @@ function lintSection(text) {
         ...checkTooManyBullets(bullets),
         ...checkTooManyLines(text),
         ...checkCodeLikeTokens(text, maskedRegions),
+        ...checkUnknownLabels(blocks, labels),
     ].sort((a, b) => a.line - b.line || (a.column ?? 0) - (b.column ?? 0));
 }
 
@@ -593,12 +716,19 @@ function extractReleaseSection(text) {
  * Lint one pending changeset (`.changeset/*.md`).
  *
  * @param {string} text - The file's full contents, frontmatter included.
+ * @param {object} [opts]
+ * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, in
+ *   display order, or `null`/absent when the repository declares none —
+ *   {@link checkUnknownLabels} checks nothing in that case.
  * @returns {{findings: Array<{line: number, column?: number,
  *   severity: "error"|"warning", message: string}>}}
  */
-export function lintChangesetText(text) {
+export function lintChangesetText(text, { labels = null } = {}) {
     const { body, startLine } = stripFrontmatter(text);
-    const findings = lintSection(body).map((f) => ({ ...f, line: f.line + startLine - 1 }));
+    const findings = lintSection(body, { labels }).map((f) => ({
+        ...f,
+        line: f.line + startLine - 1,
+    }));
     return { findings };
 }
 
@@ -606,10 +736,14 @@ export function lintChangesetText(text) {
  * Lint the first `## <version>` release section of a `CHANGELOG.md`.
  *
  * @param {string} text - The changelog's full contents.
+ * @param {object} [opts]
+ * @param {readonly string[]|null} [opts.labels] - `changelog.labels`, in
+ *   display order, or `null`/absent when the repository declares none —
+ *   {@link checkUnknownLabels} checks nothing in that case.
  * @returns {{findings: Array<{line?: number, column?: number,
  *   severity: "error"|"warning", message: string}>}}
  */
-export function lintReleaseText(text) {
+export function lintReleaseText(text, { labels = null } = {}) {
     const section = extractReleaseSection(text);
     if (!section) {
         return {
@@ -621,9 +755,34 @@ export function lintReleaseText(text) {
             ],
         };
     }
-    const findings = lintSection(section.body).map((f) => ({
+    const findings = lintSection(section.body, { labels }).map((f) => ({
         ...f,
         line: f.line + section.startLine - 1,
     }));
     return { findings };
+}
+
+/**
+ * The first `## <version>` release section of a changelog, as raw character
+ * offsets rather than {@link extractReleaseSection}'s line-joined copy.
+ *
+ * `extractReleaseSection` rebuilds its `body` by joining a slice of
+ * `text.split("\n")`, which is fine for reporting a line number but drops
+ * the exact byte the next `## ` heading sits after — a caller rewriting the
+ * file in place, such as `changelog group`, needs `text.slice(start, end)`
+ * to be the section verbatim, so it can splice a replacement back in without
+ * guessing at the whitespace on either side.
+ *
+ * @param {string} text - The changelog's full contents.
+ * @returns {{start: number, end: number}|null} `null` when no `## ` heading
+ *   is present. `text.slice(start, end)` is the section, byte-exact,
+ *   including whatever separates it from the next `## ` heading or the end
+ *   of the file.
+ */
+export function releaseSectionRange(text) {
+    const matches = [...text.matchAll(/^## /gm)];
+    if (matches.length === 0) return null;
+    const start = matches[0].index;
+    const end = matches.length > 1 ? matches[1].index : text.length;
+    return { start, end };
 }

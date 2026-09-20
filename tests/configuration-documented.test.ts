@@ -331,6 +331,13 @@ describe("every nested key list is documented", () => {
             ),
         );
     });
+
+    it("`changelog`", () => {
+        assertDocuments(
+            "changelog",
+            allowedKeys(() => defineConfig(minimal({ changelog: { __unrecognised__: true } }))),
+        );
+    });
 });
 
 describe("the `packageBuild` section is documented", () => {
@@ -743,6 +750,20 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
             thrown(() =>
                 resolvePackageBuildConfig(sharedMinimal({ container: { name: "not a name!" } })),
             ).replace(/^package-build config: `packageBuild\.container\.name` /, ""),
+        );
+    });
+
+    it("`changelog.labels`", () => {
+        assertQuoted(
+            thrown(() => defineConfig(minimal({ changelog: { labels: "Compendiums" } }))).replace(
+                /^package-build config: `changelog\.labels` /,
+                "",
+            ),
+        );
+        assertQuoted(
+            thrown(() =>
+                defineConfig(minimal({ changelog: { labels: ["Compendiums", "Compendiums"] } })),
+            ).replace(/^package-build config: `changelog\.labels` /, ""),
         );
     });
 
