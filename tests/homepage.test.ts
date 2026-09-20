@@ -322,17 +322,15 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
     });
 
     it("ignores the content framing entirely, rather than trusting it to be absent", () => {
-        // A `site:` block naming sections and extra trees cannot re-open a
+        // A `site:` block naming sections and a landing cannot re-open a
         // content surface: homepage-only is a mode, not the absence of
         // configuration.
-        write("extra/README.md", "---\nsubType: dev-docs\n---\n\n# Docs\n");
         const out = path.join(root, "build/hugo/content");
         const config = configFor({
             site: {
                 sections: { weapongear: { title: "Weapons" } },
                 backfillSections: true,
                 landing: { title: "Knowledgebase", type: "knowledgebase" },
-                trees: [{ from: "extra", section: "dev-docs" }],
             },
             publish: {
                 site: "homepage",

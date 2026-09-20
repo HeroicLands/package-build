@@ -312,7 +312,7 @@ function isPlainMap(value) {
  * for the website, and what the book reads its staging list out of.
  *
  * @param {string} body - The markdown body.
- * @param {object} ctx - `{ index, assets, collide, sections, contentTypes,
+ * @param {object} ctx - `{ index, assets, collide, contentTypes,
  *   packages, noIndexPackages, foreign, type, errors, src, file }`.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type;
@@ -415,10 +415,6 @@ export function resolveWebWikilinks(body, ctx) {
         const rawKey = target.toLowerCase();
         const hit =
             lookupRead(ctx.index, read, ctx.contentPackage) ??
-            // `section/slug` is the site's own address for a page, and it is in
-            // the same map. Admitted only when the target carries a slash, so
-            // a page's bare slug cannot answer for an address.
-            (rawKey.includes("/") ? ctx.index.get(rawKey) : undefined) ??
             // A manifest entry carries the same `{ url, name }` shape as a
             // local one, so a cross-package hit needs no special case
             // below. Local wins: a live build is authoritative and a vendored
@@ -449,16 +445,6 @@ export function resolveWebWikilinks(body, ctx) {
             return hit.draft ? draftLink(link) : link;
         }
 
-        const slash = target.indexOf("/");
-        const prefix = slash === -1 ? null : target.slice(0, slash).toLowerCase();
-        // A slash-qualified target whose prefix is a real KB **section** is an
-        // address in the site's own `section/slug` space, which the lookup
-        // above already consulted. It parses as no `type/shortcode`, but it did
-        // address something and nothing answered — so it is unresolved, not
-        // unaddressable. (A prefix that is a content *type* never reaches here:
-        // it parses as an address.)
-        const siteAddress = prefix !== null && ctx.sections.has(prefix);
-
         // **An address resolving nowhere is a failure, unconditionally**.
         //
         // It was gated on a manifest-completeness check — while any linkable package was
@@ -485,7 +471,7 @@ export function resolveWebWikilinks(body, ctx) {
             ctx.collide?.has(collideKey) ? "ambiguous"
                 // "It parsed as an address" is a property of the parse, not of
                 // a key: a partial address has no single key to be non-null.
-            : (read && !read.reason) || siteAddress ? "unresolved"
+            : read && !read.reason ? "unresolved"
             : read?.reason === "unknown-type" ? "unknown-type"
             : read?.reason === "no-content-index" ? "no-content-index"
                 // Every link is an address, and this is not one. Distinct from

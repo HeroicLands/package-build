@@ -65,11 +65,22 @@
  *   a shared value that cannot describe a system-specific pack, so it does not
  *   answer and that system falls through to its own default. Both were silent
  *   losses of one system's whole document set.
+ * - **`pack: none` routes the document nowhere, on purpose.** The note is
+ *   walked, indexed, published and linkable, and no compendium receives it:
+ *   {@link createPackRouter}'s `resolve` answers `undefined`, which no pass's
+ *   name equals, so every pass passes over the note as one it does not own.
+ *   It is accepted only on a type whose sole document is the JournalEntry its
+ *   prose becomes — `doc` and the other journal-only types. On a type that
+ *   compiles an Item, an Actor, a Macro, a Scene or an Adventure it is refused
+ *   by name, because there the declaration would drop the document the type
+ *   exists to produce. Read per system like any other `pack:`, so a block may
+ *   say `none` for one system and the shared declaration may name a pack for
+ *   the rest.
  *
  * @module
  */
 
-import { packForType } from "./ids.mjs";
+import { NO_PACK, packForType } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { blockProperty, systemBlock } from "./system-block.mjs";
 
@@ -96,6 +107,35 @@ export class PackRoutingError extends Error {
 export const PACK_FIELD = "pack";
 
 /**
+ * The `pack:` value that routes a note's document into no compendium — see
+ * {@link module:engine/ids.NO_PACK}. Re-exported here because this is the
+ * module that reads it; a configured pack may not take the name, so the value
+ * can never be mistaken for one.
+ */
+export { NO_PACK };
+
+/**
+ * Whether a note declares `pack: none` for one system's document.
+ *
+ * The same reading {@link createPackRouter}'s `resolve` applies: the system's
+ * block wins where it declares a pack, and the shared top-level value stands
+ * otherwise. Asked with no system, it reads the shared value alone, which is
+ * what every single-system build and the content index read.
+ *
+ * Pure, so the readers that never route — the Foundry-address pass, the link
+ * index, the unclaimed-type check — can ask it without a router.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} [system] - The system whose document is asked about.
+ * @returns {boolean} True when the answer for that document is `none`.
+ */
+export function declaresNoPack(fm, system) {
+    const declared =
+        system === undefined ? fm?.[PACK_FIELD] : blockProperty(fm, system, PACK_FIELD);
+    return declared === NO_PACK;
+}
+
+/**
  * Build the router for one configured pack list.
  *
  * Pure — it reads the list and nothing else, so a consumer's routing can be
@@ -103,7 +143,7 @@ export const PACK_FIELD = "pack";
  *
  * @param {readonly object[]} packs - The resolved `packs` list from
  *   `defineConfig`.
- * @returns {{resolve: (fm: object, docType: string, system?: string) => string,
+ * @returns {{resolve: (fm: object, docType: string, system?: string) => string|undefined,
  *   resolveOrNull: (fm: object, docType: string, system?: string) => string|undefined,
  *   packsOfType: (docType: string) => string[],
  *   defaultOf: (docType: string) => string|undefined}} The router.
@@ -180,6 +220,14 @@ export function createPackRouter(packs) {
     const noteLabel = (fm) => fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "a note";
 
     /**
+     * `"a"` or `"an"`, so a document class reads as English in a message.
+     *
+     * @param {string} word - The word the article precedes.
+     * @returns {string} The article.
+     */
+    const article = (word) => (/^[AEIOUaeiou]/.test(word) ? "an" : "a");
+
+    /**
      * The pack a note declaring none is routed to.
      *
      * **A system never falls back to another system's pack.** Where one is
@@ -212,8 +260,11 @@ export function createPackRouter(packs) {
      * @param {string} [system] - The system whose document is being routed. Its
      *   block's `pack:` wins over the shared one; without it only the shared
      *   declaration is read, which is every single-system build.
-     * @returns {string} The pack name.
-     * @throws {PackRoutingError} When the note routes nowhere.
+     * @returns {string|undefined} The pack name — or `undefined` where the
+     *   note declares `pack: none`, which no pass's name equals, so every pass
+     *   passes over the note as one it does not own.
+     * @throws {PackRoutingError} When the note routes nowhere, or declares
+     *   `pack: none` on a type that compiles a document beside its prose.
      */
     function resolve(fm, docType, system) {
         const inBlock = system === undefined ? undefined : systemBlock(fm, system)?.[PACK_FIELD];
@@ -224,6 +275,29 @@ export function createPackRouter(packs) {
         // writing a document derived from it — an item's prose becoming a
         // JournalEntry — is not what the author was addressing.
         const ownDocType = packForType(fm?.type).docType;
+
+        // `none`: the note compiles into no document. Only a type whose own
+        // document *is* the JournalEntry may say so — for every other type
+        // the declaration would drop the Item, Actor, Macro, Scene or
+        // Adventure the type exists to produce, and its prose with it. The
+        // document class comes from the same table every pass routes by, so
+        // the refusal names what the compile would have written. Asked only
+        // by the pass that writes the note's own document, as every `pack:`
+        // is, so the refusal is reported once rather than once per pass.
+        if (declared === NO_PACK && docType === ownDocType) {
+            if (ownDocType !== "JournalEntry") {
+                const spelled = authoredInBlock ? `${system}.pack: ${NO_PACK}` : `pack: ${NO_PACK}`;
+                throw new PackRoutingError(
+                    `${noteLabel(fm)} declares \`${spelled}\`, but a ${fm?.type} note ` +
+                        `compiles into ${article(ownDocType)} ${ownDocType}, and ` +
+                        `\`pack: ${NO_PACK}\` would drop it. Only a type whose sole ` +
+                        `document is the JournalEntry its prose becomes may ` +
+                        `declare it — name the pack the ${ownDocType} goes to, or ` +
+                        `leave \`pack:\` unset for the default.`,
+                );
+            }
+            return undefined;
+        }
 
         // **A declaration naming another system's pack is not this system's
         // answer**, and which of two things that means depends on where
@@ -328,7 +402,10 @@ export function createPackRouter(packs) {
          * @param {object} fm - The note's frontmatter.
          * @param {string} docType - The document type being addressed.
          * @param {string} [system] - The system whose document is addressed.
-         * @returns {string|undefined} The pack name, or `undefined`.
+         * @returns {string|undefined} The pack name, or `undefined` — for a
+         *   note that routes nowhere and for one declaring `pack: none`
+         *   alike. A caller that must tell the two apart asks
+         *   {@link declaresNoPack}.
          */
         resolveOrNull(fm, docType, system) {
             try {

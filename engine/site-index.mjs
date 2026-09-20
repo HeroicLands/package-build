@@ -65,20 +65,14 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  *
  * @typedef {object} SiteEntry
  * @property {string} kind   `"content"` for a note compiled from the content
- *                           tree, anything else for a page that carries no
- *                           `type`/`shortcode` (a developer doc, say). Only
- *                           content entries take part in type-scoped indexing.
+ *                           tree. Only content entries take part in
+ *                           type-scoped indexing; anything else is carried
+ *                           through unindexed.
  * @property {object} fm     The note's frontmatter.
  * @property {string} name   Display name.
  * @property {string} slug   URL segment.
- * @property {string} [sec]  The Hugo section a **tree** page is filed under, and
- *                           the first segment of the `<sec>/<slug>` address it
- *                           is reachable by. A content page has none: it is
- *                           addressed by `(type, shortcode)` and emitted flat.
  * @property {string} base   Source file's basename, e.g. `Climbing.md`.
  * @property {string} url    The page's published address.
- * @property {boolean} [isReadme]  Whether a tree page is its directory's
- *                           landing.
  */
 
 /**
@@ -94,23 +88,18 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  *                                       from `index`.
  * @property {Set<string>} contentTypes  Every type the resolver should read as
  *                                       an address qualifier, local and foreign.
- * @property {Set<string>} sections      Section names, lowercased.
  * @property {Map<string, {name: string, url: string, subType?: string}>} refIndex
  *                                       `type:shortcode` → page, for callers
  *                                       resolving embedded references (a
  *                                       being's items, say).
- * @property {{key: string, package: string}[]} conflicts  Addresses claimed by
- *                                       more than one package. Non-empty is a
- *                                       build failure; the caller reports it.
  */
 
 /**
  * Merge the packages this build does not publish into the local index.
  *
  * Every canonical key is globally unique, so a foreign manifest merges straight
- * in — one map, one lookup, no precedence rule. A key already present is a
- * genuine conflict: two packages claiming one address, which is the case the
- * canonical form exists to make detectable.
+ * in — one map, one lookup, no precedence rule. It runs before the local pass
+ * writes a single key, so a local page always ends up owning its own address.
  *
  * The short `type/shortcode` form is merged too, because a bare `[[doc-xyz]]`
  * carries no package and must still find a foreign note when exactly one
@@ -122,22 +111,15 @@ import { isDraftNote } from "./note-vocabulary.mjs";
  *
  * @param {Map<string, object>} index - The local index, mutated.
  * @param {Map<string, {package: string, type?: string}>} foreignIndex - Merged in.
- * @returns {{conflicts: {key: string, package: string}[],
- *   ambiguous: Set<string>}} The addresses two packages both claim outright,
- *   and the short `type/shortcode` forms two foreign packages claim — those are
- *   left out of the index, so a resolver can say *ambiguous* rather than
- *   *nothing answers*.
+ * @returns {{ambiguous: Set<string>}} The short `type/shortcode` forms two
+ *   foreign packages claim — those are left out of the index, so a resolver
+ *   can say *ambiguous* rather than *nothing answers*.
  */
 function mergeForeign(index, foreignIndex) {
-    const conflicts = [];
     const short = new Map();
     const ambiguous = new Set();
 
     for (const [key, value] of foreignIndex) {
-        if (index.has(key)) {
-            conflicts.push({ key, package: value.package });
-            continue;
-        }
         index.set(key, value);
 
         const parts = readCanonicalKey(key);
@@ -154,7 +136,7 @@ function mergeForeign(index, foreignIndex) {
     for (const [key, value] of short) {
         if (!index.has(key)) index.set(key, value);
     }
-    return { conflicts, ambiguous };
+    return { ambiguous };
 }
 
 /**
@@ -178,7 +160,6 @@ export function buildSiteIndex(
 ) {
     const index = new Map();
     const contentTypes = new Set();
-    const sections = new Set();
     const refIndex = new Map();
     // Every package an address may name: this build's own, plus every one a
     // vendored manifest speaks for. Without it `readQualifier` cannot see the
@@ -187,30 +168,12 @@ export function buildSiteIndex(
     const ownPackage = contentPackage();
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
-    // `section/slug` is unique by construction, and is now a **tree** page's
-    // address: a `trees` entry keeps its source layout below a named section,
-    // so `dev-docs/testing` is how one is cited. A content page carries no
-    // section at all and is addressed by `(type, shortcode)` below —
-    // indexing it here as well would have written `weapongear/weapongear-dagger`,
-    // a key no author could reasonably write.
-    //
-    // A page's name, filename and bare slug were indexed here too, as
-    // collision-aware fallbacks the bare `[[Name]]` form looked up; that form is
-    // retired and nothing consults them, so they are gone and with them the rule
-    // that two pages of a type may not share a name.
-    for (const e of entries) {
-        if (typeof e.sec !== "string" || !e.sec) continue;
-        sections.add(e.sec.toLowerCase());
-        // `draft` rides on every key a page is addressable by, because a link
-        // into a draft note renders marked whichever of them the author wrote.
-        // It decides nothing about resolution: the page is indexed and
-        // published as any other.
-        index.set(`${e.sec}/${e.slug}`.toLowerCase(), {
-            url: e.url,
-            name: e.name,
-            draft: isDraftNote(e.fm),
-        });
-    }
+    // A page is addressed by `(type, shortcode)` and nothing else. Its name,
+    // filename and bare slug are not keys: the bare `[[Name]]` form that
+    // looked them up is retired, and with it the rule that two pages of a
+    // type may not share a name. A page carries no section either — a
+    // section is a listing the configuration declares, not part of any
+    // address.
 
     // A foreign package may use a type this build has never seen. Seeding those
     // is what lets the resolver recognise `polity-xyz` as an address at all —
@@ -226,15 +189,11 @@ export function buildSiteIndex(
     // the local packages, so a manifest should never carry one — this is what
     // makes that a belt-and-braces rather than the only thing standing between
     // a stale vendored manifest and a shadowed local page.
-    //
-    // The corollary is that a conflict can only be reported against the keys
-    // that exist at this point — the addressing ones, `section/slug` and the
-    // bare fallbacks — which is precisely the overlap worth refusing.
-    const { conflicts, ambiguous } = mergeForeign(index, foreignIndex);
+    const { ambiguous } = mergeForeign(index, foreignIndex);
 
     for (const e of entries) {
-        // A page with no type or shortcode — a developer doc — is addressable
-        // by section and name, and takes no part in type-scoped indexing.
+        // Only a content note is addressable; anything else is carried
+        // through and takes no part in type-scoped indexing.
         if (e.kind !== "content") continue;
         const type = String(e.fm.type).toLowerCase();
         contentTypes.add(type);
@@ -303,11 +262,9 @@ export function buildSiteIndex(
         index,
         ambiguous,
         contentTypes,
-        sections,
         packages,
         noIndexPackages,
         refIndex,
-        conflicts,
     };
 }
 
@@ -352,7 +309,6 @@ export function wikiContext(
         // a URL and a name, an asset's carries the path to a file.
         assets,
         collide: built.ambiguous,
-        sections: built.sections,
         contentTypes: built.contentTypes,
         packages: built.packages,
         noIndexPackages: built.noIndexPackages,

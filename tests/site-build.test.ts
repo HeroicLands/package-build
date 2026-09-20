@@ -27,14 +27,12 @@ import { defineConfig } from "../index.mjs";
 import {
     buildSite,
     collectContentPages,
-    collectTreePages,
     gatesFailed,
     pageDestination,
     pageFrontmatter,
     pluralTitle,
     resolveSitePass,
     siteGates,
-    walkSiteTree,
     writeSectionLandings,
 } from "../engine/site-build.mjs";
 
@@ -87,12 +85,6 @@ shortcode: rulesidx
 name:
     full: The Rules`,
     );
-
-    write("docs/README.md", `---\nsubType: dev-docs\n---\n\n# Developer Documentation\n\nIntro.\n`);
-    write(
-        "docs/how-to/testing.md",
-        `---\nsubType: dev-docs\n---\n\n# Testing\n\nSee [architecture](../concepts/arch.md) and [the source](../../src/x.ts).\n`,
-    );
 });
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -131,29 +123,6 @@ const ctx = {
     scheme: { prefix: "kb/" },
 };
 
-describe("the walk is ordered, because the index depends on it", () => {
-    it("is depth-first in directory order, not reversed", () => {
-        const files = walkSiteTree(path.join(root, "assets/content")).map((f) =>
-            path.relative(path.join(root, "assets/content"), f),
-        );
-        // `walkMarkdownTree` yields this tree reversed, and a bare `[[Name]]`
-        // resolves first-writer-wins — so reversing the walk silently changes
-        // which page an ambiguous name resolves to.
-        expect(files[0]).toBe(path.join("Gear", "Dagger.md"));
-        expect(files).toEqual([...files].sort());
-    });
-
-    it("skips the directories the configuration names", () => {
-        write("assets/content/Templates/T.md", "---\ntype: doc\n---\n");
-        const all = walkSiteTree(path.join(root, "assets/content"));
-        const kept = walkSiteTree(path.join(root, "assets/content"), ["Templates"]);
-        expect(all.length - kept.length).toBe(1);
-        fs.rmSync(path.join(root, "assets/content/Templates"), {
-            recursive: true,
-        });
-    });
-});
-
 describe("a page's address comes from the shared scheme", () => {
     it("publishes every page at its address, whatever the file is called", () => {
         const { pages } = collectContentPages(path.join(root, "assets/content"), ctx);
@@ -191,63 +160,6 @@ describe("a page's address comes from the shared scheme", () => {
         const content = pages.filter((p) => p.kind === "content");
         expect(content.map((p) => p.name)).toContain("Dagger");
         expect(content.every((p) => p.pkg === "demo")).toBe(true);
-    });
-
-    it("preserves an extra tree's source layout below its section", () => {
-        const tree = {
-            from: path.join(root, "docs"),
-            rel: "docs",
-            section: "dev-docs",
-            route: "/demo/kb/dev-docs/",
-        };
-        const { pages } = collectTreePages(tree, ctx);
-        const byName = Object.fromEntries(pages.map((p) => [p.name, p.url]));
-        expect(byName.Testing).toBe("/demo/kb/dev-docs/how-to/testing/");
-        expect(byName["Developer Documentation"]).toBe("/demo/kb/dev-docs/");
-    });
-
-    // Mirrors `content-format.test.ts`'s "a doc's subtype is a genre, and
-    // routes nothing" — the same invariant, for the one address path that
-    // test never covers. `subType` classifies a tree page for the site
-    // index's grouping; it must not move the page.
-    it("addresses a tree page the same whatever subType it declares, and none at all", () => {
-        const tree = {
-            from: path.join(root, "docs"),
-            rel: "docs",
-            section: "dev-docs",
-            route: "/demo/kb/dev-docs/",
-        };
-        const file = path.join(root, "docs/how-to/testing.md");
-        const original = fs.readFileSync(file, "utf8");
-        const genres = ["rules", "userguide", "reference", "howto", "concept"];
-        try {
-            const urls = new Set<string>();
-            for (const subType of [...genres, undefined]) {
-                fs.writeFileSync(
-                    file,
-                    `---\n${subType ? `subType: ${subType}\n` : ""}---\n\n# Testing\n\nProse.\n`,
-                );
-                const page = collectTreePages(tree, ctx).pages.find((p) => p.name === "Testing")!;
-                urls.add(page.url);
-            }
-            expect(urls.size).toBe(1);
-            expect([...urls][0]).toBe("/demo/kb/dev-docs/how-to/testing/");
-        } finally {
-            fs.writeFileSync(file, original);
-        }
-    });
-
-    it("takes a tree page's name from its H1, and strips it from the body", () => {
-        const tree = {
-            from: path.join(root, "docs"),
-            rel: "docs",
-            section: "dev-docs",
-            route: "/demo/kb/dev-docs/",
-        };
-        const page = collectTreePages(tree, ctx).pages.find((p) => p.name === "Testing")!;
-        // The title renders the heading, so leaving it in the body would show
-        // it twice.
-        expect(page.body).not.toMatch(/^#\s+Testing/m);
     });
 });
 
@@ -395,26 +307,6 @@ describe("what a page publishes with", () => {
 
     it("supplies the title Hugo needs, from the note's name", () => {
         expect(pageFrontmatter(page as never, {}).title).toBe("Dagger");
-    });
-
-    it("titles a **tree** landing from its configured metadata", () => {
-        // The one landing left: a `trees` entry keeps its source layout below a
-        // named section, so its own README is that section's `_index.md`.
-        const tree = { kind: "tree", rel: "README.md", sec: "rules", name: "README", fm: {} };
-        const data = pageFrontmatter({ ...tree, isReadme: true } as never, {
-            readmeSections: { rules: { title: "Rules", banner: "r.webp" } },
-        });
-        expect(data.title).toBe("Rules");
-        expect(data.banner).toBe("r.webp");
-    });
-
-    it("omits a banner rather than writing `undefined`", () => {
-        // `banner: undefined` is not a value YAML can carry.
-        const tree = { kind: "tree", rel: "README.md", sec: "credits", name: "README", fm: {} };
-        const data = pageFrontmatter({ ...tree, isReadme: true } as never, {
-            readmeSections: { credits: { title: "Credits" } },
-        });
-        expect("banner" in data).toBe(false);
     });
 
     it("names a content page by its whole address, flat under the mount", () => {

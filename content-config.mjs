@@ -73,7 +73,7 @@ import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./engine/address-char
 import { ASSET_TYPE_NAMES } from "./engine/asset-types.mjs";
 import { isReservedPackage } from "./engine/packages.mjs";
 import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.mjs";
-import { MAP_TYPES, PACK_BY_TYPE } from "./engine/ids.mjs";
+import { MAP_TYPES, NO_PACK, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
 
@@ -256,10 +256,10 @@ export const DEFAULT_ADDRESS_SCHEME = Object.freeze({
  * and the default.
  *
  * - `homepage` — the authored homepage, and **no other page**. The content tree
- *   is not walked for pages, `site.sections` / `site.trees` / `site.landing`
- *   emit nothing, and nothing serves a page for its addresses.
+ *   is not walked for pages, `site.sections` / `site.landing` emit nothing,
+ *   and nothing serves a page for its addresses.
  * - `content` — the homepage *plus* every page the content tree publishes: the
- *   knowledgebase, the extra trees, the section landings.
+ *   knowledgebase and the section landings.
  *
  * **Homepage-only is a first-class mode, not an accommodation.**
  * `sohl-kethira-basic` (unofficial Hârn fan material under Keléstia Productions'
@@ -762,9 +762,7 @@ const SITE_KEYS = [
     "description",
     "packages",
     "sections",
-    "readmeSections",
     "landing",
-    "trees",
     "pass",
     "passOptions",
     "backfillSections",
@@ -772,7 +770,6 @@ const SITE_KEYS = [
     "notfound",
     "hugo",
 ];
-const SITE_TREE_KEYS = ["from", "section"];
 const SITE_LIST_KEYS = ["shortcodes"];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
@@ -1079,6 +1076,15 @@ function normalizePack(value, where, nested = false) {
     rejectUnknownKeys(pack, PACK_KEYS, `${where}.`);
 
     const name = requireNonEmptyString(pack.name, `${where}.name`);
+    // A note writes `pack: none` to compile into no document, so a pack of
+    // that name could never be addressed by one.
+    if (name === NO_PACK) {
+        fail(
+            `${where}.name`,
+            `may not be \`${NO_PACK}\` — a note declares \`pack: ${NO_PACK}\` to ` +
+                `compile into no document, so no pack may answer to the name`,
+        );
+    }
     const type = pack.type;
     if (
         typeof type !== "string" ||
@@ -1750,15 +1756,22 @@ function normalizeSiteHugo(value) {
 /**
  * The `site` section — how this repository frames the website it publishes.
  *
- * Everything here is *framing*: what a section is called, which extra trees
- * are published beside the content, which named pass bundle supplies the
- * repository's own body rewrites, and the residue of the generated Hugo
- * configuration that is genuinely this repository's own. Where the Hugo tree
- * is written is not a choice: `content-build site` writes it under
- * `build/hugo/`, and a `site.out` is refused by name. How a page gets its
- * **address** is deliberately not here either — that is `publish.address`,
- * shared with the link manifest so the two cannot disagree about where a
- * page is.
+ * Everything here is *framing*: what a section is called, which named pass
+ * bundle supplies the repository's own body rewrites, and the residue of the
+ * generated Hugo configuration that is genuinely this repository's own. Where
+ * the Hugo tree is written is not a choice: `content-build site` writes it
+ * under `build/hugo/`, and a `site.out` is refused by name. How a page gets
+ * its **address** is deliberately not here either — that is
+ * `publish.address`, shared with the link manifest so the two cannot disagree
+ * about where a page is.
+ *
+ * **What the site publishes is the content tree, and nothing beside it.** A
+ * page of documentation is a note — `type: doc`, addressed by its shortcode,
+ * compiling into no document where it says `pack: none` — so there is no
+ * second mechanism for mounting a directory of markdown, and a configuration
+ * that names one (`site.trees`, and the `site.readmeSections` that titled
+ * such a tree's landing) is refused with a message saying where the page
+ * goes instead.
  *
  * @param {unknown} value - The `site` block, or `undefined`.
  * @returns {Readonly<object>} It, frozen, with every default filled.
@@ -1770,9 +1783,7 @@ function normalizeSite(value) {
         description: "",
         packages: Object.freeze([]),
         sections: Object.freeze({}),
-        readmeSections: Object.freeze({}),
         landing: null,
-        trees: Object.freeze([]),
         pass: "",
         passOptions: Object.freeze({}),
         backfillSections: false,
@@ -1793,27 +1804,20 @@ function normalizeSite(value) {
                 "the location is not configurable. Remove the key",
         );
     }
-    rejectUnknownKeys(input, SITE_KEYS, "site.");
-
-    const trees = [];
-    if (input.trees !== undefined) {
-        if (!Array.isArray(input.trees)) fail("site.trees", "must be a list");
-        input.trees.forEach((entry, i) => {
-            const where = `site.trees[${i}]`;
-            if (!isPlainObject(entry)) fail(where, "must be a mapping");
-            const tree = /** @type {Record<string, unknown>} */ (entry);
-            rejectUnknownKeys(tree, SITE_TREE_KEYS, `${where}.`);
-            trees.push(
-                Object.freeze({
-                    from: requireNonEmptyString(tree.from, `${where}.from`),
-                    section: requireNonEmptyString(tree.section, `${where}.section`),
-                    // The tree's own path, POSIX-separated — what a
-                    // repository-relative link inside it is resolved against.
-                    rel: String(tree.from).split(path.sep).join("/"),
-                }),
-            );
-        });
+    // Refused by name too, and ahead of the vocabulary check for the same
+    // reason: a page is a note in the content tree, and the useful thing to
+    // say is where it goes rather than that the key is unknown.
+    for (const key of ["trees", "readmeSections"]) {
+        if (input[key] === undefined) continue;
+        fail(
+            `site.${key}`,
+            "is retired — a page is a note in the content tree. Give each page " +
+                "`type: doc`, a `shortcode` and `pack: none`, file it under " +
+                "`assets/content/`, and declare the section that lists it under " +
+                "`site.sections`",
+        );
     }
+    rejectUnknownKeys(input, SITE_KEYS, "site.");
 
     let packages = [];
     if (input.packages !== undefined) {
@@ -1839,9 +1843,7 @@ function normalizeSite(value) {
         description: normalizeSiteDescription(input.description),
         packages: Object.freeze(packages),
         sections: normalizeSectionMap(input.sections, "site.sections"),
-        readmeSections: normalizeSectionMap(input.readmeSections, "site.readmeSections"),
         landing,
-        trees: Object.freeze(trees),
         pass: input.pass === undefined ? "" : requireNonEmptyString(input.pass, "site.pass"),
         passOptions:
             input.passOptions === undefined ?

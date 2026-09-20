@@ -188,7 +188,6 @@ describe("the site build marks a link to a draft note", () => {
         typeAlias: new Map<string, object>(),
         collide: new Set<string>(),
         typeCollide: new Set<string>(),
-        sections: new Set<string>(["rules"]),
         contentTypes: new Set<string>(["doc"]),
         packages: new Set<string>(["sohl"]),
         type: "doc",
@@ -226,7 +225,6 @@ describe("the site index carries a page's draft state", () => {
         fm: { type: "doc", ...(over.fm as object) },
         name: (over.name as string) ?? "Coma",
         slug: (over.slug as string) ?? "coma",
-        sec: "rules",
         base: `${((over.name as string) ?? "Coma").replace(/ /g, "_")}.md`,
         url: (over.url as string) ?? "/kb/rules/coma/",
         isReadme: false,
@@ -236,9 +234,7 @@ describe("the site index carries a page's draft state", () => {
         const { index } = buildSiteIndex([
             entry({ fm: { type: "doc", shortcode: "coma", tags: ["draft"] } }),
         ]);
-        // The address, and the `section/slug` key the first pass writes.
         expect(index.get("doc/coma")?.draft).toBe(true);
-        expect(index.get("rules/coma")?.draft).toBe(true);
     });
 
     it("leaves a finished page unmarked", () => {
@@ -246,7 +242,6 @@ describe("the site index carries a page's draft state", () => {
             entry({ name: "Shock", slug: "shock", fm: { type: "doc", shortcode: "shock" } }),
         ]);
         expect(index.get("doc/shock")?.draft).toBe(false);
-        expect(index.get("rules/shock")?.draft).toBe(false);
     });
 });
 
@@ -330,7 +325,6 @@ describe("the two builds emit the same markup", () => {
             typeAlias: new Map<string, object>(),
             collide: new Set<string>(),
             typeCollide: new Set<string>(),
-            sections: new Set<string>(["rules"]),
             contentTypes: new Set<string>(["doc"]),
             packages: new Set<string>(["sohl"]),
             type: "doc",

@@ -1561,9 +1561,6 @@ function siteCommand() {
                 for (const f of gates.unaddressable) {
                     console.error(formatUnaddressable(f, loadPackConfig()));
                 }
-                for (const c of gates.conflicts) {
-                    log.error(`address ${c.key} is also published by ${c.package}`);
-                }
                 if (gatesFailed(gates)) {
                     process.exitCode = 1;
                     return;

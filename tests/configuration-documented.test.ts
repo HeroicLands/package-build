@@ -21,9 +21,9 @@
  * The document represents a nested key as its dotted path in backticks
  * (`` `site.out` ``, `` `pdf.fonts.serif` ``) and a top-level one bare
  * (`` `contentPackage` ``), so the assertions below search for exactly that
- * shape. `packs[]`, `site.trees[]` and similar list entries are documented
- * with a bare `[]` rather than a numeric index, matching how the validator's
- * own error paths would read with the index stripped.
+ * shape. `packs[]` and similar list entries are documented with a bare `[]`
+ * rather than a numeric index, matching how the validator's own error paths
+ * would read with the index stripped.
  */
 
 import { readFileSync } from "node:fs";
@@ -206,12 +206,6 @@ describe("every nested key list is documented", () => {
         assertDocuments(
             "site",
             allowedKeys(() => defineConfig(minimal({ site: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "site.trees[]",
-            allowedKeys(() =>
-                defineConfig(minimal({ site: { trees: [{ __unrecognised__: true }] } })),
-            ),
         );
         assertDocuments(
             "site.sections.<name>",

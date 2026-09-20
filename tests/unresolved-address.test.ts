@@ -384,7 +384,6 @@ describe("the site build fails an address that resolves to no note", () => {
     const ctx = (overrides: Record<string, unknown> = {}) => ({
         index: new Map<string, object>([["skill/clmb", climbing]]),
         collide: new Set<string>(),
-        sections: new Set<string>(["kb"]),
         contentTypes: new Set<string>(["skill", "creature"]),
         foreign: new Map<string, object>(),
         // The package a bare link defaults to, and the packages a qualified one
@@ -450,10 +449,13 @@ describe("the site build fails an address that resolves to no note", () => {
         expect(c.errors[0]).toMatchObject({ reason: "not-an-address" });
     });
 
-    it("reports a site-section address whose page does not exist", () => {
+    it("reports a slash-qualified target naming no type as unknown, not unresolved", () => {
+        // A page has no section address: `kb/nosuch` parses as the unknown
+        // type `kb`, and the fix is to write an address rather than to find
+        // the page.
         const c = ctx();
         resolveWebWikilinks("[[kb/nosuch|Nothing]]", c as never);
-        expect(c.errors[0]).toMatchObject({ reason: "unresolved" });
+        expect(c.errors[0]).toMatchObject({ reason: "unknown-type" });
     });
 
     it("reports an address two packages publish as ambiguous", () => {

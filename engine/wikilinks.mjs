@@ -353,12 +353,14 @@ export function anchorPageId(noteId, anchorSlug) {
  * Builds the link-resolution tables for a content tree.
  *
  * @param {Array<{type: string, id: string, shortcode?: string|null,
- *   name?: string, pack?: string, docPack?: string,
+ *   name?: string, pack?: string, docPack?: string, none?: boolean,
  *   draft?: boolean}>} docs -
  *   One entry per content note. `pack` / `docPack` name the packs the note's
  *   document and its documentation entry landed in; omitted, the conventional
- *   one-pack-per-type names stand in. `draft` says the note carries the `draft`
- *   tag, which marks links *into* it and changes nothing else.
+ *   one-pack-per-type names stand in. `none` says the note declares
+ *   `pack: none` and compiles into no document, so it has no UUID to link to.
+ *   `draft` says the note carries the `draft` tag, which marks links *into* it
+ *   and changes nothing else.
  * @param {string} packageId - The Foundry package shipping the packs; the first
  *   segment of every emitted UUID.
  * @param {Map<string, object>} [foreign] - Canonically keyed entries from
@@ -408,17 +410,29 @@ export function buildWikilinkIndex(
         if (!d.id || !d.type) continue;
         types.add(norm(d.type));
 
-        uuidByDoc.set(d, {
-            // `d.pack` is where this note's document actually landed, resolved
-            // by the pack router when the index was collected. A repository may
-            // ship several packs of one type and a UUID carries the
-            // pack name, so the address cannot be derived from the type alone.
-            uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
-            // An item's prose compiles into a separate JournalEntry, addressed
-            // by the virtual `doc<type>` qualifier. Its id is derived from the
-            // item's, so its address is knowable here too.
-            docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
-        });
+        uuidByDoc.set(
+            d,
+            // A note declaring `pack: none` compiles into no document, so it
+            // has no address in any compendium: a link to it is a page on the
+            // web and prose in a journal. Recorded as an entry with no UUIDs
+            // rather than left out, so the address still resolves and a link
+            // to it is never reported as dead.
+            d.none ?
+                { uuid: undefined, docUuid: undefined }
+            :   {
+                    // `d.pack` is where this note's document actually landed,
+                    // resolved by the pack router when the index was
+                    // collected. A repository may ship several packs of one
+                    // type and a UUID carries the pack name, so the address
+                    // cannot be derived from the type alone.
+                    uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
+                    // An item's prose compiles into a separate JournalEntry,
+                    // addressed by the virtual `doc<type>` qualifier. Its id
+                    // is derived from the item's, so its address is knowable
+                    // here too.
+                    docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
+                },
+        );
 
         if (d.shortcode) byShortcode.set(`${norm(d.type)}/${norm(d.shortcode)}`, d);
     }
@@ -783,6 +797,13 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             docUuid: compendiumUuid(index.packageId, "doc", itemDocEntryId(doc.id), doc.docPack),
         };
         const entryUuid = itemDoc ? addresses.docUuid : addresses.uuid;
+        // The target is a note that compiles into no document — `pack: none`.
+        // The address is real and the page exists on the web, so this is not
+        // a dead link and must not fail the build; but a compendium has
+        // nothing to open, so the reader gets the prose and no `@UUID`. The
+        // mirror of what the website does for an address that publishes a
+        // document and no page.
+        if (entryUuid === undefined) return text;
         const entryId = itemDoc ? itemDocEntryId(doc.id) : doc.id;
         const isJournal = itemDoc || packForType(doc.type).docType === "JournalEntry";
         // A JournalEntry link opens a journal — at its first page, or at the

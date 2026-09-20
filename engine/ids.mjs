@@ -87,6 +87,18 @@ export const MAP_SUBTYPES = Object.freeze(["battlemap", "localmap", "regionalmap
 export const JOURNAL_TYPES = Object.freeze(new Set(["doc", "place", "lore", "scenario"]));
 
 /**
+ * The `pack:` value that routes a note's document into no compendium.
+ *
+ * One reading, on the key that already decides which compendium receives a
+ * note: the note publishes to the site and compiles into nothing. Declared
+ * here, beside the pack table, so the configuration can refuse a pack of this
+ * name and the router can read the value from one spelling.
+ *
+ * @type {string}
+ */
+export const NO_PACK = "none";
+
+/**
  * Content type → the pack its documents compile into, and the document type
  * that pack holds.
  *

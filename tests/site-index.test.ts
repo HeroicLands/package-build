@@ -26,7 +26,6 @@ import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
 function entry(over: Record<string, unknown> = {}) {
     const name = (over.name as string) ?? "Climbing";
     const slug = (over.slug as string) ?? "climbing";
-    const sec = (over.sec as string) ?? "skill";
     return {
         kind: "content",
         // No `package:` — the field is retired, and the index takes the
@@ -34,23 +33,22 @@ function entry(over: Record<string, unknown> = {}) {
         fm: { type: "skill", ...(over.fm as object) },
         name,
         slug,
-        sec,
         base: (over.base as string) ?? `${name.replace(/ /g, "_")}.md`,
-        url: (over.url as string) ?? `/kb/${sec}/${slug}/`,
-        isReadme: (over.isReadme as boolean) ?? false,
+        url: (over.url as string) ?? `/kb/skill/${slug}/`,
     };
 }
 
 describe("keys that are unique by construction", () => {
-    it("indexes a page by section/slug and by type/shortcode", () => {
+    it("indexes a page by type/shortcode, and by nothing else", () => {
         const { index } = buildSiteIndex([
             entry({
                 fm: { type: "skill", shortcode: "clmb" },
             }),
         ]);
 
-        expect(index.get("skill/climbing")?.url).toBe("/kb/skill/climbing/");
         expect(index.get("skill/clmb")?.url).toBe("/kb/skill/climbing/");
+        // Not by its slug: a page's address is its `(type, shortcode)`.
+        expect(index.has("skill/climbing")).toBe(false);
     });
 
     it("sets the canonical package-qualified address alongside the short one", () => {
@@ -186,20 +184,6 @@ describe("foreign packages", () => {
         expect(index.get("polity/tanvur")?.url).toBe("/kb/skill/climbing/");
     });
 
-    it("reports a foreign address that collides with a local key", () => {
-        // The keys present when the merge runs are the addressing ones —
-        // section/slug and the bare fallbacks. A manifest claiming one of those
-        // is two packages claiming one address, which the caller fails on.
-        const clash = new Map([["skill/climbing", { url: "/elsewhere/", package: "thalorna" }]]);
-        const { conflicts, index } = buildSiteIndex([entry()], {
-            foreignIndex: clash,
-        });
-
-        expect(conflicts).toEqual([{ key: "skill/climbing", package: "thalorna" }]);
-        // The local page keeps the address; the caller decides to fail.
-        expect(index.get("skill/climbing")?.url).toBe("/kb/skill/climbing/");
-    });
-
     it("cannot be shadowed by a manifest claiming a local canonical address", () => {
         // Load-bearing ordering: foreign entries merge *before* local canonical
         // addresses are set, so a local page always ends up owning its own
@@ -223,28 +207,6 @@ describe("foreign packages", () => {
     });
 });
 
-describe("pages that carry no type", () => {
-    it("indexes a developer doc by address but not by type", () => {
-        const { index, contentTypes } = buildSiteIndex([
-            {
-                kind: "doc",
-                fm: {},
-                name: "Architecture",
-                slug: "architecture",
-                sec: "dev-docs",
-                base: "architecture.md",
-                url: "/kb/dev-docs/architecture/",
-                isReadme: false,
-            },
-        ]);
-
-        expect(index.get("dev-docs/architecture")?.url).toBe("/kb/dev-docs/architecture/");
-        // Its bare name is not a key either — `section/slug` is the address.
-        expect(index.has("architecture")).toBe(false);
-        expect(contentTypes.size).toBe(0);
-    });
-});
-
 describe("the resolver context", () => {
     it("carries the index through without the caller restating it", () => {
         const built = buildSiteIndex([entry()]);
@@ -257,7 +219,6 @@ describe("the resolver context", () => {
 
         expect(ctx.index).toBe(built.index);
         expect(ctx.collide).toBe(built.ambiguous);
-        expect(ctx.sections).toBe(built.sections);
         expect(ctx.src).toBe("Skills/Climbing.md");
         expect(ctx.type).toBe("skill");
         expect(ctx.errors).toBe(errors);
@@ -282,16 +243,7 @@ describe("the resolver context", () => {
     });
 });
 
-describe("sections and the reference index", () => {
-    it("collects every section, lowercased", () => {
-        const { sections } = buildSiteIndex([
-            entry({ sec: "Skill" }),
-            entry({ sec: "Rules", slug: "shock", name: "Shock" }),
-        ]);
-
-        expect([...sections].sort()).toEqual(["rules", "skill"]);
-    });
-
+describe("the reference index", () => {
     it("keys the reference index by the authored type, not the lowercased one", () => {
         // Callers resolving an embedded item look it up by the type as written.
         const { refIndex } = buildSiteIndex([
