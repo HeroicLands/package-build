@@ -208,9 +208,19 @@ describe("every nested key list is documented", () => {
             allowedKeys(() => defineConfig(minimal({ site: { __unrecognised__: true } }))),
         );
         assertDocuments(
-            "site.sections.<name>",
+            "site.list",
             allowedKeys(() =>
-                defineConfig(minimal({ site: { sections: { foo: { __unrecognised__: true } } } })),
+                defineConfig(minimal({ site: { list: { __unrecognised__: true } } })),
+            ),
+        );
+        assertDocuments(
+            "site.notfound",
+            allowedKeys(() =>
+                defineConfig(
+                    minimal({
+                        site: { notfound: { tagline: "t", sitenoun: "s", __unrecognised__: true } },
+                    }),
+                ),
             ),
         );
     });
@@ -701,22 +711,27 @@ describe("failure messages a developer can trigger are quoted verbatim", () => {
         );
     });
 
-    it("`site.sections.<name>.listType` / `listSubType`", () => {
-        assertQuoted(
-            thrown(() =>
-                defineConfig(
-                    minimal({ site: { sections: { foo: { title: "t", listType: "Not Ok" } } } }),
+    it("`site.sections`, `site.landing` and `site.backfillSections`", () => {
+        for (const site of [
+            { sections: { foo: { title: "t" } } },
+            { landing: { title: "t" } },
+            { backfillSections: true },
+        ]) {
+            assertQuoted(
+                thrown(() => defineConfig(minimal({ site }))).replace(
+                    /^package-build config: `site\.\w+` /,
+                    "",
                 ),
-            ).replace(/^package-build config: `site\.sections\.foo\.listType` /, ""),
-        );
+            );
+        }
+    });
+
+    it("`site.trees` and `site.readmeSections`", () => {
         assertQuoted(
-            thrown(() =>
-                defineConfig(
-                    minimal({
-                        site: { sections: { foo: { title: "t", listSubType: "userguide" } } },
-                    }),
-                ),
-            ).replace(/^package-build config: `site\.sections\.foo\.listSubType` /, ""),
+            thrown(() => defineConfig(minimal({ site: { trees: [] } }))).replace(
+                /^package-build config: `site\.trees` /,
+                "",
+            ),
         );
     });
 

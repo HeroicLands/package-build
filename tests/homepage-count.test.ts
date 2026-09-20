@@ -140,12 +140,10 @@ describe("checkHomepageCount — the rule itself", () => {
         expect(findings[1].message).toContain("homepage.md");
     });
 
-    // The rule used to rest on the fixed destination every homepage shared:
-    // the second silently overwrote the first. A homepage is written at its own
-    // address now, so two of them publish two pages — and the rule is a
-    // cardinality rule, stated as one, rather than a consequence of a
-    // collision that no longer happens.
-    it("does not justify itself by a shared destination any more", () => {
+    // A cardinality rule, stated as one: two homepages are two front pages
+    // whatever their shortcodes, and the finding says so rather than
+    // describing the file the second would overwrite.
+    it("states the rule as a count, not as a collision", () => {
         const root = tree({
             "homepage.md": homepage(),
             "Landing.md": homepage("Second", "front"),
@@ -157,8 +155,6 @@ describe("checkHomepageCount — the rule itself", () => {
         expect(findings).toHaveLength(2);
         expect(findings[0].message).not.toContain("_index.md");
         expect(findings[0].message).not.toContain("overwrite");
-        // Two homepages are two front pages even when their addresses differ,
-        // which is exactly what the address rule cannot say.
         expect(findings[0].message).toContain("one front page");
     });
 
@@ -287,7 +283,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
         // Written at its address, not at a destination of its own.
-        expect(fs.existsSync(path.join(root, "build/hugo/content/homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(root, "build/hugo/content/_index.md"))).toBe(true);
     });
 
     it("fails a homepage that declares no shortcode, before the wipe", () => {

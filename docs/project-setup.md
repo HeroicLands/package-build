@@ -254,7 +254,7 @@ package carries this group:
 `build:site-content` writes the whole Hugo source tree under `build/hugo/` —
 the generated `hugo.toml` and the content mount — with `content-build site`;
 `build:site-html` runs Hugo over it, rendering into `build/site/<contentPackage>/`;
-`build:site-root` writes the deployment's `_headers` and `_redirects` beside
+`build:site-root` writes the deployment's `_headers` beside
 that; and `serve:site` does the first and then `hugo server` for a live
 preview. The repository carries no Hugo configuration of its own: `hugo.toml`
 is generated on every run from `package.json`, `package-build.config.yaml`,

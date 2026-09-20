@@ -621,21 +621,18 @@ export function buildLinkIndex(
 const SITE_HOST = /^(?:[a-z0-9-]+\.)*heroiclands\.org$/i;
 
 /**
- * Every package landing this build can name, as `package` → base.
+ * Every package front page this build can name, as `package` → base.
  *
- * **A landing needs no manifest, and that is what makes it work.** The link
- * manifest indexes content notes, and a homepage is deliberately not one — it
- * compiles to no document and is entered in no manifest. The reading that
- * follows from this, and that left a hardcoded URL as the only authored form,
- * is that a landing therefore cannot be addressed. It does not follow: a
- * landing's address is not a *note's* address but the **package's**, and
- * {@link PACKAGE_BASE} already records where each package is served. That is a
- * frozen constant compiled into every build, so consulting it walks no
- * tree, reads no manifest and builds no index — which is precisely why the
- * mechanism survives `homepage` mode, where the licensing fence means none of
- * those exist.
+ * **A front page needs no manifest, and that is what makes it work.** A
+ * homepage compiles to no document and is entered in no manifest, but its
+ * address is not a *note's* address but the **package's** — it is the mount's
+ * `_index.md`, published at `/<package>/` — and {@link PACKAGE_BASE} already
+ * records where each package is served. That is a frozen constant compiled
+ * into every build, so consulting it walks no tree, reads no manifest and
+ * builds no index — which is precisely why the mechanism survives `homepage`
+ * mode, where the licensing fence means none of those exist.
  *
- * The roster is consulted **for landings only**. Widening the package set the
+ * The roster is consulted **for front pages only**. Widening the package set the
  * other rules read would make them offer manifest-based advice about packages
  * no index has been fetched for.
  *
@@ -738,41 +735,30 @@ function readAddress(url, packages) {
  * not and cannot: it is published *verbatim* by every publishing mode, including
  * the homepage-only mode two fan-licensed packages ship under, where the content
  * tree is never walked and there is no index for a wikilink to resolve against.
- * So a landing addresses the web the way the web does — markdown links and
- * `url:` fields — and nothing was looking at those. SoHL's landing pointed at
- * `kb/creature/` and `kb/character/` from the day those types merged into
- * `being`: two 404s on the package's front page, through every build.
+ * So a homepage addresses the web the way the web does — markdown links in its
+ * body — and this is what looks at those. A dead link on the page a reader
+ * arrives at is the one nothing else would report.
  *
  * **What is checkable, stated plainly.** Only an address into this site is, and
  * only against facts this build already holds:
  *
  * - A **retired content type** in the path. The engine knows the retired names
- *   and what replaced it, so this is a fact rather than a guess — and it is
- *   exactly the SoHL defect.
+ *   and what replaced it, so this is a fact rather than a guess.
  * - A **hardcoded absolute URL** into this package's own prefix, or into one a
- *   a fetched index names. Every one of them has a better form to write, which
+ *   fetched index names. Every one of them has a better form to write, which
  *   is why every one is reported — including a bare `/<package>/`, which names
- *   another package's landing.
- *
- *   That last case was exempt until the better form was identified, on the
- *   reasoning that a landing is in no link manifest so nothing could resolve it.
- *   True, and beside the point: it does not need resolving. A landing's address
- *   *is* its package prefix, so `/<package>/` is the absolute URL with the host
- *   struck off — host-free, emitted verbatim, and needing no index, which is
- *   what lets it hold in homepage-only mode where the tree is never walked. The
- *   form was already accepted here; nothing had ever named it as the one to use.
- * - A **root-relative `url:`**, which the theme's `relURL` prefixes a second
- *   time. `href:` means "already resolved, use verbatim", so the same leading
- *   slash is correct there and is not reported.
+ *   another package's front page. A front page's address *is* its package
+ *   prefix, so `/<package>/` is the absolute URL with the host struck off —
+ *   host-free, emitted verbatim, and needing no index, which is what lets it
+ *   hold in homepage-only mode where the tree is never walked.
  * - A **wikilink**, which nothing on this page will ever resolve.
  *
  * **What is not checkable, and is not attempted.** Whether an external URL
  * answers — there is no network at build time, and a build must not fail because
  * a third party is down. And whether a live in-site address names a page that
- * exists: several of the surfaces a landing routes to are produced by other
- * tools entirely (generated API documentation, hand-authored Hugo sections), so
- * this build does not hold the set of published pages and would report a working
- * link as dead.
+ * exists: several of the surfaces a homepage routes to are produced by other
+ * tools entirely (generated API documentation, say), so this build does not
+ * hold the set of published pages and would report a working link as dead.
  *
  * @param {ReturnType<typeof buildLinkIndex>} index - The built index.
  * @returns {Array<{note: object, field: string, url: string, text: string,
@@ -814,7 +800,7 @@ export function auditHomepageLinks(index) {
             );
         }
 
-        for (const { field, url, kind } of homepageAddresses(note.fm, note.body)) {
+        for (const { field, url } of homepageAddresses(note.body)) {
             // Counted for every address, checked or not, so the count is
             // the literal's nth appearance in the file rather than the nth
             // *finding* about it — two rules can fire on one address.
@@ -853,33 +839,12 @@ export function auditHomepageLinks(index) {
                     prefix === index.contentPackage ?
                         `hardcoded absolute URL into this package's own ` +
                             `address — write the package-relative ` +
-                            `"${rest}/", which the landing resolves ` +
-                            `against the site so the page follows the mount`
+                            `"${rest}/", which a browser resolves against ` +
+                            `the homepage's own address, the package root`
                     :   `hardcoded absolute URL into package "${prefix}" ` +
                             `— resolve it through that package's link ` +
                             `manifest, whose entries carry the address, so a ` +
                             `relocation does not leave this page behind`,
-                );
-            } else if (shape === "rooted" && kind === "url") {
-                const rest = prefix ? segments.slice(1).join("/") : segments.join("/");
-                report(
-                    field,
-                    url,
-                    url,
-                    occurrence,
-                    // A `url:` is package-relative by construction, so it
-                    // cannot address anything outside this package at all —
-                    // there is no relative spelling of another package's root.
-                    // `href:` is the field for an address already resolved.
-                    !rest ?
-                        `url "${url}" addresses ` +
-                            (prefix ? `package "${prefix}"'s landing` : `the site root`) +
-                            `, but a landing's url: is package-relative and ` +
-                            `cannot leave this package — write ` +
-                            `href: "${url}", which is used verbatim`
-                    :   `url "${url}" is root-relative, but a landing's url: ` +
-                            `is resolved against the site — write "${rest}/", ` +
-                            `or href: for an address that is already resolved`,
                 );
             }
 

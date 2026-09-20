@@ -170,16 +170,16 @@ describe("positionOfYamlPath, addressing the key rather than its value", () => {
 
 describe("a configuration error carries the position of its key", () => {
     it("locates an unrecognised key, path first", () => {
-        const text = `${MINIMAL}\nsite:\n    sections:\n        gear: { title: Gear, descrption: Nope }\n`;
+        const text = `${MINIMAL}\nsite:\n    list: { shortcodes: true, shortcdes: Nope }\n`;
         const { err, file } = failureFor(text);
 
         expect(err.message).toBe(
-            `${file}:12:30: error: package-build config: ` +
-                "`site.sections.gear.descrption` is not a recognized option " +
-                "(expected one of: title, banner, description, listType, listSubType).",
+            `${file}:11:31: error: package-build config: ` +
+                "`site.list.shortcdes` is not a recognized option " +
+                "(expected one of: shortcodes).",
         );
         const { line, column } = locatorOf(err.message);
-        expect(textAt(text, line, column)).toMatch(/^descrption/);
+        expect(textAt(text, line, column)).toMatch(/^shortcdes/);
     });
 
     it("locates a wrong-typed value nested in a sequence", () => {

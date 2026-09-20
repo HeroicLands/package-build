@@ -7,15 +7,10 @@
 
 /**
  * A homepage is addressed like every other note, so it **requires** a
- * `shortcode` and refuses only the field that still decides nothing.
- *
- * It used to refuse `name`, `shortcode` and `id` alike, and the reason
- * for two of the three was that a page's URL derived from `name.full` while a
- * homepage's destination was fixed — so a `shortcode` put the note in the
- * address index and `[[homepage-<shortcode>]]` resolved *green* to a page the
- * site build never wrote. A page's URL is now its address, which makes
- * that address the one the build publishes. `id` stays refused on its own
- * unaffected ground: a homepage compiles into no compendium document.
+ * `shortcode` — the name a link is written with — and refuses the fields that
+ * decide nothing on it: `id`, because a homepage compiles into no compendium
+ * document, and `landing`, because a homepage is a page with a body and no
+ * card block is read off it.
  */
 
 import { describe, it, expect } from "vitest";
@@ -131,9 +126,9 @@ describe("a homepage is addressed, so `shortcode` is required", () => {
     });
 });
 
-describe("the one field a homepage refuses", () => {
-    it("refuses `id` and nothing else", () => {
-        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["id"]);
+describe("the fields a homepage refuses", () => {
+    it("refuses `id` and `landing`, and nothing else", () => {
+        expect([...HOMEPAGE_REFUSED_FIELDS.keys()]).toEqual(["id", "landing"]);
     });
 
     it("refuses `id`, naming the document it would identify", () => {
@@ -171,8 +166,6 @@ describe("what a homepage may still write", () => {
                     "title: Repro Demo",
                     "description: A module.",
                     "banner: brand/banner.webp",
-                    "landing:",
-                    "    lead: Everything lives here.",
                 ],
                 {
                     type: HOMEPAGE_TYPE,
@@ -180,7 +173,6 @@ describe("what a homepage may still write", () => {
                     title: "Repro Demo",
                     description: "A module.",
                     banner: "brand/banner.webp",
-                    landing: { lead: "Everything lives here." },
                 },
             ),
         ).toEqual([]);

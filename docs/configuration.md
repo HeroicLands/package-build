@@ -752,36 +752,52 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                     | Type     | Default                                     |
-| ----------------------- | -------- | ------------------------------------------- |
-| `site.base`             | string   | `""`                                        |
-| `site.assets`           | string   | `""`, but required for `content-build site` |
-| `site.description`      | string   | `""`, but required for `content-build site` |
-| `site.packages`         | string[] | `[]`                                        |
-| `site.sections`         | object   | `{}`                                        |
-| `site.landing`          | object   | `null`                                      |
-| `site.pass`             | string   | `""`                                        |
-| `site.passOptions`      | object   | `{}`                                        |
-| `site.backfillSections` | boolean  | `false`                                     |
-| `site.list`             | object   | `{shortcodes: false}`                       |
-| `site.notfound`         | object   | `null`                                      |
-| `site.hugo`             | object   | `{}`                                        |
+| Key                | Type     | Default                                     |
+| ------------------ | -------- | ------------------------------------------- |
+| `site.base`        | string   | `""`                                        |
+| `site.assets`      | string   | `""`, but required for `content-build site` |
+| `site.description` | string   | `""`, but required for `content-build site` |
+| `site.packages`    | string[] | `[]`                                        |
+| `site.pass`        | string   | `""`                                        |
+| `site.passOptions` | object   | `{}`                                        |
+| `site.list`        | object   | `{shortcodes: false}`                       |
+| `site.notfound`    | object   | `null`                                      |
+| `site.hugo`        | object   | `{}`                                        |
 
 How much of a package reaches the web at all is **not** here — it is
-[`publish.site`](#publish). `site` is framing: what a section is called,
-which named pass bundle supplies the repository's own body rewrites, and the
-residue of the [generated Hugo configuration](#the-generated-hugo-configuration)
-that is genuinely this repository's own.
+[`publish.site`](#publish). `site` is framing: which named pass bundle
+supplies the repository's own body rewrites, and the residue of the
+[generated Hugo configuration](#the-generated-hugo-configuration) that is
+genuinely this repository's own.
 
-What the site publishes is the content tree, and nothing beside it. A page of
-documentation is a note — `type: doc`, addressed by its shortcode, and
-`pack: none` where it compiles into no Foundry document — so there is no
-second mechanism for mounting a directory of markdown, and a configuration
-that names one is refused with a message saying where the page goes instead:
+**A site is its homepage and its pages.** The `type: homepage` note is the
+package's front page at `/<contentPackage>/`, and every other note is one page
+at `/<contentPackage>/<type>-<shortcode>/`. Nothing is generated between
+them: no section directory, no listing of a type, no tag page. Every
+structure above the pages — which notes belong together, in what order,
+under which headings — is authored, as a `doc` note carrying a content table
+over the content index, and linked from the homepage like any other page.
 
-> ``package-build config: `site.trees` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and declare the section that lists it under `site.sections`.``
+So a page of documentation is a note — `type: doc`, addressed by its
+shortcode, and `pack: none` where it compiles into no Foundry document — and
+there is no second mechanism for mounting a directory of markdown. A
+configuration that names one is refused with a message saying where the page
+goes instead:
 
-> ``package-build config: `site.readmeSections` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and declare the section that lists it under `site.sections`.``
+> ``package-build config: `site.trees` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and link it from the homepage or from a `doc` note that indexes it.``
+
+> ``package-build config: `site.readmeSections` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and link it from the homepage or from a `doc` note that indexes it.``
+
+A configuration that asks the build to generate an index between the
+homepage and the pages is refused the same way, by name and with one message
+— `site.sections` (and the `listType` / `listSubType` an entry carried),
+`site.landing` and `site.backfillSections` alike:
+
+> ``package-build config: `site.sections` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
+
+> ``package-build config: `site.landing` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
+
+> ``package-build config: `site.backfillSections` is retired — a site is its homepage and its pages, and any index between them is a `doc` note: write one with `type: doc`, a `shortcode` and `pack: none`, carrying a content table over the notes it lists, and link it from the homepage. Nothing is generated between the homepage and the pages, so delete the key.``
 
 Where the Hugo tree is written is not a choice. `content-build site` writes
 the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
@@ -793,7 +809,7 @@ published. A `site.out` is refused by name:
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, sections, landing, pass, passOptions, backfillSections, list, notfound, hugo).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, list, notfound, hugo).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -839,49 +855,8 @@ names a registry):
 
 > ``package-build config: `site.packages[<index>]` must be a non-empty string.``
 
-`site.sections` is a closed vocabulary — a section's _only_ place to speak,
-since it exists solely as the generated `_index.md` this build writes for it:
-
-| Key (under `site.sections.<name>`) | Type                       | Required | Default |
-| ---------------------------------- | -------------------------- | -------- | ------- |
-| `site.sections.<name>.title`       | string                     | yes      | —       |
-| `site.sections.<name>.banner`      | string                     | no       | none    |
-| `site.sections.<name>.description` | string                     | no       | none    |
-| `site.sections.<name>.listType`    | string, an address segment | no       | none    |
-| `site.sections.<name>.listSubType` | string, an address segment | no       | none    |
-
-> ``package-build config: `site.sections.<name>` must be a mapping.``
-
-> ``package-build config: `site.sections.<name>.title` must be a non-empty string.``
-
-`listType` / `listSubType` say what the section **lists** — a content type
-and subType, which are address segments and therefore checked against
-`^[a-z0-9]+$`, deliberately distinct from the section's own name (a URL
-this site chose; `user-guide` is the section, `userguide` the subType):
-
-> ``package-build config: `site.sections.<name>.listType` is `Not Ok`, which is not lowercase alphanumeric. It names a content type or subType, and those are address segments (^[a-z0-9]+$) — not the section's own name, which is a URL this site chose and need not match (`user-guide` is the section, `userguide` the subType). A value no page carries selects nothing and leaves the landing empty.``
-
-`listSubType` alone, without `listType`, names no query — a subType only
-distinguishes _within_ a type:
-
-> ``package-build config: `site.sections.<name>.listSubType` is declared without a `listType`. A subType tells pages apart only within a type — `rules`, `userguide` and `reference` are all `doc` — so on its own it names no query for a layout to run.``
-
-Any other key on a section entry is refused:
-
-> ``package-build config: `site.sections.<name>.<key>` is not a recognized option (expected one of: title, banner, description, listType, listSubType).``
-
-`site.landing` is different from a section entry — it is the mount's own
-landing page frontmatter, passed through verbatim to Hugo rather than
-validated field by field, since its vocabulary is the theme's and not this
-package's:
-
-> ``package-build config: `site.landing` must be a mapping.``
-
-`site.passOptions` and `site.backfillSections` have no further shape of
-their own — `passOptions` is passed to the resolved `site.pass` bundle
-unchanged, and `backfillSections` is a plain boolean:
-
-> ``package-build config: `site.backfillSections` must be a boolean.``
+`site.passOptions` has no further shape of its own — it is passed to the
+resolved `site.pass` bundle unchanged.
 
 `site.list` is how a listing page renders, written into the generated Hugo
 configuration as `params.list`:
@@ -966,26 +941,26 @@ the block cannot grow into a second configuration file:
 `content-build site` writes `build/hugo/hugo.toml` on every run. Every value
 in it has one source, and that source is where it is edited:
 
-| Key                               | Derived from                                                                                                                                                |
-| --------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `baseURL`                         | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                         |
-| `title`                           | `packageBuild.manifest.title`, which is required                                                                                                            |
-| `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                             |
-| `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                                 |
-| `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                        |
-| `themesDir`                       | where `@heroiclands/hugo-theme` is installed, resolved the way Node resolves a package and written relative to `build/hugo/`                                |
-| `theme`                           | the installed `@heroiclands/hugo-theme`, so `hugo-theme`                                                                                                    |
-| `disableKinds`                    | whether any note in the tree carries `tags:`, which the site walk discovers: `["taxonomy", "term", "RSS"]` when none does, `["RSS"]` when at least one does |
-| `taxonomies`                      | the same fact — written as `{ tag = "tags" }` when at least one note carries `tags:`, absent otherwise                                                      |
-| `outputs`                         | the same fact — written as `{ taxonomy = ["HTML"], term = ["HTML"] }` when at least one note carries `tags:`, absent otherwise                              |
-| `params.description`              | `site.description`, which is required                                                                                                                       |
-| `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                                  |
-| `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                            |
-| `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                           |
-| `params.list`                     | `site.list`                                                                                                                                                 |
-| `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                     |
-| `markup.goldmark.renderer.unsafe` | the toolchain, whose pages carry raw HTML — a `<figure>` for every image, a `<span>` marking an unresolved link                                             |
-| `menu`                            | the navigation `content-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries     |
+| Key                               | Derived from                                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseURL`                         | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                     |
+| `title`                           | `packageBuild.manifest.title`, which is required                                                                                                        |
+| `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
+| `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
+| `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
+| `themesDir`                       | where `@heroiclands/hugo-theme` is installed, resolved the way Node resolves a package and written relative to `build/hugo/`                            |
+| `theme`                           | the installed `@heroiclands/hugo-theme`, so `hugo-theme`                                                                                                |
+| `disableKinds`                    | the toolchain, which renders a site as its homepage and its pages: `["section", "taxonomy", "term", "RSS"]` on every site, whatever its notes carry     |
+| `taxonomies`                      | the toolchain — never written, because `taxonomy` and `term` are disabled kinds                                                                         |
+| `outputs`                         | the toolchain — never written, because every listing kind is disabled                                                                                   |
+| `params.description`              | `site.description`, which is required                                                                                                                   |
+| `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                              |
+| `params.cdnBaseURL`               | `site.assets`, which is required                                                                                                                        |
+| `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                       |
+| `params.list`                     | `site.list`                                                                                                                                             |
+| `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                 |
+| `markup.goldmark.renderer.unsafe` | the toolchain, whose pages carry raw HTML — a `<figure>` for every image, a `<span>` marking an unresolved link                                         |
+| `menu`                            | the navigation `content-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries |
 
 The site build reads the navigation from the cache only. A cold cache is an
 error naming the command that fills it:
@@ -1012,13 +987,13 @@ build the same way:
 
 > ``package-build config: `site.assets` is not declared, and a site build needs one — it is the host every package's imagery is served from, and the theme resolves every relative asset against it.``
 
-Nothing else is emitted. A site whose notes carry no `tags:` publishes no
-taxonomy pages — `[taxonomies]` and `[outputs]` go unwritten, and Hugo's
-defaults never apply because `taxonomy` and `term` are disabled kinds. A site
-with at least one tagged note publishes `/tags/` and a page per tag: Hugo's
-own default taxonomy pair also declares `category`, so `[taxonomies]` names
-only `tag`, and `[outputs]` restricts both to `HTML` so neither produces a
-feed. Every other key is `site.hugo`'s to add.
+Nothing else is emitted. `home` and `page` are the only kinds a site
+renders: the homepage is the mount's `_index.md`, every note is a page, and
+`section`, `taxonomy`, `term` and `RSS` are disabled on every site — so no
+`[taxonomies]` or `[outputs]` is written, Hugo's default taxonomy pair never
+applies, and a note's `tags:` reach the page's front matter and nothing
+else. A tag is a field a content table filters on, not a page of its own.
+Every other key is `site.hugo`'s to add.
 
 ### `pdf`
 
@@ -1326,9 +1301,8 @@ its content tree's addresses mount inside the package.
 Every HeroicLands package publishes at least an authored homepage at
 `https://www.heroiclands.org/<contentPackage>/` — there is no value meaning
 _no web presence at all_. `homepage` is the floor: the authored homepage
-and nothing else, no content-tree walk, no `site.sections` / `site.landing`
-output. `content` is the homepage plus every page the content tree
-publishes. `publishesContentPages(config)`, exported from
+and nothing else, no content-tree walk. `content` is the homepage plus every
+page the content tree publishes. `publishesContentPages(config)`, exported from
 `content-config.mjs` alongside [`compilesFoundryDocuments`](#packagekind),
 answers the one question every reader of the mode actually asks — the site
 build, to decide whether to walk the tree at all, and the content index, to
@@ -1711,6 +1685,8 @@ the source directory:
 | `stats.systemVersion`                                                                                                                                                                                                                                                                                       | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
 | `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs`                                                                                                                                                             | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
 | `site.out`                                                                                                                                                                                                                                                                                                  | Retired — the site build writes its content mount at `build/hugo/content`, beside the generated `hugo.toml`.                                           |
+| `site.trees`, `site.readmeSections`                                                                                                                                                                                                                                                                         | Retired — a page is a note in the content tree.                                                                                                        |
+| `site.sections`, `site.landing`, `site.backfillSections`                                                                                                                                                                                                                                                    | Retired — a site is its homepage and its pages, and any index between them is a `doc` note.                                                            |
 | `site.hugo.baseURL`, `.title`, `.locale`, `.publishDir`, `.contentDir`, `.themesDir`, `.theme`, `.disableKinds`, `.taxonomies`, `.outputs`, `.params.description`, `.params.author`, `.params.cdnBaseURL`, `.params.brand`, `.params.list`, `.params.notfound`, `.markup.goldmark.renderer.unsafe`, `.menu` | Forbidden — each is written by the site build from a source it names; see [the generated Hugo configuration](#the-generated-hugo-configuration).       |
 | `publish.site: true` / `publish.site: false`                                                                                                                                                                                                                                                                | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
 | `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                                                                                                                                                                                   | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

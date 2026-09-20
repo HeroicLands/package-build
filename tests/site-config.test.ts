@@ -133,16 +133,11 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
 }
 
 /** The generated configuration for a fixture, as a plain object. */
-function generated(
-    site: Record<string, unknown> = {},
-    overrides: Record<string, unknown> = {},
-    hasTags = false,
-) {
+function generated(site: Record<string, unknown> = {}, overrides: Record<string, unknown> = {}) {
     return hugoConfig({
         config: configFor(overrides, site),
         navigation: NAVIGATION,
         themesDir: THEMES_DIR,
-        hasTags,
     });
 }
 
@@ -196,16 +191,10 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         // overwritten — the drift `DERIVED_MANIFEST_KEYS` exists to prevent.
         const parsed = parseToml(
             hugoToml(
-                generated(
-                    {
-                        list: { shortcodes: true },
-                        notfound: { tagline: "No page at", sitenoun: "module" },
-                    },
-                    {},
-                    // Tagged, so `taxonomies` and `outputs` are also emitted
-                    // and their leaves must be covered by the guard too.
-                    true,
-                ),
+                generated({
+                    list: { shortcodes: true },
+                    notfound: { tagline: "No page at", sitenoun: "module" },
+                }),
             ),
         );
         const paths = leafPaths(parsed);
@@ -218,8 +207,8 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         for (const key of ["disableKinds", "taxonomies", "outputs"]) {
             expect(() => configFor({}, { hugo: { [key]: [] } })).toThrow(
                 new RegExp(
-                    `\`site\\.hugo\\.${key}\` is derived from whether any note in the tree ` +
-                        "carries `tags:`, which the site walk discovers and must not be declared",
+                    `\`site\\.hugo\\.${key}\` is derived from the toolchain, which renders ` +
+                        "a site as its homepage and its pages: .* and must not be declared",
                 ),
             );
         }
@@ -282,20 +271,13 @@ describe("the generated configuration", () => {
         expect(out.params).not.toHaveProperty("notfound");
     });
 
-    it("disables taxonomy, term and RSS for a site with no tagged note", () => {
-        expect(DISABLE_KINDS).toEqual(["taxonomy", "term", "RSS"]);
+    it("disables section, taxonomy, term and RSS on every site", () => {
+        expect(DISABLE_KINDS).toEqual(["section", "taxonomy", "term", "RSS"]);
         expect(generated().disableKinds).toEqual([...DISABLE_KINDS]);
         expect(
             generated({}, { publish: { site: "content", address: { prefix: "kb/" } } })
                 .disableKinds,
         ).toEqual([...DISABLE_KINDS]);
-    });
-
-    it("leaves taxonomy and term enabled for a site with at least one tagged note", () => {
-        const out = generated({}, {}, true);
-        expect(out.disableKinds).toEqual(["RSS"]);
-        expect(out.taxonomies).toEqual({ tag: "tags" });
-        expect(out.outputs).toEqual({ taxonomy: ["HTML"], term: ["HTML"] });
     });
 
     it("passes the renderer the raw HTML the toolchain emits", () => {
@@ -305,7 +287,7 @@ describe("the generated configuration", () => {
         expect(generated().markup).toEqual({ goldmark: { renderer: { unsafe: true } } });
     });
 
-    it("emits neither `[taxonomies]` nor `[outputs]` for a site with no tagged note", () => {
+    it("emits neither `[taxonomies]` nor `[outputs]`", () => {
         const out = generated();
         expect(out).not.toHaveProperty("taxonomies");
         expect(out).not.toHaveProperty("outputs");
@@ -539,7 +521,7 @@ describe("the Hugo source tree lands under build/", () => {
         const config = configFor();
         const result = buildSite({ config });
         expect(result.stats?.out).toBe(path.join(root, HUGO_CONTENT));
-        expect(fs.existsSync(path.join(root, HUGO_CONTENT, "homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(root, HUGO_CONTENT, "_index.md"))).toBe(true);
     });
 
     it("`writeHugoConfig` writes `build/hugo/hugo.toml` from the cached navigation", () => {

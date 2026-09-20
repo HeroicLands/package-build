@@ -91,10 +91,7 @@ function configFor(site: Record<string, unknown> = {}) {
             site: "content",
             address: { prefix: "kb/" },
         },
-        site: {
-            sections: { rules: { title: "The Rules" } },
-            ...site,
-        },
+        site: { ...site },
     });
 }
 
@@ -134,12 +131,15 @@ describe("a page states its address relative to the site root", () => {
         expect(data.slug).toBe("weapongear-dagger");
     });
 
-    it("states the homepage's address the same way", () => {
+    it("states no address on the homepage, which is the root itself", () => {
+        // Hugo publishes the `home` kind at `baseURL`, whose path is already
+        // where the package is served, so there is nothing to state.
         const data = homepageFrontmatter(
             { type: "homepage", shortcode: "root" },
             { contentPackage: "demo", title: "The Demo Module" },
         );
-        expect(data.url).toBe("/homepage-root/");
+        expect(data).not.toHaveProperty("url");
+        expect(data).not.toHaveProperty("slug");
     });
 });
 
@@ -209,23 +209,12 @@ describe("end to end, the two quantities are written to the same page", () => {
         expect(page("doc-combat")).toContain("](/weapongear-dagger/)");
     });
 
-    it("states the homepage's address at the package's site root", () => {
+    it("writes the homepage as the package's site root, stating no address", () => {
         buildSite({ config: configFor() });
-        const home = fs.readFileSync(
-            path.join(root, "build/hugo/content/homepage-root.md"),
-            "utf8",
-        );
-        expect(home).toMatch(/^url: \/homepage-root\/$/m);
-    });
-
-    it("leaves a section landing addressed by its path", () => {
-        buildSite({ config: configFor() });
-        // It states no `url:` at all: a landing is its directory's
-        // `_index.md`, so it takes its address from where it is written.
-        const landing = fs.readFileSync(
-            path.join(root, "build/hugo/content/kb/rules/_index.md"),
-            "utf8",
-        );
-        expect(landing).not.toMatch(/^url:/m);
+        // It is the root's `_index.md`, so it takes its address from where
+        // it is written — `baseURL` — and states none.
+        const home = fs.readFileSync(path.join(root, "build/hugo/content/_index.md"), "utf8");
+        expect(home).not.toMatch(/^url:/m);
+        expect(home).toMatch(/^package: demo$/m);
     });
 });

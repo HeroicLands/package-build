@@ -15,12 +15,16 @@
  * inside the prefix is published as a text file and never applied. Hugo owns
  * everything under the prefix; this owns what sits beside it.
  *
- * **One implementation, because it is one policy.** What is indexable, where
- * the prefix root sends a reader, and how long that answer is cached are
- * decisions about the hosting rather than about any one package. Held in each
- * consumer they are the same file with one constant changed, which is a file
- * that drifts — and the drift is invisible, because nobody reads all of the
- * copies at once.
+ * **One file, `_headers`.** The prefix root is the homepage — the site build
+ * writes it as the mount's `_index.md` — so nothing redirects, and no
+ * `_redirects` is written. One left beside the site by an earlier build is
+ * removed rather than left to send every reader somewhere nothing publishes.
+ *
+ * **One implementation, because it is one policy.** What is indexable and how
+ * long the prefix root is cached are decisions about the hosting rather than
+ * about any one package. Held in each consumer they are the same file with one
+ * constant changed, which is a file that drifts — and the drift is invisible,
+ * because nobody reads all of the copies at once.
  *
  * @module
  */
@@ -38,19 +42,6 @@ import path from "node:path";
  * @type {string}
  */
 export const ORIGIN_SUFFIX = "pkg.heroiclands.org";
-
-/**
- * Where a package's landing is served, now that it is an addressed page.
- *
- * The site build emits the homepage at its own address rather than as the
- * site root's `_index.md`, so the prefix root is a redirect to it.
- *
- * @param {string} pkg - The content package name.
- * @returns {string} The landing's path.
- */
-export function landingPath(pkg) {
-    return `/${pkg}/homepage-root/`;
-}
 
 /**
  * Suppress indexing of every address a deployment answers on but nobody
@@ -85,12 +76,13 @@ export function noindexHeaders() {
 }
 
 /**
- * The lifetime pinned on the prefix-root redirect, and why it is pinned.
+ * The lifetime pinned on the prefix root, both spellings.
  *
- * Cloudflare Pages sets no `Cache-Control` on a redirect it generates — those
- * responses carry `location` and nothing else — and a 301 with no lifetime is
- * cached by a browser indefinitely, on the most-linked URL there is. An hour
- * keeps the 301's canonical signal without the permanence.
+ * The root is the homepage, the most-linked address a package has. An hour
+ * bounds how long a cached copy of it outlives a deploy, on every path between
+ * the origin and a reader. Both spellings, because Pages matches the raw path:
+ * `/<pkg>` and `/<pkg>/` are distinct keys and a rule on one does not catch the
+ * other.
  *
  * @param {string} pkg - The content package name.
  * @returns {string[]} The header block's lines.
@@ -107,21 +99,6 @@ export function cacheHeaders(pkg) {
 }
 
 /**
- * Both forms of the prefix root, because Pages matches the raw path.
- *
- * Redirect matching runs before any trailing-slash or `index.html` handling, so
- * `/<pkg>` and `/<pkg>/` are distinct keys and a rule on one does not catch the
- * other.
- *
- * @param {string} pkg - The content package name.
- * @returns {string} The `_redirects` file's contents.
- */
-export function redirects(pkg) {
-    const to = landingPath(pkg);
-    return [`/${pkg}/   ${to}   301`, `/${pkg}    ${to}   301`, ""].join("\n");
-}
-
-/**
  * The `_headers` file's contents.
  *
  * @param {string} pkg - The content package name.
@@ -132,7 +109,12 @@ export function headers(pkg) {
 }
 
 /**
- * Write `_headers` and `_redirects` beside the rendered site.
+ * Write `_headers` beside the rendered site, and remove any `_redirects`.
+ *
+ * The removal is part of owning the root: a `_redirects` this build did not
+ * write is one an earlier build left, and Cloudflare Pages applies whatever
+ * sits there. Left in place it would redirect the prefix root — the homepage —
+ * to an address nothing publishes.
  *
  * @param {object} options - Options.
  * @param {string} options.pkg - The content package name, which is also the
@@ -152,14 +134,8 @@ export function writeSiteRoot({ pkg, out }) {
         );
     }
 
-    const written = [];
-    for (const [name, body] of [
-        ["_headers", headers(pkg)],
-        ["_redirects", redirects(pkg)],
-    ]) {
-        const file = path.join(root, name);
-        fs.writeFileSync(file, body);
-        written.push(file);
-    }
-    return { files: written };
+    const file = path.join(root, "_headers");
+    fs.writeFileSync(file, headers(pkg));
+    fs.rmSync(path.join(root, "_redirects"), { force: true });
+    return { files: [file] };
 }

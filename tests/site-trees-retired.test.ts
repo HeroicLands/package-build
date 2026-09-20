@@ -11,9 +11,9 @@
  * There is no second way to publish a directory of markdown beside the
  * content: `site.trees` and the `readmeSections` that titled a tree's landing
  * are refused by name, with a message saying where a page goes instead. The
- * site build publishes the content tree and nothing else, and the mount it
- * writes for a tree-free configuration is pinned by digest so that removing
- * the mechanism changes no consumer's site.
+ * site build publishes the homepage and the content tree and nothing else,
+ * and the mount it writes is pinned by digest so that a change to what a
+ * consumer's site holds is a deliberate one.
  */
 
 import { describe, it, expect } from "vitest";
@@ -61,9 +61,9 @@ describe("site.trees is refused", () => {
         ).toThrow(/site\.readmeSections.*a page is a note in the content tree/s);
     });
 
-    it("resolves a `site` block without either key exactly as before", () => {
-        const config = defineConfig(minimal({ site: { sections: { rules: { title: "Rules" } } } }));
-        expect(config.site.sections.rules.title).toBe("Rules");
+    it("resolves a `site` block without either key, and carries neither", () => {
+        const config = defineConfig(minimal({ site: { description: "A package." } }));
+        expect(config.site.description).toBe("A package.");
         expect("trees" in config.site).toBe(false);
         expect("readmeSections" in config.site).toBe(false);
     });
@@ -91,12 +91,15 @@ describe("the site build has no tree walk", () => {
 /**
  * The digest of the mount this fixture publishes. It pins the whole emitted
  * tree — every path and every byte — so a change to the site build that
- * touches what a tree-free configuration emits is a red test here rather
- * than a surprise on a consumer's site. A change to the digest is a change to
- * every consumer's published pages, and is made deliberately.
+ * touches what a configuration emits is a red test here rather than a
+ * surprise on a consumer's site. A change to the digest is a change to every
+ * consumer's published pages, and is made deliberately.
+ *
+ * Four files: the homepage's `_index.md` at the root, and one page per note
+ * flat under the `kb/` mount. Nothing else — no `_index.md` below the root.
  */
-const MOUNT_DIGEST = "668a5a532e9ef632623f5e1a3dc565b019d4210eb198178d0321fce6f06b628d";
-const MOUNT_FILES = 6;
+const MOUNT_DIGEST = "2e678388814f65db2a11a7e9e305b9e251b2c0061fd77b828e4523c09fa7e7ce";
+const MOUNT_FILES = 4;
 
 /** Every file below `dir`, as `path\0sha256`, sorted. */
 function digestTree(dir: string): { digest: string; files: number } {
@@ -120,8 +123,8 @@ function digestTree(dir: string): { digest: string; files: number } {
     };
 }
 
-describe("a site built from a configuration with no trees is byte-identical", () => {
-    it("emits the pinned mount", () => {
+describe("the mount a site build writes is pinned", () => {
+    it("emits the pinned mount: the homepage's `_index.md` and one page per note", () => {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "cb-notrees-"));
         const write = (rel: string, text: string) => {
             const file = path.join(root, rel);
@@ -166,11 +169,6 @@ describe("a site built from a configuration with no trees is byte-identical", ()
                     { name: "journals", type: "JournalEntry" },
                 ],
                 publish: { site: "content", address: { prefix: "kb/" } },
-                site: {
-                    sections: { rules: { title: "Rules", listType: "doc", listSubType: "rules" } },
-                    landing: { title: "Knowledgebase", type: "knowledgebase" },
-                    backfillSections: true,
-                },
             });
             const result = buildSite({ config });
             expect(gatesFailed(result.gates)).toBe(false);
@@ -179,6 +177,8 @@ describe("a site built from a configuration with no trees is byte-identical", ()
                 digest: MOUNT_DIGEST,
                 files: MOUNT_FILES,
             });
+            expect(fs.existsSync(path.join(root, "build/hugo/content/_index.md"))).toBe(true);
+            expect(fs.existsSync(path.join(root, "build/hugo/content/kb/_index.md"))).toBe(false);
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }

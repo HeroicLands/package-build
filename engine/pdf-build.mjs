@@ -34,8 +34,8 @@
  *
  * ## `publish.site` is the switch, and it is the only switch
  *
- * `homepage` mode fences the content surfaces off: the tree is not walked and
- * `sections` and `landing` emit nothing however they are declared. A
+ * `homepage` mode fences the content surfaces off: the tree is not walked for
+ * pages, whatever else the configuration declares. A
  * PDF of the content tree is a content surface by any reading — arguably the
  * most portable one there is — so it is fenced on exactly the same terms, by
  * asking the same {@link module:content-config.publishesContentPages} the

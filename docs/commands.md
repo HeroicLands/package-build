@@ -261,7 +261,7 @@ package-build: `packageKind: documentation` ships no Foundry package, so there i
 
 **NAME**
 
-`package-build site-root` — write the deployment's `_headers` and `_redirects`.
+`package-build site-root` — write the deployment's `_headers`.
 
 **SYNOPSIS**
 
@@ -278,13 +278,19 @@ and Cloudflare Pages reads `_headers` and `_redirects` from there and nowhere
 else — a copy inside the prefix is published as a text file and never applied.
 Hugo owns everything under the prefix; this owns what sits beside it.
 
-Two things are written. Indexing is suppressed on every address a deployment
-answers on but nobody advertises — the project's `pages.dev`, the per-deployment
-`pages.dev`, and the custom domain the routing layer fetches — each of which
-would otherwise compete with the canonical URL in search results. And both
-spellings of the prefix root redirect to the landing, with a lifetime pinned on
-the 301, because Pages sets no `Cache-Control` on a redirect it generates and a
-301 without one is cached indefinitely on the most-linked URL there is.
+One file is written, `_headers`, and it says two things. Indexing is
+suppressed on every address a deployment answers on but nobody advertises —
+the project's `pages.dev`, the per-deployment `pages.dev`, and the custom
+domain the routing layer fetches — each of which would otherwise compete with
+the canonical URL in search results. And both spellings of the prefix root
+carry a pinned lifetime, because the root is the homepage and the most-linked
+address a package has, and an hour bounds how long a cached copy outlives a
+deploy.
+
+No `_redirects` is written: the prefix root _is_ the homepage, which the site
+build writes as the mount's `_index.md`, so nothing redirects. A `_redirects`
+left beside the site by an earlier build is removed, since Pages would apply
+it.
 
 The rules are scoped to those hostnames, so a site deployed under a domain of
 its own stays indexable.
@@ -304,7 +310,6 @@ under the prefix. Otherwise 0.
 ```
 $ package-build site-root
 ✅ Wrote build/site/_headers.
-✅ Wrote build/site/_redirects.
 ```
 
 **SEE ALSO**
@@ -1541,10 +1546,18 @@ Writes the whole Hugo source tree under `build/hugo/` — the sibling of
 `package compile`: the same tree, rendered as pages instead of compiled
 into packs. Everything a consumer would otherwise write for itself happens
 here: the walk, address derivation, the address index, table expansion,
-wikilink resolution, code-fence protection, the foreign-manifest merge, the
-section-landing backfill, and the Hugo configuration itself. The consumer's
-script then runs Hugo over the tree — `hugo --source build/hugo` — and this
-command never does.
+wikilink resolution, code-fence protection, the foreign-manifest merge, and
+the Hugo configuration itself. The consumer's script then runs Hugo over the
+tree — `hugo --source build/hugo` — and this command never does.
+
+**A site is its homepage and its pages.** The `type: homepage` note is
+written as the mount's `_index.md`, so Hugo renders it at
+`/<contentPackage>/`; every other note is one page at
+`/<contentPackage>/<type>-<shortcode>/`. Nothing is generated between them —
+no section directory, no listing, no tag page — and the generated
+configuration disables the `section`, `taxonomy`, `term` and `RSS` kinds on
+every site. An index of what the package publishes is a `doc` note carrying a
+content table, authored where every other page is.
 
 Three things are written, and nothing outside `build/`:
 
@@ -1555,9 +1568,9 @@ Three things are written, and nothing outside `build/`:
   `@heroiclands/hugo-theme`'s location, and the navigation `deps fetch`
   cached. Every value's source is listed under
   [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).
-- `build/hugo/content/`, the content mount — the homepage at its root, and
-  the content tree's pages below `publish.address.prefix`. Wiped on every
-  run.
+- `build/hugo/content/`, the content mount — the homepage as its `_index.md`,
+  and the content tree's pages flat below `publish.address.prefix`. Wiped on
+  every run.
 - `publishDir` pointing Hugo at `build/site/<contentPackage>/`, the
   deployment root `package-build site-root` writes beside. Nothing Hugo
   reads lands in what is published.
@@ -1589,7 +1602,7 @@ failed to expand, or a dead wikilink. Otherwise 0.
 
 ```
 $ content-build site
-[…] wrote 1 homepage(s) + 1 content page(s) + 0 tree page(s) + 0 landing(s) to build/hugo/content
+[…] wrote 1 homepage(s) + 1 content page(s) to build/hugo/content
 […] wrote build/hugo/hugo.toml
 
 $ content-build site

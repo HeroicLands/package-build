@@ -83,38 +83,17 @@ export const BRAND = Object.freeze({
 });
 
 /**
- * The kinds a site with no tagged notes renders.
+ * The kinds no site renders.
  *
- * A section exists only where `site.sections` declares one, so a tree holding
- * only the homepage emits nothing beyond it; a taxonomy nobody's notes fill
- * and a feed would be empty shells. A site whose notes carry `tags:` emits
- * `taxonomy` and `term` after all — see {@link hugoConfig} — but `RSS` is
- * disabled either way: nothing here publishes a feed.
+ * A site is its homepage and its pages: `home` and `page` are the only kinds,
+ * for every package and whatever its notes carry. A `section` is a listing
+ * Hugo would generate from a content directory; `taxonomy` and `term` are
+ * listings it would generate from `tags:`; `RSS` is a feed. Every structure
+ * between the homepage and the pages is authored instead, as a `doc` note
+ * carrying a content table — a tag is a field such a table filters on, not a
+ * page of its own.
  */
-export const DISABLE_KINDS = Object.freeze(["taxonomy", "term", "RSS"]);
-
-/**
- * The kinds a site with at least one tagged note renders — everything but
- * `RSS`.
- */
-const DISABLE_KINDS_TAGGED = Object.freeze(["RSS"]);
-
-/**
- * The single taxonomy a tagged site declares.
- *
- * Only `tag` — Hugo's default pair also declares `category`, which nothing
- * here authors and which would publish an empty `/categories/`.
- */
-const TAXONOMIES = Object.freeze({ tag: "tags" });
-
-/**
- * The taxonomy output formats a tagged site declares — `HTML` only, so no
- * feed is produced for `/tags/` or a single tag.
- */
-const TAXONOMY_OUTPUTS = Object.freeze({
-    taxonomy: Object.freeze(["HTML"]),
-    term: Object.freeze(["HTML"]),
-});
+export const DISABLE_KINDS = Object.freeze(["section", "taxonomy", "term", "RSS"]);
 
 /**
  * The markup settings the toolchain's own output requires.
@@ -383,15 +362,12 @@ function deepMerge(base, overrides) {
  * @param {object} options.config - The resolved build configuration.
  * @param {readonly NavigationEntry[]} options.navigation - The navigation.
  * @param {string} options.themesDir - From {@link resolveThemesDir}.
- * @param {boolean} [options.hasTags] - Whether any note the site build walked
- *   carries `tags:`, from {@link module:engine/site-build.buildSite}'s
- *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
  *   configuration declares no `packageBuild.manifest.title`, no
  *   `site.description`, or no `site.assets`.
  */
-export function hugoConfig({ config, navigation, themesDir, hasTags = false }) {
+export function hugoConfig({ config, navigation, themesDir }) {
     checkHomepage(config.homepage, config.contentPackage);
 
     const title = config.packageBuild?.manifest?.title;
@@ -432,18 +408,11 @@ export function hugoConfig({ config, navigation, themesDir, hasTags = false }) {
         themesDir,
         theme: THEME,
         contentDir: path.posix.relative(HUGO_SOURCE, HUGO_CONTENT),
-        disableKinds: hasTags ? [...DISABLE_KINDS_TAGGED] : [...DISABLE_KINDS],
+        disableKinds: [...DISABLE_KINDS],
         params,
         markup: structuredClone(MARKUP),
         menu: { main: menuEntries(navigation) },
     };
-    if (hasTags) {
-        generated.taxonomies = { ...TAXONOMIES };
-        generated.outputs = {
-            taxonomy: [...TAXONOMY_OUTPUTS.taxonomy],
-            term: [...TAXONOMY_OUTPUTS.term],
-        };
-    }
     return deepMerge(generated, config.site.hugo);
 }
 
@@ -470,20 +439,14 @@ export function hugoToml(generated) {
  * run this before touching the output tree and fail with it intact.
  *
  * @param {object} config - The resolved build configuration.
- * @param {object} [options] - Options.
- * @param {boolean} [options.hasTags] - Whether any note the site build walked
- *   carries `tags:`. Defaults to `false`, so a caller generating the
- *   configuration before the walk (to fail fast on a missing source) gets the
- *   untagged shape; pass the site build's own `hasTags` once it is known.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {Error} When any source is missing or wrong.
  */
-export function generateHugoConfig(config, { hasTags = false } = {}) {
+export function generateHugoConfig(config) {
     return hugoConfig({
         config,
         navigation: readCachedNavigation(config),
         themesDir: resolveThemesDir(config.rootDir),
-        hasTags,
     });
 }
 

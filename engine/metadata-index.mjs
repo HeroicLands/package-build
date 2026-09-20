@@ -50,6 +50,7 @@ import { packageBuildRecords } from "./packagebuild-index.mjs";
 
 export { metadataFileName };
 import { PACKAGE_BASE, readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
+import { HOMEPAGE_TYPE } from "./homepage.mjs";
 
 /**
  * Written once a fetch completes, so a half-finished cache is never used.
@@ -365,9 +366,12 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // must tolerate that rather than invent an href, exactly as it
                 // already tolerates an entry with no `uuid`.
                 url:
-                    web && record.address.slug ?
-                        resolvePackageUrl(`${record.address.slug}/`, base)
-                    :   undefined,
+                    !web || !record.address.slug ? undefined
+                        // A package's homepage is its root: the note is the
+                        // mount's `_index.md`, so `[[thalorna-homepage-root]]`
+                        // lands on `/thalorna/`, not on a page below it.
+                    : parts.type === HOMEPAGE_TYPE ? base
+                    : resolvePackageUrl(`${record.address.slug}/`, base),
                 uuid: foundry?.uuid,
                 doc: record.documentation ?? undefined,
                 anchors: foundry?.anchors,

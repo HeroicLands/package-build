@@ -30,10 +30,8 @@ import {
     gatesFailed,
     pageDestination,
     pageFrontmatter,
-    pluralTitle,
     resolveSitePass,
     siteGates,
-    writeSectionLandings,
 } from "../engine/site-build.mjs";
 
 let root: string;
@@ -349,44 +347,6 @@ describe("what a page publishes with", () => {
     });
 });
 
-describe("section landings", () => {
-    it("writes a titled landing for each declared section", () => {
-        const out = fs.mkdtempSync(path.join(os.tmpdir(), "cb-land-"));
-        writeSectionLandings(out, {
-            sections: { being: { title: "Beings", banner: "b.webp" } },
-            landing: { title: "Knowledgebase", type: "knowledgebase" },
-        });
-        expect(fs.readFileSync(path.join(out, "being/_index.md"), "utf8")).toContain(
-            "title: Beings",
-        );
-        expect(fs.readFileSync(path.join(out, "_index.md"), "utf8")).toContain(
-            "type: knowledgebase",
-        );
-        fs.rmSync(out, { recursive: true });
-    });
-
-    it("backfills a section that no note and no configuration supplies", () => {
-        // Hugo generates a section page automatically only for a *top-level*
-        // content directory. Mounted a level down, a directory without an
-        // `_index.md` is not a section at all: its URL 404s while every page
-        // inside it publishes normally.
-        const out = fs.mkdtempSync(path.join(os.tmpdir(), "cb-land-"));
-        fs.mkdirSync(path.join(out, "macro"), { recursive: true });
-        writeSectionLandings(out, { sectionTitle: pluralTitle });
-        expect(fs.readFileSync(path.join(out, "macro/_index.md"), "utf8")).toContain(
-            "title: Macros",
-        );
-        fs.rmSync(out, { recursive: true });
-    });
-
-    it("pluralises in English, not Hugo's inflector", () => {
-        expect(pluralTitle("macro")).toBe("Macros"); // not "Macroes"
-        expect(pluralTitle("class")).toBe("Classes");
-        expect(pluralTitle("ability")).toBe("Abilities");
-        expect(pluralTitle("dev-docs")).toBe("Dev Docses");
-    });
-});
-
 describe("the output root is fixed, which is what makes wiping it safe", () => {
     // The whole tree is a build artifact and is wiped on every run, so the
     // resolution is the difference between clearing a build directory and
@@ -417,7 +377,7 @@ describe("the output root is fixed, which is what makes wiping it safe", () => {
         });
         const result = buildSite({ config });
         expect(result.stats?.out).toBe(path.join(sandbox, "build/hugo/content"));
-        expect(fs.existsSync(path.join(sandbox, "build/hugo/content/homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(sandbox, "build/hugo/content/_index.md"))).toBe(true);
         expect(fs.existsSync(path.join(sandbox, "precious.txt"))).toBe(true);
         fs.rmSync(sandbox, { recursive: true, force: true });
     });
@@ -439,14 +399,13 @@ describe("the consumer's own passes are named, not imported", () => {
 });
 
 describe("buildSite end to end", () => {
-    it("writes the tree, its landings, and reports its counts", () => {
+    it("writes the tree and reports its counts", () => {
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(false);
         expect(result.stats).not.toBeNull();
         const out = path.join(root, "build/hugo/content/kb");
         expect(fs.existsSync(path.join(out, "weapongear-dagger.md"))).toBe(true);
-        // A section directory exists only where the configuration declares one
-        // — no page creates it.
+        // No page creates a directory, and nothing else does either.
         expect(fs.existsSync(path.join(out, "rules"))).toBe(false);
         expect(result.wikiErrors).toEqual([]);
     });
@@ -502,30 +461,5 @@ summary: "see [[weapongear-dagger]]"`,
         expect(result.stats).toBeNull();
         expect(fs.existsSync(path.join(out, "kb"))).toBe(false);
         fs.rmSync(path.join(root, "assets/content/Gear/Dagger3.md"));
-    });
-
-    it("reports `hasTags: false` when no note in the tree carries `tags:`", () => {
-        const result = buildSite({ config: configFor() });
-        expect(gatesFailed(result.gates)).toBe(false);
-        expect(result.hasTags).toBe(false);
-    });
-
-    it("reports `hasTags: true` when a note carries `tags:`", () => {
-        note(
-            "Gear/Axe.md",
-            `type: weapongear
-shortcode: axe
-name:
-    full: Axe
-tags:
-    - throwing`,
-        );
-        try {
-            const result = buildSite({ config: configFor() });
-            expect(gatesFailed(result.gates)).toBe(false);
-            expect(result.hasTags).toBe(true);
-        } finally {
-            fs.rmSync(path.join(root, "assets/content/Gear/Axe.md"));
-        }
     });
 });
