@@ -129,12 +129,17 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
 }
 
 /** The generated configuration for a fixture, as a plain object. */
-function generated(site: Record<string, unknown> = {}, overrides: Record<string, unknown> = {}) {
+function generated(
+    site: Record<string, unknown> = {},
+    overrides: Record<string, unknown> = {},
+    hasTags = false,
+) {
     return hugoConfig({
         config: configFor(overrides, site),
         description: "A demonstration module.",
         navigation: NAVIGATION,
         themesDir: THEMES_DIR,
+        hasTags,
     });
 }
 
@@ -168,6 +173,9 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
             "contentDir",
             "themesDir",
             "theme",
+            "disableKinds",
+            "taxonomies",
+            "outputs",
             "params.description",
             "params.author",
             "params.cdnBaseURL",
@@ -185,16 +193,33 @@ describe("everything the generator writes is a key `site.hugo` may not author", 
         // overwritten — the drift `DERIVED_MANIFEST_KEYS` exists to prevent.
         const parsed = parseToml(
             hugoToml(
-                generated({
-                    list: { shortcodes: true },
-                    notfound: { tagline: "No page at", sitenoun: "module" },
-                }),
+                generated(
+                    {
+                        list: { shortcodes: true },
+                        notfound: { tagline: "No page at", sitenoun: "module" },
+                    },
+                    {},
+                    // Tagged, so `taxonomies` and `outputs` are also emitted
+                    // and their leaves must be covered by the guard too.
+                    true,
+                ),
             ),
         );
         const paths = leafPaths(parsed);
         expect(paths.length).toBeGreaterThan(10);
         const unguarded = paths.filter((dotted) => !isDerived(dotted));
         expect(unguarded).toEqual([]);
+    });
+
+    it("refuses `site.hugo.disableKinds`, `.taxonomies` and `.outputs`, naming the derivation", () => {
+        for (const key of ["disableKinds", "taxonomies", "outputs"]) {
+            expect(() => configFor({}, { hugo: { [key]: [] } })).toThrow(
+                new RegExp(
+                    `\`site\\.hugo\\.${key}\` is derived from whether any note in the tree ` +
+                        "carries `tags:`, which the site walk discovers and must not be declared",
+                ),
+            );
+        }
     });
 
     it("refuses `site.hugo.baseURL`, naming `package.json` `homepage`", () => {
@@ -254,13 +279,20 @@ describe("the generated configuration", () => {
         expect(out.params).not.toHaveProperty("notfound");
     });
 
-    it("disables the same kinds for every site", () => {
+    it("disables taxonomy, term and RSS for a site with no tagged note", () => {
         expect(DISABLE_KINDS).toEqual(["taxonomy", "term", "RSS"]);
         expect(generated().disableKinds).toEqual([...DISABLE_KINDS]);
         expect(
             generated({}, { publish: { site: "content", address: { prefix: "kb/" } } })
                 .disableKinds,
         ).toEqual([...DISABLE_KINDS]);
+    });
+
+    it("leaves taxonomy and term enabled for a site with at least one tagged note", () => {
+        const out = generated({}, {}, true);
+        expect(out.disableKinds).toEqual(["RSS"]);
+        expect(out.taxonomies).toEqual({ tag: "tags" });
+        expect(out.outputs).toEqual({ taxonomy: ["HTML"], term: ["HTML"] });
     });
 
     it("passes the renderer the raw HTML the toolchain emits", () => {
@@ -270,7 +302,7 @@ describe("the generated configuration", () => {
         expect(generated().markup).toEqual({ goldmark: { renderer: { unsafe: true } } });
     });
 
-    it("emits neither `[taxonomies]` nor `[outputs]`", () => {
+    it("emits neither `[taxonomies]` nor `[outputs]` for a site with no tagged note", () => {
         const out = generated();
         expect(out).not.toHaveProperty("taxonomies");
         expect(out).not.toHaveProperty("outputs");

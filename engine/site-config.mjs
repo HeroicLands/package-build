@@ -83,13 +83,38 @@ export const BRAND = Object.freeze({
 });
 
 /**
- * The kinds no site renders.
+ * The kinds a site with no tagged notes renders.
  *
  * A section exists only where `site.sections` declares one, so a tree holding
- * only the homepage emits nothing beyond it; taxonomies and feeds would be
- * empty shells on every site.
+ * only the homepage emits nothing beyond it; a taxonomy nobody's notes fill
+ * and a feed would be empty shells. A site whose notes carry `tags:` emits
+ * `taxonomy` and `term` after all — see {@link hugoConfig} — but `RSS` is
+ * disabled either way: nothing here publishes a feed.
  */
 export const DISABLE_KINDS = Object.freeze(["taxonomy", "term", "RSS"]);
+
+/**
+ * The kinds a site with at least one tagged note renders — everything but
+ * `RSS`.
+ */
+const DISABLE_KINDS_TAGGED = Object.freeze(["RSS"]);
+
+/**
+ * The single taxonomy a tagged site declares.
+ *
+ * Only `tag` — Hugo's default pair also declares `category`, which nothing
+ * here authors and which would publish an empty `/categories/`.
+ */
+const TAXONOMIES = Object.freeze({ tag: "tags" });
+
+/**
+ * The taxonomy output formats a tagged site declares — `HTML` only, so no
+ * feed is produced for `/tags/` or a single tag.
+ */
+const TAXONOMY_OUTPUTS = Object.freeze({
+    taxonomy: Object.freeze(["HTML"]),
+    term: Object.freeze(["HTML"]),
+});
 
 /**
  * The markup settings the toolchain's own output requires.
@@ -359,11 +384,14 @@ function deepMerge(base, overrides) {
  * @param {string} [options.description] - `package.json`'s `description`.
  * @param {readonly NavigationEntry[]} options.navigation - The navigation.
  * @param {string} options.themesDir - From {@link resolveThemesDir}.
+ * @param {boolean} [options.hasTags] - Whether any note the site build walked
+ *   carries `tags:`, from {@link module:engine/site-build.buildSite}'s
+ *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
  *   configuration declares no `packageBuild.manifest.title`.
  */
-export function hugoConfig({ config, description, navigation, themesDir }) {
+export function hugoConfig({ config, description, navigation, themesDir, hasTags = false }) {
     checkHomepage(config.homepage, config.contentPackage);
 
     const title = config.packageBuild?.manifest?.title;
@@ -391,11 +419,18 @@ export function hugoConfig({ config, description, navigation, themesDir }) {
         themesDir,
         theme: THEME,
         contentDir: path.posix.relative(HUGO_SOURCE, HUGO_CONTENT),
-        disableKinds: [...DISABLE_KINDS],
+        disableKinds: hasTags ? [...DISABLE_KINDS_TAGGED] : [...DISABLE_KINDS],
         params,
         markup: structuredClone(MARKUP),
         menu: { main: menuEntries(navigation) },
     };
+    if (hasTags) {
+        generated.taxonomies = { ...TAXONOMIES };
+        generated.outputs = {
+            taxonomy: [...TAXONOMY_OUTPUTS.taxonomy],
+            term: [...TAXONOMY_OUTPUTS.term],
+        };
+    }
     return deepMerge(generated, config.site.hugo);
 }
 
@@ -434,15 +469,21 @@ function packageDescription(rootDir) {
  * intact.
  *
  * @param {object} config - The resolved build configuration.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.hasTags] - Whether any note the site build walked
+ *   carries `tags:`. Defaults to `false`, so a caller generating the
+ *   configuration before the walk (to fail fast on a missing source) gets the
+ *   untagged shape; pass the site build's own `hasTags` once it is known.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {Error} When any source is missing or wrong.
  */
-export function generateHugoConfig(config) {
+export function generateHugoConfig(config, { hasTags = false } = {}) {
     return hugoConfig({
         config,
         description: packageDescription(config.rootDir),
         navigation: readCachedNavigation(config),
         themesDir: resolveThemesDir(config.rootDir),
+        hasTags,
     });
 }
 
