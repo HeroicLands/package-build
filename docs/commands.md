@@ -1064,6 +1064,29 @@ named. Reads the configured `itemBuilders` registries; writes (or checks)
 the destination file, or prints to stdout when none is configured and
 `--out` is not given.
 
+**A destination under `paths.content` gets a complete note, not a typeless
+page.** The content-tree walk collects every published page by its `type:`,
+so a generated page filed there needs the envelope every other note carries
+or the walk drops it silently — no build failure, no page, every wikilink
+into it dead. So when `--out` (or `docs.itemFields.out`) resolves inside the
+content tree, the written file carries:
+
+- `type: doc`, `subType: reference` — out-of-world lookup material, like
+  every other generated reference page;
+- `shortcode`, derived from the destination's basename — lowercase
+  alphanumerics only, so `item-frontmatter.md` derives `itemfrontmatter` —
+  unless `docs.itemFields.frontmatter.shortcode` gives one;
+- `name.full`, from the page's title;
+- `pack: none` — the page publishes to the website and compiles into no
+  compendium document.
+
+`docs.itemFields.frontmatter` is deep-merged over that envelope, so a
+consumer may add keys (`description`, `tags`) or override any of the derived
+ones. `--check` then compares the **whole** file, envelope included — a page
+committed with a hand-written or stale envelope reads as out of date exactly
+as a stale body does. A destination outside the content tree gets the page
+body alone, with no frontmatter, exactly as before.
+
 **OPTIONS**
 
 | Positional | Type                         | Default | Description             |

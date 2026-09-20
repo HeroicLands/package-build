@@ -80,7 +80,7 @@ import {
     formatUnaddressableFinding,
 } from "../engine/metadata-index.mjs";
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
-import { renderItemFieldReference } from "../engine/field-reference.mjs";
+import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
@@ -284,6 +284,14 @@ const argv = yargs(hideBin(process.argv))
  * second implementation of the comparison. Staleness is a property of the whole
  * generated file, so there is no line to name.
  *
+ * **A destination under the content tree gets a note envelope**, so the walk
+ * that collects every note by its `type:` picks this one up too, rather than
+ * silently dropping it — `type: doc`, `subType: reference`, a `shortcode`
+ * derived from the destination's basename, `name.full` from the title, and
+ * `pack: none`; `docs.itemFields.frontmatter` deep-merges over it. `--check`
+ * compares the whole file, envelope included. A destination outside the
+ * content tree gets the page body alone, as before.
+ *
  * `--out` and `--title` still override, for a one-off render.
  *
  * @returns {object} The yargs command module.
@@ -332,13 +340,27 @@ function docsCommand() {
                 const spec = config.docs?.itemFields ?? {};
                 const destination =
                     argv.out ?? (spec.out ? path.resolve(config.rootDir, spec.out) : null);
+                const pageTitle = title ?? spec.title ?? "Item Note Frontmatter";
 
-                const page = `${renderItemFieldReference({
-                    ...((title ?? spec.title) ? { title: title ?? spec.title } : {}),
+                const body = `${renderItemFieldReference({
+                    title: pageTitle,
                     ...(spec.preamble ? { preamble: spec.preamble } : {}),
                     generatedBy: "`content-build docs item-fields`",
                     config,
                 })}\n`;
+                // A page filed under the content tree is walked for its
+                // `type:` like any other note, so it needs the envelope; one
+                // filed anywhere else — a repository's own `docs/` — is not,
+                // and gets exactly the body it always did.
+                const page =
+                    destination ?
+                        renderItemFieldsPage(body, {
+                            title: pageTitle,
+                            destination,
+                            contentRoot: config.paths.content,
+                            frontmatter: spec.frontmatter,
+                        })
+                    :   body;
 
                 if (check) {
                     if (!destination) {

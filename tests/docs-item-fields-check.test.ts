@@ -74,6 +74,26 @@ function runCheck(destination: string): { code: number; out: string; err: string
     return { code: r.status ?? 1, out: r.stdout ?? "", err: r.stderr ?? "" };
 }
 
+/** Run `docs item-fields` (writing) against a destination, real binary. */
+function runWrite(
+    destination: string,
+    extraArgs: string[] = [],
+): { code: number; out: string; err: string } {
+    const r = spawnSync(
+        process.execPath,
+        [CLI, "docs", "item-fields", "--out", destination, ...extraArgs],
+        {
+            cwd: root,
+            env: {
+                ...process.env,
+                PACKAGE_BUILD_CONFIG: path.join(root, "package-build.config.yaml"),
+            },
+            encoding: "utf8",
+        },
+    );
+    return { code: r.status ?? 1, out: r.stdout ?? "", err: r.stderr ?? "" };
+}
+
 describe("`content-build docs item-fields --check` against a stale page", () => {
     let destination: string;
 
@@ -105,5 +125,58 @@ describe("`content-build docs item-fields --check` against a stale page", () => 
     it("still fails the run", () => {
         const { code } = runCheck(destination);
         expect(code).not.toBe(0);
+    });
+});
+
+describe("`content-build docs item-fields` with `--out` inside the content tree", () => {
+    it("writes a complete note, envelope and all", () => {
+        const destination = path.join(root, "assets/content/item-frontmatter.md");
+        try {
+            const { code } = runWrite(destination, ["--title", "Item Note Frontmatter"]);
+            expect(code).toBe(0);
+            const written = fs.readFileSync(destination, "utf8");
+            expect(written.startsWith("---\n")).toBe(true);
+            expect(written).toMatch(/^type: doc$/m);
+            expect(written).toMatch(/^subType: reference$/m);
+            expect(written).toMatch(/^shortcode: itemfrontmatter$/m);
+            expect(written).toMatch(/^ {2}full: Item Note Frontmatter$/m);
+            expect(written).toMatch(/^pack: none$/m);
+            expect(written).toContain("# Item Note Frontmatter");
+        } finally {
+            fs.rmSync(destination, { force: true });
+        }
+    });
+
+    it("passes `--check` right after writing, and fails against a stale body", () => {
+        const destination = path.join(root, "assets/content/item-frontmatter.md");
+        try {
+            expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
+            expect(runCheck(destination).code).toBe(0);
+
+            // A stale body — the envelope is exactly what was just written, but
+            // the tables underneath it are not.
+            const current = fs.readFileSync(destination, "utf8");
+            fs.writeFileSync(destination, current.replace("# Item Note Frontmatter", "# Stale"));
+            const { code, err } = runCheck(destination);
+            expect(code).not.toBe(0);
+            expect(err).toContain("out of date");
+        } finally {
+            fs.rmSync(destination, { force: true });
+        }
+    });
+
+    it("writes the body alone with `--out` outside the content tree", () => {
+        // The control: the same command, a destination one level up, gets no
+        // envelope — exactly the behaviour before this file lived in the
+        // content tree.
+        const destination = path.join(root, "item-frontmatter.md");
+        try {
+            expect(runWrite(destination, ["--title", "Item Note Frontmatter"]).code).toBe(0);
+            const written = fs.readFileSync(destination, "utf8");
+            expect(written.startsWith("---\n")).toBe(false);
+            expect(written.startsWith("# Item Note Frontmatter")).toBe(true);
+        } finally {
+            fs.rmSync(destination, { force: true });
+        }
     });
 });
