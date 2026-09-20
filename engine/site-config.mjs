@@ -44,7 +44,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { stringify as stringifyToml } from "smol-toml";
 
-import { checkHomepage } from "../config.mjs";
+import { checkHomepage, fail } from "../config.mjs";
 import { slugify } from "./content-slug.mjs";
 
 /** The Hugo source directory, relative to the repository root. */
@@ -178,23 +178,6 @@ function requireNonEmptyString(value, where) {
         throw new TypeError(`${where} must be a non-empty string`);
     }
     return value;
-}
-
-/**
- * Reject a configured value, naming the key it was written under.
- *
- * The dotted path rides on the error as `field` as well as appearing in the
- * message, so `locateConfigError` in `engine/pack-config.mjs` — the half that
- * knows which file was read — can resolve it to a line and column.
- *
- * @param {string} where - Dotted path of the offending key.
- * @param {string} problem - What is wrong with it.
- * @returns {never}
- */
-function fail(where, problem) {
-    throw Object.assign(new TypeError(`package-build config: \`${where}\` ${problem}.`), {
-        field: where,
-    });
 }
 
 /**
