@@ -185,3 +185,34 @@ describe("changelog check — the real fixtures", () => {
         expect(findings.some((f) => f.severity === "error")).toBe(true);
     });
 });
+
+describe("changelog check — `changelog.labels`", () => {
+    const text = `${FRONTMATTER}**Character data**\n\n- A shortcode is folded to lowercase.\n`;
+
+    it("warns on a label absent from a declared `changelog.labels`", () => {
+        const { findings } = lintChangesetText(text, { labels: ["Compendiums", "Characters"] });
+        expect(findings).toHaveLength(1);
+        expect(findings[0].severity).toBe("warning");
+        expect(findings[0].message).toContain("changelog-check/unknown-label");
+        expect(findings[0].message).toContain('"Character data"');
+        expect(findings[0].line).toBe(lineOf(text, "Character data"));
+    });
+
+    it("does not warn on a label the declared list does contain", () => {
+        const { findings } = lintChangesetText(text, { labels: ["Character data"] });
+        expect(findings).toEqual([]);
+    });
+
+    it("warns nothing when `changelog.labels` is not declared", () => {
+        const { findings } = lintChangesetText(text);
+        expect(findings).toEqual([]);
+    });
+
+    it("also applies to a `## <version>` release section under --release", () => {
+        const release = `## 0.1.0\n\n### Patch Changes\n\n**Character data**\n\n- A shortcode is folded to lowercase.\n`;
+        const { findings } = lintReleaseText(release, { labels: ["Characters"] });
+        expect(findings.some((f) => f.message.includes("changelog-check/unknown-label"))).toBe(
+            true,
+        );
+    });
+});

@@ -48,7 +48,7 @@ around its own evaluation.
 
 ### Quick reference
 
-20 top-level keys. `rootDir` is not one of them — a data configuration never
+21 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -76,10 +76,11 @@ authoring.
 | [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
 | [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
 | [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
+| [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`                            |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -289,7 +290,7 @@ Unlike the first three, authoring `itemBuilders` is not an error — it is
 
 ---
 
-## The 20 keys
+## The 21 keys
 
 ### `contentPackage`
 
@@ -1333,6 +1334,45 @@ address:
 Any other key under `publish.address` is refused:
 
 > ``package-build config: `publish.address.<key>` is not a recognized option (expected one of: prefix).``
+
+### `changelog`
+
+**Type:** object · **Optional**, default `{labels: null}`.
+
+`changelog check` and `changelog group` both read a release block's bold
+label — `**Compendiums**` — against `changelog.labels`: the vocabulary and
+display order a repository declares for the categories its changesets group
+under. Declaring none is ordinary — a repository that writes plain,
+unlabelled changesets needs nothing here.
+
+| Key                | Type     | Required | Default |
+| ------------------ | -------- | -------- | ------- |
+| `changelog.labels` | string[] | no       | `null`  |
+
+> ``package-build config: `changelog` must be a mapping.``
+
+> ``package-build config: `changelog.<key>` is not a recognized option (expected one of: labels).``
+
+> ``package-build config: `changelog.labels` must be an array.``
+
+> ``package-build config: `changelog.labels[<n>]` must be a non-empty string.``
+
+A repeated label is refused rather than silently deduplicated — it could
+never be told apart from the drift the list exists to catch (`Compendiums`
+written twice swallows a genuine `Character data` beside `Characters`):
+
+> ``package-build config: `changelog.labels` declares `Compendiums` more than once.``
+
+With `changelog.labels` declared, `changelog group` orders a release
+section's blocks by that list — the unlabelled lead paragraph first, then
+every declared label in the order given, then any undeclared label last, in
+the order it first appears, each reported as a warning naming it. With no
+`changelog.labels` declared, `group` orders every block by first
+appearance, lead paragraph first, and warns about nothing. `changelog check`
+warns on a block whose label is not in a declared `changelog.labels`; with
+none declared, it checks nothing. See
+[`package-build changelog check`](commands.md#package-build-changelog-check)
+and [`package-build changelog group`](commands.md#package-build-changelog-group).
 
 ---
 
