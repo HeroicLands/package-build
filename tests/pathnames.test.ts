@@ -37,7 +37,7 @@ const thalorna = defineConfig({
     stats: { lastModifiedBy: "thalornabuild000" },
     packs: [{ name: "items", type: "Item" }],
     relationships: { systems: [{ id: "sohl", type: "system" }] },
-    site: { out: "site/content", assets: "https://cdn.example.org" },
+    site: { assets: "https://cdn.example.org" },
 } as never) as never;
 
 /** The same, with no asset host declared. */
@@ -135,7 +135,7 @@ describe("one authored pathname, four derived forms", () => {
             packageKind: "modules",
             stats: { lastModifiedBy: "thalornabuild000" },
             packs: [{ name: "items", type: "Item" }],
-            site: { out: "site/content", assets: "https://cdn.example.org/" },
+            site: { assets: "https://cdn.example.org/" },
         } as never) as never;
         expect(resolvePathname("images/map.webp", trailing)).toMatchObject({
             web: "https://cdn.example.org/thalorna/images/map.webp",
@@ -232,7 +232,7 @@ describe("the packages a build can resolve against", () => {
             relationships: {
                 requires: [{ id: "sohl-thalorna", contentPackage: "thalorna", type: "module" }],
             },
-            site: { out: "site/content", assets: "https://cdn.example.org" },
+            site: { assets: "https://cdn.example.org" },
         } as never) as never;
         expect(resolvePathname("thalorna/assets/images/map.webp", dependent)).toMatchObject({
             foundry: "modules/sohl-thalorna/assets/images/map.webp",

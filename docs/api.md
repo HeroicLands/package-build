@@ -621,8 +621,7 @@ Publishing a content tree as a website. Compiling a content tree into compendium
 | `writeSectionLandings` | `function writeSectionLandings(outRoot,`          | {number} How many landings were written.                                                                                               | Writes the Hugo sections a published tree declares.                           |
 | `pluralTitle`          | `function pluralTitle(name)`                      | {string} The display title.                                                                                                            | A section landing's title, from its directory name — `macro` → `Macros`.      |
 | `resolveSitePass`      | `function resolveSitePass(name, options)`         | {{beforeLinks?: Function, afterLinks?: Function}} The bundle.                                                                          | Resolves `site.pass` to its bundle.                                           |
-| `resolveOutputRoot`    | `function resolveOutputRoot(rootDir, out)`        | {string} The absolute output root.                                                                                                     | The output root, having established that it is safe to delete.                |
-| `buildSite`            | `buildSite({ config, outRoot, sqlTables })`       | {{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], manifests: object\|null}}                           | Builds a Hugo content tree from a content tree, and reports what it found.    |
+| `buildSite`            | `buildSite({ config, sqlTables })`                | {{gates: object, stats: object\|null, tableErrors: object[], wikiErrors: object[], manifests: object\|null}}                           | Builds a Hugo content tree from a content tree, and reports what it found.    |
 
 ### `engine.contentLint`
 
@@ -1269,6 +1268,7 @@ const config = defineConfig({
 | `SITE_MODES`               | `const SITE_MODES`                 | —                                                          | reading the publishing modes `publish.site` may name, weakest first                                                                                                                                                                      |
 | `DERIVED_SYSTEM_VERSION`   | `const DERIVED_SYSTEM_VERSION`     | —                                                          | the loader-only symbol key `defineConfig` uses internally to receive a resolved system version; not something a configuration author writes                                                                                              |
 | `publishesContentPages`    | `publishesContentPages(config)`    | `boolean`                                                  | checking whether a resolved configuration publishes the pages its content tree compiles to — the one question the site build and the content index both need answered identically                                                        |
+| `DERIVED_HUGO_KEYS`        | `const DERIVED_HUGO_KEYS`          | —                                                          | reading which Hugo keys `site.hugo` may not declare because the site build generates them, each naming its source (declaring one is an error naming the key); a dotted key covers everything beneath it                                  |
 
 ## `./config`
 
@@ -1282,12 +1282,12 @@ const config = loadPackageBuildConfig();
 console.log(config.stageDir);
 ```
 
-| Export                      | Signature                                           | Returns                        | Use it when                                                                                                                                                                           |
-| --------------------------- | --------------------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`                       | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                                    |
-| `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`                 | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                      |
-| `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                          | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                          |
-| `checkHomepage`             | `checkHomepage(homepage, contentPackage, siteMode)` | `void`                         | validating a resolved `homepage` against `contentPackage` and `publish.site` — called by whichever caller reads `homepage` to build a site, not by `resolvePackageBuildConfig` itself |
+| Export                      | Signature                                 | Returns                        | Use it when                                                                                                                                                                     |
+| --------------------------- | ----------------------------------------- | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `DERIVED_MANIFEST_KEYS`     | `const DERIVED_MANIFEST_KEYS`             | —                              | reading which manifest keys a repository may not declare because the build derives them (declaring one is an error naming the key)                                              |
+| `resolvePackageBuildConfig` | `resolvePackageBuildConfig(shared)`       | `Readonly<PackageBuildConfig>` | validating the `packageBuild:` section from an already-loaded shared configuration — the pure half, usable without touching disk                                                |
+| `loadPackageBuildConfig`    | `loadPackageBuildConfig()`                | `Readonly<PackageBuildConfig>` | reading and validating the repository's resolved package-build configuration from disk, read fresh on each call rather than cached at import                                    |
+| `checkHomepage`             | `checkHomepage(homepage, contentPackage)` | `void`                         | validating a resolved `homepage` against `contentPackage` — called by `content-build site` before the generated `baseURL` is written, not by `resolvePackageBuildConfig` itself |
 
 ## `./prettier`
 

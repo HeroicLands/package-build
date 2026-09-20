@@ -123,9 +123,10 @@ wrong-case import passes locally and fails there.
 ```
 
 `clean` removes the conventional build directories plus anything named in
-`packageBuild.clean.extra` — a site's `content/`, `public/` and `resources/`,
-say. `distclean` additionally removes `node_modules`. Both exit 0 whether or not
-there was anything to remove.
+`packageBuild.clean.extra` — a coverage directory, say. Everything the site
+build writes is under `build/`, so a site needs no entry. `distclean`
+additionally removes `node_modules`. Both exit 0 whether or not there was
+anything to remove.
 
 ### `lint:*` — the checks, one per question
 
@@ -239,12 +240,36 @@ changesets does not touch the lockfile.
 
 ### The site scripts
 
-A package that publishes a website adds a further group. They are outside this
-document's scope because they need Hugo and the shared theme submodule, but the
-shape is worth knowing so the names are not surprising:
-`build:site-content` writes the Hugo content tree with `content-build site`,
-`build:site-html` runs Hugo over it, and `serve:site` does the first and then
-`hugo server` for a live preview.
+Every package publishes a website — at the least, its homepage — so every
+package carries this group:
+
+```json
+"build:site": "run-s build:site-content build:site-html build:site-root",
+"build:site-content": "content-build site",
+"build:site-html": "hugo --source build/hugo --minify --gc --cleanDestinationDir",
+"build:site-root": "package-build site-root",
+"serve:site": "npm run build:site-content && hugo server --source build/hugo"
+```
+
+`build:site-content` writes the whole Hugo source tree under `build/hugo/` —
+the generated `hugo.toml` and the content mount — with `content-build site`;
+`build:site-html` runs Hugo over it, rendering into `build/site/<contentPackage>/`;
+`build:site-root` writes the deployment's `_headers` and `_redirects` beside
+that; and `serve:site` does the first and then `hugo server` for a live
+preview. The repository carries no Hugo configuration of its own: `hugo.toml`
+is generated on every run from `package.json`, `package-build.config.yaml`,
+the installed `@heroiclands/hugo-theme` and the navigation `deps fetch`
+cached, and the only file to add is `@heroiclands/hugo-theme` under
+`devDependencies`. Hugo itself is a separate install — the extended edition,
+on the developer's `PATH` and the runner's.
+
+The site build reads the cached navigation, so `build:site` in a package with
+no other dependency still runs `deps fetch` first:
+
+```json
+"build:site": "run-s build:deps build:site-content build:site-html build:site-root",
+"build:deps": "content-build deps fetch"
+```
 
 ### Deployment scripts
 
@@ -453,17 +478,17 @@ site-deploy workflow, so a fix to any of them reaches every repository at once.
 
 A summary, because "where does this come from" is the question that recurs.
 
-| Read                                               | By                                                          |
-| -------------------------------------------------- | ----------------------------------------------------------- |
-| `package.json`                                     | The Foundry package id, the version, the release addresses. |
-| `package-build.config.yaml`                        | Everything else about the build.                            |
-| `assets/content/**/*.md`                           | Every content command.                                      |
-| `.gitignore`                                       | `content-build format`, `content-build markdown`.           |
-| `.prettierignore`                                  | `content-build format`.                                     |
-| `.github/labels.yml`, `.github/ISSUE_REPORTING.md` | `package-build labels check`.                               |
-| `lang/*.json`                                      | `package-build lang`.                                       |
-| `.env.local`                                       | `package-build deploy`.                                     |
-| `.github/workflows/build.yml`                      | The `pre-push` hook, for its step list.                     |
+| Read                                               | By                                                                                                        |
+| -------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| `package.json`                                     | The Foundry package id, the version, the release addresses; the site's `baseURL`, description and author. |
+| `package-build.config.yaml`                        | Everything else about the build.                                                                          |
+| `assets/content/**/*.md`                           | Every content command.                                                                                    |
+| `.gitignore`                                       | `content-build format`, `content-build markdown`.                                                         |
+| `.prettierignore`                                  | `content-build format`.                                                                                   |
+| `.github/labels.yml`, `.github/ISSUE_REPORTING.md` | `package-build labels check`.                                                                             |
+| `lang/*.json`                                      | `package-build lang`.                                                                                     |
+| `.env.local`                                       | `package-build deploy`.                                                                                   |
+| `.github/workflows/build.yml`                      | The `pre-push` hook, for its step list.                                                                   |
 
 Everything written goes under `build/`. Nothing the toolchain generates is
 committed.

@@ -987,17 +987,28 @@ content-build deps fetch [--from <zip|dir>] [--id <id>]
 
 **DESCRIPTION**
 
-The only action is `fetch`, which fills the **content index** of every
-declared dependency, and the **item catalogue** of those that additionally
-declare `itemCatalog: true`. Its own command rather than a step of
-`package compile`, so a compile never reaches the network — a build that
-downloads silently is not reproducible and hides a dependency's version
-change behind a passing run. `--from` fills the cache from a locally built
-artifact — a package zip, or the directory it was built from — instead of a
-release, which is what makes testing a dependency change against its
-consumers possible before any of it ships; `--id` names which declared
-dependency `--from` supplies, needed only when the repository declares more
-than one. Writes into the configured foreign-cache directory.
+The only action is `fetch`, which fills three caches under `build/cache/`:
+the **content index** of every declared dependency, the **item catalogue**
+of those that additionally declare `itemCatalog: true`, and the **site
+navigation** — `https://www.heroiclands.org/nav.json`, the header menu
+every package site renders, fetched for every package because every package
+publishes a site. Its own command rather than a step of `package compile`
+or `site`, so neither reaches the network — a build that downloads silently
+is not reproducible and hides a dependency's version change behind a
+passing run. Each cache is stamped complete only once its fetch finishes,
+so a half-finished one reads as cold.
+
+The navigation is fetched first, because every package needs it and it
+depends on nothing a repository declares — so a dependency whose release
+cannot be read stops the run with the navigation already cached.
+
+`--from` fills the cache from a locally built artifact — a package zip, or
+the directory it was built from — instead of a release, which is what makes
+testing a dependency change against its consumers possible before any of it
+ships; `--id` names which declared dependency `--from` supplies, needed only
+when the repository declares more than one. `--from` fills that one
+dependency's caches and nothing else: the navigation is not an artifact of
+any dependency, and is fetched by a plain `deps fetch`.
 
 **OPTIONS**
 
@@ -1016,6 +1027,7 @@ including when the repository declares no dependencies at all.
 
 ```
 $ content-build deps fetch
+[…] Fetched the site navigation to build/cache/navigation/nav.json.
 […] No relationship declares `itemCatalog: true`; nothing to fetch.
 […] This package declares no dependencies.
 
@@ -1025,7 +1037,7 @@ $ content-build deps fetch --from build/dist/module.zip
 
 **SEE ALSO**
 
-`content-build addresses diff`, [Configuration](configuration.md).
+`content-build site`, `content-build addresses diff`, [Configuration](configuration.md).
 
 ### `content-build docs item-fields`
 
@@ -1515,54 +1527,78 @@ $ content-build content-index
 
 **NAME**
 
-Publish the content tree as a Hugo content mount.
+Build the Hugo source tree from the content tree.
 
 **SYNOPSIS**
 
 ```
-content-build site [--out <dir>]
+content-build site
 ```
 
 **DESCRIPTION**
 
-Publishes the content tree as a Hugo content mount — the sibling of
+Writes the whole Hugo source tree under `build/hugo/` — the sibling of
 `package compile`: the same tree, rendered as pages instead of compiled
 into packs. Everything a consumer would otherwise write for itself happens
 here: the walk, address derivation, the address index, table expansion,
-wikilink resolution, code-fence protection, the foreign-manifest merge and
-the section-landing backfill. Every gate is checked and reported, and the
-run stops at the first that fires, ordered so the report names the cause
+wikilink resolution, code-fence protection, the foreign-manifest merge, the
+section-landing backfill, and the Hugo configuration itself. The consumer's
+script then runs Hugo over the tree — `hugo --source build/hugo` — and this
+command never does.
+
+Three things are written, and nothing outside `build/`:
+
+- `build/hugo/hugo.toml`, generated on every run from `package.json`
+  (`homepage`, `description`, `author`), `package-build.config.yaml`
+  (`packageBuild.manifest.title`, `site.assets`, `site.list`,
+  `site.notfound`, `site.hugo`), the organisation's constants, the installed
+  `@heroiclands/hugo-theme`'s location, and the navigation `deps fetch`
+  cached. Every value's source is listed under
+  [the generated Hugo configuration](configuration.md#the-generated-hugo-configuration).
+- `build/hugo/content/`, the content mount — the homepage at its root, and
+  the content tree's pages below `publish.address.prefix`. Wiped on every
+  run.
+- `publishDir` pointing Hugo at `build/site/<contentPackage>/`, the
+  deployment root `package-build site-root` writes beside. Nothing Hugo
+  reads lands in what is published.
+
+The configuration's sources are read before the output tree is touched, so
+a missing `homepage`, a cold navigation cache or an uninstalled theme fails
+with the previous site intact. Every gate is then checked and reported, and
+the run stops at the first that fires, ordered so the report names the cause
 rather than its symptoms — an unusable dependency manifest, reported after
 the links that failed because of it, would otherwise read as a pile of
-broken notes. Reads the content tree named by `paths.content`; writes into
-`--out`, defaulting to the configured `site.out`, which is wiped on every
-run.
+broken notes. Reads the content tree named by `paths.content`.
 
 **OPTIONS**
 
-| Option  | Type   | Default                   | Description                                              |
-| ------- | ------ | ------------------------- | -------------------------------------------------------- |
-| `--out` | string | the configured `site.out` | Write the mount here instead of the configured location. |
+None.
 
 **EXIT STATUS**
 
-1 if `site.out` is unset and `--out` is not given (an unset output would
-resolve to the repository root, which this command refuses to wipe). 1 if
-any gate fires — no homepage or two competing for it, a frontmatter
-wikilink, an address that cannot be derived, a stale or unaddressable
-dependency manifest, an address published twice, a table that failed to
-expand, or a dead wikilink. Otherwise 0.
+1 if `package.json` declares no `homepage`, or one that does not end
+`/<contentPackage>/`; if `packageBuild.manifest.title` is undeclared; if the
+navigation has not been fetched (`content-build deps fetch` fills the cache
+and is named in the message); or if `@heroiclands/hugo-theme` is not
+installed. 1 if any gate fires — no homepage or two competing for it, a
+frontmatter wikilink, an address that cannot be derived, a stale or
+unaddressable dependency manifest, an address published twice, a table that
+failed to expand, or a dead wikilink. Otherwise 0.
 
 **EXAMPLES**
 
 ```
 $ content-build site
-[…] wrote 1 homepage(s) + 1 content page(s) + 0 tree page(s) + 0 landing(s) to build/site
+[…] wrote 1 homepage(s) + 1 content page(s) + 0 tree page(s) + 0 landing(s) to build/hugo/content
+[…] wrote build/hugo/hugo.toml
+
+$ content-build site
+[…] ERROR: the site navigation has not been fetched. Run `content-build deps fetch` first.
 ```
 
 **SEE ALSO**
 
-`content-build package <action> [pack] [entry]`, `content-build pdf`, `content-build content-index [root]`,
+`content-build deps fetch`, `package-build site-root`, `content-build package <action> [pack] [entry]`, `content-build pdf`, `content-build content-index [root]`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
 ### `content-build pdf`

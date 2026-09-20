@@ -115,7 +115,6 @@ function configFor(
         },
         packs: [{ name: "items", type: "Item" }],
         packageBuild: { manifest: { title: "The Demo Module" } },
-        site: { out: "out" },
         publish: {
             site: "content",
             address: { prefix: "kb/" },
@@ -175,13 +174,14 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         const config = configFor();
         buildSite({ config });
         // `/demo/homepage-root/` — the note's address — written at the root of
-        // the configured `site.out`, one level above the `kb/` content mount.
+        // the content mount, one level above the `kb/` content mount.
         // The package's own `/demo/` is a redirect a consumer authors, not a
         // page this build writes.
-        expect(fs.existsSync(path.join(root, "out/_index.md"))).toBe(false);
+        expect(fs.existsSync(path.join(root, "build/hugo/content/_index.md"))).toBe(false);
         const dest = path.join(
             root,
-            `out/${homepageDestination({ type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE })}`,
+            "build/hugo/content",
+            homepageDestination({ type: HOMEPAGE_TYPE, shortcode: HOMEPAGE_SHORTCODE }),
         );
         expect(fs.existsSync(dest)).toBe(true);
         const page = fs.readFileSync(dest, "utf8");
@@ -219,10 +219,13 @@ name:
     full: Welcome`,
             "Start at [[homepage-root|the module's front page]].\n",
         );
-        const config = configFor({ site: { out: "out-links" } });
+        const config = configFor();
         const result = buildSite({ config });
         expect(result.wikiErrors).toEqual([]);
-        const page = fs.readFileSync(path.join(root, "out-links/kb/doc-welcome.md"), "utf8");
+        const page = fs.readFileSync(
+            path.join(root, "build/hugo/content/kb/doc-welcome.md"),
+            "utf8",
+        );
         expect(page).toContain("(/demo/homepage-root/)");
         expect(page).toContain("the module's front page");
     });
@@ -302,9 +305,8 @@ describe("`publish.site` distinguishes homepage-only from content", () => {
 
 describe("homepage-only publishes exactly one page — the licensing assertion", () => {
     it("emits the homepage and nothing else, from a tree full of content", () => {
-        const out = path.join(root, "out-homepage-only");
+        const out = path.join(root, "build/hugo/content");
         const config = configFor({
-            site: { out: "out-homepage-only" },
             publish: {
                 site: "homepage",
                 address: { prefix: "kb/" },
@@ -324,10 +326,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
         // content surface: homepage-only is a mode, not the absence of
         // configuration.
         write("extra/README.md", "---\nsubType: dev-docs\n---\n\n# Docs\n");
-        const out = path.join(root, "out-fenced");
+        const out = path.join(root, "build/hugo/content");
         const config = configFor({
             site: {
-                out: "out-fenced",
                 sections: { weapongear: { title: "Weapons" } },
                 backfillSections: true,
                 landing: { title: "Knowledgebase", type: "knowledgebase" },
@@ -343,9 +344,9 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
     });
 
     it("still publishes every content page in content mode", () => {
-        const config = configFor({ site: { out: "out-content" } });
+        const config = configFor();
         const result = buildSite({ config });
-        const files = emitted(path.join(root, "out-content"));
+        const files = emitted(path.join(root, "build/hugo/content"));
         expect(files).toContain("homepage-root.md");
         // Written flat under the mount and published at its address,
         // `/demo/weapongear-dagger/`.
@@ -379,15 +380,14 @@ describe("homepage-only publishes exactly one page — the licensing assertion",
             // the SoHL registry would be unreachable from.
             packs: [{ name: "std-skills", type: "Item" }],
             packageBuild: { manifest: { title: "HârnMaster 3" } },
-            site: { out: "site" },
         } as ContentBuildConfigInput);
 
         const result = buildSite({ config });
-        expect(emitted(path.join(solo, "site"))).toEqual(["homepage-root.md"]);
+        expect(emitted(path.join(solo, "build/hugo/content"))).toEqual(["homepage-root.md"]);
         expect(result.stats?.homepages).toBe(1);
-        expect(fs.readFileSync(path.join(solo, "site/homepage-root.md"), "utf8")).toMatch(
-            /^title: HârnMaster 3$/m,
-        );
+        expect(
+            fs.readFileSync(path.join(solo, "build/hugo/content/homepage-root.md"), "utf8"),
+        ).toMatch(/^title: HârnMaster 3$/m);
         fs.rmSync(solo, { recursive: true, force: true });
     });
 });

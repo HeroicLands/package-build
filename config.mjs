@@ -46,7 +46,7 @@
  *     assetTransform: ./utils/svg-theme.mjs
  *     stageDir: build/stage
  *     clean:
- *         extra: [site/content, site/public]
+ *         extra: [coverage]
  *     lang:
  *         sources: lang/*.json
  *     deploy:

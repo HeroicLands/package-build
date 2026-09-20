@@ -76,6 +76,7 @@ import {
     isHomepage,
 } from "./homepage.mjs";
 import { publishesContentPages } from "../content-config.mjs";
+import { HUGO_CONTENT } from "./site-config.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -397,8 +398,8 @@ export function collectHomepages(contentBase, ctx) {
  * has. Nothing is written at `/<package>/` itself: that becomes a redirect the
  * package's own repository authors, which is a routing fact rather than a page.
  *
- * @param {string} outRoot - The package's site root — the configured `site.out`,
- *   one level above the content mount.
+ * @param {string} outRoot - The package's site root — the content mount's
+ *   root, `build/hugo/content`, one level above the mount itself.
  * @param {readonly object[]} pages - From {@link collectHomepages}.
  * @param {object} config - The resolved configuration, for the package name and
  *   the default title.
@@ -1026,46 +1027,6 @@ export function resolveSitePass(name, options) {
 }
 
 /**
- * The output root, having established that it is safe to delete.
- *
- * The whole tree is a build artifact and is wiped on every run, so this
- * resolution is the difference between clearing a build directory and clearing
- * the repository. An unset `site.out` resolves to `rootDir` itself, and the
- * wipe then deletes the working tree — which is not a hypothetical: it happened
- * while this module was being written, on a configuration that simply had no
- * `site` section yet.
- *
- * So the path is refused unless it is **strictly inside** the repository root.
- * Both failing shapes are ordinary rather than exotic — an absent setting, and a
- * `..` that climbs out — and neither should be recoverable by being careful.
- *
- * @param {string} rootDir - The repository root.
- * @param {string} out - The configured `site.out`.
- * @returns {string} The absolute output root.
- * @throws {Error} When it is unset, or is not below `rootDir`.
- */
-export function resolveOutputRoot(rootDir, out) {
-    if (!out) {
-        throw new Error(
-            "site.out is not set, so there is nowhere to write the site. " +
-                "Refusing to continue: the output directory is wiped on every " +
-                "run, and an unset one resolves to the repository root.",
-        );
-    }
-    const root = path.resolve(rootDir);
-    const resolved = path.resolve(root, out);
-    const inside = resolved !== root && resolved.startsWith(root + path.sep);
-    if (!inside) {
-        throw new Error(
-            `site.out (${JSON.stringify(out)}) resolves to ${resolved}, which ` +
-                `is not inside ${root}. Refusing to continue: that directory ` +
-                `is wiped on every run.`,
-        );
-    }
-    return resolved;
-}
-
-/**
  * Builds a Hugo content tree from a content tree, and reports what it found.
  *
  * Returns rather than exits, in every case. A caller — the command, or a test —
@@ -1076,7 +1037,6 @@ export function resolveOutputRoot(rootDir, out) {
  * @param {object} [options] - Options.
  * @param {object} [options.config] - A resolved configuration; loaded when
  *   omitted.
- * @param {string} [options.outRoot] - Override the configured output mount.
  * @param {Map<string, object[]>} [options.sqlTables] - Prepared `sql` results,
  *   keyed by the note's absolute file, from
  *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
@@ -1085,7 +1045,7 @@ export function resolveOutputRoot(rootDir, out) {
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
  *   wikiErrors: object[], imageErrors: object[], manifests: object|null}}
  */
-export function buildSite({ config, outRoot, sqlTables } = {}) {
+export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -1104,16 +1064,19 @@ export function buildSite({ config, outRoot, sqlTables } = {}) {
 
     // The Hugo content tree mirrors that mount: a page written to
     // `<out>/<prefix>/<section>/` publishes at `<base><prefix><section>/`.
-    // Resolved against the repository root for the same reason every configured
-    // path is — so the build reads and writes the same places whatever
-    // directory it was launched from.
-    const outBase = resolveOutputRoot(resolved.rootDir, site.out);
+    // The root is fixed — `build/hugo/content`, beside the generated
+    // `hugo.toml` — and resolved against the repository root for the same
+    // reason every configured path is, so the build reads and writes the same
+    // places whatever directory it was launched from. It is wiped on every
+    // run, which is safe precisely because it is not configurable: nothing an
+    // author writes can point it at the working tree.
+    const outBase = path.join(resolved.rootDir, HUGO_CONTENT);
     const out =
-        outRoot ? path.resolve(outRoot)
-        : publishesContent ? path.join(outBase, scheme.prefix.replace(/\/$/, ""))
+        publishesContent ?
+            path.join(outBase, scheme.prefix.replace(/\/$/, ""))
             // Homepage-only has no content mount, so the package's root *is*
-            // the output root and `--out` redirects the whole of it.
-        : outBase;
+            // the output root.
+        :   outBase;
     // The homepage publishes at `/<contentPackage>/<type>-<shortcode>/`, so its
     // file goes at the package's own root — one level above the content mount,
     // and the same directory in homepage-only mode.

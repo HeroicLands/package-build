@@ -169,8 +169,13 @@ declares none.
 `homepage` is not itself checked against `contentPackage` by `defineConfig`.
 `checkHomepage` in `config.mjs` is the check: `homepage` is required
 unconditionally — every package publishes a site — and must be an absolute
-URL whose path ends `/<contentPackage>/`. It is made by whichever caller
-actually reads `homepage` to build a site, not by `defineConfig` itself.
+URL whose path ends `/<contentPackage>/`. `content-build site` makes it
+before the generated `baseURL` is written, so a missing or mismatched
+`homepage` is a finding on every site build:
+
+> ``package-build config: `homepage` is not declared in `package.json`, and every package needs one to build its site's `baseURL` from. Add `https://www.heroiclands.org/<contentPackage>/`.``
+
+> ``package-build config: `homepage` is `https://www.heroiclands.org/harn-ensemble`, but `contentPackage` is `harnensemble` — a package's site is served at `https://www.heroiclands.org/harnensemble/`, so `package.json`'s `homepage` must end `/harnensemble/`.``
 
 #### `author`
 
@@ -494,16 +499,17 @@ name form resolves before reaching here.
 **Type:** object · **Optional** · every key defaults to the conventional
 HeroicLands layout, resolved against `rootDir`:
 
-| Key                   | Default                | What it is                                                                                 |
-| --------------------- | ---------------------- | ------------------------------------------------------------------------------------------ |
-| `paths.content`       | `assets/content`       | The content tree root.                                                                     |
-| `paths.assets`        | `assets`               | The asset roots' parent, holding `icons/`, `images/` and `audio/`.                         |
-| `paths.contentIndex`  | `build/content-index`  | Where `content-index` writes this package's note index. Derived and disposable.            |
-| `paths.packJson`      | `build/packs-json`     | Build-only per-entry JSON intermediate.                                                    |
-| `paths.stage`         | `build/stage/packs`    | Compiled LevelDB packs.                                                                    |
-| `paths.unpack`        | `build/tmp/packs`      | Where `unpack` extracts JSON back to.                                                      |
-| `paths.foreignCache`  | `build/cache/foreign`  | Where a dependency declaring `itemCatalog: true` is unpacked.                              |
-| `paths.metadataCache` | `build/cache/metadata` | Where a dependency's published content index is fetched to, for every declared dependency. |
+| Key                     | Default                  | What it is                                                                                      |
+| ----------------------- | ------------------------ | ----------------------------------------------------------------------------------------------- |
+| `paths.content`         | `assets/content`         | The content tree root.                                                                          |
+| `paths.assets`          | `assets`                 | The asset roots' parent, holding `icons/`, `images/` and `audio/`.                              |
+| `paths.contentIndex`    | `build/content-index`    | Where `content-index` writes this package's note index. Derived and disposable.                 |
+| `paths.packJson`        | `build/packs-json`       | Build-only per-entry JSON intermediate.                                                         |
+| `paths.stage`           | `build/stage/packs`      | Compiled LevelDB packs.                                                                         |
+| `paths.unpack`          | `build/tmp/packs`        | Where `unpack` extracts JSON back to.                                                           |
+| `paths.foreignCache`    | `build/cache/foreign`    | Where a dependency declaring `itemCatalog: true` is unpacked.                                   |
+| `paths.metadataCache`   | `build/cache/metadata`   | Where a dependency's published content index is fetched to, for every declared dependency.      |
+| `paths.navigationCache` | `build/cache/navigation` | Where the site navigation heroiclands.org publishes is fetched to, for the generated Hugo menu. |
 
 Every configured path must be **relative** — an absolute one would escape
 the repository the config anchors:
@@ -516,7 +522,7 @@ An empty value is refused generically:
 
 Any other key is refused:
 
-> ``package-build config: `paths.<key>` is not a recognized option (expected one of: content, assets, contentIndex, packJson, stage, unpack, foreignCache, metadataCache).``
+> ``package-build config: `paths.<key>` is not a recognized option (expected one of: content, assets, contentIndex, packJson, stage, unpack, foreignCache, metadataCache, navigationCache).``
 
 ### `skipDirectories`
 
@@ -746,36 +752,40 @@ Any other key under `docs.itemFields` is refused:
 
 **Type:** object · **Optional** · every key defaults to nothing published:
 
-| Key                     | Type     | Default |
-| ----------------------- | -------- | ------- |
-| `site.out`              | string   | `""`    |
-| `site.base`             | string   | `""`    |
-| `site.assets`           | string   | `""`    |
-| `site.packages`         | string[] | `[]`    |
-| `site.sections`         | object   | `{}`    |
-| `site.readmeSections`   | object   | `{}`    |
-| `site.landing`          | object   | `null`  |
-| `site.trees`            | array    | `[]`    |
-| `site.pass`             | string   | `""`    |
-| `site.passOptions`      | object   | `{}`    |
-| `site.backfillSections` | boolean  | `false` |
+| Key                     | Type     | Default               |
+| ----------------------- | -------- | --------------------- |
+| `site.base`             | string   | `""`                  |
+| `site.assets`           | string   | `""`                  |
+| `site.packages`         | string[] | `[]`                  |
+| `site.sections`         | object   | `{}`                  |
+| `site.readmeSections`   | object   | `{}`                  |
+| `site.landing`          | object   | `null`                |
+| `site.trees`            | array    | `[]`                  |
+| `site.pass`             | string   | `""`                  |
+| `site.passOptions`      | object   | `{}`                  |
+| `site.backfillSections` | boolean  | `false`               |
+| `site.list`             | object   | `{shortcodes: false}` |
+| `site.notfound`         | object   | `null`                |
+| `site.hugo`             | object   | `{}`                  |
 
 How much of a package reaches the web at all is **not** here — it is
-[`publish.site`](#publish). `site` is framing: where the Hugo tree is
-written, what a section is called, which extra trees are published beside
-the content, which named pass bundle supplies the repository's own body
-rewrites.
+[`publish.site`](#publish). `site` is framing: what a section is called,
+which extra trees are published beside the content, which named pass bundle
+supplies the repository's own body rewrites, and the residue of the
+[generated Hugo configuration](#the-generated-hugo-configuration) that is
+genuinely this repository's own.
+
+Where the Hugo tree is written is not a choice. `content-build site` writes
+the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
+the content mount at `build/hugo/content/`, Hugo's own cache — as a sibling
+of the deployment root `build/site/`, so nothing Hugo reads lands in what is
+published. A `site.out` is refused by name:
+
+> ``package-build config: `site.out` is retired — the site build writes its content mount at `build/hugo/content`, beside the generated `hugo.toml`, and the location is not configurable. Remove the key.``
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: out, base, assets, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections).``
-
-`site.out` is the output root, resolved by `engine/site-build.mjs`; unset,
-it is refused **at build time** rather than by `defineConfig` (an unset
-value would otherwise resolve to `rootDir` itself, and the tree the build
-wipes on every run would be the working tree):
-
-> `site.out is not set, so there is nowhere to write the site. Refusing to continue: the output directory is wiped on every run, and an unset one resolves to the repository root.`
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections, list, notfound, hugo).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -788,11 +798,10 @@ Absolute, and the trailing slash is trimmed:
 
 > ``package-build config: `site.assets` must be an absolute `http://` or `https://` address — it is the host every package's imagery is served from, and a relative value resolves against whichever page happens to carry the image.``
 
-The consuming Hugo site spells the same host as `params.cdnBaseURL`, which
-its theme resolves a relative asset path against. The two are the same
-address written for two readers: this one is what the toolchain emits into a
-page, that one is what the theme joins onto anything the toolchain left
-relative.
+The generated Hugo configuration carries the same host as
+`params.cdnBaseURL`, which the theme resolves a relative asset path against.
+The two are one value read by two readers: the toolchain emits it into a
+page, and the theme joins it onto anything the toolchain left relative.
 
 `site.packages` names which content packages' notes the site walks, beyond
 this one's own; `site.pass` names a repository's own body-rewrite bundle
@@ -863,6 +872,126 @@ their own — `passOptions` is passed to the resolved `site.pass` bundle
 unchanged, and `backfillSections` is a plain boolean:
 
 > ``package-build config: `site.backfillSections` must be a boolean.``
+
+`site.list` is how a listing page renders, written into the generated Hugo
+configuration as `params.list`:
+
+| Key                    | Type    | Required | Default |
+| ---------------------- | ------- | -------- | ------- |
+| `site.list.shortcodes` | boolean | no       | `false` |
+
+> ``package-build config: `site.list` must be a mapping.``
+
+> ``package-build config: `site.list.shortcodes` must be a boolean.``
+
+> ``package-build config: `site.list.<key>` is not a recognized option (expected one of: shortcodes).``
+
+`site.notfound` is the wording of the "page not found" page, written into
+the generated Hugo configuration as `params.notfound`. The theme renders
+the page for every site; what a repository supplies is the tagline, the
+noun the body prose calls the site, and the routes back. `tagline` and
+`sitenoun` are required once the block is present — a block declaring only
+links would render the theme's generic wording above this site's routes,
+which reads as two sites:
+
+| Key                           | Type   | Required | Default                                                                 |
+| ----------------------------- | ------ | -------- | ----------------------------------------------------------------------- |
+| `site.notfound.tagline`       | string | yes      | —                                                                       |
+| `site.notfound.sitenoun`      | string | yes      | —                                                                       |
+| `site.notfound.heroimage`     | string | no       | none — the theme's default banner, resolved against `params.cdnBaseURL` |
+| `site.notfound.links`         | array  | no       | none — no list of routes back                                           |
+| `site.notfound.links[].title` | string | yes      | —                                                                       |
+| `site.notfound.links[].url`   | string | yes      | — site-relative (`/`, `/polity/`) or absolute                           |
+| `site.notfound.links[].text`  | string | yes      | —                                                                       |
+
+```yaml
+site:
+  notfound:
+    tagline: This module has one page, and it is not at
+    sitenoun: module
+    heroimage: images/banners/tapestry-of-dreams.webp
+    links:
+      - title: Thalorna
+        url: https://www.heroiclands.org/thalorna/
+        text: The setting whose artwork this module replaces.
+```
+
+> ``package-build config: `site.notfound` must be a mapping.``
+
+> ``package-build config: `site.notfound.tagline` must be a non-empty string.``
+
+> ``package-build config: `site.notfound.links` must be a list.``
+
+> ``package-build config: `site.notfound.links[<index>].url` must be a non-empty string.``
+
+> ``package-build config: `site.notfound.<key>` is not a recognized option (expected one of: tagline, sitenoun, heroimage, links).``
+
+> ``package-build config: `site.notfound.links[<index>].<key>` is not a recognized option (expected one of: title, url, text).``
+
+`site.hugo` is a mapping deep-merged over the generated Hugo configuration,
+last — the escape hatch for the one key nobody anticipated. A repository
+whose homepage reproduces a notice whose bare URLs must stand unedited turns
+Goldmark's autolinker off:
+
+```yaml
+site:
+  hugo:
+    markup:
+      goldmark:
+        extensions:
+          linkify: false
+```
+
+Objects merge; an array or a scalar replaces what the generator wrote. Every
+key the generator writes is refused here, naming its source — see
+[the generated Hugo configuration](#the-generated-hugo-configuration) — so
+the block cannot grow into a second configuration file:
+
+> ``package-build config: `site.hugo` must be a mapping.``
+
+> ``package-build config: `site.hugo.baseURL` is derived from package.json `homepage` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
+
+### The generated Hugo configuration
+
+`content-build site` writes `build/hugo/hugo.toml` on every run. Every value
+in it has one source, and that source is where it is edited:
+
+| Key                               | Derived from                                                                                                                                            |
+| --------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `baseURL`                         | `package.json` `homepage`, checked by `checkHomepage` — an absolute URL ending `/<contentPackage>/`                                                     |
+| `title`                           | `packageBuild.manifest.title`, which is required                                                                                                        |
+| `locale`                          | the organisation's locale, `en-us`, in `engine/site-config.mjs`                                                                                         |
+| `publishDir`                      | `contentPackage`, under the deployment root `build/site` — written relative to `build/hugo/`, so `../site/<contentPackage>`                             |
+| `contentDir`                      | the fixed content mount, `build/hugo/content` — written as `content`                                                                                    |
+| `themesDir`                       | where `@heroiclands/hugo-theme` is installed, resolved the way Node resolves a package and written relative to `build/hugo/`                            |
+| `theme`                           | the installed `@heroiclands/hugo-theme`, so `hugo-theme`                                                                                                |
+| `disableKinds`                    | the toolchain, which renders the same kinds on every site: `["taxonomy", "term", "RSS"]`                                                                |
+| `params.description`              | `package.json` `description`; absent when the package declares none                                                                                     |
+| `params.author`                   | `package.json` `author`, its `name`; absent when the package declares none                                                                              |
+| `params.cdnBaseURL`               | `site.assets`; absent when unset                                                                                                                        |
+| `params.brand`                    | the organisation's brand links — `logo`, `licenseURL`, `discordURL` — in `engine/site-config.mjs`                                                       |
+| `params.list`                     | `site.list`                                                                                                                                             |
+| `params.notfound`                 | `site.notfound`; absent when undeclared                                                                                                                 |
+| `markup.goldmark.renderer.unsafe` | the toolchain, whose pages carry raw HTML — a `<figure>` for every image, a `<span>` marking an unresolved link                                         |
+| `menu`                            | the navigation `content-build deps fetch` caches from `https://www.heroiclands.org/nav.json`, entry for entry, a dropdown's entries as `parent` entries |
+
+The site build reads the navigation from the cache only. A cold cache is an
+error naming the command that fills it:
+
+> `the site navigation has not been fetched. Run `content-build deps fetch` first.`
+
+A missing theme names the package to install:
+
+> `@heroiclands/hugo-theme is not installed anywhere above <rootDir> — add it to `devDependencies`and run`npm ci``
+
+And a site's title reads from the manifest's, so a configuration declaring
+none fails the site build:
+
+> ``package-build config: `packageBuild.manifest.title` is not declared, and the site's `title` reads from it.``
+
+Nothing else is emitted. `[taxonomies]` and `[outputs]` are Hugo's defaults
+once the taxonomy kinds and RSS are disabled, and every other key is
+`site.hugo`'s to add.
 
 ### `pdf`
 
@@ -1215,7 +1344,7 @@ packageBuild:
   assetTransform: ./utils/svg-theme.mjs
   stageDir: build/stage
   clean:
-    extra: [site/content, site/public]
+    extra: [coverage]
   lang:
     sources: lang/*.json
   deploy:
@@ -1518,15 +1647,17 @@ the source directory:
 
 ## Every retired or forbidden key, in one place
 
-| Key                                                                                                                                             | Why                                                                                                                                                    |
-| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publish.address.landing`                                                                                                                       | Retired — named a whole-section landing, and there are no sections to address.                                                                         |
-| `packs[].folders`                                                                                                                               | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
-| `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
-| `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
-| `homepage`, `author`                                                                                                                            | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage` and `author`.                                                  |
-| `stats.systemId`                                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
-| `stats.systemVersion`                                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
-| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
-| `publish.site: true` / `publish.site: false`                                                                                                    | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
-| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
+| Key                                                                                                                                                                                                                                                                              | Why                                                                                                                                                    |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publish.address.landing`                                                                                                                                                                                                                                                        | Retired — named a whole-section landing, and there are no sections to address.                                                                         |
+| `packs[].folders`                                                                                                                                                                                                                                                                | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
+| `rootDir`                                                                                                                                                                                                                                                                        | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
+| `foundryPackage`                                                                                                                                                                                                                                                                 | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
+| `homepage`, `author`                                                                                                                                                                                                                                                             | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage` and `author`.                                                  |
+| `stats.systemId`                                                                                                                                                                                                                                                                 | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
+| `stats.systemVersion`                                                                                                                                                                                                                                                            | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
+| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs`                                                                                                                                  | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
+| `site.out`                                                                                                                                                                                                                                                                       | Retired — the site build writes its content mount at `build/hugo/content`, beside the generated `hugo.toml`.                                           |
+| `site.hugo.baseURL`, `.title`, `.locale`, `.publishDir`, `.contentDir`, `.themesDir`, `.theme`, `.disableKinds`, `.params.description`, `.params.author`, `.params.cdnBaseURL`, `.params.brand`, `.params.list`, `.params.notfound`, `.markup.goldmark.renderer.unsafe`, `.menu` | Forbidden — each is written by the site build from a source it names; see [the generated Hugo configuration](#the-generated-hugo-configuration).       |
+| `publish.site: true` / `publish.site: false`                                                                                                                                                                                                                                     | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
+| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                                                                                                                                                        | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

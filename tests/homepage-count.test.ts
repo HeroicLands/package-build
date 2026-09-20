@@ -247,7 +247,6 @@ describe("the site build enforces it, in both publishing modes", () => {
             },
             packs: [{ name: "items", type: "Item" }],
             packageBuild: { manifest: { title: "The Demo Module" } },
-            site: { out: "out" },
             publish: {
                 site,
                 address: { prefix: "kb/" },
@@ -288,7 +287,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         expect(result.gates.homepages).toEqual([]);
         expect(gatesFailed(result.gates)).toBe(false);
         // Written at its address, not at a destination of its own.
-        expect(fs.existsSync(path.join(root, "out/homepage-root.md"))).toBe(true);
+        expect(fs.existsSync(path.join(root, "build/hugo/content/homepage-root.md"))).toBe(true);
     });
 
     it("fails a homepage that declares no shortcode, before the wipe", () => {
@@ -298,7 +297,7 @@ describe("the site build enforces it, in both publishing modes", () => {
             "homepage.md": ["---", `type: ${HOMEPAGE_TYPE}`, "---", "", "Prose.", ""].join("\n"),
             "Gear/Dagger.md": note(),
         });
-        const stale = path.join(root, "out/keep.md");
+        const stale = path.join(root, "build/hugo/content/keep.md");
         fs.mkdirSync(path.dirname(stale), { recursive: true });
         fs.writeFileSync(stale, "the previous build\n");
 
@@ -314,7 +313,7 @@ describe("the site build enforces it, in both publishing modes", () => {
         // `buildSite` clears the whole output tree on every run, so a gate that
         // fired after that would destroy a good site to report a bad tree.
         const root = sandbox({ "Gear/Dagger.md": note() });
-        const stale = path.join(root, "out/_index.md");
+        const stale = path.join(root, "build/hugo/content/_index.md");
         fs.mkdirSync(path.dirname(stale), { recursive: true });
         fs.writeFileSync(stale, "the previous build\n");
 

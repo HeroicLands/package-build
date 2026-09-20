@@ -769,10 +769,21 @@ for.
 Four capabilities are configuration away, and each has its own guide material.
 None of them is needed to build a package.
 
-**A website.** Set `publish.site: content` and add a `site:` block naming the
-sections, and `content-build site` writes a Hugo content tree from the same
-notes. The site renders through `@heroiclands/hugo-theme`, and the package
-publishes at `https://www.heroiclands.org/<contentPackage>/`.
+**A website.** Every package publishes one — at the least, the homepage note
+from step 5 — at `https://www.heroiclands.org/<contentPackage>/`. Add that
+address to `package.json` as `homepage`, with a `description` and an `author`
+beside it; add `@heroiclands/hugo-theme` under `devDependencies`; and add a
+`packageBuild.manifest.title`. Then `content-build deps fetch` caches the
+organisation's navigation, and `content-build site` writes the whole Hugo
+source tree under `build/hugo/` — the configuration generated from those
+values, and the content mount — for `hugo --source build/hugo` to render
+into `build/site/<contentPackage>/`. There is no Hugo configuration to
+write: the file is generated on every run, and what is genuinely the
+package's own — the wording of its "page not found" page — goes in the
+`site:` block as `site.notfound`. Set `publish.site: content` and name the
+sections under `site.sections`, and the same command publishes the content
+tree's every page beside the homepage. [`project-setup.md`](project-setup.md)
+gives the npm scripts.
 
 **Another package's content.** Declare a dependency under `relationships`, and
 `content-build deps fetch` caches that release's published content index so

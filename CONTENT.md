@@ -234,8 +234,9 @@ publish:
   site: content
   address: { prefix: guide/ }
 
-site:
-  out: site/content
+packageBuild:
+  manifest:
+    title: The Toolkit
 
 pdf:
   title: The Toolkit
@@ -2260,22 +2261,22 @@ address anyone links to. A package publishes its content index regardless — th
 licensing constraint is against publishing _pages_, not against the artifact
 existing — but nothing may declare it as a dependency.
 
-The homepage's file is written at the root of `site.out` — the package's own
-site root, one level above the content mount, which is where
-`publish.address.prefix` puts everything else — under the name its address gives
-it, `homepage-root.md`. As with every other page, the front matter's `url`
+The homepage's file is written at the root of the content mount,
+`build/hugo/content/` — the package's own site root, one level above the
+content mount, which is where `publish.address.prefix` puts everything else —
+under the name its address gives it, `homepage-root.md`. As with every other page, the front matter's `url`
 decides where it publishes, and states it relative to the site root — `site.base`
 does not reach it.
 
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the content index reads, so a page and its index record cannot
 disagree about where the page is. Everything under `site:` is _framing_ —
-where the tree is written, what a section is called, which extra trees are
-published beside the content:
+what a section is called, which extra trees are published beside the content,
+and the residue of the generated Hugo configuration that is this repository's
+own:
 
 ```yaml
 site:
-  out: kb/content # required; wiped on every run
   base: /sohl/ # default: /<contentPackage>/ — hrefs only, never a page's `url:`
   packages: [sohl, thalorna] # default: just contentPackage
   backfillSections: true
@@ -2294,11 +2295,16 @@ site:
       description: Folk, animals and the things that walk the world.
   readmeSections:
     dev-docs: { title: Developer Documentation, banner: banners/dev-docs.webp }
+  list: { shortcodes: true }
+  notfound:
+    tagline: Song of Heroic Lands has no page at
+    sitenoun: site
+    links:
+      - { title: Knowledgebase, url: kb/, text: Every section, with the full content catalog. }
 ```
 
 | Key                | What it decides                                                                                                                                                                                                                                       |
 | ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `out`              | The Hugo content root. **Required** in both modes, and wiped on every run — see below.                                                                                                                                                                |
 | `base`             | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
 | `packages`         | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
 | `sections`         | The Hugo sections this site declares, and what each says about itself — see below.                                                                                                                                                                    |
@@ -2308,6 +2314,17 @@ site:
 | `trees`            | Extra source trees published beside the content, preserving their source layout below a section.                                                                                                                                                      |
 | `pass`             | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
 | `passOptions`      | That bundle's options.                                                                                                                                                                                                                                |
+| `assets`           | The host every package's imagery is served from; the generated `params.cdnBaseURL`.                                                                                                                                                                   |
+| `list`             | How a listing page renders; the generated `params.list`.                                                                                                                                                                                              |
+| `notfound`         | The wording of the "page not found" page; the generated `params.notfound`.                                                                                                                                                                            |
+| `hugo`             | A mapping deep-merged over the generated Hugo configuration, last. Every key the generator writes is refused here — see `docs/configuration.md`.                                                                                                      |
+
+Where the tree is written is not among them. `content-build site` writes the
+whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`, the
+content mount at `build/hugo/content/`, Hugo's cache — and the consumer's
+script runs `hugo --source build/hugo` over it. The generated file's every
+value has a source the repository already states; `docs/configuration.md`
+lists them.
 
 ### What a section may declare
 
@@ -2409,15 +2426,14 @@ The **writers** name no keys: a section's `_index.md` is whatever the entry
 resolved to, `title` first. So extending the vocabulary is a change to the
 schema alone, and the two can no longer drift apart.
 
-### Why `out` is required
+### Why the output location is fixed
 
-The output tree is a build artifact and is **deleted on every run**, so that a
-page whose note was renamed cannot linger and keep publishing. An unset `out`
-resolves to the repository root, and the wipe then deletes the working tree.
-That is not hypothetical — it happened while this command was being written, on
-a configuration that simply had no `site` section yet. So `out` is refused when
-unset, and refused again when it resolves anywhere that is not strictly inside
-the repository root.
+The content mount is a build artifact and is **deleted on every run**, so that a
+page whose note was renamed cannot linger and keep publishing. A configurable
+location is a location that can be unset — and an unset one resolves to the
+repository root, where the wipe deletes the working tree. A fixed one under
+`build/` can point nowhere else, so `site.out` is refused by name and the wipe
+needs no guard.
 
 ### Consumer passes are named, not imported
 

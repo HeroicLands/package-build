@@ -42,9 +42,10 @@ import path from "node:path";
 /**
  * Directories every HeroicLands repository regenerates and none commits.
  *
- * A repository adds its own — `sohl-thalorna` also clears the Hugo output
- * beneath `site/` — but these four are common to all of them because they come
- * from the shared toolchain rather than from any one package's layout.
+ * A repository adds its own through `packageBuild.clean.extra`, but these four
+ * are common to all of them because they come from the shared toolchain rather
+ * than from any one package's layout. Everything the site build writes — the
+ * Hugo source tree, Hugo's cache and the rendered site — is under `build/`.
  */
 export const BUILD_ARTIFACT_DIRS = Object.freeze(["build", ".vite", ".vitepress", ".rollup.cache"]);
 
