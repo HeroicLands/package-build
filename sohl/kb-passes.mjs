@@ -12,25 +12,23 @@
  */
 
 /**
- * The `sohl` knowledgebase's own body passes.
+ * The `sohl` knowledgebase's own body pass.
  *
  * `content-build site` publishes a content tree as a website, and almost all of
- * that job is the same for every package. These two rewrites are not: they are
- * driven by a TypeDoc symbol map and a repository layout only this package has,
- * and they are ruled explicitly per-consumer.
+ * that job is the same for every package. This rewrite is not: it is driven by
+ * a TypeDoc symbol map only this package has, and it is ruled explicitly
+ * per-consumer.
  *
- * They live here rather than in a script in the consuming repository for the
+ * It lives here rather than in a script in the consuming repository for the
  * same reason `sohl/item-builders.mjs` and `sohl/being-info.mjs` do: a
  * configuration is data and cannot hold a function, so a package-specific table
  * of code is **named** from configuration and resolved from a registry. What is
  * package-specific is the code; what is repository-specific — where the symbol
- * map sits, what the API is served at, which GitHub tree to link into — is
- * options, supplied beside the name.
+ * map sits, what the API is served at — is options, supplied beside the name.
  *
- * Neither *rewrite* ever fails a build. A `{@link}` the map does not know
- * degrades to a code span, and a relative link that resolves outside the
- * documentation tree becomes a GitHub blob URL. Both are legible to a reader; a
- * broken link or a failed build for a syntax example in prose would not be.
+ * The *rewrite* never fails a build. A `{@link}` the map does not know
+ * degrades to a code span, which is legible to a reader; a failed build for a
+ * syntax example in prose would not be.
  *
  * Building the bundle is a different matter: a `symbolMap` that is configured
  * and cannot be used fails, loudly, before a page is rendered. Degrading
@@ -169,79 +167,20 @@ export function resolveApiLinks(body, symbols, apiBase) {
 }
 
 /**
- * Rewrites the relative links in a developer-doc body so they resolve on the
- * published site.
- *
- * Developer docs are authored to link one another and the source tree with
- * repository-relative paths, and neither target exists at the same path once
- * rendered. Each link is resolved against the doc's own location:
- *
- * - a `*.md` link landing inside the documentation tree becomes the published
- *   route, preserving any `#anchor`; a `README` is its directory's landing, so
- *   that segment is dropped.
- * - anything else — source, templates, a repository-root `*.md` — becomes its
- *   GitHub blob URL.
- *
- * Absolute URLs, anchor-only links, `mailto:` and site-root links are untouched.
- *
- * @param {string} body - The markdown body.
- * @param {string} docRel - The doc's path relative to the documentation tree.
- * @param {object} options - `{ repoRoot, docsSrc, docsRel, route, blob }`.
- * @returns {string} The body with every relative link rewritten.
- */
-export function rewriteRepoLinks(body, docRel, options) {
-    const { repoRoot, docsSrc, docsRel, route, blob } = options;
-    const docDir = path.dirname(docRel);
-    return body.replace(/\]\(([^)]+)\)/g, (whole, raw) => {
-        // Peel an optional link title: [text](url "title").
-        const sp = raw.search(/\s/);
-        const href = sp === -1 ? raw : raw.slice(0, sp);
-        const title = sp === -1 ? "" : raw.slice(sp);
-        if (/^(https?:|mailto:|tel:|#|\/)/.test(href)) return whole;
-
-        const hash = href.indexOf("#");
-        const filePart = hash === -1 ? href : href.slice(0, hash);
-        const anchor = hash === -1 ? "" : href.slice(hash);
-        if (!filePart) return whole;
-
-        const repoRel = path
-            .relative(repoRoot, path.resolve(docsSrc, docDir, filePart))
-            .replace(/\\/g, "/");
-
-        let out;
-        if (repoRel.startsWith(`${docsRel}/`) && repoRel.endsWith(".md")) {
-            const rel2 = repoRel.slice(docsRel.length + 1, -3).toLowerCase();
-            const devPath = path.basename(rel2) === "readme" ? path.posix.dirname(rel2) : rel2;
-            out = `${route}${devPath === "." ? "" : `${devPath}/`}${anchor}`;
-        } else {
-            out = `${blob}${repoRel}${anchor}`;
-        }
-        return `](${out}${title})`;
-    });
-}
-
-/**
  * The `sohl` knowledgebase pass bundle, built from its options.
  *
- * A pass bundle is two optional hooks the page renderer calls around wikilink
- * resolution, and the order matters:
- *
- * - `beforeLinks` runs on every page, before wikilinks resolve, because a
- *   `{@link}` tag may sit inside prose a wikilink also touches.
- * - `afterLinks` runs only on pages from an **extra tree** — the documentation
- *   tree — because repository-relative links are a property of how those pages
- *   are authored, not of content notes.
- *
- * Both run inside code-fence protection, so neither can rewrite a fenced example.
+ * A pass bundle is the hook the page renderer calls before wikilink
+ * resolution: `beforeLinks` runs on every page, before wikilinks resolve,
+ * because a `{@link}` tag may sit inside prose a wikilink also touches. It
+ * runs inside code-fence protection, so it cannot rewrite a fenced example.
  *
  * @param {object} options - Resolved from `site.passOptions`.
  * @param {string} [options.symbolMap] - Path to the TypeDoc symbol map,
  *   relative to `repoRoot`. Absent means no API links; present and unusable is
  *   a build failure.
  * @param {string} [options.apiBase] - Where the API documentation is served.
- * @param {string} [options.blob] - GitHub blob base for repository files.
  * @param {string} options.repoRoot - The repository root, for relative paths.
- * @returns {{beforeLinks: Function, afterLinks: Function}} The bundle.
+ * @returns {{beforeLinks: Function}} The bundle.
  * @throws {Error} When a configured `symbolMap` cannot be resolved, read,
  *   parsed, or is not a name → page object.
  */
@@ -250,15 +189,5 @@ export function sohlKbPass(options) {
     const apiBase = options.apiBase ?? "";
     return {
         beforeLinks: (text) => resolveApiLinks(text, symbols, apiBase),
-        afterLinks: (text, page) =>
-            page.tree ?
-                rewriteRepoLinks(text, page.rel, {
-                    repoRoot: options.repoRoot,
-                    docsSrc: page.tree.from,
-                    docsRel: page.tree.rel,
-                    route: page.tree.route,
-                    blob: options.blob ?? "",
-                })
-            :   text,
     };
 }

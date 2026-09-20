@@ -488,6 +488,17 @@ pack: mysteries
   type one system maps and another does not stays silent for the system that
   declines it.
 
+- **`pack: none` compiles the note into no document, on purpose.** The note is
+  walked, published as a page, present in the content index with an address
+  and no UUID, and addressable by wikilink; every pass passes over it without
+  a finding, and the finding above says nothing about it. It is accepted only
+  on a type whose sole document is the JournalEntry its prose becomes — a
+  `doc`, say — and refused by name on a type that compiles an Item, an Actor,
+  a Macro, a Scene or an Adventure, where it would drop that document. A
+  configured pack may not be called `none`. This is how a page of developer
+  documentation lives in the content tree beside everything else: it is a
+  note like any other, and it reaches no compendium.
+
 **The configuration is found by walking up from the working directory, and from
 the installed package only if that finds nothing.** `engine/pack-config.mjs`
 climbs from `process.cwd()` first, so a build reads the tree it was run in —
@@ -2256,10 +2267,10 @@ note-format knowledge against game-system knowledge, and a homepage carries no
 
 `publish.site` then says how much _else_ is published:
 
-| Mode       | What is published                                                               |
-| ---------- | ------------------------------------------------------------------------------- |
-| `homepage` | The authored homepage, and no other page. **The default, and the floor.**       |
-| `content`  | The homepage plus every page the content tree compiles to, and its extra trees. |
+| Mode       | What is published                                                         |
+| ---------- | ------------------------------------------------------------------------- |
+| `homepage` | The authored homepage, and no other page. **The default, and the floor.** |
+| `content`  | The homepage plus every page the content tree compiles to.                |
 
 There is no value meaning "no web presence": every package publishes its
 homepage. A boolean is refused, with a message naming the mode to write
@@ -2273,8 +2284,8 @@ content_ — journal text, artwork, item descriptions, compiled notes — and a 
 announcing the module discloses none of it. Because the failure mode is silent,
 the mode **fences the content surfaces off** rather than trusting a
 configuration to stay empty: in `homepage` mode the tree is never walked for
-pages, and `sections`, `trees`, `landing` and `backfillSections` emit nothing
-even when they are declared.
+pages, and `sections`, `landing` and `backfillSections` emit nothing even when
+they are declared.
 
 That is separate from the **dependency** edge, which such a module also
 declines: being cited by another package is what would stop it being
@@ -2293,9 +2304,12 @@ does not reach it.
 **What it does not do is decide addresses.** Those come from `publish.address`,
 the same setting the content index reads, so a page and its index record cannot
 disagree about where the page is. Everything under `site:` is _framing_ —
-what a section is called, which extra trees are published beside the content,
-and the residue of the generated Hugo configuration that is this repository's
-own:
+what a section is called, and the residue of the generated Hugo configuration
+that is this repository's own. What the site publishes is the content tree and
+nothing beside it: a page of documentation is a note (`type: doc`, with
+`pack: none` where it compiles into no document), so there is no second
+mechanism for mounting a directory of markdown, and a `trees:` or
+`readmeSections:` key is refused with a message saying so.
 
 ```yaml
 site:
@@ -2307,16 +2321,12 @@ site:
   passOptions:
     apiBase: /sohl/api/
     symbolMap: kb/data/api-symbols.json
-    blob: https://github.com/HeroicLands/…/blob/main/
-  trees:
-    - { from: kb/dev-docs, section: dev-docs }
   sections:
     being:
       title: Beings
       banner: banners/creature.webp
       description: Folk, animals and the things that walk the world.
-  readmeSections:
-    dev-docs: { title: Developer Documentation, banner: banners/dev-docs.webp }
+    reference: { title: Reference, listType: doc, listSubType: reference }
   list: { shortcodes: true }
   notfound:
     tagline: Song of Heroic Lands has no page at
@@ -2330,10 +2340,8 @@ site:
 | `base`             | Where the package is served: the prefix on every rendered `href`, and what a manifest `path` is measured against. It reaches no page's own `url:` — see [A page's URL is its address](#a-pages-url-is-its-address). Defaults to `/<contentPackage>/`. |
 | `packages`         | Which content packages this site renders. Defaults to its own.                                                                                                                                                                                        |
 | `sections`         | The Hugo sections this site declares, and what each says about itself — see below.                                                                                                                                                                    |
-| `readmeSections`   | The same, for a `trees` entry, whose landing comes from its own `README`.                                                                                                                                                                             |
 | `landing`          | Frontmatter for the mount's own `_index.md`. Passed through — the vocabulary is the theme's.                                                                                                                                                          |
 | `backfillSections` | Write a bare `_index.md` for any other directory directly under the mount.                                                                                                                                                                            |
-| `trees`            | Extra source trees published beside the content, preserving their source layout below a section.                                                                                                                                                      |
 | `pass`             | A named bundle of this repository's own body rewrites.                                                                                                                                                                                                |
 | `passOptions`      | That bundle's options.                                                                                                                                                                                                                                |
 | `assets`           | The host every package's imagery is served from; the generated `params.cdnBaseURL`.                                                                                                                                                                   |
@@ -2376,12 +2384,6 @@ Whatever the entry may carry is the whole of what the section can say.
 | `description` | no       | The hero standfirst under the heading, and the blurb a landing card uses. |
 | `listType`    | no       | The content **type** whose pages this section lists.                      |
 | `listSubType` | no       | Narrows that to one **subType**. Only with a `listType`.                  |
-
-`readmeSections` takes the same keys, for a **`trees`** entry: those pages keep
-their source layout below a named section, so the tree's own `README.md` is that
-section's landing. What the section declares wins over what the `README` happens
-to carry — the landing has to match the card that links to it. No content note
-reaches this map any more.
 
 #### Saying what a section lists
 
@@ -2477,15 +2479,9 @@ a site publishes dead `{@link}` tags at exit 0. A map that is read reports
 its symbol count at info level, which is the only way to tell a map that loaded
 from one that loaded empty without reading the emitted HTML.
 
-A bundle supplies up to two hooks, and their order around the shared work is the
-point:
-
-1. `beforeLinks`, on every page, before wikilinks resolve — a `{@link}` tag may
-   sit in prose a wikilink also touches.
-2. `afterLinks`, on pages from an extra tree only — repository-relative links are
-   a property of how those pages are authored, not of content notes.
-
-Both run inside code-fence protection, so neither can rewrite a fenced example.
+A bundle supplies one hook, `beforeLinks`, which runs on every page before
+wikilinks resolve — a `{@link}` tag may sit in prose a wikilink also touches.
+It runs inside code-fence protection, so it cannot rewrite a fenced example.
 
 ### The gates
 
@@ -2499,7 +2495,6 @@ after the links that failed because of it reads as a pile of broken notes.
 | Addresses              | A note with no shortcode to be addressed by, or no section to be filed under.      |
 | Unusable manifest      | A vendored manifest this build cannot read.                                        |
 | Unaddressable manifest | One it can read but cannot look anything up in.                                    |
-| Package conflicts      | One address claimed by two packages.                                               |
 | Tables and wikilinks   | A table directive that cannot be honoured, or a link that lands nowhere.           |
 
 None of them exits the process from inside the library; the command decides. That

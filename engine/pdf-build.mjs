@@ -35,7 +35,7 @@
  * ## `publish.site` is the switch, and it is the only switch
  *
  * `homepage` mode fences the content surfaces off: the tree is not walked and
- * `sections`, `trees` and `landing` emit nothing however they are declared. A
+ * `sections` and `landing` emit nothing however they are declared. A
  * PDF of the content tree is a content surface by any reading — arguably the
  * most portable one there is — so it is fenced on exactly the same terms, by
  * asking the same {@link module:content-config.publishesContentPages} the
@@ -481,7 +481,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
      * @returns {string} Typst markup.
      */
     const renderPage = (page, headingOffset, anchorPrefix) => {
-        const src = page.relPath ?? page.rel ?? page.base;
+        const src = page.relPath ?? page.base;
         const wikiErrors = [];
         const { markdown, errors } = expandContentTables(page.body, {
             docs: universe.get(page.pkg) ?? [],

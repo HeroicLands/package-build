@@ -70,6 +70,7 @@ import { resolveNoteId } from "./note-ids.mjs";
 import { compendiumUuid, currentType, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { isHomepage } from "./homepage.mjs";
+import { declaresNoPack } from "./pack-router.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
 import {
@@ -179,7 +180,17 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // and its id is hashed under the `folder` namespace against its own
         // address rather than under `document`. Emitting one would publish an
         // `Item` UUID for a `Folder`, at an id no document carries.
-        id && !NEVER_PACKED_TYPES.has(String(type)) && !DERIVED_PACKED_TYPES.has(String(type)) ?
+        //
+        // And a note declaring **`pack: none`** is in no pack by its own
+        // statement: it publishes a page and compiles into nothing, so it has
+        // an address and no UUID. The shared declaration is what is read,
+        // because an entry names one document and this pass routes no system.
+        (
+            id &&
+            !NEVER_PACKED_TYPES.has(String(type)) &&
+            !DERIVED_PACKED_TYPES.has(String(type)) &&
+            !(routeFm && declaresNoPack(routeFm))
+        ) ?
             compendiumUuid(
                 foundryPackageId,
                 type,

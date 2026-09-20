@@ -38,7 +38,7 @@ import { foundryAddressProblem, pathnameProblem, resolvePathname } from "./pathn
 import log from "loglevel";
 
 import { loadPackConfig } from "./pack-config.mjs";
-import { packRouter } from "./pack-router.mjs";
+import { declaresNoPack, packRouter } from "./pack-router.mjs";
 import { contentPackage, foundryPackageId } from "./content-package.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import { PACKAGE_BASE } from "./content-address.mjs";
@@ -741,6 +741,9 @@ export function buildContentLinkIndex(
             // its prose compiles into lands — two documents, two packs.
             pack: router.resolveOrNull(fm, packForType(fm.type).docType),
             docPack: router.resolveOrNull(fm, "JournalEntry"),
+            // Whether the note declares `pack: none` and so has no document
+            // at all: a link to it names a page, never a compendium entry.
+            none: declaresNoPack(fm),
             shortcode: fm.shortcode ?? null,
             // What the note *is*, carried so a caller resolving a reference
             // can group by the family its target declares rather than only by

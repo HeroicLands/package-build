@@ -1265,9 +1265,8 @@ export function lintNote(
             message: draftRetiredMessage(),
         });
     }
-    // Anchored at column 1 for the same reason `aliases` is: `section` names a
-    // configuration key too (`site.trees[].section`), and a nested one under
-    // some other block is not this field.
+    // Anchored at column 1 for the same reason `aliases` is: a nested
+    // `section` under some other block is not this field.
     if (Object.hasOwn(fm, "section")) {
         findings.push({
             file: note.file,

@@ -759,9 +759,7 @@ Any other key under `docs.itemFields` is refused:
 | `site.description`      | string   | `""`, but required for `content-build site` |
 | `site.packages`         | string[] | `[]`                                        |
 | `site.sections`         | object   | `{}`                                        |
-| `site.readmeSections`   | object   | `{}`                                        |
 | `site.landing`          | object   | `null`                                      |
-| `site.trees`            | array    | `[]`                                        |
 | `site.pass`             | string   | `""`                                        |
 | `site.passOptions`      | object   | `{}`                                        |
 | `site.backfillSections` | boolean  | `false`                                     |
@@ -771,10 +769,19 @@ Any other key under `docs.itemFields` is refused:
 
 How much of a package reaches the web at all is **not** here — it is
 [`publish.site`](#publish). `site` is framing: what a section is called,
-which extra trees are published beside the content, which named pass bundle
-supplies the repository's own body rewrites, and the residue of the
-[generated Hugo configuration](#the-generated-hugo-configuration) that is
-genuinely this repository's own.
+which named pass bundle supplies the repository's own body rewrites, and the
+residue of the [generated Hugo configuration](#the-generated-hugo-configuration)
+that is genuinely this repository's own.
+
+What the site publishes is the content tree, and nothing beside it. A page of
+documentation is a note — `type: doc`, addressed by its shortcode, and
+`pack: none` where it compiles into no Foundry document — so there is no
+second mechanism for mounting a directory of markdown, and a configuration
+that names one is refused with a message saying where the page goes instead:
+
+> ``package-build config: `site.trees` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and declare the section that lists it under `site.sections`.``
+
+> ``package-build config: `site.readmeSections` is retired — a page is a note in the content tree. Give each page `type: doc`, a `shortcode` and `pack: none`, file it under `assets/content/`, and declare the section that lists it under `site.sections`.``
 
 Where the Hugo tree is written is not a choice. `content-build site` writes
 the whole Hugo source tree under `build/hugo/` — the generated `hugo.toml`,
@@ -786,7 +793,7 @@ published. A `site.out` is refused by name:
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, sections, readmeSections, landing, trees, pass, passOptions, backfillSections, list, notfound, hugo).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, sections, landing, pass, passOptions, backfillSections, list, notfound, hugo).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -832,25 +839,8 @@ names a registry):
 
 > ``package-build config: `site.packages[<index>]` must be a non-empty string.``
 
-`site.trees` are the extra trees published beside the content, each naming
-where it comes from and which section it publishes into:
-
-| Key (under `site.trees[]`) | Type   | Required |
-| -------------------------- | ------ | -------- |
-| `site.trees[].from`        | string | yes      |
-| `site.trees[].section`     | string | yes      |
-
-> ``package-build config: `site.trees` must be a list.``
-
-> ``package-build config: `site.trees[<index>]` must be a mapping.``
-
-> ``package-build config: `site.trees[<index>].from` must be a non-empty string.``
-
-> ``package-build config: `site.trees[<index>].<key>` is not a recognized option (expected one of: from, section).``
-
-`site.sections` (and `site.readmeSections`, the same shape) is a closed
-vocabulary — a section's _only_ place to speak, since it exists solely as
-the generated `_index.md` this build writes for it:
+`site.sections` is a closed vocabulary — a section's _only_ place to speak,
+since it exists solely as the generated `_index.md` this build writes for it:
 
 | Key (under `site.sections.<name>`) | Type                       | Required | Default |
 | ---------------------------------- | -------------------------- | -------- | ------- |
@@ -1336,9 +1326,9 @@ its content tree's addresses mount inside the package.
 Every HeroicLands package publishes at least an authored homepage at
 `https://www.heroiclands.org/<contentPackage>/` — there is no value meaning
 _no web presence at all_. `homepage` is the floor: the authored homepage
-and nothing else, no content-tree walk, no `site.sections` / `site.trees` /
-`site.landing` output. `content` is the homepage plus every page the
-content tree publishes. `publishesContentPages(config)`, exported from
+and nothing else, no content-tree walk, no `site.sections` / `site.landing`
+output. `content` is the homepage plus every page the content tree
+publishes. `publishesContentPages(config)`, exported from
 `content-config.mjs` alongside [`compilesFoundryDocuments`](#packagekind),
 answers the one question every reader of the mode actually asks — the site
 build, to decide whether to walk the tree at all, and the content index, to

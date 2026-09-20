@@ -33,13 +33,12 @@
  * a function.
  *
  * **Every gate reports; none exits.** The integrity checks a site build needs —
- * a wikilink authored in frontmatter, a name that yields no slug, two pages
- * claiming one URL, an unusable or unaddressable foreign manifest, an address
- * two packages both claim, a table directive that cannot be honoured, a dead
- * wikilink — were inline `process.exit` calls in both scripts, with no test
- * between them. Here each returns its findings and the command decides. That is
- * the rule `engine/site-index.mjs` already follows, and it is the only reason
- * these cases can be tested at all.
+ * a wikilink authored in frontmatter, a name that yields no slug, an unusable
+ * or unaddressable foreign manifest, a table directive that cannot be
+ * honoured, a dead wikilink — were inline `process.exit` calls in both
+ * scripts, with no test between them. Here each returns its findings and the
+ * command decides. That is the rule `engine/site-index.mjs` already follows,
+ * and it is the only reason these cases can be tested at all.
  *
  * @module
  */
@@ -49,7 +48,6 @@ import path from "node:path";
 import { createRequire } from "node:module";
 import matter from "gray-matter";
 
-import { slugify } from "./content-slug.mjs";
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
@@ -82,37 +80,6 @@ import { HUGO_CONTENT } from "./site-config.mjs";
 const require = createRequire(import.meta.url);
 
 /**
- * Every `.md` file under `dir`, depth-first in directory order.
- *
- * Deliberately *not* {@link walkMarkdownTree}, whose stack-based walk yields a
- * tree in reverse. Order was load-bearing here when the address index carried
- * first-writer-wins fallbacks for a page's name, filename and slug — reversing
- * the walk silently changed which page an ambiguous name resolved to. Those
- * fallbacks are gone with the bare `[[Name]]` form, so this is now
- * ordinary reading order rather than a dependency; it is kept because a site's
- * emitted pages should not reorder for no reason.
- *
- * @param {string} dir - Directory to walk.
- * @param {readonly string[]} skip - Directory names to ignore at any depth.
- * @returns {string[]} Absolute paths.
- */
-export function walkSiteTree(dir, skip = []) {
-    const out = [];
-    if (!fs.existsSync(dir)) return out;
-    const skipped = new Set(skip);
-    for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
-        const full = path.join(dir, e.name);
-        if (e.isDirectory()) {
-            if (skipped.has(e.name)) continue;
-            out.push(...walkSiteTree(full, skip));
-        } else if (e.isFile() && e.name.endsWith(".md")) {
-            out.push(full);
-        }
-    }
-    return out;
-}
-
-/**
  * The content-tree files this build publishes from, in the order it emits them.
  *
  * **The corpus comes from the content index** — the same derivation the
@@ -134,10 +101,6 @@ export function walkSiteTree(dir, skip = []) {
  * A **content-path** order is also the better of the two. Directory-read order
  * is a fact about the filesystem, not about the content, so it can differ
  * between two checkouts of one tree; this order cannot.
- *
- * `collectTreePages` is deliberately **not** converted: it walks an auxiliary
- * tree (`site.trees`, the developer docs), which is not the content tree and
- * appears in no record.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} ctx - The build context. `ctx.records` is the corpus when the
@@ -268,73 +231,6 @@ export function collectContentPages(contentBase, ctx) {
 }
 
 /**
- * An extra tree's pages — a documentation tree published alongside the content.
- *
- * These preserve their **source layout** below the section rather than being
- * addressed by type and slug: they are a book with chapters, and a reader
- * follows their paths. A `README` is its directory's landing.
- *
- * **The section is the tree's, never the note's.** `tree.section` is the
- * mount point a `trees` entry configures — fixed, physical, and the same
- * value `site-index.mjs` indexes a tree page's address under. A note's own
- * `subType` is a genre and reaches no address, the same contract
- * `packageAddress()` holds for a content page: reading it here would move a
- * page's URL, its file destination (`pageDestination`) and the address a
- * wikilink cites it by, every time an author classified it.
- *
- * @param {object} tree - `{ from, rel, section, route }`.
- * @param {object} ctx - `{ mount }`.
- * @returns {{pages: object[], fmLinkFindings: object[]}}
- */
-export function collectTreePages(tree, ctx) {
-    const pages = [];
-    const fmLinkFindings = [];
-
-    for (const file of walkSiteTree(tree.from)) {
-        const note = readNote(file);
-        if (!note) continue;
-        const { fm, body } = note;
-
-        for (const hit of frontmatterWikilinks(fm)) {
-            fmLinkFindings.push({ file, ...hit });
-        }
-
-        const rel = path.relative(tree.from, file).replace(/\\/g, "/");
-        const base = path.basename(rel);
-        const isReadme = base.toLowerCase() === "readme.md";
-        const sec = tree.section;
-        const h1 = /^#\s+(.+?)\s*$/m.exec(body);
-        const h1Title = h1 ? h1[1].replace(/\{@link\s+[^}]*\}/g, "").trim() : null;
-        const name = fm.name?.full ?? fm.title ?? h1Title ?? path.basename(base, ".md");
-        const slug = fm.slug ?? slugify(path.basename(base, ".md"));
-        const relNoExt = rel.slice(0, -3).toLowerCase();
-        const dir = path.posix.dirname(relNoExt);
-        pages.push({
-            kind: "tree",
-            tree,
-            fm,
-            // As above: the source file, for a located link diagnostic.
-            file,
-            // The H1 is stripped: the page title renders it.
-            body: body.replace(/^\s*#\s+.*$\r?\n?/m, ""),
-            name,
-            slug,
-            base,
-            rel,
-            sec,
-            url:
-                isReadme ?
-                    dir === "." ?
-                        `${ctx.mount}${sec}/`
-                    :   `${ctx.mount}${sec}/${dir}/`
-                :   `${ctx.mount}${sec}/${relNoExt}/`,
-            isReadme,
-        });
-    }
-    return { pages, fmLinkFindings };
-}
-
-/**
  * The package's homepage notes — the authored page at `/<contentPackage>/`.
  *
  * A separate walk from {@link collectContentPages} rather than a branch inside
@@ -454,7 +350,6 @@ export function siteGates(pages, findings, { config }) {
         addressErrors: findings.addressFindings ?? [],
         staleManifests: [],
         unaddressable: [],
-        conflicts: [],
         index: null,
         foreign: null,
         manifests: null,
@@ -477,14 +372,10 @@ export function siteGates(pages, findings, { config }) {
     out.unaddressable = unaddressableForeignPackages(foreign.index);
     if (out.unaddressable.length) return out;
 
-    const index = buildSiteIndex(pages, {
+    out.index = buildSiteIndex(pages, {
         foreignIndex: foreign.index,
         noIndexPackages: noContentIndexPackages(config),
     });
-    out.conflicts = index.conflicts;
-    if (out.conflicts.length) return out;
-
-    out.index = index;
     return out;
 }
 
@@ -505,7 +396,6 @@ export function emptyGates() {
         addressErrors: [],
         staleManifests: [],
         unaddressable: [],
-        conflicts: [],
         index: null,
         foreign: null,
         manifests: null,
@@ -519,8 +409,7 @@ export function gatesFailed(gates) {
         gates.frontmatterLinks.length ||
         gates.addressErrors.length ||
         gates.staleManifests.length ||
-        gates.unaddressable.length ||
-        gates.conflicts.length,
+        gates.unaddressable.length,
     );
 }
 
@@ -622,15 +511,8 @@ export function sectionFrontmatter(meta) {
  * self-describing and makes sweeping the field out of a content tree
  * output-preserving for a site as it already is for the packs.
  *
- * A **tree** page is the one that still reads `readmeSections`: a `trees` entry
- * keeps its source layout below a named section, so its own `README` is that
- * section's landing and takes the title and hero the section declares.
- *
  * @param {object} page - The page.
  * @param {object} options
- * @param {Record<string, object>} [options.readmeSections] - The sections a
- *   published tree declares, which a tree page's own `README` is the landing
- *   for.
  * @param {(data: object, page: object) => void} [options.decorate] - Called
  *   with each page's frontmatter, for whatever a consumer's own pass adds.
  * @param {(value: unknown, type: string) => string|null} [options.artSrc] -
@@ -642,37 +524,25 @@ export function sectionFrontmatter(meta) {
  *   same way.
  * @returns {object} The frontmatter to write.
  */
-export function pageFrontmatter(page, { readmeSections = {}, decorate, webSrc, artSrc }) {
-    const { fm, name, slug, sec, isReadme } = page;
-    let data;
-    if (page.kind === "content") {
-        data = {
-            ...fm,
-            // Spread after the note's own frontmatter. Guarded because
-            // `package: undefined` is not a value YAML can carry.
-            ...(page.pkg ? { package: page.pkg } : {}),
-            // The address, stated — site-root relative, because Hugo prefixes
-            // the site's own base to it. `slug` is written beside it
-            // because it is the last segment of that address and Hugo's own key
-            // for one; it decides nothing while `url` is present, but a page
-            // that carried only `url` would report a slug Hugo had inferred
-            // from the filename.
-            slug,
-            url: `/${slug}/`,
-            title: fm.title ?? name,
-            kbfolder: page.folder,
-        };
-        if (decorate) decorate(data, page);
-    } else {
-        // A tree's own landing describes the *mount*, and nothing beneath it. A
-        // nested README is a sub-section's landing, and reading the section's
-        // entry for it would title every one of them alike and hang the section
-        // hero on each. Its title comes from its H1, like any other page's.
-        const isSectionRoot = path.posix.dirname(page.rel) === ".";
-        const meta = isReadme && isSectionRoot ? readmeSections[sec] : null;
-        data = { ...fm, title: meta?.title ?? fm.title ?? name };
-        if (meta) Object.assign(data, sectionFrontmatter(meta));
-    }
+export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
+    const { fm, name, slug } = page;
+    const data = {
+        ...fm,
+        // Spread after the note's own frontmatter. Guarded because
+        // `package: undefined` is not a value YAML can carry.
+        ...(page.pkg ? { package: page.pkg } : {}),
+        // The address, stated — site-root relative, because Hugo prefixes
+        // the site's own base to it. `slug` is written beside it
+        // because it is the last segment of that address and Hugo's own key
+        // for one; it decides nothing while `url` is present, but a page
+        // that carried only `url` would report a slug Hugo had inferred
+        // from the filename.
+        slug,
+        url: `/${slug}/`,
+        title: fm.title ?? name,
+        kbfolder: page.folder,
+    };
+    if (decorate) decorate(data, page);
     delete data.aliases;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
@@ -733,16 +603,11 @@ function isPlainObject(value) {
  * the same as another note's `type`, and `doc-gear.md` and `weapongear-gear.md`
  * are distinct whatever the sections.
  *
- * **A `trees` entry is the exception, and always was.** Those pages preserve
- * their source layout below a named section — they are a book with chapters,
- * addressed by their path — so a `README` there is still its directory's
- * `_index.md`.
+ * @param {object} page - The page.
+ * @returns {string} The file, relative to the mount.
  */
 export function pageDestination(page) {
-    if (page.kind === "content") return `${page.slug}.md`;
-    const rel =
-        page.isReadme ? path.posix.join(path.posix.dirname(page.rel), "_index.md") : page.rel;
-    return path.join(page.sec, rel);
+    return `${page.slug}.md`;
 }
 
 /**
@@ -755,10 +620,10 @@ export function pageDestination(page) {
  *    authored as a fenced `dataview` block, which `protectCode` would otherwise
  *    stash away before the expander saw it. Expanding first leaves an ordinary
  *    markdown table to walk, with every other fence still protected.
- * 2. **Then, inside protection**: the consumer's `beforeLinks` pass, wikilink
- *    resolution, and the consumer's `afterLinks` pass. A `{@link}` tag may sit
- *    in prose a wikilink also touches, so the repository's own rewrites bracket
- *    the shared one rather than replacing it.
+ * 2. **Then, inside protection**: the consumer's `beforeLinks` pass, then
+ *    wikilink resolution. A `{@link}` tag may sit in prose a wikilink also
+ *    touches, so the repository's own rewrite runs before the shared one
+ *    rather than replacing it.
  *
  * @param {object[]} pages - Every page.
  * @param {object} options - Everything the render needs.
@@ -772,7 +637,6 @@ export function renderPages(pages, options) {
         foreign,
         universe,
         pass = {},
-        readmeSections,
         decorate,
         linkable = (d) => Boolean(d.fm.shortcode),
         sqlTables,
@@ -834,11 +698,10 @@ export function renderPages(pages, options) {
     };
 
     for (const page of pages) {
-        // The page's path in the tree an author edits: below the content root
-        // for a content note, below the tree's own root for a `trees` page. It
-        // is not composed as `<section>/<basename>` for a content note,
-        // which named a directory that was never the note's.
-        const src = page.relPath ?? page.rel ?? page.base;
+        // The page's path in the tree an author edits, below the content
+        // root. It is not composed as `<section>/<basename>`, which named a
+        // directory that was never the note's.
+        const src = page.relPath ?? page.base;
         const ctx = wikiContext(index, {
             src,
             file: page.file,
@@ -854,7 +717,6 @@ export function renderPages(pages, options) {
             let t = text;
             if (pass.beforeLinks) t = pass.beforeLinks(t, page);
             t = resolveWebWikilinks(t, ctx);
-            if (pass.afterLinks) t = pass.afterLinks(t, page);
             // Last, so a consumer's own rewrites see the image as the note
             // wrote it rather than as a figure. Hugo is handed markdown, not a
             // rendered page, so a `{…}` directive left in the body would reach
@@ -862,26 +724,22 @@ export function renderPages(pages, options) {
             return renderImageFigures(t, webSrc);
         };
 
-        let body = page.body;
-        if (page.kind === "content") {
-            const { markdown, errors } = expandContentTables(body, {
-                docs: universe.get(page.pkg) ?? [],
-                linkable,
-                source: src,
-                // Prepared before this render began — DuckDB is async and this
-                // is not. Keyed by the note's own file, absolute here as in
-                // every other pass, so the three cannot disagree about a note.
-                sqlTables: sqlTables?.get(page.file),
-                self: {
-                    fm: searchableFrontmatter(page.fm, page.pkg),
-                    path: page.relPath,
-                },
-            });
-            tableErrors.push(...errors);
-            body = markdown;
-        }
+        const { markdown: body, errors } = expandContentTables(page.body, {
+            docs: universe.get(page.pkg) ?? [],
+            linkable,
+            source: src,
+            // Prepared before this render began — DuckDB is async and this
+            // is not. Keyed by the note's own file, absolute here as in
+            // every other pass, so the three cannot disagree about a note.
+            sqlTables: sqlTables?.get(page.file),
+            self: {
+                fm: searchableFrontmatter(page.fm, page.pkg),
+                path: page.relPath,
+            },
+        });
+        tableErrors.push(...errors);
 
-        const data = pageFrontmatter(page, { readmeSections, decorate, webSrc, artSrc });
+        const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(protectCode(body, resolve), data));
@@ -915,9 +773,9 @@ export function renderPages(pages, options) {
  *   or its own address publishes nothing. Hugo generates a section page
  *   automatically only for a *top-level* content directory; below that, a
  *   directory without an `_index.md` is not a section, so its URL 404s while its
- *   children publish normally. With content pages flat, what that reaches is a
- *   `trees` entry's directory — the one thing left below the mount that a note
- *   creates.
+ *   children publish normally. With content pages flat, no note creates a
+ *   directory below the mount, so this reaches only what something else
+ *   placed there.
  *
  * **A section listing is not a page listing any more.** A layout that reads
  * `.Pages` off a section it declares here will find nothing, because no file is
@@ -1016,7 +874,7 @@ const SITE_PASSES = Object.freeze({
  *
  * @param {string|undefined} name - The configured name.
  * @param {object} options - The configured options, plus `repoRoot`.
- * @returns {{beforeLinks?: Function, afterLinks?: Function}} The bundle.
+ * @returns {{beforeLinks?: Function}} The bundle.
  */
 export function resolveSitePass(name, options) {
     if (!name) return {};
@@ -1177,8 +1035,7 @@ export function buildSite({ config, sqlTables } = {}) {
     }
 
     const content = collectContentPages(resolved.paths.content, ctx);
-    const pages = [...content.pages];
-    const fmLinkFindings = [...content.fmLinkFindings];
+    const { pages } = content;
 
     // The homepage is **indexed but not rendered**. Now that it has an
     // address, `[[homepage-root|Text]]` is an ordinary wikilink and has to
@@ -1197,22 +1054,7 @@ export function buildSite({ config, sqlTables } = {}) {
         url: `${base}${addressSlug(page.fm)}/`,
     }));
 
-    const trees = site.trees.map((t) => ({
-        ...t,
-        from: path.resolve(resolved.rootDir, t.from),
-        route: `${mount}${t.section}/`,
-    }));
-    for (const tree of trees) {
-        const got = collectTreePages(tree, ctx);
-        pages.push(...got.pages);
-        fmLinkFindings.push(...got.fmLinkFindings);
-    }
-
-    const gates = siteGates(
-        [...pages, ...homepageEntries],
-        { ...content, fmLinkFindings },
-        { config: resolved },
-    );
+    const gates = siteGates([...pages, ...homepageEntries], content, { config: resolved });
     if (gatesFailed(gates)) {
         return {
             gates,
@@ -1238,7 +1080,6 @@ export function buildSite({ config, sqlTables } = {}) {
         foreign: gates.foreign,
         universe: tableUniverse(pages),
         pass,
-        readmeSections: site.readmeSections,
         // What counts as a being is the toolchain's to say, not a consumer's.
         // Asking in a consumer's script is how one came to still be checking
         // `character` and `creature` months after they were retired, and to

@@ -158,15 +158,6 @@ describe("a page emits flat, into the mount itself", () => {
         expect(pageDestination(page as never)).toBe("weapongear-dagger.md");
         expect(path.dirname(pageDestination(page as never))).toBe(".");
     });
-
-    it("still preserves an extra tree's source layout below its section", () => {
-        // A `trees` entry is a book with chapters, addressed by its path — the
-        // one place a directory is still an address, and untouched here.
-        const page = { kind: "tree", sec: "dev-docs", rel: "how-to/testing.md" };
-        expect(pageDestination(page as never)).toBe(path.join("dev-docs", "how-to", "testing.md"));
-        const landing = { kind: "tree", sec: "dev-docs", rel: "README.md", isReadme: true };
-        expect(pageDestination(landing as never)).toBe(path.join("dev-docs", "_index.md"));
-    });
 });
 
 describe("a `README.md` is an ordinary note", () => {

@@ -72,9 +72,6 @@ name:
     full: Combat`,
         "Fighting, with a [[weapongear-dagger|dagger]].\n",
     );
-
-    write("docs/README.md", `---\nsubType: dev-docs\n---\n\n# Developer Documentation\n\nIntro.\n`);
-    write("docs/how-to/testing.md", `---\nsubType: dev-docs\n---\n\n# Testing\n\nProse.\n`);
 });
 
 afterAll(() => fs.rmSync(root, { recursive: true, force: true }));
@@ -96,7 +93,6 @@ function configFor(site: Record<string, unknown> = {}) {
         },
         site: {
             sections: { rules: { title: "The Rules" } },
-            trees: [{ from: "docs", section: "dev-docs" }],
             ...site,
         },
     });
@@ -222,16 +218,10 @@ describe("end to end, the two quantities are written to the same page", () => {
         expect(home).toMatch(/^url: \/homepage-root\/$/m);
     });
 
-    it("leaves a `trees` page and a section landing addressed by their paths", () => {
+    it("leaves a section landing addressed by its path", () => {
         buildSite({ config: configFor() });
-        // Neither states a `url:` at all: a tree page keeps its source layout
-        // below its section and a landing is its directory's `_index.md`, so
-        // both take their address from where they are written.
-        const tree = fs.readFileSync(
-            path.join(root, "build/hugo/content/kb/dev-docs/how-to/testing.md"),
-            "utf8",
-        );
-        expect(tree).not.toMatch(/^url:/m);
+        // It states no `url:` at all: a landing is its directory's
+        // `_index.md`, so it takes its address from where it is written.
         const landing = fs.readFileSync(
             path.join(root, "build/hugo/content/kb/rules/_index.md"),
             "utf8",

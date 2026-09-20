@@ -55,18 +55,17 @@ describe("one alias namespace, and it is empty", () => {
         // added `basename(entry.base, ".md")` with its underscores intact.
         const index = buildSiteIndex([
             {
-                type: "place",
-                shortcode: "sebeqsut",
+                kind: "content",
+                fm: { type: "place", shortcode: "sebeqsut" },
                 name: "Sebeq'Sut",
                 base: "Sebeq_Sut.md",
                 url: "/thalorna/place-sebeqsut/",
-                sec: "places",
-                slug: "sebeqsut",
+                slug: "place-sebeqsut",
             },
         ]);
-        // The site keys a page by its section and slug, and by its canonical
-        // address — never by the file it came from.
-        expect(index.index.has("places/sebeqsut")).toBe(true);
+        // The site keys a page by its address — never by the file it came
+        // from.
+        expect(index.index.has("place/sebeqsut")).toBe(true);
         for (const form of FILENAME_FORMS) {
             expect(index.index.has(form), form).toBe(false);
         }
@@ -78,13 +77,12 @@ describe("one alias namespace, and it is empty", () => {
         const pack = buildWikilinkIndex([NOTE], "sohl");
         const site = buildSiteIndex([
             {
-                type: "place",
-                shortcode: "sebeqsut",
+                kind: "content",
+                fm: { type: "place", shortcode: "sebeqsut" },
                 name: "Sebeq'Sut",
                 base: "Sebeq_Sut.md",
                 url: "/thalorna/place-sebeqsut/",
-                sec: "places",
-                slug: "sebeqsut",
+                slug: "place-sebeqsut",
             },
         ]);
         for (const form of FILENAME_FORMS) {

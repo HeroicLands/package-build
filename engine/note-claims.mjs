@@ -91,6 +91,7 @@ import { JOURNAL_TYPES, MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES, currentType } fr
 import { itemTypes } from "./item-registry.mjs";
 import { docEntryTypes } from "./item-docs.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
+import { declaresNoPack } from "./pack-router.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -641,6 +642,12 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
     // {@link claimedNoteTypes} states: its JSON is checked in, it has no pass,
     // and no note is routed into it.
     const configured = new Set((config.packs ?? []).filter((p) => !p.prebuilt).map((p) => p.type));
+    // Every system a pack declares, plus the shared position: a note that
+    // answers `pack: none` for all of them compiles into nothing anywhere.
+    const routed = [
+        undefined,
+        ...new Set((config.packs ?? []).map((p) => p.system).filter(Boolean)),
+    ];
 
     // The corpus this compile derived once, required rather than
     // derived here: this module is imported *by* the content index, so it
@@ -680,6 +687,20 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
 
         // Every document it produces has somewhere to go.
         if (produces.length && !missing.length) continue;
+
+        // `pack: none`, on a type whose only document is the JournalEntry its
+        // prose becomes: the note compiles into nothing **by declaration**, so
+        // a missing JournalEntry pack drops nothing it meant to keep. A type
+        // that also produces an Item or an Actor is not excused here — the
+        // router refuses that declaration by name when a pass asks it, and
+        // where no pass does, the finding below still says nothing claims the
+        // note.
+        if (
+            produces.every((docType) => docType === "JournalEntry") &&
+            routed.every((system) => declaresNoPack(fm, system))
+        ) {
+            continue;
+        }
 
         // Some do and some do not: the note compiles, and one of its documents
         // is dropped in silence. A type nothing produces at all falls past this

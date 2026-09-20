@@ -86,31 +86,6 @@ describe("a section can describe itself", () => {
         fs.rmSync(out, { recursive: true });
     });
 
-    it("carries it onto a README-backed section landing too", () => {
-        // The three prose cards on `/sohl/kb/` are README-backed sections, and
-        // they are exactly the ones whose descriptions live only in local
-        // templating today. A fix that reached the generated landings and not
-        // these would leave that half unmovable.
-        const page = {
-            kind: "tree",
-            rel: "README.md",
-            sec: "dev-docs",
-            name: "README",
-            isReadme: true,
-            fm: {},
-        };
-        const data = pageFrontmatter(page as never, {
-            readmeSections: {
-                "dev-docs": {
-                    title: "Developer Documentation",
-                    banner: "banners/dev-docs.webp",
-                    description: "Architecture, extension points, testing.",
-                },
-            },
-        });
-        expect(data.description).toBe("Architecture, extension points, testing.");
-    });
-
     it("says nothing about a content page, whatever it is called", () => {
         // A content note has no section to describe: it is addressed
         // `(type, shortcode)` and emitted flat, so a `README.md` in the content
@@ -125,11 +100,7 @@ describe("a section can describe itself", () => {
                 folder: "Rules",
                 fm: {},
             } as never,
-            {
-                readmeSections: {
-                    rules: { title: "Rules", description: "How play resolves." },
-                },
-            },
+            {},
         );
         expect(data.title).toBe("The Rules");
         expect(data.description).toBeUndefined();
@@ -216,18 +187,6 @@ describe("the configuration is where the vocabulary is bounded", () => {
             },
         });
         expect(config.site.sections.affliction.description).toBe("Ailments.");
-    });
-
-    it("accepts one under a README-backed section as well", () => {
-        const config = resolveWithSite({
-            readmeSections: {
-                "dev-docs": {
-                    title: "Developer Documentation",
-                    description: "Docs.",
-                },
-            },
-        });
-        expect(config.site.readmeSections["dev-docs"].description).toBe("Docs.");
     });
 
     it("refuses an empty description rather than emitting a blank standfirst", () => {
@@ -323,13 +282,6 @@ describe("a section can declare what it lists", () => {
         });
         expect(config.site.sections["user-guide"].listType).toBe("doc");
         expect(config.site.sections["user-guide"].listSubType).toBe("userguide");
-    });
-
-    it("takes it on a README-backed section too", () => {
-        const config = resolveWithSite({
-            readmeSections: { "dev-docs": { title: "Developer Documentation", listType: "doc" } },
-        });
-        expect(config.site.readmeSections["dev-docs"].listType).toBe("doc");
     });
 
     it("refuses a subType filter with no type to apply it to", () => {

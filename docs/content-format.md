@@ -801,13 +801,43 @@ hm3:
 Where no pack of that type is the default, the build refuses rather than
 guessing, and names the candidates.
 
-Three declarations are refused, each with the reason:
+**`pack: none` compiles the note into no document.** The note is walked,
+published as a page, present in the content index with an address and no
+Foundry UUID, and addressable by wikilink like any other; every pack compiler
+passes over it without a finding, and the check that reports a note nothing
+compiles says nothing about it. Write it on a page that belongs on the website
+and in no compendium — a page of developer documentation, a page about the
+package itself:
 
-| written                             | why it is refused                                                                 |
-| ----------------------------------- | --------------------------------------------------------------------------------- |
-| a **companion** pack                | A companion is written by another pack's pass, so no note may be routed into one. |
-| a pack **nothing answers to**       | The message lists the configured packs of that document type.                     |
-| a pack of **another document type** | A note's `pack:` names a pack of its own document type.                           |
+```yaml
+type: doc
+subType: concept
+shortcode: architecture
+pack: none
+```
+
+A link to such a note resolves everywhere the note is addressable. On the web
+it is an ordinary link to the page. In a compiled journal there is no document
+to open, so the reader gets the link's text as prose and no `@UUID` — the
+mirror of a link into a package that publishes documents and no pages.
+
+It is accepted only on a type whose **sole document is the JournalEntry its
+prose becomes** — `doc`, `place`, `lore` and `scenario`. On a type that
+compiles an Item, an Actor, a Macro, a Scene or an Adventure it is refused by
+name, because there it would drop the document the type exists to produce;
+the message names that document. It is read per system like any other
+`pack:`, so `<system>.pack: none` withholds one system's document while the
+shared declaration names a pack for the rest, and a configured pack may not
+be called `none`.
+
+Four declarations are refused, each with the reason:
+
+| written                                     | why it is refused                                                                            |
+| ------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| a **companion** pack                        | A companion is written by another pack's pass, so no note may be routed into one.            |
+| a pack **nothing answers to**               | The message lists the configured packs of that document type.                                |
+| a pack of **another document type**         | A note's `pack:` names a pack of its own document type.                                      |
+| **`none`** on a type with a second document | The Item, Actor, Macro, Scene or Adventure the type compiles into would be dropped, by name. |
 
 #### Template priority: which template wins
 

@@ -34,7 +34,6 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
             ["sohl-none-docskill-climb", climb],
         ]),
         collide: new Set<string>(["doc/coma"]),
-        sections: new Set<string>(["rules", "skill"]),
         // The build seeds this with the real types *and* the virtual
         // `doc<type>` qualifier of every item type (see build-kb-content.mjs).
         contentTypes: new Set<string>(["doc", "skill", "creature", "docskill"]),

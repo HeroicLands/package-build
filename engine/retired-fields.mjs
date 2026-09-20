@@ -326,9 +326,8 @@ export function assertNoSectionField(fm, { file, absPath } = {}) {
     if (!fm || typeof fm !== "object" || !Object.hasOwn(fm, "section")) return;
 
     const err = new Error(`${sectionRetiredMessage(file)}.`);
-    // Anchored at column 1: `site.trees[].section` is a *configuration* key of
-    // the same name, and a nested `section:` inside some other block is not
-    // this field — a finding about the top-level one must not open on it.
+    // Anchored at column 1: a nested `section:` inside some other block is
+    // not this field — a finding about the top-level one must not open on it.
     const position = locateFrontmatterKey(absPath, "section", undefined, { topLevel: true });
     if (position) err.position = position;
     throw err;
