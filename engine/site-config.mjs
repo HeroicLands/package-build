@@ -381,7 +381,6 @@ function deepMerge(base, overrides) {
  *
  * @param {object} options - The sources.
  * @param {object} options.config - The resolved build configuration.
- * @param {string} [options.description] - `package.json`'s `description`.
  * @param {readonly NavigationEntry[]} options.navigation - The navigation.
  * @param {string} options.themesDir - From {@link resolveThemesDir}.
  * @param {boolean} [options.hasTags] - Whether any note the site build walked
@@ -389,9 +388,9 @@ function deepMerge(base, overrides) {
  *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
- *   configuration declares no `packageBuild.manifest.title`.
+ *   configuration declares no `packageBuild.manifest.title` or `site.description`.
  */
-export function hugoConfig({ config, description, navigation, themesDir, hasTags = false }) {
+export function hugoConfig({ config, navigation, themesDir, hasTags = false }) {
     checkHomepage(config.homepage, config.contentPackage);
 
     const title = config.packageBuild?.manifest?.title;
@@ -401,10 +400,15 @@ export function hugoConfig({ config, description, navigation, themesDir, hasTags
                 "and the site's `title` reads from it.",
         );
     }
+    if (!config.site.description) {
+        throw new TypeError(
+            "package-build config: `site.description` is not declared, and the " +
+                'site\'s `<meta name="description">` reads from it.',
+        );
+    }
 
     /** @type {Record<string, unknown>} */
-    const params = {};
-    if (typeof description === "string" && description.trim()) params.description = description;
+    const params = { description: config.site.description };
     if (config.author?.name) params.author = config.author.name;
     if (config.site.assets) params.cdnBaseURL = config.site.assets;
     params.brand = { ...BRAND };
@@ -450,23 +454,11 @@ export function hugoToml(generated) {
 }
 
 /**
- * `package.json`'s `description`, or `undefined` when it declares none.
- *
- * @param {string} rootDir - The repository root.
- * @returns {string|undefined} The description.
- */
-function packageDescription(rootDir) {
-    const pkg = JSON.parse(fs.readFileSync(path.join(rootDir, "package.json"), "utf8"));
-    return typeof pkg.description === "string" ? pkg.description : undefined;
-}
-
-/**
  * The Hugo configuration, every source read from the repository.
  *
- * Reads `package.json`, the cached navigation and the installed theme's
- * location, and composes them with {@link hugoConfig}. Nothing is written, so
- * a caller can run this before touching the output tree and fail with it
- * intact.
+ * Reads the cached navigation and the installed theme's location, and
+ * composes them with {@link hugoConfig}. Nothing is written, so a caller can
+ * run this before touching the output tree and fail with it intact.
  *
  * @param {object} config - The resolved build configuration.
  * @param {object} [options] - Options.
@@ -480,7 +472,6 @@ function packageDescription(rootDir) {
 export function generateHugoConfig(config, { hasTags = false } = {}) {
     return hugoConfig({
         config,
-        description: packageDescription(config.rootDir),
         navigation: readCachedNavigation(config),
         themesDir: resolveThemesDir(config.rootDir),
         hasTags,

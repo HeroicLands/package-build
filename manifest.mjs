@@ -28,10 +28,12 @@
  *
  * - **Declared** — the `packageBuild.manifest` block, emitted unchanged, so a
  *   key Foundry adds in a later version needs no release of this package.
- * - **Derived** — the identity, the description, the version, the release
- *   addresses, the compatibility ranges and the pack list. Declaring one of
- *   these is an error rather than an override: the authored copy would be
- *   silently overwritten.
+ *   `descriptionHtml` is the one exception, folded into the derived
+ *   `description` below rather than surviving under its own name.
+ * - **Derived** — the identity, the description (from `descriptionHtml`), the
+ *   version, the release addresses, the compatibility ranges and the pack
+ *   list. Declaring `description` directly is an error rather than an
+ *   override: the authored copy would be silently overwritten.
  * - **Computed** — namespaced `flags` a repository works out for itself.
  *
  * **Nothing here invents an address.** The repository URL is read from
@@ -459,11 +461,13 @@ function withoutBuildKeys(entry) {
  * Three kinds of key end up in the result:
  *
  * - **Declared** — everything in `packageBuild.manifest`, emitted unchanged, so
- *   a key Foundry adds later needs no release of this package.
+ *   a key Foundry adds later needs no release of this package. The one
+ *   exception is `descriptionHtml`, folded into the description below rather
+ *   than surviving under its own name.
  * - **Derived** — the identity, the description, the release addresses, the
  *   version, the Foundry and system compatibility ranges, and the pack list.
- *   These are refused if also declared: an authored copy would be overwritten
- *   and the two would disagree with nothing to say so.
+ *   These are refused if also declared (`description` directly; `descriptionHtml`
+ *   is how it is authored) and the two would disagree with nothing to say so.
  * - **Computed** — namespaced `flags` a repository works out for itself, merged
  *   over any it declared.
  *
@@ -479,7 +483,9 @@ function withoutBuildKeys(entry) {
  * @returns {object} The manifest, ready to serialise.
  */
 export function buildManifest({ config, packageJson, artifact, flags }) {
-    const declared = config.packageBuild?.manifest ?? {};
+    // `descriptionHtml` is the authored source of `description` — pulled out
+    // so it never survives the spread below under its own name.
+    const { descriptionHtml, ...declared } = config.packageBuild?.manifest ?? {};
     const repoUrl = normalizeRepoUrl(packageJson.repository);
 
     const derived = {
@@ -495,8 +501,8 @@ export function buildManifest({ config, packageJson, artifact, flags }) {
     };
     // Own-property presence, not just value, decides whether a key survives
     // into `ordered` below — an explicit `undefined` would still occupy a slot
-    // in it. Set only when `package.json` actually declares one.
-    if (packageJson.description !== undefined) derived.description = packageJson.description;
+    // in it. Set only when the repository actually declares one.
+    if (descriptionHtml !== undefined) derived.description = descriptionHtml;
     if (config.compatibility) derived.compatibility = config.compatibility;
 
     // `requiresSystem` is the gate half of the declare/require split. It

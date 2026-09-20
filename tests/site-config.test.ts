@@ -123,7 +123,11 @@ function configFor(overrides: Record<string, unknown> = {}, site: Record<string,
         packs: [{ name: "items", type: "Item" }],
         packageBuild: { manifest: { title: "The Demo Module" } },
         publish: { site: "homepage", address: { prefix: "" } },
-        site: { assets: "https://cdn.example.org", ...site },
+        site: {
+            assets: "https://cdn.example.org",
+            description: "A demonstration module.",
+            ...site,
+        },
         ...overrides,
     } as any);
 }
@@ -136,7 +140,6 @@ function generated(
 ) {
     return hugoConfig({
         config: configFor(overrides, site),
-        description: "A demonstration module.",
         navigation: NAVIGATION,
         themesDir: THEMES_DIR,
         hasTags,
@@ -330,15 +333,13 @@ describe("the generated configuration", () => {
     it("leaves an absent optional value off rather than writing an empty one", () => {
         const out = hugoConfig({
             config: configFor({ author: undefined }, { assets: undefined }),
-            description: undefined,
             navigation: NAVIGATION,
             themesDir: THEMES_DIR,
         });
         expect(out.params).not.toHaveProperty("author");
-        expect(out.params).not.toHaveProperty("description");
         expect(out.params).not.toHaveProperty("cdnBaseURL");
         const toml = hugoToml(out);
-        expect(toml).not.toMatch(/author|description|cdnBaseURL/);
+        expect(toml).not.toMatch(/author|cdnBaseURL/);
     });
 
     it("fails through `checkHomepage` before anything is written", () => {
@@ -368,6 +369,23 @@ describe("the generated configuration", () => {
                 themesDir: "x",
             }),
         ).toThrow(/`packageBuild\.manifest\.title` is not declared/);
+    });
+
+    // `site.description` writes the site's `<meta name="description">` — every
+    // site build needs one, the way it needs a title.
+    it("requires `site.description`, the site's own pitch", () => {
+        expect(() =>
+            hugoConfig({
+                config: configFor({}, { description: undefined }),
+                navigation: NAVIGATION,
+                themesDir: "x",
+            }),
+        ).toThrow(/`site\.description` is not declared/);
+    });
+
+    it("writes `params.description` from `site.description`, not `package.json`", () => {
+        const out = generated({ description: "A different pitch entirely." });
+        expect(out.params.description).toBe("A different pitch entirely.");
     });
 
     it("serialises to TOML Hugo reads, with the menu as a table array", () => {
