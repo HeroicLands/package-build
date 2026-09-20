@@ -528,4 +528,54 @@ tags:
             fs.rmSync(path.join(root, "assets/content/Gear/Axe.md"));
         }
     });
+
+    it("declares a `listKbcat` section that selects one of two `doc` notes", () => {
+        // The fixture the issue asks for: two `doc` notes sharing a type and
+        // subType, differing only in the `kbcat` their system block carries.
+        // A `listKbcat` section states the filter; the page each note
+        // publishes carries the `kbcat` the theme reads to apply it.
+        note(
+            "Dev_Docs/Architecture.md",
+            `type: doc
+subType: reference
+shortcode: architecture
+name:
+    full: Architecture
+sohl:
+    kbcat: devdocs`,
+        );
+        note(
+            "Dev_Docs/Gear.md",
+            `type: doc
+subType: reference
+shortcode: gearintro
+name:
+    full: Gear`,
+        );
+        try {
+            const result = buildSite({
+                config: configFor({
+                    sections: {
+                        "dev-docs": {
+                            title: "Developer Documentation",
+                            listType: "doc",
+                            listKbcat: "devdocs",
+                        },
+                    },
+                }),
+            });
+            expect(gatesFailed(result.gates)).toBe(false);
+            const out = path.join(root, "build/hugo/content/kb");
+            expect(fs.readFileSync(path.join(out, "dev-docs/_index.md"), "utf8")).toBe(
+                "---\ntitle: Developer Documentation\n" +
+                    "listType: doc\nlistKbcat: devdocs\n---\n\n",
+            );
+            const withKbcat = fs.readFileSync(path.join(out, "doc-architecture.md"), "utf8");
+            expect(withKbcat).toMatch(/^sohl:\n {2}kbcat: devdocs$/m);
+            const withoutKbcat = fs.readFileSync(path.join(out, "doc-gearintro.md"), "utf8");
+            expect(withoutKbcat).not.toContain("kbcat");
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Dev_Docs"), { recursive: true });
+        }
+    });
 });

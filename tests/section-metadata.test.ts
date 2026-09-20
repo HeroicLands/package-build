@@ -334,3 +334,84 @@ describe("a section can declare what it lists", () => {
         );
     });
 });
+
+describe("a section can declare a knowledgebase category to list", () => {
+    // A set of pages sharing a type and a genre with the rest of the tree can
+    // differ only in the `kbcat` their notes carry — SoHL's developer
+    // documentation is 46 `doc` notes with `sohl.kbcat: devdocs`, and no
+    // `listType` / `listSubType` pair can select them apart from the rest of
+    // `doc`. `listKbcat` is the missing half: it lists by the category a
+    // note's system block carries, alone or alongside `listType`.
+
+    it("carries the declaration into the generated landing", () => {
+        const out = mount();
+        writeSectionLandings(out, {
+            sections: {
+                "dev-docs": {
+                    title: "Developer Documentation",
+                    listType: "doc",
+                    listKbcat: "devdocs",
+                },
+            },
+        });
+        expect(fs.readFileSync(path.join(out, "dev-docs/_index.md"), "utf8")).toBe(
+            "---\ntitle: Developer Documentation\n" + "listType: doc\nlistKbcat: devdocs\n---\n\n",
+        );
+        fs.rmSync(out, { recursive: true });
+    });
+
+    it("carries the declaration alone, with no `listType`", () => {
+        // Alone, it lists across every type that carries the category — a
+        // subType-only declaration is refused for the opposite reason
+        // (nothing to filter within), but a category names its own query.
+        const out = mount();
+        writeSectionLandings(out, {
+            sections: { "dev-docs": { title: "Developer Documentation", listKbcat: "devdocs" } },
+        });
+        expect(fs.readFileSync(path.join(out, "dev-docs/_index.md"), "utf8")).toBe(
+            "---\ntitle: Developer Documentation\nlistKbcat: devdocs\n---\n\n",
+        );
+        fs.rmSync(out, { recursive: true });
+    });
+
+    it("resolves the declaration through the configuration", () => {
+        const config = resolveWithSite({
+            sections: {
+                "dev-docs": {
+                    title: "Developer Documentation",
+                    listType: "doc",
+                    listKbcat: "devdocs",
+                },
+            },
+        });
+        expect(config.site.sections["dev-docs"].listType).toBe("doc");
+        expect(config.site.sections["dev-docs"].listKbcat).toBe("devdocs");
+    });
+
+    it("refuses a non-string value", () => {
+        expect(() => resolveWithSite({ sections: { x: { title: "X", listKbcat: 1 } } })).toThrow(
+            /`site\.sections\.x\.listKbcat` must be a non-empty string/,
+        );
+    });
+
+    it("refuses an empty declaration", () => {
+        expect(() => resolveWithSite({ sections: { x: { title: "X", listKbcat: "" } } })).toThrow(
+            /`site\.sections\.x\.listKbcat` must be a non-empty string/,
+        );
+    });
+
+    it("is not checked as an address segment, unlike `listType`", () => {
+        // A `kbcat` is free text a system chooses, not a URL: a hyphenated
+        // value is not refused the way `listType` / `listSubType` refuse one.
+        const config = resolveWithSite({
+            sections: { x: { title: "X", listKbcat: "house-rules" } },
+        });
+        expect(config.site.sections.x.listKbcat).toBe("house-rules");
+    });
+
+    it("still refuses a key outside the vocabulary, naming the new one", () => {
+        expect(() =>
+            resolveWithSite({ sections: { x: { title: "X", listKcbat: "devdocs" } } }),
+        ).toThrow(/expected one of: title, banner, description, listType, listSubType, listKbcat/);
+    });
+});

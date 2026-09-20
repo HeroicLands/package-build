@@ -849,6 +849,7 @@ since it exists solely as the generated `_index.md` this build writes for it:
 | `site.sections.<name>.description` | string                     | no       | none    |
 | `site.sections.<name>.listType`    | string, an address segment | no       | none    |
 | `site.sections.<name>.listSubType` | string, an address segment | no       | none    |
+| `site.sections.<name>.listKbcat`   | string                     | no       | none    |
 
 > ``package-build config: `site.sections.<name>` must be a mapping.``
 
@@ -866,9 +867,25 @@ distinguishes _within_ a type:
 
 > ``package-build config: `site.sections.<name>.listSubType` is declared without a `listType`. A subType tells pages apart only within a type — `rules`, `userguide` and `reference` are all `doc` — so on its own it names no query for a layout to run.``
 
+`listKbcat` lists by knowledgebase category — the `kbcat` a note's system
+block carries (`sohl.kbcat`, `hm3.kbcat`), read off any system's block. It
+combines with `listType`, so a section lists pages of that type _and_ that
+category; alone, it lists across every type that carries the category.
+Unlike `listType` / `listSubType` it is not an address segment, since a
+`kbcat` is free text a system chooses rather than a URL, so it is checked
+only as a non-empty string:
+
+> ``package-build config: `site.sections.<name>.listKbcat` must be a non-empty string.``
+
+**A page listed by a `listKbcat` section is not also listed by a `listType`
+section of its type**, unless that section names the category too. SoHL's
+developer reference pages (`sohl.kbcat: devdocs`) leave the `reference`
+landing once `dev-docs` declares `listKbcat: devdocs` — the theme applies
+the "listed once" rule, reading it off the section's own declaration.
+
 Any other key on a section entry is refused:
 
-> ``package-build config: `site.sections.<name>.<key>` is not a recognized option (expected one of: title, banner, description, listType, listSubType).``
+> ``package-build config: `site.sections.<name>.<key>` is not a recognized option (expected one of: title, banner, description, listType, listSubType, listKbcat).``
 
 `site.landing` is different from a section entry — it is the mount's own
 landing page frontmatter, passed through verbatim to Hugo rather than

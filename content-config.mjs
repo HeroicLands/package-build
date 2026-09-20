@@ -776,7 +776,14 @@ const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
 const PDF_KEYS = ["title", "subtitle", "document", "out", "front", "fonts", "iconFonts", "binary"];
 const PDF_FONT_KEYS = ["serif", "sans", "mono", "path"];
 const EMPTY_PDF_FONTS = Object.freeze({ serif: "", sans: "", mono: "", path: "" });
-const SECTION_META_KEYS = ["title", "banner", "description", "listType", "listSubType"];
+const SECTION_META_KEYS = [
+    "title",
+    "banner",
+    "description",
+    "listType",
+    "listSubType",
+    "listKbcat",
+];
 const DOC_PAGE_KEYS = ["title", "out", "preamble"];
 const RELATIONSHIP_KINDS = ["systems", "requires", "recommends", "conflicts"];
 const RELATIONSHIP_KEYS = [
@@ -1505,10 +1512,21 @@ function normalizeDocs(value) {
  * type — `rules`, `userguide` and `reference` are all `doc` — so alone it names
  * no query.
  *
+ * **`listKbcat` lists by knowledgebase category instead of, or alongside,
+ * type.** `kbcat` lives in a note's system block (`sohl.kbcat`, `hm3.kbcat`)
+ * rather than in the note format itself, so it is not an address segment and
+ * is checked only as a non-empty string — a page's `kbcat` is free text a
+ * system chooses, not a URL. Combined with `listType`, a section lists pages
+ * of that type *and* that category; alone, it lists across every type that
+ * carries the category. A page a `listKbcat` section selects is not also
+ * listed by a `listType` section of its type unless that section names the
+ * category too — the theme applies that "listed once" rule, reading it off
+ * the same declaration.
+ *
  * @param {unknown} value - The declared entry.
  * @param {string} where - Dotted path, for the error.
  * @returns {Readonly<{title: string, banner?: string, description?: string,
- *   listType?: string, listSubType?: string}>}
+ *   listType?: string, listSubType?: string, listKbcat?: string}>}
  */
 function normalizeSectionMeta(value, where) {
     if (!isPlainObject(value)) fail(where, "must be a mapping");
@@ -1546,6 +1564,9 @@ function normalizeSectionMeta(value, where) {
                 "are all `doc` — so on its own it names no query for a layout " +
                 "to run",
         );
+    }
+    if (input.listKbcat !== undefined) {
+        out.listKbcat = requireNonEmptyString(input.listKbcat, `${where}.listKbcat`);
     }
     return Object.freeze(out);
 }
