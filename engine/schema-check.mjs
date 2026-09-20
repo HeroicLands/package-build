@@ -466,8 +466,8 @@ export function compareEmittedSystem({
  * Two places to find it, because a system checks itself against source it owns
  * while a module checks against a dependency it fetched:
  *
- * - **A system**: its own `schema.json`, generated from its `src/` and
- *   committed beside it.
+ * - **A system**: its own `schema.json`, generated from its `src/` into
+ *   `build/` by `package-build schema`.
  * - **A module**: the copy cached by `content-build deps fetch`, from the
  *   archive of the version it pins — which is what makes the comparison happen
  *   at `verified` rather than against whatever the system's `main` holds today.
@@ -505,7 +505,7 @@ export function resolveSchemaArtifact(config, system = undefined) {
 
     // The system checking itself, against the schema its own build published.
     if (config.packageKind === "systems" && config.foundryPackage === systemId) {
-        const own = path.join(config.rootDir, SCHEMA_ARTIFACT_FILE);
+        const own = path.join(config.rootDir, "build", SCHEMA_ARTIFACT_FILE);
         return fs.existsSync(own) ? read(own) : null;
     }
 
@@ -683,9 +683,9 @@ export function checkAuthoredSystemData(
  * subtype declares.
  *
  * The build-time face of {@link compareEmittedSystem}: it resolves the schema
- * the way every other check here does — the system's own committed artifact, or
- * the cached one from the release a module pins — and attaches the message a
- * reader sees.
+ * the way every other check here does — the system's own published artifact,
+ * or the cached one from the release a module pins — and attaches the message
+ * a reader sees.
  *
  * **Silent where there is nothing to check against**, exactly as its two
  * siblings are: a module pinning a system version released before the artifact

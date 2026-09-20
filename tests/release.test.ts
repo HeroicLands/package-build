@@ -167,6 +167,36 @@ describe("packRelease", () => {
         await expect(packRelease({ stageDir, outDir })).rejects.toThrow(/nothing to release/);
     });
 
+    // `packageBuild.schema` names `build/schema.json` in `packageBuild.assets`,
+    // so a repository that opted in has the schema staged at the stage root —
+    // the precedent is the metadata index, published the same way.
+    it("publishes schema.json beside the zip and manifest when the stage carries one", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+            "schema.json": JSON.stringify({ version: 1, system: "sohl", systemVersion: "0.8.2" }),
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "system" });
+
+        expect(path.basename(result.schema!)).toBe("schema.json");
+        expect(fs.existsSync(result.schema!)).toBe(true);
+        expect(JSON.parse(fs.readFileSync(result.schema!, "utf8")).system).toBe("sohl");
+    });
+
+    // A schema is conditional on a repository having adopted the artifact, the
+    // same as the metadata index is conditional on there being content — its
+    // absence is not an error.
+    it("publishes no schema.json when the stage carries none", async () => {
+        const { stageDir, outDir } = stage({
+            "system.json": JSON.stringify({ id: "sohl", version: "0.8.2" }),
+        });
+
+        const result = await packRelease({ stageDir, outDir, artifact: "system" });
+
+        expect(result.schema).toBeUndefined();
+        expect(fs.existsSync(path.join(outDir, "schema.json"))).toBe(false);
+    });
+
     it("skips the book when asked, and says so", async () => {
         const { stageDir, outDir } = stage({
             "system.json": JSON.stringify({ version: "1.0.0" }),

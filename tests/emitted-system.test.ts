@@ -365,14 +365,16 @@ describe("`templatePriority` — the key the check was blind to", () => {
 
 describe("what a build does with it", () => {
     /**
-     * A configuration pointing at a throwaway `schema.json`, in the shape
-     * `resolveSchemaArtifact` reads for a system checking itself. Each call
-     * returns a fresh object, since the artifact is memoized per configuration.
+     * A configuration pointing at a throwaway `build/schema.json`, in the
+     * shape `resolveSchemaArtifact` reads for a system checking itself. Each
+     * call returns a fresh object, since the artifact is memoized per
+     * configuration.
      */
     function configWithSchema(documents: object) {
         const dir = fs.mkdtempSync(path.join(os.tmpdir(), "pb-emitted-"));
+        fs.mkdirSync(path.join(dir, "build"), { recursive: true });
         fs.writeFileSync(
-            path.join(dir, "schema.json"),
+            path.join(dir, "build", "schema.json"),
             JSON.stringify(artifact(documents)),
             "utf8",
         );

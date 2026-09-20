@@ -13,7 +13,7 @@
 
 /**
  * The release archive — the two files a Foundry package's GitHub Release
- * carries.
+ * carries, plus the optional siblings a repository opts into.
  *
  * Foundry installs a package by fetching the `download` URL its manifest
  * advertises, so a release publishes `<artifact>.zip`, the whole staged tree,
@@ -21,7 +21,10 @@
  * re-fetches to notice a new version. A package that ships content publishes a
  * third: the content index other packages resolve its addresses through,
  * named by the `flags.metadataUrl` the manifest advertises. Every name is fixed
- * by what the manifest says, not chosen here — see `manifest.mjs`.
+ * by what the manifest says, not chosen here — see `manifest.mjs`. A package
+ * that publishes a DataModel schema (`packageBuild.schema`, staged through
+ * `packageBuild.assets`) gets a fourth: `schema.json`, published whenever the
+ * stage carries one and silently skipped otherwise.
  *
  * Kept apart from `stage.mjs` because this is the only part of assembling a
  * package that needs a dependency. A repository that never cuts a release from
@@ -39,6 +42,8 @@ import path from "node:path";
 // `does not provide an export named 'default'` — which is how this repository's
 // release job came to fail before a single byte was written.
 import { ZipArchive } from "archiver";
+
+import { SCHEMA_ARTIFACT_FILE } from "./engine/foreign-catalog.mjs";
 
 /**
  * Zip the staged tree and place the manifest beside the archive.
@@ -60,14 +65,14 @@ import { ZipArchive } from "archiver";
  * @param {boolean} [opts.pdf] - Whether to build the book that ships beside the
  *   archive. `true` by default; `false` skips the build and reports the skip.
  * @returns {Promise<{zip: string, manifest: string, metadata?: string,
- *   pdf?: string, pdfFindings: object[], pdfSkipped: string|null,
+ *   schema?: string, pdf?: string, pdfFindings: object[], pdfSkipped: string|null,
  *   bytes: number, version: string}>} The paths written, what the book build
  *   found, the archive's size, and the version the manifest declares.
- *   `metadata` is absent when the manifest advertises no content index, and
- *   `pdf` is absent when no book was written. `pdfSkipped` is `null` when a
- *   book was built, and otherwise the reason none was — itself `null` when the
- *   book builder could not be loaded, which is reported through
- *   `pdfFindings`.
+ *   `metadata` is absent when the manifest advertises no content index,
+ *   `schema` is absent when the stage carries no `schema.json`, and `pdf` is
+ *   absent when no book was written. `pdfSkipped` is `null` when a book was
+ *   built, and otherwise the reason none was — itself `null` when the book
+ *   builder could not be loaded, which is reported through `pdfFindings`.
  * @throws {Error} When the stage has no manifest — there is nothing to release,
  *   and an archive without one installs as nothing.
  */
@@ -119,6 +124,7 @@ export async function packRelease({
     await fsp.copyFile(stagedManifest, path.join(out, manifestName));
 
     const metadata = await publishMetadataIndex({ manifest, stage, out, metadataDir });
+    const schema = await publishSchemaAsset({ stage, out });
 
     // Last, and never fatal: the archive and the manifest are the release, and
     // a book that failed to set is a reported problem rather than a reason to
@@ -132,6 +138,7 @@ export async function packRelease({
         zip: zipPath,
         manifest: path.join(out, manifestName),
         ...(metadata ? { metadata } : {}),
+        ...(schema ? { schema } : {}),
         ...(book.pdf ? { pdf: book.pdf } : {}),
         pdfFindings: book.findings,
         pdfSkipped: book.pdf ? null : book.reason,
@@ -224,5 +231,31 @@ async function publishMetadataIndex({ manifest, stage, out, metadataDir }) {
 
     const dest = path.join(out, name);
     await fsp.copyFile(found, dest);
+    return dest;
+}
+
+/**
+ * Place the published DataModel schema beside the archive, when the stage
+ * carries one.
+ *
+ * **The stage is the one place this looks.** `package-build schema` writes
+ * `build/schema.json`, and a repository that wants it released names it in
+ * `packageBuild.assets` (`from: build/schema.json`) the way every other
+ * staged file is declared — so a schema at the stage root is a repository
+ * that opted in, and its absence is a repository that has not, which is
+ * exactly as releasable as one that never adopted the artifact at all.
+ *
+ * @param {object} opts
+ * @param {string} opts.stage - The staged tree.
+ * @param {string} opts.out - Where release assets are written.
+ * @returns {Promise<string|undefined>} The published path, or nothing when
+ *   the stage carries no `schema.json`.
+ */
+async function publishSchemaAsset({ stage, out }) {
+    const src = path.join(stage, SCHEMA_ARTIFACT_FILE);
+    if (!fs.existsSync(src)) return undefined;
+
+    const dest = path.join(out, SCHEMA_ARTIFACT_FILE);
+    await fsp.copyFile(src, dest);
     return dest;
 }
