@@ -91,6 +91,7 @@
             "types": "./types/templates.d.mts",
             "import": "./templates.mjs"
         },
+        "./changelog": "./changelog.cjs",
         "./package.json": "./package.json"
     },
     "bin": {
@@ -106,6 +107,7 @@
         "packagebuild-metadata.jsonl",
         "bin",
         "bundle.mjs",
+        "changelog.cjs",
         "ci",
         "config.mjs",
         "container.mjs",

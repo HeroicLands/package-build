@@ -1555,6 +1555,22 @@ console.log(VISIBLE_ATTRIBUTES);
 | `findHardcodedText`        | `findHardcodedText(source, { allow = [] } = {})` | `TemplateFinding[]`                                                 | finding every user-visible literal a template leaves untranslated; `allow` is the explicit, reasoned escape hatch for a literal that is deliberately not a key        |
 | `findTemplateSyntaxErrors` | `findTemplateSyntaxErrors(source)`               | `TemplateFinding[]` — one finding when it does not parse, else none | checking whether Handlebars can parse a template at all, without needing any helper it calls to exist                                                                 |
 
+## `./changelog`
+
+The Changesets changelog generator, loaded with `require` — a CommonJS module in a package that is otherwise `"type": "module"`. Every HeroicLands repository sets `"changelog": "@heroiclands/package-build/changelog"` in its `.changeset/config.json`, because every built-in generator writes a commit hash into the release line whenever it knows the commit, which it always does in this org's squash-merge workflow, and a commit hash is a commit-log artefact rather than something the person installing the package needs.
+
+`getReleaseLine` renders a changeset's summary as a block, verbatim — no leading `- `, no indentation of the following lines — so a summary that opens with a paragraph, a bold label, or its own bullet list lands in `CHANGELOG.md` exactly as written. It wraps the summary in a single newline on each side, which costs nothing in the rendered file — Changesets' own joiner trims a release line's edges and only counts the newlines it finds there — but guarantees the block is separated from its neighbours, heading or sibling entry alike, by one blank line.
+
+```json
+// .changeset/config.json
+{ "changelog": "@heroiclands/package-build/changelog" }
+```
+
+| Export                     | Signature                                                                  | Returns                                                                         | Use it when                                                                                        |
+| -------------------------- | -------------------------------------------------------------------------- | ------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `getReleaseLine`           | `getReleaseLine(changeset, type, changelogOpts)`                           | `string` — the summary, verbatim, separated from its neighbours by a blank line | writing one changeset's release line with no commit-hash prefix and no bullet                      |
+| `getDependencyReleaseLine` | `getDependencyReleaseLine(changesets, dependenciesUpdated, changelogOpts)` | `string` — always `""`                                                          | satisfying the `ChangelogFunctions` interface; these packages narrate no internal dependency bumps |
+
 ## `./package.json`
 
 Not a JavaScript module — this subpath entry exists so tooling (bundlers, `import.meta.resolve`, a script reading the installed version) can resolve the package's own `package.json` through Node's package-exports resolution instead of reaching outside the declared export map.
