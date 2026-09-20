@@ -28,6 +28,8 @@ two routes, and three keys behave differently depending on which:
 | Loaded by        | `engine/pack-config.mjs`, which parses the YAML and derives three keys before calling `defineConfig` | `require()`, which loads the module and reads its default export — already the result of the file calling `defineConfig` itself |
 | `rootDir`        | Forbidden — always the directory the file sits in                                                    | Authored, typically `import.meta.dirname`                                                                                       |
 | `foundryPackage` | Forbidden — always the adjacent `package.json` `name`                                                | Authored                                                                                                                        |
+| `homepage`       | Forbidden — always the adjacent `package.json` `homepage`                                            | Authored                                                                                                                        |
+| `author`         | Forbidden — always the adjacent `package.json` `author`                                              | Authored                                                                                                                        |
 | `itemBuilders`   | A **name** (`sohl`, `hm3`) or list of names, resolved against the registries this package ships      | The registry object itself — real builder functions, which only code can carry                                                  |
 
 A file is chosen by its extension: `package-build.config.yaml`, then
@@ -46,15 +48,18 @@ around its own evaluation.
 
 ### Quick reference
 
-18 top-level keys. `rootDir` is not one of them — a data configuration never
+20 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
-alongside `foundryPackage` and `itemBuilders`, whose data-configuration
-behaviour is also derivation rather than ordinary authoring.
+alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
+data-configuration behaviour is also derivation rather than ordinary
+authoring.
 
 | Key                                         | Type                                                                       | Required                                                                                           | Default                                     |
 | ------------------------------------------- | -------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------- |
 | [`contentPackage`](#contentpackage)         | string                                                                     | yes                                                                                                | —                                           |
 | [`foundryPackage`](#foundrypackage)         | string                                                                     | yes (`.mjs` only — derived in YAML); refused in a `documentation` package                          | —                                           |
+| [`homepage`](#homepage)                     | string                                                                     | no (`.mjs` only — derived in YAML)                                                                 | `null`                                      |
+| [`author`](#author)                         | string, or `{name, email?, url?}`                                          | no (`.mjs` only — derived in YAML)                                                                 | `null`                                      |
 | [`packageKind`](#packagekind)               | `"systems"` \| `"modules"` \| `"documentation"`                            | yes                                                                                                | —                                           |
 | [`stats`](#stats)                           | object                                                                     | yes; refused in a `documentation` package                                                          | —                                           |
 | [`itemBuilders`](#itembuilders)             | object, or list of `{system, builders}` (or a name/list of names, in YAML) | no; refused in a `documentation` package                                                           | `{}`                                        |
@@ -74,7 +79,7 @@ behaviour is also derivation rather than ordinary authoring.
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -84,11 +89,11 @@ refuses an authored `rootDir` earlier, with its own message — see
 
 ### Derived values
 
-Five values in the resolved configuration are never transcribed by an author
+Seven values in the resolved configuration are never transcribed by an author
 — they are computed from where the file sits, from the adjacent
 `package.json`, from the package kind, or from a name naming a table this
-package already ships. Authoring `rootDir`, `foundryPackage` or
-`stats.systemVersion` yourself is an **error**, not an override: a
+package already ships. Authoring `rootDir`, `foundryPackage`, `homepage`,
+`author` or `stats.systemVersion` yourself is an **error**, not an override: a
 transcribed copy is free to drift from what it copied, which is exactly how
 `stats.systemVersion` once sat at a stale version for four releases while
 nothing said so. `assetRoot` has no author-facing spelling to refuse in the
@@ -130,7 +135,7 @@ which applies before either loader form gets a chance to derive anything.
 
   If the adjacent `package.json` cannot be read, or declares no `name`:
 
-  > `package-build: <package.json path> could not be read, and the configuration derives both the Foundry package id and the system version from it.`
+  > `package-build: <package.json path> could not be read, and the configuration derives its Foundry package id, system version, homepage and author from it.`
 
   > ``package-build: <package.json path> declares no `name`, which is what the Foundry package id is derived from.``
 
@@ -142,6 +147,49 @@ which applies before either loader form gets a chance to derive anything.
   string field — for a `systems` or `modules` package:
 
   > ``package-build config: `foundryPackage` must be a non-empty string.``
+
+#### `homepage`
+
+The address a package's site is served at — read by the generated Hugo
+configuration for `baseURL`, independently of the Foundry manifest's own
+`url`, which derives from `contentPackage` instead (see
+[`packageBuild.manifest`](#packagebuildmanifest)). `null` when the package
+declares none.
+
+- In a **YAML** configuration, writing `homepage:` is refused; the loader
+  reads it from the adjacent `package.json` `homepage` instead, verbatim:
+
+  > ``package-build: <config file> declares `homepage`, which a data configuration may not: it is `package.json`'s own `homepage`. Remove the key.``
+
+- In an **`.mjs`** configuration, `homepage` is an ordinary optional key — a
+  non-empty string when declared:
+
+  > ``package-build config: `homepage` must be a non-empty string.``
+
+`homepage` is not itself checked against `contentPackage` by `defineConfig`.
+`checkHomepage` in `config.mjs` is the check: `homepage` is required
+unconditionally — every package publishes a site — and must be an absolute
+URL whose path ends `/<contentPackage>/`. It is made by whichever caller
+actually reads `homepage` to build a site, not by `defineConfig` itself.
+
+#### `author`
+
+The package's byline, normalised from either of npm's `author` forms — a
+string (`"Name <email> (url)"`, with the email and the URL both optional) or
+an object (`{name, email?, url?}`) — to the object form. `null` when the
+package declares none.
+
+- In a **YAML** configuration, writing `author:` is refused; the loader reads
+  it from the adjacent `package.json` `author` instead:
+
+  > ``package-build: <config file> declares `author`, which a data configuration may not: it is `package.json`'s own `author`. Remove the key.``
+
+- In an **`.mjs`** configuration, `author` is an ordinary optional key, in
+  either form:
+
+  > ``package-build config: `author` must be `"Name"`, `"Name <email>"`, `"Name (url)"` or `"Name <email> (url)"` — npm's own `author` forms.``
+
+  > ``package-build config: `author` must be a string or an object with `name`, `email` and `url`.``
 
 #### `assetRoot`
 
@@ -236,7 +284,7 @@ Unlike the first three, authoring `itemBuilders` is not an error — it is
 
 ---
 
-## The 18 keys
+## The 20 keys
 
 ### `contentPackage`
 
@@ -281,6 +329,16 @@ required (a non-empty string) in an `.mjs` one. Refused in either form for a
 package id:
 
 > ``package-build config: `foundryPackage` is refused in a `documentation` package, which is not a Foundry package, so it has no Foundry package id.``
+
+### `homepage`
+
+See [Derived values](#derived-values) — forbidden in a YAML configuration,
+optional (a non-empty string) in an `.mjs` one.
+
+### `author`
+
+See [Derived values](#derived-values) — forbidden in a YAML configuration,
+optional (either of npm's forms) in an `.mjs` one.
 
 ### `packageKind`
 
@@ -1232,6 +1290,7 @@ say so.
 | ------------------------------------- | ---------------------------------------------------------------- |
 | `packageBuild.manifest.id`            | `foundryPackage`, itself derived from `package.json` `name`      |
 | `packageBuild.manifest.version`       | `package.json` `version`                                         |
+| `packageBuild.manifest.description`   | `package.json` `description`                                     |
 | `packageBuild.manifest.url`           | `package.json` `repository`                                      |
 | `packageBuild.manifest.bugs`          | `package.json` `repository`                                      |
 | `packageBuild.manifest.manifest`      | `package.json` `repository` and the release tag                  |
@@ -1241,6 +1300,8 @@ say so.
 | `packageBuild.manifest.packs`         | the `packs` list at the top level of `package-build.config.yaml` |
 
 > ``package-build config: `packageBuild.manifest.version` is derived from package.json `version` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
+
+> ``package-build config: `packageBuild.manifest.description` is derived from package.json `description` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
 
 > ``package-build config: `packageBuild.manifest` must be a mapping.``
 
@@ -1457,14 +1518,15 @@ the source directory:
 
 ## Every retired or forbidden key, in one place
 
-| Key                                                                                                                             | Why                                                                                                                                                    |
-| ------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `publish.address.landing`                                                                                                       | Retired — named a whole-section landing, and there are no sections to address.                                                                         |
-| `packs[].folders`                                                                                                               | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
-| `rootDir`                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
-| `foundryPackage`                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
-| `stats.systemId`                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
-| `stats.systemVersion`                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
-| `packageBuild.manifest.id`, `.version`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
-| `publish.site: true` / `publish.site: false`                                                                                    | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
-| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |
+| Key                                                                                                                                             | Why                                                                                                                                                    |
+| ----------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `publish.address.landing`                                                                                                                       | Retired — named a whole-section landing, and there are no sections to address.                                                                         |
+| `packs[].folders`                                                                                                                               | Retired — a folder is a note (`type: folder`), materialised by the pack whose documents reference it.                                                  |
+| `rootDir`                                                                                                                                       | Forbidden in a YAML configuration — always the file's own directory.                                                                                   |
+| `foundryPackage`                                                                                                                                | Forbidden in a YAML configuration — always the adjacent `package.json` `name`.                                                                         |
+| `homepage`, `author`                                                                                                                            | Forbidden in a YAML configuration — always the adjacent `package.json`'s own `homepage` and `author`.                                                  |
+| `stats.systemId`                                                                                                                                | Forbidden in every configuration — derived from `packageKind`, `requiresSystem` or a lone declared system.                                             |
+| `stats.systemVersion`                                                                                                                           | Forbidden in every configuration — derived from `package.json` (a system) or `systems:` / `relationships.systems` (a module).                          |
+| `packageBuild.manifest.id`, `.version`, `.description`, `.url`, `.bugs`, `.manifest`, `.download`, `.compatibility`, `.relationships`, `.packs` | Forbidden — each is derived from `package.json` or the top level of `package-build.config.yaml`; see [`packageBuild.manifest`](#packagebuildmanifest). |
+| `publish.site: true` / `publish.site: false`                                                                                                    | Refused rather than mapped — write `homepage` or `content`.                                                                                            |
+| `packs`, `itemBuilders`, `docs`, `compatibility`, `relationships`, `systems`, `requiresSystem`, `stats`, `foundryPackage`                       | Forbidden in a `documentation` package — each describes a Foundry package this kind is not; see the key's own section for its located refusal message. |

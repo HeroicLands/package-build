@@ -355,6 +355,22 @@ describe("buildManifest", () => {
         );
     });
 
+    // `packageBuild.manifest.description` is refused (see `config.test.ts`),
+    // so the only source left is `package.json`.
+    it("derives the description from package.json", () => {
+        const manifest = buildManifest({
+            config: config() as never,
+            packageJson: { ...packageJson, description: "The SoHL Foundry VTT system." },
+            artifact: "system",
+        });
+
+        expect(manifest.description).toBe("The SoHL Foundry VTT system.");
+    });
+
+    it("omits description rather than emitting one, when package.json declares none", () => {
+        expect(build()).not.toHaveProperty("description");
+    });
+
     it("carries the compatibility range from the shared configuration", () => {
         expect(build().compatibility).toEqual({
             minimum: "14.359",

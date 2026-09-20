@@ -118,6 +118,41 @@ describe("what the loader derives from where the file sits", () => {
         );
     });
 
+    it("takes homepage and author from the adjacent package.json", () => {
+        const root = repoDir({
+            "package.json": JSON.stringify({
+                name: "sohl",
+                version: "1.2.3",
+                homepage: "https://www.heroiclands.org/sohl/",
+                author: "Toasty <toasty@heroiclands.org> (https://heroiclands.org)",
+            }),
+        });
+        const config = resolveIn(root, minimal());
+
+        expect(config.homepage).toBe("https://www.heroiclands.org/sohl/");
+        expect(config.author).toEqual({
+            name: "Toasty",
+            email: "toasty@heroiclands.org",
+            url: "https://heroiclands.org",
+        });
+    });
+
+    it("is null for homepage and author when package.json declares neither", () => {
+        const config = resolveIn(repoDir(), minimal());
+
+        expect(config.homepage).toBeNull();
+        expect(config.author).toBeNull();
+    });
+
+    it("refuses an authored homepage or author", () => {
+        expect(() => resolveIn(repoDir(), { ...minimal(), homepage: "elsewhere" })).toThrow(
+            /homepage/,
+        );
+        expect(() => resolveIn(repoDir(), { ...minimal(), author: "Someone Else" })).toThrow(
+            /author/,
+        );
+    });
+
     it("reads a system's stats.systemVersion from the adjacent package.json", () => {
         // For a system, `package.json` version *is* the system version. The
         // stamp has to equal the version that did the compiling; a transcribed

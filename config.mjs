@@ -91,6 +91,7 @@ const SECTION_KEYS = [
 export const DERIVED_MANIFEST_KEYS = Object.freeze({
     id: "`foundryPackage`, itself derived from package.json `name`",
     version: "package.json `version`",
+    description: "package.json `description`",
     url: "package.json `repository`",
     bugs: "package.json `repository`",
     manifest: "package.json `repository` and the release tag",
@@ -597,6 +598,56 @@ export function resolveAssetTransform(declared, rootDir) {
         return path.resolve(path.dirname(fileURLToPath(import.meta.url)), builtIn);
     }
     return path.resolve(rootDir, declared);
+}
+
+/**
+ * `package.json`'s `homepage`, checked against the address it must be.
+ *
+ * A package's Foundry manifest already derives its own `url` from
+ * `contentPackage` (`packageHomepage` in `manifest.mjs`); `homepage` states
+ * the same address a second time, in `package.json`, for the generated Hugo
+ * configuration to read a `baseURL` from without knowing where each
+ * repository keeps its own site configuration.
+ *
+ * Required unconditionally: every package publishes a site, so there is no
+ * package this does not apply to.
+ *
+ * **Not called by {@link resolvePackageBuildConfig}.** Every packaging
+ * command — `clean`, `deploy`, `manifest` and the rest — resolves through it,
+ * and none of them reads `homepage`: the Foundry manifest's own `url` is
+ * `packageHomepage(contentPackage)`, independent of it. The right caller is
+ * whatever reads `homepage` to write a site's `baseURL`.
+ *
+ * @param {string|null} homepage - The resolved `package.json` `homepage`, or
+ *   `null` when none is declared.
+ * @param {string} contentPackage - The resolved `contentPackage`.
+ * @returns {void}
+ */
+export function checkHomepage(homepage, contentPackage) {
+    if (homepage === null) {
+        fail(
+            "homepage",
+            "is not declared in `package.json`, and every package needs one " +
+                "to build its site's `baseURL` from. Add " +
+                `\`https://www.heroiclands.org/${contentPackage}/\``,
+        );
+    }
+
+    const suffix = `/${contentPackage}/`;
+    let pathname;
+    try {
+        pathname = new URL(homepage).pathname;
+    } catch {
+        fail("homepage", `is \`${homepage}\`, which is not an absolute URL`);
+    }
+    if (!pathname.endsWith(suffix)) {
+        fail(
+            "homepage",
+            `is \`${homepage}\`, but \`contentPackage\` is \`${contentPackage}\` — ` +
+                `a package's site is served at \`https://www.heroiclands.org${suffix}\`, ` +
+                `so \`package.json\`'s \`homepage\` must end \`${suffix}\``,
+        );
+    }
 }
 
 /**

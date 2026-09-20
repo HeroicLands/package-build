@@ -20,7 +20,7 @@
 import { describe, it, expect } from "vitest";
 import path from "node:path";
 
-import { resolvePackageBuildConfig } from "../config.mjs";
+import { resolvePackageBuildConfig, checkHomepage, DERIVED_MANIFEST_KEYS } from "../config.mjs";
 
 /** The shared configuration content-build would have resolved. */
 function shared(packageBuild: Record<string, unknown> = {}) {
@@ -135,6 +135,7 @@ describe("the manifest specification", () => {
     it.each([
         ["id", "foundryPackage"],
         ["version", "package.json"],
+        ["description", "package.json"],
         ["url", "package.json"],
         ["bugs", "package.json"],
         ["manifest", "package.json"],
@@ -148,6 +149,17 @@ describe("the manifest specification", () => {
         expect(() => resolvePackageBuildConfig(shared({ manifest: { [key]: "x" } }))).toThrow(
             new RegExp(`packageBuild\\.manifest\\.${key}`),
         );
+    });
+
+    // Read out of the running contract rather than hand-copied, so a key added
+    // to `DERIVED_MANIFEST_KEYS` is covered here without anyone remembering to
+    // update this test too.
+    it("refuses every key DERIVED_MANIFEST_KEYS names, not just the ones above", () => {
+        for (const key of Object.keys(DERIVED_MANIFEST_KEYS)) {
+            expect(() => resolvePackageBuildConfig(shared({ manifest: { [key]: "x" } }))).toThrow(
+                new RegExp(`packageBuild\\.manifest\\.${key}`),
+            );
+        }
     });
 
     it("names where the value actually comes from", () => {
@@ -478,5 +490,39 @@ describe("the compatibility floor", () => {
 
     it("is null when the package claims none", () => {
         expect(resolvePackageBuildConfig(shared()).compatibilityMinimum).toBeNull();
+    });
+});
+
+describe("checkHomepage — package.json's homepage, against contentPackage", () => {
+    // `harn-ensemble`'s own `homepage` names a directory Cloudflare never
+    // wrote: `harn-ensemble` (the repository) rather than `harnensemble` (the
+    // address `contentPackage` actually publishes).
+    it("refuses a homepage whose path is not /<contentPackage>/, naming both", () => {
+        expect(() =>
+            checkHomepage("https://www.heroiclands.org/harn-ensemble", "harnensemble"),
+        ).toThrow(/harn-ensemble/);
+        expect(() =>
+            checkHomepage("https://www.heroiclands.org/harn-ensemble", "harnensemble"),
+        ).toThrow(/harnensemble/);
+    });
+
+    // Every package publishes a site, so there is no "no web presence" case —
+    // unlike `publish.site`, `homepage` has no floor a package can sit at
+    // without one.
+    it("requires a homepage unconditionally, naming the key and the expected value", () => {
+        expect(() => checkHomepage(null, "harnensemble")).toThrow(/`homepage`.*is not declared/);
+        expect(() => checkHomepage(null, "harnensemble")).toThrow(
+            /https:\/\/www\.heroiclands\.org\/harnensemble\//,
+        );
+    });
+
+    it("accepts a homepage whose path matches contentPackage", () => {
+        expect(() =>
+            checkHomepage("https://www.heroiclands.org/harnensemble/", "harnensemble"),
+        ).not.toThrow();
+    });
+
+    it("refuses a homepage that is not an absolute URL", () => {
+        expect(() => checkHomepage("harnensemble/", "harnensemble")).toThrow(/absolute URL/);
     });
 });
