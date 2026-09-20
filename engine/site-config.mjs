@@ -44,7 +44,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { stringify as stringifyToml } from "smol-toml";
 
-import { checkHomepage } from "../config.mjs";
+import { checkHomepage, fail } from "../config.mjs";
 import { slugify } from "./content-slug.mjs";
 
 /** The Hugo source directory, relative to the repository root. */
@@ -388,7 +388,8 @@ function deepMerge(base, overrides) {
  *   `hasTags`. Defaults to `false` — no tagged note, no taxonomy pages.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
- *   configuration declares no `packageBuild.manifest.title` or `site.description`.
+ *   configuration declares no `packageBuild.manifest.title`, no
+ *   `site.description`, or no `site.assets`.
  */
 export function hugoConfig({ config, navigation, themesDir, hasTags = false }) {
     checkHomepage(config.homepage, config.contentPackage);
@@ -401,9 +402,17 @@ export function hugoConfig({ config, navigation, themesDir, hasTags = false }) {
         );
     }
     if (!config.site.description) {
-        throw new TypeError(
-            "package-build config: `site.description` is not declared, and the " +
-                'site\'s `<meta name="description">` reads from it.',
+        fail(
+            "site.description",
+            'is not declared, and the site\'s `<meta name="description">` reads from it',
+        );
+    }
+    if (!config.site.assets) {
+        fail(
+            "site.assets",
+            "is not declared, and a site build needs one — it is the host every " +
+                "package's imagery is served from, and the theme resolves every " +
+                "relative asset against it",
         );
     }
 

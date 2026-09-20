@@ -331,15 +331,16 @@ describe("the generated configuration", () => {
     });
 
     it("leaves an absent optional value off rather than writing an empty one", () => {
+        // `assets` and `description` are required — see the guards below —
+        // so `author` is the only value left that is genuinely optional.
         const out = hugoConfig({
-            config: configFor({ author: undefined }, { assets: undefined }),
+            config: configFor({ author: undefined }),
             navigation: NAVIGATION,
             themesDir: THEMES_DIR,
         });
         expect(out.params).not.toHaveProperty("author");
-        expect(out.params).not.toHaveProperty("cdnBaseURL");
         const toml = hugoToml(out);
-        expect(toml).not.toMatch(/author|cdnBaseURL/);
+        expect(toml).not.toMatch(/author/);
     });
 
     it("fails through `checkHomepage` before anything is written", () => {
@@ -386,6 +387,16 @@ describe("the generated configuration", () => {
     it("writes `params.description` from `site.description`, not `package.json`", () => {
         const out = generated({ description: "A different pitch entirely." });
         expect(out.params.description).toBe("A different pitch entirely.");
+    });
+
+    it("requires `site.assets`, the host the theme resolves every relative asset against", () => {
+        expect(() =>
+            hugoConfig({
+                config: configFor({}, { assets: undefined }),
+                navigation: NAVIGATION,
+                themesDir: "x",
+            }),
+        ).toThrow(/`site\.assets` is not declared/);
     });
 
     it("serialises to TOML Hugo reads, with the menu as a table array", () => {

@@ -327,6 +327,7 @@ function documentationRepo(): string {
             "    address:",
             "        prefix: guide/",
             "site:",
+            "    assets: https://cdn.example.org",
             "    description: The toolkit, documented.",
             "packageBuild:",
             "    manifest:",

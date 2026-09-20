@@ -152,11 +152,16 @@ const ARTIFACT_OF_KIND = Object.freeze({
  * message, so {@link loadPackageBuildConfig} — the half that knows which file
  * was read — can resolve it to a line and column. This half stays pure.
  *
+ * Exported so a sibling module composing a configuration value this module
+ * does not itself validate — {@link module:engine/site-config}'s
+ * `hugoConfig`, checking `site.assets` — reports through the one helper
+ * rather than a second copy.
+ *
  * @param {string} where - Dotted path of the offending key.
  * @param {string} problem - What is wrong with it.
  * @returns {never}
  */
-function fail(where, problem) {
+export function fail(where, problem) {
     throw Object.assign(new TypeError(`package-build config: \`${where}\` ${problem}.`), {
         field: where,
     });
