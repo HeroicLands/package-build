@@ -64,6 +64,7 @@ import { deriveBeingInfo, isBeing } from "../sohl/being-info.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
+import { hasAnyTag } from "./note-vocabulary.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -1043,7 +1044,10 @@ export function resolveSitePass(name, options) {
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], manifests: object|null}}
+ *   wikiErrors: object[], imageErrors: object[], manifests: object|null,
+ *   hasTags: boolean}} `hasTags` is whether any note the walk read carries
+ *   `tags:` — what {@link module:engine/site-config.hugoConfig} reads to
+ *   decide whether the site emits taxonomy pages.
  */
 export function buildSite({ config, sqlTables } = {}) {
     const resolved = config ?? loadPackConfig();
@@ -1142,6 +1146,7 @@ export function buildSite({ config, sqlTables } = {}) {
             wikiErrors: [],
             imageErrors: [],
             stats: null,
+            hasTags: homepages.some((p) => hasAnyTag(p.fm)),
         };
     }
 
@@ -1164,6 +1169,7 @@ export function buildSite({ config, sqlTables } = {}) {
                 landings: 0,
                 out: homeRoot,
             },
+            hasTags: homepages.some((p) => hasAnyTag(p.fm)),
         };
     }
 
@@ -1211,6 +1217,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            hasTags: [...pages, ...homepageEntries].some((p) => hasAnyTag(p.fm)),
         };
     }
 
@@ -1269,6 +1276,7 @@ export function buildSite({ config, sqlTables } = {}) {
             landings,
             out,
         },
+        hasTags: [...pages, ...homepageEntries].some((p) => hasAnyTag(p.fm)),
     };
 }
 

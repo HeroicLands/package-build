@@ -1492,7 +1492,10 @@ function pdfCommand() {
  * **The Hugo configuration is generated before anything is written.** Its
  * sources — `package.json`'s `homepage`, the cached navigation, the installed
  * theme — are each a way the build can fail, and failing before the output
- * tree is cleared leaves the last good site in place to be looked at.
+ * tree is cleared leaves the last good site in place to be looked at. It is
+ * generated again once the site walk completes, because whether the site
+ * emits taxonomy pages is read from the walk — whether any note carries
+ * `tags:` — and that is not known until then.
  *
  * **Each gate is reported and the run stops at the first that fires.** They are
  * ordered so the report names the cause rather than its symptoms: an unusable
@@ -1510,7 +1513,14 @@ function siteCommand() {
         handler: async () => {
             try {
                 const config = loadPackConfig();
-                const hugo = generateHugoConfig(config);
+                // Generated once before the walk, purely to fail fast on a
+                // missing or mismatched source — `homepage`, the manifest
+                // title, the cached navigation, the installed theme — while
+                // the last good site is still in place to be looked at. Its
+                // `disableKinds`/`taxonomies`/`outputs` are provisional: only
+                // the site walk below knows whether any note carries `tags:`,
+                // so the value actually written is regenerated after it runs.
+                generateHugoConfig(config);
                 const result = buildSite({
                     config,
                     sqlTables: await prepareTreeSqlTables(config.paths.content, {
@@ -1628,6 +1638,7 @@ function siteCommand() {
                         `${s.tree ?? 0} tree page(s) + ${s.landings} ` +
                         `landing(s) to ${path.relative(process.cwd(), s.out)}`,
                 );
+                const hugo = generateHugoConfig(config, { hasTags: result.hasTags });
                 const { file } = writeHugoConfig(config, hugo);
                 log.info(`wrote ${path.relative(process.cwd(), file)}`);
             } catch (err) {

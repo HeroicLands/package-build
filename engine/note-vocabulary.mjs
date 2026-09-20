@@ -497,6 +497,26 @@ export function hasTag(fm, tag) {
 }
 
 /**
+ * Whether a note carries any `tags:` at all, however authored.
+ *
+ * The one question the site build asks of tags in aggregate — whether the
+ * tree publishes taxonomy pages — rather than about a particular tag. Reads
+ * `tags` and `tag` exactly as {@link hasTag} does, and treats an empty list
+ * or a blank string as carrying none.
+ *
+ * @param {object|null|undefined} fm - Parsed frontmatter.
+ * @returns {boolean} Whether the note carries at least one tag.
+ */
+export function hasAnyTag(fm) {
+    const raw = fm?.tags ?? fm?.tag;
+    if (raw == null) return false;
+    for (const entry of Array.isArray(raw) ? raw : [raw]) {
+        if (typeof entry === "string" && entry.trim() !== "") return true;
+    }
+    return false;
+}
+
+/**
  * Whether a note is tagged as an unfinished **draft**.
  *
  * The one reader of {@link DRAFT_TAG}, so both builds ask the same question of
