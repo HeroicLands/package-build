@@ -261,7 +261,8 @@ package-build: `packageKind: documentation` ships no Foundry package, so there i
 
 **NAME**
 
-`package-build site-root` — write the deployment's `_headers`.
+`package-build site-root` — write the deployment's `_headers`, and index the
+site for search.
 
 **SYNOPSIS**
 
@@ -294,6 +295,29 @@ it.
 The rules are scoped to those hostnames, so a site deployed under a domain of
 its own stays indexable.
 
+With `_headers` written, the rendered site is indexed for search. Pagefind
+reads every page under `<out>/<contentPackage>/` and writes the index into
+`<out>/<contentPackage>/pagefind/`, so it is deployed with the pages and served
+at `/<contentPackage>/pagefind/`; the theme loads `pagefind.js` from there,
+relative to the site's base URL, and the browser bundle derives the prefix from
+its own address, so nothing about the prefix is configured on either side. What
+is indexed is the body of every page and the homepage; the theme marks its own
+chrome — header, footer, breadcrumbs, infobox, the related-pages card —
+`data-pagefind-ignore`, and carries `data-pagefind-filter` attributes for a
+page's `type` and `package`, so a search can be narrowed to one kind of page.
+This command's part is only to run the indexer over whatever the theme
+rendered.
+
+The indexer is the `pagefind` package this toolchain depends on, which installs
+the binary for the platform as an optional dependency; nothing goes on a
+`PATH`. Every failure of the step is an error located at the rendered site —
+`build/site/<contentPackage>: error: search index: …` — and a binary that is
+not installed names the platform package `npm ci` installs.
+
+[`site.search: false`](configuration.md#site) skips the step, and removes a
+`pagefind/` an earlier build left beside the pages, so a site that wants no
+search deploys none.
+
 **OPTIONS**
 
 `--out <dir>` — the directory that is deployed. Defaults to `build/site`.
@@ -302,13 +326,20 @@ its own stays indexable.
 
 1 when `<out>/<contentPackage>/` holds no rendered site, which means the site
 build has not run and writing root files would publish a deployment with nothing
-under the prefix. Otherwise 0.
+under the prefix; 1 when the index cannot be built. Otherwise 0.
 
 **EXAMPLES**
 
 ```
 $ package-build site-root
 ✅ Wrote build/site/_headers.
+✅ Indexed 412 pages for search into build/site/thalorna/pagefind/.
+```
+
+```
+$ package-build site-root
+✅ Wrote build/site/_headers.
+Search is off (`site.search: false`), so no index was written.
 ```
 
 **SEE ALSO**

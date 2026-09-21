@@ -263,12 +263,13 @@ package carries this group:
 `build:site-content` writes the whole Hugo source tree under `build/hugo/` —
 the generated `hugo.toml` and the content mount — with `content-build site`;
 `build:site-html` runs Hugo over it, rendering into `build/site/<contentPackage>/`;
-`build:site-root` writes the deployment's `_headers` beside
-that; and `serve:site` does the first and then `hugo server` for a live
-preview. The repository carries no Hugo configuration of its own: `hugo.toml`
-is generated on every run from `package.json`, `package-build.config.yaml`,
-the installed `@heroiclands/hugo-theme` and the navigation `deps fetch`
-cached, and the only file to add is `@heroiclands/hugo-theme` under
+`build:site-root` writes the deployment's `_headers` beside that and indexes
+the rendered pages for search into `build/site/<contentPackage>/pagefind/`;
+and `serve:site` does the first and then `hugo server` for a live preview.
+The repository carries no Hugo configuration of its own: `hugo.toml` is
+generated on every run from `package.json`, `package-build.config.yaml`, the
+installed `@heroiclands/hugo-theme` and the navigation `deps fetch` cached,
+and the only file to add is `@heroiclands/hugo-theme` under
 `devDependencies`. Hugo itself is a separate install — the extended edition,
 on the developer's `PATH` and the runner's.
 

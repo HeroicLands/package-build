@@ -456,19 +456,21 @@ function manifestCommand() {
 }
 
 /**
- * `package-build site-root` — the deployment's root files.
+ * `package-build site-root` — the deployment's root files, and the search
+ * index.
  *
  * Hugo owns everything under the `/<package>/` prefix; this owns what sits
  * beside it, which is what Cloudflare Pages reads from the uploaded directory
  * and nowhere else: `_headers`, and no `_redirects`, since the prefix root is
- * the homepage.
+ * the homepage. It then indexes the rendered pages for search into
+ * `<package>/pagefind/`, unless `site.search` is off.
  *
  * @returns {object} The yargs command.
  */
 function siteRootCommand() {
     return {
         command: "site-root",
-        describe: "Write the deployment's _headers",
+        describe: "Write the deployment's _headers and index the site for search",
         builder: (y) =>
             y.option("out", {
                 type: "string",
@@ -479,9 +481,21 @@ function siteRootCommand() {
             const shared = loadPackConfig();
             const out = path.resolve(config.rootDir, argv.out ?? DEPLOY_ROOT);
 
-            const { files } = writeSiteRoot({ pkg: shared.contentPackage, out });
+            const { files, search } = await writeSiteRoot({
+                pkg: shared.contentPackage,
+                out,
+                search: shared.site.search,
+            });
             for (const file of files) {
                 console.log(`✅ Wrote ${path.relative(config.rootDir, file)}.`);
+            }
+            if (search) {
+                console.log(
+                    `✅ Indexed ${search.pages} pages for search into ` +
+                        `${path.relative(config.rootDir, search.dir)}/.`,
+                );
+            } else {
+                console.log("Search is off (`site.search: false`), so no index was written.");
             }
         }),
     };

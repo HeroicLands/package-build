@@ -1424,7 +1424,9 @@ mount's `_index.md` as the `home` kind at `baseURL`, which is
 since Cloudflare Pages would apply it. Its `_headers` suppress indexing on
 every host-assigned address and nothing else: no `Cache-Control` is pinned on
 the prefix root, because a lifetime on the homepage would hold a stale copy at
-the most-linked address after a deploy.
+the most-linked address after a deploy. The same command then indexes the
+rendered pages for search into `<package>/pagefind/`, served with the rest of
+the site; `site.search: false` skips it.
 
 ### The homepage's own links
 
