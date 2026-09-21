@@ -770,6 +770,7 @@ Any other key under `docs.itemFields` is refused:
 | `site.notfound`    | object   | `null`                                      |
 | `site.hugo`        | object   | `{}`                                        |
 | `site.search`      | boolean  | `true`                                      |
+| `site.maps`        | boolean  | `true`                                      |
 
 How much of a package reaches the web at all is **not** here — it is
 [`publish.site`](#publish). `site` is framing: which named pass bundle
@@ -819,7 +820,7 @@ published. A `site.out` is refused by name:
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, notfound, hugo, search).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, notfound, hugo, search, maps).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -949,6 +950,24 @@ site:
 ```
 
 > ``package-build config: `site.search` must be a boolean.``
+
+`site.maps` is whether every place page carries the map from that place. On
+by default: `content-build site` draws the map `content-build map --from`
+draws — the place's borders and routes, each neighbour at its bearing — for
+every place that states a border or a route or is named in one, lays it beside
+the page as `from-<shortcode>.svg`, and names the file in the page's front
+matter as `map`, which the theme inlines so every place name on it is a link
+to that place's page. A place with no relation carries no map and no key.
+GraphViz draws; when it is not installed the build says so once, as a
+warning, and writes every page as it would without maps — a site never fails
+for want of one. `false` draws nothing and asks nothing of GraphViz.
+
+```yaml
+site:
+  maps: false
+```
+
+> ``package-build config: `site.maps` must be a boolean.``
 
 ### The generated Hugo configuration
 

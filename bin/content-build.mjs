@@ -1515,7 +1515,8 @@ function pdfCommand() {
  * wikilink resolution, code-fence protection and the foreign-manifest merge —
  * happens here, from configuration. So does the Hugo configuration: the whole
  * source tree Hugo reads lands under `build/hugo/`, and the consumer's script
- * runs Hugo over it.
+ * runs Hugo over it. With `site.maps` on and GraphViz installed, every place
+ * page with a border or a route carries the map from that place.
  *
  * **The Hugo configuration is generated before anything is written.** Its
  * sources — `package.json`'s `homepage`, the cached navigation, the installed
@@ -1653,10 +1654,17 @@ function siteCommand() {
                     return;
                 }
 
+                // What drawing the maps found: warnings, every one. A site
+                // never fails for want of a map, so none of these touches the
+                // exit code — GraphViz absent is one line naming what to
+                // install, and every page is written as it would be without.
+                for (const f of result.mapFindings) emitDiagnostic(f);
+
                 const s = result.stats;
                 log.info(
                     `wrote ${s.homepages ?? 0} homepage(s) + ` +
-                        `${s.content ?? 0} content page(s) to ` +
+                        `${s.content ?? 0} content page(s), ` +
+                        `${s.maps ?? 0} with a map, to ` +
                         `${path.relative(process.cwd(), s.out)}`,
                 );
                 const { file } = writeHugoConfig(config, hugo);
