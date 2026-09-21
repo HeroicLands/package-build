@@ -57,7 +57,7 @@ export const HUGO_CONTENT = `${HUGO_SOURCE}/content`;
  * The directory that is deployed, relative to the repository root.
  *
  * Hugo renders into `<DEPLOY_ROOT>/<contentPackage>/`; `package-build
- * site-root` writes `_headers` and `_redirects` beside it.
+ * site-root` writes `_headers` beside it and the search index inside it.
  */
 export const DEPLOY_ROOT = "build/site";
 

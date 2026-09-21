@@ -1168,6 +1168,21 @@ builder, so schema and compiler cannot disagree. The hand-written compilers —
 `being`, `macro`, `doc` and the three map types — declare theirs in
 `sohl/note-schemas.mjs`.
 
+**A place's `borders` and `routes` are checked from both ends.** A `place`
+note states what it is next to and what it is reachable from as two `data:`
+lists — `borders: [{ to, bearing }]` and
+`routes: [{ to, bearing, mode, days, terrain?, leagues? }]` — and every value
+is from a closed set: the eight bearings, `land | boat | ship`, a days scale of
+`1 2 3 5 10 20 30 45 60 90 180 360`, and a terrain registry in which each
+terrain names the modes that cross it. Every `to` must be the shortcode of a
+place, here or in a fetched index. The other end must state the pair back —
+at the opposite bearing, and for a route by the same mode in the same days.
+A neighbour stating nothing is a warning naming both notes; one stating a
+different bearing, mode or days is an error, as is a border to the note's own
+parent or child, or a pair listed twice by one mode. Each finding lands on the
+entry that states it. The keys, the sets and the days scale are specified under
+`type: place` in `docs/content-format.md`.
+
 Nothing here writes. A check reports and an author fixes.
 
 ### The `data:` container is closed; the top level is not
@@ -1409,7 +1424,9 @@ mount's `_index.md` as the `home` kind at `baseURL`, which is
 since Cloudflare Pages would apply it. Its `_headers` suppress indexing on
 every host-assigned address and nothing else: no `Cache-Control` is pinned on
 the prefix root, because a lifetime on the homepage would hold a stale copy at
-the most-linked address after a deploy.
+the most-linked address after a deploy. The same command then indexes the
+rendered pages for search into `<package>/pagefind/`, served with the rest of
+the site; `site.search: false` skips it.
 
 ### The homepage's own links
 

@@ -1403,17 +1403,27 @@ export function lintNote(
     // to recognise it would be worse than not checking.
     const entry = vocabulary?.[current];
     if (entry) {
+        const fields = dataFields(current, vocabulary) ?? [];
         findings.push(
             ...checkDataContainer(note, {
                 type,
                 // Read through `dataFields`, so the keys **every** type accepts
                 // are part of what this type declares rather than a second list
                 // the container check would have to be told about.
-                fields: dataFields(current, vocabulary) ?? [],
+                fields,
                 packs,
             }),
         );
         findings.push(...checkSubType(note, { type, entry }));
+        // A field that declares a check of its own, beyond its shape. Handed
+        // the index the reference check resolves through, so a value naming
+        // another note reads that note — local or in a fetched index — the
+        // way a wikilink would. The linter names no such field itself; the
+        // vocabulary does, beside the field.
+        for (const field of fields) {
+            if (typeof field.check !== "function") continue;
+            findings.push(...field.check(note, { index }));
+        }
     }
 
     const fields = authoredFields(schema);

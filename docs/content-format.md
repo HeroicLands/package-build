@@ -3081,12 +3081,111 @@ three maps, and none of those maps needs to know it is a keep.
 - structure: A single building or habitation — halls, keeps, temples, inns, towers.
 - feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
 
-| `data` property | Values       | Description                                                                  |
-| --------------- | ------------ | ---------------------------------------------------------------------------- |
-| `demonym`       | `string`     | What a person from this place is called — a Vylarian                         |
-| `lore`          | `WikiLink[]` | Lore concerning this place — its peoples, its law, its calendar, its history |
-| `parents`       | `WikiLink[]` | Enclosing places within which this place is located                          |
-| `population`    | `number`     | Approximate population (precision 2 significant digits)                      |
+| `data` property | Values                                              | Description                                                                  |
+| --------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `demonym`       | `string`                                            | What a person from this place is called — a Vylarian                         |
+| `lore`          | `WikiLink[]`                                        | Lore concerning this place — its peoples, its law, its calendar, its history |
+| `parents`       | `WikiLink[]`                                        | Enclosing places within which this place is located                          |
+| `population`    | `number`                                            | Approximate population (precision 2 significant digits)                      |
+| `borders`       | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
+| `routes`        | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
+
+#### Where a place is, in relation to other places
+
+`parents` states what a place is **within**. Two more properties state what
+it is **next to** and what it is **reachable from**, as data rather than as
+prose, so that two notes describing one frontier cannot quietly disagree about
+which side of it each is on:
+
+```yaml
+data:
+  borders: # places sharing a frontier
+    - { to: dunharargn, bearing: NE } # both required
+    - { to: bethuargn, bearing: W }
+  routes: # journeys from this place's centre
+    - { to: steinmark, bearing: SW, mode: land, days: 3, terrain: [road, mountains] }
+    - { to: denizara, bearing: W, mode: ship, days: 5 }
+    - { to: kethramir, bearing: E, mode: land, days: 30, terrain: [dunes], leagues: 90 }
+```
+
+- `to` — required; the `shortcode` of a `place` note in this package or in a
+  declared dependency's index. A shortcode, not an address.
+- `bearing` — required; where the neighbour or the destination lies from here.
+- `mode` — required on a route; how the journey is travelled.
+- `days` — required on a route; a marker meaning "about this, under normal
+  conditions", from the scale below. Any other value is an error.
+- `terrain` — optional on a route; the terrains crossed, in travel order, from
+  the registry below. Each terrain names the modes that cross it, so open sea
+  on a land route — or a road on a ship route — is an error.
+- `leagues` — optional on a route; a distance, only where the note states one.
+
+**Regions border; settlements are days apart.** A frontier is a fact about two
+regions, and a journey is a fact about two places a traveller sets out from and
+arrives at. A pair appears in `routes` once per `mode` — a port and its
+neighbour may be three days by land and one by ship — and in `borders` once.
+**A place never borders its own parent or child**: containment is `parents`,
+and restating it as adjacency makes the two contradict each other.
+
+**Both ends state the relation, and `content-build lint` checks that they
+agree.** A border at `NE` from one side is a border at `SW` from the other; a
+route stated by land in three days from one side is stated by land in three
+days from the other, at the opposite bearing. A neighbour that states nothing
+back is a warning naming both notes — the pair is half-written, not wrong. A
+neighbour that states a different bearing, a different `days` or a different
+`mode` is an error, because one of the two notes is wrong and a reader cannot
+tell which. Every `to` must resolve to a place, every value must come from its
+closed set, and each finding is located at the entry that states it.
+
+| `bearing` value | where the other place lies |
+| --------------- | -------------------------- |
+| `N`             | north                      |
+| `NE`            | north-east                 |
+| `E`             | east                       |
+| `SE`            | south-east                 |
+| `S`             | south                      |
+| `SW`            | south-west                 |
+| `W`             | west                       |
+| `NW`            | north-west                 |
+
+| `mode` value | travelled                    |
+| ------------ | ---------------------------- |
+| `land`       | on foot, mounted, or by cart |
+| `boat`       | on a river or a lake         |
+| `ship`       | on open sea                  |
+
+| `days` value | meaning                                      |
+| ------------ | -------------------------------------------- |
+| `1`          | a day                                        |
+| `2`          | two days                                     |
+| `3`          | three days                                   |
+| `5`          | about five days                              |
+| `10`         | a ten-day week                               |
+| `20`         | two ten-day weeks                            |
+| `30`         | three ten-day weeks                          |
+| `45`         | a month and a half                           |
+| `60`         | two months                                   |
+| `90`         | a season                                     |
+| `180`        | many months                                  |
+| `360`        | who knows — a journey nobody reckons in days |
+
+| `terrain` value | crossed by         |
+| --------------- | ------------------ |
+| `road`          | land               |
+| `track`         | land               |
+| `plain`         | land               |
+| `steppe`        | land               |
+| `hills`         | land               |
+| `mountains`     | land               |
+| `forest`        | land               |
+| `jungle`        | land               |
+| `marsh`         | land               |
+| `dunes`         | land               |
+| `desert`        | land               |
+| `ice`           | land               |
+| `coast`         | land, boat or ship |
+| `open-sea`      | ship               |
+| `river`         | boat               |
+| `lake`          | boat               |
 
 **A place declares only what is true of ground.** Four properties were removed
 because they were true of something else, and each removal has a home to go to.

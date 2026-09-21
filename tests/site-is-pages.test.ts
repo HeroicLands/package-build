@@ -406,7 +406,7 @@ describe("the deployment root is `_headers` alone", () => {
         expect("landingPath" in siteRoot).toBe(false);
     });
 
-    it("writes `_headers` and no `_redirects`, removing a stale one", () => {
+    it("writes `_headers` and no `_redirects`, removing a stale one", async () => {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "site-root-"));
         try {
             fs.mkdirSync(path.join(out, "kethira"), { recursive: true });
@@ -415,7 +415,8 @@ describe("the deployment root is `_headers` alone", () => {
             // reader to a page nothing publishes.
             fs.writeFileSync(path.join(out, "_redirects"), "/kethira/  /kethira/x/  301\n");
 
-            const { files } = writeSiteRoot({ pkg: "kethira", out });
+            // The root files are the question here, not the index.
+            const { files } = await writeSiteRoot({ pkg: "kethira", out, search: false });
 
             expect(files.map((f) => path.basename(f))).toEqual(["_headers"]);
             expect(fs.existsSync(path.join(out, "_redirects"))).toBe(false);
