@@ -89,12 +89,13 @@ describe("a deployment's root files", () => {
         expect(headers()).not.toContain("Cache-Control");
     });
 
-    it("writes `_headers` beside the rendered site", () => {
+    it("writes `_headers` beside the rendered site", async () => {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "site-root-"));
         fs.mkdirSync(path.join(out, "kethira"), { recursive: true });
         fs.writeFileSync(path.join(out, "kethira", "index.html"), "<html></html>");
 
-        const { files } = writeSiteRoot({ pkg: "kethira", out });
+        // The root files are the question here, not the index.
+        const { files } = await writeSiteRoot({ pkg: "kethira", out, search: false });
 
         expect(files.map((f) => path.basename(f))).toEqual(["_headers"]);
         expect(fs.readFileSync(path.join(out, "_headers"), "utf8")).toBe(headers());
@@ -103,8 +104,8 @@ describe("a deployment's root files", () => {
 
     // Writing root files over an unbuilt site would publish a deployment with
     // nothing under the prefix.
-    it("refuses when no site has been rendered", () => {
+    it("refuses when no site has been rendered", async () => {
         const out = fs.mkdtempSync(path.join(os.tmpdir(), "site-root-"));
-        expect(() => writeSiteRoot({ pkg: "kethira", out })).toThrow(/no rendered site/);
+        await expect(writeSiteRoot({ pkg: "kethira", out })).rejects.toThrow(/no rendered site/);
     });
 });
