@@ -429,6 +429,73 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 | `checkBorders`    | `checkBorders(note, { index })` | `object[]`          | linting a place's `borders` — targets, values, once per pair, no parent or child, and reciprocity with the other end |
 | `checkRoutes`     | `checkRoutes(note, { index })`  | `object[]`          | linting a place's `routes` — as `checkBorders`, plus `mode`, `days` and `terrain`, once per pair per mode            |
 
+### `engine.mapPlaces`
+
+The places a map is drawn from — this package's index records and every fetched dependency's entries, read through one shape — and what their `parents` say: the world, the continents, each place's continent, and everything the containment tree can get wrong, reported as findings located at the entry that states it.
+
+| Export                | Signature                                                        | Returns       | Use it when                                                                                                              |
+| --------------------- | ---------------------------------------------------------------- | ------------- | ------------------------------------------------------------------------------------------------------------------------ |
+| `placesFromRecords`   | `placesFromRecords(records, { contentBase, base })`              | `MapWorld`    | reading this package's places and polities out of its index records, with a page URL each where a site base is given     |
+| `loadMapWorld`        | `loadMapWorld({ config, contentBase, base, problems })`          | `MapWorld`    | loading the world a map is drawn from — this package's index and every declared dependency's                             |
+| `analyzeContainment`  | `analyzeContainment(places, polities)`                           | `Containment` | finding the world, the continents, each place's continent and the anomalies of `parents`                                 |
+| `subtreeOf`           | `subtreeOf(analysis, root)`                                      | `Set<string>` | every place beneath one, by following `parents` downward                                                                 |
+| `containmentFindings` | `containmentFindings(analysis, places, { contentBase, config })` | `object[]`    | the anomalies as `file:line:column: severity: message` findings — no parent, an unresolved parent and a cycle are errors |
+
+### `engine.mapLayout`
+
+The geometry of the map from a place, as arithmetic over the place records: north up, east right, the angle from the bearing and the radius from the days marker on log-spaced rings, two hops composed into one bearing only where they agree. Nothing here touches a file or GraphViz.
+
+| Export          | Signature                        | Returns             | Use it when                                                                                                         |
+| --------------- | -------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `HORIZON_DAYS`  | `const HORIZON_DAYS`             | `number`            | the horizon of the map from a place, 90 days; beyond it a place is a name at the rim                                |
+| `RING_DAYS`     | `const RING_DAYS`                | `readonly number[]` | the days markers that are rings — every marker up to the horizon                                                    |
+| `bearingAngle`  | `bearingAngle(bearing)`          | `number\|undefined` | the angle of a bearing in degrees counter-clockwise from east — `N` is 90, `E` 0                                    |
+| `bearingVector` | `bearingVector(bearing)`         | `{x, y}\|undefined` | the unit vector of a bearing                                                                                        |
+| `bearingSteps`  | `bearingSteps(a, b)`             | `number\|undefined` | how many steps around the compass separate two bearings, the shorter way                                            |
+| `rimRadius`     | `rimRadius()`                    | `number`            | the radius of the rim, one log step beyond the horizon                                                              |
+| `ringRadius`    | `ringRadius(days)`               | `number`            | the radius of the ring a days value sits on — the rim for none, or for a value beyond the horizon                   |
+| `rings`         | `rings()`                        | `object[]`          | the rings inside out, each marker with its radius                                                                   |
+| `daysMarker`    | `daysMarker(total)`              | `number\|undefined` | the smallest marker of the scale that covers a total of days                                                        |
+| `edgeLength`    | `edgeLength(days)`               | `number`            | the length a route asks of `neato` in the route graph, inches, on the rings' log scale                              |
+| `composeHops`   | `composeHops(first, second)`     | `object\|undefined` | two hops composed into one bearing and one total where they agree — the same bearing or adjacent — else `undefined` |
+| `relationsOf`   | `relationsOf(places, shortcode)` | `object`            | every border and route touching one place, read from both ends, plus the targets that resolved to nothing           |
+| `layoutFrom`    | `layoutFrom(places, centre)`     | `object`            | laying out the map from a place: every node pinned in points, every edge, the rings and the rim                     |
+| `travelGraph`   | `travelGraph(places)`            | `object`            | the whole route graph — one edge per pair, however many ends and modes state it, each with a length from its days   |
+
+### `engine.mapDot`
+
+The three drawings of `content-build map` as DOT text, sharing one style table: shape, colour and size by `subType`, an anomaly overriding colour alone, every label a `name.full`, every tooltip an address, and a `URL` where the place carries one so the SVG's names are links.
+
+| Export      | Signature                                          | Returns  | Use it when                                                                                         |
+| ----------- | -------------------------------------------------- | -------- | --------------------------------------------------------------------------------------------------- |
+| `STYLE`     | `const STYLE`                                      | —        | the shape, colour and size of each `subType`, and of a polity                                       |
+| `dotString` | `dotString(value)`                                 | `string` | quoting text for DOT                                                                                |
+| `treeDot`   | `treeDot({ places, polities, analysis, root, … })` | `string` | the containment tree — the whole world clustered by continent, or the subtree beneath `root`        |
+| `fromDot`   | `fromDot(layout, places, { scale, title })`        | `string` | the map from a place, every node pinned for `neato -n2`, the rings drawn faintly with their markers |
+| `travelDot` | `travelDot(graph, places, { scale, title })`       | `string` | the whole route graph for `neato`, each edge asking for a length from its days                      |
+
+### `engine.mapGraphviz`
+
+GraphViz, as the map command reaches it: a build-time tool of that command alone, found once, named plainly when absent, and run over a `.dot` file the command keeps beside the rendering.
+
+| Export                   | Signature                                               | Returns             | Use it when                                                                                |
+| ------------------------ | ------------------------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------ |
+| `GRAPHVIZ_ENGINES`       | `const GRAPHVIZ_ENGINES`                                | `readonly string[]` | the engines the map command may ask for — `dot`, `twopi`, `neato`                          |
+| `findGraphviz`           | `findGraphviz(engine, { env, fallbacks })`              | `string\|undefined` | finding an engine's binary on `PATH` or in the directories a package manager installs into |
+| `graphvizMissingMessage` | `graphvizMissingMessage(engine)`                        | `string`            | saying an engine is not installed, and what installs it                                    |
+| `renderDot`              | `renderDot(dotPath, outPath, { binary, format, args })` | `{warnings}`        | rendering a `.dot` file, the engine's warnings returned and a non-zero exit thrown         |
+
+### `engine.mapBuild`
+
+`content-build map` as a function: the drawings written under an output directory, always the `.dot` beside the `.svg`, the tree's anomalies returned as findings, and a missing GraphViz either an error or — for a build that would rather skip — one warning.
+
+| Export          | Signature                                                                                                                             | Returns                        | Use it when                                                      |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------ | ---------------------------------------------------------------- |
+| `MAP_DIR`       | `const MAP_DIR`                                                                                                                       | `string`                       | where the maps land below a package's root, `build/map`          |
+| `FROM_ALL`      | `const FROM_ALL`                                                                                                                      | `string`                       | the `--from` value that means every place with a relation, `all` |
+| `relatedPlaces` | `relatedPlaces(places)`                                                                                                               | `string[]`                     | every place that states, or is named in, a border or a route     |
+| `buildMaps`     | `buildMaps({ world, outDir, tree, root, from, travel, engine, rankdir, nodesep, ranksep, scale, polities, locate, requireGraphviz })` | `{written, findings, skipped}` | drawing any of the three from a loaded world                     |
+
 ### `engine.systems`
 
 The closed registry of system ids, and the `none` that stands for no system at all. An unknown system value is an error; adding a system is a data change to this registry rather than a hardcoded set scattered through the pipeline.

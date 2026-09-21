@@ -1860,6 +1860,155 @@ demo-book: error: the document tree named by `pdf.document` cannot be read
 `content-build site`, `content-build package <action> [pack] [entry]`,
 [Diagnostics](diagnostics.md), [Configuration](configuration.md).
 
+### `content-build map`
+
+**NAME**
+
+Draw the containment tree, the map from a place, or the whole route graph.
+
+**SYNOPSIS**
+
+```
+content-build map --tree [--root <shortcode>] [--engine dot|twopi|neato] [--rankdir TB|LR|BT|RL]
+                  [--nodesep <inches>] [--ranksep <inches>] [--no-polities]
+content-build map --from <shortcode>.. | --from all
+content-build map --travel
+content-build map [...] [--scale <factor>] [--base <url>] [--out <dir>]
+```
+
+**DESCRIPTION**
+
+Draws what the place notes state. Every drawing is read from the content
+index — this package's records and every declared dependency's fetched
+index — so a consumer's map draws its dependencies' places beside its own
+and no note is opened except to locate a finding. Everything lands under
+`build/map/`, always the `.dot` beside the `.svg`, so a drawing can be
+re-rendered, diffed or read without the index. GraphViz draws: `dot` (or
+`twopi`, `neato`) for the tree, `neato` for the other two. It is a
+build-time tool of this command alone; when the engine a run needs is not
+installed the command says so, names what to install, and stops. A build
+that asks for maps as one step of a larger job — a site build — writes
+the `.dot` files, emits one warning and skips the renderings rather than
+failing.
+
+The three drawings, any of which may be asked for in one run:
+
+**`--tree`** — the author's check. The containment tree from `data.parents`,
+edges running child → parent, clustered by continent — a `region` parented
+directly on the `world` note — with the places reaching no continent
+floating outside every cluster. Node shape, colour and size are by
+`subType` (a gold double circle for the world, a blue box for a region, a
+small green ellipse for a settlement, a purple diamond for a site, a teal
+hexagon for a feature, an orange house for a structure), and a legend
+drawn from the same style table sits on every drawing. A `polity`
+affiliation is drawn as a grey dashed cylinder beside every region note in
+its own directory. Anomalies are highlighted and reported as findings: a
+place with **no parent** and a **placeholder for a parent shortcode no
+place declares** are filled red (errors); a place on a **cycle** is
+outlined red (an error); a place with **more than one parent**, a region
+with **no `packFolder`** and a polity whose directory holds **no region
+note** are warnings. The world note has no parent by nature and is not a
+finding. Writes `tree.svg` for the whole world and `tree-<shortcode>.svg`
+for each continent; with `--root`, the subtree beneath that one place as
+`tree-<shortcode>.svg` — every place whose `parents` chain reaches it by
+any path — and no findings.
+
+**`--from <shortcode>`** — the map from a place, `from-<shortcode>.svg`.
+Pre-modern maps were itineraries: partial, centred on their maker, exact
+about the next stage and vague about the tenth. A place's `borders` and
+`routes` are exactly that, so the reader's map is one map per place, from
+that place. The place sits at the centre, **north up, east right**. Every
+neighbour it states — or that states it, since a border or a route is one
+fact stated from each end — sits at the angle of its bearing and on the
+ring of its days, with an edge labelled by the bearing and days; a border
+is a dashed edge, and where several modes reach one place the label lists
+each. Beyond each neighbour, every place a second hop reaches is drawn
+dimmer at the composed bearing where the two hops agree — the same bearing
+or adjacent ones, added as vectors weighted by their days — on the ring of
+their total; where the hops disagree the place is omitted rather than
+guessed at. Nodes sharing a ring and a bearing are fanned apart. `all`
+draws the map from every place that states or is named in a border or a
+route. Positions are computed by the command and pinned, so `neato` only
+draws; nothing on the page is a solver's decision.
+
+_The rings._ One faint dashed circle per marker of the days scale up to
+the horizon of 90 days — `1 2 3 5 10 20 30 45 60 90` — each labelled at
+its top, spaced logarithmically so that equal ratios of days are equal
+steps of radius: a day to two days is the same step as five to ten, and a
+day's ride and a month's voyage both fit on one page. A neighbour with a
+route sits on the ring of its shortest route's days. A neighbour reached by
+a border alone sits on the innermost ring, because a frontier states no
+distance. One more circle, the rim, lies a log step beyond the horizon:
+a place farther than 90 days, and a second hop whose days are unknown
+because either hop was a border, are a name at the rim carrying its days
+or `?` — beyond what the notes state, the map states nothing more.
+
+_Two scales._ The generated map from a place is the default regional map:
+every place gets one at build time, from its `borders` and `routes`. An
+authored `regionalmap` note is an artefact of the setting — a road book, a
+sailor's chart, a tax survey, partial and from somewhere, whose prose says
+whose it is — and never the survey. The two are two sources of the same
+thing on a place's page.
+
+**`--travel`** — the whole route graph, `travel.svg`, for the author: one
+undirected edge per pair of places, a border dashed, each route asking
+`neato` for a length on the same log scale as the rings so the god's-eye
+view and the itinerary agree about what a day and a month look like; the
+engine solves the positions.
+
+Every node's label is the place's `name.full` and its tooltip the canonical
+address. With `--base`, every name is also a link — GraphViz writes an
+`<a href>` around it — to the page at `<base><slug>/` for this package's
+places and to the URL the fetched index resolved for a dependency's, so a
+page can inline the SVG. Without it the names are plain text.
+
+**OPTIONS**
+
+| Option       | Type    | Default      | Description                                                                                                                                    |
+| ------------ | ------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------- |
+| `--tree`     | boolean | `false`      | Draw the containment tree: `tree.svg`, one `tree-<shortcode>.svg` per continent, and the findings.                                             |
+| `--root`     | string  | —            | With `--tree`, draw the subtree beneath this place as `tree-<shortcode>.svg` and report nothing.                                               |
+| `--from`     | string  | —            | Draw the map from this place as `from-<shortcode>.svg`; repeatable, or `all` for every place with a border or a route.                         |
+| `--travel`   | boolean | `false`      | Draw the whole route graph as `travel.svg`.                                                                                                    |
+| `--engine`   | choice  | `dot`        | The tree's layout engine — `dot`, `twopi` (radial, rooted on the world or the `--root`) or `neato`. The other two drawings are always `neato`. |
+| `--rankdir`  | choice  | `TB`         | The tree's rank direction — `TB`, `LR`, `BT` or `RL`; `dot` engine only.                                                                       |
+| `--nodesep`  | number  | by `--scale` | The tree's GraphViz `nodesep`, in inches.                                                                                                      |
+| `--ranksep`  | number  | by engine    | The tree's GraphViz `ranksep`, in inches.                                                                                                      |
+| `--scale`    | number  | `1`          | Multiply every node's width, height, font size and border weight, the legend's included.                                                       |
+| `--polities` | boolean | `true`       | Draw polities beside their regions in the tree. `--no-polities` drops them.                                                                    |
+| `--base`     | string  | —            | The site base this package's pages are served under, ending in a slash; given, every name is a link to its page.                               |
+| `--out`      | string  | `build/map`  | Directory to write into, relative to the working directory.                                                                                    |
+
+**EXIT STATUS**
+
+1 when no drawing is asked for, when a `--from` or `--root` names no
+place, when the GraphViz engine a drawing needs is not installed, when a
+dependency's index cannot be read, when a note the index cannot record is
+met, on any error finding from `--tree` (a place with no parent, a parent
+that does not resolve, a cycle), or on any other thrown error. Otherwise 0
+— the warnings are reported and never fail the command.
+
+**EXAMPLES**
+
+```
+$ content-build map --tree
+assets/content/Regions/Sea.md:16:5: warning: place "innersea" has more than one parent (northc, southc), which is legal for a sea between continents or a region split between two, and worth a look otherwise
+assets/content/Regions/Marches/Lost_Fort.md:9:14: error: place "lostfort" names parent "marchs", which does not resolve to any place in this package or a fetched index
+[…] 394 place(s) → 7 drawing(s) under build/map
+
+$ content-build map --from dunharargn --base /thalorna/
+[…] 394 place(s) → 1 drawing(s) under build/map
+
+$ content-build map --travel
+[…] GraphViz's `neato` is not installed, and `content-build map` draws with it; install GraphViz (`brew install graphviz` on macOS, `apt-get install graphviz` on Debian or Ubuntu) and run the command again
+```
+
+**SEE ALSO**
+
+`content-build lint [root]` (which checks `borders` and `routes` from both
+ends), `content-build deps fetch`, `content-build content-index [root]`,
+[Content format](content-format.md), [Diagnostics](diagnostics.md).
+
 ### `content-build reachability <dir> [file]`
 
 **NAME**

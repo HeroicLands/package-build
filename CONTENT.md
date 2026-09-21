@@ -1185,6 +1185,18 @@ entry that states it. The keys, the sets and the days scale are specified under
 
 Nothing here writes. A check reports and an author fixes.
 
+**`content-build map` draws what those keys state.** `--tree` is the author's
+check of `parents` — the containment tree, clustered by continent, with a
+place no parent reaches, a parent no place declares and a cycle flagged red
+and reported as findings. `--from <shortcode>` is the reader's map: the place
+at the centre, north up, each neighbour at the angle of its bearing and on a
+log-spaced ring of its days, a second hop drawn dimmer where the two hops
+agree; `--from all` draws one for every place with a relation. `--travel` is
+the whole route graph. Every drawing reads the content index, so a
+dependency's places take part, and lands under `build/map/` as a `.dot`
+beside its `.svg`; GraphViz draws, and is needed by this command alone. The
+command and its rings are documented in `docs/commands.md`.
+
 ### The `data:` container is closed; the top level is not
 
 A note's frontmatter has three regions, and only one of them is open:
