@@ -81,6 +81,7 @@ import {
 } from "./homepage.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
+import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -291,18 +292,30 @@ export function collectHomepages(contentBase, ctx) {
  * states no `url` — the home kind has none to state — and the mount below it
  * holds pages and nothing else, so this is the only `_index.md` in the tree.
  *
+ * **Verbatim, but not unconnected.** The homepage is a page like any other on
+ * both sides of the link graph: a content page reaches it through
+ * `[[homepage-root|Text]]`, and its own markdown links name content pages. So
+ * it carries the same `related` block every content page does — handed in by
+ * the caller, since the graph is read off the content render and homepage-only
+ * mode has none.
+ *
  * @param {string} outRoot - The package's site root — the content mount's
  *   root, `build/hugo/content`, one level above the mount itself.
  * @param {readonly object[]} pages - From {@link collectHomepages}.
  * @param {object} config - The resolved configuration, for the package name and
  *   the default title.
+ * @param {object} [options] - Options.
+ * @param {import("./related-pages.mjs").Related} [options.related] - The
+ *   homepage's backlinks and mentions. Absent where nothing connects to it,
+ *   and in homepage-only mode, where no link resolves.
  * @returns {number} How many pages were written.
  */
-export function writeHomepages(outRoot, pages, config) {
+export function writeHomepages(outRoot, pages, config, { related } = {}) {
     for (const page of pages) {
         const data = homepageFrontmatter(page.fm, {
             contentPackage: config.contentPackage,
             title: homepageTitle(page.fm, config),
+            related,
         });
         const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
@@ -472,6 +485,12 @@ export function tableUniverse(pages) {
  * self-describing and makes sweeping the field out of a content tree
  * output-preserving for a site as it already is for the packs.
  *
+ * **`related` is derived, never authored.** What links to a page is a fact
+ * about every other page, known only once the whole tree has resolved — see
+ * {@link module:engine/related-pages} — so an authored value is dropped the
+ * way `aliases` is, and {@link renderPages} writes the derived block once it
+ * holds the graph.
+ *
  * @param {object} page - The page.
  * @param {object} options
  * @param {(data: object, page: object) => void} [options.decorate] - Called
@@ -486,7 +505,7 @@ export function tableUniverse(pages) {
  * @returns {object} The frontmatter to write.
  */
 export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
-    const { fm, name, slug } = page;
+    const { fm, slug } = page;
     const data = {
         ...fm,
         // Spread after the note's own frontmatter. Guarded because
@@ -500,13 +519,29 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
         // from the filename.
         slug,
         url: `/${slug}/`,
-        title: fm.title ?? name,
+        title: pageTitle(page),
         kbfolder: page.folder,
     };
     if (decorate) decorate(data, page);
     delete data.aliases;
+    delete data.related;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
+}
+
+/**
+ * The title a content page publishes under: an authored `title`, else the
+ * note's name.
+ *
+ * One rule, read by the page's own front matter and by every `related` entry
+ * that names the page, so a card lists a page by exactly the title its heading
+ * shows.
+ *
+ * @param {object} page - The page, from {@link collectContentPages}.
+ * @returns {string} The title.
+ */
+function pageTitle(page) {
+    return page.fm.title ?? page.name;
 }
 
 /**
@@ -585,10 +620,23 @@ export function pageDestination(page) {
  *    touches, so the repository's own rewrite runs before the shared one
  *    rather than replacing it.
  *
+ * **Every page is rendered before any is written.** What links *to* a page is
+ * known only once every other page has resolved, and it is written into the
+ * page's own front matter, so the render is one pass over the tree and the
+ * write is a second — with the link graph read off the first, at the one
+ * point the resolver answers, and inverted once between them. Nothing is
+ * resolved twice.
+ *
  * @param {object[]} pages - Every page.
- * @param {object} options - Everything the render needs.
+ * @param {object} options - Everything the render needs. `homepages` is the
+ *   homepage as the index knows it — `{ fm, body, url, title }` — which takes
+ *   no part in the render and every part in the graph: a content page links
+ *   it by wikilink, and its own markdown links name content pages.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[]}}
+ *   wikiErrors: object[], imageErrors: object[],
+ *   related: Map<string, import("./related-pages.mjs").Related>}} `related`
+ *   is keyed by page URL, and holds the homepage's block beside every content
+ *   page's, so the caller can write it on the page this render does not.
  */
 export function renderPages(pages, options) {
     const {
@@ -602,6 +650,7 @@ export function renderPages(pages, options) {
         sqlTables,
         config,
         records = [],
+        homepages = [],
     } = options;
 
     // The address space the art slots and the body's embeds resolve against:
@@ -616,6 +665,29 @@ export function renderPages(pages, options) {
     const wikiErrors = [];
     const imageErrors = [];
     const byKind = {};
+    // The link graph, as `(source URL, target URL)` — read off each page's
+    // resolution below, and off the homepage's markdown links.
+    /** @type {Array<[string, string]>} */
+    const edges = [];
+    // Every page of this site, as a `related` entry names it.
+    /** @type {Map<string, import("./related-pages.mjs").RelatedEntry>} */
+    const entries = new Map();
+    for (const page of pages) {
+        entries.set(page.url, {
+            title: pageTitle(page),
+            url: page.url,
+            type: String(page.fm.type),
+        });
+    }
+    for (const home of homepages) {
+        entries.set(home.url, { title: home.title, url: home.url, type: String(home.fm.type) });
+        for (const target of homepageLinkTargets(home.body, home.url)) {
+            edges.push([home.url, target]);
+        }
+    }
+    // What each page renders as, held until the graph is whole.
+    /** @type {Array<{page: object, body: string, data: object}>} */
+    const rendered = [];
 
     /**
      * The address the website serves for one authored pathname.
@@ -661,6 +733,8 @@ export function renderPages(pages, options) {
         // The page's path in the tree an author edits, below the content
         // root.
         const src = page.relPath ?? page.base;
+        // Every index entry a link on this page resolved to.
+        const resolved = [];
         const ctx = wikiContext(index, {
             src,
             file: page.file,
@@ -668,6 +742,7 @@ export function renderPages(pages, options) {
             errors: wikiErrors,
             foreignIndex: foreign.index,
             assets: artIndex,
+            resolved,
         });
 
         const webSrc = webAddresses(page.file);
@@ -699,13 +774,26 @@ export function renderPages(pages, options) {
         tableErrors.push(...errors);
 
         const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
+        rendered.push({ page, body: protectCode(body, resolve), data });
+        // A resolved target with no URL is a pack-only package's address:
+        // real, and nowhere on the web, so not an edge.
+        for (const hit of resolved) {
+            if (hit.url) edges.push([page.url, hit.url]);
+        }
+    }
+
+    const related = relatedPages(edges, entries);
+
+    for (const { page, body, data } of rendered) {
+        const block = related.get(page.url);
+        if (block) data.related = block;
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, matter.stringify(protectCode(body, resolve), data));
+        fs.writeFileSync(dest, matter.stringify(body, data));
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
-    return { written: pages.length, byKind, tableErrors, wikiErrors, imageErrors };
+    return { written: pages.length, byKind, tableErrors, wikiErrors, imageErrors, related };
 }
 
 /**
@@ -892,11 +980,17 @@ export function buildSite({ config, sqlTables } = {}) {
     // homepage is authored markdown published verbatim, with no table
     // expansion and no link resolution of its own, and routing it through
     // that pipeline would buy it a pass it has no input for.
+    //
+    // It is a node of the link graph all the same: `renderPages` reads its
+    // markdown links for the edges it authors, and the resolver records the
+    // ones that land on it.
     const homepageEntries = homepages.map((page) => ({
         kind: "content",
         fm: page.fm,
+        body: page.body,
         pkg: resolved.contentPackage,
         name: page.fm.name?.full ?? homepageTitle(page.fm, resolved),
+        title: homepageTitle(page.fm, resolved),
         slug: addressSlug(page.fm),
         base: path.basename(page.file),
         url: base,
@@ -926,6 +1020,7 @@ export function buildSite({ config, sqlTables } = {}) {
         index: gates.index,
         foreign: gates.foreign,
         universe: tableUniverse(pages),
+        homepages: homepageEntries,
         pass,
         // What counts as a being is the toolchain's to say, not a consumer's.
         // Asking in a consumer's script is how one came to still be checking
@@ -947,8 +1042,11 @@ export function buildSite({ config, sqlTables } = {}) {
     });
 
     // Last, and outside the mount: the package's front page is not part of the
-    // content tree it introduces.
-    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved);
+    // content tree it introduces. It publishes at `base`, which is where the
+    // graph keys its block.
+    const homepagesWritten = writeHomepages(homeRoot, homepages, resolved, {
+        related: rendered.related.get(base),
+    });
 
     return {
         gates,

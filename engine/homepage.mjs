@@ -378,15 +378,23 @@ export function homepageTitle(fm, config) {
  * redirect stub at each one. The field is retired and refused before a
  * build reaches here, which makes this a guard rather than a working path.
  *
+ * `related` is derived like every other page's — what links to the homepage
+ * is a fact about the rest of the tree — so an authored value is dropped and
+ * the caller's block, where it has one, is written in its place.
+ *
  * @param {object} fm - The note's frontmatter.
  * @param {object} options - Options.
  * @param {string} options.contentPackage - The package this build publishes.
  * @param {string} options.title - The resolved title.
+ * @param {object} [options.related] - The homepage's backlinks and mentions,
+ *   where the site build found either.
  * @returns {object} The frontmatter to write.
  */
-export function homepageFrontmatter(fm, { contentPackage, title }) {
+export function homepageFrontmatter(fm, { contentPackage, title, related }) {
     const data = { ...fm, package: contentPackage, title };
     delete data.aliases;
+    delete data.related;
+    if (related) data.related = related;
     return data;
 }
 
