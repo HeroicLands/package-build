@@ -35,6 +35,10 @@ const FIXTURES = path.join(ROOT, "tests", "fixtures", "changelog");
 const UNGROUPED = fs.readFileSync(path.join(FIXTURES, "ungrouped.md"), "utf8");
 const GROUPED_WITH_LABELS = fs.readFileSync(path.join(FIXTURES, "grouped-with-labels.md"), "utf8");
 const GROUPED_NO_LABELS = fs.readFileSync(path.join(FIXTURES, "grouped-no-labels.md"), "utf8");
+const WRAPPED_PARAGRAPH_22_4_3 = fs.readFileSync(
+    path.join(FIXTURES, "wrapped-paragraph-22.4.3.md"),
+    "utf8",
+);
 
 const LABELS = ["Compendiums", "Characters", "Website"];
 
@@ -123,5 +127,16 @@ describe("changelog group — merges, orders and labels", () => {
     it("a changelog with no `## <version>` heading passes through unchanged", () => {
         const text = "Just some prose, no release section at all.\n";
         expect(groupChangelogText(text, { labels: LABELS })).toEqual({ text, findings: [] });
+    });
+
+    it("leaves a section of two already-grouped, hard-wrapped blocks byte-identical", () => {
+        // The real `## 22.4.3` section `changeset version` wrote before
+        // `changelog group` ran on it: two bold-label blocks, each a
+        // hard-wrapped paragraph at column 0. Already grouped and ordered —
+        // `group` must not fragment the wrapped lines into blocks of their
+        // own and reorder them.
+        const { text, findings } = groupChangelogText(WRAPPED_PARAGRAPH_22_4_3, {});
+        expect(text).toBe(WRAPPED_PARAGRAPH_22_4_3);
+        expect(findings).toEqual([]);
     });
 });

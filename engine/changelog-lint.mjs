@@ -234,13 +234,15 @@ export function topLevelBullets(text, codeLines) {
  * {@link topLevelBullets}, where a bullet marker *is* the top-level
  * construct — a `-` bullet at column 0 belongs to whatever block is
  * already open, since a label's bullets sit unindented directly under it.
- * Any other column-0 line (plain prose with no label, a bullet with no
- * block open yet) starts the one "lead" block (`label: null`) a changeset
- * with no category writes — the case `changelog group` sorts first and
- * `check` never flags. Nested detail — a wrapped line, a bullet's own
- * continuation — stays indented and belongs to whatever it follows.
- * `changelog group` folds same-label blocks together; `check` warns when a
- * block's label is not in the declared vocabulary.
+ * A plain column-0 line that is neither a label nor a bullet continues
+ * whatever block is open, because Prettier's `proseWrap` puts every line of
+ * a hard-wrapped paragraph at column 0 — it starts a new "lead" block
+ * (`label: null`) only at a paragraph boundary, the start of the section or
+ * a line right after a blank one, which is the case `changelog group`
+ * sorts first and `check` never flags. A blank line never closes a block by
+ * itself; it only ends the run of continuation lines a following column-0
+ * line can attach to. `changelog group` folds same-label blocks together;
+ * `check` warns when a block's label is not in the declared vocabulary.
  *
  * @param {string} text - Section text.
  * @param {Set<number>} codeLines - Lines inside a code region, from
@@ -266,6 +268,9 @@ export function topLevelBlocks(text, codeLines, scaffoldLines = new Set()) {
             });
         current = null;
     };
+    // A paragraph boundary — the start of the section, or right after a
+    // blank line — is the only place an unlabelled lead block may start.
+    let afterBlank = true;
 
     for (let i = 0; i < lines.length; i++) {
         const lineNo = i + 1;
@@ -273,29 +278,44 @@ export function topLevelBlocks(text, codeLines, scaffoldLines = new Set()) {
 
         if (codeLines.has(lineNo)) {
             if (current) current.parts.push(raw);
+            afterBlank = raw.trim() === "";
             continue;
         }
         if (scaffoldLines.has(lineNo)) {
             close();
+            afterBlank = true;
             continue;
         }
         const atColumnZero = raw.trim() !== "" && !/^[ \t]/.test(raw);
         if (!atColumnZero) {
             if (current) current.parts.push(raw);
+            afterBlank = raw.trim() === "";
             continue;
         }
         const label = LABEL_LINE_RE.exec(raw)?.[1] ?? null;
         if (label !== null) {
             close();
             current = { startLine: lineNo, label, parts: [raw] };
+            afterBlank = false;
             continue;
         }
         if (TOP_BULLET_RE.test(raw) && current) {
             current.parts.push(raw);
+            afterBlank = false;
+            continue;
+        }
+        // Plain prose at column 0: it continues whatever block is already
+        // open unless it opens a new paragraph — Prettier's `proseWrap`
+        // puts every line of a hard-wrapped paragraph at column 0, so a
+        // continuation line must never be read as a new lead block.
+        if (current && !afterBlank) {
+            current.parts.push(raw);
+            afterBlank = false;
             continue;
         }
         close();
         current = { startLine: lineNo, label: null, parts: [raw] };
+        afterBlank = false;
     }
     close();
     return blocks;
