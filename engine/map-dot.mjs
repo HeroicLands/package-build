@@ -12,13 +12,14 @@
  */
 
 /**
- * The three drawings of `content-build map`, as DOT.
+ * The drawings of `content-build map`, as DOT.
  *
  * Every drawing is emitted as DOT text and kept beside its rendering, so a
  * picture can be re-rendered, diffed or read without the content index.
- * Three drawings share one style table: **shape, colour and size are by
+ * The drawings share one style table: **shape, colour and size are by
  * `subType`**, in one place, so the containment tree, the map from a place,
- * the route graph and the legend all follow an edit to a row. An anomaly
+ * the chart from one, the route graph and the legend all follow an edit to a
+ * row. An anomaly
  * overrides fill and border colour only, so what kind of place a node is and
  * whether something is wrong with it read as two separate questions.
  *
@@ -45,6 +46,46 @@ const POLITY_BORDER = "#616161";
 /** The colour of a ring, and of anything two hops out. */
 const FAINT = "#B0BEC5";
 const DIM = "#78909C";
+/** The fill of a place two or more hops out. */
+const DIM_FILL = "#ECEFF1";
+
+/**
+ * How much of the second hop's dimness a further hop keeps: each hop beyond
+ * the second steps down by this much.
+ */
+const HOP_FADE_STEP = 0.25;
+
+/** The least a place may fade to, so the farthest hop still reads. */
+const HOP_FADE_FLOOR = 0.5;
+
+/**
+ * The opacity of a place by its hop count: the neighbours and the second hop
+ * are drawn full — the second in the dim palette — and each hop beyond
+ * steps down, never below the floor.
+ *
+ * @param {number} hop - 1 for a neighbour, 2 and up beyond.
+ * @returns {number} 0 to 1.
+ */
+export function hopOpacity(hop) {
+    return Math.max(HOP_FADE_FLOOR, 1 - HOP_FADE_STEP * Math.max(0, hop - 2));
+}
+
+/**
+ * A colour at an opacity, as DOT reads it: `#RRGGBB` at full, `#RRGGBBAA`
+ * otherwise.
+ *
+ * @param {string} colour - `#RRGGBB`.
+ * @param {number} opacity - 0 to 1.
+ * @returns {string} The colour.
+ */
+function faded(colour, opacity) {
+    if (opacity >= 1) return colour;
+    const alpha = Math.round(Math.max(0, opacity) * 255)
+        .toString(16)
+        .padStart(2, "0")
+        .toUpperCase();
+    return `${colour}${alpha}`;
+}
 
 /**
  * One row of the style table.
@@ -511,7 +552,7 @@ export function treeDot({
 }
 
 /* --------------------------------------------------------------------- */
-/*  The map from a place                                                  */
+/*  The map from a place, and the chart                                   */
 /* --------------------------------------------------------------------- */
 
 /**
@@ -532,32 +573,39 @@ function edgeLabel(edge) {
 }
 
 /**
- * The map from a place as DOT, for `neato -n2`.
+ * The map from a place, or the chart from one, as DOT for `neato -n2`.
  *
  * Every node is pinned at the position the layout computed, so the engine
  * only draws. The rings are circles pinned at the origin, drawn faintly,
- * each labelled with its days marker at the top; the rim is one more. The
- * centre is drawn in its `subType` style at full size, a neighbour at the
- * layout's scale, and a second hop dimmer. A place beyond the horizon or
- * with unknown days is a name at the rim, its label carrying its days or `?`.
- * A border edge is dashed; every edge is labelled with its bearing and days.
+ * each labelled with its days marker at the top; the rim is one more,
+ * labelled `beyond` where the layout names what lies past the horizon there
+ * and `unknown` where it holds only the places whose days nobody stated.
+ * The centre is drawn in its `subType` style at full size, a neighbour at
+ * the layout's scale, a second hop dimmer, and each hop beyond fainter
+ * still, down to a floor. A place at the rim is a name, its label carrying
+ * its days or `?`. A border edge is dashed; every edge is labelled with its
+ * bearing and days, and dimmed with its far end.
  *
- * @param {ReturnType<typeof import("./map-layout.mjs").layoutFrom>} layout - The layout.
+ * @param {import("./map-layout.mjs").FromLayout} layout - The layout.
  * @param {Map<string, import("./map-places.mjs").MapPlace>} places - Every place.
  * @param {object} [opts]
  * @param {number} [opts.scale=1] - Multiplies every size.
- * @param {string} [opts.title] - Defaults to `From <name>`.
+ * @param {string} [opts.title] - Defaults to `From <name>`, or to
+ *   `Chart from <name>` for a layout with no rim beyond the horizon.
  * @returns {string} The DOT text.
  */
 export function fromDot(layout, places, { scale = 1, title } = {}) {
     const centre = places.get(layout.centre);
+    const name = centre?.name ?? layout.centre;
     const lines = [];
     lines.push("digraph from {");
     lines.push("  splines=false; overlap=true; outputorder=nodesfirst;");
     lines.push('  graph [fontname="Helvetica"];');
     lines.push('  node [fontname="Helvetica"];');
     lines.push(`  edge [fontname="Helvetica", fontsize=${Math.max(6, Math.round(8 * scale))}];`);
-    lines.push(`  label=${dotString(title ?? `From ${centre?.name ?? layout.centre}`)};`);
+    lines.push(
+        `  label=${dotString(title ?? (layout.beyond ? `From ${name}` : `Chart from ${name}`))};`,
+    );
     lines.push('  labelloc=t; fontsize=18; fontname="Helvetica-Bold";');
     lines.push("");
 
@@ -578,10 +626,15 @@ export function fromDot(layout, places, { scale = 1, title } = {}) {
                 `pos="0,${(ring.radius + 6).toFixed(1)}!", width=0, height=0, margin=0];`,
         );
     }
-    ringNode("rim", layout.rim, "beyond the horizon, or days unknown");
+    ringNode(
+        "rim",
+        layout.rim,
+        layout.beyond ? "beyond the horizon, or days unknown" : "days unknown",
+    );
     lines.push(
-        `  rimlabel [label="beyond", shape=plaintext, fontsize=${Math.max(6, Math.round(7 * scale))}, ` +
-            `fontcolor=${dotString(DIM)}, pos="0,${(layout.rim + 6).toFixed(1)}!", width=0, height=0, margin=0];`,
+        `  rimlabel [label=${dotString(layout.beyond ? "beyond" : "unknown")}, shape=plaintext, ` +
+            `fontsize=${Math.max(6, Math.round(7 * scale))}, fontcolor=${dotString(DIM)}, ` +
+            `pos="0,${(layout.rim + 6).toFixed(1)}!", width=0, height=0, margin=0];`,
     );
     lines.push("");
 
@@ -590,27 +643,29 @@ export function fromDot(layout, places, { scale = 1, title } = {}) {
         if (!place) continue;
         const pos = `pos="${node.x.toFixed(1)},${node.y.toFixed(1)}!"`;
         const id = nodeId("p", node.shortcode);
-        const beyond = node.unknown || node.radius >= layout.rim;
-        if (beyond) {
+        const opacity = hopOpacity(node.hop);
+        const atRim = node.unknown || node.radius >= layout.rim;
+        if (atRim) {
             const label = dotLines([place.name, node.days === undefined ? "?" : `${node.days} d`]);
             lines.push(
                 `  ${id} [label=${label}, shape=plaintext, fontsize=${Math.max(6, Math.round(9 * scale))}, ` +
-                    `fontcolor=${dotString(DIM)}, tooltip=${dotString(place.address ?? place.shortcode)}` +
+                    `fontcolor=${dotString(faded(DIM, opacity))}, tooltip=${dotString(place.address ?? place.shortcode)}` +
                     (place.url ? `, URL=${dotString(place.url)}` : "") +
                     `, ${pos}];`,
             );
             continue;
         }
         const nodeScale = node.hop === 0 ? scale : scale * 0.8;
+        const dim = node.hop >= 2;
         lines.push(
             `  ${id} ${styleAttrs(place.subType ?? "settlement", {
                 scale: nodeScale,
                 label: place.name,
                 tooltip: place.address ?? place.shortcode,
                 url: place.url,
-                border: node.hop === 2 ? DIM : undefined,
-                fontcolor: node.hop === 2 ? DIM : undefined,
-                extra: pos + (node.hop === 2 ? ', fillcolor="#ECEFF1"' : ""),
+                border: dim ? faded(DIM, opacity) : undefined,
+                fontcolor: dim ? faded(DIM, opacity) : undefined,
+                extra: pos + (dim ? `, fillcolor=${dotString(faded(DIM_FILL, opacity))}` : ""),
             })};`,
         );
     }
@@ -619,8 +674,13 @@ export function fromDot(layout, places, { scale = 1, title } = {}) {
     for (const edge of layout.edges) {
         const attrs = [`label=${dotString(edgeLabel(edge))}`, "arrowhead=none"];
         if (edge.kind === "border") attrs.push("style=dashed");
-        if (edge.hop === 2) attrs.push(`color=${dotString(FAINT)}`, `fontcolor=${dotString(DIM)}`);
-        else attrs.push(`color=${dotString(DEFAULT_BORDER)}`);
+        if (edge.hop >= 2) {
+            const opacity = hopOpacity(edge.hop);
+            attrs.push(
+                `color=${dotString(faded(FAINT, opacity))}`,
+                `fontcolor=${dotString(faded(DIM, opacity))}`,
+            );
+        } else attrs.push(`color=${dotString(DEFAULT_BORDER)}`);
         lines.push(`  ${nodeId("p", edge.from)} -> ${nodeId("p", edge.to)} [${attrs.join(", ")}];`);
     }
     lines.push("}");
