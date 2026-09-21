@@ -87,6 +87,9 @@ export * as noteVocabulary from "./note-vocabulary.mjs";
 /** What a place is next to and reachable from: the closed sets, and the checks. */
 export * as placeRelations from "./place-relations.mjs";
 
+/** What lies within a place, who holds it, and what an affiliation holds — the page lists, and the tenure check. */
+export * as holdings from "./holdings.mjs";
+
 /** The places a map is drawn from, read from the content index, and what `parents` says about them. */
 export * as mapPlaces from "./map-places.mjs";
 

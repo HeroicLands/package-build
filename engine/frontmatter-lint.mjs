@@ -1424,6 +1424,8 @@ export function lintNote(
             if (typeof field.check !== "function") continue;
             findings.push(...field.check(note, { index }));
         }
+        // A check the type declares of the whole note, with the same index.
+        if (typeof entry.check === "function") findings.push(...entry.check(note, { index }));
     }
 
     const fields = authoredFields(schema);

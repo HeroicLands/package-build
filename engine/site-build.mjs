@@ -82,6 +82,7 @@ import {
 import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
+import { HOLDINGS_KEYS, foreignHoldingsNodes, holdingsNode, holdingsPages } from "./holdings.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -489,7 +490,8 @@ export function tableUniverse(pages) {
  * about every other page, known only once the whole tree has resolved — see
  * {@link module:engine/related-pages} — so an authored value is dropped the
  * way `aliases` is, and {@link renderPages} writes the derived block once it
- * holds the graph.
+ * holds the graph. `contains`, `held_by` and `holdings` are dropped for the
+ * same reason — see {@link module:engine/holdings}.
  *
  * @param {object} page - The page.
  * @param {object} options
@@ -525,6 +527,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
     if (decorate) decorate(data, page);
     delete data.aliases;
     delete data.related;
+    for (const key of HOLDINGS_KEYS) delete data[key];
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
 }
@@ -783,10 +786,18 @@ export function renderPages(pages, options) {
     }
 
     const related = relatedPages(edges, entries);
+    // What lies within a place, who holds it, and what an affiliation holds
+    // — read off `parents` and `domains` across this package and every
+    // fetched index, local notes first so they shadow a dependency's.
+    const holdings = holdingsPages([
+        ...pages.map((page) => holdingsNode(page.fm, { title: pageTitle(page), url: page.url })),
+        ...foreignHoldingsNodes(foreign?.index),
+    ]);
 
     for (const { page, body, data } of rendered) {
         const block = related.get(page.url);
         if (block) data.related = block;
+        Object.assign(data, holdings.get(page.url));
         const dest = path.join(outRoot, pageDestination(page));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
         fs.writeFileSync(dest, matter.stringify(body, data));

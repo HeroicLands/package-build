@@ -2440,6 +2440,23 @@ subType `deity` covers a god's nature, domains, epithets and aspects in prose.
 That frees the name for the territorial sense, which earns it: every affiliation
 subType holds sway somewhere, while the divine sense applies to one.
 
+**`domains` names what the affiliation holds directly**, and nothing beneath
+it. A polity whose `domains` names a region holds the region; the settlements
+within it are the region's, reached through its `contains`, and are not
+repeated here. A house holds its manors and names each; the crown holds the
+realm and names the realm. What lies below a holder is answered by the two
+hierarchies together — `place.parents` for where a place sits, and
+`affiliation.parents` for whom a holder answers to — so a subinfeudated manor
+sits in one region by the first and under a lord of another polity by the
+second, and both pages say so.
+
+The website reads `domains` across the package and every fetched index and
+writes the affiliation's page a `holdings` list — every place its `domains`
+names, each entry `{ title, url, type, subType }`, sorted by `subType` then
+`title`, and absent when `domains` names nothing. Every place it names carries
+the affiliation back in `held_by`. Both are derived; a note that writes one has
+it replaced.
+
 If `sohl` is present, this becomes an `affiliation` item.
 
 | shared source    | → sohl             | → hm3 |
@@ -3186,6 +3203,31 @@ closed set, and each finding is located at the entry that states it.
 | `open-sea`      | ship               |
 | `river`         | boat               |
 | `lake`          | boat               |
+
+#### What lies within a place, and who holds it
+
+`parents` states what a place is within; an affiliation's `domains` states
+what it holds. The website reads both across the package and every fetched
+index and writes each place's page two lists, each entry
+`{ title, url, type, subType }` and each absent when empty:
+
+- `contains` — every place whose `parents` names this one, sorted by
+  `subType` then `title`. A region lists its settlements, sites, structures
+  and features; a settlement lists the structures within it.
+- `held_by` — every affiliation whose `domains` names this one, sorted by
+  `title`.
+
+Both are derived; a note that writes one has it replaced. **`domains` is
+never expanded**: a region held by a polity lists the polity in `held_by`, and
+a settlement within that region lists only the house or order whose `domains`
+names it — its lord's lord is reached through `affiliation.parents`.
+
+**A settlement, a site or a structure is held by someone.** One of those that
+no affiliation's `domains` names — in this package or in a fetched index — is
+a warning from `content-build lint`, `unheld land`, located at the note's
+`type:` line, so a gap in tenure shows while a note is written. A `world`, a
+`region` and a `feature` are exempt: a region is held through its polity's
+`domains`, and a river by nobody.
 
 **A place declares only what is true of ground.** Four properties were removed
 because they were true of something else, and each removal has a home to go to.
