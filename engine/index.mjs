@@ -84,6 +84,9 @@ export * as noteSchemas from "./note-schemas.mjs";
 /** The closed frontmatter regions: the `data:` container and each type's `subType`. */
 export * as noteVocabulary from "./note-vocabulary.mjs";
 
+/** What a place is next to and reachable from: the closed sets, and the checks. */
+export * as placeRelations from "./place-relations.mjs";
+
 /** The closed registry of system ids, and the `none` that stands for no system. */
 export * as systems from "./systems.mjs";
 
