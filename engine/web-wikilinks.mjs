@@ -311,9 +311,17 @@ function isPlainMap(value) {
  * {@link module:engine/content-images.renderImageFigures} turns into a figure
  * for the website, and what the book reads its staging list out of.
  *
+ * ## Every hit is recorded, so the page's edges come out of one pass
+ *
+ * A caller that hands in `ctx.resolved` is given every index entry a link on
+ * the page resolved to, in body order, repeats included. That is the link
+ * graph, read at the one point where it exists: the build never has to walk a
+ * page a second time to learn what it links to. Nothing is recorded for a
+ * same-page anchor or for a target that resolved nowhere.
+ *
  * @param {string} body - The markdown body.
  * @param {object} ctx - `{ index, assets, collide, contentTypes,
- *   packages, noIndexPackages, foreign, type, errors, src, file }`.
+ *   packages, noIndexPackages, foreign, type, errors, src, file, resolved }`.
  *   `packages` is every package an address may name, without which the leading
  *   package segment of a canonical address reads as an unknown type;
  *   `noIndexPackages` is every package declared `contentIndex: false`, so a
@@ -322,7 +330,8 @@ function isPlainMap(value) {
  *   is the cross-package manifest index; `assets` is the address space an embed
  *   resolves against. `src` is the page's display
  *   path and `file` the source file a diagnostic should name — absent, `src`
- *   stands in.
+ *   stands in. `resolved`, when supplied, is the array every resolved
+ *   target's index entry is appended to.
  * @returns {string} The body with embeds and wikilinks rewritten.
  */
 export function resolveWebWikilinks(body, ctx) {
@@ -425,6 +434,8 @@ export function resolveWebWikilinks(body, ctx) {
                 lookupRead(ctx.foreign, read, ctx.contentPackage)
             :   undefined);
         if (hit) {
+            // The edge, for a caller reading the link graph off this pass.
+            ctx.resolved?.push(hit);
             // An address with an *empty* label has no prose to show (a
             // shortcode is not display text), so the document's **current**
             // name stands in and a rename shows at every citation.

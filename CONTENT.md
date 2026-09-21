@@ -2333,6 +2333,53 @@ notes it lists, and link it from the homepage. Nothing is generated between
 the homepage and the pages, so delete the key.
 ````
 
+### Every page carries what links to it, and what it links to
+
+The build resolves every wikilink on every page through the address index, so
+at the moment it writes a page it holds the whole link graph. It writes the
+part that concerns each page into that page's front matter:
+
+```yaml
+related:
+  backlinks: # pages that link to this one
+    - title: Afzandah Parnâzar
+      url: /thalorna/being-afzndhprnzr/
+      type: being
+  mentions: # pages this one links to
+    - title: Kethramír
+      url: /thalorna/place-kthrmr/
+      type: place
+```
+
+The theme's `related.html` partial reads both lists and renders them as one
+"Related" card, grouped by `type`. What the build guarantees about them:
+
+- **A page appears once per list**, however many times it is linked, and
+  whichever address the link was written to: `docbeing-grod` and `being-grod`
+  are one page, and a page that cites it under both lists it once. A link from
+  a page to itself is not a connection and is dropped.
+- **Each list is sorted by `type`, then `title`**, so the card's grouping is
+  the same on every build whatever order the notes were walked in.
+- **Both lists are present whenever either has an entry**, so a theme reads one
+  shape; a page with no links either way carries **no `related` key at all**,
+  which is the partial's silent-disappear convention kept at the source.
+- **`url` composes `<base><slug>/`**, like every other href this build renders
+  — see [A page's URL is its address](#a-pages-url-is-its-address). The page
+  states its own address as `/<slug>/`; everything pointing _at_ it, this
+  included, carries the base.
+- **The homepage is a page like any other on both sides.** A content page
+  reaches it through `[[homepage-root|Text]]` and is listed in its backlinks;
+  its own body links are ordinary markdown, resolved against the package root
+  the way a browser resolves them, so `being-grod/`, `/thalorna/being-grod/`
+  and `./being-grod/#top` each count as a mention of that page. A link that
+  names a host leaves the site and counts as nothing.
+- **Only a page of this site is an endpoint.** A link into another package
+  resolves to an href the build renders but no page it writes, so it is listed
+  on neither side; a backlink can be counted only on a page this build emits.
+
+`related` is derived, never authored: what links to a page is a fact about
+every other page in the tree. A note that writes one has it replaced.
+
 ### Why the output location is fixed
 
 The content mount is a build artifact and is **deleted on every run**, so that a

@@ -289,6 +289,9 @@ export function buildSiteIndex(
  *   resolvers that distinguish a foreign hit from a local one.
  * @param {object} [options.assets] - The address space an `![[…]]` embed
  *   resolves against, shaped as every asset resolver reads one.
+ * @param {object[]} [options.resolved] - Collector the resolver appends every
+ *   resolved target's index entry to — the page's outbound edges, read off
+ *   the one pass that resolves them.
  * @returns {object} The resolver context.
  *
  * There is deliberately **no `manifestsComplete`**. It used to let a resolver
@@ -299,7 +302,7 @@ export function buildSiteIndex(
  */
 export function wikiContext(
     built,
-    { src, file, type = null, errors, foreignIndex = new Map(), assets },
+    { src, file, type = null, errors, foreignIndex = new Map(), assets, resolved },
 ) {
     return {
         index: built.index,
@@ -321,6 +324,7 @@ export function wikiContext(
         errors,
         src,
         file,
+        resolved,
     };
 }
 
