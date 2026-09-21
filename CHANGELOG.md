@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 22.4.4
+
+### Patch Changes
+
+Every page a site build publishes carries a `related` block in its front matter — the pages that link to it and the pages it links to, each named once with its title, address and type — which the theme renders as the Related card at the foot of the page. A page nothing connects to carries no block, and the homepage is counted on both sides like any other page.
+
+`changelog group` keeps a hard-wrapped paragraph as one block instead of fragmenting it one block per line, and no longer inserts a blank line under a bold sentence a paragraph continues directly beneath.
+
 ## 22.4.3
 
 ### Patch Changes
