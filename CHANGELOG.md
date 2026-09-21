@@ -1,5 +1,23 @@
 # @heroiclands/package-build
 
+## 22.4.5
+
+### Patch Changes
+
+A `place` note may state what it is next to and what it is reachable from, as `data.borders` (`{ to, bearing }`) and `data.routes` (`{ to, bearing, mode, days, terrain?, leagues? }`), with bearings from the eight compass points, modes `land | boat | ship`, days from the marker scale `1 2 3 5 10 20 30 45 60 90 180 360` and terrains from a closed registry. `content-build lint` checks that every `to` is a place, that every value is from its set, and that the other note states the pair back — a missing reciprocal is a warning naming both notes, a contradictory one an error. The content index carries both lists, so a dependency's places take part.
+
+**Maps**
+
+- A new `content-build map --tree` draws the containment tree from `parents`, clustered by continent, and reports a place with no parent, a parent no place declares, and a cycle.
+- `content-build map --from <shortcode>` draws the map from that place: north up, each neighbour at its bearing and on a ring of its days, places two hops out drawn dimmer.
+- `--from all` draws one map for every place with a border or a route, and `--travel` draws the whole route graph.
+- The drawings land under `build/map/` as SVG beside their DOT source; GraphViz is needed for this command alone, and its absence is reported plainly.
+
+**Site**
+
+- The rendered site carries a search index, built beside the pages when the site's root files are written and served with them.
+- `site.search: false` in `package-build.config.yaml` turns it off.
+
 ## 22.4.4
 
 ### Patch Changes
