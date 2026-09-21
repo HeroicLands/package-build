@@ -769,6 +769,7 @@ Any other key under `docs.itemFields` is refused:
 | `site.passOptions` | object   | `{}`                                        |
 | `site.notfound`    | object   | `null`                                      |
 | `site.hugo`        | object   | `{}`                                        |
+| `site.search`      | boolean  | `true`                                      |
 
 How much of a package reaches the web at all is **not** here — it is
 [`publish.site`](#publish). `site` is framing: which named pass bundle
@@ -818,7 +819,7 @@ published. A `site.out` is refused by name:
 
 > ``package-build config: `site` must be a mapping.``
 
-> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, notfound, hugo).``
+> ``package-build config: `site.<key>` is not a recognized option (expected one of: base, assets, description, packages, pass, passOptions, notfound, hugo, search).``
 
 `site.assets` is the host every package's imagery is served from, and it is
 the one address in this file that is not this repository's own. A note names
@@ -931,6 +932,23 @@ the block cannot grow into a second configuration file:
 > ``package-build config: `site.hugo` must be a mapping.``
 
 > ``package-build config: `site.hugo.baseURL` is derived from package.json `homepage` and must not be declared — it would be overwritten, and the two would disagree with nothing to say so.``
+
+`site.search` is whether the rendered site carries a search index. On by
+default: `package-build site-root` runs Pagefind over the rendered pages after
+it writes `_headers`, and the index lands beside them as
+`build/site/<contentPackage>/pagefind/`, served at `/<contentPackage>/pagefind/`
+with the rest of the site. The theme loads it relative to the site's base URL
+and renders the search box; what is indexed is the body of every page, with the
+theme's own chrome marked out. `false` skips the step and removes an index an
+earlier build left, so a site that wants no search deploys none. See
+[`package-build site-root`](commands.md#package-build-site-root).
+
+```yaml
+site:
+  search: false
+```
+
+> ``package-build config: `site.search` must be a boolean.``
 
 ### The generated Hugo configuration
 
