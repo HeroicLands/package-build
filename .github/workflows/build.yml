@@ -108,6 +108,21 @@ jobs:
                   curl -fsSL "$url" | tar -xJ --strip-components=1 -C /usr/local/bin \
                       typst-x86_64-unknown-linux-musl/typst
                   typst --version
+            # The map tests render with GraphViz and assert on the SVG. The
+            # runner image ships it; the pre-push container does not, so the
+            # step installs it where `dot` is absent rather than letting the
+            # rendering cases skip there.
+            - name: GraphViz, for the map tests
+              run: |
+                  set -euo pipefail
+                  if ! command -v dot >/dev/null 2>&1; then
+                      if command -v sudo >/dev/null 2>&1; then
+                          sudo apt-get update -q && sudo apt-get install -y -q graphviz
+                      else
+                          apt-get update -q && apt-get install -y -q graphviz
+                      fi
+                  fi
+                  dot -V
             - name: Tests
               run: npm test
             # Declaration emit is what `prepack` runs at publish time, so a

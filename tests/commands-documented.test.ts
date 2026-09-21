@@ -222,9 +222,9 @@ const nodes = allNodes();
 const doc = fs.readFileSync(DOC_PATH, "utf8");
 
 describe("the two binaries' real command surface, extracted from source", () => {
-    it("has 28 top-level commands", () => {
+    it("has 29 top-level commands", () => {
         const topLevel = nodes.filter((n) => n.path.length === 1);
-        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(28);
+        expect(topLevel.map((n) => `${n.binary} ${n.path.join(" ")}`).sort()).toHaveLength(29);
     });
 
     it("includes `package-build site-root`", () => {

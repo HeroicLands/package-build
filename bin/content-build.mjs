@@ -47,6 +47,7 @@
  *   npx content-build markdown [paths..] [--fix]
  *   npx content-build manifest [root] [--out <dir>]
  *   npx content-build site [--out <dir>]
+ *   npx content-build map [--tree] [--from <shortcode>] [--travel] [--out <dir>]
  *   npx content-build reachability <dir> [file] [--index <shortcode>]
  *   npx content-build addresses diff --from <zip|dir> [--strict]
  *
@@ -144,6 +145,9 @@ import {
     addressFindingMessage,
 } from "../engine/address-diff.mjs";
 import { emittedArtFor, itemPackJsonDirs } from "../engine/generate.mjs";
+import { buildMaps, FROM_ALL, MAP_DIR } from "../engine/map-build.mjs";
+import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
+import { loadMapWorld } from "../engine/map-places.mjs";
 
 /**
  * The packs `unpack` extracts.
@@ -250,6 +254,7 @@ const argv = yargs(hideBin(process.argv))
     .command(contentIndexCommand())
     .command(siteCommand())
     .command(pdfCommand())
+    .command(mapCommand())
     .command(reachabilityCommand())
     .command(addressesCommand())
     .version(ownVersion())
@@ -1655,6 +1660,144 @@ function siteCommand() {
                 );
                 const { file } = writeHugoConfig(config, hugo);
                 log.info(`wrote ${path.relative(process.cwd(), file)}`);
+            } catch (err) {
+                reportFailure(err);
+                process.exitCode = 1;
+            }
+        },
+    };
+}
+
+/**
+ * `content-build map` — draw what the place notes state.
+ *
+ * Reads the content index — this package's and every declared dependency's —
+ * so a consumer's map draws its dependencies' places beside its own, and
+ * writes under `build/map/`, always the `.dot` beside the `.svg`. Three
+ * drawings: the containment tree from `parents` (`--tree`, the author's
+ * check, whose anomalies are reported as findings), the map from a place
+ * from its `borders` and `routes` (`--from`), and the whole route graph
+ * (`--travel`). GraphViz draws; when it is absent the command says what to
+ * install and stops.
+ *
+ * @returns {object} The yargs command module.
+ */
+// eslint-disable-next-line
+function mapCommand() {
+    return {
+        command: "map",
+        describe: "Draw the containment tree, the map from a place, or the route graph",
+        builder: (yargs) => {
+            yargs
+                .option("tree", {
+                    describe:
+                        "Draw the containment tree from `parents`: `tree.svg`, and one " +
+                        "`tree-<shortcode>.svg` per continent. Reports the anomalies.",
+                    type: "boolean",
+                    default: false,
+                })
+                .option("root", {
+                    describe:
+                        "With --tree, draw the subtree beneath this place as " +
+                        "`tree-<shortcode>.svg` and report nothing.",
+                    type: "string",
+                })
+                .option("from", {
+                    describe:
+                        "Draw the map from this place as `from-<shortcode>.svg`; repeatable, " +
+                        `or \`${FROM_ALL}\` for every place with a border or a route.`,
+                    type: "string",
+                    array: true,
+                })
+                .option("travel", {
+                    describe: "Draw the whole route graph as `travel.svg`.",
+                    type: "boolean",
+                    default: false,
+                })
+                .option("engine", {
+                    describe: "The tree's layout engine. `twopi` is the radial one.",
+                    choices: [...GRAPHVIZ_ENGINES],
+                    default: "dot",
+                })
+                .option("rankdir", {
+                    describe: "The tree's rank direction; `dot` engine only.",
+                    choices: ["TB", "LR", "BT", "RL"],
+                    default: "TB",
+                })
+                .option("nodesep", {
+                    describe: "The tree's GraphViz `nodesep`, in inches.",
+                    type: "number",
+                })
+                .option("ranksep", {
+                    describe: "The tree's GraphViz `ranksep`, in inches.",
+                    type: "number",
+                })
+                .option("scale", {
+                    describe: "Multiply every node's size, font and border weight.",
+                    type: "number",
+                    default: 1,
+                })
+                // Declared positively so yargs derives `--no-polities` from it.
+                .option("polities", {
+                    describe:
+                        "Draw polities beside their regions in the tree. `--no-polities` " +
+                        "drops them.",
+                    type: "boolean",
+                    default: true,
+                })
+                .option("base", {
+                    describe:
+                        "The site base this package's pages are served under, ending in " +
+                        "a slash; given, every name is a link to its page.",
+                    type: "string",
+                })
+                .option("out", {
+                    describe: `Directory to write into. Defaults to \`${MAP_DIR}\`.`,
+                    type: "string",
+                });
+        },
+        handler: (argv) => {
+            try {
+                const config = loadPackConfig();
+                const outDir = argv.out ?? path.join(config.rootDir, ...MAP_DIR.split("/"));
+                const problems = [];
+                const world = loadMapWorld({ config, base: argv.base, problems });
+                for (const problem of problems) emitDiagnostic(problem);
+                if (problems.length) process.exitCode = 1;
+                for (const s of world.stale) {
+                    emitDiagnostic({
+                        file: cachedIndexPath(config, s.package),
+                        severity: "error",
+                        message: `unusable content index: ${s.reason}`,
+                    });
+                }
+                if (world.stale.length) {
+                    log.error("Re-run `content-build deps fetch`.");
+                    process.exitCode = 1;
+                    return;
+                }
+
+                const result = buildMaps({
+                    world,
+                    outDir,
+                    tree: argv.tree,
+                    root: argv.root,
+                    from: argv.from ?? [],
+                    travel: argv.travel,
+                    engine: argv.engine,
+                    rankdir: argv.rankdir,
+                    nodesep: argv.nodesep,
+                    ranksep: argv.ranksep,
+                    scale: argv.scale,
+                    polities: argv.polities !== false,
+                });
+                const errors = reportFindings(result.findings, {});
+                const svgs = result.written.filter((f) => f.endsWith(".svg"));
+                log.info(
+                    `${world.places.size} place(s) → ${svgs.length} drawing(s) under ` +
+                        `${path.relative(process.cwd(), outDir) || "."}`,
+                );
+                if (errors) process.exitCode = 1;
             } catch (err) {
                 reportFailure(err);
                 process.exitCode = 1;
