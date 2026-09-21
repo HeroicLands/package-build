@@ -412,6 +412,23 @@ Drawing a declared infobox: HTML for a Foundry Journal Page, Typst for the book.
 | `linkToUuid`           | `linkToUuid(value)`                   | `string`  | drawing a link value as a Foundry document reference                     |
 | `sectionHasContent`    | `sectionHasContent(section)`          | `boolean` | deciding whether a section holds anything worth drawing                  |
 
+### `engine.placeRelations`
+
+What a place is next to (`data.borders`) and reachable from (`data.routes`): the closed sets both draw from, stated once for the lint, the specification and a consumer drawing a map, and the checks that hold a note to them and to the note at the other end.
+
+| Export            | Signature                       | Returns             | Use it when                                                                                                          |
+| ----------------- | ------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `BEARINGS`        | `const BEARINGS`                | `readonly string[]` | the eight compass bearings, clockwise from `N`                                                                       |
+| `ROUTE_MODES`     | `const ROUTE_MODES`             | `readonly string[]` | the modes a route is travelled by — `land`, `boat`, `ship`                                                           |
+| `TRAVEL_DAYS`     | `const TRAVEL_DAYS`             | `readonly number[]` | the days markers a route may state, each meaning "about this, under normal conditions"                               |
+| `TERRAIN_MODES`   | `const TERRAIN_MODES`           | —                   | the terrain registry, each terrain naming the modes that cross it                                                    |
+| `TERRAINS`        | `const TERRAINS`                | `readonly string[]` | the terrain names, in registry order                                                                                 |
+| `BORDER_KEYS`     | `const BORDER_KEYS`             | `readonly string[]` | the keys a `borders` entry carries                                                                                   |
+| `ROUTE_KEYS`      | `const ROUTE_KEYS`              | `readonly string[]` | the keys a `routes` entry carries                                                                                    |
+| `oppositeBearing` | `oppositeBearing(bearing)`      | `string\|undefined` | the bearing the other end of a relation states, or `undefined` for a value that is not a bearing                     |
+| `checkBorders`    | `checkBorders(note, { index })` | `object[]`          | linting a place's `borders` — targets, values, once per pair, no parent or child, and reciprocity with the other end |
+| `checkRoutes`     | `checkRoutes(note, { index })`  | `object[]`          | linting a place's `routes` — as `checkBorders`, plus `mode`, `days` and `terrain`, once per pair per mode            |
+
 ### `engine.systems`
 
 The closed registry of system ids, and the `none` that stands for no system at all. An unknown system value is an error; adding a system is a data change to this registry rather than a hardcoded set scattered through the pipeline.

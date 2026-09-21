@@ -82,6 +82,9 @@ import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs
 // vocabulary that answered only to the current spelling would report every key
 // of an unswept note as unknown.
 import { currentType } from "./ids.mjs";
+// What a place is next to and reachable from — the two relation lists and
+// the checks that hold them to their closed sets and to each other.
+import { checkBorders, checkRoutes } from "./place-relations.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -112,6 +115,13 @@ import { currentType } from "./ids.mjs";
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
  *   `"pack"` means each is a pack this package declares, so a key naming none
  *   is a finding of its own: it addresses a hierarchy nothing will ever read.
+ * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
+ *   check of the value beyond its shape, run by the frontmatter lint with the
+ *   link index once the container has been checked. The lint stays
+ *   vocabulary-agnostic this way: the rule lives beside the field that needs
+ *   it, and the linter calls whatever it is handed. A place's `borders` and
+ *   `routes` carry one, because what they state is checked against the note
+ *   at the other end.
  * @property {string} describe - One line, for the author-facing reference.
  */
 
@@ -996,6 +1006,24 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "population",
                 ...NUM,
                 describe: "Approximate population, to two significant digits.",
+            },
+            {
+                name: "borders",
+                ...LIST,
+                shape: "list of `{ to, bearing }` entries",
+                check: checkBorders,
+                describe:
+                    "Places sharing a frontier with this one — each the other's shortcode " +
+                    "and where it lies from here.",
+            },
+            {
+                name: "routes",
+                ...LIST,
+                shape: "list of `{ to, bearing, mode, days, terrain?, leagues? }` entries",
+                check: checkRoutes,
+                describe:
+                    "Journeys from this place's centre — where the destination lies, how " +
+                    "it is travelled, and about how many days it takes.",
             },
         ]),
     }),
