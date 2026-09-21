@@ -6,10 +6,11 @@
  */
 
 /**
- * The layout maths behind `content-build map --from`, tested without
- * GraphViz: a bearing is an angle with north up and east right, a days marker
- * is a ring, the rings are log-spaced, and two hops compose into one bearing
- * only where they agree.
+ * The layout maths behind `content-build map --from` and `--chart`, tested
+ * without GraphViz: a bearing is an angle with north up and east right, a
+ * days marker is a ring, the rings are log-spaced, two hops compose into one
+ * bearing only where they agree, and a longer chain composes as long as no
+ * hop turns back on the way it has come.
  */
 
 import { describe, it, expect } from "vitest";
@@ -21,9 +22,11 @@ import {
     bearingAngle,
     bearingSteps,
     bearingVector,
+    composeChain,
     composeHops,
     daysMarker,
     edgeLength,
+    layoutChart,
     layoutFrom,
     rimRadius,
     ringRadius,
@@ -101,6 +104,23 @@ describe("a days marker is a ring", () => {
         expect(ringRadius(undefined)).toBe(rimRadius());
     });
 
+    it("draws the rings to any horizon of the scale, on the same log scale", () => {
+        expect(rings(360).map((r) => r.days)).toEqual([...TRAVEL_DAYS]);
+        expect(rings(30).map((r) => r.days)).toEqual([1, 2, 3, 5, 10, 20, 30]);
+        // The spacing is the spacing: a ring is where it is whatever the horizon.
+        expect(ringRadius(30, 360)).toBe(ringRadius(30));
+        expect(ringRadius(180, 360)).toBeGreaterThan(ringRadius(90));
+        expect(ringRadius(180, 360)).toBeLessThan(rimRadius(360));
+        // The rim moves out with the horizon, and stays one log step beyond it.
+        expect(rimRadius(360)).toBeGreaterThan(ringRadius(360, 360));
+        expect(close(rimRadius(360) - ringRadius(360, 360), rimRadius() - ringRadius(90))).toBe(
+            true,
+        );
+        expect(ringRadius(360, 360)).toBe(rings(360).at(-1)!.radius);
+        expect(ringRadius(45, 30)).toBe(rimRadius(30));
+        expect(ringRadius(undefined, 360)).toBe(rimRadius(360));
+    });
+
     it("snaps a total to the smallest marker that covers it", () => {
         expect(daysMarker(1)).toBe(1);
         expect(daysMarker(4)).toBe(5);
@@ -147,6 +167,127 @@ describe("two hops compose into one bearing only where they agree", () => {
         expect(c).toBeDefined();
         expect(c!.days).toBeUndefined();
         expect(close(c!.angle, -22.5)).toBe(true);
+    });
+});
+
+describe("a chain of hops composes as long as no hop turns back", () => {
+    it("is the two-hop composition for two hops", () => {
+        for (const [a, b] of [
+            [
+                { bearing: "E", days: 5 },
+                { bearing: "NE", days: 5 },
+            ],
+            [
+                { bearing: "E", days: 20 },
+                { bearing: "NE", days: 1 },
+            ],
+            [{ bearing: "E" }, { bearing: "SE", days: 3 }],
+            [
+                { bearing: "E", days: 5 },
+                { bearing: "N", days: 5 },
+            ],
+        ] as const) {
+            expect(composeChain([a, b])).toEqual(composeHops(a, b));
+        }
+        expect(composeChain([{ bearing: "E", days: 5 }])).toEqual({ angle: 0, days: 5 });
+        expect(composeChain([])).toBeUndefined();
+    });
+
+    it("sums the days and weights the bearings by them along a straight chain", () => {
+        const c = composeChain([
+            { bearing: "E", days: 5 },
+            { bearing: "E", days: 10 },
+            { bearing: "E", days: 20 },
+        ]);
+        expect(c).toEqual({ angle: 0, days: 35 });
+    });
+
+    it("lets a path bend, checking each hop against the running direction rather than the last hop", () => {
+        // East 15 days, then north-east 10: the running direction leans a
+        // little north of east.
+        const bent = composeChain([
+            { bearing: "E", days: 5 },
+            { bearing: "E", days: 10 },
+            { bearing: "NE", days: 10 },
+        ]);
+        expect(bent).toBeDefined();
+        expect(bent!.days).toBe(25);
+        expect(bent!.angle).toBeGreaterThan(0);
+        expect(bent!.angle).toBeLessThan(45);
+        expect(
+            close(
+                bent!.angle,
+                (Math.atan2(10 * Math.SQRT1_2, 15 + 10 * Math.SQRT1_2) * 180) / Math.PI,
+            ),
+        ).toBe(true);
+        // A hop north is one step from the last hop's north-east, and would
+        // pass a last-hop check — but it is 72° from the running direction.
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "E", days: 10 },
+                { bearing: "NE", days: 10 },
+                { bearing: "N", days: 10 },
+            ]),
+        ).toBeUndefined();
+        // A bend one way rules out the adjacent bearing the other way: after
+        // east then north-east, south-east is a step from the first hop but
+        // 67.5° from the running direction.
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "NE", days: 5 },
+                { bearing: "SE", days: 5 },
+            ]),
+        ).toBeUndefined();
+        // Straight on, and the same bend again, both compose.
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "NE", days: 5 },
+                { bearing: "E", days: 5 },
+                { bearing: "NE", days: 5 },
+            ]),
+        ).toBeDefined();
+    });
+
+    it("refuses a hop that turns back", () => {
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "E", days: 10 },
+                { bearing: "W", days: 5 },
+            ]),
+        ).toBeUndefined();
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "NE", days: 5 },
+                { bearing: "NW", days: 5 },
+            ]),
+        ).toBeUndefined();
+    });
+
+    it("makes the total unknown once any hop is a border, and weighs the hops evenly then", () => {
+        const c = composeChain([
+            { bearing: "E", days: 5 },
+            { bearing: "E", days: 10 },
+            { bearing: "NE" },
+        ]);
+        expect(c).toBeDefined();
+        expect(c!.days).toBeUndefined();
+        expect(close(c!.angle, (Math.atan2(Math.SQRT1_2, 2 + Math.SQRT1_2) * 180) / Math.PI)).toBe(
+            true,
+        );
+    });
+
+    it("refuses a hop whose bearing is not one", () => {
+        expect(
+            composeChain([
+                { bearing: "E", days: 5 },
+                { bearing: "up", days: 5 },
+            ]),
+        ).toBeUndefined();
     });
 });
 
@@ -358,6 +499,190 @@ describe("the map from a place", () => {
 
     it("refuses a centre that is not a place", () => {
         expect(() => layoutFrom(world(), "nowhere")).toThrow(/nowhere/);
+    });
+});
+
+/* ---------------------------------------------------------------------- */
+/*  The chart from a place                                                */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The world, extended beyond two hops. Beyond omega: iota straight on east,
+ * nu a step north of east, kappa straight back west, and a border east to
+ * lambda, from which a road runs on to mu. Beyond nu: xi due north. A road
+ * from porta east to eta, so eta is reached two ways. Beyond farx: abyss,
+ * ninety days further south.
+ */
+function chartWorld(): Map<string, Place> {
+    const places = world();
+    places
+        .get("omega")!
+        .routes.push(
+            { to: "iota", bearing: "E", mode: "land", days: 20 },
+            { to: "nu", bearing: "NE", mode: "land", days: 10 },
+            { to: "kappa", bearing: "W", mode: "land", days: 5 },
+        );
+    places.get("omega")!.borders.push({ to: "lambda", bearing: "E" });
+    places.get("porta")!.routes.push({ to: "eta", bearing: "E", mode: "land", days: 3 });
+    places.get("farx")!.routes.push({ to: "abyss", bearing: "S", mode: "ship", days: 90 });
+    for (const sc of ["iota", "nu", "kappa", "mu", "abyss"]) {
+        places.set(sc, place(sc, { subType: "settlement" }));
+    }
+    places.set(
+        "xi",
+        place("xi", {
+            subType: "settlement",
+            routes: [{ to: "nu", bearing: "S", mode: "land", days: 10 }],
+        }),
+    );
+    places.set(
+        "lambda",
+        place("lambda", {
+            borders: [{ to: "omega", bearing: "W" }],
+            routes: [{ to: "mu", bearing: "E", mode: "land", days: 5 }],
+        }),
+    );
+    return places;
+}
+
+describe("the chart from a place", () => {
+    const layout = layoutChart(chartWorld(), "alpha");
+    const find = (sc: string) => layout.nodes.find((n) => n.shortcode === sc);
+    const node = (sc: string) => {
+        const n = find(sc);
+        if (!n) throw new Error(`${sc} is not on the chart`);
+        return n;
+    };
+    const angle = (sc: string) => (Math.atan2(node(sc).y, node(sc).x) * 180) / Math.PI;
+    const radius = (sc: string) => Math.hypot(node(sc).x, node(sc).y);
+
+    it("pins the centre and draws the neighbours as the map from a place does", () => {
+        const from = layoutFrom(chartWorld(), "alpha");
+        expect(node("alpha").x).toBe(0);
+        expect(node("alpha").y).toBe(0);
+        for (const n of from.nodes.filter((n) => n.hop <= 1)) {
+            const c = node(n.shortcode);
+            expect(c.hop, n.shortcode).toBe(n.hop);
+            expect(close(c.x, n.x) && close(c.y, n.y), n.shortcode).toBe(true);
+            expect(c.days, n.shortcode).toBe(n.days);
+        }
+    });
+
+    it("draws every ring of the scale to the default horizon of 360 days, with an unknown rim", () => {
+        expect(layout.horizon).toBe(360);
+        expect(layout.rings.map((r) => r.days)).toEqual([...TRAVEL_DAYS]);
+        expect(layout.rim).toBe(rimRadius(360));
+        expect(layout.beyond).toBe(false);
+    });
+
+    it("places a three-hop chain at the composed bearing on the ring of the summed days", () => {
+        // portb E 5, omega E 10, iota E 20: 35 days → the 45-day ring.
+        expect(node("iota").hop).toBe(3);
+        expect(node("iota").via).toBe("omega");
+        expect(node("iota").days).toBe(35);
+        expect(close(angle("iota"), 0)).toBe(true);
+        expect(close(radius("iota"), ringRadius(45, 360))).toBe(true);
+        // The edge is the third hop.
+        const edge = layout.edges.find((e) => e.from === "omega" && e.to === "iota");
+        expect(edge?.hop).toBe(3);
+        expect(edge?.days).toBe(20);
+    });
+
+    it("lets a chain bend within one octant of the running direction", () => {
+        // portb E 5, omega E 10, nu NE 10: 25 days → the 30-day ring, a
+        // little north of east.
+        expect(node("nu").hop).toBe(3);
+        expect(node("nu").days).toBe(25);
+        expect(angle("nu")).toBeGreaterThan(0);
+        expect(angle("nu")).toBeLessThan(45);
+        expect(close(radius("nu"), ringRadius(30, 360))).toBe(true);
+    });
+
+    it("omits a hop that turns back from the running direction, keeping the place before it", () => {
+        // kappa is straight back west from omega.
+        expect(find("kappa")).toBeUndefined();
+        // xi is north of nu — one step from nu's own hop, but past one octant
+        // of the running direction east-north-east.
+        expect(find("xi")).toBeUndefined();
+        expect(find("omega")).toBeDefined();
+        expect(find("nu")).toBeDefined();
+    });
+
+    it("takes the fewest-days path where a place is reached by several", () => {
+        // eta: porta NE 1 then E 3 is 4 days; portb E 5 then NE 5 is 10.
+        expect(node("eta").hop).toBe(2);
+        expect(node("eta").via).toBe("porta");
+        expect(node("eta").days).toBe(4);
+        expect(close(radius("eta"), ringRadius(5, 360))).toBe(true);
+        expect(angle("eta")).toBeGreaterThan(0);
+        expect(angle("eta")).toBeLessThan(22.5);
+        expect(layout.edges.filter((e) => e.to === "eta")).toHaveLength(1);
+    });
+
+    it("sends a place reached by a border beyond the first hop to the unknown rim, and states nothing past it", () => {
+        expect(node("lambda").hop).toBe(3);
+        expect(node("lambda").days).toBeUndefined();
+        expect(node("lambda").unknown).toBe(true);
+        expect(close(radius("lambda"), rimRadius(360))).toBe(true);
+        // theta, a border beyond a border, as in the map from a place.
+        expect(node("theta").unknown).toBe(true);
+        expect(close(radius("theta"), rimRadius(360))).toBe(true);
+        // mu lies beyond lambda by a road, but the chart does not know how
+        // far lambda is, so it says nothing about what lies beyond it.
+        expect(find("mu")).toBeUndefined();
+    });
+
+    it("keeps a border on the first hop on the innermost ring", () => {
+        expect(node("beta").hop).toBe(1);
+        expect(node("beta").border).toBe(true);
+        expect(close(radius("beta"), ringRadius(1, 360))).toBe(true);
+    });
+
+    it("draws a place past 90 days on its ring rather than a rim", () => {
+        // farx S 30, abyss S 90: 120 days → the 180-day ring.
+        expect(node("abyss").hop).toBe(2);
+        expect(node("abyss").days).toBe(120);
+        expect(node("abyss").unknown).toBe(false);
+        expect(close(radius("abyss"), ringRadius(180, 360))).toBe(true);
+        expect(close(angle("abyss"), -90)).toBe(true);
+    });
+
+    it("omits a place whose total exceeds the horizon, and draws rings only to it", () => {
+        const near = layoutChart(chartWorld(), "alpha", { horizon: 30 });
+        expect(near.horizon).toBe(30);
+        expect(near.rings.map((r) => r.days)).toEqual([1, 2, 3, 5, 10, 20, 30]);
+        expect(near.rim).toBe(rimRadius(30));
+        const on = (sc: string) => near.nodes.find((n) => n.shortcode === sc);
+        expect(on("omega")?.days).toBe(15);
+        expect(on("nu")?.days).toBe(25);
+        expect(on("iota")).toBeUndefined();
+        expect(on("abyss")).toBeUndefined();
+        // A neighbour is a place like any other: past the horizon, it is out.
+        expect(on("farx")?.days).toBe(30);
+        const nearer = layoutChart(chartWorld(), "alpha", { horizon: 20 });
+        expect(nearer.nodes.find((n) => n.shortcode === "farx")).toBeUndefined();
+        // The unknown rim stays.
+        expect(on("theta")?.unknown).toBe(true);
+    });
+
+    it("refuses a horizon off the marker scale", () => {
+        expect(() => layoutChart(chartWorld(), "alpha", { horizon: 100 })).toThrow(/100/);
+        expect(() => layoutChart(chartWorld(), "alpha", { horizon: 0 })).toThrow(/horizon/);
+    });
+
+    it("refuses a centre that is not a place", () => {
+        expect(() => layoutChart(chartWorld(), "nowhere")).toThrow(/nowhere/);
+    });
+
+    it("leaves the map from a place unchanged: two hops, a horizon of 90 and a rim beyond", () => {
+        const from = layoutFrom(chartWorld(), "alpha");
+        expect(from.horizon).toBe(90);
+        expect(from.beyond).toBe(true);
+        expect(Math.max(...from.nodes.map((n) => n.hop))).toBe(2);
+        expect(from.nodes.find((n) => n.shortcode === "iota")).toBeUndefined();
+        const abyss = from.nodes.find((n) => n.shortcode === "abyss")!;
+        expect(abyss.days).toBe(120);
+        expect(Math.hypot(abyss.x, abyss.y)).toBe(rimRadius());
     });
 });
 

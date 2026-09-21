@@ -8,7 +8,8 @@
 /**
  * `content-build map` draws what the place notes state, reading the content
  * index rather than the notes: the containment tree from `parents`, the map
- * from each place from `borders` and `routes`, and the whole route graph.
+ * from each place from `borders` and `routes`, the chart from a place at a
+ * larger horizon, and the whole route graph.
  *
  * The fixture is one content tree with everything the tree mode has to
  * notice — a place with no parent, an unresolved parent, a cycle, a place with
@@ -35,7 +36,7 @@ import {
 } from "../engine/map-places.mjs";
 import { fromDot, travelDot, treeDot } from "../engine/map-dot.mjs";
 import { buildMaps } from "../engine/map-build.mjs";
-import { layoutFrom, travelGraph } from "../engine/map-layout.mjs";
+import { layoutChart, layoutFrom, rimRadius, travelGraph } from "../engine/map-layout.mjs";
 
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 const CLI = path.join(PKG_ROOT, "bin", "content-build.mjs");
@@ -478,6 +479,102 @@ describe("the map from a place, as DOT", () => {
     });
 });
 
+describe("the chart from a place, as DOT", () => {
+    /** The fixture with a third hop east of omega, and a fourth beyond it. */
+    function charted() {
+        const { places } = world();
+        const omega = places.get("omega")!;
+        omega.routes.push({ to: "iota", bearing: "E", mode: "land", days: 20 });
+        places.set("iota", {
+            ...omega,
+            shortcode: "iota",
+            name: "Iota",
+            borders: [],
+            routes: [{ to: "rho", bearing: "E", mode: "land", days: 30 }],
+        });
+        places.set("rho", { ...omega, shortcode: "rho", name: "Rho", borders: [], routes: [] });
+        return places;
+    }
+
+    /** The alpha of a DOT colour, 1 where none is written. */
+    function alphaOf(colour: string): number {
+        return colour.length === 9 ? parseInt(colour.slice(7), 16) / 255 : 1;
+    }
+
+    /** The attribute block of a node. */
+    function attrs(dot: string, id: string): string {
+        const m = new RegExp(`^\\s*${id} \\[([^\\n]*)\\];`, "m").exec(dot);
+        if (!m) throw new Error(`${id} is not in the DOT`);
+        return m[1];
+    }
+
+    it("draws every ring of the scale, an unknown rim, and every hop pinned", () => {
+        const places = charted();
+        const layout = layoutChart(places, "alpha");
+        const dot = fromDot(layout, places, {});
+        expect(dot.match(/ring_\d+ \[/g)).toHaveLength(12);
+        expect(dot).toMatch(/ringlabel_360 \[[^\n]*label="360 d"/);
+        expect(dot).toMatch(/rimlabel \[[^\n]*label="unknown"/);
+        expect(dot).not.toMatch(/label="beyond"/);
+        expect(dot).toMatch(/label="Chart from Alpha"/);
+        for (const node of layout.nodes) {
+            const pinned = new RegExp(
+                `p_${node.shortcode} \\[[^\\n]*pos="${node.x.toFixed(1)},${node.y.toFixed(1)}!"`,
+            );
+            expect(dot, node.shortcode).toMatch(pinned);
+        }
+        expect(dot).toMatch(/p_omega -> p_iota \[[^\n]*label="E · 20 d"/);
+        expect(dot).toMatch(/p_iota -> p_rho \[[^\n]*label="E · 30 d"/);
+        expect(dot).toMatch(/p_theta \[[^\n]*label="Theta\\n\?"/);
+    });
+
+    it("dims each hop beyond the neighbours a step further, down to a floor", () => {
+        const places = charted();
+        const layout = layoutChart(places, "alpha");
+        const dot = fromDot(layout, places, {});
+        const fontcolor = (id: string) => /fontcolor="([^"]+)"/.exec(attrs(dot, id))?.[1];
+        // The last `fillcolor` wins, as GraphViz reads it: a dim hop's overrides its row's.
+        const fill = (id: string) =>
+            [...attrs(dot, id).matchAll(/fillcolor="([^"]+)"/g)].at(-1)![1];
+        // Hop 1 is drawn full: its own fill, no dimmed font.
+        expect(fontcolor("p_portb")).toBeUndefined();
+        expect(alphaOf(fill("p_portb"))).toBe(1);
+        // Hop 2 is dimmed as the map from a place dims it.
+        const from = fromDot(layoutFrom(places, "alpha"), places, {});
+        expect(attrs(dot, "p_omega")).toBe(attrs(from, "p_omega"));
+        expect(fontcolor("p_omega")).toBe("#78909C");
+        // Hop 3 is dimmer than hop 2, hop 4 dimmer still, and neither fades out.
+        expect(alphaOf(fontcolor("p_iota")!)).toBeLessThan(alphaOf(fontcolor("p_omega")!));
+        expect(alphaOf(fill("p_iota"))).toBeLessThan(alphaOf(fill("p_omega")));
+        expect(alphaOf(fontcolor("p_rho")!)).toBeLessThan(alphaOf(fontcolor("p_iota")!));
+        expect(alphaOf(fontcolor("p_rho")!)).toBeGreaterThanOrEqual(0.5);
+        expect(alphaOf(fill("p_rho"))).toBeGreaterThanOrEqual(0.5);
+        // The edges follow their far end.
+        const edge = (a: string, b: string) =>
+            new RegExp(`p_${a} -> p_${b} \\[([^\\n]*)\\]`).exec(dot)![1];
+        const edgeColour = (a: string, b: string) => /[^l]color="([^"]+)"/.exec(edge(a, b))![1];
+        expect(alphaOf(edgeColour("omega", "iota"))).toBeLessThan(
+            alphaOf(edgeColour("portb", "omega")),
+        );
+        expect(alphaOf(edgeColour("iota", "rho"))).toBeLessThan(
+            alphaOf(edgeColour("omega", "iota")),
+        );
+    });
+
+    it("draws the rings only to the horizon asked for", () => {
+        const places = charted();
+        const layout = layoutChart(places, "alpha", { horizon: 30 });
+        const dot = fromDot(layout, places, {});
+        expect(dot.match(/ring_\d+ \[/g)).toHaveLength(7);
+        expect(dot).toMatch(/ringlabel_30 \[/);
+        expect(dot).not.toMatch(/ringlabel_45 \[/);
+        expect(dot).not.toMatch(/p_iota/);
+        expect(dot).toMatch(
+            new RegExp(`rim \\[[^\\n]*width=${((2 * rimRadius(30)) / 72).toFixed(3)}`),
+        );
+    });
+});
+
 describe("the route graph, as DOT", () => {
     it("has one edge per pair with a length from its days", () => {
         const { places } = world();
@@ -600,6 +697,55 @@ describe("building the maps", () => {
             );
         }, 30_000);
 
+        it("renders the chart from a place as chart-<shortcode>.svg, and from every place with `all`", () => {
+            const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
+            const result = buildMaps({ world: world(), outDir: out, chart: ["alpha"] });
+            expect(result.written.map((f) => path.basename(f)).sort()).toEqual([
+                "chart-alpha.dot",
+                "chart-alpha.svg",
+            ]);
+            const svg = fs.readFileSync(path.join(out, "chart-alpha.svg"), "utf8");
+            expect(svg).toMatch(/<svg/);
+            expect(svg).toMatch(/Chart from Alpha/);
+            expect(svg).toMatch(/360 d/);
+            expect(svg).toMatch(/Theta/);
+            expect(svg).not.toMatch(/Zeta/);
+            const every = buildMaps({ world: world(), outDir: out, chart: ["all"], horizon: 30 });
+            const drawn = every.written
+                .map((f) => path.basename(f))
+                .filter((f) => f.startsWith("chart-") && f.endsWith(".svg"))
+                .sort();
+            expect(drawn).toEqual(
+                [
+                    "alpha",
+                    "beta",
+                    "delta",
+                    "eta",
+                    "farx",
+                    "gamma",
+                    "omega",
+                    "porta",
+                    "portb",
+                    "theta",
+                    "zeta",
+                ].map((sc) => `chart-${sc}.svg`),
+            );
+            const near = fs.readFileSync(path.join(out, "chart-alpha.svg"), "utf8");
+            expect(near).toMatch(/30 d/);
+            expect(near).not.toMatch(/45 d/);
+        }, 30_000);
+
+        it("refuses a horizon off the marker scale, and one with no chart to apply to is harmless", () => {
+            const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
+            expect(() =>
+                buildMaps({ world: world(), outDir: out, chart: ["alpha"], horizon: 100 }),
+            ).toThrow(/100/);
+            expect(() =>
+                buildMaps({ world: world(), outDir: out, from: ["alpha"], horizon: 100 }),
+            ).toThrow(/100/);
+            expect(fs.existsSync(path.join(out, "chart-alpha.dot"))).toBe(false);
+        });
+
         it("renders the whole route graph", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
             buildMaps({ world: world(), outDir: out, travel: true });
@@ -608,9 +754,12 @@ describe("building the maps", () => {
             expect(svg).toMatch(/Omega/);
         });
 
-        it("refuses a --from or --root that names no place", () => {
+        it("refuses a --from, --chart or --root that names no place", () => {
             const out = fs.mkdtempSync(path.join(os.tmpdir(), "map-out-"));
             expect(() => buildMaps({ world: world(), outDir: out, from: ["nowhere"] })).toThrow(
+                /nowhere/,
+            );
+            expect(() => buildMaps({ world: world(), outDir: out, chart: ["nowhere"] })).toThrow(
                 /nowhere/,
             );
             expect(() =>
@@ -655,6 +804,18 @@ describe.runIf(DOT)("`content-build map`", () => {
         expect(fs.existsSync(path.join(repo, "build", "map", "from-theta.svg"))).toBe(true);
     });
 
+    it("draws the chart from a place, at the horizon asked for", () => {
+        expect(run("--chart", "alpha").status).toBe(0);
+        const chart = path.join(repo, "build", "map", "chart-alpha.svg");
+        expect(fs.existsSync(chart)).toBe(true);
+        expect(fs.readFileSync(chart, "utf8")).toMatch(/360 d/);
+        expect(run("--chart", "alpha", "--horizon", "30").status).toBe(0);
+        expect(fs.readFileSync(chart, "utf8")).not.toMatch(/45 d/);
+        const bad = run("--chart", "alpha", "--horizon", "100");
+        expect(bad.status).toBe(1);
+        expect(bad.stderr).toMatch(/100/);
+    });
+
     it("draws the route graph", () => {
         expect(run("--travel").status).toBe(0);
         expect(fs.existsSync(path.join(repo, "build", "map", "travel.svg"))).toBe(true);
@@ -663,6 +824,6 @@ describe.runIf(DOT)("`content-build map`", () => {
     it("asks for a mode when given none", () => {
         const r = run();
         expect(r.status).not.toBe(0);
-        expect(`${r.stdout}${r.stderr}`).toMatch(/--tree|--from|--travel/);
+        expect(`${r.stdout}${r.stderr}`).toMatch(/--tree|--from|--chart|--travel/);
     });
 });

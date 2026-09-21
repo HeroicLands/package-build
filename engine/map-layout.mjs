@@ -12,7 +12,7 @@
  */
 
 /**
- * The geometry of the map from a place.
+ * The geometry of the map from a place, and of the chart from a place.
  *
  * A pre-modern map was an itinerary: centred on its maker, exact about the
  * next stage and vague about the tenth. A place note's `borders` and `routes`
@@ -21,7 +21,9 @@
  * right**, the angle from the bearing and the radius from the days marker.
  * One ring per marker, spaced logarithmically so a day's ride and a month's
  * voyage both fit on one page; a border with no route on the innermost ring; a
- * place whose days nobody stated on the rim, marked unknown.
+ * place whose days nobody stated on the rim, marked unknown. The chart is the
+ * same drawing from the same place at a larger horizon: the hops chain on as
+ * long as none turns back, and a year's travel fits on the page.
  *
  * **Positions are computed here, not solved by a layout engine.** GraphViz
  * receives every node pinned and only draws, so the picture states what the
@@ -119,35 +121,46 @@ const RADIUS_PER_LOG_DAY = (HORIZON_RADIUS - INNER_RADIUS) / Math.log(HORIZON_DA
  * days nobody stated, is named. One log step beyond the horizon, so the rim
  * reads as the next ring rather than a margin.
  *
+ * @param {number} [horizon] - The horizon in days; the map from a place's
+ *   by default.
  * @returns {number} Points.
  */
-export function rimRadius() {
-    return INNER_RADIUS + RADIUS_PER_LOG_DAY * Math.log(HORIZON_DAYS * 2);
+export function rimRadius(horizon = HORIZON_DAYS) {
+    return INNER_RADIUS + RADIUS_PER_LOG_DAY * Math.log(horizon * 2);
 }
 
 /**
  * The radius of the ring a days value sits on.
  *
  * Logarithmic in days, so equal ratios of days are equal steps of radius: a
- * day to two days is the same step as five to ten. Any value beyond the
- * horizon, and no value at all, is the rim.
+ * day to two days is the same step as five to ten, whatever the horizon. Any
+ * value beyond the horizon, and no value at all, is the rim.
  *
  * @param {number|undefined} days - A days value, on the scale or not.
+ * @param {number} [horizon] - The horizon in days; the map from a place's
+ *   by default.
  * @returns {number} Points.
  */
-export function ringRadius(days) {
-    if (typeof days !== "number" || !Number.isFinite(days) || days <= 0) return rimRadius();
-    if (days > HORIZON_DAYS) return rimRadius();
+export function ringRadius(days, horizon = HORIZON_DAYS) {
+    if (typeof days !== "number" || !Number.isFinite(days) || days <= 0) {
+        return rimRadius(horizon);
+    }
+    if (days > horizon) return rimRadius(horizon);
     return INNER_RADIUS + RADIUS_PER_LOG_DAY * Math.log(days);
 }
 
 /**
  * The rings, inside out — one per marker up to the horizon.
  *
+ * @param {number} [horizon] - The horizon in days; the map from a place's
+ *   by default.
  * @returns {Array<{days: number, radius: number}>} Each marker and its radius.
  */
-export function rings() {
-    return RING_DAYS.map((days) => ({ days, radius: ringRadius(days) }));
+export function rings(horizon = HORIZON_DAYS) {
+    return TRAVEL_DAYS.filter((d) => d <= horizon).map((days) => ({
+        days,
+        radius: ringRadius(days, horizon),
+    }));
 }
 
 /**
@@ -192,17 +205,66 @@ export function edgeLength(days) {
  */
 
 /**
+ * How far, in degrees, a hop's bearing may lie from the running direction of
+ * the journey so far and still compose: one octant either way. A path may
+ * bend, hop by hop, but never turn back.
+ */
+const TURN_DEGREES = 45;
+
+/**
+ * A chain of hops composed into one bearing and one total, or nothing where
+ * a hop turns back.
+ *
+ * The composed direction is that of the hops added as vectors weighted by
+ * their days, and the total is their sum. Each hop after the first is
+ * checked against the running direction of the chain before it — not
+ * against the previous hop — and composes only where it lies within one
+ * octant of that direction, so a path may bend a little at every hop and
+ * drift past an octant of where it began, but a hop that turns back ends
+ * the chain: a place east and then north of here is not in any one
+ * direction, and the drawing omits it rather than guess. A hop with no days
+ * — a border — makes the total unknown, because a frontier states no
+ * distance, and then every hop weighs the same, because nothing says which
+ * is the longer.
+ *
+ * @param {Hop[]} hops - The hops, from the centre outward.
+ * @returns {{angle: number, days: number|undefined}|undefined} The composed
+ *   bearing in degrees and the total days, or `undefined` where a hop turns
+ *   back, a bearing is not one, or there are no hops.
+ */
+export function composeChain(hops) {
+    if (!Array.isArray(hops) || hops.length === 0) return undefined;
+    const known = (d) => typeof d === "number" && Number.isFinite(d) && d > 0;
+    const allKnown = hops.every((hop) => known(hop?.days));
+    let x = 0;
+    let y = 0;
+    for (const hop of hops) {
+        const u = bearingVector(hop?.bearing);
+        if (!u) return undefined;
+        if (x !== 0 || y !== 0) {
+            const running = (Math.atan2(y, x) * 180) / Math.PI;
+            const turn =
+                Math.abs(/** @type {number} */ (bearingAngle(hop.bearing)) - running) % 360;
+            if (Math.min(turn, 360 - turn) > TURN_DEGREES + 1e-9) return undefined;
+        }
+        const w = allKnown ? /** @type {number} */ (hop.days) : 1;
+        x += w * u.x;
+        y += w * u.y;
+    }
+    const angle = (Math.atan2(y, x) * 180) / Math.PI;
+    const days =
+        allKnown ? hops.reduce((sum, hop) => sum + /** @type {number} */ (hop.days), 0) : undefined;
+    // -0 from atan2 on an exactly-east result reads as 0.
+    return { angle: angle === 0 ? 0 : angle, days };
+}
+
+/**
  * Two hops composed into one bearing and one total, or nothing where they
  * disagree.
  *
- * Two hops agree when their bearings are the same or adjacent; then the
- * composed direction is that of the two hops added as vectors weighted by
- * their days, and the total is their sum. A hop with no days — a border —
- * makes the total unknown, because a frontier states no distance, and then
- * the two hops weigh the same, because nothing says which is the longer.
- * Hops two or more steps apart do not compose:
- * a place east and then north of here is not in any one direction, and the
- * map omits it rather than guess.
+ * Two hops agree when their bearings are the same or adjacent — the
+ * two-hop case of {@link composeChain}: the second hop is checked against
+ * the first, which is the whole running direction at that point.
  *
  * @param {Hop} first - The hop from the centre.
  * @param {Hop} second - The hop onward.
@@ -211,21 +273,7 @@ export function edgeLength(days) {
  *   disagree or either bearing is not one.
  */
 export function composeHops(first, second) {
-    const steps = bearingSteps(first?.bearing, second?.bearing);
-    if (steps === undefined || steps > 1) return undefined;
-    const u = /** @type {{x: number, y: number}} */ (bearingVector(first.bearing));
-    const v = /** @type {{x: number, y: number}} */ (bearingVector(second.bearing));
-    const known = (d) => typeof d === "number" && Number.isFinite(d) && d > 0;
-    const both = known(first.days) && known(second.days);
-    const w1 = both ? /** @type {number} */ (first.days) : 1;
-    const w2 = both ? /** @type {number} */ (second.days) : 1;
-    const x = w1 * u.x + w2 * v.x;
-    const y = w1 * u.y + w2 * v.y;
-    const angle = (Math.atan2(y, x) * 180) / Math.PI;
-    const days =
-        both ? /** @type {number} */ (first.days) + /** @type {number} */ (second.days) : undefined;
-    // -0 from atan2 on an exactly-east result reads as 0.
-    return { angle: angle === 0 ? 0 : angle, days };
+    return composeChain([first, second]);
 }
 
 /* --------------------------------------------------------------------- */
@@ -383,7 +431,8 @@ export function relationsOf(places, shortcode) {
  *
  * @typedef {object} FromNode
  * @property {string} shortcode
- * @property {number} hop - 0 for the centre, 1 for a neighbour, 2 beyond.
+ * @property {number} hop - 0 for the centre, 1 for a neighbour, 2 and up
+ *   beyond — the map from a place stops at 2, the chart goes on.
  * @property {number} x - Points, east positive.
  * @property {number} y - Points, north positive.
  * @property {number} angle - Degrees, counter-clockwise from east.
@@ -391,7 +440,8 @@ export function relationsOf(places, shortcode) {
  * @property {number} [days] - The days the ring was chosen by, or none.
  * @property {boolean} border - Reached by a border alone.
  * @property {boolean} unknown - On the rim because nobody stated its days.
- * @property {string} [via] - The neighbour a second hop is reached through.
+ * @property {string} [via] - The place a hop beyond the neighbours is reached
+ *   through.
  */
 
 /**
@@ -406,7 +456,7 @@ export function relationsOf(places, shortcode) {
  * @property {string} [mode] - The shortest route's.
  * @property {Array<{mode: string, days: number|undefined}>} routes - Every
  *   route that reaches `to`, for the label.
- * @property {number} hop - 1 from the centre, 2 onward.
+ * @property {number} hop - 1 from the centre, 2 and up onward.
  */
 
 /**
@@ -451,26 +501,50 @@ function fanApart(nodes, places) {
 }
 
 /**
- * Lay out the map from a place.
+ * The layout of the map from a place or of the chart from one.
+ *
+ * @typedef {object} FromLayout
+ * @property {string} centre
+ * @property {FromNode[]} nodes
+ * @property {FromEdge[]} edges
+ * @property {Array<{days: number, radius: number}>} rings
+ * @property {number} rim - The rim's radius, in points.
+ * @property {number} horizon - The horizon, in days.
+ * @property {boolean} beyond - Whether a place past the horizon is named at
+ *   the rim; false, it is omitted and the rim holds only the unknown.
+ * @property {Array<{from: string, to: string}>} unresolved
+ */
+
+/**
+ * Lay out the itinerary from a place: the map from it, or the chart.
  *
  * The centre at the origin. Every neighbour it states, or that states it, at
  * the angle of its bearing and on the ring of its days — the innermost ring
  * for a border with no route, the shortest route where several modes reach
- * one neighbour. Beyond each neighbour, every place a second hop reaches, at
- * the composed bearing where the two hops agree and on the ring of their
- * total; on the rim, marked unknown, where either hop states no days; omitted
- * where the hops disagree. A place reachable by several second hops takes
- * the one with known days, then the shortest. Nodes sharing a ring and a
+ * one neighbour. Beyond the neighbours, every place a chain of hops reaches
+ * within `maxHops`, at the composed bearing where no hop turns back and on
+ * the ring of the summed days; on the rim, marked unknown, where a hop
+ * beyond the first states no days; omitted where a hop turns back. A place
+ * reachable by several chains takes the one with known days, then the
+ * fewest, then the fewest hops, then the first `via` by name. The chain goes
+ * on from a neighbour and from any place whose total is known and within
+ * the horizon; it does not go on from a place at the rim, because the
+ * drawing states nothing beyond a distance it does not know. A place whose
+ * total lies past the horizon is named at the rim with its days where
+ * `beyond` is set, and left out otherwise. Nodes sharing a ring and a
  * bearing are fanned apart.
  *
  * @param {Map<string, MapPlace>} places - Every place, by shortcode.
- * @param {string} centre - The place the map is from.
- * @returns {{centre: string, nodes: FromNode[], edges: FromEdge[],
- *   rings: Array<{days: number, radius: number}>, rim: number,
- *   unresolved: Array<{from: string, to: string}>}} The layout, in points.
+ * @param {string} centre - The place the drawing is from.
+ * @param {object} opts
+ * @param {number} opts.maxHops - How many hops out the chain may reach.
+ * @param {number} opts.horizon - The horizon, in days, a marker of the scale.
+ * @param {boolean} opts.beyond - Whether a place past the horizon is named at
+ *   the rim rather than omitted.
+ * @returns {FromLayout} The layout, in points.
  * @throws {Error} When `centre` is not a place.
  */
-export function layoutFrom(places, centre) {
+function layoutItinerary(places, centre, { maxHops, horizon, beyond }) {
     if (!places.has(centre)) {
         throw new Error(`"${centre}" is not a place in this package or a fetched index`);
     }
@@ -492,8 +566,8 @@ export function layoutFrom(places, centre) {
     const edges = [];
     /** @type {Map<string, FromNode>} */
     const byShortcode = new Map([[centre, nodes[0]]]);
-    /** @type {Map<string, {bearing: string, days: number|undefined}>} */
-    const firstHops = new Map();
+    /** @type {Map<string, Hop[]>} The hops each drawn place is reached by. */
+    const paths = new Map([[centre, []]]);
 
     const { relations, unresolved } = relationsOf(places, centre);
 
@@ -511,7 +585,7 @@ export function layoutFrom(places, centre) {
                 x: 0,
                 y: 0,
                 angle: /** @type {number} */ (bearingAngle(relation.bearing)),
-                radius: days === undefined ? ringRadius(1) : ringRadius(days),
+                radius: days === undefined ? ringRadius(1, horizon) : ringRadius(days, horizon),
                 days,
                 border: relation.kind === "border",
                 // A route whose days are off the scale sits on the rim, and
@@ -520,7 +594,7 @@ export function layoutFrom(places, centre) {
             };
             nodes.push(node);
             byShortcode.set(relation.to, node);
-            firstHops.set(relation.to, { bearing: relation.bearing, days });
+            paths.set(relation.to, [{ bearing: relation.bearing, days }]);
             firstEdges.set(relation.to, {
                 from: centre,
                 to: relation.to,
@@ -545,67 +619,104 @@ export function layoutFrom(places, centre) {
             edge.mode = String(relation.mode ?? "");
             node.days = days;
             node.border = false;
-            node.radius = ringRadius(days);
+            node.radius = ringRadius(days, horizon);
             node.unknown = days === undefined;
-            firstHops.set(relation.to, { bearing: relation.bearing, days });
+            paths.set(relation.to, [{ bearing: relation.bearing, days }]);
         }
     }
 
-    // Hop 2: the best composed candidate per place beyond the neighbours.
-    /** @type {Map<string, {node: FromNode, edge: FromEdge, marker: number|undefined}>} */
-    const candidates = new Map();
-    const better = (a, b) => {
-        if (!b) return true;
-        const aKnown = a.node.days !== undefined;
-        const bKnown = b.node.days !== undefined;
-        if (aKnown !== bKnown) return aKnown;
-        if (aKnown && a.node.days !== b.node.days) return a.node.days < b.node.days;
-        return String(a.node.via).localeCompare(String(b.node.via)) < 0;
-    };
-    for (const [via, first] of firstHops) {
-        const onward = relationsOf(places, via);
-        for (const relation of onward.relations) {
-            if (byShortcode.has(relation.to)) continue;
-            const second = { bearing: relation.bearing, days: relation.days };
-            const composed = composeHops(first, second);
-            if (!composed) continue;
-            const marker = daysMarker(composed.days);
-            const node = {
-                shortcode: relation.to,
-                hop: 2,
-                x: 0,
-                y: 0,
-                angle: composed.angle,
-                radius: ringRadius(marker),
-                days: composed.days,
-                border: relation.kind === "border" && first.days === undefined,
-                unknown: composed.days === undefined,
-                via,
-            };
-            const edge = {
-                from: via,
-                to: relation.to,
-                kind: relation.kind,
-                bearing: relation.bearing,
-                hop: 2,
-                routes:
-                    relation.kind === "route" ?
-                        [{ mode: String(relation.mode ?? ""), days: relation.days }]
-                    :   [],
-                ...(relation.kind === "route" ? { days: relation.days, mode: relation.mode } : {}),
-            };
-            const candidate = { node, edge, marker };
-            if (better(candidate, candidates.get(relation.to))) {
-                candidates.set(relation.to, candidate);
-            }
+    // Without a rim for the beyond, a neighbour past the horizon is out like
+    // any other place.
+    const within = (days) => days === undefined || days <= horizon;
+    if (!beyond) {
+        for (const node of [...nodes]) {
+            if (node.hop !== 1 || within(node.days)) continue;
+            nodes.splice(nodes.indexOf(node), 1);
+            edges.splice(
+                edges.indexOf(/** @type {FromEdge} */ (firstEdges.get(node.shortcode))),
+                1,
+            );
+            byShortcode.delete(node.shortcode);
+            paths.delete(node.shortcode);
         }
     }
-    for (const { node, edge } of [...candidates.values()].sort((a, b) =>
-        a.node.shortcode.localeCompare(b.node.shortcode),
-    )) {
-        nodes.push(node);
+
+    // Beyond the neighbours: the best chain per place, settled in order of
+    // total days — known before unknown, fewer before more, then fewer hops,
+    // then by the name of the place it is reached through — and each place
+    // extended once, from the chain it is drawn by.
+    /** @type {Array<{node: FromNode, edge: FromEdge, hops: Hop[]}>} */
+    const queue = [];
+    const rank = (a, b) => {
+        const aKnown = a.node.days !== undefined;
+        const bKnown = b.node.days !== undefined;
+        if (aKnown !== bKnown) return aKnown ? -1 : 1;
+        if (aKnown && a.node.days !== b.node.days) {
+            return /** @type {number} */ (a.node.days) - /** @type {number} */ (b.node.days);
+        }
+        if (a.node.hop !== b.node.hop) return a.node.hop - b.node.hop;
+        return (
+            String(a.node.via).localeCompare(String(b.node.via)) ||
+            a.node.shortcode.localeCompare(b.node.shortcode)
+        );
+    };
+    const extend = (via) => {
+        const sofar = /** @type {Hop[]} */ (paths.get(via));
+        if (sofar.length >= maxHops) return;
+        for (const relation of relationsOf(places, via).relations) {
+            if (byShortcode.has(relation.to)) continue;
+            const hops = [...sofar, { bearing: relation.bearing, days: relation.days }];
+            const composed = composeChain(hops);
+            if (!composed) continue;
+            if (!beyond && !within(composed.days)) continue;
+            const marker = daysMarker(composed.days);
+            queue.push({
+                node: {
+                    shortcode: relation.to,
+                    hop: hops.length,
+                    x: 0,
+                    y: 0,
+                    angle: composed.angle,
+                    radius: ringRadius(marker, horizon),
+                    days: composed.days,
+                    border: relation.kind === "border" && hops.every((h) => h.days === undefined),
+                    unknown: composed.days === undefined,
+                    via,
+                },
+                edge: {
+                    from: via,
+                    to: relation.to,
+                    kind: relation.kind,
+                    bearing: relation.bearing,
+                    hop: hops.length,
+                    routes:
+                        relation.kind === "route" ?
+                            [{ mode: String(relation.mode ?? ""), days: relation.days }]
+                        :   [],
+                    ...(relation.kind === "route" ?
+                        { days: relation.days, mode: relation.mode }
+                    :   {}),
+                },
+                hops,
+            });
+        }
+    };
+    for (const node of nodes) if (node.hop === 1) extend(node.shortcode);
+    /** @type {FromNode[]} */
+    const beyondNeighbours = [];
+    while (queue.length) {
+        queue.sort(rank);
+        const { node, edge, hops } = /** @type {NonNullable<typeof queue[0]>} */ (queue.shift());
+        if (byShortcode.has(node.shortcode)) continue;
+        byShortcode.set(node.shortcode, node);
+        paths.set(node.shortcode, hops);
+        beyondNeighbours.push(node);
         edges.push(edge);
+        if (node.days !== undefined && within(node.days)) extend(node.shortcode);
     }
+    beyondNeighbours.sort((a, b) => a.hop - b.hop || a.shortcode.localeCompare(b.shortcode));
+    nodes.push(...beyondNeighbours);
+    edges.sort((a, b) => a.hop - b.hop || (a.hop === 1 ? 0 : a.to.localeCompare(b.to)));
 
     fanApart(nodes, places);
     for (const node of nodes) {
@@ -615,7 +726,78 @@ export function layoutFrom(places, centre) {
         node.y = exact(node.radius * Math.sin(rad));
     }
 
-    return { centre, nodes, edges, rings: rings(), rim: rimRadius(), unresolved };
+    return {
+        centre,
+        nodes,
+        edges,
+        rings: rings(horizon),
+        rim: rimRadius(horizon),
+        horizon,
+        beyond,
+        unresolved,
+    };
+}
+
+/**
+ * Lay out the map from a place: two hops, a horizon of 90 days, and a rim
+ * naming what lies beyond it.
+ *
+ * The centre at the origin. Every neighbour it states, or that states it, at
+ * the angle of its bearing and on the ring of its days — the innermost ring
+ * for a border with no route, the shortest route where several modes reach
+ * one neighbour. Beyond each neighbour, every place a second hop reaches, at
+ * the composed bearing where the two hops agree and on the ring of their
+ * total; on the rim, marked unknown, where either hop states no days; omitted
+ * where the hops disagree. A place reachable by several second hops takes
+ * the one with known days, then the shortest. Nodes sharing a ring and a
+ * bearing are fanned apart.
+ *
+ * @param {Map<string, MapPlace>} places - Every place, by shortcode.
+ * @param {string} centre - The place the map is from.
+ * @returns {FromLayout} The layout, in points.
+ * @throws {Error} When `centre` is not a place.
+ */
+export function layoutFrom(places, centre) {
+    return layoutItinerary(places, centre, { maxHops: 2, horizon: HORIZON_DAYS, beyond: true });
+}
+
+/**
+ * The horizon of the chart from a place when none is asked for, in days: the
+ * end of the scale, so the whole of what the notes state fits on the page.
+ *
+ * @type {number}
+ */
+export const CHART_HORIZON_DAYS = 360;
+
+/**
+ * Lay out the chart from a place: the map from it at a larger horizon.
+ *
+ * The neighbours as on the map from a place. Beyond them the hops chain on,
+ * each checked against the running direction of the chain so far and
+ * composing only within one octant of it, so a path bends but never turns
+ * back; a place is drawn at the composed bearing on the ring of the summed
+ * days, and where several chains reach it, by the one with the fewest. A
+ * border beyond the first hop makes the total unknown and sends the place to
+ * the rim, and nothing is drawn beyond it. A place whose total exceeds the
+ * horizon is left out — the chart is already the larger view — so the rim
+ * holds the unknown alone.
+ *
+ * @param {Map<string, MapPlace>} places - Every place, by shortcode.
+ * @param {string} centre - The place the chart is from.
+ * @param {object} [opts]
+ * @param {number} [opts.horizon] - The horizon in days, a marker of the
+ *   scale; {@link CHART_HORIZON_DAYS} by default.
+ * @returns {FromLayout} The layout, in points.
+ * @throws {Error} When `centre` is not a place, or `horizon` is not a marker
+ *   of the scale.
+ */
+export function layoutChart(places, centre, { horizon = CHART_HORIZON_DAYS } = {}) {
+    if (!TRAVEL_DAYS.includes(horizon)) {
+        throw new Error(
+            `a chart's horizon must be a marker of the days scale — one of ${TRAVEL_DAYS.join(", ")} — and ${horizon} is not`,
+        );
+    }
+    return layoutItinerary(places, centre, { maxHops: Infinity, horizon, beyond: false });
 }
 
 /**

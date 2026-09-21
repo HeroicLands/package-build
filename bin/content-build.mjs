@@ -47,7 +47,7 @@
  *   npx content-build markdown [paths..] [--fix]
  *   npx content-build manifest [root] [--out <dir>]
  *   npx content-build site [--out <dir>]
- *   npx content-build map [--tree] [--from <shortcode>] [--travel] [--out <dir>]
+ *   npx content-build map [--tree] [--from <shortcode>] [--chart <shortcode>] [--travel] [--out <dir>]
  *   npx content-build reachability <dir> [file] [--index <shortcode>]
  *   npx content-build addresses diff --from <zip|dir> [--strict]
  *
@@ -146,6 +146,7 @@ import {
 } from "../engine/address-diff.mjs";
 import { emittedArtFor, itemPackJsonDirs } from "../engine/generate.mjs";
 import { buildMaps, FROM_ALL, MAP_DIR } from "../engine/map-build.mjs";
+import { CHART_HORIZON_DAYS } from "../engine/map-layout.mjs";
 import { GRAPHVIZ_ENGINES } from "../engine/map-graphviz.mjs";
 import { loadMapWorld } from "../engine/map-places.mjs";
 
@@ -1673,12 +1674,13 @@ function siteCommand() {
  *
  * Reads the content index — this package's and every declared dependency's —
  * so a consumer's map draws its dependencies' places beside its own, and
- * writes under `build/map/`, always the `.dot` beside the `.svg`. Three
+ * writes under `build/map/`, always the `.dot` beside the `.svg`. Four
  * drawings: the containment tree from `parents` (`--tree`, the author's
  * check, whose anomalies are reported as findings), the map from a place
- * from its `borders` and `routes` (`--from`), and the whole route graph
- * (`--travel`). GraphViz draws; when it is absent the command says what to
- * install and stops.
+ * from its `borders` and `routes` (`--from`), the chart from a place — the
+ * same drawing at a larger horizon (`--chart`, `--horizon`) — and the whole
+ * route graph (`--travel`). GraphViz draws; when it is absent the command
+ * says what to install and stops.
  *
  * @returns {object} The yargs command module.
  */
@@ -1686,7 +1688,8 @@ function siteCommand() {
 function mapCommand() {
     return {
         command: "map",
-        describe: "Draw the containment tree, the map from a place, or the route graph",
+        describe:
+            "Draw the containment tree, the map or the chart from a place, or the route graph",
         builder: (yargs) => {
             yargs
                 .option("tree", {
@@ -1708,6 +1711,21 @@ function mapCommand() {
                         `or \`${FROM_ALL}\` for every place with a border or a route.`,
                     type: "string",
                     array: true,
+                })
+                .option("chart", {
+                    describe:
+                        "Draw the chart from this place as `chart-<shortcode>.svg` — the map " +
+                        "from it at a larger horizon, the hops chaining on; repeatable, " +
+                        `or \`${FROM_ALL}\` for every place with a border or a route.`,
+                    type: "string",
+                    array: true,
+                })
+                .option("horizon", {
+                    describe:
+                        "The charts' horizon in days, a marker of the scale: rings are " +
+                        "drawn to it, and a place farther than it is left out.",
+                    type: "number",
+                    default: CHART_HORIZON_DAYS,
                 })
                 .option("travel", {
                     describe: "Draw the whole route graph as `travel.svg`.",
@@ -1783,6 +1801,8 @@ function mapCommand() {
                     tree: argv.tree,
                     root: argv.root,
                     from: argv.from ?? [],
+                    chart: argv.chart ?? [],
+                    horizon: argv.horizon,
                     travel: argv.travel,
                     engine: argv.engine,
                     rankdir: argv.rankdir,

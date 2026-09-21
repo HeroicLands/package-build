@@ -14,7 +14,7 @@
 /**
  * `content-build map`: the drawings, written under `build/map/`.
  *
- * Three modes, each a function of the world the content index describes:
+ * Four modes, each a function of the world the content index describes:
  *
  * - **`tree`** — the containment tree from `parents`, the author's check.
  *   `tree.svg` for the whole world and `tree-<continent>.svg` per continent,
@@ -23,6 +23,9 @@
  * - **`from`** — the map from a place, `from-<shortcode>.svg`, for each
  *   place named, or for every place that takes part in a border or a route
  *   with `all`.
+ * - **`chart`** — the chart from a place, `chart-<shortcode>.svg`: the same
+ *   drawing at a larger horizon, the hops chaining on as long as none turns
+ *   back. `all` as for `from`.
  * - **`travel`** — the whole route graph, `travel.svg`.
  *
  * Every rendering is written beside the `.dot` it was drawn from, and the
@@ -42,7 +45,8 @@ import path from "node:path";
 
 import { fromDot, travelDot, treeDot } from "./map-dot.mjs";
 import { findGraphviz, graphvizMissingMessage, renderDot } from "./map-graphviz.mjs";
-import { layoutFrom, travelGraph } from "./map-layout.mjs";
+import { CHART_HORIZON_DAYS, layoutChart, layoutFrom, travelGraph } from "./map-layout.mjs";
+import { TRAVEL_DAYS } from "./place-relations.mjs";
 import { analyzeContainment, containmentFindings } from "./map-places.mjs";
 
 /**
@@ -53,7 +57,7 @@ import { analyzeContainment, containmentFindings } from "./map-places.mjs";
 export const MAP_DIR = "build/map";
 
 /**
- * The value of `--from` that means every place with a relation.
+ * The value of `--from` or `--chart` that means every place with a relation.
  *
  * @type {string}
  */
@@ -61,7 +65,7 @@ export const FROM_ALL = "all";
 
 /**
  * Every place that states, or is named in, a border or a route — the places
- * `--from all` draws.
+ * `--from all` and `--chart all` draw.
  *
  * @param {Map<string, import("./map-places.mjs").MapPlace>} places - Every place.
  * @returns {string[]} Shortcodes, sorted.
@@ -89,10 +93,14 @@ export function relatedPlaces(places) {
  * @param {string} [opts.root] - With `tree`, the subtree beneath this place.
  * @param {string[]} [opts.from] - Draw the map from each of these places, or
  *   from every related place for {@link FROM_ALL}.
+ * @param {string[]} [opts.chart] - Draw the chart from each of these places,
+ *   or from every related place for {@link FROM_ALL}.
+ * @param {number} [opts.horizon] - The charts' horizon in days, a marker of
+ *   the scale; the end of the scale by default.
  * @param {boolean} [opts.travel] - Draw the whole route graph.
  * @param {string} [opts.engine="dot"] - The tree's engine: `dot`, `twopi` or
- *   `neato`. The map from a place is always `neato` with every node pinned,
- *   and the route graph always `neato`.
+ *   `neato`. The map and the chart from a place are always `neato` with
+ *   every node pinned, and the route graph always `neato`.
  * @param {string} [opts.rankdir="TB"] - The tree's rank direction, `dot` only.
  * @param {number} [opts.nodesep] - The tree's `nodesep`, inches.
  * @param {number} [opts.ranksep] - The tree's `ranksep`, inches.
@@ -107,8 +115,8 @@ export function relatedPlaces(places) {
  *   column?: number, severity: "error"|"warning", message: string}>,
  *   skipped: boolean}} What was written, what was found, and whether the
  *   rendering was skipped for want of GraphViz.
- * @throws {Error} When no mode is asked for, a named place is not one, or
- *   GraphViz is required and absent.
+ * @throws {Error} When no mode is asked for, a named place is not one, the
+ *   horizon is not a marker of the scale, or GraphViz is required and absent.
  */
 export function buildMaps({
     world,
@@ -116,6 +124,8 @@ export function buildMaps({
     tree = false,
     root,
     from = [],
+    chart = [],
+    horizon = CHART_HORIZON_DAYS,
     travel = false,
     engine = "dot",
     rankdir = "TB",
@@ -126,8 +136,15 @@ export function buildMaps({
     locate = findGraphviz,
     requireGraphviz = true,
 }) {
-    if (!tree && from.length === 0 && !travel) {
-        throw new Error("name a drawing: --tree, --from <shortcode> or --travel");
+    if (!tree && from.length === 0 && chart.length === 0 && !travel) {
+        throw new Error(
+            "name a drawing: --tree, --from <shortcode>, --chart <shortcode> or --travel",
+        );
+    }
+    if (!TRAVEL_DAYS.includes(horizon)) {
+        throw new Error(
+            `--horizon must be a marker of the days scale — one of ${TRAVEL_DAYS.join(", ")} — and ${horizon} is not`,
+        );
     }
     const { places } = world;
 
@@ -135,7 +152,7 @@ export function buildMaps({
     // so a missing one is reported before a directory is touched.
     const engines = new Set();
     if (tree) engines.add(engine);
-    if (from.length || travel) engines.add("neato");
+    if (from.length || chart.length || travel) engines.add("neato");
     /** @type {Map<string, string>} */
     const binaries = new Map();
     const findings = [];
@@ -210,6 +227,19 @@ export function buildMaps({
             });
         }
         emit(`from-${centre}`, fromDot(layout, places, { scale }), "neato", ["-n2"]);
+    }
+
+    const viewpoints = chart.includes(FROM_ALL) ? relatedPlaces(places) : chart;
+    for (const centre of viewpoints) {
+        const layout = layoutChart(places, centre, { horizon });
+        for (const { from: place, to } of layout.unresolved) {
+            findings.push({
+                file: unresolvedFile(world, place),
+                severity: "warning",
+                message: `place "${place}" names "${to}" in a border or a route, and no place declares that shortcode; the chart centred on "${centre}" leaves it out`,
+            });
+        }
+        emit(`chart-${centre}`, fromDot(layout, places, { scale }), "neato", ["-n2"]);
     }
 
     if (travel) {
