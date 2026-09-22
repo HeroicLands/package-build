@@ -90,8 +90,18 @@ export function findGraphviz(engine, { env = process.env, fallbacks = KNOWN_DIRE
 }
 
 /**
+ * What installs GraphViz on the two platforms a contributor is likely to be
+ * on, as the clause every "not installed" message ends with.
+ *
+ * @type {string}
+ */
+export const GRAPHVIZ_INSTALL =
+    "install GraphViz (`brew install graphviz` on macOS, " +
+    "`apt-get install graphviz` on Debian or Ubuntu)";
+
+/**
  * What to say when an engine is not installed: the name, and what installs
- * it on the two platforms a contributor is likely to be on.
+ * it.
  *
  * @param {string} engine - The engine that was wanted.
  * @returns {string} The message.
@@ -99,8 +109,7 @@ export function findGraphviz(engine, { env = process.env, fallbacks = KNOWN_DIRE
 export function graphvizMissingMessage(engine) {
     return (
         `GraphViz's \`${engine}\` is not installed, and \`content-build map\` draws with it; ` +
-        `install GraphViz (\`brew install graphviz\` on macOS, ` +
-        `\`apt-get install graphviz\` on Debian or Ubuntu) and run the command again`
+        `${GRAPHVIZ_INSTALL} and run the command again`
     );
 }
 

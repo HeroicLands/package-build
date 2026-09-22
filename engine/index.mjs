@@ -102,6 +102,9 @@ export * as mapGraphviz from "./map-graphviz.mjs";
 /** `content-build map`: the drawings, written under `build/map/`. */
 export * as mapBuild from "./map-build.mjs";
 
+/** The map from each place, drawn for the site and written into its page. */
+export * as siteMaps from "./site-maps.mjs";
+
 /** The closed registry of system ids, and the `none` that stands for no system. */
 export * as systems from "./systems.mjs";
 
