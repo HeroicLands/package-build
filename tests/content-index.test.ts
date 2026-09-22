@@ -310,11 +310,30 @@ describe("buildIndexRecord", () => {
             frontmatter: { type: "being", shortcode: "aurochs" },
             relPath: path.join("Bestiary", "Animal", "Aurochs.md"),
             contentPackage: "sohl",
+            body: "A great wild ox.",
         });
         expect(record.address).toEqual({
             slug: "being-aurochs",
             canonical: "sohl-sohl-being-aurochs",
         });
+    });
+
+    it("withholds it from a note with no body, which publishes no page", () => {
+        const record = buildIndexRecord({
+            frontmatter: { type: "being", shortcode: "aurochs" },
+            relPath: path.join("Bestiary", "Animal", "Aurochs.md"),
+            contentPackage: "sohl",
+            body: "",
+        });
+        expect(record.address).toBeNull();
+        // A caller that states no body is stating an empty one.
+        expect(
+            buildIndexRecord({
+                frontmatter: { type: "being", shortcode: "aurochs" },
+                relPath: "A.md",
+                contentPackage: "sohl",
+            }).address,
+        ).toBeNull();
     });
 
     it("carries an ASCII form of the note's name", () => {

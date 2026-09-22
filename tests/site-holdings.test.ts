@@ -315,15 +315,33 @@ describe("holdingsPages", () => {
         expect(pages.get("/demo/place-r/")?.held_by.map((e) => e.title)).toEqual(["x"]);
     });
 
-    it("leaves out an entry with no page, and a node with nothing on any list", () => {
+    // A URL gates where a list is *written*, never whether a node may appear
+    // in someone else's. A stub is a place somebody has not written yet, and
+    // it belongs in its region's `contains` whether or not it has a page.
+    it("lists a node with no page, as an entry with no url", () => {
         const pages = holdingsPages([
             node("r", "place", "region"),
             node("a", "place", "settlement", { parents: ["r"], url: "" }),
             node("lone", "place", "site"),
         ]);
-        expect(pages.has("/demo/place-r/")).toBe(false);
+        expect(pages.get("/demo/place-r/")?.contains).toEqual([
+            { title: "a", type: "place", subType: "settlement" },
+        ]);
+        // No page to write a list on, and nothing on any list.
+        expect(pages.has("")).toBe(false);
         expect(pages.has("/demo/place-lone/")).toBe(false);
-        expect(pages.size).toBe(0);
+        expect(pages.size).toBe(1);
+    });
+
+    it("names a holder with no page on what it holds, and writes it no list of its own", () => {
+        const pages = holdingsPages([
+            node("r", "place", "region"),
+            node("x", "affiliation", "polity", { domains: ["r"], url: "" }),
+        ]);
+        expect(pages.get("/demo/place-r/")?.held_by).toEqual([
+            { title: "x", type: "affiliation", subType: "polity" },
+        ]);
+        expect(pages.size).toBe(1);
     });
 
     it("keeps the first node declaring a shortcode, so a local note shadows a fetched one", () => {

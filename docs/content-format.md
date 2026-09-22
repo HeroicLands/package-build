@@ -1657,6 +1657,83 @@ not honoured in part either.
 convention rather than declared in a field — see
 [the lead image](#the-lead-image).
 
+### Three states of a note
+
+A note has three states, and two of them are nothing but conventions the format
+already carried.
+
+| State     | Body    | Marker          | Page        | Document                         | Link target |
+| --------- | ------- | --------------- | ----------- | -------------------------------- | ----------- |
+| **stub**  | empty   | none            | no          | yes, where its type compiles one | no          |
+| **draft** | written | `tags: [draft]` | yes, marked | yes                              | yes         |
+| **full**  | written | none            | yes         | yes                              | yes         |
+
+**Full is the absence of everything.** It is the default and carries no marker,
+which is right: the overwhelming majority of a finished corpus should say
+nothing about its own finishedness.
+
+There is no new frontmatter key, no new filetype and no second parser. A stub is
+a `.md` file the walk already finds, and the moment somebody writes a body it
+becomes an ordinary note — nothing moves, nothing is deleted, and every inbound
+link starts resolving.
+
+#### A stub is a note with an empty body
+
+> **The body is empty when everything after the closing frontmatter fence is
+> whitespace.** Nothing else is empty.
+
+The rule is that severe because the test has to be one you can apply by looking
+at the file. Every softer rule makes two files that look different behave the
+same.
+
+| After the fence         | Empty? | What happens                                                    |
+| ----------------------- | ------ | --------------------------------------------------------------- |
+| Nothing, or blank lines | yes    | A stub                                                          |
+| An HTML comment         | no     | A note with a body that renders to nothing. The lint reports it |
+| A horizontal rule       | no     | The same                                                        |
+| A lone heading          | no     | The same                                                        |
+| `_To be written._`      | no     | The same                                                        |
+
+An HTML comment is deliberately not empty. An invisible marker deciding whether
+a page exists is exactly the failure the retired `draft:` field was removed for.
+
+#### What a stub emits
+
+A stub's index record is its frontmatter plus the derived keys, **minus
+`address` and `anchors`**. The absent address is the whole signal, and it is the
+column a table renderer already reads.
+
+It keeps everything else:
+
+- **`file`**, which is what you edit and what every diagnostic names.
+- **`id` and `foundry`**, because a **document is derived from `data:`, not from
+  prose**. An unwritten arcane talent still compiles into its Item, and its
+  documentation journal is still a document in its own right. **The empty body
+  suppresses the page, never the document.**
+
+What is suppressed with the page is the web address and the link target: a
+wikilink into a stub is refused, and a table cell listing one prints its name as
+plain text rather than as a link.
+
+#### Two types are structural and exempt
+
+`folder` and `homepage` have no body by design — a folder note's page is a
+generated section index, and the homepage's is the site's front door. An empty
+body on either keeps its address and resolves as **full**, because such a note is
+complete.
+
+Every type in the vocabulary declares whether an empty body suppresses its page,
+so adding a type means answering the question rather than inheriting a default.
+
+#### A stub is still referenceable as data
+
+`borders.to` and `routes.to` name a place by shortcode, and those are **index
+relations rather than page links**: a border with a stub on the far side is a
+valid statement about the world and resolves. So does `parents` for the
+containment tree and `domains` for tenure — a stub appears in its region's
+`contains` and on its holder's `holdings`, rendered as plain text. What a stub
+cannot be is the target of a wikilink, because a wikilink points at a page.
+
 ### What a note produces
 
 Note types fall into two groups, and only the first has a mapping table.
@@ -1902,6 +1979,49 @@ journals. A nested field is addressed exactly as a note authors it —
 `sohl.weight`, `name.full`, `file.path` — because the index is read as JSON and
 every nested object is inferred as a struct. A field a note type does not carry
 reads `NULL` rather than failing.
+
+**`notes` leaves out stubs; `entries` does not.** Both carry a derived `state`
+column — `stub`, `draft` or `full` — and `notes` is exactly
+`SELECT * FROM entries WHERE state <> 'stub'`. So every table already written
+selects what it always selected, and gains `state` for free; a table that should
+list the unwritten beside the written changes one word:
+
+````markdown
+```sql
+SELECT address.slug    AS _ref,
+       name.full       AS "Name",
+       state           AS "State",
+       m.name          AS "Market",
+       data.population AS "People"
+FROM entries
+LEFT JOIN market m ON m.value = data.market
+WHERE type = 'place' AND subType = 'settlement'
+  AND list_contains(data.parents, 'place-aelwyth')
+ORDER BY data.population DESC NULLS LAST, name.full COLLATE NOCASE
+```
+````
+
+A written settlement renders as a link and a stub renders as plain text, from
+one query with no branch in it: `_ref` is the stub's absent address, and the
+renderer already prints a bare cell where it is null.
+
+A fence selecting `FROM notes` that **would** gain rows from `FROM entries` is
+warned about at the fence, with the count — so adopting stubs in a given table
+stays a decision somebody makes rather than one they forget.
+
+The ladder is what makes "how finished is this?" a query:
+
+```sql
+SELECT state, count(*) AS n FROM entries GROUP BY state ORDER BY state
+```
+
+**`market`** is the six-step market scale as a relation — `value`, `name`,
+`trade` — so a table prints `village` beside the number a note wrote without a
+second copy of the scale living in authored content.
+
+**The state is derived, never stored.** No index record carries it, no note can
+author it, and nothing in `data:` may claim it: the only authored signal is the
+`draft` tag, which marks the one thing reading the body cannot reveal.
 
 **Two aliases are read by the renderer rather than printed**, because which
 column links and where a section breaks are decisions about output, not

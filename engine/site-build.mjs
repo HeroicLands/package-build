@@ -73,6 +73,8 @@ import { searchableFrontmatter } from "./note-package.mjs";
 // The corpus, from the one pass that derives it.
 import { indexRecordsFor } from "./content-index.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
+// The one statement of what an empty body means, shared with the index.
+import { isStubNote } from "./note-state.mjs";
 import { ART_SLOTS, artPathname, assetAddressIndex } from "./art-fields.mjs";
 import {
     HOMEPAGE_DESTINATION,
@@ -177,6 +179,12 @@ export function collectContentPages(contentBase, ctx) {
         // whole of a homepage-only build, which never walks the tree for
         // content pages at all.
         if (isHomepage(fm)) continue;
+        // A stub has no body, so it has no page. Asked of the note's own text
+        // rather than of the absent address the index derived, so the site and
+        // the index apply one rule from one module and a note that cannot be
+        // addressed for some *other* reason still reaches the finding below
+        // that says so.
+        if (isStubNote(fm, body)) continue;
 
         for (const hit of frontmatterWikilinks(fm)) {
             fmLinkFindings.push({ file, ...hit });

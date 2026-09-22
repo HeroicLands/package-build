@@ -1093,6 +1093,60 @@ it was addressed by the package rather than by a slug. It carries an address
 like every other note now; the guard is unchanged, because what it reads
 was never the key count.)
 
+### An empty body is a stub, on purpose
+
+A note whose body is empty is a **stub**: it carries its frontmatter into the
+content index and is queryable there, it keeps its `id` and the Foundry document
+its type compiles, and it publishes no page, no address and no link target. A
+note with a body and the `draft` tag is a **draft**, and one with a body and no
+tag is **full**. `docs/content-format.md` states the rule; this is what the lint
+does with it.
+
+Four findings and two reports:
+
+- **A stub carries a `description`.** With nothing in the body it is the only
+  sentence a reader gets, and it is what every table listing the note prints. An
+  **error**, at the note's `type:` line.
+- **A stub is not tagged `draft`.** A thing not started is not a thing in
+  progress. An **error**: remove the tag, or write a body.
+- **A body that reduces to nothing is an abandoned draft, not a stub.** A body
+  that is only headings, rules, comments and placeholder phrases — `TBD`, `To be
+written`, `Coming soon`, `Placeholder`, `N/A` — publishes a page that tells a
+  reader nothing. An **error** naming the phrase and where it sits: empty the
+  body to make it a stub, or write it.
+- **A short unmarked body may be a draft that forgot its marker.** Under
+  twenty-five words with no `draft` tag is a **warning, never an error**. A note
+  reading `See [[affiliation-meivor|Mëivōr]]` says everything it has to say, and
+  a corpus holds many of them.
+
+And two things the rules cannot decide, so they are reported as prose rather
+than flagged:
+
+- **The oldest drafts are listed** by last modification. A long-standing draft
+  is unfinished, which the tag already says; a warning nobody can clear is how a
+  report teaches its reader to stop looking at it.
+- **The counts are reported**, per package and per type:
+
+  ```text
+  thalorna: 2572 notes — 2089 full, 464 draft, 19 stub
+  ```
+
+  `content-build content-index` prints the same line, so the ratio of written to
+  unwritten is visible on every build rather than discovered in a year.
+
+#### Adopting it
+
+A package with no empty-bodied note is unaffected. A package that has them:
+
+1. Take the release and run `content-build lint`. Act on the stub findings — a
+   `description` on every stub, and no stub tagged `draft`.
+2. Change the `sql` fences that **should** see stubs from `FROM notes` to
+   `FROM entries`. The ones that would gain rows are warned about at the fence,
+   so the list comes to you.
+3. Read the site's page count. A stub publishes no page, so a tree with stubs
+   publishes fewer pages than it did — which is the point, and worth confirming
+   against any `min-pages` gate the deploy declares.
+
 ### Exactly one homepage
 
 A content tree declares **exactly one** `type: homepage` note. Zero is an
@@ -2054,7 +2108,15 @@ the build fails naming both.
 ### Every note's address, and every anchor it defines
 
 A record states the address a wikilink writes to reach the note, and every
-`{#slug}` anchor its body declares:
+`{#slug}` anchor its body declares — unless the note is a **stub**, which
+carries both as `null`: it publishes no page, so it holds no address and offers
+no anchor to reach. Everything else it declares is kept, its `id` and `foundry`
+block included, because a document is derived from `data:` rather than from
+prose.
+
+The SQL views read that absence as the state: `entries` is every row plus a
+derived `state` column, and `notes` is `entries` without the stubs. Nothing
+about the state is stored, and no note may author it.
 
 ```json
 {
