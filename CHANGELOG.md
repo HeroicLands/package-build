@@ -1,5 +1,28 @@
 # @heroiclands/package-build
 
+## 22.5.0
+
+### Minor Changes
+
+**Three states of a note** — a note with no body is now a **stub**: it carries
+
+- A page's settlements, deities or characters can be listed with the unwritten
+  ones beside the written, and counted by how finished they are — select
+  `FROM entries` rather than `FROM notes`, which leaves stubs out as it always
+  has.
+- A folder note and the homepage are complete with no body, and keep their pages.
+- An unwritten note still compiles the compendium document its facts describe.
+- `content-build lint` asks a stub for a description, refuses one tagged
+  `draft`, and reports a body that says only "TBD".
+- Every build now prints how many of a package's notes are full, draft and stub.
+
+### Patch Changes
+
+**Population figures are checked against each other.** A region whose polities
+or inner regions count more people than it states, a settlement larger than the
+land around it, and a reference page carrying a figure the place's own note
+contradicts are each reported while the note is open.
+
 ## 22.4.7
 
 ### Patch Changes
