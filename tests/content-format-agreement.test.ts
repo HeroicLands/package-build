@@ -40,6 +40,7 @@ import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS } from "../engine/content-images.mjs";
 import { DECLARED_TAGS, NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
+import { MARKET_CLASSES } from "../engine/market-class.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 
 const SPEC = readFileSync(path.resolve(__dirname, "../docs/content-format.md"), "utf8");
@@ -346,5 +347,43 @@ describe("the specification and the registry agree about a being's kind", () => 
     it("marks the group single-valued, which is what the specification promises", () => {
         expect(DECLARED_TAGS.beingKind.exclusive).toBe("kind");
         expect(DECLARED_TAGS.beingKind.types).toEqual(["being"]);
+    });
+});
+
+/**
+ * A settlement's market class.
+ *
+ * `data.market` is a number whose meaning is the scale, and a scale is worth
+ * nothing to a reader who cannot see what each step buys. So the specification
+ * states it as a vocabulary table beside the `type: place` keys, and
+ * `engine/market-class.mjs` states it as the list the lint refuses values
+ * against. Both are read here, in order, so a class added to one and not the
+ * other is a failing test rather than a note the lint accepts and no page
+ * explains.
+ */
+describe("the specification and the lint agree about a settlement's market class", () => {
+    const FORMAT = loadContentFormat();
+
+    it("reads a vocabulary table out of the specification, so the comparison is not vacuous", () => {
+        // Guards the guard: were the table's header to change shape, the
+        // comparison below would be between two empty lists.
+        expect([...FORMAT.vocabularies.keys()]).toContain("market");
+    });
+
+    it("documents `market` among the `place` keys", () => {
+        expect(FORMAT.types.get("place")?.dataKeys.has("market")).toBe(true);
+    });
+
+    it("admits exactly the classes the specification lists, in its order", () => {
+        expect(MARKET_CLASSES.map((c) => String(c.value))).toEqual(
+            FORMAT.vocabularies.get("market")?.values,
+        );
+    });
+
+    it("names every class, so a finding can say what a number means", () => {
+        for (const entry of MARKET_CLASSES) {
+            expect(entry.name, String(entry.value)).toBeTruthy();
+            expect(entry.trade, String(entry.value)).toBeTruthy();
+        }
     });
 });
