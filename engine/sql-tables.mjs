@@ -38,6 +38,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
+import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
@@ -166,19 +167,84 @@ export async function openNotesDatabase(records, { dir, dependencies = [] } = {}
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
     await connection.run("SET threads=1");
-    await connection.run(`CREATE VIEW notes AS ${readJsonAuto(jsonl)}`);
+    await createRelations(connection, jsonl);
 
     // One schema per declared dependency, so `FROM sohl.notes` reads the notes
     // that package published. Quoted, because a package id may carry a hyphen
-    // (`sohl-thalorna`) and an unquoted identifier may not.
+    // (`sohl-thalorna`) and an unquoted identifier may not. Both views are
+    // created, so `FROM sohl.entries` reads a dependency's stubs the same way.
     for (const dep of dependencies) {
         if (!dep?.id || !dep?.file || !fs.existsSync(dep.file)) continue;
         const schema = `"${String(dep.id).replace(/"/g, '""')}"`;
         await connection.run(`CREATE SCHEMA IF NOT EXISTS ${schema}`);
-        await connection.run(`CREATE VIEW ${schema}.notes AS ${readJsonAuto(dep.file)}`);
+        await createRelations(connection, dep.file, `${schema}.`);
+    }
+
+    // The market scale as a relation, so a table prints `village` beside the
+    // number a note wrote without a second copy of the scale living in authored
+    // content. Three columns, because the scale states three things and a join
+    // that could only give back the name would send the next author to copy the
+    // rest by hand.
+    await connection.run(
+        "CREATE VIEW market AS SELECT * FROM (VALUES " +
+            MARKET_CLASSES.map(
+                (c) =>
+                    `(${c.value}, '${c.name.replace(/'/g, "''")}', ` +
+                    `'${c.trade.replace(/'/g, "''")}')`,
+            ).join(", ") +
+            ") AS t(value, name, trade)",
+    );
+
+    // The stub-inclusive reading of `notes`, in a schema of its own. Putting it
+    // on the search path re-runs an authored query with unqualified `notes`
+    // resolving to `entries`, which is how a fence that would gain rows from
+    // the wider relation is found without parsing anybody's SQL — see
+    // {@link prepareSqlTables}.
+    await connection.run(`CREATE SCHEMA IF NOT EXISTS ${WITH_STUBS_SCHEMA}`);
+    await connection.run(`CREATE VIEW ${WITH_STUBS_SCHEMA}.notes AS SELECT * FROM entries`);
+
+    // Whether this index holds a stub at all, asked once. A corpus with none
+    // pays nothing for the comparison above, which is every package that has
+    // not started writing them.
+    const hasStubs =
+        (
+            await connection.runAndReadAll("SELECT count(*) AS n FROM entries WHERE state = 'stub'")
+        ).getRowObjects()[0].n > 0;
+
+    /**
+     * How many rows a query loses by selecting `FROM notes` rather than
+     * `FROM entries`.
+     *
+     * Answered by **running the author's query again** with unqualified `notes`
+     * resolving to the stub-inclusive relation, rather than by reading the
+     * `WHERE` clause. Reading it would mean parsing somebody else's SQL to work
+     * out which types a fence covers, and being wrong about that is exactly the
+     * silent failure the two views exist to prevent. Re-running is exact, and
+     * it costs nothing at all for a corpus with no stub, which is the common
+     * case and the only one that is asked twice for nothing.
+     *
+     * @param {string} sql - The query, as authored.
+     * @param {number} rows - How many rows it selected as written.
+     * @returns {Promise<number>} How many rows it would gain.
+     */
+    async function stubsExcluded(sql, rows) {
+        if (!hasStubs) return 0;
+        try {
+            await connection.run(`SET search_path='${WITH_STUBS_SCHEMA}'`);
+            const wider = await connection.runAndReadAll(sql);
+            return Math.max(0, wider.getRowObjects().length - rows);
+        } catch {
+            // A query that cannot run under the wider relation has nothing to
+            // say about stubs, and the failure it does have is reported by the
+            // run that matters.
+            return 0;
+        } finally {
+            await connection.run("RESET search_path");
+        }
     }
 
     return {
+        stubsExcluded,
         async query(sql) {
             const reader = await connection.runAndReadAll(sql);
             return {
@@ -199,6 +265,78 @@ export async function openNotesDatabase(records, { dir, dependencies = [] } = {}
             if (!dir) fs.rmSync(base, { recursive: true, force: true });
         },
     };
+}
+
+/**
+ * The schema whose `notes` is the stub-inclusive relation.
+ *
+ * A name nothing authored would collide with, because it is put on the search
+ * path underneath a query somebody else wrote.
+ *
+ * @type {string}
+ */
+const WITH_STUBS_SCHEMA = "__with_stubs";
+
+/**
+ * Create the two relations an index is read through, and the ladder one of them
+ * derives.
+ *
+ * **`entries` is every row**, stubs included, plus a derived `state` column:
+ *
+ * ```text
+ * address IS NULL                 → stub
+ * list_contains(tags, 'draft')    → draft
+ * otherwise                       → full
+ * ```
+ *
+ * The derivation lives here and nowhere else. Nothing is stored in the index,
+ * no note can author it, and no query repeats the `CASE` — the same rule that
+ * keeps `_ref` and `_section` ordinary SQL rather than fence options. The stub
+ * test is `address IS NULL` because the index carries no bodies, and it is
+ * exact: an address is emitted if and only if the body is non-empty on a type
+ * an empty body suppresses.
+ *
+ * **`notes` is `entries` without the stubs**, which is what every authored
+ * fence already means by it. A `notes` that silently gained stubs would grow
+ * every table selecting over it with nobody deciding, and a build that exits 0
+ * and produces the wrong output is the costly kind of failure. Adopting stubs
+ * in a given table is a one-word edit an author makes on purpose; the fences
+ * that would gain rows are warned about rather than changed.
+ *
+ * **The columns are asked for rather than assumed.** `union_by_name` infers the
+ * union of what the rows carry, so a corpus in which no note carries a tag has
+ * no `tags` column at all and naming it would fail to bind — which is a real
+ * index, not a hypothetical one. So the shape is described first and each half
+ * of the ladder falls back to a constant where its column is absent.
+ *
+ * @param {object} connection - An open DuckDB connection.
+ * @param {string} file - The JSONL to read.
+ * @param {string} [prefix] - A schema to qualify the view names with.
+ * @returns {Promise<void>}
+ */
+async function createRelations(connection, file, prefix = "") {
+    const read = readJsonAuto(file);
+    const described = await connection.runAndReadAll(`DESCRIBE ${read}`);
+    const columns = new Set(described.getRowObjects().map((row) => String(row.column_name)));
+    // A row with no address is a stub. With no address column anywhere, every
+    // row is one — which is what an index of nothing but unaddressable notes
+    // says, and saying it is more honest than calling them all full.
+    const stub = columns.has("address") ? "address IS NULL" : "true";
+    // `tags:` is authored by hand: a single tag may be a scalar rather than a
+    // list, so both readings are asked.
+    const draft =
+        columns.has("tags") ?
+            "COALESCE(list_contains(TRY_CAST(tags AS VARCHAR[]), 'draft'), false) " +
+            "OR COALESCE(TRY_CAST(tags AS VARCHAR) = 'draft', false)"
+        :   "false";
+    await connection.run(
+        `CREATE VIEW ${prefix}entries AS SELECT *, ` +
+            `CASE WHEN ${stub} THEN 'stub' WHEN ${draft} THEN 'draft' ` +
+            `ELSE 'full' END AS state FROM (${read})`,
+    );
+    await connection.run(
+        `CREATE VIEW ${prefix}notes AS SELECT * FROM ${prefix}entries WHERE state <> 'stub'`,
+    );
 }
 
 /**
@@ -407,6 +545,11 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
                         sectionLevel: block.sectionLevel,
                     }),
                     rows: result.rows.length,
+                    // How many rows this table would gain from the wider
+                    // relation, so a fence that has not adopted stubs says so
+                    // rather than quietly listing fewer settlements than the
+                    // region has.
+                    stubsExcluded: await db.stubsExcluded?.(block.query, result.rows.length),
                     allowEmpty: block.allowEmpty,
                 });
             } catch (err) {
@@ -470,7 +613,17 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     if (!sources.length) return undefined;
     // A cell links only where the address it would emit resolves, so a table
     // never ships a link the wikilink pass will then report dead.
-    const addresses = new Set(indexRecords.map((record) => record.address?.slug).filter(Boolean));
+    //
+    // A documentation journal is left out, and that is the whole of the stub
+    // rule here: its slug is its note's, so a written note supplies it anyway,
+    // while a stub's journal would put back the very slug the stub withheld and
+    // the cell would link to a page that does not exist.
+    const addresses = new Set(
+        indexRecords
+            .filter((record) => !record.documents)
+            .map((record) => record.address?.slug)
+            .filter(Boolean),
+    );
     // Each declared dependency's published index, attached as its own schema so
     // a table can read `FROM <package>.notes`. Imported here for the
     // same cycle reason the index is, and tolerated when absent: a tree with no

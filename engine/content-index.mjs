@@ -114,6 +114,9 @@ import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
 export { collectAnchors };
 import { entriesForNote, foundryIdentities } from "./foundry-entries.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
+// The one statement of what an empty body means, shared with the lint and the
+// SQL view that derives the ladder from the absence this writes.
+import { isStubNote } from "./note-state.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 // The retired-field refusal and the key locator, so a note authoring a derived
 // key is reported where it is rather than as a bare abort.
@@ -128,16 +131,19 @@ import {
     DERIVED_KEYS,
     isAssetRecord,
     isNoteRecord,
+    isStub,
     noteFile,
     recordPath,
     sortKeysDeep,
 } from "./index-records.mjs";
+import { isDraftNote } from "./note-vocabulary.mjs";
 
 export {
     authoredFrontmatter,
     DERIVED_KEYS,
     isAssetRecord,
     isNoteRecord,
+    isStub,
     noteFile,
     recordPath,
     sortKeysDeep,
@@ -407,11 +413,18 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  * @param {string} [options.absPath] - The file, read only on the failing path to
  *   locate the offending key.
  * @param {string} options.contentPackage - The package the tree compiles as.
- * @param {string} [options.body] - The note's markdown body, for its anchors.
+ * @param {string} [options.body] - The note's markdown body, for its anchors
+ *   and for the one question that decides whether the note publishes a page. A
+ *   caller that states no body is stating an empty one, and the note is a stub.
  * @param {number} [options.bodyLine] - The 1-based file line the body starts on.
  * @param {object} [options.manifest] - The package manifest, which the Foundry
  *   entries are derived against.
- * @returns {Record<string, any>} The record, keys sorted at every depth.
+ * @returns {Record<string, any>} The record, keys sorted at every depth. A
+ *   **stub** — a note with an empty body, on a type an empty body suppresses —
+ *   carries `address` and `anchors` as `null`: it publishes no page, so it
+ *   holds no address and offers no anchor. It keeps everything else, its `id`
+ *   and its `foundry` block included, because the document it compiles is
+ *   derived from `data:` rather than from prose.
  * @throws {Error} When the note carries a key this module derives, which would
  *   otherwise be overwritten without a word. `file` and, where the file was
  *   read, `position` ride on the error.
@@ -430,23 +443,36 @@ export function buildIndexRecord({
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
     const address = noteAddress(frontmatter, contentPackage);
+    // Derived from the address the note *would* hold, because a stub keeps its
+    // Foundry document: a document is derived from `data:`, not from prose, and
+    // the empty body suppresses the page rather than the document.
     const entries = foundryEntries({ frontmatter, address, body, manifest });
+    // A stub — an empty body on a type an empty body suppresses — publishes no
+    // page, so it holds no address and offers no anchor to link to. **The
+    // absent address is the signal**, and it is the column the table renderer
+    // already reads through `_ref`. Everything else the note declares is kept:
+    // its file is what the author edits and what every diagnostic names, and
+    // its `id` and `foundry` block are the document it still compiles.
+    const stub = isStubNote(frontmatter, body);
 
     return /** @type {Record<string, any>} */ (
         sortKeysDeep({
             ...frontmatter,
             package: contentPackage,
-            address,
+            address: stub ? null : address,
             nameAscii: asciiName(frontmatter?.name?.full),
             aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
             // Each anchor carries the link that reaches it, so a section is
             // addressable from the index without anyone re-deriving how an
             // anchor is spelled — and its file line, so an editor can jump
             // there rather than search for the heading.
-            anchors: collectAnchors(body, bodyLine).map((a) => ({
-                ...a,
-                link: address ? `${address.slug}#${a.slug}` : null,
-            })),
+            anchors:
+                stub ? null : (
+                    collectAnchors(body, bodyLine).map((a) => ({
+                        ...a,
+                        link: address ? `${address.slug}#${a.slug}` : null,
+                    }))
+                ),
             foundry: foundryBlock(
                 entries?.own,
                 systemOf(frontmatter?.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
@@ -609,22 +635,21 @@ export function collectContentIndex(
         }
         records.push(record);
 
-        // An item note is two documents, so it is two records.
-        const doc = foundryEntries({
-            frontmatter: fm,
-            address: record.address,
-            body,
-            manifest,
-        })?.doc;
-        if (doc?.key && record.address) {
+        // An item note is two documents, so it is two records. Derived from
+        // the address the note *would* hold rather than from the one its
+        // record carries: a stub withholds its own address and still compiles
+        // both documents, and the journal is one of them.
+        const address = noteAddress(fm, contentPackage);
+        const doc = foundryEntries({ frontmatter: fm, address, body, manifest })?.doc;
+        if (doc?.key && address) {
             records.push(
                 buildDocRecord({
                     frontmatter: fm,
-                    address: record.address,
+                    address,
                     entry: doc,
                     file: record.file,
                     contentPackage,
-                    anchors: record.anchors,
+                    anchors: record.anchors ?? [],
                 }),
             );
         }
@@ -751,8 +776,11 @@ export function indexRecordsFor({
  *   `paths.contentIndex`.
  * @param {object} [options.config] - A resolved configuration; loaded when omitted.
  * @returns {{file: string, notes: number, assets: number, records: number,
- *   bytes: number}} Where it was written, how many notes and how many assets it
- *   holds, how many records that is in all, and its size.
+ *   bytes: number, full: number, draft: number, stub: number}} Where it was
+ *   written, how many notes and how many assets it holds, how many records that
+ *   is in all, its size, and the ladder those notes sit on — so the ratio of
+ *   written to unwritten is visible on every build rather than discovered in a
+ *   year.
  * @throws {Error} When the content tree is absent, or when it yields no note at
  *   all — an empty index is indistinguishable from a mis-pointed tree, and a
  *   reader would take it as the authoritative statement that this package has
@@ -794,7 +822,21 @@ export function emitContentIndex({ contentBase, outDir, config } = {}) {
     // note yields a second record for its documentation journal and a file
     // yields an asset record, so reporting records as notes would overstate how
     // large the tree is.
-    const notes = records.filter(isNoteRecord).length;
+    const noteRecords = records.filter(isNoteRecord);
     const assets = records.filter(isAssetRecord).length;
-    return { file, notes, assets, records: records.length, bytes: Buffer.byteLength(text) };
+    // Read off the records rather than from a second pass over the tree: a stub
+    // is the note whose address the emitter just withheld, and a draft is the
+    // tag the note carries, so both are already in hand.
+    const stub = noteRecords.filter(isStub).length;
+    const draft = noteRecords.filter((record) => !isStub(record) && isDraftNote(record)).length;
+    return {
+        file,
+        notes: noteRecords.length,
+        assets,
+        records: records.length,
+        bytes: Buffer.byteLength(text),
+        full: noteRecords.length - stub - draft,
+        draft,
+        stub,
+    };
 }

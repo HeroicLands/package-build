@@ -43,7 +43,7 @@ function tree(files: Record<string, string>): string {
 }
 
 /** A note with frontmatter and a body. */
-function note(fm: Record<string, unknown>, body = ""): string {
+function note(fm: Record<string, unknown>, body = "Prose."): string {
     const lines = ["---"];
     for (const [k, v] of Object.entries(fm)) {
         if (v && typeof v === "object" && !Array.isArray(v)) {

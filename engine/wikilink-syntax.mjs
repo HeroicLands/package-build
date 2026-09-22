@@ -182,6 +182,8 @@ export function unlabelledLinkMessage(target) {
  * - `unknown-type` — definitely qualified, but names no type this build knows.
  * - `not-an-asset` — a real address, embedded where only a file can be drawn.
  * - `unresolved` — parses as an address, and nothing publishes it.
+ * - `stub` — the address names a note this tree holds whose body is empty, so
+ *   it publishes no page for the link to reach.
  * - `ambiguous` — more than one package publishes the short address.
  * - `unknown-anchor` — the address resolved, the `#section` it names did not.
  * - `no-content-index` — the address names a package declared
@@ -198,6 +200,7 @@ export const LINK_FINDING_REASONS = Object.freeze(
         "unknown-type",
         "not-an-asset",
         "unresolved",
+        "stub",
         "ambiguous",
         "unknown-anchor",
         "no-content-index",
@@ -228,6 +231,26 @@ export function unresolvedAddressMessage(target) {
         `address [[${target}]] resolves to no note — no package publishes ` +
         `it. Fix the shortcode, or declare the package that does as a ` +
         `dependency and run \`content-build deps fetch\``
+    );
+}
+
+/**
+ * What an author linking to a **stub** is told.
+ *
+ * Strictly better than "resolves to no note", and available only because a stub
+ * is in the index: the note exists, its file can be named, and the reason the
+ * link cannot land is a fact about that file rather than a guess about a
+ * shortcode. So the message names the file to open and offers both corrections
+ * — the link was either premature or the note is owed a body.
+ *
+ * @param {string} target - The address as authored.
+ * @param {string} [file] - Where the stub is, relative to the content root.
+ * @returns {string} The message, unpunctuated at the end as a finding is.
+ */
+export function stubAddressMessage(target, file) {
+    return (
+        `address [[${target}]] names a stub${file ? ` at ${file}` : ""}, which has ` +
+        `no body and therefore no page — name it in prose, or write the note`
     );
 }
 
@@ -278,11 +301,12 @@ export function ambiguousAddressMessage(target, packages = []) {
  * @param {string} [finding.anchor] - For `unknown-anchor`, the section named.
  * @param {string} [finding.type] - For `not-an-asset`, the type the address
  *   named.
+ * @param {string} [finding.stub] - For `stub`, where the stub is.
  * @returns {string} The message.
  * @throws {Error} On a reason outside the closed set — a resolver inventing one
  *   would otherwise report a link with no explanation at all.
  */
-export function linkFindingMessage({ reason, target, packages, anchor, type }) {
+export function linkFindingMessage({ reason, target, packages, anchor, type, stub }) {
     switch (reason) {
         case "unlabelled":
             return unlabelledLinkMessage(target);
@@ -316,6 +340,8 @@ export function linkFindingMessage({ reason, target, packages, anchor, type }) {
             );
         case "unresolved":
             return unresolvedAddressMessage(target);
+        case "stub":
+            return stubAddressMessage(target, stub);
         case "no-content-index":
             return (
                 `address [[${target}]] names a package declared \`contentIndex: false\` — ` +

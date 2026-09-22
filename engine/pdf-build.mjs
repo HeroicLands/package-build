@@ -93,7 +93,7 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { routerFor } from "./pack-router.mjs";
 import { publishesContentPages } from "../content-config.mjs";
 import { indexRecordsFor } from "./content-index.mjs";
-import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { openNotesDatabase, prepareTreeSqlTables } from "./sql-tables.mjs";
 import { parseDocumentTree, runTreeFilters, planDocument } from "./pdf-toc.mjs";
 import { collectContentPages, siteGates, tableUniverse, gatesFailed } from "./site-build.mjs";
@@ -351,7 +351,9 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), "content-pdf-"));
     const db = await openNotesDatabase(records, { dir });
     const ran = await runTreeFilters(parsed.nodes, db, {
-        keep: isNoteRecord,
+        // A stub is a note and is deliberately in the corpus, but it has no
+        // body — selecting one would print a blank page under its name.
+        keep: (record) => isNoteRecord(record) && !isStub(record),
         text: tree.text,
     });
     findings.push(...ran.findings.map((f) => ({ file: resolved.pdf.document, ...f })));

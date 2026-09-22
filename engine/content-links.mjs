@@ -182,6 +182,21 @@ export function buildLinkIndex(
         records ?? indexRecordsFor({ contentBase, config: resolved, skipDirectories, problems });
 
     const byKey = new Map();
+    /**
+     * Canonical address to the **stub** that would hold it.
+     *
+     * A stub has no page, so nothing may link to one — but it is a note the
+     * tree holds, and keeping it here is what lets the checker say so. The
+     * diagnostic names the note and reports that it has no body, where a link
+     * resolving against nothing at all can only say "resolves to no note".
+     *
+     * Kept beside {@link byKey} rather than in it, because the two answer
+     * different questions: `byKey` is what a **page** link may reach, and a
+     * stub is reachable only as **data** — a border's far side, a reference
+     * naming an item to stand beside. That is the whole boundary, and it is
+     * drawn here rather than per field.
+     */
+    const byStub = new Map();
     /** Canonical address to asset record, for the files this package ships. */
     const byAssetKey = new Map();
     const anchors = new Map();
@@ -234,12 +249,15 @@ export function buildLinkIndex(
             const canonical =
                 record.address?.canonical ??
                 canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode);
-            byKey.set(canonical, note);
+            // A note with no address publishes no page, so its identity is
+            // filed where a link cannot reach it and a reference still can.
+            const into = record.address ? byKey : byStub;
+            into.set(canonical, note);
             if (hasDocEntry(type)) {
                 // A documentation journal is `none`: no game system defines a
                 // JournalEntry, and one note has one of them however many
                 // system blocks it carries.
-                byKey.set(canonicalKey(pkg, NO_SYSTEM, `doc${type}`, fm.shortcode), note);
+                into.set(canonicalKey(pkg, NO_SYSTEM, `doc${type}`, fm.shortcode), note);
             }
         }
     }
@@ -487,6 +505,26 @@ export function buildLinkIndex(
     }
 
     /**
+     * The **stub** an address names, or `undefined`.
+     *
+     * Asked only after {@link resolveAddress} has answered nothing, and read
+     * exactly as it reads: same qualifier, same defaults, same expansion. What
+     * it buys is the diagnostic — a link into a stub is refused because there
+     * is no page to reach, and the message can name the file the author has to
+     * open rather than saying the address resolves nowhere.
+     *
+     * @param {string} target - The link target, anchor already removed.
+     * @param {string} [keyPath] - The dotted frontmatter key path the link sits
+     *   under; body prose has none.
+     * @returns {object|undefined} The stub it addresses.
+     */
+    function stubAt(target, keyPath) {
+        const qualified = readQualifier(target, types, packages, noIndexPackages);
+        if (!qualified || qualified.reason) return undefined;
+        return byStub.get(expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) }));
+    }
+
+    /**
      * Every foreign manifest entry an address names, in package order.
      *
      * A written target is a **partial** address, so this matches on the
@@ -558,7 +596,12 @@ export function buildLinkIndex(
     function referenceHit(target) {
         const q = readQualifier(target, types, packages, noIndexPackages);
         if (!q || q.reason) return null;
-        const local = matchAddress([...byKey, ...byAssetKey], q);
+        // Stubs last, and deliberately included: a reference names an item to
+        // stand beside rather than a document to point at, so a border with a
+        // stub on the far side is a valid statement about the world. Resolving
+        // these against the addressed rows alone would report every one of
+        // them dead.
+        const local = matchAddress([...byKey, ...byAssetKey, ...byStub], q);
         if (local.length) return local[0][1];
         const abroad = matchAddress([...foreign.index], q);
         return abroad.length ? abroad[0][1] : null;
@@ -599,6 +642,8 @@ export function buildLinkIndex(
          */
         resolve: resolveAddress,
         resolveAddress,
+        /** The stub an address names, for the refusal that says which file. */
+        stubAt,
         manifestHit,
         foreignHits,
         referenceHit,
@@ -893,9 +938,9 @@ export function auditHomepageLinks(index) {
  *   which addresses a foreign manifest answered. Each `deadAddresses` entry
  *   carries a `reason` from {@link LINK_FINDING_REASONS} —
  *   `"not-an-address"`, `"unknown-type"`, `"ambiguous"` (with the claiming
- *   `packages`), `"no-content-index"`, or `"unresolved"` — and every one of
- *   them is an **error**: the three resolvers agree on severity for every
- *   class.
+ *   `packages`), `"no-content-index"`, `"stub"` (with the stub's path) or
+ *   `"unresolved"` — and every one of them is an **error**: the three
+ *   resolvers agree on severity for every class.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, embedsOf, resolve, manifestHit, isAddress } = index;
@@ -957,6 +1002,15 @@ export function auditLinks(index) {
                 continue;
             }
             if (index.resolveAddress(target)) continue;
+            // A stub is in the index, so the refusal can name it. Asked before
+            // the foreign manifests, because a local note is what the author
+            // meant and reporting it as an unresolved foreign address would
+            // send them looking in the wrong package.
+            const stub = index.stubAt?.(target);
+            if (stub) {
+                deadAddresses.push({ ...at, reason: "stub", stub: stub.rel });
+                continue;
+            }
             // A manifest answers with the target package's own build output
             // rather than a reviewed guess.
             const hits = index.foreignHits(target);
