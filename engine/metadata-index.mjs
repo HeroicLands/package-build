@@ -386,13 +386,16 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 // root onto it and resolves in one step — which is the point of
                 // the record naming a path at all.
                 asset: record.asset ?? undefined,
-                // What a place is next to, reachable from and within, carried
-                // so a consumer's lint checks a border across the package
-                // boundary from both ends, and a consumer's map draws the
-                // dependency's places beside its own.
+                // What a place is next to, reachable from and within, and
+                // what an affiliation holds, carried so a consumer's lint
+                // checks a border across the package boundary from both ends,
+                // a consumer's map draws the dependency's places beside its
+                // own, and a consumer's pages list what a dependency's
+                // affiliation holds and what lies within its regions.
                 borders: record.data?.borders ?? undefined,
                 routes: record.data?.routes ?? undefined,
                 parents: record.data?.parents ?? undefined,
+                domains: record.data?.domains ?? undefined,
                 package: pkg,
             });
         }

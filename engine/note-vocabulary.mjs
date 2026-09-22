@@ -85,6 +85,7 @@ import { currentType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
+import { checkHeld } from "./holdings.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -141,6 +142,11 @@ import { checkBorders, checkRoutes } from "./place-relations.mjs";
  * @property {readonly DataFieldSpec[]} data - The `data:` keys, closed.
  * @property {readonly string[]|null} [subTypes] - The top-level `subType`
  *   values, as above.
+ * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
+ *   check of the whole note, run by the frontmatter lint beside the field
+ *   checks with the same index. For a rule that is about the note rather than
+ *   one of its fields — a place's tenure is a fact about every affiliation's
+ *   `domains`, and is located at the note's `type:` line.
  */
 
 /* --------------------------------------------------------------------- */
@@ -984,6 +990,7 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     place: Object.freeze({
         subTypes: Object.freeze(["world", "region", "settlement", "site", "structure", "feature"]),
+        check: checkHeld,
         data: Object.freeze([
             {
                 name: "demonym",

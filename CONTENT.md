@@ -1183,6 +1183,13 @@ parent or child, or a pair listed twice by one mode. Each finding lands on the
 entry that states it. The keys, the sets and the days scale are specified under
 `type: place` in `docs/content-format.md`.
 
+**A settlement is held by someone.** An affiliation's `domains` names the
+places it holds, and a `place` of subType `settlement`, `site` or `structure`
+that no affiliation's `domains` names — in this tree or in a fetched index —
+is a warning, `unheld land`, at the note's `type:` line, so a gap in tenure
+shows. A region is held through its polity's `domains` and a feature by
+nobody, so neither is checked.
+
 Nothing here writes. A check reports and an author fixes.
 
 **`content-build map` draws what those keys state.** `--tree` is the author's
@@ -2408,6 +2415,60 @@ The theme's `related.html` partial reads both lists and renders them as one
 
 `related` is derived, never authored: what links to a page is a fact about
 every other page in the tree. A note that writes one has it replaced.
+
+### A place page says what lies within it and who holds it; an affiliation page says what it holds
+
+Two keys the notes already carry answer three questions a reader asks of a
+page. A place's `data.parents` is geography — what it sits within — and an
+affiliation's `data.domains` is tenure — what it holds. The build reads both
+across the tree and every fetched index, inverts them, and writes each page
+the lists that concern it, shaped like `related`:
+
+```yaml
+# on a place
+contains: # every place whose `parents` names this one
+  - title: Khaset-Mehtet
+    url: /thalorna/place-khasetmehtet/
+    type: place
+    subType: settlement
+held_by: # every affiliation whose `domains` names this one
+  - title: The Nome of Ankhsetun
+    url: /thalorna/affiliation-nomenkhstn/
+    type: affiliation
+    subType: polity
+
+# on an affiliation
+holdings: # every place its `domains` names
+  - title: Ankhsetun
+    url: /thalorna/place-ankhsetunnome/
+    type: place
+    subType: region
+```
+
+- **`contains` and `holdings` are sorted by `subType`, then `title`**;
+  `held_by` by `title`. An entry carries `subType` where the note declares
+  one.
+- **A key is present only when it has an entry.** A place nobody holds and
+  nothing sits within carries neither key; an affiliation whose `domains` is
+  empty carries no `holdings`. The theme's silent-disappear convention, kept
+  at the source.
+- **`domains` names what an affiliation holds directly, and is never
+  expanded.** A polity whose `domains` names a region holds the region; the
+  settlements within it are reached through the region's `contains`, and are
+  not repeated in the polity's `holdings`. Tenure runs through
+  `affiliation.parents` — a house of its earl, an earl of the crown — and
+  geography through `place.parents`. A subinfeudated manor sits in one region
+  by the second and under a lord of another polity by the first, and both
+  pages say so.
+- **A dependency's places and affiliations take part.** A fetched index entry
+  carries the `parents` and `domains` its record stated, so a place another
+  package publishes is listed within a local region, and a house another
+  package publishes is named on the local manor it holds. A local note
+  declaring a shortcode shadows a fetched entry declaring the same one.
+- **`url` composes `<base><slug>/`**, as every `related` entry does.
+
+All three are derived, never authored: a note that writes one has it
+replaced. The theme renders each list as a table on the page.
 
 ### A place page carries the map from that place
 

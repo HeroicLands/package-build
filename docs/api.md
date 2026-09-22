@@ -429,6 +429,19 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 | `checkBorders`    | `checkBorders(note, { index })` | `object[]`          | linting a place's `borders` — targets, values, once per pair, no parent or child, and reciprocity with the other end |
 | `checkRoutes`     | `checkRoutes(note, { index })`  | `object[]`          | linting a place's `routes` — as `checkBorders`, plus `mode`, `days` and `terrain`, once per pair per mode            |
 
+### `engine.holdings`
+
+What lies within a place, who holds it, and what an affiliation holds — read off `data.parents` and `data.domains` across this package and every fetched index, inverted into the `contains`, `held_by` and `holdings` lists the site build writes — and the tenure check `content-build lint` runs on a place.
+
+| Export                 | Signature                            | Returns                 | Use it when                                                                                                                  |
+| ---------------------- | ------------------------------------ | ----------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `HOLDINGS_KEYS`        | `const HOLDINGS_KEYS`                | `readonly string[]`     | the three derived keys — `contains`, `held_by`, `holdings` — which a note cannot author                                      |
+| `HELD_SUBTYPES`        | `const HELD_SUBTYPES`                | `readonly string[]`     | the place subTypes tenure is checked on — `settlement`, `site`, `structure`                                                  |
+| `holdingsNode`         | `holdingsNode(fm, { title, url })`   | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation               |
+| `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)` | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                   |
+| `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry        |
+| `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | linting a place's tenure — a settlement, site or structure no affiliation's `domains` names is a warning at its `type:` line |
+
 ### `engine.mapPlaces`
 
 The places a map is drawn from — this package's index records and every fetched dependency's entries, read through one shape — and what their `parents` say: the world, the continents, each place's continent, and everything the containment tree can get wrong, reported as findings located at the entry that states it.
