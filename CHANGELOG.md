@@ -1,5 +1,15 @@
 # @heroiclands/package-build
 
+## 22.4.7
+
+### Patch Changes
+
+Every place page that states a border or a route, or is named in one, carries the map from that place: `from-<shortcode>.svg` beside the page and `map:` naming it in the front matter, with every place name on it a link to that place's page. GraphViz draws it; when GraphViz is not installed the site build says so once and writes every page without a map, and `site.maps: false` draws none.
+
+A place's page carries what lies within it and who holds it, and an affiliation's page carries what it holds, read from the `parents` and `domains` the notes already state — a dependency's places and affiliations included. `content-build lint` warns of unheld land: a settlement, site or structure that no affiliation's `domains` names.
+
+A `place` note can state a settlement's market class: `data.market`, a whole number from 1 to 6 beside `population`. `1` is a hamlet, with no market beyond what neighbours trade among themselves; `2` a village and its weekly market; `3` a town with several trades working full time; `4` a market town, its chartered fair and its moneylender; `5` a city, where anything ordinary can be had in quantity; `6` a great city that banks, imports as a matter of course, and is the market from which the other markets buy. The key is optional, and a value off the scale is reported at the line that states it rather than rounded onto a class nobody wrote.
+
 ## 22.4.6
 
 ### Patch Changes
