@@ -9,6 +9,7 @@ import { describe, it, expect } from "vitest";
 
 import { lintNote, lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { NOTE_VOCABULARY, dataFields, subTypes } from "../engine/note-vocabulary.mjs";
+import { MARKET_CLASSES } from "../engine/market-class.mjs";
 import { positionOfFrontmatterPath } from "../engine/diagnostics.mjs";
 import { pageFrontmatter } from "../engine/site-build.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -341,5 +342,91 @@ describe("a folder's `parent` is a scalar or a map keyed by pack", () => {
             packs: ["items", "journals"],
         });
         expect(findings).toEqual([]);
+    });
+});
+
+/**
+ * A settlement's market class.
+ *
+ * `data.market` states what trade a settlement supports, as an integer on a
+ * scale of six. The lint holds it to that scale rather than to "a number",
+ * because a `7` means nothing and a `4` means a chartered fair: a value off
+ * the scale is a note stating a fact no reader can read, and nothing else
+ * would report it.
+ *
+ * Every fixture below draws its values from `MARKET_CLASSES`, so a class added
+ * to the scale is covered here without a second list being edited to match.
+ */
+describe("a place states a settlement's market class", () => {
+    const settlement = (market: unknown) =>
+        note("place", { subType: "settlement", data: { market } });
+
+    it("accepts every class the scale declares", () => {
+        for (const entry of MARKET_CLASSES) {
+            expect(lintNote(settlement(entry.value), opts), String(entry.value)).toEqual([]);
+        }
+    });
+
+    it("accepts a place that states no market at all", () => {
+        expect(lintNote(note("place", { subType: "settlement", data: {} }), opts)).toEqual([]);
+    });
+
+    it("refuses a class below the scale", () => {
+        const below = MARKET_CLASSES[0].value - 1;
+        const findings = lintNote(settlement(below), opts);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`data.market`");
+        expect(findings[0].message).toContain(String(below));
+    });
+
+    it("refuses a class above the scale", () => {
+        const above = MARKET_CLASSES[MARKET_CLASSES.length - 1].value + 1;
+        const findings = lintNote(settlement(above), opts);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`data.market`");
+        expect(findings[0].message).toContain(String(above));
+    });
+
+    it("refuses a class that is not a whole number", () => {
+        const findings = lintNote(settlement(2.5), opts);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`data.market`");
+        expect(findings[0].message).toContain("2.5");
+    });
+
+    it("names the scale in the finding, so the correction is in the message", () => {
+        const findings = lintNote(settlement(9), opts);
+        expect(findings[0].message).toContain(MARKET_CLASSES[0].name);
+        expect(findings[0].message).toContain(MARKET_CLASSES[MARKET_CLASSES.length - 1].name);
+    });
+
+    it("locates the finding on the value, which is the thing to correct", () => {
+        // `---`, `type:`, `subType:`, `data:`, then the key — file line 5,
+        // indented four, so the value begins at column 13.
+        expect(lintNote(settlement(9), opts)[0]).toMatchObject({ line: 5, column: 13 });
+    });
+
+    it("leaves a value of the wrong shape to the container's own check, once", () => {
+        const findings = lintNote(settlement("busy"), opts);
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`data.market` should be number");
+    });
+
+    it("says nothing about a market on a place that is not a settlement", () => {
+        // `population` states no subType condition either: the container is
+        // closed per type, and which places a key is meaningful on is the
+        // author's judgement rather than the lint's.
+        expect(lintNote(note("place", { subType: "region", data: { market: 5 } }), opts)).toEqual(
+            [],
+        );
+    });
+
+    it("still refuses an unknown key beside it, and names the near miss", () => {
+        const findings = lintNote(
+            note("place", { subType: "settlement", data: { market: 3, merket: 3 } }),
+            opts,
+        );
+        expect(messages(findings)).toContain("`data:` property declared by place");
+        expect(messages(findings)).toContain('Did you mean "market"?');
     });
 });

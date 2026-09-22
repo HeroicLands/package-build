@@ -90,6 +90,9 @@ export * as placeRelations from "./place-relations.mjs";
 /** What lies within a place, who holds it, and what an affiliation holds — the page lists, and the tenure check. */
 export * as holdings from "./holdings.mjs";
 
+/** What trade a settlement supports: the six-step market scale, and the check that holds a value to it. */
+export * as marketClass from "./market-class.mjs";
+
 /** The places a map is drawn from, read from the content index, and what `parents` says about them. */
 export * as mapPlaces from "./map-places.mjs";
 

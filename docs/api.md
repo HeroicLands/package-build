@@ -442,6 +442,17 @@ What lies within a place, who holds it, and what an affiliation holds — read o
 | `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry        |
 | `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | linting a place's tenure — a settlement, site or structure no affiliation's `domains` names is a warning at its `type:` line |
 
+### `engine.marketClass`
+
+What trade a settlement supports (`data.market`): the six-step scale, stated once for the lint, the author-facing reference and the specification, and the check that holds a note's value to it.
+
+| Export           | Signature              | Returns             | Use it when                                                                                       |
+| ---------------- | ---------------------- | ------------------- | ------------------------------------------------------------------------------------------------- |
+| `MARKET_CLASSES` | `const MARKET_CLASSES` | `readonly object[]` | the scale in order, each step its `value`, the `name` a settlement of it goes by, and its `trade` |
+| `isMarketClass`  | `isMarketClass(value)` | `boolean`           | asking whether an authored value names a class, a quoted number included                          |
+| `marketClass`    | `marketClass(value)`   | `object\|undefined` | the class a value names, for rendering what a number means                                        |
+| `checkMarket`    | `checkMarket(note)`    | `object[]`          | linting a place's `market` — a value off the scale, located at the value that states it           |
+
 ### `engine.mapPlaces`
 
 The places a map is drawn from — this package's index records and every fetched dependency's entries, read through one shape — and what their `parents` say: the world, the continents, each place's continent, and everything the containment tree can get wrong, reported as findings located at the entry that states it.

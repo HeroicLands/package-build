@@ -86,6 +86,10 @@ import { currentType } from "./ids.mjs";
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
 import { checkHeld } from "./holdings.mjs";
+// What trade a settlement supports — the scale and the check that holds a
+// value to it, read rather than restated, so the reference below and the
+// finding an author meets state one list.
+import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
 
 /**
  * One `data:` key a note type may carry.
@@ -1013,6 +1017,14 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "population",
                 ...NUM,
                 describe: "Approximate population, to two significant digits.",
+            },
+            {
+                name: "market",
+                ...NUM,
+                check: checkMarket,
+                describe:
+                    "What trade the settlement supports, on a scale of six: " +
+                    `${MARKET_CLASSES.map((c) => `${c.value} ${c.name}`).join(", ")}.`,
             },
             {
                 name: "borders",

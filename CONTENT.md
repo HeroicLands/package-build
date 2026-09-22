@@ -1190,6 +1190,18 @@ is a warning, `unheld land`, at the note's `type:` line, so a gap in tenure
 shows. A region is held through its polity's `domains` and a feature by
 nobody, so neither is checked.
 
+**A settlement's market class is one of six.** `data.market` states what trade
+a settlement supports — `1` a hamlet, with no market beyond what neighbours
+trade among themselves; `2` a village and its weekly market; `3` a town with
+several trades working full time; `4` a market town, its chartered fair and its
+moneylender; `5` a city, where anything ordinary can be had in quantity; `6` a
+great city that banks, imports as a matter of course, and is the market from
+which the other markets buy. The numbers order the steps and do nothing else, so a value off the
+scale is an error at the value that states it rather than a number rounded onto
+a class the author did not write. The key is optional and the lint checks no
+`subType` condition, as it checks none for `population`. The scale is stated
+under `type: place` in `docs/content-format.md`.
+
 Nothing here writes. A check reports and an author fixes.
 
 **`content-build map` draws what those keys state.** `--tree` is the author's

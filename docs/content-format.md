@@ -3104,8 +3104,37 @@ three maps, and none of those maps needs to know it is a keep.
 | `lore`          | `WikiLink[]`                                        | Lore concerning this place — its peoples, its law, its calendar, its history |
 | `parents`       | `WikiLink[]`                                        | Enclosing places within which this place is located                          |
 | `population`    | `number`                                            | Approximate population (precision 2 significant digits)                      |
+| `market`        | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
 | `borders`       | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
 | `routes`        | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
+
+#### What a settlement's market supports
+
+`population` states how many people a settlement holds; `market` states what a
+traveller can buy there. Those are different questions — two settlements of
+eight hundred are a different proposition when one holds a weekly market and
+the other a chartered fair with a moneylender — so a note states both, either,
+or neither.
+
+The value is a **class**, not a measurement. The numbers order six steps and do
+nothing else: a `5` is not a market two fifths larger than a `3`, it is a city
+rather than a town. `content-build lint` refuses a value off the scale instead
+of rounding it onto one, so a reader can trust that a number means the same
+thing on every page.
+
+| `market` value | the settlement is | what can be had there                                                                             |
+| -------------- | ----------------- | ------------------------------------------------------------------------------------------------- |
+| `1`            | a hamlet          | no market — what neighbours trade among themselves                                                |
+| `2`            | a village         | a weekly market: staples, a smith, what a household cannot make                                   |
+| `3`            | a town            | a regular market, most common goods, several trades working full time                             |
+| `4`            | a market town     | a chartered fair, goods carried from a week away, a moneylender                                   |
+| `5`            | a city            | anything ordinary, in quantity; foreign goods; a guild structure                                  |
+| `6`            | a great city      | the rare and the imported as a matter of course; banking; the market from which other markets buy |
+
+The key is meaningful on a settlement, and the lint checks no `subType`
+condition — as it checks none for `population`. Which places a fact says
+something about is the author's judgement, and the `data:` container is closed
+per type rather than per subType.
 
 #### Where a place is, in relation to other places
 
