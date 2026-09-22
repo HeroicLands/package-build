@@ -2470,6 +2470,42 @@ holdings: # every place its `domains` names
 All three are derived, never authored: a note that writes one has it
 replaced. The theme renders each list as a table on the page.
 
+### A place page carries the map from that place
+
+A place that states a border or a route, or is named in one, has a map from
+it — the drawing `content-build map --from` makes, with the place at the
+centre and each neighbour at its bearing. The site build draws that map for
+every such place and writes it with the page: the page is a leaf bundle,
+`place-<shortcode>/index.md`, the drawing sits beside it as
+`from-<shortcode>.svg`, and the front matter names it:
+
+```yaml
+map: from-kthrmr.svg
+```
+
+The theme's "From here" panel reads the key, inlines the file as a page
+resource, and so every place name on the map is a link to that place's page.
+What the build guarantees:
+
+- **The address does not move.** A bundled page states the same `url` a flat
+  one does, `/<slug>/`, so `place-kthrmr/index.md` publishes exactly where
+  `place-kthrmr.md` would.
+- **Every name links through the site base.** The map is drawn with the base
+  the pages are served under, so each `href` composes `<base><slug>/` the way
+  every other href the build renders does.
+- **It is written for inlining.** No XML prologue, no DOCTYPE, no comment, no
+  reference to anything outside the file; the root carries a `viewBox` and no
+  fixed width or height, so the theme sizes it to the column.
+- **A place with no relation carries nothing**: no file beside it, no `map`
+  key, and the page stays a flat file. So does every page that is not a place.
+- **A site never fails for want of a map.** GraphViz draws; when it is not
+  installed the build says so once, as a warning naming what to install, and
+  every page is written as it would be without maps. `site.maps: false` in
+  `package-build.config.yaml` draws nothing and asks nothing of GraphViz.
+
+`map` is derived, never authored: a note that writes one has it replaced when
+the build draws a map, and dropped when there is none to draw.
+
 ### Why the output location is fixed
 
 The content mount is a build artifact and is **deleted on every run**, so that a

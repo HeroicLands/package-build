@@ -251,11 +251,41 @@ export function loadMapWorld({ config, contentBase, base, problems }) {
         skipDirectories: config.skipDirectories,
         problems,
     });
-    const world = placesFromRecords(records, { contentBase: tree, base });
-    world.config = config;
     const foreign = loadForeignIndexes(config, [config.contentPackage]);
-    addForeignPlaces(world, foreign.index);
+    const world = mapWorld({
+        records,
+        foreignIndex: foreign.index,
+        contentBase: tree,
+        base,
+        config,
+    });
     world.stale = foreign.stale;
+    return world;
+}
+
+/**
+ * The world a map is drawn from, out of records and indexes a caller already
+ * holds: this package's places from its index records, and every
+ * dependency's from the fetched indexes. The site build reads its corpus and
+ * its foreign indexes once for every surface it publishes, and hands them
+ * here rather than walking the tree a second time.
+ *
+ * @param {object} opts
+ * @param {Array<Record<string, any>>} opts.records - Index records, as
+ *   {@link module:engine/content-index.indexRecordsFor} returns them.
+ * @param {Map<string, object>} opts.foreignIndex - The fetched indexes, as
+ *   {@link module:engine/metadata-index.loadForeignIndexes} returns `index`.
+ * @param {string} opts.contentBase - The content root the records were read from.
+ * @param {string} [opts.base] - The site base this package's pages are served
+ *   under. Absent, no local place carries a URL.
+ * @param {object} opts.config - The resolved configuration.
+ * @returns {MapWorld} The world, with nothing stale: the caller has already
+ *   judged its indexes usable.
+ */
+export function mapWorld({ records, foreignIndex, contentBase, base, config }) {
+    const world = placesFromRecords(records, { contentBase, base });
+    world.config = config;
+    addForeignPlaces(world, foreignIndex);
     return world;
 }
 

@@ -36,7 +36,9 @@
  * `/<package>/<type>-<shortcode>/`. Nothing is generated between them — no
  * section directory, no listing, no `_index.md` but the root's. An index of
  * what the package publishes is a `doc` note carrying a content table, and it
- * is authored where every other page is.
+ * is authored where every other page is. The one file a page carries beside
+ * itself is the map from a place — see `engine/site-maps.mjs` — and a page
+ * that carries one is a leaf bundle at the same address.
  *
  * **Every gate reports; none exits.** The integrity checks a site build needs —
  * a wikilink authored in frontmatter, a name that yields no slug, an unusable
@@ -83,6 +85,7 @@ import { publishesContentPages } from "../content-config.mjs";
 import { HUGO_CONTENT } from "./site-config.mjs";
 import { homepageLinkTargets, relatedPages } from "./related-pages.mjs";
 import { HOLDINGS_KEYS, foreignHoldingsNodes, holdingsNode, holdingsPages } from "./holdings.mjs";
+import { drawSiteMaps } from "./site-maps.mjs";
 
 const require = createRequire(import.meta.url);
 
@@ -491,7 +494,9 @@ export function tableUniverse(pages) {
  * {@link module:engine/related-pages} — so an authored value is dropped the
  * way `aliases` is, and {@link renderPages} writes the derived block once it
  * holds the graph. `contains`, `held_by` and `holdings` are dropped for the
- * same reason — see {@link module:engine/holdings}.
+ * same reason — see {@link module:engine/holdings}. **So is `map`**: the
+ * file a place page names is the one the build drew beside it — see
+ * {@link module:engine/site-maps} — and a page with no drawing names none.
  *
  * @param {object} page - The page.
  * @param {object} options
@@ -528,6 +533,7 @@ export function pageFrontmatter(page, { decorate, webSrc, artSrc }) {
     delete data.aliases;
     delete data.related;
     for (const key of HOLDINGS_KEYS) delete data[key];
+    delete data.map;
     if (webSrc && artSrc) resolveArtFields(data, webSrc, artSrc);
     return data;
 }
@@ -601,11 +607,20 @@ function isPlainObject(value) {
  * `doc` note's `subType` may be spelled the same as another note's `type`, and
  * `doc-gear.md` and `weapongear-gear.md` are distinct.
  *
+ * **A page that carries a file beside itself is a leaf bundle**, `<slug>/index.md`,
+ * because that is the one shape under which Hugo hands a page its own
+ * resources — the map from a place, inlined by the theme through
+ * `.Resources.Get`. The directory is the page, not a section: it holds no
+ * `_index.md`, and the page's stated `url` keeps its address exactly where the
+ * flat file's was.
+ *
  * @param {object} page - The page.
+ * @param {object} [opts]
+ * @param {boolean} [opts.bundle=false] - Whether the page carries a resource.
  * @returns {string} The file, relative to the mount.
  */
-export function pageDestination(page) {
-    return `${page.slug}.md`;
+export function pageDestination(page, { bundle = false } = {}) {
+    return bundle ? `${page.slug}/index.md` : `${page.slug}.md`;
 }
 
 /**
@@ -630,16 +645,25 @@ export function pageDestination(page) {
  * point the resolver answers, and inverted once between them. Nothing is
  * resolved twice.
  *
+ * **A map is written with its page.** The drawing from a place is made before
+ * this render — see {@link module:engine/site-maps} — and handed in keyed by
+ * page URL; the page that owns one is written as a leaf bundle, the file is
+ * copied beside it, and the front matter names it as `map`. Every other page
+ * is written flat, and carries no such key.
+ *
  * @param {object[]} pages - Every page.
  * @param {object} options - Everything the render needs. `homepages` is the
  *   homepage as the index knows it — `{ fm, body, url, title }` — which takes
  *   no part in the render and every part in the graph: a content page links
- *   it by wikilink, and its own markdown links name content pages.
+ *   it by wikilink, and its own markdown links name content pages. `maps` is
+ *   each drawing by the URL of the page that carries it.
  * @returns {{written: number, byKind: Record<string, number>, tableErrors: object[],
  *   wikiErrors: object[], imageErrors: object[],
- *   related: Map<string, import("./related-pages.mjs").Related>}} `related`
+ *   related: Map<string, import("./related-pages.mjs").Related>,
+ *   maps: number}} `related`
  *   is keyed by page URL, and holds the homepage's block beside every content
  *   page's, so the caller can write it on the page this render does not.
+ *   `maps` counts the pages written with one.
  */
 export function renderPages(pages, options) {
     const {
@@ -654,6 +678,7 @@ export function renderPages(pages, options) {
         config,
         records = [],
         homepages = [],
+        maps = new Map(),
     } = options;
 
     // The address space the art slots and the body's embeds resolve against:
@@ -794,17 +819,32 @@ export function renderPages(pages, options) {
         ...foreignHoldingsNodes(foreign?.index),
     ]);
 
+    let withMap = 0;
     for (const { page, body, data } of rendered) {
         const block = related.get(page.url);
         if (block) data.related = block;
         Object.assign(data, holdings.get(page.url));
-        const dest = path.join(outRoot, pageDestination(page));
+        const map = maps.get(page.url);
+        const dest = path.join(outRoot, pageDestination(page, { bundle: Boolean(map) }));
         fs.mkdirSync(path.dirname(dest), { recursive: true });
+        if (map) {
+            fs.copyFileSync(map.file, path.join(path.dirname(dest), map.name));
+            data.map = map.name;
+            withMap += 1;
+        }
         fs.writeFileSync(dest, matter.stringify(body, data));
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
-    return { written: pages.length, byKind, tableErrors, wikiErrors, imageErrors, related };
+    return {
+        written: pages.length,
+        byKind,
+        tableErrors,
+        wikiErrors,
+        imageErrors,
+        related,
+        maps: withMap,
+    };
 }
 
 /**
@@ -857,10 +897,15 @@ export function resolveSitePass(name, options) {
  *   {@link module:engine/sql-tables.prepareSqlTables}. A page authoring an
  *   `sql` directive with none prepared is a table error: nothing here runs a
  *   query.
+ * @param {(engine: string) => string|undefined} [options.locate] - How a
+ *   GraphViz engine's binary is found, for the maps; the real lookup by
+ *   default.
  * @returns {{gates: object, stats: object|null, tableErrors: object[],
- *   wikiErrors: object[], imageErrors: object[], manifests: object|null}}
+ *   wikiErrors: object[], imageErrors: object[], mapFindings: object[],
+ *   manifests: object|null}} `mapFindings` is what drawing the maps found —
+ *   warnings, never a reason to fail the build.
  */
-export function buildSite({ config, sqlTables } = {}) {
+export function buildSite({ config, sqlTables, locate } = {}) {
     const resolved = config ?? loadPackConfig();
     const site = resolved.site;
     const scheme = resolved.publish.address;
@@ -956,6 +1001,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            mapFindings: [],
             stats: null,
         };
     }
@@ -974,6 +1020,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            mapFindings: [],
             stats: {
                 homepages: writeHomepages(homeRoot, homepages, resolved),
                 out: homeRoot,
@@ -1015,6 +1062,7 @@ export function buildSite({ config, sqlTables } = {}) {
             tableErrors: [],
             wikiErrors: [],
             imageErrors: [],
+            mapFindings: [],
         };
     }
 
@@ -1022,6 +1070,22 @@ export function buildSite({ config, sqlTables } = {}) {
         ...site.passOptions,
         repoRoot: resolved.rootDir,
     });
+
+    // The map from each related place, drawn now that every page is known to
+    // be addressable and before any is written, so the page writer lays each
+    // drawing beside its page. Drawn with `base`, which is what every name
+    // in a drawing links through — the same `<base><slug>/` every other href
+    // composes. Off, nothing is drawn and nothing is asked of GraphViz.
+    const drawn =
+        site.maps ?
+            drawSiteMaps({
+                records: ctx.records,
+                foreignIndex: gates.foreign.index,
+                config: resolved,
+                base,
+                ...(locate ? { locate } : {}),
+            })
+        :   { maps: new Map(), findings: [] };
 
     const rendered = renderPages(pages, {
         outRoot: out,
@@ -1032,6 +1096,7 @@ export function buildSite({ config, sqlTables } = {}) {
         foreign: gates.foreign,
         universe: tableUniverse(pages),
         homepages: homepageEntries,
+        maps: drawn.maps,
         pass,
         // What counts as a being is the toolchain's to say, not a consumer's.
         // Asking in a consumer's script is how one came to still be checking
@@ -1064,9 +1129,11 @@ export function buildSite({ config, sqlTables } = {}) {
         tableErrors: rendered.tableErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
+        mapFindings: drawn.findings,
         stats: {
             ...rendered.byKind,
             homepages: homepagesWritten,
+            maps: rendered.maps,
             out,
         },
     };

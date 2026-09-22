@@ -772,6 +772,7 @@ const SITE_KEYS = [
     "notfound",
     "hugo",
     "search",
+    "maps",
 ];
 const SITE_NOTFOUND_KEYS = ["tagline", "sitenoun", "heroimage", "links"];
 const SITE_NOTFOUND_LINK_KEYS = ["title", "url", "text"];
@@ -1711,9 +1712,11 @@ const SITE_INDEX_MESSAGE =
  * shared with the link manifest so the two cannot disagree about where a
  * page is.
  *
- * `search` is the one switch here: whether `package-build site-root` writes a
- * search index beside the rendered pages. On by default — every site carries
- * one unless it says otherwise.
+ * Two switches sit here, both on by default. `search` is whether
+ * `package-build site-root` writes a search index beside the rendered pages.
+ * `maps` is whether `content-build site` draws the map from each place that
+ * states a border or a route and writes it into that place's page — a site
+ * carries both unless it says otherwise.
  *
  * **What the site publishes is the homepage and the content tree, and nothing
  * beside them.** A page of documentation is a note — `type: doc`, addressed
@@ -1739,6 +1742,7 @@ function normalizeSite(value) {
         notfound: null,
         hugo: Object.freeze({}),
         search: true,
+        maps: true,
     });
     if (value === undefined) return empty;
     if (!isPlainObject(value)) fail("site", "must be a mapping");
@@ -1795,6 +1799,7 @@ function normalizeSite(value) {
         notfound: normalizeSiteNotfound(input.notfound),
         hugo: normalizeSiteHugo(input.hugo),
         search: optionalBoolean(input.search, "site.search", true),
+        maps: optionalBoolean(input.maps, "site.maps", true),
     });
 }
 
