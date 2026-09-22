@@ -67,8 +67,10 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
  *
  * @typedef {object} HoldingsEntry
  * @property {string} title   The page's published title.
- * @property {string} url     `<base><slug>/` — the page's address as every
- *                            href this build renders composes it.
+ * @property {string} [url]   `<base><slug>/` — the page's address as every
+ *                            href this build renders composes it. **Absent
+ *                            for a stub**, which has no page: an entry with no
+ *                            `url` renders as plain text.
  * @property {string} type    The note's `type` — `place` or `affiliation`.
  * @property {string} [subType] The note's `subType`, where it declares one.
  */
@@ -163,16 +165,40 @@ function byTitle(a, b) {
 /**
  * The entry a node is listed as.
  *
- * @param {HoldingsNode & {url: string}} node - A node with a page.
+ * **`url` is absent for a node that publishes no page**, and the entry is
+ * emitted all the same. A stub is a place somebody has not written yet: it
+ * carries its facts, and Weyshott belongs in Aelwyth's `contains` whether or
+ * not anyone has written Weyshott's page. What it cannot have is a link, so
+ * the renderer prints the title as plain text — the same rule a table cell
+ * follows when its `_ref` is null, in a different renderer.
+ *
+ * @param {HoldingsNode} node - The node.
  * @returns {HoldingsEntry} Its entry.
  */
 function entryOf(node) {
     return {
         title: node.title,
-        url: node.url,
+        ...(listed(node) ? { url: node.url } : {}),
         type: node.type,
         ...(node.subType === undefined ? {} : { subType: node.subType }),
     };
+}
+
+/**
+ * Whether a node publishes a page.
+ *
+ * **A URL gates where a list is written, never whether a node may appear in
+ * someone else's list.** You cannot write a `contains` block on a page that
+ * does not exist, so this guards {@link holdingsPages}'s `on(url)` calls — and
+ * nothing else. Guarding the membership too is how a stub vanishes from every
+ * containment and tenure list in the corpus, silently, which is the one failure
+ * mode a diff cannot show.
+ *
+ * @param {HoldingsNode} node - The node.
+ * @returns {boolean} Whether it has a page to write a list on.
+ */
+function listed(node) {
+    return node.url !== undefined && node.url !== null && node.url !== "";
 }
 
 /**
@@ -238,10 +264,11 @@ export function foreignHoldingsNodes(foreignIndex) {
  *
  * A shortcode is declared once per type: the first node declaring it wins,
  * so local nodes handed in ahead of fetched ones shadow a dependency's, the
- * way the link resolver answers. A node with no URL is nobody's entry and
- * carries no lists of its own, since there is no page to write them on. A
- * name no node declares is dropped: a `parents` naming nowhere is the map's
- * finding, a `domains` naming nowhere the reference check's.
+ * way the link resolver answers. A node with no URL carries no lists of its
+ * own, since there is no page to write them on — and is still an entry on
+ * everybody else's, rendered as plain text. A name no node declares is
+ * dropped: a `parents` naming nowhere is the map's finding, a `domains`
+ * naming nowhere the reference check's.
  *
  * The result holds only pages with at least one entry on at least one list,
  * and a page's block carries only the keys it has entries for — the theme's
@@ -283,24 +310,22 @@ export function holdingsPages(nodes) {
         }
         return found;
     };
-    const listed = (node) => node.url !== undefined && node.url !== null && node.url !== "";
-
+    // Every gate below is on the page a list is *written* on, never on the
+    // node the list names — see {@link listed}.
     for (const child of places.values()) {
-        if (!listed(child)) continue;
         for (const shortcode of child.parents) {
             const parent = places.get(shortcode);
             if (!parent || !listed(parent) || parent === child) continue;
-            on(parent.url).contains.push(entryOf(/** @type {any} */ (child)));
+            on(parent.url).contains.push(entryOf(child));
         }
     }
 
     for (const holder of affiliations.values()) {
-        if (!listed(holder)) continue;
         for (const shortcode of holder.domains) {
             const held = places.get(shortcode);
-            if (!held || !listed(held)) continue;
-            on(holder.url).holdings.push(entryOf(/** @type {any} */ (held)));
-            on(held.url).held_by.push(entryOf(/** @type {any} */ (holder)));
+            if (!held) continue;
+            if (listed(holder)) on(holder.url).holdings.push(entryOf(held));
+            if (listed(held)) on(held.url).held_by.push(entryOf(holder));
         }
     }
 

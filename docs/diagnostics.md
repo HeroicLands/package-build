@@ -163,6 +163,50 @@ A configuration finding reads the same as any other:
 package-build.config.yaml:382:64: error: package-build config: `site.sections.being.descrption` is not a recognized option (expected one of: title, banner, description, listType, listSubType).
 ```
 
+## A worked case: the three states of a note
+
+A note with an empty body is a **stub**, and the diagnostics about one show each
+rule above in turn.
+
+An empty body must be deliberate, so a stub that says nothing about itself is an
+error, located at its `type:` line — the key whose value made the note what it
+is:
+
+```text
+Regions/Aelwyth/Weyshott.md:4:1: error: this note has no body, so it is a stub — and a stub carries a `description`, which is the only sentence a reader gets and what every table listing it prints
+```
+
+A body that reduces to a placeholder is located **by searching the file for the
+phrase the rule matched**, which is the implicit-position rule: the finding is
+about a literal, so it lands on that literal rather than on the frontmatter:
+
+```text
+Regions/Aelwyth/Harad.md:14:1: error: this note's body says only "_To be written._", so it publishes a page that tells a reader nothing — empty the body to make this a stub, or write it
+```
+
+A link into a stub is refused, and because the stub is in the index the message
+can name the file to open rather than reporting that the address resolves
+nowhere:
+
+```text
+Regions/Aelwyth/Aelwyth_Region.md:41:14: error: address [[place-weyshott]] names a stub at Regions/Aelwyth/Weyshott.md, which has no body and therefore no page — name it in prose, or write the note
+```
+
+A body that may be a draft that forgot its marker is a **warning**, because the
+rule is a guess and a corpus holds many short notes that are complete:
+
+```text
+Rituals/Meivor.md:3:1: warning: this note's body is 4 word(s) and carries no `draft` tag — tag it if it is a beginning, and leave it alone if it says everything it has to say
+```
+
+And the counts, and the drafts nothing has touched in longest, are **prose**:
+a note nobody has finished is not wrong, so it is listed rather than flagged,
+and the summary carries no position because it has none.
+
+```text
+thalorna: 2572 notes — 2089 full, 464 draft, 19 stub.
+```
+
 ## Summary counts and prose are not findings
 
 A run's progress and summary lines — `42 address(es) across 10 note(s).`,

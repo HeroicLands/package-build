@@ -31,8 +31,14 @@ function tree(files: Record<string, string>): string {
     return root;
 }
 
-/** A note with frontmatter and a body. */
-function note(fm: Record<string, unknown>, body = ""): string {
+/**
+ * A note with frontmatter and a body.
+ *
+ * The body defaults to a sentence rather than to nothing, because a note with
+ * an empty body is a stub: it publishes no page and nothing may link to it, so
+ * a fixture meaning "an ordinary note" has to say something.
+ */
+function note(fm: Record<string, unknown>, body = "Prose."): string {
     const lines = ["---"];
     for (const [k, v] of Object.entries(fm)) {
         if (v && typeof v === "object" && !Array.isArray(v)) {

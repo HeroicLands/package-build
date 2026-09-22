@@ -169,6 +169,31 @@ export function isNoteRecord(record) {
 }
 
 /**
+ * Whether a record is a **stub**: a note with an empty body.
+ *
+ * Asked of the **absent address**, not of a marker block, because the absent
+ * address is the whole signal. A note's body is not in the index — the index
+ * carries what is *about* a note — so there is nothing else to ask, and nothing
+ * else needs to be: an address is emitted if and only if the body is non-empty
+ * on a type an empty body suppresses (see
+ * {@link module:engine/note-state.isStubNote}).
+ *
+ * A stub keeps its file, its `id` and, where its type compiles one, its Foundry
+ * document. What the empty body suppresses is the **page**, and the address and
+ * the link target that go with it.
+ *
+ * Asked only of a note's own record. A documentation journal and an asset are
+ * documents rather than notes, and both are addressed whatever the note they
+ * belong to says.
+ *
+ * @param {Record<string, any>} record - An index record.
+ * @returns {boolean} True for a stub's record.
+ */
+export function isStub(record) {
+    return isNoteRecord(record) && !record?.address;
+}
+
+/**
  * The path a record names inside its package, whichever shape it is.
  *
  * The two shapes state it differently and honestly: a note names the `.md` it

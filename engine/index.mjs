@@ -84,6 +84,12 @@ export * as noteSchemas from "./note-schemas.mjs";
 /** The closed frontmatter regions: the `data:` container and each type's `subType`. */
 export * as noteVocabulary from "./note-vocabulary.mjs";
 
+/** The three states of a note — stub, draft, full — and the empty body they rest on. */
+export * as noteState from "./note-state.mjs";
+
+/** Whether every empty body is a stub on purpose, and how finished a tree is. */
+export * as stubLint from "./stub-lint.mjs";
+
 /** What a place is next to and reachable from: the closed sets, and the checks. */
 export * as placeRelations from "./place-relations.mjs";
 

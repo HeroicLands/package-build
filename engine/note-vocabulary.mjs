@@ -143,10 +143,22 @@ import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
  *   not yet enumerate. Presence is permitted and the value is unchecked.
  * - **a list** — the closed set of values, and anything else is a finding.
  *
+ * `stubbable` says whether an empty body suppresses this type's page. Every
+ * type declares it, so adding one means answering the question rather than
+ * inheriting a default nobody chose — and a guard derives the check from this
+ * registry's own key list, so an omission is a red test.
+ *
+ * Two types answer **false**, and both are structural: a `folder` note's page
+ * is a generated section index and a `homepage`'s is the site's front door, so
+ * each is complete with no body at all. An empty body on one of them keeps its
+ * address and resolves as `full`.
+ *
  * @typedef {object} TypeVocabulary
  * @property {readonly DataFieldSpec[]} data - The `data:` keys, closed.
  * @property {readonly string[]|null} [subTypes] - The top-level `subType`
  *   values, as above.
+ * @property {boolean} stubbable - Whether an empty body makes a note of this
+ *   type a stub — see {@link module:engine/note-state.isStubbableType}.
  * @property {(note: object, opts: {index?: object}) => object[]} [check] - A
  *   check of the whole note, run by the frontmatter lint beside the field
  *   checks with the same index. For a rule that is about the note rather than
@@ -548,6 +560,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- actors --------------------------------------------------- */
 
     being: Object.freeze({
+        stubbable: true,
         // Derived from the note's `(type, subType)` by each system's map, which
         // lands with. Declared open until it does, because inventing the
         // values here would put a second, weaker answer beside the real one.
@@ -595,6 +608,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     vehicle: Object.freeze({
+        stubbable: true,
         subTypes: null,
         data: Object.freeze([TOKEN_ICON, TEMPLATE_PRIORITY]),
     }),
@@ -602,6 +616,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- items ---------------------------------------------------- */
 
     affiliation: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze([
             "guild",
             "order",
@@ -684,6 +699,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     affliction: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["disease", "poisontoxin", "maladiction"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
@@ -734,21 +750,25 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     armorgear: Object.freeze({
+        stubbable: true,
         // Quantity is always one, so the specification refuses the key rather
         // than defaulting it.
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR]),
     }),
 
     armorlocation: Object.freeze({
+        stubbable: true,
         subTypes: null,
         data: Object.freeze([TEMPLATE_PRIORITY]),
     }),
 
     attribute: Object.freeze({
+        stubbable: true,
         data: Object.freeze([TEMPLATE_PRIORITY]),
     }),
 
     concoctiongear: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["mundane", "exotic", "elixir"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
@@ -764,6 +784,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     containergear: Object.freeze({
+        stubbable: true,
         data: Object.freeze([
             TEMPLATE_PRIORITY,
             ...GEAR,
@@ -772,10 +793,12 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     miscgear: Object.freeze({
+        stubbable: true,
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
     }),
 
     mystery: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["boon", "boost", "fate", "grace", "birthsign", "other", "piety"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
@@ -797,6 +820,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     mysticalability: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze([
             "spiritrite",
             "spiritaction",
@@ -824,11 +848,13 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     projectilegear: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["none", "arrow", "bolt", "bullet", "dart", "other"]),
         data: Object.freeze([TEMPLATE_PRIORITY, ...GEAR, QUANTITY]),
     }),
 
     skill: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze([
             "social",
             "nature",
@@ -849,6 +875,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     trauma: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze([
             "injury",
             "fear",
@@ -898,6 +925,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     weapongear: Object.freeze({
+        stubbable: true,
         // No `subTypes`, deliberately: SoHL distinguishes a weapon's uses with
         // strike modes rather than by kind, and HM3's document type follows
         // from which of those a note describes.
@@ -907,7 +935,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- core documents ------------------------------------------- */
 
     doc: Object.freeze({
-        check: checkCitedPopulations,
+        stubbable: true,
         // Five genres, and a genre is all this field carries: what kind of page
         // it is, never who reads it. An audience term alongside them would give
         // a developer how-to two valid values and no rule for choosing.
@@ -915,10 +943,11 @@ export const NOTE_VOCABULARY = Object.freeze({
         // `userguide` and `howto`, not `user-guide` and `how-to`: a subType is
         // held to the address charset, and a segment carries no hyphen.
         subTypes: Object.freeze(["rules", "userguide", "reference", "howto", "concept"]),
+        check: checkCitedPopulations,
         data: Object.freeze([]),
     }),
 
-    macro: Object.freeze({ data: Object.freeze([]) }),
+    macro: Object.freeze({ stubbable: true, data: Object.freeze([]) }),
 
     // Foundry's `Folder`, and the last document this package compiled from
     // bespoke configuration rather than from a note. It declares no
@@ -930,6 +959,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // is structure, not content, so it wants no documentation journal and takes
     // no part in `docEntryTypes`.
     folder: Object.freeze({
+        stubbable: false,
         data: Object.freeze([
             {
                 name: "parent",
@@ -959,6 +989,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     // `system` field, so a bundle spanning two systems is two documents, and
     // the pack each is written to is what carries the system.
     bundle: Object.freeze({
+        stubbable: true,
         data: Object.freeze([
             {
                 name: "contents",
@@ -972,6 +1003,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     lore: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze([
             "cosmology",
             "deity",
@@ -995,6 +1027,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     place: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["world", "region", "settlement", "site", "structure", "feature"]),
         check: checkHeld,
         data: Object.freeze([
@@ -1051,6 +1084,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     }),
 
     scenario: Object.freeze({
+        stubbable: true,
         subTypes: Object.freeze(["campaign", "adventure", "encounter"]),
         data: Object.freeze([
             { name: "parents", ...LINKS, describe: "Scenarios this one sits within." },
@@ -1080,9 +1114,10 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
     }),
 
-    homepage: Object.freeze({ data: Object.freeze([]) }),
+    homepage: Object.freeze({ stubbable: false, data: Object.freeze([]) }),
 
     map: Object.freeze({
+        stubbable: true,
         // One type, three subTypes: they differ only in the canvas defaults
         // derived for them, which is precisely what a subType decides.
         subTypes: Object.freeze(["battlemap", "localmap", "regionalmap"]),

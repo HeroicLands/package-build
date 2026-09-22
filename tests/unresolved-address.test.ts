@@ -67,7 +67,7 @@ function tree(files: Record<string, string>, prefix = "unresolved-address-"): st
 }
 
 /** A note with frontmatter and a body. */
-function note(fm: Record<string, unknown>, body = ""): string {
+function note(fm: Record<string, unknown>, body = "Prose."): string {
     const lines = ["---"];
     for (const [k, v] of Object.entries(fm)) {
         if (v && typeof v === "object" && !Array.isArray(v)) {
@@ -171,6 +171,7 @@ describe("one vocabulary of link findings", () => {
             "not-an-address",
             "not-an-asset",
             "not-lowercase",
+            "stub",
             "unknown-anchor",
             "unknown-type",
             "unlabelled",

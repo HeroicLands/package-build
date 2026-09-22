@@ -1107,7 +1107,8 @@ function whereText(query) {
  *   each came from, so a diagnostic about the expanded body can name an
  *   authored position. An `errors` entry carries the 0-based line of the
  *   directive that failed, for the same reason. `warnings` holds one entry per
- *   `dataview` directive the body still authors.
+ *   `dataview` directive the body still authors, and one per `sql` directive
+ *   that leaves out stubs it would otherwise list.
  */
 export function expandContentTables(
     markdown,
@@ -1176,7 +1177,17 @@ export function expandContentTables(
                     "`sqlTables`, so the query could not be run"
                 : prepared.reason ? prepared.reason
                 : prepared.rows === 0 && !prepared.allowEmpty ?
-                    "sql query selects no notes — write ```sql allow-empty if " + "that is intended"
+                    // A table that lost every row to the stub rule says so.
+                    // "selects no notes" is true and useless here: the notes
+                    // are there, and the fence is reading the relation that
+                    // leaves them out.
+                    prepared.stubsExcluded > 0 ?
+                        `sql query selects no notes — ${prepared.stubsExcluded} stub(s) ` +
+                        "match it, and `FROM notes` leaves stubs out; select " +
+                        "`FROM entries` to list them beside the written notes, or " +
+                        "write ```sql allow-empty if the empty table is intended"
+                    :   "sql query selects no notes — write ```sql allow-empty if " +
+                        "that is intended"
                 :   undefined;
             if (failure) {
                 errors.push({
@@ -1189,6 +1200,22 @@ export function expandContentTables(
                 block.forEach((text, k) => emit(text, i + k));
                 i = close;
                 continue;
+            }
+            // A table selecting `FROM notes` that would gain rows from
+            // `FROM entries` has not adopted stubs. It is not wrong — which
+            // tables list the unwritten is the author's decision, and it is a
+            // one-word edit — so this is a warning at the fence rather than a
+            // failure, and the count is what makes it worth reading.
+            if (prepared.stubsExcluded > 0) {
+                warnings.push({
+                    source,
+                    line: i,
+                    column: indent.length + 1,
+                    reason:
+                        `this table selects \`FROM notes\`, which leaves out stubs; ` +
+                        `${prepared.stubsExcluded} stub(s) match it — select ` +
+                        `\`FROM entries\` to list them beside the written notes`,
+                });
             }
             if (out.length > 0 && out[out.length - 1].trim() !== "") emit("", i, true);
             for (const row of prepared.markdown.split("\n")) emit(`${indent}${row}`, i, true);

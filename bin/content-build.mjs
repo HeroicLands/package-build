@@ -83,6 +83,7 @@ import {
 import { fetchNavigation, generateHugoConfig, writeHugoConfig } from "../engine/site-config.mjs";
 import { renderItemFieldReference, renderItemFieldsPage } from "../engine/field-reference.mjs";
 import { lintContentTree } from "../engine/content-lint.mjs";
+import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { lintContentCharset } from "../engine/content-charset.mjs";
 import { lintContentHtml } from "../engine/content-html.mjs";
 import { lintContentIcons } from "../engine/content-icons.mjs";
@@ -1004,6 +1005,17 @@ function lintCommand() {
                     config,
                 });
 
+                // Whether every empty body is a stub on purpose, and how
+                // finished the tree is. The counts and the oldest drafts are
+                // prose rather than findings: a note nobody has finished is not
+                // wrong, and 464 warnings a reader cannot clear is how a report
+                // teaches its reader to stop looking at it.
+                const states = lintNoteStates(root, {
+                    records,
+                    contentPackage: config.contentPackage,
+                });
+                for (const line of states.summary) log.info(line);
+
                 const findings = [
                     ...addresses.findings,
                     ...frontmatter.findings,
@@ -1012,6 +1024,7 @@ function lintCommand() {
                     ...icons.findings,
                     ...html.findings,
                     ...images.findings,
+                    ...states.findings,
                 ];
                 // Only an **error** fails the run. Every finding was an error
                 // by then, so this changes nothing on its own —
@@ -1404,14 +1417,15 @@ function contentIndexCommand() {
         handler: (argv) => {
             try {
                 const config = loadPackConfig();
-                const { file, notes, bytes } = emitContentIndex({
+                const { file, notes, bytes, full, draft, stub } = emitContentIndex({
                     config,
                     ...(argv.root ? { contentBase: argv.root } : {}),
                     ...(argv.out ? { outDir: argv.out } : {}),
                 });
                 log.info(
                     `${config.contentPackage} → ${path.relative(process.cwd(), file)} ` +
-                        `(${notes} notes, ${Math.round(bytes / 1024)} KiB)`,
+                        `(${notes} notes — ${full} full, ${draft} draft, ` +
+                        `${stub} stub — ${Math.round(bytes / 1024)} KiB)`,
                 );
             } catch (err) {
                 reportFailure(err);
