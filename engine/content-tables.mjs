@@ -1177,7 +1177,17 @@ export function expandContentTables(
                     "`sqlTables`, so the query could not be run"
                 : prepared.reason ? prepared.reason
                 : prepared.rows === 0 && !prepared.allowEmpty ?
-                    "sql query selects no notes — write ```sql allow-empty if " + "that is intended"
+                    // A table that lost every row to the stub rule says so.
+                    // "selects no notes" is true and useless here: the notes
+                    // are there, and the fence is reading the relation that
+                    // leaves them out.
+                    prepared.stubsExcluded > 0 ?
+                        `sql query selects no notes — ${prepared.stubsExcluded} stub(s) ` +
+                        "match it, and `FROM notes` leaves stubs out; select " +
+                        "`FROM entries` to list them beside the written notes, or " +
+                        "write ```sql allow-empty if the empty table is intended"
+                    :   "sql query selects no notes — write ```sql allow-empty if " +
+                        "that is intended"
                 :   undefined;
             if (failure) {
                 errors.push({

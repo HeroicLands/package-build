@@ -368,6 +368,36 @@ describe("the stub lint", () => {
         expect(findings[0].message).toContain("2 word(s)");
     });
 
+    // One corpus, one ladder. The lint's counts and the `entries` view's have
+    // to agree, and the case that separates them is a note with a body and no
+    // address at all — vault scaffolding with no `type`, which the view calls a
+    // stub because it has no page.
+    it("counts the ladder as the view counts it, from the absent address", async () => {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "stub-ladder-"));
+        fs.writeFileSync(
+            path.join(root, "Scratch.md"),
+            ["---", "tags:", "  - draft", "---", "", LONG_BODY, ""].join("\n"),
+            "utf8",
+        );
+        fs.writeFileSync(path.join(root, "A.md"), note(["shortcode: a"], LONG_BODY), "utf8");
+        const records = collectContentIndex(root, {
+            contentPackage: "thalorna",
+            skipDirectories: [],
+        });
+        const { counts } = lintNoteStates(root, { records, contentPackage: "thalorna" });
+
+        const view = await openNotesDatabase(records);
+        try {
+            const { rows } = await view.query(
+                "SELECT state, count(*) AS n FROM entries GROUP BY state",
+            );
+            const fromView = Object.fromEntries(rows.map((r: any) => [r.state, Number(r.n)]));
+            expect({ full: 0, draft: 0, stub: 0, ...fromView }).toEqual(counts);
+        } finally {
+            await view.close();
+        }
+    });
+
     it("reports the ladder as prose, and the oldest drafts as a list", () => {
         const report = lint({
             "A.md": note(["shortcode: a", "description: A village."]),

@@ -47,7 +47,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { authoredFrontmatter, isNoteRecord, noteFile } from "./index-records.mjs";
+import { authoredFrontmatter, isNoteRecord, isStub, noteFile } from "./index-records.mjs";
 import { positionInFrontmatter, positionOfLiteral } from "./diagnostics.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 import { bodyWordCount, isStubNote, placeholderBody } from "./note-state.mjs";
@@ -174,25 +174,39 @@ export function lintNoteStates(contentBase, { records, contentPackage } = {}) {
 
     for (const record of records ?? []) {
         // A documentation journal and an asset are documents rather than notes,
-        // and a file with no `type` is vault scaffolding: neither has a state.
-        if (!isNoteRecord(record) || !record.type) continue;
+        // so neither has a state. A note with no `type` — vault scaffolding, a
+        // README — does: it publishes no page, which is what a stub is, and
+        // counting it here is what keeps this line and the index's own agreeing
+        // with `SELECT state, count(*) FROM entries`. What it has no frontmatter
+        // for is the **rules**, which are skipped below.
+        if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
         const file = path.relative(process.cwd(), absPath);
         const fm = authoredFrontmatter(record);
         const { body } = parseMarkdownFile(absPath);
         const raw = fs.readFileSync(absPath, "utf8");
 
+        // The ladder, read exactly as the `entries` view reads it: the absent
+        // address is the state, not a second body test beside it. A note with
+        // no `type` and no `shortcode` has no address whatever its body says,
+        // and calling it anything else here would make this line disagree with
+        // `SELECT state, count(*) FROM entries` — two ladders, one corpus.
         const state =
-            isStubNote(fm, body) ? "stub"
+            isStub(record) ? "stub"
             : isDraftNote(fm) ? "draft"
             : "full";
         counts[state] += 1;
-        const type = String(record.type);
+        // Vault scaffolding is counted under a name rather than under
+        // "undefined", so the per-type table reads as a sentence.
+        const type = record.type ? String(record.type) : "(no type)";
         if (!byType.has(type)) byType.set(type, { full: 0, draft: 0, stub: 0 });
         byType.get(type)[state] += 1;
         if (state === "draft") drafts.push({ file, modified: fs.statSync(absPath).mtime });
 
-        findings.push(...checkNote({ fm, body, file, raw }));
+        // Held to the rules only where there is a note to hold: a file that
+        // declares no type declares nothing for them to read, and asking it for
+        // a `description` would report vault scaffolding as content.
+        if (record.type) findings.push(...checkNote({ fm, body, file, raw }));
     }
 
     const oldestDrafts = drafts
