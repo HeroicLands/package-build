@@ -1190,6 +1190,26 @@ is a warning, `unheld land`, at the note's `type:` line, so a gap in tenure
 shows. A region is held through its polity's `domains` and a feature by
 nobody, so neither is checked.
 
+**Population figures agree from the region down.** A place states
+`data.population` and an affiliation states how many people it counts, and four
+warnings read those figures against each other. The polities whose `domains`
+name a place must not count more people than the place states — `over-held
+land` — with a polity subordinate to another holding the same place counted
+once and a settlement exempt, its holder's figure counting a hinterland the
+settlement does not. The regions whose `parents` name a place must not count
+more than it states either — `over-full region` — a region naming both its
+parent and its grandparent counting under the nearer. A settlement must not
+hold more than any place containing it states, which is `oversized settlement`.
+And a `doc` note carrying a figure beside a wikilink to the place or
+affiliation it belongs to must state that note's figure, which is `disputed
+figure`, located at the number it wrote. Figures are authored to two
+significant digits, so a parent rounded up to five per cent below what it
+contains is not a finding, and a place or affiliation stating no figure is
+neither compared nor counted. A fetched index carries no figure, so a
+dependency's people are counted nowhere. There is deliberately **no urban-share
+rule**: a share computed from the named settlements against a region's total
+measures how much of the region has been written, not how much of it is urban.
+
 **A settlement's market class is one of six.** `data.market` states what trade
 a settlement supports — `1` a hamlet, with no market beyond what neighbours
 trade among themselves; `2` a village and its weekly market; `3` a town with

@@ -86,6 +86,7 @@ import { currentType } from "./ids.mjs";
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
 import { checkHeld } from "./holdings.mjs";
+import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
 // value to it, read rather than restated, so the reference below and the
 // finding an author meets state one list.
@@ -906,6 +907,7 @@ export const NOTE_VOCABULARY = Object.freeze({
     /* ----- core documents ------------------------------------------- */
 
     doc: Object.freeze({
+        check: checkCitedPopulations,
         // Five genres, and a genre is all this field carries: what kind of page
         // it is, never who reads it. An audience term alongside them would give
         // a developer how-to two valid values and no rule for choosing.
@@ -1016,6 +1018,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "population",
                 ...NUM,
+                check: checkPopulation,
                 describe: "Approximate population, to two significant digits.",
             },
             {
