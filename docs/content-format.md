@@ -3378,6 +3378,53 @@ a warning from `content-build lint`, `unheld land`, located at the note's
 `region` and a `feature` are exempt: a region is held through its polity's
 `domains`, and a river by nobody.
 
+#### Population figures
+
+`population` is an approximate count, written to two significant digits. A
+place states one, and so does an affiliation — how many people it counts,
+wherever they are. `content-build lint` reads those figures against each other
+and reports four warnings, each named by the phrase its message begins with.
+
+- **`over-held land`** — the polities whose `domains` name a place count more
+  people than the place states. A polity subordinate to another polity holding
+  the same place is already inside that polity's figure and is not counted
+  twice. A **settlement is exempt**: the polity of a city-state holds the city
+  and counts the hinterland around it, so its figure is properly the larger.
+- **`over-full region`** — the regions whose `parents` name a place count more
+  people than the place states. A region naming both its parent and its
+  grandparent counts under the nearer of the two, so a place written into two
+  levels of the hierarchy is not counted at both.
+- **`oversized settlement`** — a settlement states more people than a place
+  containing it does, whether its own region or any place above that.
+- **`disputed figure`** — a `doc` note carries a figure beside a wikilink to
+  the place or affiliation it belongs to, and the two disagree. The finding is
+  located at the number the page wrote, and a figure written twice is located
+  twice.
+
+The first three are reported on the note's own `data.population`; the fourth
+on the citation.
+
+**A figure is read as a population only where it carries `~`.** That marker is
+what separates a population from the other numbers a table puts beside a place
+— a distance, a stage count, a tally of days — so `| [[place-rgn\|X]] | ~2,000 |`
+is a claim about people and `| [[place-rgn\|X]] | 3 |` is not.
+
+**Rounding is admitted.** Two significant digits carry a half-unit of error,
+widest at the bottom of a decade, so a place whose figure falls up to five per
+cent below what it contains is not a finding.
+
+**An unstated figure is silent.** A place or affiliation with no `population`
+contributes nothing to a sum and is never the subject of a finding, so a
+half-written region is quiet rather than noisy. A fetched index carries
+`parents` and `domains` but no figure, so a dependency's places sit in the
+geography and its people are counted nowhere.
+
+**There is deliberately no urban-share rule.** The share of a region's people
+living in its named settlements cannot be measured from the notes: the
+settlement layer names the notable places and is complete nowhere, so the ratio
+reports how much of a region has been written rather than how much of it is
+urban.
+
 **A place declares only what is true of ground.** Four properties were removed
 because they were true of something else, and each removal has a home to go to.
 

@@ -128,7 +128,7 @@ function namedShortcode(value) {
  * @param {unknown} value - The authored value — a list, or a lone entry.
  * @returns {string[]} The shortcodes.
  */
-function shortcodesOf(value) {
+export function shortcodesOf(value) {
     const list =
         Array.isArray(value) ? value
         : value ? [value]

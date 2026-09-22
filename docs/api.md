@@ -463,7 +463,19 @@ What lies within a place, who holds it, and what an affiliation holds — read o
 | `holdingsNode`         | `holdingsNode(fm, { title, url })`   | `HoldingsNode\|null`    | reading a local note as a node of the derivation, or `null` for one that is neither a place nor an affiliation               |
 | `foreignHoldingsNodes` | `foreignHoldingsNodes(foreignIndex)` | `HoldingsNode[]`        | reading a fetched index's places and affiliations as nodes                                                                   |
 | `holdingsPages`        | `holdingsPages(nodes)`               | `Map<string, Holdings>` | inverting `parents` and `domains` into each page's sorted lists, keyed by URL, for every page with at least one entry        |
+| `shortcodesOf`         | `shortcodesOf(value)`                | `string[]`              | the shortcodes a `parents` or `domains` value names — bare, addressed or wikilinked — empties dropped and repeats collapsed  |
 | `checkHeld`            | `checkHeld(note, { index })`         | `object[]`              | linting a place's tenure — a settlement, site or structure no affiliation's `domains` names is a warning at its `type:` line |
+
+### `engine.populations`
+
+Whether a world's population figures agree from the region down — the polities and regions inside a place against what it states, a settlement against every place containing it, and a `doc` note's cited figures against the notes that own them. `content-build lint` runs all four as warnings.
+
+| Export                  | Signature                                | Returns             | Use it when                                                                                                  |
+| ----------------------- | ---------------------------------------- | ------------------- | ------------------------------------------------------------------------------------------------------------ |
+| `POPULATION_TOLERANCE`  | `const POPULATION_TOLERANCE`             | `number`            | how far a figure written to two significant digits may round below what it contains before that is a finding |
+| `POPULATION_RULES`      | `const POPULATION_RULES`                 | `readonly object[]` | the rules in order, each its `name` — the prefix its findings carry — and what it `describe`s                |
+| `checkPopulation`       | `checkPopulation(note, { index })`       | `object[]`          | linting a place's `population` — over-held land, an over-full region, and an oversized settlement            |
+| `checkCitedPopulations` | `checkCitedPopulations(note, { index })` | `object[]`          | linting a `doc` note's cited figures, each located at the `~figure` that states it                           |
 
 ### `engine.marketClass`
 

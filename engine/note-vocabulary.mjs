@@ -86,6 +86,7 @@ import { currentType } from "./ids.mjs";
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
 import { checkHeld } from "./holdings.mjs";
+import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
 // value to it, read rather than restated, so the reference below and the
 // finding an author meets state one list.
@@ -942,6 +943,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         // `userguide` and `howto`, not `user-guide` and `how-to`: a subType is
         // held to the address charset, and a segment carries no hyphen.
         subTypes: Object.freeze(["rules", "userguide", "reference", "howto", "concept"]),
+        check: checkCitedPopulations,
         data: Object.freeze([]),
     }),
 
@@ -1049,6 +1051,7 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "population",
                 ...NUM,
+                check: checkPopulation,
                 describe: "Approximate population, to two significant digits.",
             },
             {
