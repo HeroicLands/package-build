@@ -26,6 +26,7 @@ import os from "node:os";
 import path from "node:path";
 
 import { auditLinks, buildLinkIndex } from "../engine/content-links.mjs";
+import { buildJournalEntry, Journals } from "../engine/journals.mjs";
 import { buildIndexRecord, collectContentIndex } from "../engine/content-index.mjs";
 import { isStub } from "../engine/index-records.mjs";
 import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
@@ -33,6 +34,7 @@ import { isEmptyBody, isStubbableType, isStubNote } from "../engine/note-state.m
 import { openNotesDatabase, renderSqlTable, runSqlQuery } from "../engine/sql-tables.mjs";
 import { lintNoteStates } from "../engine/stub-lint.mjs";
 import { linkFindingMessage } from "../engine/wikilink-syntax.mjs";
+import { Items } from "../sohl/items.mjs";
 
 /* ---------------------------------------------------------------------- */
 /*  The classification, derived from the registry's own key list           */
@@ -219,6 +221,148 @@ describe("a stub of a document-compiling type still compiles its document", () =
         expect(doc).toBeTruthy();
         expect(doc.address.slug).toBe("mysticalability-ampl");
         expect(doc.anchors).toEqual([]);
+    });
+});
+
+/* ---------------------------------------------------------------------- */
+/*  The pack compile, where a stub is a state rather than a failure        */
+/* ---------------------------------------------------------------------- */
+
+describe("a stub compiles its document instead of failing the pack", () => {
+    /** A content tree on disk, walked as a build walks it. */
+    function tree(files: Record<string, string>): string {
+        const root = fs.mkdtempSync(path.join(os.tmpdir(), "stub-compile-"));
+        for (const [rel, text] of Object.entries(files)) {
+            const abs = path.join(root, ...rel.split("/"));
+            fs.mkdirSync(path.dirname(abs), { recursive: true });
+            fs.writeFileSync(abs, text, "utf8");
+        }
+        return root;
+    }
+
+    /** Compiles one tree with one pass, and reads back what it wrote. */
+    async function compile(Pass: any, files: Record<string, string>, options = {}) {
+        const contentBase = tree(files);
+        const dest = fs.mkdtempSync(path.join(os.tmpdir(), "stub-pack-"));
+        const pass = new Pass({ skipDirectories: [], contentBase, dest, ...options });
+        await pass.compile();
+        const documents = fs
+            .readdirSync(dest)
+            .filter((f) => f.endsWith(".json"))
+            .map((f) => JSON.parse(fs.readFileSync(path.join(dest, f), "utf8")));
+        return { pass, documents };
+    }
+
+    const STUB_PLACE = [
+        "---",
+        "type: place",
+        "subType: settlement",
+        "shortcode: ekunda",
+        "id: ekunda0000000000",
+        'description: "A village on the savannah road."',
+        "name:",
+        "  full: Ekunda",
+        "data:",
+        "  population: 400",
+        "---",
+        "",
+    ].join("\n");
+
+    const WRITTEN_PLACE = [
+        "---",
+        "type: place",
+        "subType: settlement",
+        "shortcode: harad",
+        "id: harad00000000000",
+        'description: "A town on the vale road."',
+        "name:",
+        "  full: Harad",
+        "---",
+        "",
+        "The town sits where the two roads meet.",
+        "",
+    ].join("\n");
+
+    const STUB_TALENT = [
+        "---",
+        "type: mysticalability",
+        "subType: arcanetalent",
+        "shortcode: hex",
+        "id: hex0000000000000",
+        'description: "Sets misfortune on a named person."',
+        "name:",
+        "  full: Hex",
+        "data:",
+        "  templatePriority: null",
+        "sohl:",
+        "  system:",
+        '    assocSkillCode: ""',
+        "    masteryLevelBase: 0",
+        "    levelBase: 0",
+        "---",
+        "",
+    ].join("\n");
+
+    it("emits the journal a stub of a journal-compiling type names", async () => {
+        const { pass, documents } = await compile(Journals, {
+            "Regions/Ekunda.md": STUB_PLACE,
+            "Regions/Harad.md": WRITTEN_PLACE,
+        });
+        // The whole defect: one stub counted an error, and the generator
+        // refuses to compile any pack from incomplete output — so a single
+        // unwritten note took every pack in the build down with it.
+        expect(pass.errorCount).toBe(0);
+        // Both notes compile: the written one, and the stub beside it whose
+        // entry is the document its index record names.
+        expect(documents.map((d: any) => d.name).sort()).toEqual(["Ekunda", "Harad"]);
+        // The stub's entry is the one its index record names, at the id the
+        // record publishes — which is what stops a compendium losing it.
+        expect(documents.find((d: any) => d.name === "Ekunda")._id).toBe("ekunda0000000000");
+    });
+
+    it("gives that journal the panel its frontmatter states and no prose", async () => {
+        const { documents } = await compile(Journals, { "Regions/Ekunda.md": STUB_PLACE });
+        const stub = documents.find((d: any) => d.name === "Ekunda");
+        // One page, holding the infobox and nothing else: the panel is derived
+        // from `data:`, so the empty body suppresses the prose and not it.
+        expect(stub.pages).toHaveLength(1);
+        expect(stub.pages[0].text.content).toContain("infobox");
+        expect(stub.pages[0].text.content).toContain("400");
+        expect(stub.pages[0].text.content).not.toContain("<p>");
+    });
+
+    it("still emits the Item of a stub whose document is its `data:`", async () => {
+        const { pass, documents } = await compile(Items, {
+            "Talents/Hex.md": STUB_TALENT,
+        });
+        expect(pass.errorCount).toBe(0);
+        expect(documents.map((d: any) => d.name)).toContain("Hex");
+    });
+
+    it("refuses a note with nothing to compile that is not a stub", () => {
+        // The guard the fix must not swallow. A caller that has not declared
+        // the note a stub gets the original error, because there an empty
+        // split really does mean somebody left the note half-written.
+        expect(() =>
+            buildJournalEntry({ id: "halfway000000000", name: "Halfway", markdown: "" }),
+        ).toThrow(/nothing to compile/);
+    });
+
+    it("asks the vocabulary, so a structural type keeps that refusal", async () => {
+        const journals = new Journals({
+            skipDirectories: [],
+            contentBase: tree({}),
+            dest: fs.mkdtempSync(path.join(os.tmpdir(), "stub-pack-")),
+        });
+        // `folder` and `homepage` declare `stubbable: false`: an empty body on
+        // one is a complete note, never a stub, so nothing about this fix
+        // reaches them.
+        expect(() =>
+            journals.buildEntry(
+                { type: "homepage", shortcode: "root", id: "homepage00000000" },
+                "",
+            ),
+        ).toThrow(/nothing to compile/);
     });
 });
 

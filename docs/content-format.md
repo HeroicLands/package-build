@@ -1706,10 +1706,17 @@ column a table renderer already reads.
 It keeps everything else:
 
 - **`file`**, which is what you edit and what every diagnostic names.
-- **`id` and `foundry`**, because a **document is derived from `data:`, not from
-  prose**. An unwritten arcane talent still compiles into its Item, and its
-  documentation journal is still a document in its own right. **The empty body
-  suppresses the page, never the document.**
+- **`id` and `foundry`**, because **the empty body suppresses the page, never
+  the document.** An unwritten arcane talent still compiles into its Item, whose
+  fields are its `data:` rather than its prose.
+
+**A stub of a type whose document is a JournalEntry** — `doc`, `place`, `lore`
+and `scenario` — compiles into that entry, at the id its index record publishes,
+carrying the infobox its frontmatter states and no prose. The panel is built
+from `data:` and survives an empty body; the prose page is what the empty body
+suppresses. So a compendium holds an entry for every note the index names, and a
+referee browsing it reads a settlement's population and its holder from a note
+nobody has written yet.
 
 What is suppressed with the page is the web address and the link target: a
 wikilink into a stub is refused, and a table cell listing one prints its name as
