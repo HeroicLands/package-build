@@ -348,12 +348,11 @@ export class Hm3Actors extends SystemActorCompiler {
             // `system.bioImage` is **not** written here, for the reason SoHL's
             // `system.portrait` is not: a being's portrait is the lead image of
             // its `{#appearance}` section, which is the markup below.
-            // The sheet opens on the facade tab, so `description` is the
-            // first prose a referee meets and is where an unsettled
-            // entry says so. `biography` is behind the profile tab and
-            // repeats nothing.
-            description: withDraftNotice(fm, renderSection(body || "", "appearance")),
-            biography: renderSection(body || "", "dossier"),
+            description: renderSection(body || "", "appearance"),
+            // `biography` is this system's dossier: the two are paired by the
+            // authored section each reads, not by their names, so the notice
+            // lands on the same prose here as it does under SoHL.
+            biography: withDraftNotice(fm, renderSection(body || "", "dossier")),
             ...buildFromFields(ACTOR_FIELDS, reports)(fm),
             // Declared on `character` alone, so written there alone — see the
             // module note.

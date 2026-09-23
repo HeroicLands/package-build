@@ -339,16 +339,19 @@ It leads the entry — above the infobox and above the prose — because a reade
 deciding whether to rely on an entry has to be told before they read it. Where
 it lands:
 
-| Surface      | What carries it                                                         |
-| ------------ | ----------------------------------------------------------------------- |
-| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page          |
-| Actor        | the field the sheet opens on — SoHL's `appearance`, HM3's `description` |
-| The book     | a drawn mark and a left rule between the entry's plate and its panel    |
-| The website  | the theme's own notice, above the infobox rail and the prose            |
+| Surface      | What carries it                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page       |
+| Actor        | the dossier the sheet draws — SoHL's `dossier`, HM3's `biography`    |
+| The book     | a drawn mark and a left rule between the entry's plate and its panel |
+| The website  | the theme's own notice, above the infobox rail and the prose         |
 
 **An Actor carries it once.** A being's prose reaches two fields, and a document
-saying the same thing twice teaches a reader to skip it, so the notice leads the
-one a referee meets first and the other is untouched.
+saying the same thing twice teaches a reader to skip it — a printed sheet draws
+both in turn — so the dossier carries the notice and the appearance is
+untouched. The two systems pair by the authored section each field reads rather
+than by its name, so `dossier` and `biography` carry it while `appearance` and
+`description` do not.
 
 **The mark is a notice, not a hazard** — `fa-circle-exclamation`, which Foundry
 bundles, so a journal page carries it with no module stylesheet loaded. The book

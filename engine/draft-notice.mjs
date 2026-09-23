@@ -120,9 +120,11 @@ export function draftNoticeFor(fm) {
  *
  * **Which field a system leads is the system's decision, and it makes it
  * once.** A referee at the table opens an actor sheet rather than the
- * documentation beside it, so the notice belongs on the field the sheet opens
- * on — and on that field alone, since one document showing the same statement
- * twice teaches a reader to skip it.
+ * documentation beside it, so the prose a sheet draws says it too — on one
+ * field, since a document showing the same statement twice teaches a reader to
+ * skip it. Both systems put it on the dossier: SoHL's `dossier` and HM3's
+ * `biography` read the same authored section, so the notice lands on the same
+ * prose whichever system compiles it.
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} html - The rendered prose.

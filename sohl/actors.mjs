@@ -347,12 +347,12 @@ export class Actors extends SystemActorCompiler {
             // its `{#appearance}` section — which is the markup below — and the
             // key that used to declare one is not a key. With no authored
             // source left, the field keeps the schema's own initial.
-            // The sheet opens on the facade tab, so `appearance` is the
-            // first prose a referee meets and is where an unsettled
-            // entry says so. `dossier` is behind another tab and
-            // repeats nothing.
-            appearance: withDraftNotice(fm, renderSection(body || "", "appearance")),
-            dossier: renderSection(body || "", "dossier"),
+            appearance: renderSection(body || "", "appearance"),
+            // One document says it once. `dossier` is the field that carries
+            // an unsettled entry's notice, and `appearance` carries none —
+            // the print sheet draws both blocks in turn, so a notice on each
+            // would be read twice on one page.
+            dossier: withDraftNotice(fm, renderSection(body || "", "dossier")),
         };
 
         // Fill `system.body` (+ the base-actor movement fields) from the being's
