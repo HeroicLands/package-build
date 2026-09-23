@@ -455,8 +455,34 @@ function checkDataContainer(note, { type, fields, packs }) {
     /** First segment of each declared name — `charges.value` is authored as `charges`. */
     const declared = new Set(fields.map((f) => f.name.split(".")[0]));
 
+    // The retired spelling of a key this type declares → what to write now.
+    // Built from the type's own declaration, so a renamed `data:` key is
+    // retired exactly where its replacement exists and stays an unrecognised
+    // key on every other type.
+    const renamed = new Map();
+    for (const name of declared) {
+        const retired = RETIRED_FIELD_ALIASES[name];
+        if (retired) renamed.set(retired, name);
+    }
+
     for (const key of Object.keys(entries)) {
         if (declared.has(key)) continue;
+        const current = renamed.get(key);
+        if (current) {
+            findings.push({
+                file: note.file,
+                ...positionOfFrontmatterPath(raw, ["data", key], { key: true }),
+                // A warning, as every retired spelling is: the note compiles to
+                // the correct document, so failing a build over it would red a
+                // tree that has done nothing wrong yet. The refusal comes once
+                // no tree writes the key, and needs no code — with the alias
+                // gone the spelling is an unrecognised key again, which the
+                // loop below already refuses.
+                severity: "warning",
+                message: retiredAliasMessage(key, current),
+            });
+            continue;
+        }
         const guess = nearest(key, declared);
         findings.push({
             file: note.file,

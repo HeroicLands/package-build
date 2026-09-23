@@ -59,6 +59,20 @@ describe("the sentence", () => {
     });
 });
 
+describe("the voice", () => {
+    it("sets the sentence in italic and the label in bold roman, on every surface", () => {
+        // The sentence is the text speaking about its own state rather than
+        // about the world, and italic is what tells a reader the voice has
+        // changed. Bold italic beside the mark would be one emphasis too many.
+        const html = draftNoticeHtml();
+        expect(html).toContain(`<strong>${DRAFT_NOTICE_LABEL}</strong> <em>${DRAFT_NOTICE}</em>`);
+        expect(html).not.toContain(`<em><strong>`);
+
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toContain('[#text(weight: "bold")[#label]#h(0.25em)#emph[#body]]');
+    });
+});
+
 describe("the mark", () => {
     it("is a notice rather than a hazard", () => {
         expect(DRAFT_NOTICE_ICON).toBe("fa-circle-exclamation");
@@ -73,6 +87,44 @@ describe("the mark", () => {
         expect(preamble).toContain("circle(");
         expect(preamble).not.toContain("fa-");
         expect(bookTypstPreamble()).toContain(`#let ${BOOK_DRAFT_NOTICE}(`);
+    });
+
+    it("is a filled disc with the glyph knocked out of it", () => {
+        // A mark the reader meets before the sentence, so it carries the
+        // book's accent and the glyph is the colour of the paper. Both are
+        // palette names: a literal colour here would not follow the book.
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toContain("circle(radius: radius, fill: book-accent)");
+        expect(preamble).toContain("fill: book-paper)[!]");
+        expect(preamble).not.toContain("stroke: 0.6pt");
+        expect(preamble).not.toMatch(/rgb\(/);
+    });
+
+    it("sizes the glyph from the disc, so one number sets the mark", () => {
+        // A glyph sized against the surrounding text instead keeps its size
+        // while the disc grows, and the mark becomes a large disc with a small
+        // exclamation adrift in it.
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toMatch(/#let radius = [\d.]+em/);
+        expect(preamble).toMatch(/#text\(size: [\d.]+ \* radius,/);
+    });
+
+    it("sets in a column of its own, beside the sentence", () => {
+        // Inline, a notice long enough to wrap starts its second line under
+        // the mark. A two-column grid centred on the block keeps the sentence
+        // beside it at one line or three.
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toContain("#grid(columns: (auto, 1fr)");
+        expect(preamble).toContain("align: (center + horizon, horizon)");
+    });
+
+    it("leaves the sentence in the book's own body type", () => {
+        // The rule and the mark set the notice apart. Type set smaller or
+        // lighter than the prose reads as apparatus a reader may skip, which
+        // is the opposite of a statement to be read before the entry.
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).not.toContain("#set text(");
+        expect(preamble).toContain("stroke: (left: 1.6pt + book-faint)");
     });
 });
 
