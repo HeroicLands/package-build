@@ -65,12 +65,14 @@ beforeAll(() => {
         JSON.stringify({ name: "sandbox", version: "1.0.0" }),
     );
 
-    // An ordinary item note: two documents, so two entries.
+    // An ordinary item note: two documents, so two entries. The `sohl:` block
+    // is what makes the Item one of them — an Item is a system's data.
     note(
         "Gear/Dagger.md",
         `type: weapongear
 shortcode: dagger
 id: aaaaaaaaaaaaaaaa
+sohl: {}
 name:
     full: Dagger`,
         "Lead prose.\n\n## Crafting {#crafting}\n\nHow it is made.\n",
@@ -351,6 +353,7 @@ describe("both addresses are optional, independently", () => {
             "Gear/Idless.md",
             `type: weapongear
 shortcode: idless
+sohl: {}
 name:
     full: Idless Blade`,
             // Written, because the subject here is where an id comes from. A
@@ -372,6 +375,32 @@ name:
         // the first — so it moves with it rather than being derived twice.
         expect(doc.entries["demo-none-docweapongear-idless"].uuid).toBeDefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Idless.md"));
+    });
+
+    it("publishes no document UUID for a note carrying no system block", () => {
+        // A system block is what makes a game document, so a note with none
+        // compiles into no Item — and an address naming one would send every
+        // consumer to a document that is not there. What it keeps is
+        // everything the prose earns: its address, its page, and the
+        // documentation journal its body compiles into.
+        note(
+            "Gear/Unstatted.md",
+            `type: weapongear
+shortcode: unstatted
+id: 1111111111111111
+name:
+    full: Unstatted Blade`,
+            "A blade described and never statted.",
+        );
+        try {
+            const doc = emit({ ...WEB });
+            const entry = doc.entries["demo-sohl-weapongear-unstatted"];
+            expect(entry.path).toBe("weapongear-unstatted/");
+            expect(entry.uuid).toBeUndefined();
+            expect(doc.entries["demo-none-docweapongear-unstatted"].uuid).toBeDefined();
+        } finally {
+            fs.rmSync(path.join(root, "assets/content/Gear/Unstatted.md"));
+        }
     });
 });
 

@@ -183,13 +183,16 @@ export class BasePackCompiler {
 
     /**
      * Whether this pass's document **is** a system's data, and therefore takes
-     * only notes that carry that system's block.
+     * only notes that carry the block this pass reads.
      *
-     * A pack may declare a `system:` — `harn-ensemble` ships an `actors-hm3`
-     * and an `actors-sohl` from one tree — and the note-side half of that is
-     * the block named after the system. A note carrying no such block has
-     * nothing to say about it, so compiling it there would emit a **hollow
-     * document**: a subtype, and none of the fields the subtype exists for.
+     * The question is asked of {@link BasePackCompiler#system} — the pass's own
+     * system, which an Actor or Item pass always has — rather than of the
+     * pack's `system:`, which a pack need not declare. A note carrying no such
+     * block has nothing to say about that system, so compiling it would emit a
+     * **hollow document**: a subtype, and none of the fields the subtype exists
+     * for. `harn-ensemble` ships an `actors-hm3` and an `actors-sohl` from one
+     * tree, and `sohl-thalorna` ships one `actors` declaring nothing; the rule
+     * is the same in both, because it is the pass that reads a block.
      *
      * False by default, because most passes write documents that are not
      * system data at all. A JournalEntry of prose is the same document under
@@ -429,43 +432,55 @@ export class BasePackCompiler {
     }
 
     /**
+     * The system block this pass reads, where it reads one.
+     *
+     * `undefined` on the base class, because most passes read none: a
+     * JournalEntry, a Macro, a Scene and an Adventure are Foundry's documents
+     * rather than any system's. The Actor and Item passes answer with the
+     * block their {@link SystemActorCompiler.documentSubtypes} names, which is
+     * the same declaration that says which notes they claim and what each
+     * becomes.
+     *
+     * Stated here so {@link BasePackCompiler#eligibleFor} is total: a pass
+     * declaring `requiresSystemBlock` without a system reads no block, and a
+     * note can carry nothing for it.
+     *
+     * @returns {string|undefined} The block key, or `undefined`.
+     */
+    get system() {
+        return undefined;
+    }
+
+    /**
      * Whether a claimed, routed note may become this pack's document at all.
      *
-     * The pack-eligibility gate, and it fails rather than skipping: a note that
-     * routed *here* and carries nothing for this pack's system is an authoring
-     * mistake with a hollow document at the end of it, not a note that belongs
-     * to another pass. Skipping it quietly is how a whole tree compiles to
-     * documents nobody can use.
+     * **A system block is what makes a game document.** A pass whose document
+     * *is* a system's data compiles a note only where the note carries the
+     * block that pass reads, so a note saying nothing about any system becomes
+     * no Actor and no Item anywhere — its prose still compiles into a page, a
+     * PDF leaf and a JournalEntry, which are documents no system defines.
+     *
+     * Asked of this pass's own {@link BasePackCompiler#system}, never of the
+     * pack's `system:`. A pack declaring none is a single-system convenience
+     * compiled by the fallback pass for its document type, and that pass still
+     * reads exactly one block — so the note-side question is the same one
+     * whether or not the pack answered it.
+     *
+     * A note this pass has nothing to compile is **skipped**, counted like any
+     * other note the pack does not own. A deliberately unstatted person is the
+     * ordinary case, and a block deleted by accident shows in the diff that
+     * deleted it; what would otherwise be discarded in silence is the block
+     * written for a system no pack of the class serves, and that is reported by
+     * {@link module:engine/note-claims.unclaimedNoteFindings} rather than here,
+     * where a pass can see only its own half of the configuration.
      *
      * @param {object} fm - The note's frontmatter.
      * @returns {boolean} True when the note may be compiled here; `false` when
-     *   it belongs to another system's pass of the same document type, which is
-     *   skipped as quietly as any other note this pack does not own.
-     * @throws {Error} When this pack's system is absent from the note and no
-     *   other configured system claims it. The error carries a `position` where
-     *   the note's own file can be read.
+     *   it carries nothing for this pass's system.
      */
     eligibleFor(fm) {
-        if (!this.constructor.requiresSystemBlock || !this.packSystem) return true;
-        if (carriesSystemBlock(fm, this.packSystem)) return true;
-        // Another system's pack of this document type will claim it. A
-        // note carrying only `hm3:` routes here because this pack is the
-        // *default* of its document type, and defaults are declared per type
-        // rather than per system — but it is not an incomplete note, it is
-        // another pass's. The single-system case is untouched: with no second
-        // system declared there is nothing for this to find, and the error
-        // below still fires.
-        const claimant = (this.router?.systemsOfType?.(this.docType) ?? []).find(
-            (system) => system !== this.packSystem && carriesSystemBlock(fm, system),
-        );
-        if (claimant) return false;
-        const label = fm?.name?.full ?? fm?.shortcode ?? fm?.id ?? "this note";
-        throw new Error(
-            `${label} carries no \`${this.packSystem}:\` block, so it has no ` +
-                `${this.packSystem} data to compile — but it routes to pack ` +
-                `"${this.packName}", which declares \`system: ${this.packSystem}\`. ` +
-                `Add the block, or route the note to a pack of another system.`,
-        );
+        if (!this.constructor.requiresSystemBlock) return true;
+        return carriesSystemBlock(fm, this.system);
     }
 
     /**

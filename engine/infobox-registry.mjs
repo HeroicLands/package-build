@@ -58,24 +58,23 @@ export function infoboxFor(system) {
  * Whether one system compiles a document for one note.
  *
  * This is what a system box's _available_ asserts, and it is the compile's own
- * question rather than a reading of the frontmatter. A note carrying no block
- * is not a note a system has nothing for: where the pack compiling its document
- * declares no `system:`, the document is built from `data:` and the field
- * defaults and ships exactly like any other.
+ * question rather than a reading of the frontmatter.
  *
  * Three statements answer it, and they are the three the compile itself
  * follows:
  *
- * 1. **The map** says which document class this system makes of the note's
+ * 1. **The note's block.** A system block is what makes a game document, so a
+ *    note carrying nothing for this system compiles into no document of it
+ *    anywhere — the rule
+ *    {@link module:engine/base-compiler.BasePackCompiler#eligibleFor} applies,
+ *    asked here from outside.
+ * 2. **The map** says which document class this system makes of the note's
  *    type. No row, no document — and no box either, which is why a caller
  *    reaching here already has one.
- * 2. **The router** says which pack that document goes to, read from the pack
- *    list this build is driven by.
- * 3. **That pack's `system:`** decides the rest. Declaring one, it writes that
- *    system's data and takes only notes that say something about it — the rule
- *    {@link module:engine/base-compiler.BasePackCompiler#eligibleFor} applies,
- *    asked here from outside. Declaring none, it is compiled by the fallback
- *    pass, which needs no block and answers for
+ * 3. **The router** says which pack that document goes to, read from the pack
+ *    list this build is driven by, and **that pack's `system:`** decides whose
+ *    it is. Declaring one, it writes that system's data. Declaring none, it is
+ *    compiled by the fallback pass, which reads
  *    {@link module:engine/subtype-registry.DEFAULT_DOCUMENT_SUBTYPES} alone —
  *    so a tree with no HM3 pack ships no HM3 document however a note is
  *    written.
@@ -86,6 +85,8 @@ export function infoboxFor(system) {
  * @returns {boolean} True when this system compiles a document for this note.
  */
 export function compilesSystemDocument(fm, map, router) {
+    if (!carriesSystemBlock(fm, map.block)) return false;
+
     const row = subtypeRow(map, fm?.type);
     if (!row?.document) return false;
 
@@ -94,7 +95,7 @@ export function compilesSystemDocument(fm, map, router) {
 
     const packSystem = router.systemOf(packName);
     if (!packSystem) return map.system === DEFAULT_DOCUMENT_SUBTYPES.system;
-    return packSystem === map.system && carriesSystemBlock(fm, map.block);
+    return packSystem === map.system;
 }
 
 /**

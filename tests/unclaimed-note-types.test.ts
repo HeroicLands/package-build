@@ -381,6 +381,88 @@ describe("unclaimedNoteFindings", () => {
 });
 
 /* ---------------------------------------------------------------------- */
+/*  A block no pack reads                                                  */
+/* ---------------------------------------------------------------------- */
+
+/** A being note carrying exactly the system blocks named. */
+function statted(name: string, shortcode: string, blocks: string[]): string {
+    return [
+        "---",
+        "name:",
+        `  full: ${name}`,
+        `id: ${shortcode.padEnd(16, "0").slice(0, 16)}`,
+        `shortcode: ${shortcode}`,
+        "type: being",
+        ...blocks.map((block) => `${block}: {}`),
+        "---",
+        "",
+        `Prose for ${name}.`,
+        "",
+    ].join("\n");
+}
+
+describe("a system block no pack in this package reads", () => {
+    /** One systemless Actor pack — every single-system tree's shape. */
+    const ONE_PACK = [
+        { name: "actors", type: "Actor" },
+        { name: "journals", type: "JournalEntry" },
+    ];
+
+    /** `harn-ensemble`'s: an Actor pack per system, and a shared journals pack. */
+    const TWO_SYSTEMS = [...ACTORS_ONLY, { name: "journals", type: "JournalEntry" }];
+
+    const findingsFor = (packs: any[], text: string) => {
+        const root = repo({ "Person.md": text });
+        roots.push(root);
+        const config = baseConfig({ packs, rootDir: root });
+        return unclaimedNoteFindingsFor(config, {
+            itemTypes: new Set(),
+            docEntryTypes: new Set(["being"]),
+        });
+    };
+
+    it("is reported at error severity, naming the system and the class", () => {
+        const [finding, ...rest] = findingsFor(ONE_PACK, statted("Aelric", "aelric", ["hm3"]));
+        expect(rest).toEqual([]);
+        expect(finding.severity).toBe("error");
+        expect(finding.file).toMatch(/Person\.md$/);
+        expect(finding.message).toContain("`hm3:` block");
+        expect(finding.message).toContain("Actor pack");
+        expect(finding.message).toContain("system: hm3");
+        // `hm3: {}` is the seventh line of the note above.
+        expect(finding.line).toBe(7);
+    });
+
+    it("is reported once per note per system, beside the blocks that do compile", () => {
+        const findings = findingsFor(ONE_PACK, statted("Aelric", "aelric", ["sohl", "hm3"]));
+        expect(findings).toHaveLength(1);
+        expect(findings[0].message).toContain("`hm3:` block");
+    });
+
+    it("says nothing where a pack of the class declares that system", () => {
+        expect(findingsFor(TWO_SYSTEMS, statted("Aelric", "aelric", ["sohl", "hm3"]))).toEqual([]);
+        expect(findingsFor(TWO_SYSTEMS, statted("Aelric", "aelric", ["hm3"]))).toEqual([]);
+    });
+
+    it("says nothing about a note carrying no block at all", () => {
+        // An unstatted person is a statement, not a mistake: no document was
+        // authored, so none is discarded.
+        expect(findingsFor(ONE_PACK, statted("Meshara", "meshara", []))).toEqual([]);
+        expect(findingsFor(TWO_SYSTEMS, statted("Meshara", "meshara", []))).toEqual([]);
+    });
+
+    it("says nothing where the class has no pack at all, which is reported as the note's", () => {
+        // The whole document is missing rather than one system's, and the claim
+        // finding beside this one says so with the remedy.
+        const findings = findingsFor(
+            [{ name: "journals", type: "JournalEntry" }],
+            statted("Aelric", "aelric", ["hm3"]),
+        );
+        for (const finding of findings) expect(finding.message).not.toContain("`hm3:` block");
+    });
+});
+
+/* ---------------------------------------------------------------------- */
 /*  Through the generator                                                  */
 /* ---------------------------------------------------------------------- */
 

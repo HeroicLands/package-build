@@ -65,6 +65,8 @@ import {
     NEVER_PACKED_TYPES,
     DERIVED_PACKED_TYPES,
 } from "./note-claims.mjs";
+import { DEFAULT_DOCUMENT_SUBTYPES, SYSTEM_DOCUMENT_CLASSES } from "./subtype-registry.mjs";
+import { carriesSystemBlock } from "./system-block.mjs";
 import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { compendiumUuid, currentType, packForType, pageUuid } from "./ids.mjs";
@@ -207,14 +209,30 @@ export function entriesForNote(fm, name, address, body, ctx) {
             return undefined;
         }
 
-        return compendiumUuid(
-            foundryPackageId,
-            type,
-            id,
+        const docType = routeFm ? packForType(type).docType : "JournalEntry";
+        const pack =
             routeFm ?
-                packRouter.resolveOrNull(routeFm, packForType(type).docType)
-            :   packRouter.defaultOf("JournalEntry"),
-        );
+                packRouter.resolveOrNull(routeFm, docType)
+            :   packRouter.defaultOf("JournalEntry");
+
+        // **A system block is what makes a game document**, so a note carrying
+        // none compiles into no Actor and no Item — and an address naming one
+        // would send every consumer to a document that is not there. The same
+        // statement `pack: none` makes about a pack, made about a system: the
+        // note keeps its address, its page and its prose journal, and publishes
+        // no UUID for the document it does not produce.
+        //
+        // Which block is asked for is the pack's, because the pack decides the
+        // pass: one declaring a `system:` is compiled by that system's pass,
+        // and one declaring none by the fallback, which reads a single block of
+        // its own.
+        if (SYSTEM_DOCUMENT_CLASSES.has(docType)) {
+            const system =
+                (pack && packRouter.systemOf?.(pack)) || DEFAULT_DOCUMENT_SUBTYPES.system;
+            if (!carriesSystemBlock(routeFm, system)) return undefined;
+        }
+
+        return compendiumUuid(foundryPackageId, type, id, pack);
     };
 
     const carriesDoc =

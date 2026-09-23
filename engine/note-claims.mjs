@@ -94,7 +94,13 @@ import { loadPackConfig } from "./pack-config.mjs";
 import { declaresNoPack } from "./pack-router.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
 import { noteTypesFor, subtypeRow } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
+import {
+    DEFAULT_DOCUMENT_SUBTYPES,
+    KNOWN_DOCUMENT_SUBTYPE_MAPS,
+    SHIPPED_SYSTEMS,
+    subtypeMapFor,
+} from "./subtype-registry.mjs";
+import { carriesSystemBlock } from "./system-block.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { BUNDLE_TYPE } from "./bundle-notes.mjs";
@@ -615,7 +621,92 @@ function authoringMessage(type) {
 }
 
 /**
- * Every note in the content tree that no configured pack would compile.
+ * Which pass would read one system's block, given a configuration's packs.
+ *
+ * A pack declaring `system: hm3` is compiled by the HM3 pass and reads `hm3:`.
+ * A pack declaring **no** system is compiled by the fallback pass, which reads
+ * {@link module:engine/subtype-registry.DEFAULT_DOCUMENT_SUBTYPES} and nothing
+ * else — so a systemless pack answers for one system, not for every system a
+ * note might carry. That asymmetry is the whole of this question: the router
+ * will happily route an `hm3:` document into a systemless pack, and the pass
+ * waiting there reads a different block.
+ *
+ * A **prebuilt** pack compiles nothing — its JSON is checked in — so it reads
+ * no block either.
+ *
+ * @param {object} config - The resolved build configuration.
+ * @param {string} docType - The document class the block would compile into.
+ * @param {string} system - The system whose block is in question.
+ * @returns {{packs: number, serving: number}} How many non-prebuilt packs of
+ *   that class the configuration has, and how many of them compile that
+ *   system's documents.
+ */
+function packsServing(config, docType, system) {
+    const packs = (config?.packs ?? []).filter((pack) => !pack?.prebuilt && pack?.type === docType);
+    const serving = packs.filter((pack) =>
+        pack.system ? pack.system === system : system === DEFAULT_DOCUMENT_SUBTYPES.system,
+    );
+    return { packs: packs.length, serving: serving.length };
+}
+
+/**
+ * Every system block on one note that no pack in this package will read.
+ *
+ * **A discarded field is the quiet-failure class the diagnostics exist to
+ * close**, and a system block is the largest field a note can write: a whole
+ * document's worth of authored data, compiled by nobody and reported by
+ * nobody. The claim check beside this one asks whether a note's *type* is
+ * claimed; this asks whether its *systems* are.
+ *
+ * `error`, because the data is lost either way and the author cannot see it
+ * happen. It says nothing about a note carrying **no** block — that note is
+ * making a statement, and the statement is that nobody rolls dice against this
+ * person.
+ *
+ * Silent, too, where the class has no pack at all: the note's whole document is
+ * missing, which {@link partialMessage} already reports with the remedy.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} absPath - The note's path, for the finding's position.
+ * @param {string} type - The note's current type.
+ * @param {object} config - The resolved build configuration.
+ * @returns {Array<{file: string, line?: number, column?: number,
+ *   severity: "error", message: string, type: string}>} One finding per
+ *   discarded block.
+ */
+function discardedSystemBlockFindings(fm, absPath, type, config) {
+    const findings = [];
+    for (const system of SHIPPED_SYSTEMS) {
+        if (!carriesSystemBlock(fm, system)) continue;
+        const docType = subtypeRow(subtypeMapFor(system), type)?.document;
+        // This system makes no document of this note type, so its block says
+        // nothing that could be discarded — it is read for the note's fields
+        // wherever another pass wants them.
+        if (!docType) continue;
+        const { packs, serving } = packsServing(config, docType, system);
+        if (!packs || serving) continue;
+        findings.push({
+            file: absPath,
+            ...locateFrontmatterKey(absPath, system, undefined, { topLevel: true }),
+            severity: /** @type {"error"} */ ("error"),
+            type,
+            message:
+                `carries a \`${system}:\` block, and no ${docType} pack in this ` +
+                `package compiles ${system} documents, so the block is discarded — ` +
+                `declare \`system: ${system}\` on one of the \`packs:\`, or remove ` +
+                `the block.`,
+        });
+    }
+    return findings;
+}
+
+/**
+ * Every note in the content tree that no configured pack would compile, and
+ * every system block no configured pack would read.
+ *
+ * Two questions of one walk, because they are the same question asked of a
+ * note's type and of a note's systems, and a note can fail either while passing
+ * the other — see {@link discardedSystemBlockFindings}.
  *
  * Read-only: it walks the tree and reports, and writes nothing. Three kinds of
  * note are passed over, each for a stated reason rather than by omission — a
@@ -671,6 +762,11 @@ export function unclaimedNoteFindings(config = loadPackConfig(), sources, { reco
         // authored one. The rename itself is reported by the frontmatter
         // lint, which can say what to write instead.
         const current = currentType(type);
+
+        // Asked first, and asked whatever the type's claim turns out to be: a
+        // note whose documents all have packs may still carry a block none of
+        // them reads, and that is invisible to every question below.
+        findings.push(...discardedSystemBlockFindings(fm, absPath, current, config));
 
         // Every document this note produces, against the classes this
         // configuration has a pack for. Three outcomes, and the middle one is

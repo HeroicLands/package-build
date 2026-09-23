@@ -117,6 +117,18 @@ export class SystemItemCompiler extends BasePackCompiler {
     static requiresSystemBlock = true;
 
     /**
+     * The Foundry document class this pass writes.
+     *
+     * Declared by the class that does the writing, so the table pairing a
+     * system with its passes is derived from the passes themselves rather than
+     * written out a second time — see
+     * {@link module:engine/generate.systemCompilers}.
+     *
+     * @type {string}
+     */
+    static documentClass = "Item";
+
+    /**
      * An Item carries one piece of art — its icon — which this pass writes from
      * the address the note names, falling back to the type's default art.
      *

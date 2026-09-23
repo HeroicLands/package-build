@@ -487,14 +487,25 @@ describe("a system box is available when that system compiles a document", () =>
         data: { demonym: null },
     };
 
-    it("is available where the pack declaring no system compiles the note", () => {
-        // The whole of an affiliation is in `data:`; the note authors no `sohl:`
-        // block and the Item pass compiles one regardless.
-        const sohl = noteInfoboxes(affiliation, { router: oneSystem }).find(
+    it("is available where the note carries the block the pack's pass reads", () => {
+        // The pack declares no system, so the fallback pass compiles it — and
+        // that pass reads one block, which the note has to carry.
+        const sohl = noteInfoboxes({ ...affiliation, sohl: {} }, { router: oneSystem }).find(
             (box) => box.id === "sohl",
         );
         expect(sohl.available).toBe(true);
         expect(sohl.statement).not.toBe(NOT_AVAILABLE);
+    });
+
+    it("is unavailable where the note carries no system block at all", () => {
+        // The whole of this affiliation is in `data:` and it says nothing about
+        // any system, so no pack anywhere compiles a document for it — and a
+        // box claiming one would point at nothing.
+        const sohl = noteInfoboxes(affiliation, { router: oneSystem }).find(
+            (box) => box.id === "sohl",
+        );
+        expect(sohl.available).toBe(false);
+        expect(sohl.statement).toBe(NOT_AVAILABLE);
     });
 
     it("is unavailable for a system no pack compiles for", () => {

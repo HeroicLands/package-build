@@ -502,6 +502,18 @@ export class SystemActorCompiler extends BasePackCompiler {
     static requiresSystemBlock = true;
 
     /**
+     * The Foundry document class this pass writes.
+     *
+     * Declared by the class that does the writing, so the table pairing a
+     * system with its passes is derived from the passes themselves rather than
+     * written out a second time — see
+     * {@link module:engine/generate.systemCompilers}.
+     *
+     * @type {string}
+     */
+    static documentClass = "Actor";
+
+    /**
      * The note-type → document-subtype map this pass compiles against.
      *
      * Stated by the class rather than reached for through a module import, so

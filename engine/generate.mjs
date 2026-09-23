@@ -102,7 +102,22 @@ const COMPILERS = {
 };
 
 /**
- * The system-specific compilers, by the system a pack declares.
+ * Every pass this toolchain ships that writes one system's data.
+ *
+ * The list a system joins, and the only place it is named. Each class already
+ * declares which system it is for (`documentSubtypes`) and which document it
+ * writes (`documentClass`), so the pairing is read off the passes rather than
+ * spelled a second time beside them — a table keyed by system id is a table
+ * free to disagree with the classes it names, and the way it disagrees is
+ * silent: a system absent from it took the fallback pass and compiled its packs
+ * out of a neighbour's blocks.
+ *
+ * @type {readonly Function[]}
+ */
+const SYSTEM_PASSES = Object.freeze([Items, Actors, Hm3Items, Hm3Actors]);
+
+/**
+ * The system-specific compilers, derived from the passes themselves.
  *
  * A repository feeding two systems declares one Item pack and one Actor pack
  * per system — `harn-ensemble` has `actors-hm3` and `actors-sohl` — and each
@@ -111,28 +126,84 @@ const COMPILERS = {
  * `itemBuilders` lookup already read, so nothing new is declared to make the
  * compiler follow it.
  *
- * A system with no entry — or a pack that declares none — falls back to
- * {@link COMPILERS}. That keeps every single-system configuration meaning
- * exactly what it did: SoHL's passes were the only ones, so they stay the
- * answer where nothing says otherwise.
- *
- * @type {Readonly<Record<string, Readonly<Record<string, Function>>>>}
+ * @param {readonly Function[]} passes - The system passes to table.
+ * @returns {Readonly<Record<string, Readonly<Record<string, Function>>>>}
+ *   System id → document class → pass.
+ * @throws {Error} When a pass declares no system or no document class, which is
+ *   a pass that cannot be addressed by either question this table answers.
  */
-const SYSTEM_COMPILERS = Object.freeze({
-    sohl: Object.freeze({ Item: Items, Actor: Actors }),
-    hm3: Object.freeze({ Item: Hm3Items, Actor: Hm3Actors }),
-});
+export function systemCompilers(passes) {
+    /** @type {Record<string, Record<string, Function>>} */
+    const table = {};
+    for (const pass of passes) {
+        const declared =
+            /** @type {{documentSubtypes?: {system?: string},
+             *   documentClass?: string, name: string}} */ (pass);
+        const system = declared.documentSubtypes?.system;
+        const docType = declared.documentClass;
+        if (!system || !docType) {
+            throw new Error(
+                `${declared.name} is registered as a system pass but declares ` +
+                    `${system ? "no `documentClass`" : "no `documentSubtypes`"} — a pass ` +
+                    `writing a system's data states both, so which system and which ` +
+                    `document it answers for is read from the class itself.`,
+            );
+        }
+        (table[system] ??= {})[docType] = pass;
+    }
+    return Object.freeze(
+        Object.fromEntries(
+            Object.entries(table).map(([system, byType]) => [system, Object.freeze(byType)]),
+        ),
+    );
+}
+
+/** @type {Readonly<Record<string, Readonly<Record<string, Function>>>>} */
+const SYSTEM_COMPILERS = systemCompilers(SYSTEM_PASSES);
+
+/**
+ * The document classes some system writes its own data into.
+ *
+ * Derived from {@link SYSTEM_COMPILERS}, so it is the set of classes for which
+ * "which system?" is a question with consequences. Every other class has one
+ * implementation whatever a pack declares.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const SYSTEM_DOCUMENT_CLASSES = Object.freeze(
+    new Set(Object.values(SYSTEM_COMPILERS).flatMap((byType) => Object.keys(byType))),
+);
 
 /**
  * The compiler class a pack of one document type and one system gets.
+ *
+ * A pack declaring **no** system takes the fallback pass for its document
+ * class, which reads
+ * {@link module:engine/subtype-registry.DEFAULT_DOCUMENT_SUBTYPES} — the
+ * single-system convenience every tree shipping for one system is built on.
+ *
+ * A pack declaring a system this toolchain has no pass for is **refused by
+ * name**. Falling through to the fallback would compile that pack out of
+ * another system's blocks and ship it stamped with the system it asked for,
+ * which is the quiet failure the refusal exists to replace.
  *
  * @param {string} docType - The Foundry document type the pack holds.
  * @param {string|null} [system] - The system the pack declares, if any.
  * @returns {Function|undefined} The compiler class, or `undefined` for a
  *   document type nothing here compiles — which {@link generatePack} reports
  *   rather than defaulting past.
+ * @throws {Error} When a system-bearing document class is asked for a system
+ *   this toolchain ships no pass for.
  */
 export function compilerFor(docType, system = null) {
+    if (system && SYSTEM_DOCUMENT_CLASSES.has(docType) && !SYSTEM_COMPILERS[system]?.[docType]) {
+        throw new Error(
+            `no ${docType} compiler for system "${system}" — this toolchain ships ` +
+                `passes for ${Object.keys(SYSTEM_COMPILERS).sort().join(", ")}. Declare a ` +
+                `system one of those names, or add the pass that reads a ` +
+                `\`${system}:\` block.`,
+        );
+    }
     return (system && SYSTEM_COMPILERS[system]?.[docType]) || COMPILERS[docType];
 }
 

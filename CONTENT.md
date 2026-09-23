@@ -867,7 +867,12 @@ has no art.
 A note is **system-agnostic**. The only system-specific things it carries are
 the properties named after a system, and one note may carry more than one — a
 `being` in `harn-ensemble` compiles into a SoHL `being` _and_ an HM3
-`character`. Within a system's block:
+`character`.
+
+**The block is what makes a game document.** A note carrying none produces no
+Actor and no Item at all, in any package; its prose still compiles into a page,
+a PDF page and a JournalEntry, so a person can be written without being statted.
+Within a system's block:
 
 | property           | maps to                                                       |
 | ------------------ | ------------------------------------------------------------- |
@@ -1006,12 +1011,19 @@ hold this package at a build that does not write it. A subtree the schema
 declares but describes no further — a discriminated `TypedSchemaField`, stored
 flat — is left alone rather than reported wholesale.
 
-**A pack that declares a `system:` takes only notes carrying that block.** A
-note that says nothing about a system has no system data, and compiling it there
-would emit a hollow document — a subtype, and none of the fields the subtype
-exists for. The build fails naming the note and the pack. A pack declaring no
-system constrains nothing, and a pass whose document is not system data at all —
-journals, macros, scenes — is not subject to the rule.
+**An Actor or Item pass takes only notes carrying the block it reads.** A note
+that says nothing about a system has no system data, and compiling it would emit
+a hollow document — a subtype, and none of the fields the subtype exists for. So
+a note carrying no block for any system produces no Actor and no Item anywhere,
+and is passed over in silence; its prose still compiles into a page, a PDF page
+and a JournalEntry. The question is asked of the pass's own system rather than
+of the pack's `system:`: a pack declaring none is compiled by the fallback pass,
+which reads one block like any other. A pass whose document is not system data
+at all — journals, macros, scenes — is not subject to the rule.
+
+**A block for a system no pack of the class compiles is an error**, reported
+once per note per system with the position of the block key, because the
+authored data is discarded either way.
 
 **`(type, shortcode)` resolves inside one system's catalogue.** A being names its
 embedded items by address and never by pack, so the Item packs are read as one
