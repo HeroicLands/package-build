@@ -59,6 +59,20 @@ describe("the sentence", () => {
     });
 });
 
+describe("the voice", () => {
+    it("sets the sentence in italic and the label in bold roman, on every surface", () => {
+        // The sentence is the text speaking about its own state rather than
+        // about the world, and italic is what tells a reader the voice has
+        // changed. Bold italic beside the mark would be one emphasis too many.
+        const html = draftNoticeHtml();
+        expect(html).toContain(`<strong>${DRAFT_NOTICE_LABEL}</strong> <em>${DRAFT_NOTICE}</em>`);
+        expect(html).not.toContain(`<em><strong>`);
+
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toContain('[#text(weight: "bold")[#label]#h(0.25em)#emph[#body]]');
+    });
+});
+
 describe("the mark", () => {
     it("is a notice rather than a hazard", () => {
         expect(DRAFT_NOTICE_ICON).toBe("fa-circle-exclamation");
@@ -80,10 +94,19 @@ describe("the mark", () => {
         // book's accent and the glyph is the colour of the paper. Both are
         // palette names: a literal colour here would not follow the book.
         const preamble = bookDraftNoticePreamble();
-        expect(preamble).toContain("circle(radius: 0.46em, fill: book-accent)");
+        expect(preamble).toContain("circle(radius: radius, fill: book-accent)");
         expect(preamble).toContain("fill: book-paper)[!]");
         expect(preamble).not.toContain("stroke: 0.6pt");
         expect(preamble).not.toMatch(/rgb\(/);
+    });
+
+    it("sizes the glyph from the disc, so one number sets the mark", () => {
+        // A glyph sized against the surrounding text instead keeps its size
+        // while the disc grows, and the mark becomes a large disc with a small
+        // exclamation adrift in it.
+        const preamble = bookDraftNoticePreamble();
+        expect(preamble).toMatch(/#let radius = [\d.]+em/);
+        expect(preamble).toMatch(/#text\(size: [\d.]+ \* radius,/);
     });
 
     it("sets in a column of its own, beside the sentence", () => {

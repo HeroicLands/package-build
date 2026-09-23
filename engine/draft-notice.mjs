@@ -33,6 +33,14 @@
  * is the floor each surface is built to, because each of them can lose
  * everything around it.
  *
+ * **The label is bold roman and the sentence is italic**, on every surface. The
+ * words around it are the world describing itself; this one sentence is the
+ * text speaking about its own state, and italic is how a reader is told the
+ * voice has changed. It is the one typographic mark the sentence carries:
+ * smaller or lighter type would say the reader may skip it, which is the
+ * opposite of what it is for, and a bold italic beside the mark would be one
+ * emphasis too many.
+ *
  * ## What each surface can rely on
  *
  * - **Foundry** renders a JournalEntry's own HTML inside a sheet, so the floor
@@ -87,7 +95,8 @@ export const BOOK_DRAFT_NOTICE = "book-draft-notice";
  * `body.game .app blockquote` carries a left rule and an indent — so the
  * treatment survives with no stylesheet of this package's own. The mark is a
  * Font Awesome element, which Foundry bundles; `aria-hidden` keeps it out of a
- * screen reader, where the label reads it.
+ * screen reader, where the label reads it. The sentence is an `em`, which every
+ * renderer of HTML sets in italic with no stylesheet to ask.
  *
  * @returns {string} The notice's HTML.
  */
@@ -95,7 +104,7 @@ export function draftNoticeHtml() {
     return (
         `<blockquote class="${DRAFT_NOTICE_CLASS}">` +
         `<p><i class="fa-solid ${DRAFT_NOTICE_ICON}" aria-hidden="true"></i> ` +
-        `<strong>${DRAFT_NOTICE_LABEL}</strong> ${DRAFT_NOTICE}</p>` +
+        `<strong>${DRAFT_NOTICE_LABEL}</strong> <em>${DRAFT_NOTICE}</em></p>` +
         `</blockquote>`
     );
 }
@@ -159,6 +168,11 @@ export function withDraftNotice(fm, html) {
  * skip. The mark scales with that text, so a consumer setting the book larger
  * or smaller carries the disc with it.
  *
+ * **One number sets the mark.** The glyph is a multiple of the disc's radius
+ * rather than a size of its own, so the exclamation keeps its share of the disc
+ * however large the disc is drawn and resizing the mark is one edit. Both are
+ * `em`, so the mark still follows the body text.
+ *
  * @returns {string} The Typst definition.
  */
 export function bookDraftNoticePreamble() {
@@ -168,14 +182,15 @@ export function bookDraftNoticePreamble() {
         "  inset: (left: 0.7em, top: 0.35em, bottom: 0.35em),\n" +
         "  stroke: (left: 1.6pt + book-faint))[\n" +
         "  #set par(justify: false, first-line-indent: 0em)\n" +
+        "  #let radius = 0.69em\n" +
         "  #grid(columns: (auto, 1fr), column-gutter: 0.5em,\n" +
         "    align: (center + horizon, horizon),\n" +
-        "    circle(radius: 0.46em, fill: book-accent)[\n" +
+        "    circle(radius: radius, fill: book-accent)[\n" +
         "      #align(center + horizon)[\n" +
-        '        #text(size: 0.74em, weight: "bold", fill: book-paper)[!]\n' +
+        '        #text(size: 1.6 * radius, weight: "bold", fill: book-paper)[!]\n' +
         "      ]\n" +
         "    ],\n" +
-        '    [#text(weight: "bold")[#label]#h(0.25em)#body],\n' +
+        '    [#text(weight: "bold")[#label]#h(0.25em)#emph[#body]],\n' +
         "  )\n" +
         "]"
     );
