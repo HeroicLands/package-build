@@ -68,12 +68,15 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
 /**
  * The map a pack declaring no `system:` compiles its documents against.
  *
- * A pack names the system its documents are shaped for, and one declaring none
- * is compiled by the fallback pass for its document type — a single-system
+ * **The single-system fallback, and not a default any system inherits.** A pack
+ * names the system its documents are shaped for, and one declaring none is
+ * compiled by the fallback pass for its document type — a single-system
  * package's ordinary arrangement, and the one `sohl-thalorna` ships. That pass
- * follows one map whatever a note carries, which makes this the answer to "a
- * document compiled here belongs to *which* system?" wherever a pack has not
- * said.
+ * reads this map's block and no other, so a note carrying nothing for this
+ * system compiles into no document there; a note carrying another system's
+ * block reaches that system's pass or nothing at all, never this one. This is
+ * the answer to "a document compiled here belongs to *which* system?" wherever
+ * a pack has not said, and it answers nothing about a system that has said.
  *
  * Stated here rather than read off the compiler classes because those are not
  * reachable from a leaf: `engine/item-compiler.mjs` imports the journals pass,
@@ -85,6 +88,40 @@ export const KNOWN_DOCUMENT_SUBTYPE_MAPS = Object.freeze([
  * @type {import("./document-subtypes.mjs").DocumentSubtypeMap}
  */
 export const DEFAULT_DOCUMENT_SUBTYPES = SOHL_DOCUMENT_SUBTYPES;
+
+/**
+ * Every system this toolchain ships a map for, by id.
+ *
+ * Derived from {@link KNOWN_DOCUMENT_SUBTYPE_MAPS}, so registering a map is the
+ * whole of adding a system to every reader that asks "which systems are there?"
+ * — the per-system findings among them.
+ *
+ * @type {readonly string[]}
+ */
+export const SHIPPED_SYSTEMS = Object.freeze(KNOWN_DOCUMENT_SUBTYPE_MAPS.map((map) => map.system));
+
+/**
+ * The Foundry document classes a system compiles its own data into.
+ *
+ * Derived from the shipped maps' rows, so it is the set of classes for which
+ * "which system?" is a question with consequences: a pack of one of these
+ * classes is compiled by one system's pass reading one system's block, and a
+ * note carrying no such block produces nothing there. Every other class — a
+ * JournalEntry, a Macro, a Scene, an Adventure — has one implementation
+ * whatever a pack declares, because it is Foundry's document rather than any
+ * system's.
+ *
+ * @type {ReadonlySet<string>}
+ */
+export const SYSTEM_DOCUMENT_CLASSES = Object.freeze(
+    new Set(
+        KNOWN_DOCUMENT_SUBTYPE_MAPS.flatMap((map) =>
+            Object.values(map.types)
+                .map((row) => row?.document)
+                .filter(Boolean),
+        ),
+    ),
+);
 
 /**
  * Every note type any shipped map compiles into an **Actor**.

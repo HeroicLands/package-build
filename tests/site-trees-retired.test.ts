@@ -98,7 +98,7 @@ describe("the site build has no tree walk", () => {
  * Four files: the homepage's `_index.md` at the root, and one page per note
  * flat under the `kb/` mount. Nothing else — no `_index.md` below the root.
  */
-const MOUNT_DIGEST = "765543bcd614713db246e8b6b7c8fa6ba144ffb4ab6349da747d454792ddf05d";
+const MOUNT_DIGEST = "0148a7c876c763ac5ede6a2017867f7eb405e62ede3f29ff51d398b605396257";
 const MOUNT_FILES = 4;
 
 /** Every file below `dir`, as `path\0sha256`, sorted. */

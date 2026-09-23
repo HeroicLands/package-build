@@ -21,11 +21,14 @@
  */
 
 import { describe, it, expect } from "vitest";
+import fs from "node:fs";
 import os from "node:os";
+import path from "node:path";
 
 import { defineConfig } from "../content-config.mjs";
 import { createPackRouter, PackRoutingError } from "../engine/pack-router.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
+import { compilerFor } from "../engine/generate.mjs";
 
 /** Normalize a bare pack list through `defineConfig`'s validation. */
 function routerFor(packs: any[]) {
@@ -142,5 +145,70 @@ describe("a system-neutral pack still answers every system", () => {
         const router = routerFor([{ name: "actors", type: "Actor" }]);
         expect(router.resolve(note(), "Actor", "sohl")).toBe("actors");
         expect(router.resolve(note(), "Actor")).toBe("actors");
+    });
+});
+
+/* ---------------------------------------------------------------------- */
+/*  How many documents a note produces, and where each lands               */
+/* ---------------------------------------------------------------------- */
+
+/**
+ * The packs that compile a document for one note, under one pack list.
+ *
+ * Two questions per pack, asked of the real pass: does it read a block this
+ * note carries (`eligibleFor`), and does the note route to this pack for that
+ * pass's system (`resolve`). Both are the compile's own, so the count here is
+ * the count a build writes.
+ */
+function documentsFor(packs: any[], fm: object): string[] {
+    const router = routerFor(packs);
+    const contentBase = fs.mkdtempSync(path.join(os.tmpdir(), "cb-count-"));
+    const landed: string[] = [];
+    for (const pack of packs) {
+        const Cls = compilerFor(pack.type, pack.system ?? null) as any;
+        const pass = new Cls({
+            skipDirectories: [],
+            contentBase,
+            dest: path.join(contentBase, "out"),
+            packName: pack.name,
+            packSystem: pack.system ?? null,
+            docType: pack.type,
+            router,
+        });
+        if (!pass.eligibleFor(fm)) continue;
+        if (router.resolve(fm, pack.type, pass.system) === pack.name) landed.push(pack.name);
+    }
+    return landed;
+}
+
+describe("a system block is what makes a game document", () => {
+    it("gives a note carrying both blocks one document in each system's pack", () => {
+        expect(documentsFor(ENSEMBLE, note()).sort()).toEqual(["actors-hm3", "actors-sohl"]);
+    });
+
+    it("gives a note carrying one block exactly one document, in that system's pack", () => {
+        expect(documentsFor(ENSEMBLE, note({ hm3: undefined }))).toEqual(["actors-sohl"]);
+        expect(documentsFor(ENSEMBLE, note({ sohl: undefined }))).toEqual(["actors-hm3"]);
+    });
+
+    it("gives a note carrying no block no document at all", () => {
+        expect(documentsFor(ENSEMBLE, note({ sohl: undefined, hm3: undefined }))).toEqual([]);
+    });
+
+    it("says the same of a tree whose one pack declares no system", () => {
+        const packs = [{ name: "actors", type: "Actor" }];
+        expect(documentsFor(packs, note({ hm3: undefined }))).toEqual(["actors"]);
+        expect(documentsFor(packs, note({ sohl: undefined, hm3: undefined }))).toEqual([]);
+    });
+
+    it("sends a system's document to the pack that system's block names", () => {
+        const packs = [
+            { name: "actors-hm3", type: "Actor", system: "hm3" },
+            { name: "actors-sohl", type: "Actor", system: "sohl" },
+            { name: "extras-sohl", type: "Actor", system: "sohl", default: false },
+        ];
+        expect(
+            documentsFor(packs, note({ sohl: { items: [], pack: "extras-sohl" } })).sort(),
+        ).toEqual(["actors-hm3", "extras-sohl"]);
     });
 });

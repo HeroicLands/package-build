@@ -6,7 +6,7 @@
  */
 
 /**
- * Which pack a note's document lands in, once a pack may declare a **system**.
+ * Which pack a note's document lands in, and whether it produces one at all.
  *
  * Two things follow from a note carrying a block per system:
  *
@@ -14,11 +14,15 @@
  *   level and is read by `pack-router.mjs`; the block-override rule makes
  *   `<system>.pack` the value for that system's document and leaves the shared
  *   one for the rest.
- * - **A pack that declares a system takes only notes carrying that system's
- *   block.** A note that says nothing about a system has no system data, so
- *   compiling it into that system's pack produces a hollow document — a
- *   subtype, and none of the fields the subtype exists for. The build says so,
- *   naming the note and the pack.
+ * - **A system block is what makes a game document.** A pass whose document
+ *   *is* a system's data compiles a note only where the note carries the block
+ *   that pass reads — its own, never the pack's, because a pack need not
+ *   declare one and the pass behind it reads one block regardless. A note
+ *   saying nothing about any system produces no Actor and no Item anywhere; its
+ *   prose still becomes a page, a PDF leaf and a JournalEntry.
+ *
+ * The cases below are derived from the shipped registries rather than written
+ * out, so a third system is covered by registering it.
  */
 
 import { describe, it, expect } from "vitest";
@@ -28,6 +32,12 @@ import path from "node:path";
 
 import { createPackRouter, PackRoutingError } from "../engine/pack-router.mjs";
 import { BasePackCompiler } from "../engine/base-compiler.mjs";
+import { compilerFor, systemCompilers } from "../engine/generate.mjs";
+import {
+    KNOWN_DOCUMENT_SUBTYPE_MAPS,
+    SHIPPED_SYSTEMS,
+    SYSTEM_DOCUMENT_CLASSES,
+} from "../engine/subtype-registry.mjs";
 
 const PACKS = [
     { name: "items", type: "Item", companions: [] },
@@ -64,8 +74,13 @@ function emptyTree(): string {
     return fs.mkdtempSync(path.join(os.tmpdir(), "cb-elig-"));
 }
 
+/** A pass whose document is a system's data, reading the block it names. */
 class SystemPass extends BasePackCompiler {
     static override requiresSystemBlock = true;
+    /** The block this pass reads, as every shipped system pass declares one. */
+    override get system() {
+        return "hm3";
+    }
     override selects() {
         return true;
     }
@@ -96,29 +111,134 @@ function pass(Cls: typeof SystemPass | typeof NeutralPass, packSystem: string | 
 }
 
 describe("pack eligibility", () => {
-    it("compiles a note carrying the pack's system block", () => {
+    it("compiles a note carrying the block this pass reads", () => {
         expect(pass(SystemPass, "hm3").eligibleFor({ hm3: { type: "character" } })).toBe(true);
     });
 
-    it("refuses a note that says nothing about the pack's system", () => {
-        const compiler = pass(SystemPass, "hm3");
-        expect(() => compiler.eligibleFor({ shortcode: "kaldor", sohl: {} })).toThrow(
-            /kaldor[\s\S]*actors-hm3[\s\S]*hm3/,
+    it("skips a note that says nothing about this pass's system", () => {
+        expect(pass(SystemPass, "hm3").eligibleFor({ shortcode: "kaldor", sohl: {} })).toBe(false);
+    });
+
+    it("skips a note carrying no system block at all", () => {
+        expect(pass(SystemPass, "hm3").eligibleFor({ shortcode: "kaldor" })).toBe(false);
+    });
+
+    it("reads a block authored as something other than a mapping as absent", () => {
+        expect(pass(SystemPass, "hm3").eligibleFor({ shortcode: "kaldor", hm3: "yes" })).toBe(
+            false,
         );
     });
 
-    it("refuses a block authored as something other than a mapping", () => {
-        const compiler = pass(SystemPass, "hm3");
-        expect(() => compiler.eligibleFor({ shortcode: "kaldor", hm3: "yes" })).toThrow(/hm3/);
-    });
-
-    it("constrains nothing when the pack declares no system", () => {
-        expect(pass(SystemPass, null).eligibleFor({})).toBe(true);
+    it("asks the same question where the pack declares no system", () => {
+        // The pack says nothing; the pass behind it still reads one block, so
+        // a note carrying none has nothing for it to compile.
+        expect(pass(SystemPass, null).eligibleFor({})).toBe(false);
+        expect(pass(SystemPass, null).eligibleFor({ hm3: {} })).toBe(true);
     });
 
     it("constrains nothing on a pass whose document is not system data", () => {
         // A journal is not a system's document, so a system-declaring journal
         // pack does not make every prose note into system content.
         expect(pass(NeutralPass, "hm3").eligibleFor({})).toBe(true);
+    });
+});
+
+/* --------------------------------------------------------------------- */
+/*  Every shipped pass, derived from the registries                       */
+/* --------------------------------------------------------------------- */
+
+/** One pass of a shipped system, built as `generatePack` builds it. */
+function shippedPass(docType: string, packSystem: string | null) {
+    const contentBase = emptyTree();
+    const Cls = compilerFor(docType, packSystem) as typeof BasePackCompiler;
+    return new (Cls as any)({
+        skipDirectories: [],
+        contentBase,
+        dest: path.join(contentBase, "out"),
+        packName: "pack",
+        packSystem,
+        docType,
+    });
+}
+
+describe("a note with no system block compiles into no game document", () => {
+    const classes = [...SYSTEM_DOCUMENT_CLASSES];
+
+    it("has system-bearing document classes to ask about", () => {
+        expect(classes.length).toBeGreaterThan(0);
+        expect(SHIPPED_SYSTEMS.length).toBeGreaterThan(0);
+    });
+
+    for (const docType of SYSTEM_DOCUMENT_CLASSES) {
+        for (const map of KNOWN_DOCUMENT_SUBTYPE_MAPS) {
+            const system = (map as { system: string }).system;
+
+            it(`is refused by the ${system} ${docType} pass of a pack declaring ${system}`, () => {
+                expect(shippedPass(docType, system).eligibleFor({ shortcode: "x" })).toBe(false);
+            });
+
+            it(`is refused by the ${system} ${docType} pass where a block is another system's`, () => {
+                const other = SHIPPED_SYSTEMS.find((id) => id !== system);
+                if (!other) return;
+                expect(shippedPass(docType, system).eligibleFor({ [other]: {} })).toBe(false);
+            });
+        }
+
+        it(`is refused by the ${docType} pass of a pack declaring no system`, () => {
+            expect(shippedPass(docType, null).eligibleFor({ shortcode: "x" })).toBe(false);
+        });
+
+        it(`is compiled by the ${docType} pass of a pack declaring no system once it carries that block`, () => {
+            const fallback = shippedPass(docType, null) as { system: string; eligibleFor: any };
+            expect(fallback.eligibleFor({ [fallback.system]: {} })).toBe(true);
+        });
+    }
+});
+
+/* --------------------------------------------------------------------- */
+/*  The compiler table, derived from the passes                           */
+/* --------------------------------------------------------------------- */
+
+describe("which pass compiles a pack", () => {
+    it("gives every shipped system a pass of every system-bearing class", () => {
+        for (const system of SHIPPED_SYSTEMS) {
+            for (const docType of SYSTEM_DOCUMENT_CLASSES) {
+                const Cls = compilerFor(docType, system) as {
+                    documentSubtypes?: { system?: string };
+                };
+                expect(Cls?.documentSubtypes?.system, `${system} ${docType}`).toBe(system);
+            }
+        }
+    });
+
+    it("refuses a system it ships no pass for, rather than compiling it as another's", () => {
+        for (const docType of SYSTEM_DOCUMENT_CLASSES) {
+            expect(() => compilerFor(docType, "dnd5e")).toThrow(/dnd5e/);
+            expect(() => compilerFor(docType, "dnd5e")).toThrow(
+                new RegExp(SHIPPED_SYSTEMS.join("|")),
+            );
+        }
+    });
+
+    it("leaves a system-neutral class alone, whatever a pack declares", () => {
+        // A JournalEntry is Foundry's document, so one implementation answers
+        // for every system a pack might name.
+        expect(compilerFor("JournalEntry", "dnd5e")).toBe(compilerFor("JournalEntry", null));
+    });
+
+    it("tables a system registered after the fact with no edit of its own", () => {
+        // The table is read off each pass's own declarations, so a third
+        // system reaches it by registering its passes and nothing else.
+        class Dnd5eItems {
+            static documentSubtypes = { system: "dnd5e", block: "dnd5e" };
+            static documentClass = "Item";
+        }
+        const table = systemCompilers([Dnd5eItems]);
+        expect(table).toEqual({ dnd5e: { Item: Dnd5eItems } });
+    });
+
+    it("refuses to table a pass that declares neither half", () => {
+        class Nameless {}
+        expect(() => systemCompilers([Nameless])).toThrow(/Nameless/);
     });
 });

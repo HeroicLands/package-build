@@ -191,6 +191,7 @@ describe("a stub of a document-compiling type still compiles its document", () =
         "subType: arcanetalent",
         "shortcode: ampl",
         "id: 04aee107d23aa3a8",
+        "sohl: {}",
         "name:",
         '  full: "Amplification"',
         "---",

@@ -834,7 +834,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     };
 
     it("emits a second record for the documentation journal", () => {
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
 
         const result = emitContentIndex({ config: foundryConfig(tmp) });
         const records = readIndex(result.file);
@@ -851,7 +851,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 
     it("addresses the journal in its own right, sharing the page", () => {
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
         const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         // The item is the `sohl` system's document; the journal is nobody's,
@@ -864,7 +864,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 
     it("links the two records in both directions", () => {
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
         const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         expect(item.documentation).toBe(doc.address.canonical);
@@ -872,7 +872,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 
     it("gives each record its own Foundry address", () => {
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
         const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         // The item is a *system's* document, so its address is keyed by the
@@ -896,7 +896,7 @@ describe("an item note is two records: the item, and its documentation", () => {
      * whose shape is not the index's contract to keep.
      */
     it("publishes the journal's own id beside its UUID", () => {
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
         const { item, doc } = pair(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         expect(doc.id).toBe(itemDocEntryId(item.id));
@@ -930,7 +930,7 @@ describe("an item note is two records: the item, and its documentation", () => {
     it("orders an item's two records deterministically", () => {
         // They share a file and an id, so the canonical address is the only
         // key left to sort on — without it the order is a fact about the walk.
-        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth");
+        note("Black_Death.md", "type: affliction\nid: bd1\nshortcode: blkdth\nsohl: {}");
         const a = fs.readFileSync(emitContentIndex({ config: foundryConfig(tmp) }).file, "utf8");
         const b = fs.readFileSync(emitContentIndex({ config: foundryConfig(tmp) }).file, "utf8");
         expect(a).toBe(b);
@@ -956,7 +956,7 @@ describe("a note may declare more than one system", () => {
         // `harn-ensemble` carries 2,497 notes with both a `sohl:` and an `hm3:`
         // block, and each compiles into its own document of that system's type.
         // One `uuid` on the record cannot name two, so the address is keyed.
-        note("Plague.md", "type: affliction\nid: p1\nshortcode: plague");
+        note("Plague.md", "type: affliction\nid: p1\nshortcode: plague\nsohl: {}");
         // Asked for by type, not by position: an item note is two records and
         // the file is ordered by canonical address, where the journal's `none`
         // now sorts ahead of the item's `sohl`.

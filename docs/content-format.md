@@ -197,13 +197,14 @@ _Not available_ on every affiliation page would suggest a gap in the note when
 the truth is about the system's scope.
 
 Whether a document was produced is the compile's own answer rather than a
-reading of the frontmatter. The note's type must map to the system; the note
-must route to a pack of the document class that map names; and where **that
-pack declares a `system:`**, the note must carry that system's block, which is
-the same rule the pack itself compiles under. A pack declaring **no** system
-compiles every note it claims from `data:` and the field defaults, so a note
-with no block still produces a document and its box still carries content —
-which is the ordinary arrangement in a package built for one system.
+reading of the frontmatter. Three things must hold: the note must carry that
+system's block, its type must map to the system, and it must route to a pack of
+the document class that map names. The block is the first of them because a
+system block is what makes a game document — see
+[A system block is what makes a game document](#a-system-block-is-what-makes-a-game-document).
+A pack declaring **no** system is compiled by the fallback pass, which reads one
+system's block and no other, so the question is the same one whether or not the
+pack answered it.
 
 #### Four section layouts
 
@@ -788,8 +789,9 @@ _compendium_ receives its document.
 — an item's prose compiling into a `JournalEntry` of its own — is not what the
 author was addressing, and is routed by the pass that produces it.
 
-**`<system>.pack` overrides it for one system.** A note that compiles into two
-systems can send each document to its own pack:
+**`<system>.pack` names the pack for one system's document.** Routing is per
+system: each block the note carries sends its own document where that block
+says, and a note carrying two blocks may place them in two packs.
 
 ```yaml
 pack: items-sohl
@@ -797,9 +799,22 @@ hm3:
   pack: items-hm3
 ```
 
-**Unstated, the document goes to the pack of its type marked `default: true`.**
-Where no pack of that type is the default, the build refuses rather than
-guessing, and names the candidates.
+**Unstated, a system's document goes to that system's default pack of its
+class** — the pack of the class declaring that `system:`, or, where none does,
+the pack of the class marked `default: true`. Where nothing answers, the build
+refuses rather than guessing, and names the candidates.
+
+**`pack` and `packFolder` are different questions.** `pack` names _which
+compendium_ receives a document; `packFolder` names the folder note whose
+address the document is filed under _within_ whichever compendium that is. They
+compose, and both are read per system, so a note may place its two systems'
+documents in different packs and different folders:
+
+```yaml
+sohl:
+  pack: characteristics
+  packFolder: miscgear
+```
 
 **`pack: none` compiles the note into no document.** The note is walked,
 published as a page, present in the content index with an address and no
@@ -1668,6 +1683,10 @@ already carried.
 | **draft** | written | `tags: [draft]` | yes, marked | yes                               | yes         |
 | **full**  | written | none            | yes         | yes                               | yes         |
 
+"Document" here is the document a note's frontmatter earns. A system's Actor or
+Item is earned by that system's block, in every state —
+[a system block is what makes a game document](#a-system-block-is-what-makes-a-game-document).
+
 **Full is the absence of everything.** It is the default and carries no marker,
 which is right: the overwhelming majority of a finished corpus should say
 nothing about its own finishedness.
@@ -1763,8 +1782,8 @@ cannot be is the target of a wikilink, because a wikilink points at a page.
 
 Note types fall into two groups, and only the first has a mapping table.
 
-**Types producing a system document** — a SoHL or HM3 Actor or Item, one per
-system, described by the tables further down.
+**Types that _may_ produce a system document** — a SoHL or HM3 Actor or Item,
+one per system, described by the tables further down.
 
 **Types producing only a core document** — `lore`, `place`, `scenario`, `doc`,
 `map`, `macro` and `homepage`. A core document is one Foundry defines rather than
@@ -1779,6 +1798,54 @@ having nothing worth summarising.
 
 Every note in **both** groups still produces its JournalEntry and its web page.
 The difference is only whether a system Actor or Item is created as well.
+
+#### A system block is what makes a game document
+
+> **A note produces a system's Actor or Item only where it carries that
+> system's block.** A note carrying no block for any system produces no Actor
+> and no Item anywhere, whatever its packs declare.
+
+The block is not a place to put optional detail — it is the statement that this
+person or thing is meant to be played. Its absence is a statement too, and it is
+made silently: the note is passed over by the Actor and Item passes exactly as
+any note they do not own, with no finding.
+
+**Prose is untouched by this.** A body with content still compiles into one
+JournalEntry, one web page and one PDF page, however many blocks the note
+carries and whether or not it carries any; an empty body still compiles none of
+the three. So a note has three states, and each reaches the next by one edit in
+one file, with its address, its id, its index record and every link into it
+unchanged:
+
+| The note carries           | Produces                                       |
+| -------------------------- | ---------------------------------------------- |
+| no block, empty body       | an index record — a name that can be queried   |
+| no block, a written body   | a page, a PDF page and a JournalEntry          |
+| a block, a written body    | all of those, plus that system's Actor or Item |
+| two blocks, a written body | one document per system, and one of each other |
+
+Write the person; add a system block when someone will need a token. A setting's
+cast is mostly people nobody rolls dice against, and a note about one of them
+carries no block and occupies no slot in a compendium a referee browses.
+
+**A note carrying no document publishes no UUID for one.** Its address, its
+page and its documentation journal are published as they are for any other note,
+and the `foundry` entry that would name an Actor or an Item is absent — the same
+statement [`pack: none`](#the-pack-a-note-compiles-into) makes about a pack,
+made about a system.
+
+**A block for a system this package ships no pack for is an error.** The
+authored data would be discarded either way, so the build says so, once per note
+per system, naming the system and the document class:
+
+```
+assets/content/People/Aelric.md:7:1: error: carries a `hm3:` block, and no Actor pack in this package compiles hm3 documents, so the block is discarded — declare `system: hm3` on one of the `packs:`, or remove the block.
+```
+
+A pack declaring no `system:` is compiled by the fallback pass, which reads one
+system's block — so a systemless Actor pack serves that system and not every
+system a note might write. A package shipping for a second system declares
+`system:` on a pack of each class it compiles.
 
 That includes actors. A being producing its Actor and nothing else would be
 the one system-bearing note with no address at `none`, leaving a prose link

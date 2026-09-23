@@ -187,8 +187,8 @@ describe("a type that compiles into no compendium document publishes no UUID", (
         docEntryTypes: new Set(["weapongear"]),
     } as any;
 
-    const uuidsFor = (type: string) => {
-        const fm: any = { type, shortcode: "probe", name: { full: "Probe" } };
+    const uuidsFor = (type: string, blocks: object = { sohl: {} }) => {
+        const fm: any = { type, shortcode: "probe", name: { full: "Probe" }, ...blocks };
         resolveNoteId(fm, { pkg: ctx.contentPackage });
         expect(fm.id).toBeDefined(); // the note *is* addressable
         // Written, because the subject here is the *type*: a note with no
@@ -214,6 +214,15 @@ describe("a type that compiles into no compendium document publishes no UUID", (
     it("still emits one for an ordinary item, and for its documentation", () => {
         const [own, doc] = uuidsFor("weapongear");
         expect(own).toContain("Compendium.demo-module.items.Item.");
+        expect(doc).toContain("Compendium.demo-module.journals.JournalEntry.");
+    });
+
+    it("emits none for an item carrying no system block, and keeps its documentation", () => {
+        // An Item *is* a system's data, so a note saying nothing about any
+        // system compiles into none — while its prose still becomes a journal,
+        // which no system defines.
+        const [own, doc] = uuidsFor("weapongear", {});
+        expect(own).toBeUndefined();
         expect(doc).toContain("Compendium.demo-module.journals.JournalEntry.");
     });
 });
