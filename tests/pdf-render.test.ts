@@ -62,6 +62,25 @@ describe("markdownToTypst", () => {
         expect(out).toContain("#list([deep])");
     });
 
+    it("keeps every paragraph of an item inside the item, so the item is one block", () => {
+        // A paragraph that escaped the item's content block would set at the
+        // margin instead of at the item's text column, which reads as prose
+        // interrupting the list rather than as the point continuing.
+        const enumerated = markdownToTypst(
+            ["1. **Title**:", "", "   Body paragraph.", "", "2. **Two**: tight item."].join("\n"),
+        );
+        expect(enumerated).toBe(
+            "#enum([#strong[Title]:\n\nBody paragraph.], [#strong[Two]: tight item.])",
+        );
+
+        const bulleted = markdownToTypst(
+            ["- **Title**:", "", "  Body paragraph.", "", "- **Two**: tight item."].join("\n"),
+        );
+        expect(bulleted).toBe(
+            "#list([#strong[Title]:\n\nBody paragraph.], [#strong[Two]: tight item.])",
+        );
+    });
+
     it("pads a short table row so later rows do not shift a column left", () => {
         const out = markdownToTypst(["| A | B | C |", "| - | - | - |", "| 1 | 2 |"].join("\n"));
         expect(out).toContain("[1], [2], []");
@@ -209,6 +228,19 @@ describe("renderBook", () => {
         const out = renderBook({ plan, title: "A Book" });
         expect(out).toContain("#outline(title: [Contents])");
         expect(out).not.toMatch(/#outline\([^)]*depth/);
+    });
+
+    it("excepts a list item's paragraphs from the body first-line indent", () => {
+        // The indent separates one paragraph of running prose from the next.
+        // Inside an item the marker does that, and an item holding a second
+        // paragraph would otherwise open it 1.2em right of its own text column.
+        const out = renderBook({ plan, title: "A Book" });
+        expect(out).toContain("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
+        expect(out).toContain("#show list: set par(first-line-indent: 0em)");
+        expect(out).toContain("#show enum: set par(first-line-indent: 0em)");
+        // The marker column is Typst's to measure, so a list whose markers
+        // widen at `10.` keeps every body on one column.
+        expect(out).not.toMatch(/#set (list|enum)\([^)]*indent/);
     });
 
     it("names the faces a consumer configured", () => {

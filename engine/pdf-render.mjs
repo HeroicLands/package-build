@@ -1089,6 +1089,16 @@ export function renderBook({
         `#set text(font: "${escapeTypstString(serif)}", size: 9.6pt, fill: book-ink, lang: "en")`,
     );
     out.push("#set par(justify: true, leading: 0.55em, first-line-indent: 1.2em)");
+    // The first-line indent is what separates one paragraph of running prose
+    // from the next, and inside a list item the marker already does that. An
+    // item carrying more than one paragraph sets every one of them flush at the
+    // item's own text column, so the item reads as a single block hanging off
+    // its marker. Neither the marker column nor the gap after it is set here:
+    // Typst measures the widest marker in the list and aligns every body
+    // against it, which is what keeps a list of twelve aligned once `10.`
+    // becomes wider than `1.`.
+    out.push("#show list: set par(first-line-indent: 0em)");
+    out.push("#show enum: set par(first-line-indent: 0em)");
     // The mono face is a separate claim from the book face: a fenced block is
     // the one place the corpus is allowed box-drawing characters, and the
     // serif that sets the prose is not the font that carries them.
