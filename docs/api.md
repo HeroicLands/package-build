@@ -604,6 +604,28 @@ The closed registry of system ids, and the `none` that stands for no system at a
 | `assertSystemSegment`  | `assertSystemSegment(value, where)`    | `string` — the value, unchanged | refusing a value the `<system>` segment may not hold, validating inline                      |
 | `assertSystemCharset`  | `assertSystemCharset(segments, where)` | throws                          | refusing a registry declaration whose id could not be an address segment                     |
 
+### `engine.calendars`
+
+The axis every date normalises onto, and the one function that puts a reckoning on it. A reckoning is an **era** declared by the affiliation that proclaimed it, and its epoch is the `start` written on that note — nothing is registered in configuration. The conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent.
+
+| Export              | Signature                       | Returns                                       | Use it when                                                                     |
+| ------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`         | —                                             | naming where the canonical axis's own year 1 sits                               |
+| `canonicalYear`     | `canonicalYear(year, epoch?)`   | `number` — the signed year on the axis        | converting a year written in one reckoning to the number everything compares on |
+| `dateSortKey`       | `dateSortKey(year, month, day)` | `number`                                      | ordering mixed-precision dates against a single number                          |
+| `calendarStructure` | `calendarStructure(calendar)`   | `{months, monthDays}` — `null` where unstated | reading the month bounds a package declares, before phrasing a finding          |
+
+### `engine.noteDates`
+
+A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
+
+| Export                  | Signature                       | Returns                                            | Use it when                                                   |
+| ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`            | —                                                  | naming the literal that says a date is not recorded           |
+| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
+| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
+| `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
+
 ### `engine.contentAddress`
 
 Where a content note publishes on the web. One rule, in one place, because two builds need the same answer: the knowledgebase build renders the page, and the link manifest records the address other packages link to. Stating it twice is how a manifest comes to assert a URL that resolves at build time and 404s for the reader.
