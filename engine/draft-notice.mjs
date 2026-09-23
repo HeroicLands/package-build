@@ -139,9 +139,25 @@ export function withDraftNotice(fm, html) {
 /**
  * The `#let` the book's notice is drawn by.
  *
- * Emitted with the rest of the book's preamble. The mark is a circle with an
- * exclamation set inside it: two primitives and the face already setting the
- * page, so there is no font to resolve and nothing that can come out as a box.
+ * Emitted with the rest of the book's preamble. The mark is a disc with an
+ * exclamation knocked out of it: two primitives and the face already setting
+ * the page, so there is no font to resolve and nothing that can come out as a
+ * box. It is filled in the accent the book rules its headings with and the
+ * glyph is the colour of the paper, so the mark carries against the running
+ * face rather than reading as a character of it.
+ *
+ * **The mark is a column, not a word.** A two-column grid puts it beside the
+ * sentence rather than inside it, so a notice that takes two lines sets its
+ * second line against the first and never under the disc; the grid centres the
+ * mark's cell on the block, so it holds the middle of one line or two. The rule
+ * is the block's own left stroke and spans whatever height the sentence takes.
+ *
+ * **The sentence sets in the book's body face, size and ink**, because it is
+ * the one thing in the entry a reader has to read before trusting the rest. The
+ * rule and the mark set the block apart; nothing else has to, and type set
+ * smaller or lighter than the prose around it reads as apparatus a reader may
+ * skip. The mark scales with that text, so a consumer setting the book larger
+ * or smaller carries the disc with it.
  *
  * @returns {string} The Typst definition.
  */
@@ -152,14 +168,15 @@ export function bookDraftNoticePreamble() {
         "  inset: (left: 0.7em, top: 0.35em, bottom: 0.35em),\n" +
         "  stroke: (left: 1.6pt + book-faint))[\n" +
         "  #set par(justify: false, first-line-indent: 0em)\n" +
-        "  #set text(size: 8.6pt, fill: book-faint)\n" +
-        "  #box(baseline: 0.18em, circle(radius: 0.42em, stroke: 0.6pt + book-faint)[\n" +
-        '    #align(center + horizon)[#text(size: 6.4pt, weight: "bold")[!]]\n' +
-        "  ])\n" +
-        "  #h(0.4em)\n" +
-        '  #text(weight: "bold")[#label]\n' +
-        "  #h(0.25em)\n" +
-        "  #body\n" +
+        "  #grid(columns: (auto, 1fr), column-gutter: 0.5em,\n" +
+        "    align: (center + horizon, horizon),\n" +
+        "    circle(radius: 0.46em, fill: book-accent)[\n" +
+        "      #align(center + horizon)[\n" +
+        '        #text(size: 0.74em, weight: "bold", fill: book-paper)[!]\n' +
+        "      ]\n" +
+        "    ],\n" +
+        '    [#text(weight: "bold")[#label]#h(0.25em)#body],\n' +
+        "  )\n" +
         "]"
     );
 }
