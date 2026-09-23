@@ -69,6 +69,7 @@ import { walkMarkdownTree } from "./helpers.mjs";
 import { resolveNoteId } from "./note-ids.mjs";
 import { compendiumUuid, currentType, packForType, pageUuid } from "./ids.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
+import { journalHasContent } from "./note-state.mjs";
 import { isHomepage } from "./homepage.mjs";
 import { declaresNoPack } from "./pack-router.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
@@ -163,7 +164,19 @@ export function entriesForNote(fm, name, address, body, ctx) {
     // A published address must name the pack the document actually shipped in:
     // a consumer resolves the UUID verbatim, and a repository may ship several
     // packs of one type.
-    const uuidFor = (type, id, routeFm) =>
+    const uuidFor = (type, id, routeFm) => {
+        // **A document that would be empty is not created, so nothing names
+        // one.** A JournalEntry's content is the note's prose, and an empty
+        // body compiles no pages, so the pass emits no entry — and a manifest
+        // naming one would send every consumer to a document that is not
+        // there. Asked of the **document type**, which is what makes one
+        // statement cover both journals a note can produce: its own, and the
+        // documentation standing beside an item. Every other document is
+        // derived from `data:` and is emitted whatever the body holds.
+        if (packForType(type)?.docType === "JournalEntry" && !journalHasContent(body)) {
+            return undefined;
+        }
+
         // A type this cannot name a single compendium document for has no UUID
         // to publish, whatever id it derives. That used to follow from such a
         // note authoring no `id:`; every addressable note derives
@@ -185,21 +198,24 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // statement: it publishes a page and compiles into nothing, so it has
         // an address and no UUID. The shared declaration is what is read,
         // because an entry names one document and this pass routes no system.
-        (
-            id &&
-            !NEVER_PACKED_TYPES.has(String(type)) &&
-            !DERIVED_PACKED_TYPES.has(String(type)) &&
-            !(routeFm && declaresNoPack(routeFm))
-        ) ?
-            compendiumUuid(
-                foundryPackageId,
-                type,
-                id,
-                routeFm ?
-                    packRouter.resolveOrNull(routeFm, packForType(type).docType)
-                :   packRouter.defaultOf("JournalEntry"),
-            )
-        :   undefined;
+        if (
+            !id ||
+            NEVER_PACKED_TYPES.has(String(type)) ||
+            DERIVED_PACKED_TYPES.has(String(type)) ||
+            (routeFm && declaresNoPack(routeFm))
+        ) {
+            return undefined;
+        }
+
+        return compendiumUuid(
+            foundryPackageId,
+            type,
+            id,
+            routeFm ?
+                packRouter.resolveOrNull(routeFm, packForType(type).docType)
+            :   packRouter.defaultOf("JournalEntry"),
+        );
+    };
 
     const carriesDoc =
         ctx.docEntryTypes ?

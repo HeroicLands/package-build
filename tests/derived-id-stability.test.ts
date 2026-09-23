@@ -191,7 +191,10 @@ describe("a type that compiles into no compendium document publishes no UUID", (
         const fm: any = { type, shortcode: "probe", name: { full: "Probe" } };
         resolveNoteId(fm, { pkg: ctx.contentPackage });
         expect(fm.id).toBeDefined(); // the note *is* addressable
-        return entriesForNote(fm, "Probe", `${type}-probe/`, "", ctx).map((e: any) => e.uuid);
+        // Written, because the subject here is the *type*: a note with no
+        // prose compiles no journal, so an empty body would answer for every
+        // type at once and tell these tests nothing.
+        return entriesForNote(fm, "Probe", `${type}-probe/`, "Prose.", ctx).map((e: any) => e.uuid);
     };
 
     it("emits none for a homepage, which compiles into a page", () => {

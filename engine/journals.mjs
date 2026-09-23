@@ -55,19 +55,7 @@ import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
-import { isStubNote } from "./note-state.mjs";
-
-/**
- * The name of the page before the first heading, where a caller names none.
- *
- * Two callers name it: {@link splitPages} names the lead page of a body it
- * splits, and {@link buildJournalEntry} names the page a stub's panel sits on.
- * A page is identified by its name, so one spelling is what makes the page a
- * written body produces the same page the panel occupies.
- *
- * @type {string}
- */
-const LEAD_PAGE_NAME = "Introduction";
+import { journalHasContent } from "./note-state.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -85,7 +73,7 @@ const LEAD_PAGE_NAME = "Introduction";
  *
  * Returns an array of `{ name, anchorId, markdown }` in document order.
  */
-export function splitPages(body, leadName = LEAD_PAGE_NAME) {
+export function splitPages(body, leadName = "Introduction") {
     const lines = body.split("\n");
     const pages = [];
     const beforeFirstH1 = [];
@@ -238,29 +226,17 @@ export function journalPageId(entryId, page) {
 /**
  * Compile split pages into JournalEntryPage documents.
  *
- * A **stub** — a note whose empty body is its declared state — has no pages,
- * and that is not a failure: its entry is the document its index record names,
- * and the emptiness is the thing the author is telling the reader. Every other
- * caller keeps the refusal, because for them an empty split means somebody left
- * the note half-written and a compendium entry with nothing in it is not what
- * they asked for.
- *
  * @param {Array<object>} rawPages - From {@link splitPages}.
  * @param {string} entryId - The owning JournalEntry's `_id`.
  * @param {string} noteName - The note, for error messages.
- * @param {object} [options] - Options.
- * @param {boolean} [options.stub] - Whether the note's empty body is its
- *   declared state, in which case no pages is the answer rather than an error.
  * @returns {Array<{_id: string, name: string, type: string,
  *   title: {show: boolean, level: number},
  *   text: {format: number, content: string}, _key: string}>} The page
  *   documents, in order.
- * @throws {Error} When a note that is not a stub has no content at all, or when
- *   any note repeats an anchor.
+ * @throws {Error} When the note has no content at all, or repeats an anchor.
  */
-export function buildPages(rawPages, entryId, noteName, { stub = false } = {}) {
+export function buildPages(rawPages, entryId, noteName) {
     if (rawPages.length === 0) {
-        if (stub) return [];
         throw new Error(
             `note "${noteName}" has no Introduction content and no H1 headings — nothing to compile`,
         );
@@ -311,9 +287,6 @@ export function buildPages(rawPages, entryId, noteName, { stub = false } = {}) {
  *   that reads. It is **not** a page of its own — a page is what a UUID
  *   addresses, and a summary a reader has to navigate to is a summary they do
  *   not see.
- * @param {boolean} [params.stub] - Whether the note's empty body is its
- *   declared state. A stub's entry is emitted with its panel and no prose; any
- *   other note with nothing to compile is an error. See {@link buildPages}.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -325,22 +298,9 @@ export function buildJournalEntry({
     flags,
     stats = defaultStats(),
     infobox = "",
-    stub = false,
 }) {
     const rawPages = splitPages(markdown, leadName);
-    // A stub carries the panel its frontmatter states, on the page a body
-    // would have written. The panel is derived from `data:`, so the empty body
-    // suppresses the prose and nothing else — and dropping it would lose a
-    // settlement's population and its holder from a compendium at exit 0.
-    if (stub && rawPages.length === 0 && infobox.trim()) {
-        rawPages.push({
-            name: leadName ?? LEAD_PAGE_NAME,
-            anchorSlug: null,
-            level: 1,
-            markdown: "",
-        });
-    }
-    const pages = buildPages(rawPages, id, name, { stub });
+    const pages = buildPages(rawPages, id, name);
     if (infobox.trim() && pages.length) {
         pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
     }
@@ -423,17 +383,24 @@ export class Journals extends BasePackCompiler {
     }
 
     /**
-     * An item with no prose gets no doc, and the items pass leaves its
-     * description empty rather than pointing at nothing; a map with no prose
-     * gets no entry and no pin target. The two passes apply the same rule to
-     * the same body, so they agree.
+     * **A journal that would be empty is not created**, and that is the whole
+     * rule — one test, asked of every note this pass claims, whether its
+     * journal is its own document or the documentation standing beside an item.
+     * A note with no prose gets no entry: the items pass leaves its description
+     * empty rather than pointing at nothing, a map gets no pin target, and
+     * {@link module:engine/foundry-entries} publishes no UUID, so nothing names
+     * a document that was not made.
+     *
+     * An entry holding only its infobox is empty by this test. The panel is a
+     * rendering of `data:` that the content index already carries, so a
+     * compendium entry of nothing else tells a reader what the index told them.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} body - The note body, frontmatter stripped.
      * @returns {boolean} True to skip the note.
      */
     skipNote(fm, body) {
-        return hasDocEntry(fm.type) && !String(body).trim();
+        return !journalHasContent(body);
     }
 
     /**
@@ -490,12 +457,6 @@ export class Journals extends BasePackCompiler {
             id,
             name,
             markdown,
-            // Read from the body **as authored**, which is where a note's
-            // state is decided: a conversion that emptied a body would
-            // otherwise reclassify the note, and a stub is meant to be a fact
-            // a person can check by opening the file. A caller with no walk
-            // behind it has only the markdown it passed.
-            stub: isStubNote(fm, this.currentNote?.body ?? markdown),
             infobox: infoboxesToHtml(boxes, { link: linkToUuid }),
             // A doc-carrying note's lead page is the document itself, not an
             // "Introduction" — see {@link splitPages}.

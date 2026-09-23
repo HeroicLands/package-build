@@ -353,6 +353,9 @@ describe("both addresses are optional, independently", () => {
 shortcode: idless
 name:
     full: Idless Blade`,
+            // Written, because the subject here is where an id comes from. A
+            // note with no prose compiles no documentation journal to address.
+            "A blade nobody signed.",
         );
         const doc = emit({ ...WEB });
         const entry = doc.entries["demo-sohl-weapongear-idless"];

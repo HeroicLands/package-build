@@ -1662,11 +1662,11 @@ convention rather than declared in a field — see
 A note has three states, and two of them are nothing but conventions the format
 already carried.
 
-| State     | Body    | Marker          | Page        | Document                         | Link target |
-| --------- | ------- | --------------- | ----------- | -------------------------------- | ----------- |
-| **stub**  | empty   | none            | no          | yes, where its type compiles one | no          |
-| **draft** | written | `tags: [draft]` | yes, marked | yes                              | yes         |
-| **full**  | written | none            | yes         | yes                              | yes         |
+| State     | Body    | Marker          | Page        | Document                          | Link target |
+| --------- | ------- | --------------- | ----------- | --------------------------------- | ----------- |
+| **stub**  | empty   | none            | no          | yes, where one would not be empty | no          |
+| **draft** | written | `tags: [draft]` | yes, marked | yes                               | yes         |
+| **full**  | written | none            | yes         | yes                               | yes         |
 
 **Full is the absence of everything.** It is the default and carries no marker,
 which is right: the overwhelming majority of a finished corpus should say
@@ -1706,17 +1706,35 @@ column a table renderer already reads.
 It keeps everything else:
 
 - **`file`**, which is what you edit and what every diagnostic names.
-- **`id` and `foundry`**, because **the empty body suppresses the page, never
-  the document.** An unwritten arcane talent still compiles into its Item, whose
-  fields are its `data:` rather than its prose.
+- **`id`**, which is the identity every diagnostic and every table reads.
+- **`foundry`**, naming each document that was made.
 
-**A stub of a type whose document is a JournalEntry** — `doc`, `place`, `lore`
-and `scenario` — compiles into that entry, at the id its index record publishes,
-carrying the infobox its frontmatter states and no prose. The panel is built
-from `data:` and survives an empty body; the prose page is what the empty body
-suppresses. So a compendium holds an entry for every note the index names, and a
-referee browsing it reads a settlement's population and its holder from a note
-nobody has written yet.
+#### A document that would be empty is not created
+
+> **If the resulting document would be empty, it is not created** — and the
+> index then names no artefact: `uuid`, `path` and `address` are `null`, which
+> is how a record says one was not made.
+
+The test is about the **output**, which is what lets one rule cover every case:
+
+| The note                           | The document                           | Made? |
+| ---------------------------------- | -------------------------------------- | ----- |
+| `place`, `lore`, `doc`, `scenario` | its JournalEntry, which _is_ the prose | no    |
+| any item type, `macro`             | the Item or Macro, from `data:`        | yes   |
+| the same note's documentation      | a JournalEntry of the same prose       | no    |
+| `map`                              | the Scene, from `data:`                | yes   |
+
+An unwritten arcane talent still compiles into its Item, because an Item is its
+`data:` and that is not empty. What it has no documentation journal for is the
+same thing an unwritten `place` has no journal for: there is nothing to put in
+one.
+
+**An infobox does not count as content.** The panel is a rendering of `data:`
+that the index already publishes, so an entry holding nothing else would tell a
+reader exactly what the record told them.
+
+Nothing anywhere names a document that was not made: a compendium UUID for one
+would send every consumer that resolves it to a document the pack does not hold.
 
 What is suppressed with the page is the web address and the link target: a
 wikilink into a stub is refused, and a table cell listing one prints its name as

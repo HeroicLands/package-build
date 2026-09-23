@@ -115,6 +115,35 @@ export function isStubNote(frontmatter, body, vocabulary = NOTE_VOCABULARY) {
 }
 
 /**
+ * Whether a note's body compiles into a JournalEntry that holds anything.
+ *
+ * > **A document that would be empty is not created.** Nothing names one
+ * > either: the index records the note with every field that names an artefact
+ * > set to `null`.
+ *
+ * The question is about the **output**, not the input, and that is what makes
+ * one rule serve every caller: a note's own journal, and the documentation
+ * journal an item's prose compiles into beside it, are the same document asked
+ * the same question.
+ *
+ * A JournalEntry's content is its pages, and a page comes from
+ * {@link module:engine/journals.splitPages} — a lead page of the prose before
+ * the first heading, and one page per heading after it. A body of whitespace
+ * yields neither, so an empty body is exactly an empty journal.
+ *
+ * **An infobox does not count.** The panel is a rendering of `data:`, which the
+ * index already publishes; an entry holding nothing else gives a consumer
+ * nothing it cannot read from the record.
+ *
+ * @param {string|null|undefined} body - The note body, frontmatter stripped.
+ * @returns {boolean} Whether a JournalEntry compiled from this body holds
+ *   anything.
+ */
+export function journalHasContent(body) {
+    return !isEmptyBody(body);
+}
+
+/**
  * The phrases that stand in for prose nobody has written.
  *
  * A body consisting of nothing but these is an abandoned draft, not a stub:

@@ -994,11 +994,8 @@ export class BasePackCompiler {
             const absPath = noteFile(this.contentBase, record);
             const { frontmatter: fm, body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
             // Which note this pass is on, so anything it calls can report a
-            // position without every method having to be handed one. The body
-            // is carried **as authored**, because a note's state is a fact
-            // about what the author wrote rather than about what the
-            // conversion produced — see {@link module:engine/note-state}.
-            this.currentNote = { absPath, body, bodyLine, bodyColumn };
+            // position without every method having to be handed one.
+            this.currentNote = { absPath, bodyLine, bodyColumn };
             // A file carrying no frontmatter at all is not a note.
             if (!fm) {
                 stats.skippedOther++;

@@ -4,7 +4,7 @@
 
 **Unwritten notes**
 
-- A note left unwritten builds: a `place`, `lore`, `doc` or `scenario` note with
-  an empty body compiles like any other.
-- Each reaches the compendium as an entry holding the panel its frontmatter
-  states — population, holder, what contains it — and no prose.
+- A note left unwritten builds: an empty body no longer stops a package
+  compiling its packs.
+- An unwritten note offers no compendium link, so nothing sends a reader to a
+  journal that was never made.

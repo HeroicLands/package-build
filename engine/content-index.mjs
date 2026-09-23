@@ -422,9 +422,10 @@ function assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage) {
  * @returns {Record<string, any>} The record, keys sorted at every depth. A
  *   **stub** — a note with an empty body, on a type an empty body suppresses —
  *   carries `address` and `anchors` as `null`: it publishes no page, so it
- *   holds no address and offers no anchor. It keeps everything else, its `id`
- *   and its `foundry` block included, because the document it compiles is
- *   derived from `data:` rather than from prose.
+ *   holds no address and offers no anchor. It keeps its `id`, and a `foundry`
+ *   block naming every document that was made — which is every document
+ *   derived from `data:`, and no journal, because a journal of an empty body
+ *   would be empty and is not created.
  * @throws {Error} When the note carries a key this module derives, which would
  *   otherwise be overwritten without a word. `file` and, where the file was
  *   read, `position` ride on the error.
@@ -443,16 +444,18 @@ export function buildIndexRecord({
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
     const address = noteAddress(frontmatter, contentPackage);
-    // Derived from the address the note *would* hold, because a stub keeps its
-    // Foundry document: a document is derived from `data:`, not from prose, and
-    // the empty body suppresses the page rather than the document.
+    // Derived from the address the note *would* hold, because a stub still
+    // compiles every document derived from `data:` — an unwritten arcane talent
+    // is its Item. The one document it has none of is the one that would be
+    // empty, and `entriesForNote` withholds that UUID, so this block names
+    // nothing that was not made.
     const entries = foundryEntries({ frontmatter, address, body, manifest });
     // A stub — an empty body on a type an empty body suppresses — publishes no
     // page, so it holds no address and offers no anchor to link to. **The
     // absent address is the signal**, and it is the column the table renderer
     // already reads through `_ref`. Everything else the note declares is kept:
     // its file is what the author edits and what every diagnostic names, and
-    // its `id` and `foundry` block are the document it still compiles.
+    // its `id` is the identity every diagnostic and every table reads.
     const stub = isStubNote(frontmatter, body);
 
     return /** @type {Record<string, any>} */ (
@@ -530,6 +533,12 @@ export function buildIndexRecord({
  * @returns {Record<string, any>} The documentation journal's index record.
  */
 function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anchors }) {
+    // **The entry names a document only where one was made**, and where it does
+    // not, nothing on this record may name one either: no id, no address and no
+    // anchors. The record itself stays, because the index records what a note
+    // produces and `null` is how it says a document was not produced — the same
+    // signal a stub's absent address already is.
+    const made = Boolean(entry.uuid);
     return /** @type {Record<string, any>} */ (
         sortKeysDeep({
             package: contentPackage,
@@ -540,13 +549,13 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // re-derived: every entry the index gives an identity to publishes
             // both the id and the UUID, computed once by whatever owns that
             // entry's derivation.
-            id: entry.id,
+            id: made ? entry.id : null,
             nameAscii: asciiName(frontmatter?.name?.full),
-            address: { slug: address.slug, canonical: entry.key },
+            address: made ? { slug: address.slug, canonical: entry.key } : null,
             // The record this is the documentation *for*. `documentation` is
             // the forward link on that record, so either end reaches the other.
             documents: address.canonical,
-            anchors,
+            anchors: made ? anchors : null,
             foundry: foundryBlock(entry), // a journal: no system key
             file,
         })
@@ -637,8 +646,8 @@ export function collectContentIndex(
 
         // An item note is two documents, so it is two records. Derived from
         // the address the note *would* hold rather than from the one its
-        // record carries: a stub withholds its own address and still compiles
-        // both documents, and the journal is one of them.
+        // record carries, because a stub withholds its own address; the second
+        // record says whether the journal beside the item was made.
         const address = noteAddress(fm, contentPackage);
         const doc = foundryEntries({ frontmatter: fm, address, body, manifest })?.doc;
         if (doc?.key && address) {

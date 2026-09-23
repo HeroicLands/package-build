@@ -210,17 +210,22 @@ describe("a stub of a document-compiling type still compiles its document", () =
         expect(note.address).toBeNull();
     });
 
-    it("keeps the documentation journal that is a document in its own right", () => {
+    it("makes no documentation journal for it, and names none", () => {
         const root = tree({ "Talents/Amplification.md": NOTE });
         const records = collectContentIndex(root, {
             contentPackage: "thalorna",
             skipDirectories: [],
             manifest: MANIFEST,
         });
+        // The record stays — the index says what a note produces, and a note
+        // produces this journal the moment somebody writes a body — but with
+        // no body there is no document, so nothing on it names one.
         const doc = records.find((r: any) => r.documents);
         expect(doc).toBeTruthy();
-        expect(doc.address.slug).toBe("mysticalability-ampl");
-        expect(doc.anchors).toEqual([]);
+        expect(doc.address).toBeNull();
+        expect(doc.id).toBeNull();
+        expect(doc.foundry).toBeNull();
+        expect(doc.anchors).toBeNull();
     });
 });
 
@@ -228,7 +233,7 @@ describe("a stub of a document-compiling type still compiles its document", () =
 /*  The pack compile, where a stub is a state rather than a failure        */
 /* ---------------------------------------------------------------------- */
 
-describe("a stub compiles its document instead of failing the pack", () => {
+describe("a document that would be empty is not created, and nothing names one", () => {
     /** A content tree on disk, walked as a build walks it. */
     function tree(files: Record<string, string>): string {
         const root = fs.mkdtempSync(path.join(os.tmpdir(), "stub-compile-"));
@@ -303,65 +308,120 @@ describe("a stub compiles its document instead of failing the pack", () => {
         "",
     ].join("\n");
 
-    it("emits the journal a stub of a journal-compiling type names", async () => {
+    /** The manifest identities these trees are addressed against. */
+    const IDENTITIES = {
+        contentPackage: "thalorna",
+        foundryPackageId: "thalorna",
+        packRouter: { resolveOrNull: () => "items", defaultOf: () => "journals" },
+        docEntryTypes: new Set(["mysticalability"]),
+    } as any;
+
+    it("compiles a tree whose journal-compiling note is unwritten", async () => {
         const { pass, documents } = await compile(Journals, {
             "Regions/Ekunda.md": STUB_PLACE,
             "Regions/Harad.md": WRITTEN_PLACE,
         });
-        // The whole defect: one stub counted an error, and the generator
+        // The defect: one unwritten note counted an error, and the generator
         // refuses to compile any pack from incomplete output — so a single
-        // unwritten note took every pack in the build down with it.
+        // stub took every pack in the build down with it.
         expect(pass.errorCount).toBe(0);
-        // Both notes compile: the written one, and the stub beside it whose
-        // entry is the document its index record names.
-        expect(documents.map((d: any) => d.name).sort()).toEqual(["Ekunda", "Harad"]);
-        // The stub's entry is the one its index record names, at the id the
-        // record publishes — which is what stops a compendium losing it.
-        expect(documents.find((d: any) => d.name === "Ekunda")._id).toBe("ekunda0000000000");
+        // The written note's entry, and no entry for the one whose journal
+        // would have been empty.
+        expect(documents.map((d: any) => d.name)).toEqual(["Harad"]);
     });
 
-    it("gives that journal the panel its frontmatter states and no prose", async () => {
-        const { documents } = await compile(Journals, { "Regions/Ekunda.md": STUB_PLACE });
-        const stub = documents.find((d: any) => d.name === "Ekunda");
-        // One page, holding the infobox and nothing else: the panel is derived
-        // from `data:`, so the empty body suppresses the prose and not it.
-        expect(stub.pages).toHaveLength(1);
-        expect(stub.pages[0].text.content).toContain("infobox");
-        expect(stub.pages[0].text.content).toContain("400");
-        expect(stub.pages[0].text.content).not.toContain("<p>");
+    it("counts an infobox as empty, because the index already carries it", async () => {
+        const { pass, documents } = await compile(Journals, { "Regions/Ekunda.md": STUB_PLACE });
+        // The note carries `data:` a panel would render — a population, a
+        // parent — and that is not content: it is a rendering of what the
+        // record states, so an entry of nothing else tells a reader what the
+        // index told them.
+        expect(documents).toEqual([]);
+        expect(pass.errorCount).toBe(0);
     });
 
-    it("still emits the Item of a stub whose document is its `data:`", async () => {
-        const { pass, documents } = await compile(Items, {
-            "Talents/Hex.md": STUB_TALENT,
-        });
+    it("still emits the Item of a note whose document is its `data:`", async () => {
+        const { pass, documents } = await compile(Items, { "Talents/Hex.md": STUB_TALENT });
         expect(pass.errorCount).toBe(0);
         expect(documents.map((d: any) => d.name)).toContain("Hex");
     });
 
-    it("refuses a note with nothing to compile that is not a stub", () => {
-        // The guard the fix must not swallow. A caller that has not declared
-        // the note a stub gets the original error, because there an empty
-        // split really does mean somebody left the note half-written.
+    it("names no JournalEntry the compile did not emit", async () => {
+        const contentBase = tree({
+            "Regions/Ekunda.md": STUB_PLACE,
+            "Regions/Harad.md": WRITTEN_PLACE,
+            "Talents/Hex.md": STUB_TALENT,
+        });
+        const dest = fs.mkdtempSync(path.join(os.tmpdir(), "stub-pack-"));
+        const journals = new Journals({ skipDirectories: [], contentBase, dest });
+        await journals.compile();
+        const compiled = new Set(
+            fs
+                .readdirSync(dest)
+                .filter((f) => f.endsWith(".json"))
+                .map((f) => JSON.parse(fs.readFileSync(path.join(dest, f), "utf8"))._id),
+        );
+
+        // Derived from the index the package publishes rather than from a
+        // second list of what ought to be there: every JournalEntry UUID any
+        // record states, against the ids the pass actually wrote. A dangling
+        // one sends every consumer resolving it to a document that is not in
+        // the pack.
+        const records = collectContentIndex(contentBase, {
+            contentPackage: "thalorna",
+            skipDirectories: [],
+            manifest: IDENTITIES,
+        });
+        const named = records
+            .flatMap((r: any) => Object.values(r.foundry ?? {}).map((b: any) => b.uuid))
+            .filter((uuid: string | undefined) => uuid?.includes(".JournalEntry."));
+        expect(named.length).toBeGreaterThan(0);
+        expect(named.filter((uuid: string) => !compiled.has(uuid.split(".").pop()))).toEqual([]);
+    });
+
+    it("records the note either way, with null where no document was made", () => {
+        const records = collectContentIndex(
+            tree({ "Talents/Hex.md": STUB_TALENT, "Regions/Ekunda.md": STUB_PLACE }),
+            { contentPackage: "thalorna", skipDirectories: [], manifest: IDENTITIES },
+        );
+        // The Item is derived from `data:`, so it is made and named.
+        const item = records.find((r: any) => r.type === "mysticalability");
+        expect(item.id).toBe("hex0000000000000");
+        expect(item.foundry.sohl.uuid).toContain(".Item.hex0000000000000");
+        // Its documentation journal is not, so the record that would name it
+        // names nothing — and it is still a record.
+        const doc = records.find((r: any) => r.type === "docmysticalability");
+        expect(doc).toBeTruthy();
+        expect({
+            id: doc.id,
+            address: doc.address,
+            anchors: doc.anchors,
+            foundry: doc.foundry,
+        }).toEqual({ id: null, address: null, anchors: null, foundry: null });
+        // A note whose own document is the journal keeps its id and names no
+        // document at all.
+        const place = records.find((r: any) => r.type === "place");
+        expect(place.id).toBe("ekunda0000000000");
+        expect(place.foundry).toBeNull();
+    });
+
+    it("refuses a note with nothing to compile", () => {
+        // The guard the fix must not swallow. Nothing routes an empty body
+        // here any more, and a caller that hands one over is handing over a
+        // note somebody left half-written.
         expect(() =>
             buildJournalEntry({ id: "halfway000000000", name: "Halfway", markdown: "" }),
         ).toThrow(/nothing to compile/);
     });
 
-    it("asks the vocabulary, so a structural type keeps that refusal", async () => {
+    it("keeps that refusal for a note the walk did not filter", async () => {
         const journals = new Journals({
             skipDirectories: [],
             contentBase: tree({}),
             dest: fs.mkdtempSync(path.join(os.tmpdir(), "stub-pack-")),
         });
-        // `folder` and `homepage` declare `stubbable: false`: an empty body on
-        // one is a complete note, never a stub, so nothing about this fix
-        // reaches them.
         expect(() =>
-            journals.buildEntry(
-                { type: "homepage", shortcode: "root", id: "homepage00000000" },
-                "",
-            ),
+            journals.buildEntry({ type: "doc", shortcode: "guide", id: "guide00000000000" }, ""),
         ).toThrow(/nothing to compile/);
     });
 });
