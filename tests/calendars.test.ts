@@ -6,30 +6,32 @@
  */
 
 /**
- * **The calendar registry, and the contract that declares it.**
+ * **The canonical axis, and the small block of configuration that is not about
+ * it.**
  *
- * A reckoning is data. Nothing in the toolchain names one, so a setting that
- * keeps a fifth count of years declares it in `calendars:` and every date
- * written in it parses — which is only true while the declaration is validated
- * where it is written rather than discovered by a build that stamps nothing.
+ * A reckoning is an era, declared by the affiliation that proclaimed it, and
+ * its epoch is the `start` written on that note. So nothing here registers a
+ * calendar: what configuration states is how the package's year is divided and
+ * what date it calls the present, both of which a note could not say.
  *
- * The cases below are about that declaration: what a reckoning must state, what
- * it may leave out, and what an epoch and a direction buy once both are stated.
+ * The arithmetic is one function with two branches, and the branches are the
+ * year-zero hole. The cases below assert it from both sides of an epoch,
+ * because a collapse to either branch is correct on one side and off by one on
+ * the other.
  */
 
 import { describe, it, expect } from "vitest";
 
 import { defineConfig } from "../content-config.mjs";
 import {
-    CALENDAR_DIRECTIONS,
-    astronomicalYear,
+    CANONICAL_EPOCH,
     calendarStructure,
+    canonicalYear,
     dateSortKey,
-    unknownCalendarMessage,
 } from "../engine/calendars.mjs";
 
-/** A minimal configuration, with whatever `calendars:` a case is about. */
-function build(calendars?: unknown) {
+/** A minimal configuration, with whatever `calendar:` a case is about. */
+function build(calendar?: unknown) {
     return defineConfig({
         rootDir: "/repo",
         contentPackage: "acme",
@@ -37,176 +39,170 @@ function build(calendars?: unknown) {
         packageKind: "systems",
         stats: { lastModifiedBy: "acmebuilder0000" },
         packs: [{ name: "items", type: "Item" }],
-        ...(calendars === undefined ? {} : { calendars }),
+        ...(calendar === undefined ? {} : { calendar }),
     });
 }
 
-/** A registry of one, so a case states only what it is about. */
-function registry(spec: Record<string, unknown> = {}) {
-    return { AF: { name: "After the Founding", epoch: 1, direction: "forward", ...spec } };
-}
-
-describe("a package that declares no calendars", () => {
-    it("resolves an empty registry and no default", () => {
-        // Most packages date nothing, and a resolved shape that is always there
-        // is what keeps every reader from testing for the block first.
-        expect(build().calendars).toEqual({ default: null, registry: {} });
+describe("the axis", () => {
+    it("is its own epoch, by definition rather than by declaration", () => {
+        expect(CANONICAL_EPOCH).toBe(1);
+        expect(canonicalYear(1)).toBe(1);
+        expect(canonicalYear(1, CANONICAL_EPOCH)).toBe(canonicalYear(1));
     });
 
-    it("is frozen, so a reckoning cannot be added by writing to the registry", () => {
-        const { calendars } = build({ default: "AF", registry: registry() });
-        expect(Object.isFrozen(calendars)).toBe(true);
-        expect(Object.isFrozen(calendars.registry)).toBe(true);
-        expect(Object.isFrozen(calendars.registry.AF)).toBe(true);
-    });
-});
-
-describe("what a reckoning must state", () => {
-    it("takes a name, an epoch and a direction", () => {
-        const { calendars } = build({ default: "AF", registry: registry() });
-        expect(calendars.default).toBe("AF");
-        expect(calendars.registry.AF).toEqual({
-            name: "After the Founding",
-            epoch: 1,
-            direction: "forward",
-            months: null,
-            monthDays: null,
-        });
+    it("has no year zero: authored -1 and 1 are adjacent", () => {
+        expect(canonicalYear(-1)).toBe(0);
+        expect(canonicalYear(1)).toBe(1);
+        expect(canonicalYear(1) - canonicalYear(-1)).toBe(1);
     });
 
-    it("refuses an epoch that is not an integer", () => {
-        // The epoch is a year, and a fractional or absent one would convert
-        // every date written in the reckoning to a number nobody can read.
-        for (const epoch of [undefined, null, "1", 1.5]) {
-            expect(() => build({ registry: registry({ epoch }) })).toThrow(
-                /`calendars\.registry\.AF\.epoch` must be an integer/,
-            );
-        }
-    });
-
-    it("takes a negative epoch, which is how a later reckoning states its own year 1", () => {
-        const { calendars } = build({
-            registry: { ST: { name: "Sep Tepy", epoch: -2109, direction: "forward" } },
-        });
-        expect(calendars.registry.ST.epoch).toBe(-2109);
-    });
-
-    it("refuses a direction outside the two", () => {
-        expect(() => build({ registry: registry({ direction: "backwards" }) })).toThrow(
-            /`calendars\.registry\.AF\.direction` must be one of: forward, backward/,
-        );
-        // Guards the guard: a set that lost a member would make the refusal
-        // above pass while accepting less than the contract says it accepts.
-        expect([...CALENDAR_DIRECTIONS].sort()).toEqual(["backward", "forward"]);
-    });
-
-    it("refuses an abbreviation a date string could not carry", () => {
-        for (const bad of ["after-founding", "A F", "AF1", ""]) {
-            expect(() => build({ registry: { [bad]: registry().AF } })).toThrow(
-                /`calendars\.registry` declares/,
-            );
-        }
-    });
-
-    it("refuses a key it does not recognise", () => {
-        expect(() => build({ registry: registry({ leapYears: 4 }) })).toThrow(
-            /`calendars\.registry\.AF\.leapYears` is not a recognized option/,
-        );
-        expect(() => build({ registry: registry(), era: "x" })).toThrow(
-            /`calendars\.era` is not a recognized option/,
-        );
-    });
-
-    it("requires a registry once the block is written at all", () => {
-        expect(() => build({ default: "AF" })).toThrow(/`calendars\.registry` must be a mapping/);
+    it("walks the authored numbering onto a line that has a zero", () => {
+        expect([-3, -2, -1, 1, 2, 3].map((year) => canonicalYear(year))).toEqual([
+            -2, -1, 0, 1, 2, 3,
+        ]);
     });
 });
 
-describe("the month structure", () => {
-    it("is optional, and states nothing when omitted", () => {
-        const { calendars } = build({ registry: registry() });
-        expect(calendarStructure(calendars.registry.AF)).toEqual({
-            months: null,
-            monthDays: null,
+describe("an era's epoch", () => {
+    // Where an era's own year 1 sits on the axis, which is the whole of what
+    // conversion needs from it.
+    const EPOCHS = [1, -2109, -479, 689, 695];
+
+    for (const epoch of EPOCHS) {
+        it(`puts year 1 at ${epoch} and year -1 immediately before it`, () => {
+            expect(canonicalYear(1, epoch)).toBe(epoch);
+            expect(canonicalYear(-1, epoch)).toBe(epoch - 1);
+            expect(canonicalYear(1, epoch) - canonicalYear(-1, epoch)).toBe(1);
         });
+    }
+
+    it("reads epochs on both sides of the axis's own", () => {
+        // Guards the guard: epochs of one sign would let a collapsed
+        // conversion pass every case above.
+        expect(EPOCHS.some((epoch) => epoch < 0)).toBe(true);
+        expect(EPOCHS.some((epoch) => epoch > CANONICAL_EPOCH)).toBe(true);
     });
 
-    it("is carried through when declared", () => {
-        const { calendars } = build({ registry: registry({ months: 12, monthDays: 30 }) });
-        expect(calendarStructure(calendars.registry.AF)).toEqual({ months: 12, monthDays: 30 });
+    it("converts the two years the setting states, neither fitted", () => {
+        // "The current year is approximately 2,830 ST (corresponding to 720 AF
+        // in the western calendar)", against a Sep Tepy starting -2110.
+        expect(canonicalYear(-2110)).toBe(-2109);
+        expect(canonicalYear(2830, -2109)).toBe(720);
+        // "M 1 falls in 480 BF", against a count starting -480.
+        expect(canonicalYear(-480)).toBe(-479);
+        expect(canonicalYear(1200, -479)).toBe(720);
+    });
+});
+
+describe("the sort key", () => {
+    it("folds month and day into a fraction without losing the year", () => {
+        expect(dateSortKey(689, 6, 19)).toBe(689.0619);
+        expect(dateSortKey(689, 6, null)).toBe(689.06);
+        expect(dateSortKey(689, null, null)).toBe(689);
+    });
+
+    it("runs months and days forward inside a year before the epoch", () => {
+        expect(dateSortKey(-983, 6, null)).toBe(-982.94);
+        expect(dateSortKey(-983, null, null)).toBeLessThan(dateSortKey(-983, 1, null));
+    });
+});
+
+describe("the `calendar` block", () => {
+    it("resolves to nothing declared when a package declares none", () => {
+        // Most packages date nothing, and a resolved shape that is always
+        // there is what keeps every reader from testing for the block first.
+        expect(build().calendar).toEqual({ months: null, monthDays: null, present: null });
+    });
+
+    it("is frozen, so a bound cannot be added by writing to it", () => {
+        const { calendar } = build({ months: 12, monthDays: 30 });
+        expect(Object.isFrozen(calendar)).toBe(true);
+    });
+
+    it("carries the bounds and the present it declares", () => {
+        expect(build({ months: 12, monthDays: 30, present: "720/6/19" }).calendar).toEqual({
+            months: 12,
+            monthDays: 30,
+            present: "720/6/19",
+        });
     });
 
     it("refuses a bound that is not a positive integer", () => {
         for (const months of [0, -1, 12.5, "12"]) {
-            expect(() => build({ registry: registry({ months }) })).toThrow(
-                /`calendars\.registry\.AF\.months` must be a positive integer/,
+            expect(() => build({ months })).toThrow(
+                /`calendar\.months` must be a positive integer/,
             );
         }
-        expect(() => build({ registry: registry({ monthDays: 0 }) })).toThrow(
-            /`calendars\.registry\.AF\.monthDays` must be a positive integer/,
+        expect(() => build({ monthDays: 0 })).toThrow(
+            /`calendar\.monthDays` must be a positive integer/,
         );
+    });
+
+    it("refuses a key it does not recognise", () => {
+        expect(() => build({ registry: {} })).toThrow(
+            /`calendar\.registry` is not a recognized option \(expected one of: months, monthDays, present\)/,
+        );
+    });
+
+    it("refuses a block that is not a mapping", () => {
+        expect(() => build("720/6/19")).toThrow(/`calendar` must be a mapping/);
     });
 });
 
-describe("the default", () => {
-    it("may be left out, so every date names its own reckoning", () => {
-        expect(build({ registry: registry() }).calendars.default).toBeNull();
+describe("`calendar.present`", () => {
+    it("is read through the parser a note's dates go through", () => {
+        // One grammar, so a present written the way a date is written needs no
+        // second reader and cannot drift from one.
+        expect(build({ present: "720" }).calendar.present).toBe("720");
+        expect(build({ present: 720 }).calendar.present).toBe("720");
+        expect(build({ present: "~-2500" }).calendar.present).toBe("~-2500");
     });
 
-    it("must name something the registry declares", () => {
-        // A default nobody registered would apply silently to every bare value
-        // and resolve to nothing, which is the plausible lie this refuses.
-        expect(() => build({ default: "QF", registry: registry() })).toThrow(
-            /`calendars\.default` names `QF`, which `calendars\.registry` does not declare\. Declared: AF/,
+    it("may be said in an era, for a package whose present is best said that way", () => {
+        expect(build({ present: "2830 empirtkhpr.septepy" }).calendar.present).toBe(
+            "2830 empirtkhpr.septepy",
         );
-        expect(() => build({ default: "QF", registry: {} })).toThrow(/the registry is empty/);
-        // An ordinary object carries `toString`, so a bare `in` would accept it
-        // as a reckoning and hand the parser a function.
-        expect(() => build({ default: "toString", registry: registry() })).toThrow(
-            /`calendars\.default` names `toString`/,
+    });
+
+    it("is checked against the bounds the same block declares", () => {
+        expect(() => build({ months: 12, monthDays: 30, present: "720/13/1" })).toThrow(
+            /`calendar\.present`.*writes month 13/,
         );
+        // With no bound declared there is nothing to check against, which is
+        // the same rule a note's dates are read under.
+        expect(build({ present: "720/13/1" }).calendar.present).toBe("720/13/1");
+    });
+
+    it("refuses year zero, the retired trailing token and a value that is no date", () => {
+        expect(() => build({ present: "0" })).toThrow(/writes year 0/);
+        expect(() => build({ present: "720 AF" })).toThrow(/names no era/);
+        expect(() => build({ present: "midsummer" })).toThrow(/is not a date/);
+    });
+
+    it("refuses `unknown`, because a package that has no present leaves it out", () => {
+        expect(() => build({ present: "unknown" })).toThrow(
+            /`calendar\.present` must be a date — a package that states no present/,
+        );
+    });
+
+    it("is absent, not empty, when the package states none", () => {
+        expect(build({ months: 12 }).calendar.present).toBeNull();
     });
 });
 
-describe("the arithmetic", () => {
-    it("puts a forward reckoning's year 1 at its epoch", () => {
-        const spec = { epoch: -2109, direction: "forward" };
-        expect(astronomicalYear(1, spec)).toBe(-2109);
-        expect(astronomicalYear(2830, spec)).toBe(720);
+describe("the month structure a package declares", () => {
+    it("states nothing when the block is absent", () => {
+        expect(calendarStructure(build().calendar)).toEqual({ months: null, monthDays: null });
     });
 
-    it("counts a backward reckoning towards its epoch", () => {
-        const spec = { epoch: 0, direction: "backward" };
-        expect(astronomicalYear(1, spec)).toBe(0);
-        expect(astronomicalYear(984, spec)).toBe(-983);
-        // A larger written year is an earlier year, which is the whole reason
-        // the direction is declared rather than inferred from the sign.
-        expect(astronomicalYear(984, spec)).toBeLessThan(astronomicalYear(100, spec));
-    });
-
-    it("folds month and day into a sort key without losing the year", () => {
-        expect(dateSortKey(689, 6, 19)).toBe(689.0619);
-        expect(dateSortKey(689, 6, null)).toBe(689.06);
-        expect(dateSortKey(689, null, null)).toBe(689);
-        expect(dateSortKey(-983, 6, null)).toBe(-982.94);
-    });
-});
-
-describe("the unregistered-abbreviation message", () => {
-    it("lists what is registered, read from the registry it is about", () => {
-        const { calendars } = build({
-            default: "AF",
-            registry: {
-                ...registry(),
-                BF: { name: "Before the Founding", epoch: 0, direction: "backward" },
-            },
+    it("is carried through when declared", () => {
+        expect(calendarStructure(build({ months: 12, monthDays: 30 }).calendar)).toEqual({
+            months: 12,
+            monthDays: 30,
         });
-        const message = unknownCalendarMessage("QF", calendars.registry);
-        expect(message).toContain('names calendar "QF"');
-        expect(message).toContain("registered: AF, BF");
     });
 
-    it("says so when nothing is registered, rather than trailing off", () => {
-        expect(unknownCalendarMessage("QF", {})).toContain("no calendar is registered");
+    it("reads nothing out of nothing rather than throwing", () => {
+        expect(calendarStructure(undefined)).toEqual({ months: null, monthDays: null });
     });
 });

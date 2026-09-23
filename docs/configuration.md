@@ -74,14 +74,14 @@ authoring.
 | [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
-| [`calendars`](#calendars)                   | object                                                                     | no                                                                                                 | no default, empty registry                  |
+| [`calendar`](#calendar)                     | object                                                                     | no                                                                                                 | no bounds, no present                       |
 | [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
 | [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
 | [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`                            |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, calendars, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, calendar, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -1298,85 +1298,58 @@ With one, naming what it does declare instead:
 
 > ``package-build config: `requiresSystem` must be a non-empty string.``
 
-### `calendars`
+### `calendar`
 
-**Type:** object · **Optional** · default: no default calendar and an empty
-registry.
+**Type:** object · **Optional** · default: no bounds and no present.
 
-The reckonings a note may write a date in, and the one a bare value takes. A
-date is authored as one string — `[~]YYYY[/MM[/DD]] [CAL]` — and the trailing
-token names an entry here:
+How this package's year is divided, and the date it calls the present:
 
 ```yaml
-calendars:
-  default: AF
-  registry:
-    AF: { name: After the Founding, epoch: 1, direction: forward, months: 12, monthDays: 30 }
-    BF: { name: Before the Founding, epoch: 0, direction: backward, months: 12, monthDays: 30 }
-    ST: { name: Sep Tepy, epoch: -2109, direction: forward, months: 12, monthDays: 30 }
-    M: { name: Mādhavendra count, epoch: -479, direction: forward }
+calendar:
+  months: 12
+  monthDays: 30
+  present: 720/6/19
 ```
 
-**A new reckoning is a configuration edit, never a code change.** Nothing in
-the toolchain names a calendar, so a setting that keeps a fifth count of years
-declares it here and every date written in it parses, sorts and converts.
+**Nothing here is about which people count from what.** A reckoning is an
+**era**, declared by the affiliation that proclaimed it, and its epoch is the
+`start` written on that note — so the only things this block states are the ones
+no note could.
 
-| Key (under `calendars`)                 | Type                      | Required | Default |
-| --------------------------------------- | ------------------------- | -------- | ------- |
-| `calendars.default`                     | string                    | no       | `null`  |
-| `calendars.registry`                    | object (`{abbrev: spec}`) | yes      | —       |
-| `calendars.registry.<abbrev>.name`      | string                    | yes      | —       |
-| `calendars.registry.<abbrev>.epoch`     | integer                   | yes      | —       |
-| `calendars.registry.<abbrev>.direction` | `forward` \| `backward`   | yes      | —       |
-| `calendars.registry.<abbrev>.months`    | positive integer          | no       | `null`  |
-| `calendars.registry.<abbrev>.monthDays` | positive integer          | no       | `null`  |
+| Key (under `calendar`) | Type             | Required | Default |
+| ---------------------- | ---------------- | -------- | ------- |
+| `calendar.months`      | positive integer | no       | `null`  |
+| `calendar.monthDays`   | positive integer | no       | `null`  |
+| `calendar.present`     | date string      | no       | `null`  |
 
-`epoch` is **the astronomical value of that reckoning's own year 1**, and
-`direction` says which way it counts from there:
+`months` and `monthDays` bound a written month and day. **Both are optional, and
+an absent one is checked against nothing** — a year of twelve thirty-day months
+is as ordinary here as a Gregorian one, so the bound is declared or it is not
+applied. One subdivision to a package: an era moves where year 1 sits, it does
+not divide the year differently.
 
-```text
-forward  C:  astronomical = epoch(C) + (year - 1)
-backward C:  astronomical = epoch(C) - (year - 1)
-```
+`present` is the date an age is computed against. It is written in the same
+grammar a note's dates use — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era
+shortcode>]` — so a package whose present is best said in an era says it that
+way, and one that states no present computes no age at all.
 
-The astronomical form has no year-zero hole, so `1 BF` is `0`, `984 BF` is
-`-983`, and a subtraction across the epoch is ordinary integer arithmetic. The
-two entries above that share a `direction` differ only in where their year 1
-sits: `2830 ST` and `1200 M` both land on `720`, which is the same year the
-Common reckoning writes bare.
+An age is a function of two **dates**, not two years: subtracting years alone
+reds every note whose birthday falls later in the year than the present date, so
+the day is part of what is declared.
 
-`default` is what a value with no trailing token takes, and it applies
-**silently** — a corpus that has always written bare dates is correct, and a
-toolchain that turned it red over a token would be the thing that is wrong.
-Omitted, every date must name its reckoning. Named, it has to be one the
-registry declares:
+> ``package-build config: `calendar` must be a mapping.``
 
-> ``package-build config: `calendars.default` names `QF`, which `calendars.registry` does not declare. Declared: AF, BF, ST, M.``
+> ``package-build config: `calendar.months` must be a positive integer.``
 
-`months` and `monthDays` bound a written month and day. **Both are optional,
-and an absent one is checked against nothing** — a year of twelve thirty-day
-months is as ordinary here as a Gregorian one, so the bound is declared or it
-is not applied.
+> ``package-build config: `calendar.monthDays` must be a positive integer.``
 
-> ``package-build config: `calendars` must be a mapping.``
+> ``package-build config: `calendar.present` must be a date written as a string.``
 
-> ``package-build config: `calendars.registry` must be a mapping of abbreviation to reckoning.``
+> ``package-build config: `calendar.present` must be a date — a package that states no present computes no age, so leave the key out rather than writing `unknown`.``
 
-> ``package-build config: `calendars.registry` declares `after-founding`, which is not [A-Za-z]{1,8}. An abbreviation is the trailing token of a date string, so a digit or a space in one would leave no way to read where the year stops.``
+> ``package-build config: `calendar.present` is not a date this package can read — `720/13/1` writes month 13, and `calendar.months` declares a year of 12.``
 
-> ``package-build config: `calendars.registry.<abbrev>` must be a mapping.``
-
-> ``package-build config: `calendars.registry.<abbrev>.name` must be a non-empty string.``
-
-> ``package-build config: `calendars.registry.<abbrev>.epoch` must be an integer — the astronomical value of this reckoning's own year 1, which is negative for a reckoning whose epoch predates the common one.``
-
-> ``package-build config: `calendars.registry.<abbrev>.direction` must be one of: forward, backward.``
-
-> ``package-build config: `calendars.registry.<abbrev>.months` must be a positive integer.``
-
-> ``package-build config: `calendars.<key>` is not a recognized option (expected one of: default, registry).``
-
-> ``package-build config: `calendars.registry.<abbrev>.<key>` is not a recognized option (expected one of: name, epoch, direction, months, monthDays).``
+> ``package-build config: `calendar.<key>` is not a recognized option (expected one of: months, monthDays, present).``
 
 ### `packageBuild`
 

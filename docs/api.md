@@ -606,27 +606,25 @@ The closed registry of system ids, and the `none` that stands for no system at a
 
 ### `engine.calendars`
 
-The reckonings a package dates by, declared in `calendars:` rather than written into the toolchain, and the arithmetic that puts them all on one line. Each entry states the astronomical value of its own year 1 and which way it counts from there, so `984 BF` and `2830 ST` normalise to signed numbers a query can compare without a year-zero special case.
+The axis every date normalises onto, and the one function that puts a reckoning on it. A reckoning is an **era** declared by the affiliation that proclaimed it, and its epoch is the `start` written on that note — nothing is registered in configuration. The conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent.
 
-| Export                          | Signature                                 | Returns                                       | Use it when                                                                     |
-| ------------------------------- | ----------------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `CALENDAR_DIRECTIONS`           | `const CALENDAR_DIRECTIONS`               | —                                             | enumerating which ways a reckoning may count from its own year 1                |
-| `CALENDAR_ABBREVIATION_PATTERN` | `const CALENDAR_ABBREVIATION_PATTERN`     | —                                             | stating what a date string's trailing calendar token may look like              |
-| `isCalendarAbbreviation`        | `isCalendarAbbreviation(value)`           | `boolean`                                     | checking whether a value could be a calendar abbreviation                       |
-| `astronomicalYear`              | `astronomicalYear(year, spec)`            | `number` — the signed year                    | converting a year written in one reckoning to the number everything compares on |
-| `dateSortKey`                   | `dateSortKey(commonYear, month, day)`     | `number`                                      | ordering mixed-precision dates against a single number                          |
-| `unknownCalendarMessage`        | `unknownCalendarMessage(value, registry)` | `string`                                      | building the message for a note that named an unregistered reckoning            |
-| `calendarStructure`             | `calendarStructure(spec)`                 | `{months, monthDays}` — `null` where unstated | reading the month bounds a reckoning declares, before phrasing a finding        |
+| Export              | Signature                       | Returns                                       | Use it when                                                                     |
+| ------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`         | —                                             | naming where the canonical axis's own year 1 sits                               |
+| `canonicalYear`     | `canonicalYear(year, epoch?)`   | `number` — the signed year on the axis        | converting a year written in one reckoning to the number everything compares on |
+| `dateSortKey`       | `dateSortKey(year, month, day)` | `number`                                      | ordering mixed-precision dates against a single number                          |
+| `calendarStructure` | `calendarStructure(calendar)`   | `{months, monthDays}` — `null` where unstated | reading the month bounds a package declares, before phrasing a finding          |
 
 ### `engine.noteDates`
 
-A date on a note is one authored string — `[~]YYYY[/MM[/DD]] [CAL]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `commonYear`. The literal `unknown` parses to the same record with the year half empty, carrying neither a `sort` nor a `commonYear`, so nothing can order it to one end of a list.
+A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
 
-| Export              | Signature                       | Returns                                            | Use it when                                                  |
-| ------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------ |
-| `UNKNOWN_DATE`      | `const UNKNOWN_DATE`            | —                                                  | naming the literal that says a date is not recorded          |
-| `NOTE_DATE_PATTERN` | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                           |
-| `parseNoteDate`     | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned |
+| Export                  | Signature                       | Returns                                            | Use it when                                                   |
+| ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`            | —                                                  | naming the literal that says a date is not recorded           |
+| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
+| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
+| `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
 
 ### `engine.contentAddress`
 

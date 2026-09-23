@@ -12,91 +12,87 @@
  */
 
 /**
- * **The reckonings a package dates by, and the arithmetic that puts them on one
- * line.**
+ * **The axis every date normalises onto, and the one function that puts a
+ * reckoning on it.**
  *
- * A setting keeps several counts of years at once — one from a founding, one
- * from a mythological unification, one from a philosophical standardisation —
- * and a note writes a date in whichever its subject keeps. Two of them run
- * forward and one runs backward, so `984 BF` precedes `100 BF` and a string
- * sort is wrong in the one direction nobody looks at.
+ * A setting keeps several counts of years at once, each proclaimed by a body
+ * that has a note — a founding, a first occasion, a reign. A date either names
+ * one of them or names none, in which case it sits on the **canonical axis**.
  *
- * So every authored year normalises to a single signed number, and every
- * reckoning states the one fact that conversion needs: **the astronomical value
- * of its own year 1**.
+ * ## The canonical axis is an authoring device, not a calendar
+ *
+ * The axis is the line of integers dates written by peoples who never met are
+ * compared on. Nobody in a setting keeps it, no body stands behind it, and no
+ * shortcode addresses it: a date is on the axis exactly when it names no era.
+ * A reckoning whose year 1 happens to sit where the axis's year 1 sits
+ * coincides with it numerically and is still that people's own count.
+ *
+ * ## There is no year zero, and one function converts
+ *
+ * The authored numbering skips zero — `-1` sits immediately before `1` — while
+ * the normalised value does not, so that arithmetic across an epoch is one
+ * subtraction rather than a special case somebody forgets.
  *
  * ```text
- * forward  C:  astronomical = epoch(C) + (year - 1)
- * backward C:  astronomical = epoch(C) - (year - 1)
+ * authored        …  -3   -2   -1    1    2    3  …
+ * canonicalYear   …  -2   -1    0    1    2    3  …
  * ```
  *
- * The internal representation is **astronomical** — there is no year-zero hole,
- * so the year 1 of a backward reckoning epoched at 0 is `0` and its year 984 is
- * `-983`, and subtraction across the epoch is ordinary integer arithmetic rather
- * than a special case somebody forgets.
+ * ```text
+ * canonicalYear(y, E) = E + (y > 0 ? y - 1 : y)
+ * ```
  *
- * **A reckoning is declared, never built in.** The registry arrives from
- * `calendars:` in the consuming package's configuration; nothing in the
- * toolchain matches on an abbreviation, and the ones written in the examples
- * here are a consuming setting's own. A list written into code stops working the
- * day a setting declares its fifth reckoning.
+ * `E` is where a reckoning's year 1 sits on the axis — the `canonicalYear` of
+ * an era's own `start`. The axis is the same function with `E` of
+ * {@link CANONICAL_EPOCH}, which holds by definition: the axis's year 1 is the
+ * axis's year 1.
  *
- * **The month structure is optional, and an absent one checks nothing.** A
- * reckoning that states `months` and `monthDays` gets its year bounded; one that
- * states neither is bounded below and not above, because a toolchain that
- * invented twelve Gregorian months would refuse `667/2/30` — a date a real
- * corpus writes, in a year of twelve thirty-day months.
+ * **The conversion is piecewise on the sign**, and that is the property worth
+ * guarding. Collapsed to a single branch it is correct on one side of an epoch
+ * and off by one on the other, which is invisible in any list that does not
+ * span it.
+ *
+ * ## The month structure is the package's, and an absent bound checks nothing
+ *
+ * An era moves where year 1 sits; it does not divide the year differently. So
+ * the subdivision is declared once for the package, in `calendar.months` and
+ * `calendar.monthDays`, and a package that declares neither is bounded below
+ * and not above — a toolchain that invented twelve Gregorian months would
+ * refuse `667/2/30`, which is an ordinary date in a year of twelve thirty-day
+ * months.
  *
  * @module
  */
 
 /**
- * Which way a reckoning counts from its own year 1.
+ * Where the canonical axis's own year 1 sits — on itself.
  *
- * `forward` is the ordinary case. `backward` is a count *towards* an epoch —
- * "before the founding" — where a larger written year is an earlier year.
+ * It takes no configuration entry and no era row, because it is true by
+ * definition rather than by declaration.
  *
- * @type {readonly string[]}
+ * @type {number}
  */
-export const CALENDAR_DIRECTIONS = Object.freeze(["forward", "backward"]);
+export const CANONICAL_EPOCH = 1;
 
 /**
- * What an abbreviation may look like.
+ * The year on the canonical axis that a written year lands on.
  *
- * It is the trailing token of a date string, so it has to be unmistakable
- * against the digits it follows: letters only, so nothing in `2830 ST` is
- * ambiguous about where the year stops. One to eight of them, which fits every
- * reckoning a setting has ever abbreviated and refuses a sentence written where
- * a token belongs.
+ * The whole of the conversion. A reckoning differs from its neighbours in
+ * where its year 1 sits and in nothing else, so an era states one number and
+ * this states what to do with it.
  *
- * @type {RegExp}
+ * The two branches are the year-zero hole: the authored numbering has no year
+ * 0, so a positive year is one place closer to the epoch than its magnitude
+ * suggests and a negative year is exactly its magnitude below it.
+ *
+ * @param {number} year - The year as authored, signed, within its own
+ *   reckoning. Never 0 — the authored numbering has no such year.
+ * @param {number} [epoch] - Where that reckoning's year 1 sits on the axis.
+ *   Omitted, the axis itself.
+ * @returns {number} The signed year on the axis — authored `-1` is `0`.
  */
-export const CALENDAR_ABBREVIATION_PATTERN = /^[A-Za-z]{1,8}$/;
-
-/**
- * Whether a value could be a calendar abbreviation.
- *
- * @param {unknown} value - The candidate.
- * @returns {boolean} `true` when it matches {@link CALENDAR_ABBREVIATION_PATTERN}.
- */
-export function isCalendarAbbreviation(value) {
-    return typeof value === "string" && CALENDAR_ABBREVIATION_PATTERN.test(value);
-}
-
-/**
- * The astronomical year a written year lands on.
- *
- * The one conversion, and the reason a registry entry states an epoch rather
- * than a formula: a reckoning differs from its neighbours in where its year 1
- * sits and which way it counts, and nothing else.
- *
- * @param {number} year - The year as authored, positive within its reckoning.
- * @param {{epoch: number, direction: string}} spec - The registry entry.
- * @returns {number} The signed astronomical year — `1 BF` is `0`.
- */
-export function astronomicalYear(year, spec) {
-    const offset = year - 1;
-    return spec.direction === "backward" ? spec.epoch - offset : spec.epoch + offset;
+export function canonicalYear(year, epoch = CANONICAL_EPOCH) {
+    return epoch + (year > 0 ? year - 1 : year);
 }
 
 /**
@@ -110,49 +106,27 @@ export function astronomicalYear(year, spec) {
  *
  * A coarser value sorts **before** the finer values inside it: `689` precedes
  * `689/1`, which is the ordering a reader expects of a year whose month nobody
- * wrote. The fraction is added in both directions, so months and days run
- * forward inside a backward reckoning's year, which is how those calendars are
- * actually kept.
+ * wrote.
  *
- * @param {number} commonYear - The astronomical year.
+ * @param {number} year - The year on the canonical axis.
  * @param {number|null} month - The month, or `null`.
  * @param {number|null} day - The day, or `null`.
  * @returns {number} The sort key.
  */
-export function dateSortKey(commonYear, month, day) {
-    return (commonYear * 10000 + (month ?? 0) * 100 + (day ?? 0)) / 10000;
+export function dateSortKey(year, month, day) {
+    return (year * 10000 + (month ?? 0) * 100 + (day ?? 0)) / 10000;
 }
 
 /**
- * What an author writing an unregistered abbreviation is told.
+ * The bounds a package states for a month, or `null` where it states none.
  *
- * The registered list is read from the registry it is about rather than
- * restated, so a reckoning declared in configuration appears in this sentence
- * the same day.
- *
- * @param {string} value - The abbreviation the note wrote.
- * @param {Readonly<Record<string, object>>} registry - The declared reckonings.
- * @returns {string} The message, with no trailing period.
- */
-export function unknownCalendarMessage(value, registry) {
-    const registered = Object.keys(registry ?? {});
-    return (
-        `names calendar "${value}", which no registered calendar answers to — ` +
-        (registered.length ?
-            `registered: ${registered.join(", ")}`
-        :   `no calendar is registered, so add one under \`calendars.registry\``)
-    );
-}
-
-/**
- * The bounds a reckoning states for a month, or `null` where it states none.
- *
- * Separate from the check that reads it so a caller can ask what a reckoning
+ * Separate from the check that reads it so a caller can ask what a package
  * declares without phrasing a finding about it.
  *
- * @param {{months?: number|null, monthDays?: number|null}} spec - The entry.
+ * @param {{months?: number|null, monthDays?: number|null}} [calendar] - The
+ *   resolved `calendar:` block.
  * @returns {{months: number|null, monthDays: number|null}} What it declares.
  */
-export function calendarStructure(spec) {
-    return { months: spec?.months ?? null, monthDays: spec?.monthDays ?? null };
+export function calendarStructure(calendar) {
+    return { months: calendar?.months ?? null, monthDays: calendar?.monthDays ?? null };
 }

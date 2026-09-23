@@ -76,11 +76,7 @@ import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.m
 import { MAP_TYPES, NO_PACK, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
-import {
-    CALENDAR_ABBREVIATION_PATTERN,
-    CALENDAR_DIRECTIONS,
-    isCalendarAbbreviation,
-} from "./engine/calendars.mjs";
+import { UNKNOWN_DATE, parseNoteDate } from "./engine/note-dates.mjs";
 
 /**
  * What kind of package this is.
@@ -730,10 +726,10 @@ export function publishesContentPages(config) {
  * @property {readonly string[]} packDirectories  Derived: every pack directory
  *                                     the build produces, in compile order —
  *                                     each pack followed by its companions.
- * @property {Readonly<{default: string|null, registry: Readonly<Record<string, Readonly<object>>>}>} calendars
- *                                     The reckonings a date may be written in,
- *                                     and the one a bare value takes. An empty
- *                                     registry when none is declared.
+ * @property {Readonly<{months: number|null, monthDays: number|null, present: string|null}>} calendar
+ *                                     How this package's year is divided, and
+ *                                     the date it calls the present. Every
+ *                                     value `null` when none is declared.
  * @property {Readonly<PackageBuildSection>} packageBuild  Passed through
  *                                     frozen, uninterpreted. `{}` when absent.
  * @property {Readonly<DocsSpec>} docs   Frozen; `{}` when absent.
@@ -763,14 +759,13 @@ const CONFIG_KEYS = [
     "relationships",
     "systems",
     "requiresSystem",
-    "calendars",
+    "calendar",
     "packageBuild",
     "publish",
     "changelog",
 ];
 const SYSTEM_KEYS = ["manifest", "compatibility"];
-const CALENDARS_KEYS = ["default", "registry"];
-const CALENDAR_KEYS = ["name", "epoch", "direction", "months", "monthDays"];
+const CALENDAR_KEYS = ["months", "monthDays", "present"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
 const DOCS_KEYS = ["itemFields"];
 const CHANGELOG_KEYS = ["labels"];
@@ -2083,105 +2078,73 @@ function normalizeRequiresSystem(value) {
 }
 
 /**
- * The reckonings this package dates by, and the one a bare value takes.
+ * How this package's year is divided, and the date it calls the present.
  *
- * **A new calendar is a configuration edit, never a code change** — the same
- * discipline `systems:` applies, and for the same reason: a list written into
- * the toolchain stops working the day a setting declares its fifth reckoning.
- * Nothing in `engine/` names one.
+ * **Nothing here is about which people count from what.** A reckoning is an
+ * era, declared by the affiliation that proclaimed it, and its epoch is the
+ * `start` written on that note — so the only things configuration states are
+ * the ones no note could.
  *
- * Each entry states the astronomical value of its **own year 1** and which way
- * it counts from there, which is the whole of what conversion needs. A
- * reckoning running backward — "before the founding" — writes a larger year for
- * an earlier one, and `epoch` plus `direction` is what puts it on the same line
- * as the rest.
+ * `months` and `monthDays` bound a written month and day. Both are optional,
+ * and an absent one is checked against nothing: a toolchain that assumed a
+ * Gregorian year here would refuse `667/2/30`, an ordinary date in a year of
+ * twelve thirty-day months. One subdivision to a package — an era moves where
+ * year 1 sits, it does not divide the year differently.
  *
- * `months` and `monthDays` are optional, and an absent one is checked against
- * nothing. A toolchain that assumed a Gregorian year here would refuse
- * `667/2/30`, which is an ordinary date in a year of twelve thirty-day months —
- * so the bound is declared or it is not applied.
+ * `present` is the date the package computes an age against, written in the
+ * same grammar a note's dates use, so a package whose present is best said in
+ * an era says it that way. A package that states none computes no age, which
+ * is the right answer for a corpus that has no present.
  *
- * @param {unknown} value - The declared `calendars:` mapping.
- * @returns {Readonly<{default: string|null, registry: Readonly<Record<string, Readonly<object>>>}>}
- *   Frozen; an empty registry and no default when absent.
+ * @param {unknown} value - The declared `calendar:` mapping.
+ * @returns {Readonly<{months: number|null, monthDays: number|null, present: string|null}>}
+ *   Frozen; every value `null` when absent.
  */
-function normalizeCalendars(value) {
+function normalizeCalendar(value) {
     if (value === undefined || value === null) {
-        return Object.freeze({ default: null, registry: Object.freeze({}) });
+        return Object.freeze({ months: null, monthDays: null, present: null });
     }
-    if (!isPlainObject(value)) fail("calendars", "must be a mapping");
+    if (!isPlainObject(value)) fail("calendar", "must be a mapping");
     const input = /** @type {Record<string, unknown>} */ (value);
-    rejectUnknownKeys(input, CALENDARS_KEYS, "calendars.");
+    rejectUnknownKeys(input, CALENDAR_KEYS, "calendar.");
 
-    if (!isPlainObject(input.registry)) {
-        fail("calendars.registry", "must be a mapping of abbreviation to reckoning");
-    }
-    const declared = /** @type {Record<string, unknown>} */ (input.registry);
+    const bound = (key) => {
+        const held = input[key];
+        if (held === undefined || held === null) return null;
+        if (!Number.isInteger(held) || /** @type {number} */ (held) < 1) {
+            fail(`calendar.${key}`, "must be a positive integer");
+        }
+        return /** @type {number} */ (held);
+    };
+    const months = bound("months");
+    const monthDays = bound("monthDays");
 
-    const registry = {};
-    for (const [abbreviation, entry] of Object.entries(declared)) {
-        const at = `calendars.registry.${abbreviation}`;
-        if (!isCalendarAbbreviation(abbreviation)) {
+    // Read through the parser the notes use rather than a second grammar, and
+    // against this package's own bounds — a present outside the year it
+    // declares is the one date nothing downstream would report.
+    let present = null;
+    if (input.present !== undefined && input.present !== null) {
+        if (typeof input.present !== "string" && typeof input.present !== "number") {
+            fail("calendar.present", "must be a date written as a string");
+        }
+        if (String(input.present).trim() === UNKNOWN_DATE) {
             fail(
-                "calendars.registry",
-                `declares \`${abbreviation}\`, which is not ` +
-                    `${CALENDAR_ABBREVIATION_PATTERN.source}. An abbreviation is the ` +
-                    `trailing token of a date string, so a digit or a space in one ` +
-                    `would leave no way to read where the year stops`,
+                "calendar.present",
+                `must be a date — a package that states no present computes no age, ` +
+                    `so leave the key out rather than writing \`${UNKNOWN_DATE}\``,
             );
         }
-        if (!isPlainObject(entry)) fail(at, "must be a mapping");
-        const spec = /** @type {Record<string, unknown>} */ (entry);
-        rejectUnknownKeys(spec, CALENDAR_KEYS, `${at}.`);
-
-        const name = requireNonEmptyString(spec.name, `${at}.name`);
-        if (!Number.isInteger(spec.epoch)) {
-            fail(
-                `${at}.epoch`,
-                "must be an integer — the astronomical value of this reckoning's " +
-                    "own year 1, which is negative for a reckoning whose epoch " +
-                    "predates the common one",
-            );
-        }
-        if (!(/** @type {readonly string[]} */ (CALENDAR_DIRECTIONS).includes(spec.direction))) {
-            fail(`${at}.direction`, `must be one of: ${CALENDAR_DIRECTIONS.join(", ")}`);
-        }
-        const bound = (key) => {
-            const held = spec[key];
-            if (held === undefined || held === null) return null;
-            if (!Number.isInteger(held) || /** @type {number} */ (held) < 1) {
-                fail(`${at}.${key}`, "must be a positive integer");
-            }
-            return /** @type {number} */ (held);
-        };
-
-        registry[abbreviation] = Object.freeze({
-            name,
-            epoch: /** @type {number} */ (spec.epoch),
-            direction: /** @type {string} */ (spec.direction),
-            months: bound("months"),
-            monthDays: bound("monthDays"),
+        const { date, findings } = parseNoteDate(input.present, {
+            calendar: { months, monthDays },
+            allowUnknown: false,
         });
+        const refused = findings.find((finding) => finding.severity === "error");
+        if (refused)
+            fail("calendar.present", `is not a date this package can read — ${refused.message}`);
+        present = /** @type {{text: string}} */ (date).text;
     }
 
-    // A default is optional — a package may require every date to name its
-    // reckoning — but one that names nothing declared would apply silently to
-    // every bare value and resolve to nothing, which is the plausible lie.
-    const fallback =
-        input.default === undefined || input.default === null ?
-            null
-        :   requireNonEmptyString(input.default, "calendars.default");
-    if (fallback !== null && !Object.hasOwn(registry, fallback)) {
-        fail(
-            "calendars.default",
-            `names \`${fallback}\`, which \`calendars.registry\` does not declare` +
-                (Object.keys(registry).length ?
-                    `. Declared: ${Object.keys(registry).join(", ")}`
-                :   " — the registry is empty"),
-        );
-    }
-
-    return Object.freeze({ default: fallback, registry: Object.freeze(registry) });
+    return Object.freeze({ months, monthDays, present });
 }
 
 /**
@@ -2915,7 +2878,7 @@ export function defineConfig(config) {
         relationships: normalizeRelationships(input.relationships),
         systems,
         requiresSystem,
-        calendars: normalizeCalendars(input.calendars),
+        calendar: normalizeCalendar(input.calendar),
         packageBuild: normalizePackageBuild(input.packageBuild),
         publish: normalizePublish(input.publish),
         changelog: normalizeChangelog(input.changelog),

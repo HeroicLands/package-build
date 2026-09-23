@@ -285,22 +285,10 @@ describe("every nested key list is documented", () => {
         );
     });
 
-    it("`calendars` and `calendars.registry.<abbrev>`", () => {
+    it("`calendar`", () => {
         assertDocuments(
-            "calendars",
-            allowedKeys(() => defineConfig(minimal({ calendars: { __unrecognised__: true } }))),
-        );
-        assertDocuments(
-            "calendars.registry.<abbrev>",
-            allowedKeys(() =>
-                defineConfig(
-                    minimal({
-                        calendars: {
-                            registry: { AF: { __unrecognised__: true, name: "n", epoch: 1 } },
-                        },
-                    }),
-                ),
-            ),
+            "calendar",
+            allowedKeys(() => defineConfig(minimal({ calendar: { __unrecognised__: true } }))),
         );
     });
 
