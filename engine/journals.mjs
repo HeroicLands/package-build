@@ -55,6 +55,7 @@ import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
+import { journalHasContent } from "./note-state.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -382,17 +383,24 @@ export class Journals extends BasePackCompiler {
     }
 
     /**
-     * An item with no prose gets no doc, and the items pass leaves its
-     * description empty rather than pointing at nothing; a map with no prose
-     * gets no entry and no pin target. The two passes apply the same rule to
-     * the same body, so they agree.
+     * **A journal that would be empty is not created**, and that is the whole
+     * rule — one test, asked of every note this pass claims, whether its
+     * journal is its own document or the documentation standing beside an item.
+     * A note with no prose gets no entry: the items pass leaves its description
+     * empty rather than pointing at nothing, a map gets no pin target, and
+     * {@link module:engine/foundry-entries} publishes no UUID, so nothing names
+     * a document that was not made.
+     *
+     * An entry holding only its infobox is empty by this test. The panel is a
+     * rendering of `data:` that the content index already carries, so a
+     * compendium entry of nothing else tells a reader what the index told them.
      *
      * @param {object} fm - The note's frontmatter.
      * @param {string} body - The note body, frontmatter stripped.
      * @returns {boolean} True to skip the note.
      */
     skipNote(fm, body) {
-        return hasDocEntry(fm.type) && !String(body).trim();
+        return !journalHasContent(body);
     }
 
     /**

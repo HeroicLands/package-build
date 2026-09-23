@@ -1096,11 +1096,17 @@ was never the key count.)
 ### An empty body is a stub, on purpose
 
 A note whose body is empty is a **stub**: it carries its frontmatter into the
-content index and is queryable there, it keeps its `id` and the Foundry document
-its type compiles, and it publishes no page, no address and no link target. A
-note with a body and the `draft` tag is a **draft**, and one with a body and no
-tag is **full**. `docs/content-format.md` states the rule; this is what the lint
-does with it.
+content index and is queryable there, it keeps its `id`, and it publishes no
+page, no address and no link target. A note with a body and the `draft` tag is a
+**draft**, and one with a body and no tag is **full**.
+`docs/content-format.md` states the rule; this is what the lint does with it.
+
+**A document that would be empty is not created**, and the index then names no
+artefact — `uuid`, `path` and `address` are `null`. An unwritten note still
+compiles every document derived from `data:`, so an arcane talent is still its
+Item; what it compiles no journal for is its prose, because there is none. An
+infobox does not count as content: the panel renders `data:` the index already
+carries.
 
 Four findings and two reports:
 
