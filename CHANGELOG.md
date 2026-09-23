@@ -1,5 +1,38 @@
 # @heroiclands/package-build
 
+## 22.8.0
+
+### Minor Changes
+
+**A being's dates**
+
+- A being says when it was born and when it died: `born:` takes over from `birthday:`, and `died:` sits beside it.
+- Either date may read `unknown` where it was never recorded; an absent `born` says the being was never born, and an absent `died` says it is alive.
+- `age:` is optional, and is an override — write it only where the number should win over the date, and write it `~34` where it is somebody's estimate.
+- A note still writing `birthday:` compiles identically and is told once what to write instead.
+- A profile reads its two dates ahead of the line describing the being's appearance.
+
+### Patch Changes
+
+**Dates**
+
+- A package can state how its year is divided — how many months, and how many
+  days to a month — and the date it treats as the present.
+- A refused `BF`/`AF` date now states the replacement rule instead of a computed value, which was wrong for `AF`.
+
+**The book**
+
+- A numbered or bulleted point whose text runs to more than one paragraph now
+  sets every paragraph flush under the point, so it reads as one block hanging
+  off its number instead of a stray indented paragraph beneath it.
+
+**A draft entry's notice**
+
+- The sentence sets in italic, with `Draft.` in bold ahead of it, on the page, in a journal entry and on an actor's dossier alike: the entry speaking about its own state rather than about the world.
+- In the book the notice's mark sits in a column of its own, so a sentence that runs to two lines sets both of them clear of it.
+- The mark is a filled disc with the exclamation knocked out of it, in the book's accent.
+- The sentence sets at the size, face and ink of the entry's prose; the rule down its edge and the mark are what set it apart.
+
 ## 22.7.0
 
 ### Minor Changes
