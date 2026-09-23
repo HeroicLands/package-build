@@ -64,10 +64,10 @@ export { itemTypes };
  * Every content type whose **prose compiles into a JournalEntry of its own**,
  * addressed by the virtual `doc<type>` qualifier.
  *
- * Every item type, plus `macro` — a macro note's body documents the script the
- * note also compiles into a Macro, which is the same shape as an item
- * and its description: one note, two documents, the prose living in the
- * journals pack.
+ * Every item type, every actor type, every map type, plus `macro` — a macro
+ * note's body documents the script the note also compiles into a Macro, which
+ * is the same shape as an item and its description: one note, two documents,
+ * the prose living in the journals pack.
  *
  * **One set, read by the compiler and the emitter alike.** The journals pass
  * decides what to compile from it, and the link manifest decides what to
@@ -76,8 +76,9 @@ export { itemTypes };
  * consumer can address. It is composed exactly once, in `defineConfig`, and
  * read from there — never recomposed at a call site.
  *
- * `doc` notes and actors are absent: each is a single document, so it has no
- * separate documentation to address.
+ * `doc` notes are absent, for the reason that applies to them alone: a `doc`
+ * note's single document *is* its prose, so there is no second document for a
+ * `doc<type>` address to name.
  *
  * An accessor rather than a hoisted constant, so that importing this module
  * needs no configuration (#2).
@@ -93,8 +94,8 @@ export function docEntryTypes() {
  * its own.
  *
  * @param {string} type - The note's `type` frontmatter.
- * @returns {boolean} True for an item type, for `macro` and for a map type;
- *   false for `doc` and for actors.
+ * @returns {boolean} True for an item type, an actor type, a map type and
+ *   `macro`; false for `doc`.
  */
 export function hasDocEntry(type) {
     // Through {@link currentType}, because the set is derived from the item

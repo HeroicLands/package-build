@@ -320,16 +320,51 @@ is declared, so a near miss is a finding that names what you probably meant.
 | **being kind**      | `being`                | `character`, `creature`                                                                                                                                                                                                                                                                                              |
 | **state**           | any                    | `draft`                                                                                                                                                                                                                                                                                                              |
 
-**`draft` is the one tag either build reads.** A note tagged `draft` exists so a
-link into it is not dead, and a link into it renders marked — as
+**`draft` is the one tag either build reads.** It does two things and nothing
+else: a link _into_ a draft note renders marked, and the note itself states that
+it is unfinished wherever a reader meets it.
+
+A link into it renders as
 `<span class="sohl-draft-link" title="Draft — not yet written">…</span>` in a
 compiled journal and on the website alike, with the appearance supplied by the
-consuming system's stylesheet or the site theme. **Nothing else changes**: the
-note compiles, validates, publishes and resolves exactly as any other, and it
-stays in the packs, in the link manifest and on the site. That is what separates
-the tag from the retired `draft:` field, whose whole effect was to move a note
-from published to unresolvable without saying so — and which is refused, by name,
-if you write it.
+consuming system's stylesheet or the site theme.
+
+The note's own statement is the **draft notice**, and it reads the same on every
+surface:
+
+> **Draft.** This entry is unfinished. What it states may change, and nothing in
+> it is settled.
+
+It leads the entry — above the infobox and above the prose — because a reader
+deciding whether to rely on an entry has to be told before they read it. Where
+it lands:
+
+| Surface      | What carries it                                                      |
+| ------------ | -------------------------------------------------------------------- |
+| JournalEntry | a `blockquote.sohl-draft-notice` at the head of the first page       |
+| Actor        | the dossier the sheet draws — SoHL's `dossier`, HM3's `biography`    |
+| The book     | a drawn mark and a left rule between the entry's plate and its panel |
+| The website  | the theme's own notice, above the infobox rail and the prose         |
+
+**An Actor carries it once.** A being's prose reaches two fields, and a document
+saying the same thing twice teaches a reader to skip it — a printed sheet draws
+both in turn — so the dossier carries the notice and the appearance is
+untouched. The two systems pair by the authored section each field reads rather
+than by its name, so `dossier` and `biography` carry it while `appearance` and
+`description` do not.
+
+**The mark is a notice, not a hazard** — `fa-circle-exclamation`, which Foundry
+bundles, so a journal page carries it with no module stylesheet loaded. The book
+draws its own, because a consumer declaring no icon family is the ordinary case
+and a glyph a face lacks is silent in Typst. Stripped of mark and rule the
+sentence still states the whole thing, which is the floor every surface is built
+to.
+
+**Nothing else changes**: the note compiles, validates, publishes and resolves
+exactly as any other, and it stays in the packs, in the link manifest and on the
+site. That is what separates the tag from the retired `draft:` field, whose whole
+effect was to move a note from published to unresolvable without saying so — and
+which is refused, by name, if you write it.
 
 **The group's scope is what makes the check work.** A group names the types it
 applies to, and a place's kinds are only ever checked on a place. Without that
@@ -1677,11 +1712,11 @@ convention rather than declared in a field — see
 A note has three states, and two of them are nothing but conventions the format
 already carried.
 
-| State     | Body    | Marker          | Page        | Document                          | Link target |
-| --------- | ------- | --------------- | ----------- | --------------------------------- | ----------- |
-| **stub**  | empty   | none            | no          | yes, where one would not be empty | no          |
-| **draft** | written | `tags: [draft]` | yes, marked | yes                               | yes         |
-| **full**  | written | none            | yes         | yes                               | yes         |
+| State     | Body    | Marker          | Page         | Document                          | Link target |
+| --------- | ------- | --------------- | ------------ | --------------------------------- | ----------- |
+| **stub**  | empty   | none            | no           | yes, where one would not be empty | no          |
+| **draft** | written | `tags: [draft]` | yes, noticed | yes, noticed                      | yes         |
+| **full**  | written | none            | yes          | yes                               | yes         |
 
 "Document" here is the document a note's frontmatter earns. A system's Actor or
 Item is earned by that system's block, in every state —

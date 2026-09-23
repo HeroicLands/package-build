@@ -53,6 +53,7 @@ import { resolveName } from "../engine/helpers.mjs";
 import { buildFromFields, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
+import { withDraftNotice } from "../engine/draft-notice.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
@@ -348,7 +349,10 @@ export class Hm3Actors extends SystemActorCompiler {
             // `system.portrait` is not: a being's portrait is the lead image of
             // its `{#appearance}` section, which is the markup below.
             description: renderSection(body || "", "appearance"),
-            biography: renderSection(body || "", "dossier"),
+            // `biography` is this system's dossier: the two are paired by the
+            // authored section each reads, not by their names, so the notice
+            // lands on the same prose here as it does under SoHL.
+            biography: withDraftNotice(fm, renderSection(body || "", "dossier")),
             ...buildFromFields(ACTOR_FIELDS, reports)(fm),
             // Declared on `character` alone, so written there alone — see the
             // module note.

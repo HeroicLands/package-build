@@ -427,6 +427,23 @@ The three states of a note — **stub**, **draft**, **full** — and the one obs
 | `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
 | `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting the prose a reader meets, with a wikilink counting as the one word it renders                                     |
 
+### `engine.draftNotice`
+
+What a draft note says about itself, in one sentence, on every surface it reaches. The words are stated once and each renderer composes its own markup around them, so a reader meeting the note on a page, in a compendium and in the book meets one statement. The mark is a notice rather than a hazard, and the book draws it rather than setting a glyph, because a face missing one is silent in Typst.
+
+| Export                    | Signature                            | Returns  | Use it when                                                                        |
+| ------------------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------- |
+| `DRAFT_NOTICE`            | `const DRAFT_NOTICE`                 | `string` | reading the sentence itself, which is the floor every surface degrades to          |
+| `DRAFT_NOTICE_LABEL`      | `const DRAFT_NOTICE_LABEL`           | `string` | reading the label that opens the notice                                            |
+| `DRAFT_NOTICE_ICON`       | `const DRAFT_NOTICE_ICON`            | `string` | naming the Font Awesome mark the HTML surfaces draw                                |
+| `DRAFT_NOTICE_CLASS`      | `const DRAFT_NOTICE_CLASS`           | `string` | styling the HTML notice from a package that wants to                               |
+| `BOOK_DRAFT_NOTICE`       | `const BOOK_DRAFT_NOTICE`            | `string` | naming the Typst function the book's notice calls                                  |
+| `draftNoticeHtml`         | `draftNoticeHtml()`                  | `string` | drawing the notice for a JournalEntry page or an Actor's prose field               |
+| `draftNoticeFor`          | `draftNoticeFor(frontmatter)`        | `string` | asking whether a note has earned a notice, which is the one place the tag is asked |
+| `withDraftNotice`         | `withDraftNotice(frontmatter, html)` | `string` | leading a system's own prose field with the notice where one is due                |
+| `draftNoticeTypst`        | `draftNoticeTypst()`                 | `string` | drawing the notice for a leaf of the book                                          |
+| `bookDraftNoticePreamble` | `bookDraftNoticePreamble()`          | `string` | emitting the Typst definition the book's notice is drawn by                        |
+
 ### `engine.stubLint`
 
 An empty body must be deliberate. Four rules hold the state honest — a stub states what it is, a stub is not tagged `draft`, a body that renders to nothing is an abandoned draft, and a short unmarked body is asked whether it forgot its marker — and two reports say what the rules cannot decide.
@@ -586,6 +603,28 @@ The closed registry of system ids, and the `none` that stands for no system at a
 | `unknownSystemMessage` | `unknownSystemMessage(value, where)`   | `string`                        | building the message for a caller that wrote an unknown system                               |
 | `assertSystemSegment`  | `assertSystemSegment(value, where)`    | `string` — the value, unchanged | refusing a value the `<system>` segment may not hold, validating inline                      |
 | `assertSystemCharset`  | `assertSystemCharset(segments, where)` | throws                          | refusing a registry declaration whose id could not be an address segment                     |
+
+### `engine.calendars`
+
+The axis every date normalises onto, and the one function that puts a reckoning on it. A reckoning is an **era** declared by the affiliation that proclaimed it, and its epoch is the `start` written on that note — nothing is registered in configuration. The conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent.
+
+| Export              | Signature                       | Returns                                       | Use it when                                                                     |
+| ------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
+| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`         | —                                             | naming where the canonical axis's own year 1 sits                               |
+| `canonicalYear`     | `canonicalYear(year, epoch?)`   | `number` — the signed year on the axis        | converting a year written in one reckoning to the number everything compares on |
+| `dateSortKey`       | `dateSortKey(year, month, day)` | `number`                                      | ordering mixed-precision dates against a single number                          |
+| `calendarStructure` | `calendarStructure(calendar)`   | `{months, monthDays}` — `null` where unstated | reading the month bounds a package declares, before phrasing a finding          |
+
+### `engine.noteDates`
+
+A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
+
+| Export                  | Signature                       | Returns                                            | Use it when                                                   |
+| ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
+| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`            | —                                                  | naming the literal that says a date is not recorded           |
+| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
+| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
+| `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
 
 ### `engine.contentAddress`
 

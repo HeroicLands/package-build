@@ -18,14 +18,17 @@
  * The content root (`contentBase`) is walked recursively; any `.md` file
  * whose frontmatter declares either `type: doc` or a
  * **doc-carrying type** ({@link sohl.utils.packs.docEntryTypes} — every item
- * type, plus `macro`) is compiled into one JournalEntry document. Each note's
+ * type, every actor type, every map type, plus `macro`) is compiled into one
+ * JournalEntry document. Each note's
  * body is split on top-level H1 headings; the optional content before the
  * first H1 becomes a lead page, and each subsequent H1 starts a new page named
  * after its heading text. All page bodies are rendered to HTML.
  *
  * A doc-carrying note compiles into that document's **documentation** — the
- * same prose and pages, filed in the same folder as the document itself, which
- * keeps only a pointer to it. See `item-docs.mjs` for why, and for the ids the
+ * same prose and pages, filed in the same folder as the document itself. An
+ * item keeps only a pointer to it; an actor keeps its own inline prose as
+ * well, because the indirection an item pays for is bought by embedding one
+ * item across hundreds of beings and an actor is singular. See `item-docs.mjs` for why, and for the ids the
  * two passes agree on. A macro note's `{#script}` page is compiled here like
  * any other: the macro pass reads the same page independently, and withholds
  * nothing from the journal.
@@ -56,6 +59,7 @@ import { noteInfoboxes } from "./infobox-registry.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
+import { draftNoticeFor } from "./draft-notice.mjs";
 
 /**
  * Splits a markdown body into pages by top-level H1 headings. Fenced
@@ -287,6 +291,11 @@ export function buildPages(rawPages, entryId, noteName) {
  *   that reads. It is **not** a page of its own — a page is what a UUID
  *   addresses, and a summary a reader has to navigate to is a summary they do
  *   not see.
+ * @param {string} [params.notice] - A statement about the entry rather than
+ *   about its subject, already rendered to HTML — see {@link
+ *   module:engine/draft-notice}. It leads the first page, ahead of the infobox,
+ *   because a reader deciding whether to rely on the entry has to be told
+ *   before they read it rather than after.
  * @returns {object} The JournalEntry document, keyed for the pack.
  */
 export function buildJournalEntry({
@@ -298,11 +307,15 @@ export function buildJournalEntry({
     flags,
     stats = defaultStats(),
     infobox = "",
+    notice = "",
 }) {
     const rawPages = splitPages(markdown, leadName);
     const pages = buildPages(rawPages, id, name);
     if (infobox.trim() && pages.length) {
         pages[0].text.content = `${infobox}\n${pages[0].text.content}`;
+    }
+    if (notice.trim() && pages.length) {
+        pages[0].text.content = `${notice}\n${pages[0].text.content}`;
     }
     return {
         name,
@@ -407,7 +420,7 @@ export class Journals extends BasePackCompiler {
      * Compile one note into a JournalEntry.
      *
      * A `doc` note becomes the entry its frontmatter describes. A
-     * **doc-carrying note** — every item note, and every macro note — becomes
+     * **doc-carrying note** — every item, actor, map and macro note — becomes
      * that document's documentation instead: the same prose, the same pages,
      * in the same folder, under an id derived from the note's, so the pointer
      * the items pass wrote resolves to it (see
@@ -458,6 +471,12 @@ export class Journals extends BasePackCompiler {
             name,
             markdown,
             infobox: infoboxesToHtml(boxes, { link: linkToUuid }),
+            // Whether the entry is settled, asked of the tag through the one
+            // reader of it. This sits here rather than in `buildJournalEntry`
+            // for the reason `skipNote` runs first: a note with no prose
+            // compiles into nothing, and a notice composed before that test
+            // would be content enough to give it an entry.
+            notice: draftNoticeFor(fm),
             // A doc-carrying note's lead page is the document itself, not an
             // "Introduction" — see {@link splitPages}.
             leadName: ownsDoc ? name : undefined,

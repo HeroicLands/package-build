@@ -87,6 +87,9 @@ export * as noteVocabulary from "./note-vocabulary.mjs";
 /** The three states of a note — stub, draft, full — and the empty body they rest on. */
 export * as noteState from "./note-state.mjs";
 
+/** What a draft note says about itself, in one sentence, on every surface. */
+export * as draftNotice from "./draft-notice.mjs";
+
 /** Whether every empty body is a stub on purpose, and how finished a tree is. */
 export * as stubLint from "./stub-lint.mjs";
 
@@ -120,6 +123,12 @@ export * as siteMaps from "./site-maps.mjs";
 
 /** The closed registry of system ids, and the `none` that stands for no system. */
 export * as systems from "./systems.mjs";
+
+/** The reckonings a package dates by, and the arithmetic that puts them on one line. */
+export * as calendars from "./calendars.mjs";
+
+/** A note's dates: one authored string, one grammar, one record shape. */
+export * as noteDates from "./note-dates.mjs";
 
 /** The one normalisation this build makes: prose to a URL-safe token. */
 export * as contentSlug from "./content-slug.mjs";
