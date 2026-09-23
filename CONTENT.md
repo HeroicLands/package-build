@@ -1113,6 +1113,11 @@ page, no address and no link target. A note with a body and the `draft` tag is a
 **draft**, and one with a body and no tag is **full**.
 `docs/content-format.md` states the rule; this is what the lint does with it.
 
+A draft says so on every surface it reaches — its journal entry, the Actor a
+being compiles into, its page in the book — in one sentence at the head of the
+entry, above the infobox and the prose. A stub says nothing anywhere, because it
+publishes nothing to say it on.
+
 **A document that would be empty is not created**, and the index then names no
 artefact — `uuid`, `path` and `address` are `null`. An unwritten note still
 compiles every document derived from `data:`, so an arcane talent is still its

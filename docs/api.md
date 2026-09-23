@@ -427,6 +427,23 @@ The three states of a note — **stub**, **draft**, **full** — and the one obs
 | `placeholderBody`     | `placeholderBody(body)`                     | `Array<{phrase: string, line: number}>` | finding a body that reduces to nothing but placeholders, which is an abandoned draft rather than a stub                    |
 | `bodyWordCount`       | `bodyWordCount(body)`                       | `number`                                | counting the prose a reader meets, with a wikilink counting as the one word it renders                                     |
 
+### `engine.draftNotice`
+
+What a draft note says about itself, in one sentence, on every surface it reaches. The words are stated once and each renderer composes its own markup around them, so a reader meeting the note on a page, in a compendium and in the book meets one statement. The mark is a notice rather than a hazard, and the book draws it rather than setting a glyph, because a face missing one is silent in Typst.
+
+| Export                    | Signature                            | Returns  | Use it when                                                                        |
+| ------------------------- | ------------------------------------ | -------- | ---------------------------------------------------------------------------------- |
+| `DRAFT_NOTICE`            | `const DRAFT_NOTICE`                 | `string` | reading the sentence itself, which is the floor every surface degrades to          |
+| `DRAFT_NOTICE_LABEL`      | `const DRAFT_NOTICE_LABEL`           | `string` | reading the label that opens the notice                                            |
+| `DRAFT_NOTICE_ICON`       | `const DRAFT_NOTICE_ICON`            | `string` | naming the Font Awesome mark the HTML surfaces draw                                |
+| `DRAFT_NOTICE_CLASS`      | `const DRAFT_NOTICE_CLASS`           | `string` | styling the HTML notice from a package that wants to                               |
+| `BOOK_DRAFT_NOTICE`       | `const BOOK_DRAFT_NOTICE`            | `string` | naming the Typst function the book's notice calls                                  |
+| `draftNoticeHtml`         | `draftNoticeHtml()`                  | `string` | drawing the notice for a JournalEntry page or an Actor's prose field               |
+| `draftNoticeFor`          | `draftNoticeFor(frontmatter)`        | `string` | asking whether a note has earned a notice, which is the one place the tag is asked |
+| `withDraftNotice`         | `withDraftNotice(frontmatter, html)` | `string` | leading a system's own prose field with the notice where one is due                |
+| `draftNoticeTypst`        | `draftNoticeTypst()`                 | `string` | drawing the notice for a leaf of the book                                          |
+| `bookDraftNoticePreamble` | `bookDraftNoticePreamble()`          | `string` | emitting the Typst definition the book's notice is drawn by                        |
+
 ### `engine.stubLint`
 
 An empty body must be deliberate. Four rules hold the state honest — a stub states what it is, a stub is not tagged `draft`, a body that renders to nothing is an abandoned draft, and a short unmarked body is asked whether it forgot its marker — and two reports say what the rules cannot decide.
