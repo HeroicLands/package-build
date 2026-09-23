@@ -53,6 +53,7 @@ import { resolveName } from "../engine/helpers.mjs";
 import { buildFromFields, retiredTopLevelKey, STRING } from "../engine/field-spec.mjs";
 import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
 import { renderSection } from "../engine/anchored-sections.mjs";
+import { withDraftNotice } from "../engine/draft-notice.mjs";
 import { documentSubtype } from "../engine/document-subtypes.mjs";
 import { HM3_DOCUMENT_SUBTYPES } from "./document-subtypes.mjs";
 import { templateFlags } from "./template-priority.mjs";
@@ -347,7 +348,11 @@ export class Hm3Actors extends SystemActorCompiler {
             // `system.bioImage` is **not** written here, for the reason SoHL's
             // `system.portrait` is not: a being's portrait is the lead image of
             // its `{#appearance}` section, which is the markup below.
-            description: renderSection(body || "", "appearance"),
+            // The sheet opens on the facade tab, so `description` is the
+            // first prose a referee meets and is where an unsettled
+            // entry says so. `biography` is behind the profile tab and
+            // repeats nothing.
+            description: withDraftNotice(fm, renderSection(body || "", "appearance")),
             biography: renderSection(body || "", "dossier"),
             ...buildFromFields(ACTOR_FIELDS, reports)(fm),
             // Declared on `character` alone, so written there alone — see the

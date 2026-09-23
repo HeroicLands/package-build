@@ -63,6 +63,7 @@
 
 import MarkdownIt from "markdown-it";
 
+import { bookDraftNoticePreamble } from "./draft-notice.mjs";
 import { iconPlugin, ICON_PATTERN } from "./content-icons.mjs";
 import { IMAGE_CLASSES, IMAGE_FLOATS, imagePlugin } from "./content-images.mjs";
 import { slugify } from "./content-slug.mjs";
@@ -882,6 +883,11 @@ export function bookTypstPreamble() {
             "    ]\n" +
             "  ]\n" +
             "}",
+        // A statement about the entry rather than about its subject, set in
+        // the running face at the head of the leaf. The mark is drawn from two
+        // primitives rather than set from a face: a consumer declares its icon
+        // families or declares none, and a glyph the face lacks is silent here.
+        bookDraftNoticePreamble(),
         "#let book-epigraph(body) = {\n" +
             "  v(0.42cm)\n" +
             "  align(center)[\n" +

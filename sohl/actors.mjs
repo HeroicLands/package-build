@@ -49,6 +49,7 @@
 import { sohlField, resolveName, systemTemplatePriority, folderField } from "../engine/helpers.mjs";
 import { openingMasteryLevel } from "./skill-base.mjs";
 import { SystemActorCompiler, renderSection } from "../engine/actor-compiler.mjs";
+import { withDraftNotice } from "../engine/draft-notice.mjs";
 // Which Foundry Actor subtype a note's `type` compiles into. Looked up in the
 // system's declared map, never inferred from the type itself.
 import { documentSubtype } from "../engine/document-subtypes.mjs";
@@ -346,7 +347,11 @@ export class Actors extends SystemActorCompiler {
             // its `{#appearance}` section — which is the markup below — and the
             // key that used to declare one is not a key. With no authored
             // source left, the field keeps the schema's own initial.
-            appearance: renderSection(body || "", "appearance"),
+            // The sheet opens on the facade tab, so `appearance` is the
+            // first prose a referee meets and is where an unsettled
+            // entry says so. `dossier` is behind another tab and
+            // repeats nothing.
+            appearance: withDraftNotice(fm, renderSection(body || "", "appearance")),
             dossier: renderSection(body || "", "dossier"),
         };
 

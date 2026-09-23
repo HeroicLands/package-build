@@ -112,6 +112,8 @@ import {
     renderBook,
     resolveDanglingLabels,
 } from "./pdf-render.mjs";
+import { draftNoticeTypst } from "./draft-notice.mjs";
+import { isDraftNote } from "./note-vocabulary.mjs";
 import { infoboxTypstPreamble, infoboxesToTypst, linkToTypst } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
 import { resolveIconGlyphs } from "./pdf-fonts.mjs";
@@ -540,7 +542,12 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         const panel = infoboxesToTypst(boxes, {
             link: (value) => linkToTypst(value, plan.links, labelFor),
         });
-        return panel ? `${panel}\n\n${prose}` : prose;
+        // Whether the entry is settled comes before anything it says: the
+        // notice leads the leaf, ahead of the panel, which is the position it
+        // holds on every other surface.
+        const notice = isDraftNote(page.fm) ? draftNoticeTypst() : "";
+        const parts = [notice, panel, prose].filter((part) => part);
+        return parts.join("\n\n");
     };
 
     const bodies = new Map();
