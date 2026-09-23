@@ -115,6 +115,7 @@
 import { getFrontmatter } from "./frontmatter.mjs";
 import { currentType } from "./ids.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
+import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 
 /**
@@ -272,7 +273,6 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
 
-    birthday: Object.freeze({ label: "Born" }),
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),
     parentSkill: Object.freeze({ label: "Specialises" }),
@@ -637,7 +637,12 @@ function noteBox(
     for (const field of dataFields(fm?.type, vocabulary) ?? []) {
         const overlay = overlayFor(presentation, fm?.type, field.name);
         if (overlay.withheld) continue;
-        const raw = getFrontmatter(data, field.name, undefined);
+        // The retired spelling underneath, so a note part-way through a rename
+        // still shows its value rather than losing the row with nothing said.
+        // The current name wins, which is the whole of the retirement window's
+        // behaviour and is `readAliasedField`'s answer, not a second one.
+        const own = getFrontmatter(data, field.name, undefined);
+        const raw = hasValue(own) ? own : readAliasedField(fm, field.name, { inData: true });
         if (!hasValue(raw)) continue;
 
         if (overlay.group) {

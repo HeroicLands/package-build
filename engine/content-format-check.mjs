@@ -102,6 +102,7 @@ import { currentType } from "./ids.mjs";
 import { SCHEMA_ARTIFACT_VERSION } from "./schema-check.mjs";
 import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
 
 /**
  * Every field path any subtype of a published schema declares.
@@ -357,8 +358,16 @@ export function measureNote(note, format, { severity = "warning" } = {}) {
 
     // `data:` is closed: every key it carries must be one the type declares.
     const data = isBlock(fm.data) ? fm.data : undefined;
+    // The retired spelling of a key the format states is measured as the key it
+    // will be written as, exactly as a note still on a renamed *type* is
+    // measured against the section it will move to. The rename itself is the
+    // frontmatter lint's finding, and reporting it here as well would count one
+    // note twice in a migration whose counts are the point.
+    const renamedDataKeys = new Set(
+        [...spec.dataKeys].map((key) => RETIRED_FIELD_ALIASES[key]).filter(Boolean),
+    );
     for (const key of Object.keys(data ?? {})) {
-        if (spec.dataKeys.has(key)) continue;
+        if (spec.dataKeys.has(key) || renamedDataKeys.has(key)) continue;
         const guess = nearest(key, spec.dataKeys);
         add(
             "unknown-data-key",
