@@ -250,16 +250,15 @@ export function parseNoteDate(value, options) {
                     `and digits only`,
             );
         }
-        const dotless = DOTLESS_TOKEN_PATTERN.exec(trimmed);
-        if (dotless) {
-            // The message an author who learned the retired spelling meets, so
-            // it names the replacement rather than the rule.
-            const [, yearText, rest] = dotless;
-            const negative = `-${yearText.replace(/^-/, "")}${rest}`;
+        if (DOTLESS_TOKEN_PATTERN.test(trimmed)) {
+            // The message an author who learned a retired spelling meets. No
+            // table says which direction that spelling counted, so it states
+            // the rule rather than guessing a concrete replacement.
             return refuse(
                 `${subject} names no era — a reckoning is written ` +
-                    `\`<affiliation shortcode>.<era shortcode>\`, and a year before ` +
-                    `an era's epoch is written negative: \`${negative}\``,
+                    `\`<affiliation shortcode>.<era shortcode>\`: a year before ` +
+                    `an era's epoch is written negative, and a year after it ` +
+                    `simply drops the token`,
             );
         }
         return refuse(

@@ -507,14 +507,14 @@ describe("year zero", () => {
 });
 
 describe("the retired trailing token", () => {
-    it("refuses `984 BF` and names the replacement", () => {
+    it("refuses `984 BF` and states the rule rather than a replacement", () => {
         const { date, findings } = parse("984 BF", { field: "died" });
         expect(date).toBeNull();
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toBe(
             "`died: 984 BF` names no era — a reckoning is written " +
-                "`<affiliation shortcode>.<era shortcode>`, and a year before an era's " +
-                "epoch is written negative: `-984`",
+                "`<affiliation shortcode>.<era shortcode>`: a year before an era's " +
+                "epoch is written negative, and a year after it simply drops the token",
         );
     });
 
@@ -527,8 +527,17 @@ describe("the retired trailing token", () => {
         }
     });
 
-    it("carries the month and the day into the replacement it names", () => {
-        expect(parse("689/6/19 AF").findings[0].message).toContain("`-689/6/19`");
+    it("never suggests a value, so a forward-counting token is not told to go negative", () => {
+        // `720 AF` counted forward: the retired registry knew that, the parser
+        // does not, and `-720` would be 1,439 years wrong.
+        const { date, findings } = parse("720 AF", { field: "died" });
+        expect(date).toBeNull();
+        expect(findings[0].message).not.toContain("-720");
+        expect(findings[0].message).toBe(
+            "`died: 720 AF` names no era — a reckoning is written " +
+                "`<affiliation shortcode>.<era shortcode>`: a year before an era's " +
+                "epoch is written negative, and a year after it simply drops the token",
+        );
     });
 
     it("says something else when the token carries a dot it should not", () => {
