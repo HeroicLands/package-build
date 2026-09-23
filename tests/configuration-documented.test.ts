@@ -285,6 +285,25 @@ describe("every nested key list is documented", () => {
         );
     });
 
+    it("`calendars` and `calendars.registry.<abbrev>`", () => {
+        assertDocuments(
+            "calendars",
+            allowedKeys(() => defineConfig(minimal({ calendars: { __unrecognised__: true } }))),
+        );
+        assertDocuments(
+            "calendars.registry.<abbrev>",
+            allowedKeys(() =>
+                defineConfig(
+                    minimal({
+                        calendars: {
+                            registry: { AF: { __unrecognised__: true, name: "n", epoch: 1 } },
+                        },
+                    }),
+                ),
+            ),
+        );
+    });
+
     it("`itemBuilders.<type>` and the list-of-registries form", () => {
         assertDocuments(
             "itemBuilders.<type>",

@@ -48,7 +48,7 @@ around its own evaluation.
 
 ### Quick reference
 
-21 top-level keys. `rootDir` is not one of them — a data configuration never
+22 top-level keys. `rootDir` is not one of them — a data configuration never
 writes it — and is documented under [Derived values](#derived-values) instead,
 alongside `foundryPackage`, `homepage`, `author` and `itemBuilders`, whose
 data-configuration behaviour is also derivation rather than ordinary
@@ -74,13 +74,14 @@ authoring.
 | [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
+| [`calendars`](#calendars)                   | object                                                                     | no                                                                                                 | no default, empty registry                  |
 | [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
 | [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
 | [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`                            |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, calendars, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -290,7 +291,7 @@ Unlike the first three, authoring `itemBuilders` is not an error — it is
 
 ---
 
-## The 21 keys
+## The 22 keys
 
 ### `contentPackage`
 
@@ -1296,6 +1297,86 @@ With one, naming what it does declare instead:
 > ``package-build config: `requiresSystem` names `<name>`, which `systems:` does not declare. Declared: <list>.``
 
 > ``package-build config: `requiresSystem` must be a non-empty string.``
+
+### `calendars`
+
+**Type:** object · **Optional** · default: no default calendar and an empty
+registry.
+
+The reckonings a note may write a date in, and the one a bare value takes. A
+date is authored as one string — `[~]YYYY[/MM[/DD]] [CAL]` — and the trailing
+token names an entry here:
+
+```yaml
+calendars:
+  default: AF
+  registry:
+    AF: { name: After the Founding, epoch: 1, direction: forward, months: 12, monthDays: 30 }
+    BF: { name: Before the Founding, epoch: 0, direction: backward, months: 12, monthDays: 30 }
+    ST: { name: Sep Tepy, epoch: -2109, direction: forward, months: 12, monthDays: 30 }
+    M: { name: Mādhavendra count, epoch: -479, direction: forward }
+```
+
+**A new reckoning is a configuration edit, never a code change.** Nothing in
+the toolchain names a calendar, so a setting that keeps a fifth count of years
+declares it here and every date written in it parses, sorts and converts.
+
+| Key (under `calendars`)                 | Type                      | Required | Default |
+| --------------------------------------- | ------------------------- | -------- | ------- |
+| `calendars.default`                     | string                    | no       | `null`  |
+| `calendars.registry`                    | object (`{abbrev: spec}`) | yes      | —       |
+| `calendars.registry.<abbrev>.name`      | string                    | yes      | —       |
+| `calendars.registry.<abbrev>.epoch`     | integer                   | yes      | —       |
+| `calendars.registry.<abbrev>.direction` | `forward` \| `backward`   | yes      | —       |
+| `calendars.registry.<abbrev>.months`    | positive integer          | no       | `null`  |
+| `calendars.registry.<abbrev>.monthDays` | positive integer          | no       | `null`  |
+
+`epoch` is **the astronomical value of that reckoning's own year 1**, and
+`direction` says which way it counts from there:
+
+```text
+forward  C:  astronomical = epoch(C) + (year - 1)
+backward C:  astronomical = epoch(C) - (year - 1)
+```
+
+The astronomical form has no year-zero hole, so `1 BF` is `0`, `984 BF` is
+`-983`, and a subtraction across the epoch is ordinary integer arithmetic. The
+two entries above that share a `direction` differ only in where their year 1
+sits: `2830 ST` and `1200 M` both land on `720`, which is the same year the
+Common reckoning writes bare.
+
+`default` is what a value with no trailing token takes, and it applies
+**silently** — a corpus that has always written bare dates is correct, and a
+toolchain that turned it red over a token would be the thing that is wrong.
+Omitted, every date must name its reckoning. Named, it has to be one the
+registry declares:
+
+> ``package-build config: `calendars.default` names `QF`, which `calendars.registry` does not declare. Declared: AF, BF, ST, M.``
+
+`months` and `monthDays` bound a written month and day. **Both are optional,
+and an absent one is checked against nothing** — a year of twelve thirty-day
+months is as ordinary here as a Gregorian one, so the bound is declared or it
+is not applied.
+
+> ``package-build config: `calendars` must be a mapping.``
+
+> ``package-build config: `calendars.registry` must be a mapping of abbreviation to reckoning.``
+
+> ``package-build config: `calendars.registry` declares `after-founding`, which is not [A-Za-z]{1,8}. An abbreviation is the trailing token of a date string, so a digit or a space in one would leave no way to read where the year stops.``
+
+> ``package-build config: `calendars.registry.<abbrev>` must be a mapping.``
+
+> ``package-build config: `calendars.registry.<abbrev>.name` must be a non-empty string.``
+
+> ``package-build config: `calendars.registry.<abbrev>.epoch` must be an integer — the astronomical value of this reckoning's own year 1, which is negative for a reckoning whose epoch predates the common one.``
+
+> ``package-build config: `calendars.registry.<abbrev>.direction` must be one of: forward, backward.``
+
+> ``package-build config: `calendars.registry.<abbrev>.months` must be a positive integer.``
+
+> ``package-build config: `calendars.<key>` is not a recognized option (expected one of: default, registry).``
+
+> ``package-build config: `calendars.registry.<abbrev>.<key>` is not a recognized option (expected one of: name, epoch, direction, months, monthDays).``
 
 ### `packageBuild`
 

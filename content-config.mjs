@@ -76,6 +76,11 @@ import { EMPTY_ICON_REGISTRY, checkIconRegistry } from "./engine/content-icons.m
 import { MAP_TYPES, NO_PACK, PACK_BY_TYPE } from "./engine/ids.mjs";
 import { ACTOR_TYPES } from "./engine/subtype-registry.mjs";
 import { NOTE_VOCABULARY } from "./engine/note-vocabulary.mjs";
+import {
+    CALENDAR_ABBREVIATION_PATTERN,
+    CALENDAR_DIRECTIONS,
+    isCalendarAbbreviation,
+} from "./engine/calendars.mjs";
 
 /**
  * What kind of package this is.
@@ -725,6 +730,10 @@ export function publishesContentPages(config) {
  * @property {readonly string[]} packDirectories  Derived: every pack directory
  *                                     the build produces, in compile order —
  *                                     each pack followed by its companions.
+ * @property {Readonly<{default: string|null, registry: Readonly<Record<string, Readonly<object>>>}>} calendars
+ *                                     The reckonings a date may be written in,
+ *                                     and the one a bare value takes. An empty
+ *                                     registry when none is declared.
  * @property {Readonly<PackageBuildSection>} packageBuild  Passed through
  *                                     frozen, uninterpreted. `{}` when absent.
  * @property {Readonly<DocsSpec>} docs   Frozen; `{}` when absent.
@@ -754,11 +763,14 @@ const CONFIG_KEYS = [
     "relationships",
     "systems",
     "requiresSystem",
+    "calendars",
     "packageBuild",
     "publish",
     "changelog",
 ];
 const SYSTEM_KEYS = ["manifest", "compatibility"];
+const CALENDARS_KEYS = ["default", "registry"];
+const CALENDAR_KEYS = ["name", "epoch", "direction", "months", "monthDays"];
 const COMPATIBILITY_KEYS = ["minimum", "verified"];
 const DOCS_KEYS = ["itemFields"];
 const CHANGELOG_KEYS = ["labels"];
@@ -2071,6 +2083,108 @@ function normalizeRequiresSystem(value) {
 }
 
 /**
+ * The reckonings this package dates by, and the one a bare value takes.
+ *
+ * **A new calendar is a configuration edit, never a code change** — the same
+ * discipline `systems:` applies, and for the same reason: a list written into
+ * the toolchain stops working the day a setting declares its fifth reckoning.
+ * Nothing in `engine/` names one.
+ *
+ * Each entry states the astronomical value of its **own year 1** and which way
+ * it counts from there, which is the whole of what conversion needs. A
+ * reckoning running backward — "before the founding" — writes a larger year for
+ * an earlier one, and `epoch` plus `direction` is what puts it on the same line
+ * as the rest.
+ *
+ * `months` and `monthDays` are optional, and an absent one is checked against
+ * nothing. A toolchain that assumed a Gregorian year here would refuse
+ * `667/2/30`, which is an ordinary date in a year of twelve thirty-day months —
+ * so the bound is declared or it is not applied.
+ *
+ * @param {unknown} value - The declared `calendars:` mapping.
+ * @returns {Readonly<{default: string|null, registry: Readonly<Record<string, Readonly<object>>>}>}
+ *   Frozen; an empty registry and no default when absent.
+ */
+function normalizeCalendars(value) {
+    if (value === undefined || value === null) {
+        return Object.freeze({ default: null, registry: Object.freeze({}) });
+    }
+    if (!isPlainObject(value)) fail("calendars", "must be a mapping");
+    const input = /** @type {Record<string, unknown>} */ (value);
+    rejectUnknownKeys(input, CALENDARS_KEYS, "calendars.");
+
+    if (!isPlainObject(input.registry)) {
+        fail("calendars.registry", "must be a mapping of abbreviation to reckoning");
+    }
+    const declared = /** @type {Record<string, unknown>} */ (input.registry);
+
+    const registry = {};
+    for (const [abbreviation, entry] of Object.entries(declared)) {
+        const at = `calendars.registry.${abbreviation}`;
+        if (!isCalendarAbbreviation(abbreviation)) {
+            fail(
+                "calendars.registry",
+                `declares \`${abbreviation}\`, which is not ` +
+                    `${CALENDAR_ABBREVIATION_PATTERN.source}. An abbreviation is the ` +
+                    `trailing token of a date string, so a digit or a space in one ` +
+                    `would leave no way to read where the year stops`,
+            );
+        }
+        if (!isPlainObject(entry)) fail(at, "must be a mapping");
+        const spec = /** @type {Record<string, unknown>} */ (entry);
+        rejectUnknownKeys(spec, CALENDAR_KEYS, `${at}.`);
+
+        const name = requireNonEmptyString(spec.name, `${at}.name`);
+        if (!Number.isInteger(spec.epoch)) {
+            fail(
+                `${at}.epoch`,
+                "must be an integer — the astronomical value of this reckoning's " +
+                    "own year 1, which is negative for a reckoning whose epoch " +
+                    "predates the common one",
+            );
+        }
+        if (!(/** @type {readonly string[]} */ (CALENDAR_DIRECTIONS).includes(spec.direction))) {
+            fail(`${at}.direction`, `must be one of: ${CALENDAR_DIRECTIONS.join(", ")}`);
+        }
+        const bound = (key) => {
+            const held = spec[key];
+            if (held === undefined || held === null) return null;
+            if (!Number.isInteger(held) || /** @type {number} */ (held) < 1) {
+                fail(`${at}.${key}`, "must be a positive integer");
+            }
+            return /** @type {number} */ (held);
+        };
+
+        registry[abbreviation] = Object.freeze({
+            name,
+            epoch: /** @type {number} */ (spec.epoch),
+            direction: /** @type {string} */ (spec.direction),
+            months: bound("months"),
+            monthDays: bound("monthDays"),
+        });
+    }
+
+    // A default is optional — a package may require every date to name its
+    // reckoning — but one that names nothing declared would apply silently to
+    // every bare value and resolve to nothing, which is the plausible lie.
+    const fallback =
+        input.default === undefined || input.default === null ?
+            null
+        :   requireNonEmptyString(input.default, "calendars.default");
+    if (fallback !== null && !Object.hasOwn(registry, fallback)) {
+        fail(
+            "calendars.default",
+            `names \`${fallback}\`, which \`calendars.registry\` does not declare` +
+                (Object.keys(registry).length ?
+                    `. Declared: ${Object.keys(registry).join(", ")}`
+                :   " — the registry is empty"),
+        );
+    }
+
+    return Object.freeze({ default: fallback, registry: Object.freeze(registry) });
+}
+
+/**
  * Validate the declared relationships.
  *
  * Only as far as this package needs to read them: enough that a system
@@ -2801,6 +2915,7 @@ export function defineConfig(config) {
         relationships: normalizeRelationships(input.relationships),
         systems,
         requiresSystem,
+        calendars: normalizeCalendars(input.calendars),
         packageBuild: normalizePackageBuild(input.packageBuild),
         publish: normalizePublish(input.publish),
         changelog: normalizeChangelog(input.changelog),

@@ -121,6 +121,12 @@ export * as siteMaps from "./site-maps.mjs";
 /** The closed registry of system ids, and the `none` that stands for no system. */
 export * as systems from "./systems.mjs";
 
+/** The reckonings a package dates by, and the arithmetic that puts them on one line. */
+export * as calendars from "./calendars.mjs";
+
+/** A note's dates: one authored string, one grammar, one record shape. */
+export * as noteDates from "./note-dates.mjs";
+
 /** The one normalisation this build makes: prose to a URL-safe token. */
 export * as contentSlug from "./content-slug.mjs";
 
