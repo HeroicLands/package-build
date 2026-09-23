@@ -87,6 +87,9 @@ export * as noteVocabulary from "./note-vocabulary.mjs";
 /** The three states of a note — stub, draft, full — and the empty body they rest on. */
 export * as noteState from "./note-state.mjs";
 
+/** What a draft note says about itself, in one sentence, on every surface. */
+export * as draftNotice from "./draft-notice.mjs";
+
 /** Whether every empty body is a stub on purpose, and how finished a tree is. */
 export * as stubLint from "./stub-lint.mjs";
 
