@@ -8,7 +8,7 @@
 /**
  * `traits:` is a retired frontmatter block.
  *
- * A being's description — gender, species, age, birthday, height, weight, frame
+ * A being's description — gender, species, age, birth date, height, weight, frame
  * and the `appearance.*` keys — was authored in a top-level `traits:` block.
  * The content format declares no such block: those are the subject's own
  * type-specific facts, so they live in the closed `data:` container, where

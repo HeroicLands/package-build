@@ -2266,8 +2266,9 @@ Generates a living (or undead, or spirit) being.
 | `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
 | `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
 | `species`                   | `WikiLink`                                     | Being's species (lore)                                                                           |
-| `age`                       | `number`                                       | Age of the character                                                                             |
-| `birthday`                  | `YYYY/MM/DD`                                   | Date of birth of the character                                                                   |
+| `born`                      | `YYYY/MM/DD \| unknown`                        | When the being was born; absent, it was never born                                               |
+| `died`                      | `YYYY/MM/DD \| unknown`                        | When the being died; absent, it is alive                                                         |
+| `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
 | `height`                    | `number`                                       | Height in meters                                                                                 |
 | `weight`                    | `number`                                       | Weight in kilograms                                                                              |
 | `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
@@ -2276,6 +2277,31 @@ Generates a living (or undead, or spirit) being.
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+#### When a being was born, when it died, and how old it is
+
+**Absence asserts a fact rather than recording a gap**, and that is what these
+three fields are built around.
+
+- **`born` absent** says the being was **never born** — a construct, a spirit,
+  an elemental, a thing that was made. **`born: unknown`** says it was born and
+  the date is unrecorded, which is the commonest shape in a tree.
+- **`died` absent** says the being is **alive**, which is the common case and so
+  takes the cheapest form. **`died: unknown`** says it is dead and the date is
+  unrecorded. Both spellings of `died` mean dead.
+- **`age` is optional and is an override.** Written, it wins over anything the
+  dates say. Unwritten beside a dated `born`, it is the age that follows from
+  the date. Unwritten beside `born: unknown` or an absent `born`, the age is
+  unknown.
+
+Most people in a setting do not know their own birth date, so an age beside
+`born: unknown` is an ordinary complete record and not a note working around the
+schema. Where the number is somebody's estimate rather than a fact, write it
+`~34` — the same `~` a date carries.
+
+`birthday:` is the retired spelling of `born:`. Both are read and `born` wins,
+so a note compiles identically either way; the old spelling is reported until
+every tree has moved.
 
 #### The lead image
 

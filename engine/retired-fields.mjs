@@ -57,7 +57,7 @@
  * by accident.
  *
  * **What `traits:` did.** It held a being's own description — gender,
- * species, age, birthday, height, weight, frame and `appearance.*` — at the
+ * species, age, birth date, height, weight, frame and `appearance.*` — at the
  * note's top level. The content format gives those a home: `data:`, the closed
  * container for a subject's type-specific facts, which `being` declares every
  * one of them in. Every note that carried one has been moved, across four
@@ -111,13 +111,21 @@
  * are needed, and separately: a note may have moved one and not the other, and
  * a single finding covering both would name the wrong line half the time.
  *
+ * **A `data:` field's retired spelling is written in `data:`**, and nowhere
+ * else. The container is closed, so a key in it is either one the type declares
+ * or one refused by name — which makes the retired spelling of a declared key
+ * an error the moment the replacement lands, unless the container check knows
+ * to read it as a rename. {@link declaresRetiredAlias} and
+ * {@link readAliasedField} therefore take `inData`, and search that one region
+ * rather than the block and the top level a system field is written in.
+ *
  * @module
  */
 
 import fs from "node:fs";
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
-import { sohlField } from "./frontmatter.mjs";
+import { getFrontmatter, sohlField } from "./frontmatter.mjs";
 import { retiredTopLevelKey } from "./system-block.mjs";
 
 /**
@@ -355,8 +363,9 @@ export function traitsRetiredMessage(file) {
         "content format declares, where `being` declares every one of its " +
         "keys; at the top level it was passed through to the page unchecked, " +
         "so a misspelling became a theme parameter rather than a finding. " +
-        "`gender`, `species`, `age`, `birthday` and `appearance.*` move " +
-        "unchanged; three reshape — `traits.height.m` becomes `data.height` " +
+        "`gender`, `species`, `age` and `appearance.*` move unchanged; " +
+        "`traits.birthday` becomes `data.born`; three reshape — " +
+        "`traits.height.m` becomes `data.height` " +
         "(metres), `traits.weight.kg` becomes `data.weight` (kilograms), and " +
         "`traits.build.frame` becomes `data.frame`"
     );
@@ -451,11 +460,19 @@ export function locateFrontmatterKey(absPath, key, value = undefined, { topLevel
  * read past. Only `affiliation` declares the field, so the alias is reported
  * there and the old spelling stays an ordinary unknown key everywhere else.
  *
+ * **`born`.** A birthday is a day that recurs; what a note records is the date
+ * somebody was born, once. The two read alike while every value belonged to a
+ * living person, and `born` is what the field has to be called beside `died`,
+ * which a being now also states. It is the first alias whose field lives in
+ * `data:` rather than in a system block, so the two readers below take
+ * `inData`.
+ *
  * @type {Readonly<Record<string, string>>}
  */
 export const RETIRED_FIELD_ALIASES = Object.freeze({
     templatePriority: "archetype",
     relations: "relation",
+    born: "birthday",
 });
 
 /**
@@ -558,11 +575,17 @@ export function retiredTopLevelMessage(field, file) {
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} current - The field's current name.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.inData=false] - Search the `data:` container
+ *   instead. A `data:` field has exactly one home, so its retired spelling has
+ *   exactly one too, and searching the block or the top level for it would
+ *   answer about a key the container check has already refused.
  * @returns {boolean} Whether the retired spelling is declared.
  */
-export function declaresRetiredAlias(fm, current) {
+export function declaresRetiredAlias(fm, current, { inData = false } = {}) {
     const retired = RETIRED_FIELD_ALIASES[current];
     if (!retired || !fm || typeof fm !== "object") return false;
+    if (inData) return Object.hasOwn(dataContainer(fm), retired);
     const block = fm.sohl;
     const inBlock =
         block &&
@@ -570,6 +593,21 @@ export function declaresRetiredAlias(fm, current) {
         !Array.isArray(block) &&
         Object.hasOwn(block, retired);
     return Boolean(inBlock) || Object.hasOwn(fm, retired);
+}
+
+/**
+ * A note's `data:` container, or an empty one where it authored none.
+ *
+ * The property editor writes an emptied map as `[]`, which means the same thing
+ * `{}` does — this note authors no entries — so both read as empty rather than
+ * as something to search.
+ *
+ * @param {object} fm - Parsed frontmatter.
+ * @returns {object} The container.
+ */
+function dataContainer(fm) {
+    const data = fm.data;
+    return data && typeof data === "object" && !Array.isArray(data) ? data : {};
 }
 
 /**
@@ -587,11 +625,23 @@ export function declaresRetiredAlias(fm, current) {
  *
  * @param {object|null|undefined} fm - Parsed frontmatter.
  * @param {string} current - The field's current name.
+ * @param {object} [options] - Options.
+ * @param {boolean} [options.inData=false] - Read the `data:` container instead,
+ *   which is where a `data:` field and its retired spelling are both written.
+ *   Dotted names resolve inside it, so `appearance.eye_color` reads the way it
+ *   is authored.
  * @returns {any} The value, or `undefined` when neither spelling carries one.
  */
-export function readAliasedField(fm, current) {
-    const value = sohlField(fm, current, undefined);
+export function readAliasedField(fm, current, { inData = false } = {}) {
+    const read =
+        inData ?
+            /** @param {string} key */ (key) =>
+                fm && typeof fm === "object" ?
+                    getFrontmatter(dataContainer(fm), key, undefined)
+                :   undefined
+        :   /** @param {string} key */ (key) => sohlField(fm, key, undefined);
+    const value = read(current);
     if (value !== undefined && value !== null && value !== "") return value;
     const retired = RETIRED_FIELD_ALIASES[current];
-    return retired ? sohlField(fm, retired, undefined) : undefined;
+    return retired ? read(retired) : undefined;
 }
