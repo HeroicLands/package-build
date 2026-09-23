@@ -586,8 +586,32 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             { name: "gender", ...TEXT, describe: "`male`, `female` or `other`." },
             { name: "species", ...LINK, describe: "The being's species, as a lore note." },
-            { name: "age", ...NUM, describe: "Age in years." },
-            { name: "birthday", ...TEXT, describe: "Date of birth, `YYYY/MM/DD`." },
+            {
+                name: "born",
+                ...TEXT,
+                describe:
+                    "When the being was born — a date, or `unknown` where the birth is " +
+                    "unrecorded. Absent, the being was never born.",
+            },
+            {
+                name: "died",
+                ...TEXT,
+                describe:
+                    "When the being died — a date, or `unknown` where the death is " +
+                    "unrecorded. Absent, the being is alive.",
+            },
+            // Ahead of `height` and behind the dates, because it opens the
+            // appearance clause: a composed row stands where its group's first
+            // field is declared, so the two dates read before the clause
+            // whether or not a note states an age.
+            {
+                name: "age",
+                ...TEXT,
+                describe:
+                    "Age in years, stated only to override what `born` says — `34`, or `~34` " +
+                    "for an estimate. Unstated beside a dated `born` it is computed; unstated " +
+                    "beside an unknown or absent `born` the age is unknown.",
+            },
             { name: "height", ...NUM, describe: "Height in metres." },
             { name: "weight", ...NUM, describe: "Weight in kilograms." },
             {
