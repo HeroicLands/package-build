@@ -137,6 +137,10 @@ import {
     sortKeysDeep,
 } from "./index-records.mjs";
 import { isDraftNote } from "./note-vocabulary.mjs";
+// A being's computed `age` — the middle state between an authored override and
+// an unknown one — filled in against the package's own declared present before
+// a record is built, so the index carries it without the note being written to.
+import { applyComputedBeingAge, presentAmongFrontmatters } from "./being-age.mjs";
 
 export {
     authoredFrontmatter,
@@ -606,10 +610,20 @@ export function collectContentIndex(
     // tree to walk and the index is its asset records. The caller decides
     // whether an absent tree is a mistake; by the time the walk is reached it
     // is simply a package with nothing to compile.
-    const notes = fs.existsSync(contentBase) ? walkMarkdownTree(contentBase, walkOpts) : [];
+    // Materialised rather than consumed lazily: the present is read from this
+    // same walk before the loop below reads it a second time, and
+    // `walkMarkdownTree` is a generator — a single-use one, exhausted the
+    // moment anything else iterates it first.
+    const notes = fs.existsSync(contentBase) ? [...walkMarkdownTree(contentBase, walkOpts)] : [];
+
+    // The package's declared present, read once from whichever `place` note in
+    // this same walk states one — the whole tree is already in memory, so no
+    // second read is needed to answer a question about all of it.
+    const present = presentAmongFrontmatters(notes.map((n) => n.frontmatter));
 
     for (const { frontmatter, body, bodyLine, absPath } of notes) {
         const fm = frontmatter ?? {};
+        applyComputedBeingAge(fm, present);
         // The id the note's document is filed under, resolved before
         // the record is built so the index publishes the address *and* the id
         // that address derives.

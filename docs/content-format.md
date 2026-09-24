@@ -2304,6 +2304,7 @@ Generates a living (or undead, or spirit) being.
 | `born`                      | `YYYY/MM/DD \| unknown`                        | When the being was born; absent, it was never born                                               |
 | `died`                      | `YYYY/MM/DD \| unknown`                        | When the being died; absent, it is alive                                                         |
 | `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
+| `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this   |
 | `height`                    | `number`                                       | Height in meters                                                                                 |
 | `weight`                    | `number`                                       | Weight in kilograms                                                                              |
 | `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
@@ -2326,13 +2327,35 @@ three fields are built around.
   unrecorded. Both spellings of `died` mean dead.
 - **`age` is optional and is an override.** Written, it wins over anything the
   dates say. Unwritten beside a dated `born`, it is the age that follows from
-  the date. Unwritten beside `born: unknown` or an absent `born`, the age is
-  unknown.
+  the date and the package's declared present — see below. Unwritten beside
+  `born: unknown` or an absent `born`, the age is unknown.
 
 Most people in a setting do not know their own birth date, so an age beside
 `born: unknown` is an ordinary complete record and not a note working around the
 schema. Where the number is somebody's estimate rather than a fact, write it
-`~34` — the same `~` a date carries.
+`~34` — the same `~` a date carries. The estimate string is kept exactly as
+written; the compiler adds `ageYears` beside it, the plain number with the `~`
+stripped, for anything that needs to sort or filter on the age rather than
+read it.
+
+#### The age a dated `born` computes to
+
+A package states the day its setting stops on `data.present`, on its own
+`world` or `celestial` `place` note — see _What a body states about itself_
+under `type: place`. Against that date, a being with a dated `born` and no
+authored `age` compiles the age it implies: the two dates compared, not the
+two years subtracted, so a birthday that falls later in the year than the
+present counts one less than the years alone would say. A package that
+declares no present computes no age and says nothing about it — the same
+silence a package with no calendar mechanism meets.
+
+**An authored `age` beside a dated `born` is expected to agree with what the
+date computes.** Where it does not, `content-build lint` raises a warning
+naming both values, so a stale age left behind after a `born` was corrected
+does not go unnoticed. The warning is silent beside `born: unknown` or an
+absent `born` — there is nothing there to disagree with — and silent wherever
+the package declares no present, for the same reason no age is computed at
+all.
 
 `birthday:` is the retired spelling of `born:`. Both are read and `born` wins,
 so a note compiles identically either way; the old spelling is reported until

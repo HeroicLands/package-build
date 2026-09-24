@@ -649,6 +649,19 @@ A calendar is a `lore` note with `subType: calendar`, declaring the months it ke
 | `compileCalendars`   | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
 | `calendariaEnvelope` | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
 
+### `engine.beingAge`
+
+The middle state of a being's `age`: absent beside a dated `born`, it is computed against the package's declared present — the two dates compared, not the two years subtracted, so a birthday later in the year than the present counts one less. `applyComputedBeingAge` fills it in on the frontmatter object a pass already holds, never on the note; `checkBeingAge` is `being`'s `NOTE_VOCABULARY` check, raising a warning where an authored `age` disagrees with what a dated `born` computes to. An estimate's `~` is read the way a date's is: the authored string stays verbatim, and `ageYears` carries the magnitude beside it.
+
+| Export                     | Signature                                | Returns                        | Use it when                                                               |
+| -------------------------- | ---------------------------------------- | ------------------------------ | ------------------------------------------------------------------------- |
+| `computeAge`               | `computeAge(bornRaw, presentRaw)`        | `number \| null`               | reading the age two dates imply, in whole years                           |
+| `parseAgeMagnitude`        | `parseAgeMagnitude(raw)`                 | `{approximate, value} \| null` | reading an authored `age`'s `~` mark and its magnitude                    |
+| `applyComputedBeingAge`    | `applyComputedBeingAge(fm, presentRaw)`  | `void` — mutates `fm.data`     | filling in a being's computed `age`, or the `ageYears` beside an estimate |
+| `presentAmongRecords`      | `presentAmongRecords(records)`           | the present, or `null`         | reading the declared present from a batch of flat index records           |
+| `presentAmongFrontmatters` | `presentAmongFrontmatters(frontmatters)` | the present, or `null`         | reading the declared present from a batch of raw frontmatter objects      |
+| `checkBeingAge`            | `checkBeingAge(note, opts)`              | `object[]` — findings          | holding a being's authored `age` to what `born` and the present compute   |
+
 ### `engine.contentAddress`
 
 Where a content note publishes on the web. One rule, in one place, because two builds need the same answer: the knowledgebase build renders the page, and the link manifest records the address other packages link to. Stating it twice is how a manifest comes to assert a URL that resolves at build time and 404s for the reader.

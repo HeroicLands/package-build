@@ -291,6 +291,12 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     // than as six rows of numbers, exactly as the book prototype sets them.
     // Qualified by type, because `weight` is also what a coin weighs.
     "being.age": Object.freeze({ group: "appearance", phrase: (v) => `Age ${v}` }),
+    // The `~` estimate's numeric companion — beside `age` in the index for a
+    // machine to sort or filter on, not a second row for a reader who already
+    // meets it inside the appearance clause.
+    "being.ageYears": Object.freeze({
+        withheld: "the `age` row's own machinery, not a second fact about the subject",
+    }),
     "being.height": Object.freeze({ group: "appearance", phrase: heightPhrase }),
     "being.weight": Object.freeze({ group: "appearance", phrase: weightPhrase }),
     "being.frame": Object.freeze({ group: "appearance", phrase: (v) => `${v} frame` }),
