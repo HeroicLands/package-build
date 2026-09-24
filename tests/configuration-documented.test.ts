@@ -285,13 +285,6 @@ describe("every nested key list is documented", () => {
         );
     });
 
-    it("`calendar`", () => {
-        assertDocuments(
-            "calendar",
-            allowedKeys(() => defineConfig(minimal({ calendar: { __unrecognised__: true } }))),
-        );
-    });
-
     it("`itemBuilders.<type>` and the list-of-registries form", () => {
         assertDocuments(
             "itemBuilders.<type>",

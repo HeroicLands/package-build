@@ -27,9 +27,9 @@
  *   `-1` sits immediately before `1`.
  * - `YYYY` — required.
  * - `MM`, `DD` — optional, in that order.
- * - `ERA` — an affiliation's address plus `.<era shortcode>`, in the four
- *   address forms {@link ERA_QUALIFIER_PATTERN} admits. Omitted, the date sits
- *   on the canonical axis and is attributed to nobody.
+ * - `ERA` — a calendar's address plus `.<era shortcode>`, in the four address
+ *   forms {@link ERA_QUALIFIER_PATTERN} admits. Omitted, the date sits on the
+ *   canonical axis and is attributed to nobody.
  *
  * **Precision falls out of how much is written.** `-984` is a year, `689/6` a
  * month, `689/6/19` a day. There is no precision vocabulary, so there is
@@ -98,7 +98,7 @@
  */
 
 import { ADDRESS_SEGMENT_PATTERN } from "./address-charset.mjs";
-import { calendarStructure, canonicalYear, dateSortKey } from "./calendars.mjs";
+import { calendarStructure, canonicalYear, dateSortKey, daysInMonth } from "./calendars.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 
 /**
@@ -120,7 +120,7 @@ const ERA = `(?:${SEGMENT}-){0,3}${SEGMENT}\\.${SEGMENT}`;
 /**
  * What a date's trailing token may look like.
  *
- * An affiliation's address followed by `.<era shortcode>`. The `{0,3}`
+ * A calendar note's address followed by `.<era shortcode>`. The `{0,3}`
  * repetition is the four address forms exactly — bare `shortcode`,
  * `type-shortcode`, `system-type-shortcode` and
  * `package-system-type-shortcode` — so the hyphen separates an address's
@@ -182,9 +182,10 @@ function unknownRecord() {
  * @param {unknown} value - The authored value. A number is what YAML hands
  *   back for a bare year, so it is accepted and stringified.
  * @param {object} [options]
- * @param {{months?: number|null, monthDays?: number|null}} [options.calendar]
- *   The resolved `calendar:` block, whose `months` and `monthDays` bound a
- *   written month and day. An absent bound is not applied.
+ * @param {{months?: readonly object[]|null}} [options.calendar] - The calendar
+ *   the value is written in, as its note declares it. Its ordered month list
+ *   bounds a written month and a written day, the day against the length of
+ *   the month it names. A calendar that declares no list bounds nothing.
  * @param {string} [options.field] - The key that carried it, named in every
  *   message. Omitted, a message names the value alone.
  * @param {boolean} [options.allowUnknown=true] - Whether `"unknown"` is a
@@ -246,7 +247,7 @@ export function parseNoteDate(value, options) {
         if (MALFORMED_ERA_PATTERN.test(trimmed)) {
             return refuse(
                 `${subject} — an era is written ` +
-                    `\`<affiliation shortcode>.<era shortcode>\`, lowercase letters ` +
+                    `\`<calendar shortcode>.<era shortcode>\`, lowercase letters ` +
                     `and digits only`,
             );
         }
@@ -256,14 +257,14 @@ export function parseNoteDate(value, options) {
             // the rule rather than guessing a concrete replacement.
             return refuse(
                 `${subject} names no era — a reckoning is written ` +
-                    `\`<affiliation shortcode>.<era shortcode>\`: a year before ` +
+                    `\`<calendar shortcode>.<era shortcode>\`: a year before ` +
                     `an era's epoch is written negative, and a year after it ` +
                     `simply drops the token`,
             );
         }
         return refuse(
             `${subject} is not a date — write ` +
-                `\`[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era shortcode>]\`: ` +
+                `\`[~][-]YYYY[/MM[/DD]] [<calendar shortcode>.<era shortcode>]\`: ` +
                 `a year, negative where it falls before the epoch it is counted ` +
                 `from, optionally a month and a day, and an era where the date is a ` +
                 `reckoning somebody kept`,
@@ -285,26 +286,31 @@ export function parseNoteDate(value, options) {
         );
     }
 
-    const { months, monthDays } = calendarStructure(calendar);
+    const { months } = calendarStructure(calendar);
     if (month !== null && month < 1) {
         return refuse(`${subject} writes month ${month}, and a month is numbered from 1`);
     }
-    // An upper bound is checked only where the package states one. Twelve
-    // Gregorian months assumed here would refuse `667/2/30`, which is a correct
-    // date in a year of twelve thirty-day months.
-    if (month !== null && months !== null && month > months) {
+    // An upper bound is checked only where the calendar states its months.
+    // Twelve Gregorian months assumed here would refuse `667/2/30`, which is a
+    // correct date in a year of twelve thirty-day months.
+    if (month !== null && months !== null && month > months.length) {
         return refuse(
-            `${subject} writes month ${month}, and \`calendar.months\` declares a ` +
-                `year of ${months}`,
+            `${subject} writes month ${month}, and the calendar it is written in ` +
+                `keeps ${months.length} months`,
         );
     }
     if (day !== null && day < 1) {
         return refuse(`${subject} writes day ${day}, and a day is numbered from 1`);
     }
-    if (day !== null && monthDays !== null && day > monthDays) {
+    // Per month, because the months differ: a five-day month sits in the list
+    // wherever its people put it, and a bound taken from the longest month
+    // would accept a date that calendar has no day for.
+    const length = month !== null ? daysInMonth(calendar, month) : null;
+    if (day !== null && length !== null && day > length) {
+        const named = months?.[month - 1]?.name;
         return refuse(
-            `${subject} writes day ${day}, and \`calendar.monthDays\` declares a ` +
-                `month of ${monthDays}`,
+            `${subject} writes day ${day}, and ${named ? `${named}` : `month ${month}`} ` +
+                `is ${length} days long`,
         );
     }
 

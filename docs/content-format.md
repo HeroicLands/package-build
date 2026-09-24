@@ -3217,8 +3217,65 @@ In-world information about people, places, or concepts.
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
 
-| `data` property | Values | Description |
-| --------------- | ------ | ----------- |
+| `data` property | Values                                                                  | Description                                                                       |
+| --------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| `epoch`         | `date`                                                                  | Which in-world day the world's clock reads zero on                                |
+| `months`        | `{ name, abbreviation?, days }[]`                                       | The months this calendar keeps, in order — the list sums to the world's year      |
+| `weekdays`      | `{ name, abbreviation? }[]`                                             | The days of the week it names, in order; a calendar with no week writes none      |
+| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]` | The seasons it marks, bounded by month or by day of year                          |
+| `eras`          | `{ shortcode, name, abbreviation?, proclaimedBy?, start, end? }[]`      | The year-counts kept in it, each addressed `<calendar shortcode>.<era shortcode>` |
+
+#### What a calendar note declares
+
+**Those five keys belong to `subType: calendar` and to no other genre of
+`lore`.** A note carrying one under any other subType is refused, and a calendar
+note that states no `months` and no `epoch` is refused too: a calendar divides
+the year and says where the count begins, and one that does neither is prose
+about time rather than a calendar.
+
+```yaml
+type: lore
+subType: calendar
+shortcode: commoncal
+name:
+  full: The Common Calendar
+data:
+  epoch: 720/1/1
+  months:
+    - { name: Floralis, abbreviation: Flor, days: 30 }
+    - { name: Lusenar, abbreviation: Luse, days: 31 }
+    # … ten more, summing to the world's year
+  seasons:
+    - { name: Spring, monthStart: 1, monthEnd: 3 }
+  eras:
+    - shortcode: founding
+      name: After the Founding
+      abbreviation: AF
+      proclaimedBy: vylarinmpr
+      start: 1
+```
+
+**Position in the list is position in the year.** Days that belong to no month
+are a short month like any other: a five-day festival is one entry, and where it
+sits in the list is where it falls in the year. There is no intercalary
+mechanism, because there is nothing for one to do.
+
+**How long the year is, how the day divides and how the moon moves are facts
+about the world, not about a calendar**, so no calendar note states any of them
+— they are written once on the world's own `place` note and on its moon's, and
+every calendar is compiled against them. The one arithmetic check follows from
+that: `months` must sum to `year.days`, and a list that does not describes a
+different world rather than a different calendar.
+
+**An era is a way of counting years within a calendar**, so its rows sit beside
+the months. Each states its own `shortcode`, unique within the note, and a date
+names one by writing it after the calendar's address — `3 commoncal.founding`.
+`proclaimedBy` is optional: a reckoning whose proclaiming body is unknown, or
+whose body has no note, says so by leaving it out.
+
+**A calendar with no week writes no `weekdays`.** An empty list and an absent
+one say the same thing, and nothing downstream shows a weekday for a calendar
+that names none.
 
 ### type: map
 
@@ -3370,16 +3427,72 @@ three maps, and none of those maps needs to know it is a keep.
 - site: A place significant by what was made or done there — ruins, monoliths, henges, works, battlefields.
 - structure: A single building or habitation — halls, keeps, temples, inns, towers.
 - feature: A place significant by its terrain — forests, rivers, falls, passes, fords.
+- celestial: A body observed from a world rather than located on one — a sun, a planet, a comet.
 
-| `data` property | Values                                              | Description                                                                  |
-| --------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
-| `demonym`       | `string`                                            | What a person from this place is called — a Vylarian                         |
-| `lore`          | `WikiLink[]`                                        | Lore concerning this place — its peoples, its law, its calendar, its history |
-| `parents`       | `WikiLink[]`                                        | Enclosing places within which this place is located                          |
-| `population`    | `number`                                            | Approximate population (precision 2 significant digits)                      |
-| `market`        | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
-| `borders`       | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
-| `routes`        | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
+| `data` property                   | Values                                              | Description                                                                  |
+| --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
+| `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                         |
+| `lore`                            | `WikiLink[]`                                        | Lore concerning this place — its peoples, its law, its calendar, its history |
+| `parents`                         | `WikiLink[]`                                        | Enclosing places within which this place is located                          |
+| `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                      |
+| `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
+| `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
+| `routes`                          | `{ to, bearing, mode, days, terrain?, leagues? }[]` | Journeys from this place's centre to another place                           |
+| `world.equatorialCircumferenceKm` | `number`                                            | The distance round the body at its equator, in kilometres                    |
+| `world.surfaceGravityG`           | `number`                                            | Surface gravity, as a multiple of Earth's                                    |
+| `world.axialTiltDegrees`          | `number`                                            | The tilt of the axis, in degrees                                             |
+| `year.days`                       | `number`                                            | How many days the body's year holds                                          |
+| `year.hoursPerDay`                | `number`                                            | How many hours the day divides into                                          |
+| `year.minutesPerHour`             | `number`                                            | How many minutes the hour divides into                                       |
+| `year.secondsPerMinute`           | `number`                                            | How many seconds the minute divides into                                     |
+| `present`                         | `date`                                              | The day the setting stops and play begins                                    |
+| `body.diameterKm`                 | `number`                                            | The body's diameter, in kilometres                                           |
+| `body.orbitalRadiusKm`            | `number`                                            | How far it orbits from the body it circles, in kilometres                    |
+| `body.orbit`                      | `string`                                            | The orbit's shape — `circular` means the cycle never varies                  |
+| `body.inclined`                   | `boolean`                                           | Whether the orbit is inclined to the plane the world orbits in               |
+| `moon.cycle`                      | `number`                                            | How many days it takes to return to the same phase                           |
+| `moon.newOn`                      | `date`                                              | A day it was new, written in the reference calendar                          |
+| `moon.eclipses`                   | `string`                                            | `never`, `rare`, `occasional` or `frequent`                                  |
+
+#### What a body states about itself
+
+**The four groups above are the world's own facts, and they are legal on a
+`world` or a `celestial` note and nowhere else.** A region, a settlement, a
+site, a structure or a feature is somewhere _within_ a world and says nothing
+about the world's year.
+
+```yaml
+# the world — type: place, subType: world
+data:
+  world: { equatorialCircumferenceKm: 40000, surfaceGravityG: 1.0, axialTiltDegrees: 23.5 }
+  year: { days: 365, hoursPerDay: 24, minutesPerHour: 60, secondsPerMinute: 60 }
+  present: 720
+
+# its moon — a note of its own, because a moon is a body and not a property
+data:
+  body: { diameterKm: 3800, orbitalRadiusKm: 388600, orbit: circular, inclined: true }
+  moon: { cycle: 30, newOn: 720/1/1, eclipses: rare }
+```
+
+**`year.days` is where the year's length lives, and every calendar in the
+package is compiled against it.** A package whose notes state no `year` has no
+calendar mechanism at all: no sum is checked, and nothing is emitted. That is
+the right answer for a package building a setting whose world facts somebody
+else wrote down.
+
+**One year and one moon to a package.** Two years is two settings and nothing
+can say which one a calendar divides; a `moon` with no `year` anywhere is
+refused, because a cycle counted in days has no year to be measured against.
+
+**`present` is the day an age is computed against**, written in the grammar a
+note's dates are written in, so a setting whose present is best said in an era
+says it that way.
+
+**`world.axialTiltDegrees`, the circumference, the gravity, the moon's diameter
+and its orbital radius are read by nobody.** They are there so a reader knows
+what kind of world this is. What the build consumes is the year, the day's
+divisions, the present, the moon's cycle and epoch, and whether its orbit is
+circular and inclined.
 
 #### What a settlement's market supports
 
