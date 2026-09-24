@@ -92,6 +92,10 @@ import { resolveNoteId } from "./note-ids.mjs";
 import { carriesSystemBlock } from "./system-block.mjs";
 import { checkAuthoredSystemData, checkEmittedSystemData } from "./schema-check.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
+// A being's computed `age`, filled in against the package's own declared
+// present before this pass reads `data:` for anything else — see
+// `engine/being-age.mjs`.
+import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
 
 /**
  * The tallies one pass accumulates while walking the tree.
@@ -594,6 +598,10 @@ export class BasePackCompiler {
             this.contentDocs = this.corpus.contentDocs;
             this.sqlTables = this.corpus.sqlTables;
         }
+        // The package's declared present, read once from the same corpus — so
+        // a being's computed `age` reaches every compiled document, not only
+        // the content index.
+        this.worldPresent = presentAmongRecords(this.corpus.records);
         this.unresolvedLinks = 0;
     }
 
@@ -1016,6 +1024,7 @@ export class BasePackCompiler {
                 stats.skippedOther++;
                 continue;
             }
+            applyComputedBeingAge(fm, this.worldPresent);
             // The retired frontmatter fields, refused before `selects` so a
             // note is answered whichever pass would have claimed it — and
             // whatever the declared value says.

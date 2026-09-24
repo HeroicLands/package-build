@@ -133,6 +133,9 @@ export * as noteDates from "./note-dates.mjs";
 /** Calendars as notes: what one may declare, and the definition emitted from it. */
 export * as calendarNotes from "./calendar-notes.mjs";
 
+/** A being's `age`, absent beside a dated `born`: the age the date computes to. */
+export * as beingAge from "./being-age.mjs";
+
 /** The one normalisation this build makes: prose to a URL-safe token. */
 export * as contentSlug from "./content-slug.mjs";
 

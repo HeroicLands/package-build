@@ -91,6 +91,10 @@ import {
     checkCalendarNote,
     checkWorldFacts,
 } from "./calendar-notes.mjs";
+// Whether a being's authored `age` disagrees with what `born` and the
+// package's declared present compute — the closed `data:` container's own
+// question, asked the way `checkPlace` and `checkCalendarNote` are.
+import { checkBeingAge } from "./being-age.mjs";
 import { checkHeld } from "./holdings.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
@@ -587,6 +591,9 @@ export const NOTE_VOCABULARY = Object.freeze({
         // lands with. Declared open until it does, because inventing the
         // values here would put a second, weaker answer beside the real one.
         subTypes: null,
+        // Whether an authored `age` disagrees with what `born` and the
+        // package's declared present compute — see `engine/being-age.mjs`.
+        check: checkBeingAge,
         data: Object.freeze([
             TOKEN_ICON,
             TEMPLATE_PRIORITY,
@@ -633,6 +640,13 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Age in years, stated only to override what `born` says — `34`, or `~34` " +
                     "for an estimate. Unstated beside a dated `born` it is computed; unstated " +
                     "beside an unknown or absent `born` the age is unknown.",
+            },
+            {
+                name: "ageYears",
+                ...NUM,
+                describe:
+                    "Written by the compiler beside an `age` estimate — the `~` stripped, " +
+                    "the magnitude alone. A note never authors this.",
             },
             { name: "height", ...NUM, describe: "Height in metres." },
             { name: "weight", ...NUM, describe: "Weight in kilograms." },
