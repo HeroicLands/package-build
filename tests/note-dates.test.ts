@@ -44,7 +44,9 @@ import { ERA_QUALIFIER_PATTERN, UNKNOWN_DATE, parseNoteDate } from "../engine/no
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 
 /** Twelve thirty-day months, which is what the corpora this parses for write. */
-const CALENDAR = { months: 12, monthDays: 30 };
+const CALENDAR = {
+    months: Array.from({ length: 12 }, (_, i) => ({ name: `Month ${i + 1}`, days: 30 })),
+};
 
 /** Parse against that structure, which is the only way this file parses. */
 function parse(value: unknown, options: Record<string, unknown> = {}) {
@@ -54,9 +56,9 @@ function parse(value: unknown, options: Record<string, unknown> = {}) {
 /**
  * Every era the fixture corpus declares, keyed as a date addresses it.
  *
- * The walk is the one the resolution pass will make: read each affiliation
- * note's `data.governance.eras`, key each row `<affiliation shortcode>.<era
- * shortcode>`, and take its epoch from its own `start` — which is parsed by
+ * The walk is the one the resolution pass will make: read each calendar note's
+ * `data.eras`, key each row `<calendar shortcode>.<era shortcode>`, and take
+ * its epoch from its own `start` — which is parsed by
  * the parser under test, so a broken conversion cannot quietly supply a
  * correct epoch here.
  */
@@ -513,7 +515,7 @@ describe("the retired trailing token", () => {
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toBe(
             "`died: 984 BF` names no era — a reckoning is written " +
-                "`<affiliation shortcode>.<era shortcode>`: a year before an era's " +
+                "`<calendar shortcode>.<era shortcode>`: a year before an era's " +
                 "epoch is written negative, and a year after it simply drops the token",
         );
     });
@@ -535,7 +537,7 @@ describe("the retired trailing token", () => {
         expect(findings[0].message).not.toContain("-720");
         expect(findings[0].message).toBe(
             "`died: 720 AF` names no era — a reckoning is written " +
-                "`<affiliation shortcode>.<era shortcode>`: a year before an era's " +
+                "`<calendar shortcode>.<era shortcode>`: a year before an era's " +
                 "epoch is written negative, and a year after it simply drops the token",
         );
     });
@@ -655,12 +657,12 @@ describe("the findings", () => {
         }
     });
 
-    it("refuses a month outside the year the package declares", () => {
+    it("refuses a month outside the year the calendar keeps", () => {
         const { date, findings } = parse("689/13/1", { field: "born" });
         expect(date).toBeNull();
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
         expect(findings[0].message).toContain("`born: 689/13/1`");
-        expect(findings[0].message).toContain("`calendar.months`");
+        expect(findings[0].message).toContain("keeps 12 months");
     });
 
     it("refuses a month or a day of zero, which no bound has to declare", () => {
@@ -668,11 +670,30 @@ describe("the findings", () => {
         expect(parse("689/1/0").findings[0].message).toContain("a day is numbered from 1");
     });
 
-    it("refuses a day outside the month's length", () => {
+    it("refuses a day outside the month's length, and names the month", () => {
         const { date, findings } = parse("689/1/31", { field: "born" });
         expect(date).toBeNull();
         expect(findings.map((f) => f.severity)).toEqual(["error"]);
-        expect(findings[0].message).toContain("`calendar.monthDays`");
+        expect(findings[0].message).toContain("Month 1 is 30 days long");
+    });
+
+    it("bounds each month by its own length, so a short month is short", () => {
+        // The bound a uniform year cannot express: three months, the middle one
+        // five days, which is how a people's intercalary days are written.
+        const festival = {
+            months: [
+                { name: "Aran", days: 30 },
+                { name: "Hamaspath", days: 5 },
+                { name: "Fravar", days: 30 },
+            ],
+        };
+        expect(parseNoteDate("1/2/5", { calendar: festival }).findings).toEqual([]);
+        expect(parseNoteDate("1/2/5", { calendar: festival }).date?.day).toBe(5);
+        const over = parseNoteDate("1/2/6", { calendar: festival, field: "born" });
+        expect(over.date).toBeNull();
+        expect(over.findings[0].message).toContain("Hamaspath is 5 days long");
+        // And the months either side of it keep their own length.
+        expect(parseNoteDate("1/3/30", { calendar: festival }).findings).toEqual([]);
     });
 
     it("accepts a day the declared month length allows", () => {
@@ -682,9 +703,10 @@ describe("the findings", () => {
         expect(parse("667/2/30").date?.day).toBe(30);
     });
 
-    it("checks no upper bound the package does not state", () => {
-        // A package declaring no `calendar` block bounds a month below and not
-        // above, because a bound it never stated is one nothing could check.
+    it("checks no upper bound the calendar does not state", () => {
+        // A calendar whose months nobody has written down bounds a month below
+        // and not above, because a bound it never stated is one nothing could
+        // check.
         const bare = parseNoteDate("1200/13/31", {});
         expect(bare.findings).toEqual([]);
         expect(bare.date?.month).toBe(13);

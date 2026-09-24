@@ -606,18 +606,23 @@ The closed registry of system ids, and the `none` that stands for no system at a
 
 ### `engine.calendars`
 
-The axis every date normalises onto, and the one function that puts a reckoning on it. A reckoning is an **era** declared by the affiliation that proclaimed it, and its epoch is the `start` written on that note — nothing is registered in configuration. The conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent.
+The axis every date normalises onto, the arithmetic over a calendar's month list, and the moon. A reckoning is an **era** declared on the note about the calendar that counts those years, and its epoch is the `start` written on that row — nothing is registered in configuration. The year conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent. `lunarPhase` takes a floored modulo for the same reason the conversion branches: a truncated one is right on one side of an epoch and wrong on the other.
 
-| Export              | Signature                       | Returns                                       | Use it when                                                                     |
-| ------------------- | ------------------------------- | --------------------------------------------- | ------------------------------------------------------------------------------- |
-| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`         | —                                             | naming where the canonical axis's own year 1 sits                               |
-| `canonicalYear`     | `canonicalYear(year, epoch?)`   | `number` — the signed year on the axis        | converting a year written in one reckoning to the number everything compares on |
-| `dateSortKey`       | `dateSortKey(year, month, day)` | `number`                                      | ordering mixed-precision dates against a single number                          |
-| `calendarStructure` | `calendarStructure(calendar)`   | `{months, monthDays}` — `null` where unstated | reading the month bounds a package declares, before phrasing a finding          |
+| Export              | Signature                          | Returns                                | Use it when                                                                     |
+| ------------------- | ---------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`            | —                                      | naming where the canonical axis's own year 1 sits                               |
+| `canonicalYear`     | `canonicalYear(year, epoch?)`      | `number` — the signed year on the axis | converting a year written in one reckoning to the number everything compares on |
+| `dateSortKey`       | `dateSortKey(year, month, day)`    | `number`                               | ordering mixed-precision dates against a single number                          |
+| `calendarStructure` | `calendarStructure(calendar)`      | `{months}` — `null` where unstated     | reading the months a calendar keeps, before phrasing a finding                  |
+| `daysInMonth`       | `daysInMonth(calendar, month)`     | `number` — `null` where unstated       | bounding a written day against the month it names                               |
+| `daysInYear`        | `daysInYear(months)`               | `number`                               | asking what a month list claims the year is                                     |
+| `monthStarts`       | `monthStarts(months)`              | `number[]`                             | reading the same sum as a sequence, which is what an ordering error moves       |
+| `dayOfYear`         | `dayOfYear(months, month, day)`    | `number`                               | placing a written month and day in the year                                     |
+| `lunarPhase`        | `lunarPhase(day, epochDay, cycle)` | `number` — `0` to `cycle - 1`          | asking how far into its cycle a moon is, on either side of the epoch            |
 
 ### `engine.noteDates`
 
-A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
+A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
 
 | Export                  | Signature                       | Returns                                            | Use it when                                                   |
 | ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
@@ -625,6 +630,24 @@ A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<affiliation 
 | `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
 | `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
 | `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
+
+### `engine.calendarNotes`
+
+A calendar is a `lore` note with `subType: calendar`, declaring the months it keeps, the weekdays it names, the seasons it marks and the eras it counts years in. How long the year is, how the day divides and how the moon moves are facts about the **world**, written on its `place` note and its moon's, and no calendar may restate them — which is why the months summing to the world's year is the only arithmetic a calendar note is held to. One definition is emitted per calendar, in array shape: Foundry core prunes the keys outside its schema, and Calendaria converts the arrays to its own keyed collections.
+
+| Export               | Signature                                             | Returns                                    | Use it when                                                                 |
+| -------------------- | ----------------------------------------------------- | ------------------------------------------ | --------------------------------------------------------------------------- |
+| `CALENDAR_SUBTYPE`   | `const CALENDAR_SUBTYPE`                              | —                                          | naming the `lore` subType whose notes are calendars                         |
+| `INVARIANT_SUBTYPES` | `const INVARIANT_SUBTYPES`                            | —                                          | naming the `place` subTypes a world fact may be written on                  |
+| `CALENDAR_FIELDS`    | `const CALENDAR_FIELDS`                               | —                                          | reading the closed list of what a calendar note may declare                 |
+| `INVARIANT_FIELDS`   | `const INVARIANT_FIELDS`                              | —                                          | reading the closed list of what a body may declare about itself             |
+| `checkCalendarNote`  | `checkCalendarNote(note, opts)`                       | `object[]` — findings                      | holding a `lore` note to the family and to the year the world keeps         |
+| `checkWorldFacts`    | `checkWorldFacts(note, opts)`                         | `object[]` — findings                      | holding a `place` note's world facts to one body, one year and one moon     |
+| `worldInvariants`    | `worldInvariants(index)`                              | `{year, present, moon, body, moonName, …}` | reading the year, the present and the moon a package's own notes state      |
+| `quarterDays`        | `quarterDays(daysPerYear)`                            | `number[]` — four days of the year         | asking which days the year turns on                                         |
+| `compileCalendar`    | `compileCalendar({note, invariants, contentPackage})` | `object` — the definition                  | building the one object both a core consumer and Calendaria read            |
+| `compileCalendars`   | `compileCalendars(index, opts)`                       | `{calendars, invariants}`                  | building every calendar a package declares, or none where it states no year |
+| `calendariaEnvelope` | `calendariaEnvelope(definition, opts)`                | `object` — the import envelope             | wrapping a definition for a hand import through Calendaria's settings       |
 
 ### `engine.contentAddress`
 

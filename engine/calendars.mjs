@@ -52,14 +52,23 @@
  * and off by one on the other, which is invisible in any list that does not
  * span it.
  *
- * ## The month structure is the package's, and an absent bound checks nothing
+ * ## The month structure is the calendar's, and an absent list bounds nothing
  *
- * An era moves where year 1 sits; it does not divide the year differently. So
- * the subdivision is declared once for the package, in `calendar.months` and
- * `calendar.monthDays`, and a package that declares neither is bounded below
- * and not above — a toolchain that invented twelve Gregorian months would
- * refuse `667/2/30`, which is an ordinary date in a year of twelve thirty-day
- * months.
+ * An era moves where year 1 sits; it does not divide the year differently. The
+ * division belongs to the calendar, which is a note declaring an **ordered
+ * list** of months, each with a name and a day count. Position in the list is
+ * position in the year, so a five-day month sits wherever its people put it and
+ * needs no rule of its own.
+ *
+ * A date is bounded by the calendar it is written in, and a calendar whose list
+ * nobody has written down bounds nothing — a toolchain that invented twelve
+ * Gregorian months would refuse `667/2/30`, an ordinary date in a year of
+ * twelve thirty-day months.
+ *
+ * ## The lunar phase takes a floored modulo, not JavaScript's
+ *
+ * `%` takes the dividend's sign, so a day before the epoch yields `-7` where
+ * the phase is 23. {@link lunarPhase} is the one place that is written.
  *
  * @module
  */
@@ -118,15 +127,107 @@ export function dateSortKey(year, month, day) {
 }
 
 /**
- * The bounds a package states for a month, or `null` where it states none.
+ * One month of a calendar, as the note declares it.
  *
- * Separate from the check that reads it so a caller can ask what a package
- * declares without phrasing a finding about it.
+ * @typedef {object} CalendarMonth
+ * @property {string} name - What the month is called.
+ * @property {string} [abbreviation] - A short form, where the note gives one.
+ * @property {number} days - How many days it holds.
+ */
+
+/**
+ * The months a calendar keeps, or `null` where it declares none.
  *
- * @param {{months?: number|null, monthDays?: number|null}} [calendar] - The
- *   resolved `calendar:` block.
- * @returns {{months: number|null, monthDays: number|null}} What it declares.
+ * Separate from the check that reads it so a caller can ask what a calendar
+ * divides its year into without phrasing a finding about it. An empty list
+ * reads as no list: a calendar that declares nothing and one that declares
+ * nothing in a pair of brackets divide the year identically.
+ *
+ * @param {{months?: readonly CalendarMonth[]|null}} [calendar] - The calendar
+ *   the date is written in, as its note declares it.
+ * @returns {{months: readonly CalendarMonth[]|null}} What it divides the year
+ *   into.
  */
 export function calendarStructure(calendar) {
-    return { months: calendar?.months ?? null, monthDays: calendar?.monthDays ?? null };
+    const written = calendar?.months;
+    if (!Array.isArray(written) || written.length === 0) return { months: null };
+    return { months: written };
+}
+
+/**
+ * How long one month of a calendar is, or `null` where the calendar is silent.
+ *
+ * @param {{months?: readonly CalendarMonth[]|null}} [calendar] - The calendar.
+ * @param {number} month - The month, numbered from 1.
+ * @returns {number|null} Its length in days, or `null`.
+ */
+export function daysInMonth(calendar, month) {
+    const { months } = calendarStructure(calendar);
+    if (!months || month < 1 || month > months.length) return null;
+    const days = months[month - 1]?.days;
+    return typeof days === "number" ? days : null;
+}
+
+/**
+ * How many days the months add up to.
+ *
+ * The number a calendar's list claims the year is. Whether that is the year the
+ * world keeps is a question about the world, and is asked elsewhere.
+ *
+ * @param {readonly CalendarMonth[]} months - The ordered month list.
+ * @returns {number} The sum of their day counts.
+ */
+export function daysInYear(months) {
+    return months.reduce((sum, month) => sum + (Number(month?.days) || 0), 0);
+}
+
+/**
+ * The day of the year each month opens on, in order, numbered from 1.
+ *
+ * The sum read as a sequence rather than as a total. Two lists holding the same
+ * numbers in a different order sum alike and open their months on different
+ * days, which is the error a total cannot see.
+ *
+ * @param {readonly CalendarMonth[]} months - The ordered month list.
+ * @returns {number[]} One entry per month: the day of the year it begins on.
+ */
+export function monthStarts(months) {
+    const starts = [];
+    let day = 1;
+    for (const month of months) {
+        starts.push(day);
+        day += Number(month?.days) || 0;
+    }
+    return starts;
+}
+
+/**
+ * Which day of the year a written month and day land on, numbered from 1.
+ *
+ * @param {readonly CalendarMonth[]} months - The ordered month list.
+ * @param {number} month - The month, numbered from 1.
+ * @param {number} day - The day within it, numbered from 1.
+ * @returns {number} The day of the year.
+ */
+export function dayOfYear(months, month, day) {
+    return monthStarts(months)[month - 1] + day - 1;
+}
+
+/**
+ * How far into its cycle a moon is on a given day.
+ *
+ * **Floored, not truncated.** JavaScript's `%` takes the dividend's sign, so a
+ * day seven before the epoch yields `-7` where the phase is 23 — a value that
+ * is right on one side of the epoch and wrong on the other, which is invisible
+ * in any list that does not span it.
+ *
+ * @param {number} dayNumber - The day, on whatever continuous day count the
+ *   caller keeps.
+ * @param {number} epochDay - The day of that same count on which the moon was
+ *   new.
+ * @param {number} cycle - The cycle's length in days.
+ * @returns {number} Days into the cycle, `0` to `cycle - 1`.
+ */
+export function lunarPhase(dayNumber, epochDay, cycle) {
+    return (((dayNumber - epochDay) % cycle) + cycle) % cycle;
 }

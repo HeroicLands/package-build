@@ -6,42 +6,33 @@
  */
 
 /**
- * **The canonical axis, and the small block of configuration that is not about
- * it.**
+ * **The canonical axis, the month list, and the moon.**
  *
- * A reckoning is an era, declared by the affiliation that proclaimed it, and
- * its epoch is the `start` written on that note. So nothing here registers a
- * calendar: what configuration states is how the package's year is divided and
- * what date it calls the present, both of which a note could not say.
+ * A reckoning is an era, declared on the note about the calendar that counts
+ * those years, and its epoch is the `start` written on that row. Nothing here
+ * is configured: a calendar's months, its eras and the world's year are all
+ * authored content.
  *
- * The arithmetic is one function with two branches, and the branches are the
- * year-zero hole. The cases below assert it from both sides of an epoch,
+ * The year conversion is one function with two branches, and the branches are
+ * the year-zero hole. The cases below assert it from both sides of an epoch,
  * because a collapse to either branch is correct on one side and off by one on
- * the other.
+ * the other — and the lunar phase is asserted the same way, because a
+ * truncated modulo has exactly that shape of error.
  */
 
 import { describe, it, expect } from "vitest";
 
-import { defineConfig } from "../content-config.mjs";
 import {
     CANONICAL_EPOCH,
     calendarStructure,
     canonicalYear,
     dateSortKey,
+    dayOfYear,
+    daysInMonth,
+    daysInYear,
+    lunarPhase,
+    monthStarts,
 } from "../engine/calendars.mjs";
-
-/** A minimal configuration, with whatever `calendar:` a case is about. */
-function build(calendar?: unknown) {
-    return defineConfig({
-        rootDir: "/repo",
-        contentPackage: "acme",
-        foundryPackage: "acme",
-        packageKind: "systems",
-        stats: { lastModifiedBy: "acmebuilder0000" },
-        packs: [{ name: "items", type: "Item" }],
-        ...(calendar === undefined ? {} : { calendar }),
-    });
-}
 
 describe("the axis", () => {
     it("is its own epoch, by definition rather than by declaration", () => {
@@ -107,102 +98,107 @@ describe("the sort key", () => {
     });
 });
 
-describe("the `calendar` block", () => {
-    it("resolves to nothing declared when a package declares none", () => {
-        // Most packages date nothing, and a resolved shape that is always
-        // there is what keeps every reader from testing for the block first.
-        expect(build().calendar).toEqual({ months: null, monthDays: null, present: null });
-    });
-
-    it("is frozen, so a bound cannot be added by writing to it", () => {
-        const { calendar } = build({ months: 12, monthDays: 30 });
-        expect(Object.isFrozen(calendar)).toBe(true);
-    });
-
-    it("carries the bounds and the present it declares", () => {
-        expect(build({ months: 12, monthDays: 30, present: "720/6/19" }).calendar).toEqual({
-            months: 12,
-            monthDays: 30,
-            present: "720/6/19",
-        });
-    });
-
-    it("refuses a bound that is not a positive integer", () => {
-        for (const months of [0, -1, 12.5, "12"]) {
-            expect(() => build({ months })).toThrow(
-                /`calendar\.months` must be a positive integer/,
-            );
-        }
-        expect(() => build({ monthDays: 0 })).toThrow(
-            /`calendar\.monthDays` must be a positive integer/,
-        );
-    });
-
-    it("refuses a key it does not recognise", () => {
-        expect(() => build({ registry: {} })).toThrow(
-            /`calendar\.registry` is not a recognized option \(expected one of: months, monthDays, present\)/,
-        );
-    });
-
-    it("refuses a block that is not a mapping", () => {
-        expect(() => build("720/6/19")).toThrow(/`calendar` must be a mapping/);
-    });
-});
-
-describe("`calendar.present`", () => {
-    it("is read through the parser a note's dates go through", () => {
-        // One grammar, so a present written the way a date is written needs no
-        // second reader and cannot drift from one.
-        expect(build({ present: "720" }).calendar.present).toBe("720");
-        expect(build({ present: 720 }).calendar.present).toBe("720");
-        expect(build({ present: "~-2500" }).calendar.present).toBe("~-2500");
-    });
-
-    it("may be said in an era, for a package whose present is best said that way", () => {
-        expect(build({ present: "2830 empirtkhpr.septepy" }).calendar.present).toBe(
-            "2830 empirtkhpr.septepy",
-        );
-    });
-
-    it("is checked against the bounds the same block declares", () => {
-        expect(() => build({ months: 12, monthDays: 30, present: "720/13/1" })).toThrow(
-            /`calendar\.present`.*writes month 13/,
-        );
-        // With no bound declared there is nothing to check against, which is
-        // the same rule a note's dates are read under.
-        expect(build({ present: "720/13/1" }).calendar.present).toBe("720/13/1");
-    });
-
-    it("refuses year zero, the retired trailing token and a value that is no date", () => {
-        expect(() => build({ present: "0" })).toThrow(/writes year 0/);
-        expect(() => build({ present: "720 AF" })).toThrow(/names no era/);
-        expect(() => build({ present: "midsummer" })).toThrow(/is not a date/);
-    });
-
-    it("refuses `unknown`, because a package that has no present leaves it out", () => {
-        expect(() => build({ present: "unknown" })).toThrow(
-            /`calendar\.present` must be a date — a package that states no present/,
-        );
-    });
-
-    it("is absent, not empty, when the package states none", () => {
-        expect(build({ months: 12 }).calendar.present).toBeNull();
-    });
-});
-
-describe("the month structure a package declares", () => {
-    it("states nothing when the block is absent", () => {
-        expect(calendarStructure(build().calendar)).toEqual({ months: null, monthDays: null });
-    });
-
-    it("is carried through when declared", () => {
-        expect(calendarStructure(build({ months: 12, monthDays: 30 }).calendar)).toEqual({
-            months: 12,
-            monthDays: 30,
-        });
-    });
-
+describe("the months a calendar keeps", () => {
     it("reads nothing out of nothing rather than throwing", () => {
-        expect(calendarStructure(undefined)).toEqual({ months: null, monthDays: null });
+        expect(calendarStructure(undefined)).toEqual({ months: null });
+        expect(calendarStructure({})).toEqual({ months: null });
+    });
+
+    it("reads an empty list as no list, because both divide the year alike", () => {
+        expect(calendarStructure({ months: [] })).toEqual({ months: null });
+    });
+
+    it("carries the list through, in the order the note wrote it", () => {
+        const months = [
+            { name: "Aran", days: 30 },
+            { name: "Hamaspath", days: 5 },
+        ];
+        expect(calendarStructure({ months }).months).toBe(months);
+    });
+
+    it("answers how long one month is, and nothing for a month it has not got", () => {
+        const calendar = {
+            months: [
+                { name: "Aran", days: 30 },
+                { name: "Hamaspath", days: 5 },
+            ],
+        };
+        expect(daysInMonth(calendar, 1)).toBe(30);
+        expect(daysInMonth(calendar, 2)).toBe(5);
+        expect(daysInMonth(calendar, 3)).toBeNull();
+        expect(daysInMonth({}, 1)).toBeNull();
+    });
+});
+
+describe("what a month list adds up to, and where each month opens", () => {
+    /** The Common Calendar: seven thirties and five thirty-ones, summing to 365. */
+    const COMMON = [30, 31, 30, 31, 30, 31, 30, 30, 31, 30, 31, 30].map((days, i) => ({
+        name: `Month ${i + 1}`,
+        days,
+    }));
+
+    it("sums the list", () => {
+        expect(daysInYear(COMMON)).toBe(365);
+        expect(daysInYear([])).toBe(0);
+    });
+
+    it("reads the same sum as a sequence, which is what an ordering error moves", () => {
+        expect(monthStarts(COMMON)).toEqual([
+            1, 31, 62, 92, 123, 153, 184, 214, 244, 275, 305, 336,
+        ]);
+        // The same twelve numbers in a different order sum alike and open
+        // their months on different days.
+        const shuffled = [...COMMON].reverse();
+        expect(daysInYear(shuffled)).toBe(daysInYear(COMMON));
+        expect(monthStarts(shuffled)).not.toEqual(monthStarts(COMMON));
+    });
+
+    it("places a written month and day in the year", () => {
+        expect(dayOfYear(COMMON, 1, 1)).toBe(1);
+        expect(dayOfYear(COMMON, 4, 1)).toBe(92);
+        expect(dayOfYear(COMMON, 12, 30)).toBe(365);
+    });
+
+    it("places a day in a short month that sits in the middle of the list", () => {
+        const khazryn = [
+            ...Array.from({ length: 12 }, (_, i) => ({ name: `Month ${i + 1}`, days: 30 })),
+            { name: "Hamaspathmaedaya", days: 5 },
+        ];
+        expect(daysInYear(khazryn)).toBe(365);
+        expect(dayOfYear(khazryn, 13, 5)).toBe(365);
+    });
+});
+
+describe("how far into its cycle a moon is", () => {
+    it("takes a floored modulo, not JavaScript's", () => {
+        // Seven days before the epoch the moon is 23 days into its cycle, and
+        // `%` alone says -7 — right on one side of the epoch and wrong on the
+        // other, which no single-year fixture can see.
+        expect(lunarPhase(-7, 0, 30)).toBe(23);
+        expect(((-7 % 30) + 30) % 30).toBe(23);
+        expect(lunarPhase(7, 0, 30)).toBe(7);
+        expect(lunarPhase(0, 0, 30)).toBe(0);
+        expect(lunarPhase(30, 0, 30)).toBe(0);
+        expect(lunarPhase(-30, 0, 30)).toBe(0);
+    });
+
+    it("reproduces the six-year cycle in full, which one year cannot", () => {
+        // 365 days and a thirty-day cycle: the phase on 1/1 advances five days
+        // a year and comes back round at the sixth. An off-by-one in the
+        // modulo passes a single year and fails this.
+        const epochDay = 0;
+        const firstOfYear = (year: number) => (year - 720) * 365;
+        expect(
+            [720, 721, 722, 723, 724, 725, 726].map((y) =>
+                lunarPhase(firstOfYear(y), epochDay, 30),
+            ),
+        ).toEqual([0, 5, 10, 15, 20, 25, 0]);
+    });
+
+    it("runs the same table backwards through the epoch", () => {
+        const firstOfYear = (year: number) => (year - 720) * 365;
+        expect(
+            [719, 718, 717, 716, 715, 714].map((y) => lunarPhase(firstOfYear(y), 0, 30)),
+        ).toEqual([25, 20, 15, 10, 5, 0]);
     });
 });

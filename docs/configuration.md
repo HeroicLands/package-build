@@ -74,14 +74,13 @@ authoring.
 | [`relationships`](#relationships)           | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`systems`](#systems)                       | object                                                                     | no; refused in a `documentation` package                                                           | `{}`                                        |
 | [`requiresSystem`](#requiressystem)         | string                                                                     | no; refused in a `documentation` package                                                           | `null`                                      |
-| [`calendar`](#calendar)                     | object                                                                     | no                                                                                                 | no bounds, no present                       |
 | [`packageBuild`](#the-packagebuild-section) | object                                                                     | no                                                                                                 | `{}`                                        |
 | [`publish`](#publish)                       | object                                                                     | no; **required**, with `site: content`, in a `documentation` package                               | `{site: "homepage", address: {prefix: ""}}` |
 | [`changelog`](#changelog)                   | object                                                                     | no                                                                                                 | `{labels: null}`                            |
 
 Any key outside this list is refused:
 
-> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, calendar, packageBuild, publish, changelog). ``
+> `` `<key>` is not a recognized option (expected one of: rootDir, contentPackage, foundryPackage, homepage, author, packageKind, stats, itemBuilders, paths, skipDirectories, icons, packs, docs, site, pdf, compatibility, relationships, systems, requiresSystem, packageBuild, publish, changelog). ``
 
 (`rootDir` appears in that list because it is a key `defineConfig` itself
 accepts — an `.mjs` configuration authors it directly. A YAML configuration
@@ -1297,59 +1296,6 @@ With one, naming what it does declare instead:
 > ``package-build config: `requiresSystem` names `<name>`, which `systems:` does not declare. Declared: <list>.``
 
 > ``package-build config: `requiresSystem` must be a non-empty string.``
-
-### `calendar`
-
-**Type:** object · **Optional** · default: no bounds and no present.
-
-How this package's year is divided, and the date it calls the present:
-
-```yaml
-calendar:
-  months: 12
-  monthDays: 30
-  present: 720/6/19
-```
-
-**Nothing here is about which people count from what.** A reckoning is an
-**era**, declared by the affiliation that proclaimed it, and its epoch is the
-`start` written on that note — so the only things this block states are the ones
-no note could.
-
-| Key (under `calendar`) | Type             | Required | Default |
-| ---------------------- | ---------------- | -------- | ------- |
-| `calendar.months`      | positive integer | no       | `null`  |
-| `calendar.monthDays`   | positive integer | no       | `null`  |
-| `calendar.present`     | date string      | no       | `null`  |
-
-`months` and `monthDays` bound a written month and day. **Both are optional, and
-an absent one is checked against nothing** — a year of twelve thirty-day months
-is as ordinary here as a Gregorian one, so the bound is declared or it is not
-applied. One subdivision to a package: an era moves where year 1 sits, it does
-not divide the year differently.
-
-`present` is the date an age is computed against. It is written in the same
-grammar a note's dates use — `[~][-]YYYY[/MM[/DD]] [<affiliation shortcode>.<era
-shortcode>]` — so a package whose present is best said in an era says it that
-way, and one that states no present computes no age at all.
-
-An age is a function of two **dates**, not two years: subtracting years alone
-reds every note whose birthday falls later in the year than the present date, so
-the day is part of what is declared.
-
-> ``package-build config: `calendar` must be a mapping.``
-
-> ``package-build config: `calendar.months` must be a positive integer.``
-
-> ``package-build config: `calendar.monthDays` must be a positive integer.``
-
-> ``package-build config: `calendar.present` must be a date written as a string.``
-
-> ``package-build config: `calendar.present` must be a date — a package that states no present computes no age, so leave the key out rather than writing `unknown`.``
-
-> ``package-build config: `calendar.present` is not a date this package can read — `720/13/1` writes month 13, and `calendar.months` declares a year of 12.``
-
-> ``package-build config: `calendar.<key>` is not a recognized option (expected one of: months, monthDays, present).``
 
 ### `packageBuild`
 

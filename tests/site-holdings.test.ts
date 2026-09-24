@@ -569,7 +569,20 @@ describe("`content-build lint` reports unheld land", () => {
         }
     });
 
-    it("is the check the place vocabulary declares", () => {
-        expect(NOTE_VOCABULARY.place.check).toBe(checkHeld);
+    it("runs as part of the check the place vocabulary declares", () => {
+        // A type declares one whole-note check, and `place` asks two questions
+        // — who holds this land, and what a body states about itself — so the
+        // declaration composes them rather than either swallowing the other.
+        const unheld = {
+            file: "Ham.md",
+            raw: "---\ntype: place\nsubType: settlement\nshortcode: ham\n---\n",
+            fm: { type: "place", subType: "settlement", shortcode: "ham" },
+            type: "place",
+        };
+        const index = { notes: [unheld] };
+        expect(NOTE_VOCABULARY.place.check?.(unheld, { index })).toEqual(
+            checkHeld(unheld, { index }),
+        );
+        expect(checkHeld(unheld, { index })).toHaveLength(1);
     });
 });

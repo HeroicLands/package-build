@@ -85,6 +85,12 @@ import { currentType } from "./ids.mjs";
 // What a place is next to and reachable from — the two relation lists and
 // the checks that hold them to their closed sets and to each other.
 import { checkBorders, checkRoutes } from "./place-relations.mjs";
+import {
+    CALENDAR_FIELDS,
+    INVARIANT_FIELDS,
+    checkCalendarNote,
+    checkWorldFacts,
+} from "./calendar-notes.mjs";
 import { checkHeld } from "./holdings.mjs";
 import { checkCitedPopulations, checkPopulation } from "./populations.mjs";
 // What trade a settlement supports — the scale and the check that holds a
@@ -305,6 +311,22 @@ const CHARGES = Object.freeze([
     },
     { name: "charges.max", ...NUM, describe: "Most charges it can hold; unset means no maximum." },
 ]);
+
+/**
+ * Everything `place` asks of a whole note.
+ *
+ * Two questions about one subject, and they are independent: who holds this
+ * land, and — where the note is a body rather than somewhere within one — what
+ * the body states about itself. A type declares one whole-note check, so the
+ * two are composed here rather than either being folded into the other.
+ *
+ * @param {object} note - The note.
+ * @param {object} [opts] - The lint's options, passed through unchanged.
+ * @returns {object[]} Findings from both.
+ */
+function checkPlace(note, opts) {
+    return [...checkHeld(note, opts), ...checkWorldFacts(note, opts)];
+}
 
 /* --------------------------------------------------------------------- */
 /*  The vocabulary                                                        */
@@ -1044,16 +1066,27 @@ export const NOTE_VOCABULARY = Object.freeze({
             "bestiary",
             "gathering",
         ]),
-        // Nothing of its own: a lore note is prose, and what it *is* about is
-        // its subType. The specification declares an empty table for it, and
-        // the authored corpus writes no `data:` key on any of the 180.
-        data: Object.freeze([]),
+        // A lore note is prose, and what it *is* about is its subType — with
+        // one exception. A calendar is a division of the year, and a division
+        // is data; the check scopes the family to the subType that means it,
+        // because `DataFieldSpec` declares the keys a type accepts and not the
+        // subType that may write them.
+        check: checkCalendarNote,
+        data: CALENDAR_FIELDS,
     }),
 
     place: Object.freeze({
         stubbable: true,
-        subTypes: Object.freeze(["world", "region", "settlement", "site", "structure", "feature"]),
-        check: checkHeld,
+        subTypes: Object.freeze([
+            "world",
+            "region",
+            "settlement",
+            "site",
+            "structure",
+            "feature",
+            "celestial",
+        ]),
+        check: checkPlace,
         data: Object.freeze([
             {
                 name: "demonym",
@@ -1104,6 +1137,10 @@ export const NOTE_VOCABULARY = Object.freeze({
                     "Journeys from this place's centre — where the destination lies, how " +
                     "it is travelled, and about how many days it takes.",
             },
+            // What a body states about itself: its size, its year, its moon.
+            // Legal on a `world` or a `celestial` and nowhere else, which the
+            // type's own check is what enforces.
+            ...INVARIANT_FIELDS,
         ]),
     }),
 
