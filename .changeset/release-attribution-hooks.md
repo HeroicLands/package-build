@@ -1,0 +1,3 @@
+---
+"@heroiclands/package-build": patch
+---
