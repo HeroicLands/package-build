@@ -1,5 +1,9 @@
 # @heroiclands/package-build
 
+## 22.9.2
+
+### Patch Changes
+
 ## 22.9.1
 
 ### Patch Changes
