@@ -22,6 +22,10 @@
  * the resolution cases after it sample the answers.
  */
 
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
 import { describe, it, expect } from "vitest";
 
 import {
@@ -46,6 +50,32 @@ import { Macros } from "../engine/macros.mjs";
 import { Scenes } from "../engine/scenes.mjs";
 import { Bundles } from "../engine/bundles.mjs";
 import { Journals } from "../engine/journals.mjs";
+
+const here = path.dirname(fileURLToPath(import.meta.url));
+const SPEC = readFileSync(path.resolve(here, "../docs/content-format.md"), "utf8");
+
+/**
+ * The default type and the accepted set *The four art slots* tabulates, keyed
+ * by field — read from the document's own table rather than a transcription
+ * of it, so a slot the table adds or drops is caught here without a second
+ * list to maintain.
+ */
+function documentedArtSlots(): Map<string, { type: string; accepts: string[] }> {
+    const lines = SPEC.split("\n");
+    const heading = lines.findIndex((line) => /^####\s+The four art slots\s*$/.test(line));
+    const header = lines.findIndex((line, i) => i > heading && /^\|\s*field\s*\|/.test(line));
+    const out = new Map<string, { type: string; accepts: string[] }>();
+    for (let i = header + 2; lines[i]?.trim().startsWith("|"); i++) {
+        const [field, type, accepts] = lines[i]
+            .trim()
+            .replace(/^\|/, "")
+            .replace(/\|$/, "")
+            .split("|")
+            .map((cell) => cell.trim().replace(/`/g, ""));
+        out.set(field, { type, accepts: accepts.split(",").map((s) => s.trim()) });
+    }
+    return out;
+}
 
 /** Every pass this package ships, for the `emitsArt` comparison. */
 const SHIPPED = [Items, Actors, Hm3Actors, Macros, Scenes, Bundles, Journals];
@@ -93,6 +123,33 @@ describe("the art slots are declared once", () => {
         for (const slot of ART_SLOTS) {
             expect(slot.accepts, slot.key).not.toContain("audio");
         }
+    });
+
+    it("is the default type and the accepted set the specification tabulates", () => {
+        const documented = documentedArtSlots();
+        // Guards the guard: were the table's shape or its heading to change,
+        // every comparison below would run against an empty map.
+        expect(documented.size).toBe(ART_SLOTS.length);
+        const wrong = ART_SLOTS.flatMap((slot) => {
+            const row = documented.get(slot.key);
+            if (!row) return [`${slot.key}: the specification's table names no such field`];
+            const problems: string[] = [];
+            if (row.type !== slot.type) {
+                problems.push(`${slot.key}: default type \`${row.type}\` !== \`${slot.type}\``);
+            }
+            const documentedSet = new Set(row.accepts);
+            const declaredSet = new Set(slot.accepts);
+            const same =
+                documentedSet.size === declaredSet.size &&
+                [...declaredSet].every((type) => documentedSet.has(type));
+            if (!same) {
+                problems.push(
+                    `${slot.key}: accepts \`${row.accepts.join(", ")}\` !== \`${slot.accepts.join(", ")}\``,
+                );
+            }
+            return problems;
+        });
+        expect(wrong).toEqual([]);
     });
 
     it("is the list the frontmatter lint checks, rather than a second one", () => {
