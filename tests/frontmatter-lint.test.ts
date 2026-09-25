@@ -30,7 +30,8 @@ const note = (type: string, sohl: object = {}, extra: object = {}) => ({
 /** An index whose references resolve to exactly the pairs it is given. */
 const indexOf = (...addresses: string[]) => ({
     notes: [],
-    referenceHit: (target: string) => (addresses.includes(target) ? {} : null),
+    shortcodeHit: (type: string, shortcode: string) =>
+        addresses.includes(`${type}-${shortcode}`) ? {} : null,
 });
 
 const messages = (findings: Array<{ message: string }>) =>
@@ -148,15 +149,15 @@ describe("the five failure classes", () => {
         expect(messages(findings)).toContain("packages do not exist");
     });
 
-    it("asks the resolver for the field's full `type-shortcode` pair", () => {
+    it("asks the resolver for the field's type and shortcode", () => {
         // The field supplies the type, so the pair is the whole of what the
         // resolver is handed. Asked for anything less, every reference in every
         // tree lands nowhere.
-        const asked: string[] = [];
+        const asked: Array<[string, string]> = [];
         const index = {
             notes: [],
-            referenceHit: (target: string) => {
-                asked.push(target);
+            shortcodeHit: (type: string, shortcode: string) => {
+                asked.push([type, shortcode]);
                 return {};
             },
         };
@@ -164,7 +165,7 @@ describe("the five failure classes", () => {
             schemas,
             index: index as any,
         });
-        expect(asked).toEqual(["skill-swrd"]);
+        expect(asked).toEqual([["skill", "swrd"]]);
     });
 
     it("takes the reference resolver's answer, not the address rule's", () => {
@@ -174,7 +175,8 @@ describe("the five failure classes", () => {
         // would report the reference dead.
         const index = {
             notes: [],
-            referenceHit: (target: string) => (target === "skill-lang" ? {} : null),
+            shortcodeHit: (type: string, shortcode: string) =>
+                type === "skill" && shortcode === "lang" ? {} : null,
             resolve: () => undefined,
             manifestHit: () => null,
         };
@@ -313,7 +315,7 @@ describe("lintFrontmatter over an index", () => {
     it("reports each note, in path order", () => {
         const index = {
             notes: [note("sandwich"), note("baguette")],
-            referenceHit: () => null,
+            shortcodeHit: () => null,
         } as any;
         const r = lintFrontmatter(index, { schemas: NOTE_SCHEMAS });
         expect(r.notes).toBe(2);
@@ -324,7 +326,7 @@ describe("lintFrontmatter over an index", () => {
     it("reports nothing for a tree of correct notes", () => {
         const index = {
             notes: [note("skill", { subType: "craft" })],
-            referenceHit: () => ({}),
+            shortcodeHit: () => ({}),
         } as any;
         expect(lintFrontmatter(index, { schemas: NOTE_SCHEMAS }).findings).toEqual([]);
     });
@@ -339,7 +341,7 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
         fm: { type: "place", subType: "settlement", tags },
     });
     const tagFindings = (tags: string[]) =>
-        lintFrontmatter({ notes: [tagged(tags)], referenceHit: () => ({}) } as any, {
+        lintFrontmatter({ notes: [tagged(tags)], shortcodeHit: () => ({}) } as any, {
             schemas: NOTE_SCHEMAS,
             vocabulary: NOTE_VOCABULARY,
         }).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
@@ -395,7 +397,7 @@ describe("checkTags — a classifying tag is queried, so a near miss is a findin
                             fm: { type, tags },
                         },
                     ],
-                    referenceHit: () => ({}),
+                    shortcodeHit: () => ({}),
                 } as any,
                 { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
             ).findings.filter((f: { message: string }) => f.message.startsWith('tag "'));
@@ -429,7 +431,7 @@ describe("a being's kind is one slot, and a note fills it once or not at all", (
         lintFrontmatter(
             {
                 notes: [{ ...being(tags), type, fm: { type, tags } }],
-                referenceHit: () => ({}),
+                shortcodeHit: () => ({}),
             } as any,
             { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY },
         ).findings.filter(

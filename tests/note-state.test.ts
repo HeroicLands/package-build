@@ -492,7 +492,7 @@ describe("links across the boundary", () => {
     });
 
     it("resolves a stub as data, so a border with one on the far side stands", () => {
-        expect(built().referenceHit("place-weyshott")?.fm.shortcode).toBe("weyshott");
+        expect(built().addressHit("place-weyshott")?.fm.shortcode).toBe("weyshott");
     });
 });
 
