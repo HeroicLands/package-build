@@ -460,7 +460,7 @@ describe("compiling a bundle note", () => {
             "Vale.md": bundle(
                 "The Vale",
                 "vale",
-                ["miscgear-bowl", "doc-combat"],
+                ["sohl-miscgear-bowl", "doc-combat"],
                 "\nWhat it is.\n",
             ),
         });
@@ -489,7 +489,7 @@ describe("compiling a bundle note", () => {
         // needs no documentation journal the way an item does.
         const root = bundleRepo({
             "Bowl.md": gear("Bowl", "bowl"),
-            "Vale.md": bundle("The Vale", "vale", ["miscgear-bowl"], "\nWhat it is for.\n"),
+            "Vale.md": bundle("The Vale", "vale", ["sohl-miscgear-bowl"], "\nWhat it is for.\n"),
         });
         roots.push(root);
         compile(root);
@@ -503,8 +503,8 @@ describe("compiling a bundle note", () => {
         // the item; `docmiscgear-bowl` is the JournalEntry its prose became.
         const root = bundleRepo({
             "Bowl.md": gear("Bowl", "bowl"),
-            "Item.md": bundle("Item Only", "itemonly", ["miscgear-bowl"]),
-            "Both.md": bundle("Both", "both", ["miscgear-bowl", "docmiscgear-bowl"]),
+            "Item.md": bundle("Item Only", "itemonly", ["sohl-miscgear-bowl"]),
+            "Both.md": bundle("Both", "both", ["sohl-miscgear-bowl", "docmiscgear-bowl"]),
         });
         roots.push(root);
         const result = compile(root);
@@ -553,7 +553,7 @@ describe("compiling a bundle note", () => {
         const result = compile(root);
 
         expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/which is not an address/);
+        expect(result.output).toMatch(/is not an accepted Address/);
     });
 
     it("refuses a folder, which belongs to no one pack and has no copy to take", () => {
@@ -579,7 +579,7 @@ describe("compiling a bundle note", () => {
             "Kit.md":
                 `---\nname:\n  full: Kit\nshortcode: kit\ntype: bundle\n` +
                 `sohl:\n  pack: bundles-sohl\nhm3:\n  pack: bundles-hm3\n` +
-                `data:\n  contents:\n      - miscgear-bowl\n      - doc-combat\n---\n\nA kit.\n`,
+                `data:\n  contents:\n      - sohl-miscgear-bowl\n      - doc-combat\n---\n\nA kit.\n`,
         });
         roots.push(root);
         const result = compile(root);
@@ -595,7 +595,7 @@ describe("compiling a bundle note", () => {
         expect(hm3Bundles["Kit"].journal).toHaveLength(1);
         // And the omission is named, because an installer that quietly ships
         // half its contents is worse than one that fails.
-        expect(result.output).toMatch(/leaves out "miscgear-bowl"/);
+        expect(result.output).toMatch(/leaves out "sohl-sohl-miscgear-bowl"/);
     });
 
     it("tells a repository that configures no Adventure pack, by name", () => {

@@ -306,6 +306,7 @@ describe("resolving foreign addresses from cached indexes", () => {
         const { index } = loadForeignIndexes(config(), ["sohl"]);
         expect(fetched(index).map(([key]) => key)).toEqual([
             "thalorna-none-affiliation-aerarimmpr",
+            "thalorna-none-docaffiliation-aerarimmpr",
         ]);
     });
 
@@ -334,6 +335,26 @@ describe("resolving foreign addresses from cached indexes", () => {
 
     // A note compiling into two systems' documents holds a block per system,
     // and the key's own system segment says which one this address names.
+    it("resolves an existing foreign page's none-system identity without a Foundry journal", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "skill",
+                shortcode: "sword",
+                address: { slug: "skill-sword", canonical: "thalorna-sohl-skill-sword" },
+                foundry: { sohl: { uuid: "Compendium.thalorna.items.Item.sword" } },
+            }),
+        ]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.get("thalorna-none-docskill-sword")).toMatchObject({
+            url: "/thalorna/skill-sword/",
+            type: "docskill",
+        });
+        expect(index.get("thalorna-none-docskill-sword").uuid).toBeUndefined();
+        expect(index.get("thalorna-sohl-skill-sword").uuid).toBe(
+            "Compendium.thalorna.items.Item.sword",
+        );
+    });
+
     it("takes the uuid of the system the address names", () => {
         cacheIndex("thalorna", "0.1.0", [
             record({
@@ -348,6 +369,9 @@ describe("resolving foreign addresses from cached indexes", () => {
         ]);
         const entry = loadForeignIndexes(config(), ["sohl"]).index.get("thalorna-sohl-being-grod")!;
         expect(entry.uuid).toBe("Compendium.thalorna.actors-sohl.Actor.aaa");
+        expect(
+            loadForeignIndexes(config(), ["sohl"]).index.get("thalorna-hm3-being-grod")?.uuid,
+        ).toBe("Compendium.thalorna.actors-hm3.Actor.bbb");
     });
 
     // A package is authoritative in its own addresses and never resolves them

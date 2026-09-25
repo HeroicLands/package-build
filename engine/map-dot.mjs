@@ -31,6 +31,7 @@
  * @module
  */
 
+import { isAddressTuple, renderAddress } from "./address.mjs";
 import { subtreeOf } from "./map-places.mjs";
 
 /* --------------------------------------------------------------------- */
@@ -200,6 +201,7 @@ const LEGEND = Object.freeze([
  * @returns {string} Quoted and escaped, newlines folded to spaces.
  */
 export function dotString(value) {
+    if (isAddressTuple(value)) value = renderAddress(value);
     return (
         '"' +
         String(value ?? "")

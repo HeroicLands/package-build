@@ -39,6 +39,7 @@
  * HeroicLands vault is no longer a build input for SoHL content.
  */
 
+import { noteAddressContext } from "./note-addresses.mjs";
 import fs from "fs";
 import path from "path";
 import log from "loglevel";
@@ -805,7 +806,12 @@ export async function generatePacksJson({ only, config = loadPackConfig() } = {}
                     )
                     .map((record) => {
                         const absPath = noteFile(contentBase, record);
-                        return { frontmatter: parseMarkdownFile(absPath).frontmatter, absPath };
+                        return {
+                            frontmatter: parseMarkdownFile(absPath, {
+                                addressContext: noteAddressContext(config),
+                            }).frontmatter,
+                            absPath,
+                        };
                     }),
                 // The package this build resolved, not the ambient accessor:
                 // they are the same value in a real repository and different

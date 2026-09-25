@@ -30,6 +30,7 @@
 // build package rather than restated here, so the pipeline and the runtime
 // enum cannot drift apart — a value absent from the list is a build
 // error, never a silent ship.
+import { AddressEntries } from "./address-values.mjs";
 import { AFFILIATION_STANDINGS } from "../sohl/affiliation-standings.mjs";
 
 /**
@@ -159,6 +160,7 @@ export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = 
 function readMapEntries(fm, key, { shared } = {}) {
     const raw = sohlSystemField(fm, key, undefined, { shared });
     if (raw == null) return [];
+    if (raw instanceof AddressEntries) return raw.entries.map((e) => [e.target, e.value]);
     if (Array.isArray(raw)) return raw.length === 0 ? [] : null;
     if (typeof raw !== "object") return null;
     return Object.entries(raw);
@@ -274,7 +276,9 @@ export function resolveRelation(fm, ctx = "item") {
     if (entries === null) {
         throw new Error(`${ctx}: ${key} must be a map of shortcode → standing`);
     }
+    const typed = entries.some(([code]) => typeof code === "object");
     const out = {};
+    const typedEntries = [];
     for (const [code, value] of entries) {
         const standing = String(value);
         if (!AFFILIATION_STANDINGS.includes(standing)) {
@@ -282,9 +286,10 @@ export function resolveRelation(fm, ctx = "item") {
                 `${ctx}: ${key}["${code}"] must be one of ${AFFILIATION_STANDINGS.join(", ")}, got "${value}"`,
             );
         }
-        out[code] = standing;
+        if (typed) typedEntries.push({ target: code, value: standing, sourceKey: "" });
+        else out[code] = standing;
     }
-    return out;
+    return typed ? new AddressEntries(typedEntries) : out;
 }
 
 /**

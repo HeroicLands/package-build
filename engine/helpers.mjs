@@ -25,6 +25,12 @@
  * journals.mjs, actors.mjs).
  */
 
+import { buildReferenceTargets } from "./reference-targets.mjs";
+
+import { decodeNoteAddresses } from "./note-addresses.mjs";
+import { positionOfYamlPath } from "./diagnostics.mjs";
+import { completeAddress, renderAddress } from "./address.mjs";
+import { encodeAddresses } from "./address-values.mjs";
 import fs from "fs";
 import crypto from "crypto";
 import path from "path";
@@ -131,7 +137,7 @@ export const md = markdownit({ html: true })
  * `{ frontmatter: null, body: "", description: "" }` with a warn log, and no
  * position: there is no body to have one.
  */
-export function parseMarkdownFile(filePath) {
+export function parseMarkdownFile(filePath, { addressContext } = {}) {
     const content = fs.readFileSync(filePath, "utf8");
     const fmMatch = content.match(/^---\n([\s\S]*?)\n---\n?([\s\S]*)$/);
     if (!fmMatch) {
@@ -143,6 +149,19 @@ export function parseMarkdownFile(filePath) {
     } catch (err) {
         log.warn(`YAML parse error in ${filePath}: ${err.message}`);
         return { frontmatter: null, body: "", description: "" };
+    }
+    if (addressContext) {
+        try {
+            decodeNoteAddresses(frontmatter, addressContext);
+        } catch (error) {
+            const position = positionOfYamlPath(fmMatch[1], error.keyPath ?? [], {
+                key: error.addressKey,
+            });
+            if (position.line) position.line++;
+            error.file = filePath;
+            error.position = position;
+            throw error;
+        }
     }
     const raw = fmMatch[2];
     const body = raw.trim();
@@ -238,7 +257,7 @@ export function assertSuppliedCorpus(records, who) {
  * @throws {Error} When `skipDirectories` is not stated — see
  *   {@link assertStatedScope}.
  */
-export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
+export function* walkMarkdownTree(rootDir, { skipDirectories, addressContext } = {}) {
     // Stated by the caller, never resolved here. A default here
     // — `loadPackConfig().skipDirectories` — read whichever configuration
     // resolved from the working directory rather than the one the caller was
@@ -269,7 +288,7 @@ export function* walkMarkdownTree(rootDir, { skipDirectories } = {}) {
                 stack.push(absPath);
             } else if (entry.isFile() && entry.name.endsWith(".md")) {
                 yield {
-                    ...parseMarkdownFile(absPath),
+                    ...parseMarkdownFile(absPath, { addressContext }),
                     file: entry.name,
                     absPath,
                 };
@@ -702,12 +721,16 @@ export function buildContentLinkIndex(
     const assets = new Map();
     const resolved = config ?? loadPackConfig();
     assertSuppliedCorpus(records, "buildContentLinkIndex");
+    const recordsByAddress = new Map(
+        records.map((record) => [encodeAddresses(record.address?.canonical), record]),
+    );
     for (const record of records) {
         // An asset's record addresses a file rather than a note, so it becomes
         // no `doc` and takes no part in link resolution — it is keyed for the
         // art fields, which name a file and never a document.
         if (isAssetRecord(record)) {
-            if (record.address?.canonical) assets.set(record.address.canonical, record);
+            if (record.address?.canonical)
+                assets.set(encodeAddresses(record.address.canonical), record);
             continue;
         }
         // A documentation journal is a document this tree emits, not a note in
@@ -734,7 +757,9 @@ export function buildContentLinkIndex(
         // several frames deeper with nothing to go on.
         assertTypeNotRetired(fm.type, absPath);
         const base = String(record.file.name).replace(/_/g, " ");
+        const documentation = recordsByAddress.get(encodeAddresses(record.documentation));
         docs.push({
+            documentationUuid: documentation?.foundry?.none?.uuid ?? null,
             type: fm.type,
             id: fm.id,
             // Where this note's own document lands, and where the JournalEntry
@@ -770,11 +795,11 @@ export function buildContentLinkIndex(
     // a contributor without every repository checked out resolves the same
     // links CI does — from an artifact the producer shipped rather than a copy
     // this repository committed.
-    const { index: foreign, stale } = loadForeignIndexes(
-        resolved,
-        [resolved.contentPackage],
-        PACKAGE_BASE,
-    );
+    const {
+        index: foreign,
+        references: foreignReferences,
+        stale,
+    } = loadForeignIndexes(resolved, [resolved.contentPackage], PACKAGE_BASE);
     if (stale.length) {
         for (const st of stale) {
             log.error(`Unusable content index for "${st.package}": ${st.reason}`);
@@ -788,7 +813,10 @@ export function buildContentLinkIndex(
         `Wikilink index: ${docs.length} local document(s), ` +
             `${foreign.size} foreign address(es)`,
     );
+    const referenceTargets = buildReferenceTargets(records);
     return buildWikilinkIndex(docs, resolved.foundryPackage, foreign, resolved.contentPackage, {
+        referenceTargets,
+        foreignReferences,
         assets,
         noIndexPackages: noContentIndexPackages(resolved),
     });

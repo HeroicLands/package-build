@@ -53,6 +53,7 @@ import path from "node:path";
 
 import log from "loglevel";
 
+import { isAddressTuple } from "./address.mjs";
 import { NO_SYSTEM, canonicalKey, readCanonicalKey } from "./content-address.mjs";
 import { parseAddress, renderAddress } from "./address.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
@@ -144,6 +145,7 @@ function folderFields(fm) {
     const read = (key) => data[key] ?? fm?.[key];
     const text = (value) => {
         if (value == null) return null;
+        if (isAddressTuple(value)) return value;
         const trimmed = String(value).trim();
         return trimmed === "" ? null : trimmed;
     };
@@ -151,7 +153,12 @@ function folderFields(fm) {
     const authored = read("parent");
     /** @type {Record<string, string|null>} */
     const parent = {};
-    if (authored != null && typeof authored === "object" && !Array.isArray(authored)) {
+    if (
+        authored != null &&
+        typeof authored === "object" &&
+        !Array.isArray(authored) &&
+        !isAddressTuple(authored)
+    ) {
         // An explicit `~` under a pack key means "at the root *there*", which
         // is a different statement from saying nothing — so the key is kept
         // with a null value rather than dropped.
@@ -175,6 +182,7 @@ function folderFields(fm) {
  * @returns {string|null} The bare address.
  */
 export function bareAddress(value) {
+    if (isAddressTuple(value)) return value;
     if (value == null) return null;
     const text = String(value).trim();
     if (!text) return null;
@@ -380,7 +388,7 @@ export function buildFolderNoteIndex(folders) {
         if (!hit) {
             const known = [...byShortcode.values()].map((f) => f.shortcode).sort();
             throw new Error(
-                `no folder note is addressed "${address}" — this package ` +
+                `no folder note is addressed "${isAddressTuple(address) ? renderAddress(address) : address}" — this package ` +
                     `declares ${known.length} folder(s)` +
                     (known.length ? `: ${known.join(", ")}` : ""),
             );

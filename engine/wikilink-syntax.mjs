@@ -11,6 +11,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { parseAddress, isAddressTuple } from "./address.mjs";
+
 /**
  * What a `[[…]]` **is**, before anything decides where it points.
  *
@@ -367,4 +369,23 @@ export function linkFindingMessage({ reason, target, packages, anchor, type, stu
  */
 export function isSamePage({ target, anchor }) {
     return !target && Boolean(anchor);
+}
+
+/**
+ * Read an operational link target in its enclosing Address context.
+ * @param {string} inner - Lexical link contents.
+ * @param {object} context - Builder defaults and type vocabulary.
+ * @returns {object} Typed target and diagnostic source spelling.
+ */
+export function readWikilink(inner, context) {
+    const parsed = parseWikilink(inner);
+    const rawTarget = parsed.target;
+    if (!rawTarget) return { ...parsed, rawTarget, target: { kind: "same-page" } };
+    const target = parseAddress(rawTarget, context);
+    if (target.reason === "no-type") target.reason = "not-an-address";
+    if (!target.reason && !isAddressTuple(target))
+        throw new Error("Wikilink read requires complete builder Address context");
+    return target.reason ?
+            { ...parsed, rawTarget, target: { kind: "literal", text: rawTarget }, problem: target }
+        :   { ...parsed, rawTarget, target };
 }

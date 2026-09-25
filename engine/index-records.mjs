@@ -32,6 +32,7 @@
  */
 
 import path from "node:path";
+import { isAddressTuple } from "./address.mjs";
 
 /**
  * The keys the content index adds to a record, which a note therefore may not
@@ -72,6 +73,7 @@ export const DERIVED_KEYS = Object.freeze([
  * @returns {unknown} The value with every plain object's keys in sorted order.
  */
 export function sortKeysDeep(value) {
+    if (isAddressTuple(value)) return value;
     if (Array.isArray(value)) return value.map(sortKeysDeep);
     if (value === null || typeof value !== "object") return value;
     // A Date or any other exotic object would lose itself in a rebuild from

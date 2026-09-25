@@ -278,7 +278,12 @@ describe("the places are read from the content index", () => {
         expect(alpha.hasPackFolder).toBe(true);
         expect(places.get("gamma")!.hasPackFolder).toBe(false);
         // The suite's ambient configuration names the package.
-        expect(alpha.address).toBe("sohl-none-place-alpha");
+        expect(alpha.address).toEqual({
+            package: "sohl",
+            system: "none",
+            type: "place",
+            shortcode: "alpha",
+        });
     });
 
     it("hyperlinks a place to its page only when a base is given", () => {

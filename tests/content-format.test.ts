@@ -252,7 +252,7 @@ describe("the shipped specification", () => {
     });
 
     it("makes every mapping claim its tables state", () => {
-        expect(format.claims).toHaveLength(88);
+        expect(format.claims).toHaveLength(87);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 

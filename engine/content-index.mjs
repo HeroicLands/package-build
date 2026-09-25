@@ -86,6 +86,14 @@
  * @module
  */
 
+import { isAddressSegment } from "./address-charset.mjs";
+import { positionOfYamlPath } from "./diagnostics.mjs";
+import {
+    decodeNoteAddresses,
+    decodeIndexAddresses,
+    noteAddressContext,
+    encodeAddresses,
+} from "./note-addresses.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -442,11 +450,26 @@ export function buildIndexRecord({
     body,
     bodyLine,
     manifest,
+    addressContext,
 }) {
     assertNoDerivedKeys(frontmatter, relPath, absPath, contentPackage);
 
     const posix = relPath.split(path.sep).join("/");
     const folder = posix.includes("/") ? posix.slice(0, posix.lastIndexOf("/")) : "";
+    try {
+        decodeNoteAddresses(frontmatter, addressContext ?? { package: contentPackage });
+    } catch (error) {
+        error.file = absPath ?? relPath;
+        if (absPath && error.keyPath) {
+            const yamlText = fs
+                .readFileSync(absPath, "utf8")
+                .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+            const position = positionOfYamlPath(yamlText, error.keyPath, { key: error.addressKey });
+            if (position.line) position.line++;
+            error.position = position;
+        }
+        throw error;
+    }
     const address = noteAddress(frontmatter, contentPackage);
     // Derived from the address the note *would* hold, because a stub still
     // compiles every document derived from `data:` — an unwritten arcane talent
@@ -463,45 +486,48 @@ export function buildIndexRecord({
     const stub = isStubNote(frontmatter, body);
 
     return /** @type {Record<string, any>} */ (
-        sortKeysDeep({
-            ...frontmatter,
-            package: contentPackage,
-            address: stub ? null : address,
-            nameAscii: asciiName(frontmatter?.name?.full),
-            aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
-            // Each anchor carries the link that reaches it, so a section is
-            // addressable from the index without anyone re-deriving how an
-            // anchor is spelled — and its file line, so an editor can jump
-            // there rather than search for the heading.
-            anchors:
-                stub ? null : (
-                    collectAnchors(body, bodyLine).map((a) => ({
-                        ...a,
-                        link: address ? `${address.slug}#${a.slug}` : null,
-                    }))
+        decodeIndexAddresses(
+            {
+                ...frontmatter,
+                package: contentPackage,
+                address: stub ? null : address,
+                nameAscii: asciiName(frontmatter?.name?.full),
+                aliasesAscii: asciiAliases(frontmatter?.name?.aliases),
+                // Each anchor carries the link that reaches it, so a section is
+                // addressable from the index without anyone re-deriving how an
+                // anchor is spelled — and its file line, so an editor can jump
+                // there rather than search for the heading.
+                anchors:
+                    stub ? null : (
+                        collectAnchors(body, bodyLine).map((a) => ({
+                            ...a,
+                            link: address ? `${address.slug}#${a.slug}` : null,
+                        }))
+                    ),
+                foundry: foundryBlock(
+                    entries?.own,
+                    systemOf(frontmatter?.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
                 ),
-            foundry: foundryBlock(
-                entries?.own,
-                systemOf(frontmatter?.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
-            ),
-            // Forward link to the note's documentation journal, which is its
-            // own record. Named rather than nested, because the journal is a
-            // separate document with its own address — see `buildDocRecord`.
-            documentation: entries?.doc?.key ?? null,
-            file: {
-                // Relative to the content root, and deliberately not absolute.
-                // An absolute path is a fact about the machine that built the
-                // index, not about the content: it would differ between two
-                // checkouts of the same tree, so the file would stop being
-                // byte-stable, and a published copy would carry someone's home
-                // directory and be wrong for every reader. Anyone holding the
-                // index knows the root it was built from, and `root + path` is
-                // the absolute form whenever it is wanted.
-                path: posix,
-                folder,
-                name: path.basename(posix, ".md"),
+                // Forward link to the note's documentation journal, which is its
+                // own record. Named rather than nested, because the journal is a
+                // separate document with its own address — see `buildDocRecord`.
+                documentation: entries?.doc?.key ?? null,
+                file: {
+                    // Relative to the content root, and deliberately not absolute.
+                    // An absolute path is a fact about the machine that built the
+                    // index, not about the content: it would differ between two
+                    // checkouts of the same tree, so the file would stop being
+                    // byte-stable, and a published copy would carry someone's home
+                    // directory and be wrong for every reader. Anyone holding the
+                    // index knows the root it was built from, and `root + path` is
+                    // the absolute form whenever it is wanted.
+                    path: posix,
+                    folder,
+                    name: path.basename(posix, ".md"),
+                },
             },
-        })
+            addressContext ?? { package: contentPackage },
+        )
     );
 }
 
@@ -599,7 +625,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
  */
 export function collectContentIndex(
     contentBase,
-    { contentPackage, skipDirectories, assetsBase, manifest, problems },
+    { contentPackage, skipDirectories, assetsBase, manifest, problems, addressContext },
 ) {
     const records = [];
     // Passed through rather than defaulted away: an absent scope is the
@@ -639,8 +665,20 @@ export function collectContentIndex(
                 body,
                 bodyLine,
                 manifest,
+                addressContext,
             });
         } catch (err) {
+            if (fm.shortcode && !isAddressSegment(fm.shortcode) && err.keyPath) {
+                err.identity = { type: fm.type, shortcode: fm.shortcode };
+                err.keyPath = ["shortcode"];
+                err.message = `shortcode "${fm.shortcode}" is not strictly alphanumeric — lowercase letters and digits only`;
+                const yamlText = fs
+                    .readFileSync(absPath, "utf8")
+                    .match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+                err.position = positionOfYamlPath(yamlText, err.keyPath);
+                if (err.position.line) err.position.line++;
+            }
+            err.file = absPath;
             // No `problems` array means the caller wants the old contract: a
             // note that cannot be recorded fails the derivation outright, which
             // is right for the *emitter* — an index quietly missing a note
@@ -653,10 +691,11 @@ export function collectContentIndex(
                 ...(err.position ?? {}),
                 severity: "error",
                 message: String(err.message),
+                ...(err.identity ? { identity: err.identity } : {}),
             });
             continue;
         }
-        records.push(record);
+        records.push(decodeIndexAddresses(record, addressContext ?? { package: contentPackage }));
 
         // An item note is two documents, so it is two records. Derived from
         // the address the note *would* hold rather than from the one its
@@ -703,13 +742,15 @@ export function collectContentIndex(
     records.sort(
         (a, b) =>
             recordPath(a).localeCompare(recordPath(b), "en") ||
-            String(a.address?.canonical ?? "").localeCompare(
-                String(b.address?.canonical ?? ""),
+            String(encodeAddresses(a.address?.canonical) ?? "").localeCompare(
+                String(encodeAddresses(b.address?.canonical) ?? ""),
                 "en",
             ) ||
             String(a.id ?? "").localeCompare(String(b.id ?? ""), "en"),
     );
-    return records;
+    return records.map((record) =>
+        decodeIndexAddresses(record, addressContext ?? { package: contentPackage }),
+    );
 }
 
 /**
@@ -722,7 +763,7 @@ export function collectContentIndex(
  */
 export function serializeContentIndex(records) {
     if (records.length === 0) return "";
-    return `${records.map((r) => JSON.stringify(r)).join("\n")}\n`;
+    return `${records.map((r) => JSON.stringify(sortKeysDeep(encodeAddresses(r)))).join("\n")}\n`;
 }
 
 /**
@@ -781,6 +822,7 @@ export function indexRecordsFor({
     }
     return collectContentIndex(tree, {
         contentPackage: resolved.contentPackage,
+        addressContext: noteAddressContext(resolved),
         skipDirectories: skipDirectories ?? resolved.skipDirectories,
         assetsBase: assetsBase ?? resolved.paths.assets,
         // Only the identities a UUID is a function of — see emitContentIndex.

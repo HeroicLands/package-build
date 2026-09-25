@@ -34,6 +34,7 @@
  * @module
  */
 
+import { encodeAddresses } from "./address-values.mjs";
 import { sectionHolds } from "./infobox.mjs";
 import { escapeTypst, escapeTypstString } from "./pdf-render.mjs";
 
@@ -227,7 +228,7 @@ export function sectionHasContent(section) {
  */
 export function linkToTypst(value, links, labelFor) {
     const text = escapeTypst(value?.text ?? "");
-    const anchor = value?.address ? links?.get(value.address) : undefined;
+    const anchor = value?.address ? links?.get(encodeAddresses(value.address)) : undefined;
     if (anchor) return `#link(<${labelFor(anchor)}>)[${text}]`;
     if (value?.url) return `#link("${escapeTypstString(value.url)}")[${text}]`;
     return text;

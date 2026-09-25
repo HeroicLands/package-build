@@ -44,6 +44,7 @@
  * @module
  */
 
+import { encodeAddresses } from "./address-values.mjs";
 import { hasTag } from "./note-vocabulary.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
@@ -87,8 +88,7 @@ export function artSlot(key) {
  *   not parse; or `not-accepted` when it parses to a type outside `accepts`.
  */
 export function artTarget(value, defaultType, accepts, vocabulary = {}) {
-    const written = typeof value === "string" ? value : String(value ?? "");
-    const tuple = parseAddress(written, { ...vocabulary, type: defaultType });
+    const tuple = parseAddress(value, { ...vocabulary, type: defaultType });
     if (tuple.reason) return tuple;
     if (accepts && !acceptsType(tuple, accepts)) {
         return { reason: "not-accepted", type: tuple.type };
@@ -126,7 +126,7 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
         assets: new Map(
             records
                 .filter(isAssetRecord)
-                .map((record) => [record.address?.canonical, record])
+                .map((record) => [encodeAddresses(record.address?.canonical), record])
                 .filter(([key]) => key),
         ),
         foreign: foreign?.index ?? new Map(),
@@ -161,7 +161,7 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
  *   when `accepts` is given and the parsed type falls outside it.
  */
 export function readAssetAddress(index, value, defaultType, accepts) {
-    if (typeof value !== "string" || !value) {
+    if (!value) {
         return { record: null, reason: "not-an-address" };
     }
     const read = artTarget(value, defaultType, accepts, {
@@ -280,7 +280,7 @@ export function beingDefaultArt(fm) {
  */
 export function unresolvedArtMessage(key, value) {
     return (
-        `\`data.${key}\` names \`${String(value)}\`, and no asset in this package or in ` +
+        `\`data.${key}\` names \`${encodeAddresses(value)}\`, and no asset in this package or in ` +
         `a fetched index carries that address — the document takes its default art ` +
         `instead`
     );
@@ -301,7 +301,7 @@ export function unresolvedArtMessage(key, value) {
  */
 export function unacceptedArtMessage(key, value, type, accepts) {
     return (
-        `\`data.${key}\` names \`${String(value)}\`, whose type \`${type}\` this slot does ` +
+        `\`data.${key}\` names \`${encodeAddresses(value)}\`, whose type \`${type}\` this slot does ` +
         `not accept — it accepts ${[...accepts].join(" or ")}`
     );
 }

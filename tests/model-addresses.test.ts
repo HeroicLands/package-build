@@ -14,6 +14,7 @@
 import { describe, it, expect } from "vitest";
 
 import {
+    SystemActorCompiler,
     itemAddress,
     packagedItemAddress,
     catalogueKey,
@@ -268,5 +269,51 @@ describe("loadItemsMap resolves an item whose shortcode lives in its system's fl
         expect(map.size).toBe(0);
 
         fs.rmSync(root, { recursive: true, force: true });
+    });
+});
+
+describe("model boundary identity", () => {
+    const reader = () => ({
+        documentSubtypes: { block: "sohl", types: { skill: "skill" } },
+        system: "sohl",
+        foreignPackages: new Set(["foreign"]),
+        errorCount: 0,
+        noteError: () => {},
+    });
+    it("rejects another system instead of looking up its shortcode locally", () => {
+        const ctx = reader();
+        expect(
+            SystemActorCompiler.prototype.readModel.call(
+                ctx,
+                "foreign-hm3-skill-sword",
+                0,
+                "Being",
+            ),
+        ).toBeNull();
+        expect(ctx.errorCount).toBe(1);
+    });
+    it("rejects documentation as an Item model", () => {
+        const ctx = reader();
+        expect(
+            SystemActorCompiler.prototype.readModel.call(ctx, "none-skill-sword", 0, "Being"),
+        ).toBeNull();
+        expect(ctx.errorCount).toBe(1);
+    });
+    it("completes a short model with the builder package independently of foreign catalogues", () => {
+        const ctx = reader();
+        const tuple = SystemActorCompiler.prototype.readModel.call(ctx, "skill-sword", 0, "Being");
+        expect(tuple).toEqual({
+            package: "sohl",
+            system: "sohl",
+            type: "skill",
+            shortcode: "sword",
+        });
+        const foreignOnly = new Map([
+            ["foreign:skill:sword", { name: "Sword" }],
+            ["skill:sword", { name: "Sword" }],
+        ]);
+        expect(
+            foreignOnly.get(catalogueKey(tuple.type, tuple.shortcode, tuple.package)),
+        ).toBeUndefined();
     });
 });

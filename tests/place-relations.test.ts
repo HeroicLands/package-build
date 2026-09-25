@@ -34,7 +34,7 @@ import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
-import { buildIndexRecord } from "../engine/content-index.mjs";
+import { serializeContentIndex, buildIndexRecord } from "../engine/content-index.mjs";
 import { loadForeignIndexes } from "../engine/metadata-index.mjs";
 import { loadContentFormat } from "../engine/content-format.mjs";
 
@@ -129,14 +129,21 @@ function lint(
     config?: Record<string, unknown>,
 ): { findings: Finding[]; root: string } {
     const root = tree(files);
-    const index = buildLinkIndex(root, { skipDirectories: [], ...(config ? { config } : {}) });
+    const problems: any[] = [];
+    const index = buildLinkIndex(root, {
+        skipDirectories: [],
+        problems,
+        ...(config ? { config } : {}),
+    });
     const { findings } = lintFrontmatter(index, {
         schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as any,
         vocabulary: NOTE_VOCABULARY,
     });
     return {
         root,
-        findings: (findings as Finding[]).filter((f) => /border|route/.test(f.message)),
+        findings: ([...problems, ...findings] as Finding[]).filter((f) =>
+            /border|route/.test(f.message),
+        ),
     };
 }
 
@@ -271,7 +278,7 @@ describe("check 1 — every `to` resolves to a place", () => {
         expect(f.file).toBe(path.join(root, "A.md"));
         expect(f.line).toBe(10);
         expect(f.column).toBeGreaterThan(1);
-        expect(f.message).toMatch(/"nowhere"/);
+        expect(f.message).toMatch(/"sohl-none-place-nowhere"/);
         expect(f.message).toMatch(/place/);
     });
 
@@ -359,7 +366,7 @@ describe("check 1 — every `to` resolves to a place", () => {
             "A.md": place("aaa", { borders: [{ to: "Place-bbb", bearing: "N" }] }),
             "B.md": place("bbb", { borders: [{ to: "aaa", bearing: "S" }] }),
         });
-        const mine = errors(findings).filter((f) => /must name a place/.test(f.message));
+        const mine = errors(findings).filter((f) => /is not an accepted Address/.test(f.message));
         expect(mine).toHaveLength(1);
         expect(mine[0].message).toContain("Place-bbb");
     });
@@ -731,7 +738,10 @@ describe("the content index carries a place's borders and routes", () => {
             foundry: {},
             documentation: null,
         };
-        fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(record) + "\n");
+        fs.writeFileSync(
+            path.join(dir, "thalorna-metadata.jsonl"),
+            serializeContentIndex([record]),
+        );
         fs.writeFileSync(path.join(dir, ".complete"), "");
         const config = {
             paths: { metadataCache: cache },

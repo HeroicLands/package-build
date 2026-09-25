@@ -53,6 +53,8 @@
  * @module
  */
 
+import { readWikilink } from "./wikilink-syntax.mjs";
+import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -207,7 +209,8 @@ export function buildLinkIndex(
         // alongside the notes because `byKey` holds notes, and a caller that
         // reaches for `.fm` or `.body` on one must not be handed a file.
         if (isAssetRecord(record)) {
-            if (record.address?.canonical) byAssetKey.set(record.address.canonical, record);
+            if (record.address?.canonical)
+                byAssetKey.set(encodeAddresses(record.address.canonical), record);
             continue;
         }
         // A documentation journal has a record of its own but no file and no
@@ -246,7 +249,7 @@ export function buildLinkIndex(
             // Taken from the record, which is where the address rule is applied
             // once for the whole build.
             const canonical =
-                record.address?.canonical ??
+                encodeAddresses(record.address?.canonical) ??
                 canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode);
             // A note with no address publishes no page, so its identity is
             // filed where a link cannot reach it and a reference still can.
@@ -418,8 +421,15 @@ export function buildLinkIndex(
         // Code is verbatim, so a `[[…]]` inside a fence, an indented block or an
         // inline span is not a link — the compilers make none of it either.
         for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
-            const parsed = parseWikilink(rawInner);
-            const { target, anchor } = parsed;
+            const parsed = readWikilink(rawInner, {
+                package: pkg,
+                system: "none",
+                types,
+                packages,
+                noIndexPackages,
+            });
+            const target = parsed.target.kind ? parsed.rawTarget : parsed.target;
+            const { anchor, rawTarget } = parsed;
             const occurrence = (seen.get(all) ?? 0) + 1;
             seen.set(all, occurrence);
             // `text` is the link exactly as authored, which is what locates it
@@ -427,6 +437,7 @@ export function buildLinkIndex(
             // so the search simply fails and a finding names the file.
             out.push({
                 target,
+                rawTarget,
                 anchor,
                 text: all,
                 occurrence,
@@ -516,7 +527,7 @@ export function buildLinkIndex(
         // saying so is the whole point: a link that resolved into `sohl` only
         // because no local note claimed the address was resolving by accident,
         // and would have retargeted silently the day one did.
-        if (!q.package) return [];
+        if (!q.package || q.package === pkg) return [];
         const hit = foreign.index.get(
             expandAddress(q, { package: q.package, system: blockSystem(keyPath) }),
         );
@@ -955,7 +966,7 @@ export function auditLinks(index) {
 
     const deadAnchors = [];
     for (const note of notes) {
-        for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
+        for (const { target, rawTarget, anchor, text, occurrence, labelled } of linksOf(note)) {
             if (!anchor || !labelled) continue;
             const dest = target ? resolve(target) : note;
             // An unresolvable target is reported by the pass below; its anchor
@@ -966,7 +977,7 @@ export function auditLinks(index) {
             if (!(anchors.get(dest) ?? new Set()).has(slugify(anchor))) {
                 deadAnchors.push({
                     note,
-                    link: `${target}#${anchor}`,
+                    link: `${rawTarget}#${anchor}`,
                     dest,
                     text,
                     occurrence,
@@ -979,13 +990,13 @@ export function auditLinks(index) {
     const unlabelledLinks = [];
     const usedManifest = new Set();
     for (const note of notes) {
-        for (const { target, anchor, text, occurrence, labelled } of linksOf(note)) {
+        for (const { target, rawTarget, anchor, text, occurrence, labelled } of linksOf(note)) {
             // The label is required whatever the link part is, an anchor
             // included — so this is tested before the same-page form.
             if (!labelled) {
                 unlabelledLinks.push({
                     note,
-                    target: target || (anchor ? `#${anchor}` : ""),
+                    target: rawTarget || (anchor ? `#${anchor}` : ""),
                     text,
                     occurrence,
                     // Carried like every other finding's, so a reporter reads
@@ -995,7 +1006,7 @@ export function auditLinks(index) {
                 continue;
             }
             if (!target) continue; // a same-page `[[#anchor|Text]]`
-            const at = { note, target, text, occurrence };
+            const at = { note, target: rawTarget, text, occurrence };
 
             if (!isAddress(target)) {
                 deadAddresses.push({ ...at, reason: "not-an-address" });
@@ -1017,7 +1028,7 @@ export function auditLinks(index) {
             // left to disambiguate, and no ambiguity finding this resolver can
             // report.
             if (manifestHit(target)) {
-                usedManifest.add(target.toLowerCase());
+                usedManifest.add(encodeAddresses(target).toLowerCase());
                 continue;
             }
             const read = readQualifier(target, index.types, index.packages, index.noIndexPackages);

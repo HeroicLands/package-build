@@ -291,7 +291,7 @@ describe("compiling a note that names its folder by address", () => {
         const result = compile(root);
 
         expect(result.errors).toBeGreaterThan(0);
-        expect(result.output).toMatch(/no folder note is addressed "nowhere"/);
+        expect(result.output).toMatch(/no folder note is addressed "sohl-none-folder-nowhere"/);
     });
 
     it("refuses a note that still names a Foundry id, naming `packFolder`", () => {

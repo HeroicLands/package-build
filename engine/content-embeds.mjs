@@ -59,6 +59,7 @@
  * @module
  */
 
+import { parseAddress } from "./address.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { parseImageDirective, standsAlone } from "./content-images.mjs";
 import { positionInBody } from "./diagnostics.mjs";
@@ -118,16 +119,20 @@ export const EMBED_PATTERN = /!\[\[([^\]\n]+)\]\](\{[^}\n]*\})?/g;
  * @param {string} body - The note's markdown, without its frontmatter.
  * @returns {ParsedEmbed[]} One entry per embed.
  */
-export function embedsIn(body) {
+export function embedsIn(body, context) {
     const text = String(body ?? "");
     return matchAllOutsideCode(text, new RegExp(EMBED_PATTERN.source, "g")).map((match) => {
         const index = /** @type {number} */ (match.index);
         const parsed = parseWikilink(match[1] ?? "");
         const length = match[0].length;
+        const written = parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target;
         return {
             all: match[0],
             inner: parsed.inner,
-            written: parsed.anchor ? `${parsed.target}#${parsed.anchor}` : parsed.target,
+            written,
+            ...(context ?
+                { target: parseAddress(written, { ...context, type: EMBED_DEFAULT_TYPE }) }
+            :   {}),
             display: parsed.display,
             labelled: parsed.labelled,
             directive: match[2] ?? "",
@@ -157,7 +162,11 @@ export function resolveEmbed(index, embed) {
     // reported before anything is looked up.
     if (!embed.labelled) return { reason: "unlabelled", target: embed.inner };
 
-    const read = readAssetAddress(index, embed.written, EMBED_DEFAULT_TYPE);
+    const read = readAssetAddress(
+        index,
+        embed.target?.reason ? embed.written : (embed.target ?? embed.written),
+        EMBED_DEFAULT_TYPE,
+    );
     if (read.record) {
         return { pathname: read.pathname };
     }
@@ -245,7 +254,12 @@ export function resolveEmbeds(body, { index }) {
     let out = "";
     let last = 0;
 
-    for (const embed of embedsIn(text)) {
+    for (const embed of embedsIn(text, {
+        package: index?.contentPackage ?? index?.packageId,
+        system: "none",
+        types: index?.types,
+        packages: index?.packages,
+    })) {
         problems.push(...embedProblems(embed));
         const resolved = resolveEmbed(index, embed);
         if (!("pathname" in resolved)) {

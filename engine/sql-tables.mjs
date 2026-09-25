@@ -33,6 +33,9 @@
  * @module
  */
 
+import { parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
+import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
+import { encodeAddresses } from "./address-values.mjs";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -41,7 +44,7 @@ import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
 import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
-import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
 
 /** Rendered in a cell whose value is absent. */
 const EMPTY_CELL = "—";
@@ -157,12 +160,15 @@ export function findSqlBlocks(markdown) {
  * @returns {Promise<{query: (sql: string) => Promise<object[]>,
  *   close: () => Promise<void>}>} The open database.
  */
-export async function openNotesDatabase(records, { dir, dependencies = [] } = {}) {
+export async function openNotesDatabase(records, { dir, dependencies = [], addressContext } = {}) {
     const { DuckDBInstance } = await import("@duckdb/node-api");
     const base = dir ?? fs.mkdtempSync(path.join(os.tmpdir(), "content-sql-"));
     fs.mkdirSync(base, { recursive: true });
     const jsonl = path.join(base, "notes.jsonl");
-    fs.writeFileSync(jsonl, records.map((record) => JSON.stringify(record)).join("\n"));
+    fs.writeFileSync(
+        jsonl,
+        records.map((record) => JSON.stringify(sortKeysDeep(encodeAddresses(record)))).join("\n"),
+    );
 
     const instance = await DuckDBInstance.create(":memory:");
     const connection = await instance.connect();
@@ -244,6 +250,11 @@ export async function openNotesDatabase(records, { dir, dependencies = [] } = {}
     }
 
     return {
+        addressContext: addressContext ?? {
+            package: records.find((record) => record.package)?.package,
+            types: new Set(Object.keys(NOTE_VOCABULARY)),
+            system: "none",
+        },
         stubsExcluded,
         async query(sql) {
             const reader = await connection.runAndReadAll(sql);
@@ -368,6 +379,15 @@ function readJsonAuto(file) {
  */
 export async function runSqlQuery(db, sql) {
     const { rows, columnNames } = await db.query(sql);
+    if (db.addressContext?.package) {
+        for (const row of rows) {
+            const value = row[RENDER_ALIASES.ref];
+            if (!value) continue;
+            const tuple = parseAddress(value, db.addressContext, { declared: true });
+            if (tuple.reason) throw new Error(`SQL _ref is not an Address: ${value}`);
+            row[RENDER_ALIASES.ref] = tuple;
+        }
+    }
     return { columns: columnNames.filter((key) => !key.startsWith("_")), rows };
 }
 
@@ -454,7 +474,10 @@ function cellText(value, column) {
  * @param {number} [opts.sectionLevel=2] - Heading level for `_section`.
  * @returns {string} The markdown.
  */
-export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2 } = {}) {
+export function renderSqlTable(
+    result,
+    { linkable = () => true, sectionLevel = 2, addressContext } = {},
+) {
     const { columns, rows } = result;
     if (!columns.length) throw new Error("query selects no rendered column");
 
@@ -479,11 +502,18 @@ export function renderSqlTable(result, { linkable = () => true, sectionLevel = 2
         const cells = group.rows.map((row) =>
             columns.map((column, index) => {
                 const text = cellText(row[column], column);
-                const ref = row[RENDER_ALIASES.ref];
-                if (index !== 0 || !ref || !linkable(String(ref))) return text;
+                const written = row[RENDER_ALIASES.ref];
+                if (index !== 0 || !written) return text;
+                const ref =
+                    isAddressTuple(written) ? written : (
+                        parseAddress(written, addressContext ?? {}, { declared: true })
+                    );
+                if (ref.reason)
+                    throw new Error(`SQL _ref needs a complete Address context: ${written}`);
+                if (!linkable(ref)) return text;
                 // A wikilink's own separator is a literal `|`, written `\|`
                 // inside a table cell, so the label must not carry one.
-                return `[[${ref}\\|${text.replace(/\\?\|/g, "/")}]]`;
+                return `[[${renderAddress(ref)}\\|${text.replace(/\\?\|/g, "/")}]]`;
             }),
         );
         const align = columns.map((_column, index) => {
@@ -542,6 +572,7 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
                 forNote.push({
                     markdown: renderSqlTable(result, {
                         linkable,
+                        addressContext: db.addressContext,
                         sectionLevel: block.sectionLevel,
                     }),
                     rows: result.rows.length,
@@ -621,7 +652,8 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     const addresses = new Set(
         indexRecords
             .filter((record) => !record.documents)
-            .map((record) => record.address?.slug)
+            .map((record) => record.documentation ?? record.address?.canonical)
+            .map((target) => target && encodeAddresses(target))
             .filter(Boolean),
     );
     // Each declared dependency's published index, attached as its own schema so
@@ -639,7 +671,9 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     }
     const db = await openNotesDatabase(indexRecords, { dependencies });
     try {
-        return await prepareSqlTables(db, sources, { linkable: (ref) => addresses.has(ref) });
+        return await prepareSqlTables(db, sources, {
+            linkable: (ref) => addresses.has(renderAddress(ref)),
+        });
     } finally {
         await db.close();
     }

@@ -48,6 +48,7 @@
  * @module
  */
 
+import { encodeAddresses } from "./address-values.mjs";
 import { slugify } from "./content-slug.mjs";
 import { positionOfYamlPath } from "./diagnostics.mjs";
 
@@ -464,8 +465,18 @@ export function planDocument(nodes, { selections = new Map() } = {}) {
             sections: entries.filter((e) => e.kind === "section").length,
             prose: entries.filter((e) => e.kind === "prose").length,
             notes: entries.filter((e) => e.kind === "note").length,
-            distinct: links.size,
-            repeated: selected - links.size,
+            distinct: new Set(
+                entries
+                    .filter((e) => e.kind === "note")
+                    .map((e) => e.record.address?.slug ?? e.record.shortcode),
+            ).size,
+            repeated:
+                selected -
+                new Set(
+                    entries
+                        .filter((e) => e.kind === "note")
+                        .map((e) => e.record.address?.slug ?? e.record.shortcode),
+                ).size,
             skipped: nodes.length - entries.filter((e) => e.kind === "section").length,
         },
     };
@@ -521,6 +532,10 @@ function emitSection(node, nodes, ctx) {
             // First occurrence wins the address: however many times the book
             // prints an entry, `[[weapongear-dagger]]` reaches one page.
             if (!ctx.links.has(slug)) ctx.links.set(slug, anchor);
+            for (const address of [record?.address?.canonical, record?.documentation]) {
+                if (address && !ctx.links.has(encodeAddresses(address)))
+                    ctx.links.set(encodeAddresses(address), anchor);
+            }
             ctx.entries.push({
                 kind: "note",
                 record,

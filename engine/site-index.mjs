@@ -49,10 +49,20 @@
  * @module
  */
 
+import { buildReferenceTargets } from "./reference-targets.mjs";
+
+import { resolveShortcodeReference } from "./shortcode-references.mjs";
+
 import path from "node:path";
 
 import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
-import { readQualifier } from "./address.mjs";
+import {
+    readQualifier,
+    parseAddress,
+    renderAddress,
+    isAddressTuple,
+    completeAddress,
+} from "./address.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -157,7 +167,13 @@ function mergeForeign(index, foreignIndex) {
  */
 export function buildSiteIndex(
     entries,
-    { foreignIndex = new Map(), noIndexPackages = new Set() } = {},
+    {
+        foreignIndex = new Map(),
+        noIndexPackages = new Set(),
+        package: builderPackage,
+        records = [],
+        foreignReferences = new Map(),
+    } = {},
 ) {
     const index = new Map();
     const contentTypes = new Set();
@@ -166,7 +182,7 @@ export function buildSiteIndex(
     // vendored manifest speaks for. Without it `readQualifier` cannot see the
     // leading package segment of a canonical address, and `kethira-place-x`
     // reads as the unknown type `kethira`.
-    const ownPackage = contentPackage();
+    const ownPackage = builderPackage ?? contentPackage();
     const packages = new Set(ownPackage ? [ownPackage] : []);
 
     // A page is addressed by `(type, shortcode)` and nothing else. Its name,
@@ -241,7 +257,13 @@ export function buildSiteIndex(
             // ordinary in-page anchor. One authored link, correct in both
             // builds — restricted to the types that actually have an item doc,
             // so a qualifier the packs would reject is reported broken here too.
-            if (hasDocEntry(type)) {
+            const proseAddress = completeAddress({
+                package: e.pkg ?? ownPackage,
+                system: NO_SYSTEM,
+                type,
+                shortcode,
+            });
+            if (proseAddress.type !== type || hasDocEntry(type)) {
                 contentTypes.add(`doc${type}`);
                 index.set(`doc${type}/${shortcode}`.toLowerCase(), value);
                 // The canonical documentation address too, so the page answers
@@ -260,6 +282,8 @@ export function buildSiteIndex(
     }
 
     return {
+        contentPackage: ownPackage,
+        referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,
         ambiguous,
         contentTypes,
@@ -320,7 +344,7 @@ export function wikiContext(
         // none. Taken from the resolved configuration, the same source
         // the index's own addresses are built from, so a bare link cannot
         // resolve against a package the index never keyed.
-        contentPackage: contentPackage(),
+        contentPackage: built.contentPackage,
         type,
         errors,
         src,
@@ -330,81 +354,36 @@ export function wikiContext(
 }
 
 /**
- * Resolve one infobox reference against a site index.
- *
- * A note writes a reference three ways and all three reach here: a bare
- * **shortcode** (`slntlncmpny`), a short **address** (`affiliation-slntlncmpny`)
- * and a **canonical** one (`sohl-sohl-skill-melee`). The first is the ordinary
- * case and the ambiguous one — a shortcode is unique within a type and not
- * across a tree — so a caller that knows what it expects passes `hint.type`
- * and the lookup is narrowed to it.
- *
- * **Without a hint the types are tried in sorted order**, so two trees holding
- * the same note resolve it the same way. A shortcode two types both claim
- * answers with the first alphabetically, which is a stable wrong answer rather
- * than an unstable one; a caller that cares supplies the hint.
- *
- * The `address` on the answer is the slug form — `type-shortcode` — because
- * that is what the book's own link map is keyed by and what a wikilink is
- * written as.
- *
- * @param {SiteIndex} siteIndex - The index.
- * @param {unknown} ref - The reference, as authored.
- * @param {object} [hint] - `{type}`, where the caller knows it.
- * @returns {{name?: string, url?: string, address?: string, subType?: string}|undefined}
- *   The page, or `undefined` where nothing answers.
+ * Resolve one Address against the site's canonical identity index.
+ * A bare Shortcode requires a declared default type. The returned Address is
+ * the complete tuple; URL and display name are presentation values.
+ * @param {SiteIndex} siteIndex - The site index.
+ * @param {unknown} ref - Tuple or authored reference.
+ * @param {object} [hint] - A declared default type.
+ * @returns {object|undefined} The matching page and tuple.
  */
 export function resolveInfoboxRef(siteIndex, ref, hint) {
-    if (typeof ref !== "string" || !ref) return undefined;
-    const wanted = ref.toLowerCase();
-    const keys = [];
-    if (hint?.type) keys.push(`${String(hint.type).toLowerCase()}/${wanted}`);
-    // An authored address already names its own type, so it is tried whole
-    // before the type sweep — `affiliation-slntlncmpny` must not be read as a
-    // shortcode of some other type that happens to spell it.
-    const qualifier = readQualifier(
-        wanted,
-        siteIndex?.contentTypes ?? new Set(),
-        siteIndex?.packages,
-    );
-    if (qualifier) {
-        keys.push(wanted);
-        keys.push(`${qualifier.type}/${qualifier.shortcode}`);
+    if (hint?.kind === "shortcode") {
+        const found = resolveShortcodeReference(
+            [siteIndex.referenceTargets ?? siteIndex.index],
+            ref,
+            hint,
+        );
+        return found ?
+                { name: found.name, url: found.url, subType: found.subType, address: found.address }
+            :   undefined;
     }
-    if (!hint?.type) {
-        for (const type of [...(siteIndex?.contentTypes ?? [])].sort()) {
-            keys.push(`${type}/${wanted}`);
-        }
-    }
-    for (const key of keys) {
-        const found = siteIndex?.index?.get(key);
-        if (!found) continue;
-        const slug = key.includes("/") ? key.replace("/", "-") : addressSlugOfKey(key);
-        // No `uuid`, although a foreign entry carries one: this resolver
-        // answers for the **published** surfaces, which address a page by URL
-        // and an entry in the book by its slug. A compendium reference is what
-        // `resolveReference` answers with, from the compile's own index.
-        return {
-            ...(found.name ? { name: found.name } : {}),
-            ...(found.url ? { url: found.url } : {}),
-            ...(found.subType ? { subType: found.subType } : {}),
-            address: slug,
-        };
-    }
+    const context = {
+        package: siteIndex.contentPackage ?? contentPackage(),
+        system: "none",
+        types: siteIndex.contentTypes,
+        packages: siteIndex.packages,
+    };
+    const tuple = parseAddress(ref, { ...context, type: hint?.type });
+    if (tuple.reason) return undefined;
+    const found =
+        siteIndex.referenceTargets?.get(renderAddress(tuple)) ??
+        siteIndex.index?.get(renderAddress(tuple));
+    if (found) return { name: found.name, url: found.url, subType: found.subType, address: tuple };
     return undefined;
-}
-
-/**
- * The `type-shortcode` slug of a canonical key.
- *
- * A canonical key is `package-system-type-shortcode`, and its slug is the last
- * two segments — the same rule `contentAddress` states, applied to a key
- * rather than to frontmatter.
- *
- * @param {string} key - The canonical key.
- * @returns {string} The slug.
- */
-function addressSlugOfKey(key) {
-    const parts = readCanonicalKey(key);
-    return parts ? [parts.type, parts.shortcode].join("-") : key;
 }

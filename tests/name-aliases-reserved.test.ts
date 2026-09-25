@@ -205,7 +205,7 @@ describe("a link into it resolves exactly as if the field were absent", () => {
     it("emits the identical markdown link in the site build", () => {
         const render = (content: string) => {
             const pages = sitePages(content);
-            const built = buildSiteIndex(pages);
+            const built = buildSiteIndex(pages, { package: pages[0]?.pkg });
             const citing = pages.find((p: any) => p.fm.shortcode === "shock");
             const errors: object[] = [];
             const out = resolveWebWikilinks(
@@ -226,7 +226,7 @@ describe("a link into it resolves exactly as if the field were absent", () => {
         // The reservation's sharpest edge: were the field folded back into an
         // index, `[[doc-Wolfsbane|…]]` — or a bare `[[Wolfsbane]]` — would
         // start resolving. Neither may.
-        const built = buildSiteIndex(sitePages(withField));
+        const built = buildSiteIndex(sitePages(withField), { package: "demo" });
         for (const key of ["doc/wolfsbane", "wolfsbane", "rules/wolfsbane", "doc/monkshood"]) {
             expect(built.index.has(key)).toBe(false);
         }

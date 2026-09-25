@@ -361,18 +361,32 @@ export function resolveItemDocType(qualifier, types) {
  *   label already removed.
  * @param {AddressDefaults} [defaults] - The position's defaults and the tree's
  *   vocabularies.
- * @param {{declared?: boolean}} [options] - A declared Address validates every
+ * @param {{declared?: boolean, legacyShortcodeCase?: boolean}} [options] - A declared Address validates every
  *   segment and requires complete defaults. Package membership is a separate
  *   resolution question in this mode; prose recognition keeps its vocabulary checks.
+ *   `legacyShortcodeCase` accepts case-insensitive model Shortcodes while the
+ *   completed tuple contains their canonical lowercase identity.
  * @returns {AddressTuple|AddressProblem} The complete Address, or why there is
  *   none.
  */
-export function parseAddress(written, defaults = {}, { declared = false } = {}) {
+export function parseAddress(
+    written,
+    defaults = {},
+    { declared = false, legacyShortcodeCase = false } = {},
+) {
+    if (isAddressTuple(written)) return written;
     if (declared) {
         if (typeof written !== "string") return { reason: "not-an-address" };
         const segments =
             written.includes("/") ? written.split("/") : written.split(ADDRESS_SEPARATOR);
-        if (!segments.every(isAddressSegment)) return { reason: "invalid-segment" };
+        if (
+            !segments.every((segment, index) =>
+                isAddressSegment(
+                    legacyShortcodeCase && index === segments.length - 1 ? norm(segment) : segment,
+                ),
+            )
+        )
+            return { reason: "invalid-segment" };
     }
     const read = readWritten(written, defaults, declared);
     if (read.reason) return read;
@@ -380,6 +394,35 @@ export function parseAddress(written, defaults = {}, { declared = false } = {}) 
     if (declared && !isAddressSegment(tuple.package)) return { reason: "no-package" };
     if (declared && !isSystemSegment(tuple.system)) return { reason: "invalid-system" };
     return tuple;
+}
+
+/** The values created by the Address reader, distinct from authored mappings. */
+const TUPLES = new WeakSet();
+
+/**
+ * Whether a value is an internally parsed Address.
+ * @param {unknown} value - A property value.
+ * @returns {boolean} Whether it is a typed tuple.
+ */
+export function isAddressTuple(value) {
+    return value !== null && typeof value === "object" && TUPLES.has(value);
+}
+
+/**
+ * Construct a complete, immutable Address value.
+ * @param {AddressTuple} value - The four segments.
+ * @returns {AddressTuple} The typed value.
+ */
+function addressTuple(value) {
+    if (
+        !isAddressSegment(value.package) ||
+        !isSystemSegment(value.system) ||
+        !isAddressSegment(value.type) ||
+        !isAddressSegment(value.shortcode)
+    )
+        return value;
+    TUPLES.add(value);
+    return Object.freeze(value);
 }
 
 /**
@@ -444,6 +487,7 @@ export function acceptsType(tuple, allowed) {
  * @returns {AddressTuple} The complete Address.
  */
 export function completeAddress(read, where = {}) {
+    if (isAddressTuple(read)) return read;
     const written = read.type;
     const pkg = read.package ?? where.package;
     // A documentation journal is a core document, so it is `none` however it was
@@ -466,7 +510,7 @@ export function completeAddress(read, where = {}) {
     // defines a JournalEntry.
     const redirected = system === NO_SYSTEM && isSystemBearing(written);
     const type = read.itemDoc || redirected ? `${ITEM_DOC_PREFIX}${written}` : written;
-    return { package: pkg, system, type, shortcode: read.shortcode };
+    return addressTuple({ package: pkg, system, type, shortcode: read.shortcode });
 }
 
 /**
@@ -537,12 +581,13 @@ export function canonicalKey(pkg, system, type, shortcode) {
  *   `undefined` when there is no Address at all.
  */
 export function readCanonicalKey(key) {
+    if (isAddressTuple(key)) return key;
     if (key == null || key === "") return undefined;
     const parts = String(key).split(ADDRESS_SEPARATOR);
     if (parts.length !== CANONICAL_KEY_SEGMENTS) return null;
     const [pkg, system, type, shortcode] = parts;
     if (!pkg || !system || !type || !shortcode) return null;
-    return { package: pkg, system, type, shortcode };
+    return addressTuple({ package: pkg, system, type, shortcode });
 }
 
 /**
@@ -590,6 +635,7 @@ export function readCanonicalKey(key) {
  *   badly-cased segment; or `null` when it is not an Address at all.
  */
 export function readQualifier(target, types, packages, noIndexPackages) {
+    if (isAddressTuple(target)) return target;
     const read = readWritten(target, { types, packages, noIndexPackages });
     // A value naming no type at all is a note name, not a badly written
     // address, and the resolvers depend on telling the two apart: prose is full

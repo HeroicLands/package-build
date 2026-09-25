@@ -54,6 +54,8 @@
  * @module
  */
 
+import { isAddressTuple } from "./address.mjs";
+import { AddressEntries } from "./address-values.mjs";
 import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
     legacyKeyOf,
@@ -198,19 +200,7 @@ export const DEFAULT_SYSTEM_BLOCKS = Object.freeze({
  * @param {object} [config] - A resolved configuration from `defineConfig`.
  * @returns {string[]} The system ids, deduplicated, in declared order.
  */
-export function declaredSystems(config) {
-    const out = [];
-    for (const system of Object.keys(config?.systems ?? {})) {
-        if (!out.includes(system)) out.push(system);
-    }
-    for (const pack of config?.packs ?? []) {
-        const system = pack?.system;
-        if (typeof system === "string" && system && !out.includes(system)) out.push(system);
-    }
-    if (out.length) return out;
-    const packageWide = config?.stats?.systemId;
-    return typeof packageWide === "string" && packageWide ? [packageWide] : [];
-}
+export { declaredSystems } from "./system-vocabulary.mjs";
 
 /**
  * The system blocks a configuration says its tree carries, and what each
@@ -263,19 +253,7 @@ export function declaredSystems(config) {
  * @returns {Readonly<Record<string, SystemBlockSpec>>} The blocks to check, in
  *   declared order. A system nothing states the vocabulary of is absent.
  */
-export function systemBlocksFor(config, { schemaSystem } = {}) {
-    const byName = config?.itemFieldsBySystem ?? {};
-    /** @type {Record<string, SystemBlockSpec>} */
-    const blocks = {};
-    for (const system of declaredSystems(config)) {
-        /** @type {SystemBlockSpec} */
-        const spec = {};
-        if (system === schemaSystem) spec.fieldVocabulary = true;
-        if (byName[system]) spec.fields = byName[system];
-        if (Object.keys(spec).length) blocks[system] = Object.freeze(spec);
-    }
-    return Object.freeze(blocks);
-}
+export { systemBlocksFor } from "./system-vocabulary.mjs";
 
 /**
  * Edit distance, capped — enough to answer "did you mean".
@@ -389,6 +367,7 @@ export function matchesKind(value, kind, context = {}) {
  * @returns {Record<string, unknown>|null} Its entries, or `null` for a scalar.
  */
 function mapEntries(value) {
+    if (isAddressTuple(value)) return null;
     if (Array.isArray(value)) return value.length === 0 ? {} : null;
     if (typeof value !== "object" || value === null) return null;
     return /** @type {Record<string, unknown>} */ (value);
@@ -556,7 +535,7 @@ function checkDataReferences(note, field, value, segments, context) {
             value.forEach((entry, i) =>
                 checks.push({ value: entry, path: [i], kind: field.entryKind }),
             );
-        } else if (value && typeof value === "object") {
+        } else if (value && typeof value === "object" && !isAddressTuple(value)) {
             Object.entries(value).forEach(([key, entry]) => {
                 if (entry != null)
                     checks.push({ value: entry, path: [key], kind: field.entryKind, atKey: true });
@@ -564,9 +543,18 @@ function checkDataReferences(note, field, value, segments, context) {
         } else checks.push({ value, path: [], kind: field.entryKind });
     }
     if (field.keyKind) {
-        Object.keys(value).forEach((key) =>
-            checks.push({ value: key, path: [key], kind: field.keyKind, key: true }),
-        );
+        if (value instanceof AddressEntries) {
+            for (const entry of value.entries)
+                checks.push({
+                    value: entry.target,
+                    path: [entry.sourceKey],
+                    kind: field.keyKind,
+                    key: true,
+                });
+        } else
+            Object.keys(value).forEach((key) =>
+                checks.push({ value: key, path: [key], kind: field.keyKind, key: true }),
+            );
     }
     const findings = [];
     const defaults = { ...context, type: field.ref };
@@ -1287,7 +1275,7 @@ export function lintNote(
             inData,
             blockCollides: blockCollisions.has(key),
         });
-        if (typeof authored !== "string") continue;
+        if (typeof authored !== "string" && !isAddressTuple(authored)) continue;
         findings.push({
             file: note.file,
             ...at(key),
@@ -1315,7 +1303,7 @@ export function lintNote(
             inData,
             blockCollides: blockCollisions.has(key),
         });
-        if (typeof authored !== "string") continue;
+        if (typeof authored !== "string" && !isAddressTuple(authored)) continue;
         const problem = pathnameProblem(authored);
         if (!problem) continue;
         findings.push({

@@ -380,12 +380,12 @@ describe("expandContentTables — rendering", () => {
             'TABLE WITHOUT ID link(file.path, name.full) AS "Name", sohl.weight AS "Weight"\n' +
                 'WHERE sohl.material = "Mail"',
         );
-        expect(md).toContain("| [[armorgear/MHaub\\|Mail Hauberk]] | 20 |");
+        expect(md).toContain("| [[sohl-none-docarmorgear-mhaub\\|Mail Hauberk]] | 20 |");
     });
 
     it("renders the implicit File column as a wikilink too", () => {
         const md = table('TABLE sohl.weight AS "Weight"\nWHERE sohl.material = "Mail"');
-        expect(md).toContain("| [[armorgear/MHaub\\|Mail_Hauberk]] | 20 |");
+        expect(md).toContain("| [[sohl-none-docarmorgear-mhaub\\|Mail_Hauberk]] | 20 |");
     });
 
     it("leaves a link cell as plain text when the note is not linkable", () => {
@@ -403,7 +403,7 @@ describe("expandContentTables — rendering", () => {
             'TABLE WITHOUT ID name.full AS "Name", link(file.path, shortcode) AS "Code"\n' +
                 'WHERE sohl.material = "Mail"',
         );
-        expect(md).toContain("| Mail Hauberk | [[armorgear/MHaub\\|MHaub]] |");
+        expect(md).toContain("| Mail Hauberk | [[sohl-none-docarmorgear-mhaub\\|MHaub]] |");
     });
 
     it("renders an absent value as an em dash and keeps the column left-aligned", () => {

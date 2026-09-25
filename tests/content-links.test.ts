@@ -118,7 +118,7 @@ describe("buildLinkIndex", () => {
         });
         const src = index.notes.find((n) => n.type === "doc");
         expect(index.linksOf(src).map((l) => [l.target, l.anchor])).toEqual([
-            ["skill-clmb", ""],
+            [{ package: "sohl", system: "none", type: "docskill", shortcode: "clmb" }, ""],
             ["", "here"],
         ]);
     });
@@ -134,7 +134,9 @@ describe("buildLinkIndex", () => {
             "Skills/Climbing.md": note({ type: "skill", shortcode: "clmb" }),
         });
         const src = index.notes.find((n) => n.type === "doc");
-        expect(index.linksOf(src).map((l) => l.target)).toEqual(["skill-clmb"]);
+        expect(index.linksOf(src).map((l) => l.target)).toEqual([
+            { package: "sohl", system: "none", type: "docskill", shortcode: "clmb" },
+        ]);
     });
 
     it("does not read a link inside code", () => {

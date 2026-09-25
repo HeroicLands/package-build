@@ -160,6 +160,16 @@ function collectNotes(contentBase, { skipDirectories, config, records, problems 
             file: path.relative(process.cwd(), absPath),
         });
     }
+    for (let i = (problems?.length ?? 0) - 1; i >= 0; i--) {
+        const problem = problems[i];
+        if (!problem.identity) continue;
+        notes.push({
+            fm: problem.identity,
+            absPath: problem.file,
+            file: path.relative(process.cwd(), problem.file),
+        });
+        problems.splice(i, 1);
+    }
     // The records already come in content-path order, so this only re-states
     // the guarantee findings depend on: they read top to bottom.
     notes.sort((a, b) => (a.absPath < b.absPath ? -1 : 1));
@@ -291,7 +301,7 @@ function checkRenamedFrom({ fm, file }, raw) {
  */
 export function lintContentTree(
     contentBase,
-    { skipDirectories, contentPackage, config, records, problems } = {},
+    { skipDirectories, contentPackage, config, records, problems = [] } = {},
 ) {
     const findings = [];
     const notes = collectNotes(contentBase, { skipDirectories, config, records, problems });

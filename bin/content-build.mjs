@@ -213,7 +213,9 @@ prefix.apply(log, {
  */
 function reportFailure(err) {
     const message = err instanceof Error ? err.message : String(err);
-    if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
+    if (err?.file && err?.keyPath)
+        emitDiagnostic({ file: err.file, ...(err.position ?? {}), severity: "error", message });
+    else if (/** @type {{located?: boolean}} */ (err)?.located) console.error(message);
     else log.error(message);
 }
 

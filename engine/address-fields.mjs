@@ -46,14 +46,11 @@
  * refuse it, because it is an Address; the **field** refuses it, with an error
  * naming what it accepts.
  *
- * ## The default `<system>` segment is the default type's own
+ * ## Authored defaults belong to the read boundary
  *
- * An affiliation compiles into a SoHL Item, so a bare `relations` key expands
- * to `<package>-sohl-affiliation-<shortcode>`; a place is a core document, so a
- * bare `seat` expands to `<package>-none-place-<shortcode>`. The segment is
- * therefore a property of what the position names rather than of the block the
- * value sits in, and it is derived from the declared default type by the same
- * rule {@link module:engine/address} applies.
+ * Parsed Address tuples retain the enclosing block's system. This reduction
+ * projects their Shortcode without changing that identity. Direct callers
+ * supplying strings provide the position's package and type vocabulary.
  *
  * ## The reduction is lossy, and the collision it loses is legal
  *
@@ -84,7 +81,8 @@
  * @module
  */
 
-import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
+import { acceptsType, parseAddress, renderAddress, isAddressTuple } from "./address.mjs";
+import { AddressEntries } from "./address-values.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -178,7 +176,9 @@ function reduceOne(value, field, vocabulary, findings) {
     if (shape === "keys") {
         if (!isMapping(value)) return undefined;
         const out = {};
-        for (const [written, standing] of Object.entries(value)) {
+        for (const [written, standing] of value instanceof AddressEntries ?
+            value.entries.map((e) => [e.target, e.value])
+        :   Object.entries(value)) {
             const code = read(written);
             // The first standing stands, so the emitted map does not depend on
             // which key the reduction reached first.
@@ -214,10 +214,13 @@ function reduceOne(value, field, vocabulary, findings) {
  */
 function readOne(written, field, defaults, seen, findings, shape) {
     const key = findingKey(field);
-    const value = typeof written === "string" ? written : String(written ?? "");
+    const value =
+        isAddressTuple(written) ? renderAddress(written)
+        : typeof written === "string" ? written
+        : String(written ?? "");
     const report = (message) => void findings.push({ key, written: value, message });
 
-    const tuple = parseAddress(value, defaults);
+    const tuple = parseAddress(written, defaults);
     if (tuple.reason) {
         report(unreadableMessage(key, value, tuple, defaults));
         return undefined;

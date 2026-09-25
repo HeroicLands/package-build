@@ -39,7 +39,7 @@ import { indexRecordsFor, isNoteRecord } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
 import { cachedIndexPath, loadForeignIndexes } from "./metadata-index.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { parseAddress } from "./address.mjs";
+import { parseAddress, isAddressTuple } from "./address.mjs";
 import { readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
 
 /**
@@ -122,6 +122,7 @@ const PLACE_TYPES = Object.freeze(new Set(["place"]));
  * @returns {string} Its shortcode, or `""` for an entry that names nothing.
  */
 function parentShortcode(parent) {
+    if (isAddressTuple(parent)) return parent.shortcode.toLowerCase();
     const text = String(parent ?? "").trim();
     if (!text) return "";
     const qualified = readCanonicalKey(text);
@@ -155,7 +156,10 @@ function relationList(value) {
     if (!Array.isArray(value)) return [];
     return value
         .filter((e) => e && typeof e === "object" && !Array.isArray(e))
-        .map((e) => ({ ...e, to: String(e.to ?? "").toLowerCase() }));
+        .map((e) => ({
+            ...e,
+            to: isAddressTuple(e.to) ? e.to.shortcode : String(e.to ?? "").toLowerCase(),
+        }));
 }
 
 /**

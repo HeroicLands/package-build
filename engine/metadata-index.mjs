@@ -39,6 +39,11 @@
  * @module
  */
 
+import { buildReferenceTargets } from "./reference-targets.mjs";
+
+import { completeAddress, renderAddress } from "./address.mjs";
+
+import { decodeIndexAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
 import fs from "node:fs";
 import path from "node:path";
 
@@ -330,6 +335,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
     const index = new Map();
     const packages = new Set();
     const stale = [];
+    const referenceRecords = [];
 
     /**
      * Fold one package's records into the index.
@@ -338,7 +344,7 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
      * @param {Array<Record<string, any>>} records - Its index records.
      * @returns {void}
      */
-    const ingest = (pkg, records) => {
+    const ingest = (pkg, records, sourceFile) => {
         // A base is only needed to resolve a page *URL*, so a pack-only
         // dependency — Foundry addresses and no site, which `kethira` is by
         // licensing rather than by accident — needs none. Demanding one would
@@ -351,8 +357,20 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         const base = bases?.[pkg];
         const web = typeof base === "string" && base.length > 0;
 
-        for (const record of records) {
-            const key = record?.address?.canonical;
+        const pageAliases = [];
+        for (const [recordIndex, record] of records.entries()) {
+            try {
+                decodeIndexAddresses(record, noteAddressContext(config));
+            } catch (error) {
+                error.file = sourceFile;
+                const lines = sourceFile ? fs.readFileSync(sourceFile, "utf8").split("\n") : [];
+                let nonempty = -1;
+                const line = lines.findIndex((text) => text.trim() && ++nonempty === recordIndex);
+                error.position = line >= 0 ? { line: line + 1 } : {};
+                throw error;
+            }
+            referenceRecords.push(record);
+            const key = encodeAddresses(record?.address?.canonical);
             if (!key) continue;
             const parts = readCanonicalKey(key);
             if (!parts) continue;
@@ -398,7 +416,44 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 domains: record.data?.domains ?? undefined,
                 package: pkg,
             });
+            const entry = index.get(key);
+            for (const [system, published] of Object.entries(record.foundry ?? {})) {
+                const identity = completeAddress({
+                    package: record.package,
+                    system,
+                    type: record.type,
+                    shortcode: record.shortcode,
+                });
+                const publishedKey = renderAddress(identity);
+                if (!index.has(publishedKey))
+                    index.set(publishedKey, {
+                        ...entry,
+                        uuid: published.uuid,
+                        anchors: published.anchors,
+                        type: identity.type,
+                    });
+            }
+            if (entry.url) {
+                const identity = completeAddress({
+                    package: record.package,
+                    system: "none",
+                    type: record.type,
+                    shortcode: record.shortcode,
+                });
+                if (identity.type !== record.type)
+                    pageAliases.push([
+                        renderAddress(identity),
+                        {
+                            ...entry,
+                            uuid: undefined,
+                            anchors: undefined,
+                            doc: undefined,
+                            type: identity.type,
+                        },
+                    ]);
+            }
         }
+        for (const [key, entry] of pageAliases) if (!index.has(key)) index.set(key, entry);
         packages.add(pkg);
     };
 
@@ -424,10 +479,10 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
         }
         const pkg = records[0]?.package ?? packageOfCache(file);
         if (local.has(pkg)) continue;
-        ingest(pkg, records);
+        ingest(pkg, records, file);
     }
 
-    return { index, packages, stale };
+    return { index, references: buildReferenceTargets(referenceRecords, index), packages, stale };
 }
 
 /**
