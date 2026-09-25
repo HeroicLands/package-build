@@ -1478,8 +1478,9 @@ the system and the fourth cannot omit it — see [Shorter forms](#shorter-forms)
 
 An `affiliation-` prefix there is an **error naming the field and both types** —
 never a silent widening of what the field accepts. Where a field permits more
-than one type, a bare shortcode must resolve to exactly one of them, and an
-ambiguity is an error naming the candidates rather than a first match.
+than one type with no default among them, a bare shortcode is refused
+outright — an error naming the field and the types it accepts, never a
+resolution across them.
 
 **A position's default and its accepted set are two different declarations,
 and most positions are not ambiguous at all.** The paragraph above is about a
