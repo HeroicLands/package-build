@@ -48,8 +48,11 @@ const VOCABULARY = {
 
 const AFFILIATION = ITEM_FIELDS.affiliation as readonly any[];
 
-/** One affiliation field's declaration, by the name an author writes. */
-const declared = (name: string) => AFFILIATION.find((field) => field.name === name);
+/** A declaration's shared source, without the `data:` container holding it. */
+const authoredKey = (field: any) => String(field.name ?? "").replace(/^data\./, "");
+
+/** One affiliation field's declaration, by the key an author writes under `data:`. */
+const declared = (name: string) => AFFILIATION.find((field) => authoredKey(field) === name);
 
 /**
  * Reduce one field's emitted value.
@@ -70,10 +73,10 @@ describe("the declarations that state an Address position", () => {
             ([type, fields]) => addressFields(fields).map((field: any) => `${type}.${field.name}`),
         );
         expect(stated.sort()).toEqual([
-            "affiliation.domains",
-            "affiliation.parents",
-            "affiliation.relations",
-            "affiliation.seat",
+            "affiliation.data.domains",
+            "affiliation.data.parents",
+            "affiliation.data.relations",
+            "affiliation.data.seat",
         ]);
     });
 

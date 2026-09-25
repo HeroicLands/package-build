@@ -271,7 +271,8 @@ const GEAR_COMMON = Object.freeze([
         describe: "How many the stack holds. A compendium article ships one.",
     },
     {
-        name: "weight",
+        name: "data.weight",
+        legacyKey: "weight",
         to: "weightBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -279,7 +280,8 @@ const GEAR_COMMON = Object.freeze([
         describe: "Weight of one, in pounds.",
     },
     {
-        name: "value",
+        name: "data.value",
+        legacyKey: "value",
         to: "valueBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -287,7 +289,8 @@ const GEAR_COMMON = Object.freeze([
         describe: "Worth of one, in pence.",
     },
     {
-        name: "quality",
+        name: "data.quality",
+        legacyKey: "quality",
         to: "qualityBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -295,7 +298,8 @@ const GEAR_COMMON = Object.freeze([
         describe: "Craftsmanship, as a modifier to what the article does.",
     },
     {
-        name: "durability",
+        name: "data.durability",
+        legacyKey: "durability",
         to: "durabilityBase",
         ...AS_AUTHORED,
         kind: "number",
@@ -326,6 +330,14 @@ const GEAR_COMMON = Object.freeze([
 /**
  * Every item type's frontmatter vocabulary, in the order the `system` block
  * emits it.
+ *
+ * **A field whose shared source is a path into `data:` names both positions.**
+ * `name` is the source the content format's mapping tables state — `data.seat`,
+ * `data.weight` — and `legacyKey` is the key the system block still carries, which
+ * wins while a tree writes it. Naming only the source would move the in-block
+ * read to a key spelled `data.seat`, which nothing authors; naming only the key
+ * leaves the container the specification points at unread, and the field then
+ * compiles its default over an authored value with nothing said.
  *
  * @type {Readonly<Record<string, readonly import("../engine/field-spec.mjs").FieldSpec[]>>}
  */
@@ -375,7 +387,8 @@ export const ITEM_FIELDS = Object.freeze({
         {
             // Plural because the field holds a map of many standings, one per
             // affiliation — the singular reads as a misnomer.
-            name: "relations",
+            name: "data.relations",
+            legacyKey: "relations",
             to: "relations",
             ...RELATION,
             address: AFFILIATION_KEYS,
@@ -386,7 +399,8 @@ export const ITEM_FIELDS = Object.freeze({
             // The organisational relation: which bodies this one answers to.
             // A list, because an affiliation may sit under more than one at
             // once — an arcane tradition within an order, say.
-            name: "parents",
+            name: "data.parents",
+            legacyKey: "parents",
             to: "parents",
             ...ADDRESS_LIST,
             address: AFFILIATION_ITEMS,
@@ -397,7 +411,8 @@ export const ITEM_FIELDS = Object.freeze({
             // Not `capital` or `headquarters`: each fits about half the eleven
             // subTypes, while a seat covers a polity, a guild, an order and a
             // faith alike.
-            name: "seat",
+            name: "data.seat",
+            legacyKey: "seat",
             to: "seat",
             ...BLANK_IS_NULL,
             address: PLACE_VALUE,
@@ -412,7 +427,8 @@ export const ITEM_FIELDS = Object.freeze({
             // mapping row states (`data.domains` → `system.domain`). The two
             // spellings are deliberate rather than a slip, so the declaration
             // carries both rather than either side guessing.
-            name: "domains",
+            name: "data.domains",
+            legacyKey: "domains",
             to: "domain",
             ...ADDRESS_LIST,
             address: PLACE_ITEMS,
@@ -456,14 +472,16 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "How readily the host throws it off.",
         },
         {
-            name: "contagionIndex",
+            name: "data.contagionIndex",
+            legacyKey: "contagionIndex",
             to: "contagionIndexBase",
             ...NUMBER,
             default: 0,
             describe: "How readily it passes to someone else.",
         },
         {
-            name: "transmission",
+            name: "data.transmission",
+            legacyKey: "transmission",
             to: "transmission",
             ...AS_AUTHORED,
             default: "none",
@@ -478,7 +496,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Days from contracting to onset, rolled by the receiving actor. Unset means no incubation.",
         },
         {
-            name: "outcome",
+            name: "data.outcome",
+            legacyKey: "outcome",
             to: "outcome",
             ...BLANK_IS_DEFAULT,
             default: "cured",
@@ -502,7 +521,8 @@ export const ITEM_FIELDS = Object.freeze({
         // cannot be grepped, and each phase's prose differs anyway — which is
         // the whole content of the declaration.
         {
-            name: "onsetDurationFormula",
+            name: "data.onsetDurationFormula",
+            legacyKey: "onsetDurationFormula",
             to: "onsetDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -510,7 +530,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval from contracting the affliction to the start of onset. Omitted when unset, leaving no incubation.",
         },
         {
-            name: "onsetDurationBase",
+            name: "data.onsetDurationBase",
+            legacyKey: "onsetDurationBase",
             to: "onsetDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -518,7 +539,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "The onset interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         {
-            name: "healingCheckDurationFormula",
+            name: "data.healingCheckDurationFormula",
+            legacyKey: "healingCheckDurationFormula",
             to: "healingCheckDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -526,7 +548,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval between healing checks, once the affliction is symptomatic. Omitted when unset.",
         },
         {
-            name: "healingCheckDurationBase",
+            name: "data.healingCheckDurationBase",
+            legacyKey: "healingCheckDurationBase",
             to: "healingCheckDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -534,7 +557,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "The healing-check interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         {
-            name: "resolutionDurationFormula",
+            name: "data.resolutionDurationFormula",
+            legacyKey: "resolutionDurationFormula",
             to: "resolutionDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -542,7 +566,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval from onset to the affliction running its course. Omitted when unset.",
         },
         {
-            name: "resolutionDurationBase",
+            name: "data.resolutionDurationBase",
+            legacyKey: "resolutionDurationBase",
             to: "resolutionDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -771,14 +796,16 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "The mystery's level before any modifier.",
         },
         {
-            name: "skillAptitudes",
+            name: "data.skillAptitudes",
+            legacyKey: "skillAptitudes",
             to: "skillAptitudes",
             ...SKILL_APTITUDES,
             default: {},
             describe: "Aptitude the mystery grants, per skill selector.",
         },
         {
-            name: "charges",
+            name: "data.charges",
+            legacyKey: "charges",
             to: "charges",
             ...CHARGES,
             default: { value: null, max: null },
@@ -834,7 +861,8 @@ export const ITEM_FIELDS = Object.freeze({
             describe: "The ability's level before any modifier.",
         },
         {
-            name: "charges",
+            name: "data.charges",
+            legacyKey: "charges",
             to: "charges",
             ...CHARGES,
             default: { value: null, max: null },
@@ -997,7 +1025,8 @@ export const ITEM_FIELDS = Object.freeze({
         // `bloodLossAdvance*` is the one an author reaches for most: a trauma
         // that sets it bleeds, and one that leaves it unset does not.
         {
-            name: "healingCheckDurationFormula",
+            name: "data.healingCheckDurationFormula",
+            legacyKey: "healingCheckDurationFormula",
             to: "healingCheckDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1005,7 +1034,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval between healing checks. Omitted when unset, leaving the world's configured interval to apply.",
         },
         {
-            name: "healingCheckDurationBase",
+            name: "data.healingCheckDurationBase",
+            legacyKey: "healingCheckDurationBase",
             to: "healingCheckDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -1013,7 +1043,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "The healing-check interval in seconds, standing in for a roll of the formula. Omitted when unset.",
         },
         {
-            name: "bloodLossAdvanceDurationFormula",
+            name: "data.bloodLossAdvanceDurationFormula",
+            legacyKey: "bloodLossAdvanceDurationFormula",
             to: "bloodLossAdvanceDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1021,7 +1052,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval between blood-loss advances. Omitted when unset, leaving the world's configured interval to apply.",
         },
         {
-            name: "bloodLossAdvanceDurationBase",
+            name: "data.bloodLossAdvanceDurationBase",
+            legacyKey: "bloodLossAdvanceDurationBase",
             to: "bloodLossAdvanceDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,
@@ -1029,7 +1061,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "The blood-loss interval in seconds. Setting it is what makes the wound bleed; omitted when unset, and the wound does not.",
         },
         {
-            name: "courseDurationFormula",
+            name: "data.courseDurationFormula",
+            legacyKey: "courseDurationFormula",
             to: "courseDurationFormula",
             ...DURATION_FORMULA,
             omitWhenAbsent: true,
@@ -1037,7 +1070,8 @@ export const ITEM_FIELDS = Object.freeze({
                 "Interval between course tests, for a condition that runs one — shock, coma, infection. Omitted when unset.",
         },
         {
-            name: "courseDurationBase",
+            name: "data.courseDurationBase",
+            legacyKey: "courseDurationBase",
             to: "courseDurationBase",
             ...DURATION_BASE,
             omitWhenAbsent: true,

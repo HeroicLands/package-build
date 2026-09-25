@@ -117,6 +117,7 @@ import { currentType } from "./ids.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
+import { authoredKey } from "./system-block.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -326,13 +327,20 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
  * `<type>.<field>` wins over the bare name, so a spelling two types use for two
  * quantities can be said differently on each without splitting the overlay.
  *
+ * **Keyed by the key an author writes, not by the path a declaration names.**
+ * One fact has two declarations — the note vocabulary's `weight` and an item
+ * field's `data.weight` — and the overlay says what a *reader* is shown, which
+ * is one word either way. So the container is dropped before the lookup, and
+ * `GEAR_UNITS` answers for both sides with one entry.
+ *
  * @param {Readonly<Record<string, object>>} presentation - The overlay.
  * @param {string|undefined} type - The note's type.
  * @param {string} name - The field's declared name.
  * @returns {object} The entry, or an empty one.
  */
 export function overlayFor(presentation, type, name) {
-    return presentation?.[`${currentType(type)}.${name}`] ?? presentation?.[name] ?? {};
+    const key = authoredKey(name);
+    return presentation?.[`${currentType(type)}.${key}`] ?? presentation?.[key] ?? {};
 }
 
 /** What a composed group's row is called. @type {Readonly<Record<string, string>>} */
@@ -814,7 +822,11 @@ export function systemRowsSection(
 ) {
     const rows = [];
     for (const field of fields ?? []) {
-        if (!field?.name || taken.has(field.name)) continue;
+        // Asked on the authored key: the note box records what it showed by the
+        // key a note writes, and a field whose shared source is a path into
+        // `data:` names the container as well — so comparing the declared names
+        // would put one fact on two surfaces.
+        if (!field?.name || taken.has(authoredKey(field.name))) continue;
         const overlay = overlayFor(presentation, fm?.type, field.name);
         if (overlay.withheld) continue;
         const { value: raw, from } = resolveField(field, fm, { block });

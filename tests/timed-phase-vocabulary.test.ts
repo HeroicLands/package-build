@@ -36,6 +36,7 @@ import {
 } from "../engine/field-spec.mjs";
 import { SCHEMA_ARTIFACT_VERSION, compareFields, emittedFields } from "../engine/schema-check.mjs";
 import { renderItemFieldReference } from "../engine/field-reference.mjs";
+import { authoredKey } from "../engine/system-block.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { HM3_ITEM_FIELDS } from "../hm3/item-fields.mjs";
 import { Items } from "../sohl/items.mjs";
@@ -126,8 +127,10 @@ describe("the position, not the value, decides", () => {
 });
 
 describe("SoHL declares both authored thirds of every phase it stores", () => {
+    // Named by the key an author writes: each of these declares its shared
+    // source as a path into `data:`, and the phase is what the note calls it.
     const named = (type: string) =>
-        authoredFields((ITEM_FIELDS as any)[type]).map((f: any) => f.name);
+        authoredFields((ITEM_FIELDS as any)[type]).map((f: any) => authoredKey(f.name));
 
     it("covers each affliction phase", () => {
         for (const phase of ["onset", "healingCheck", "resolution"]) {
@@ -285,8 +288,8 @@ describe("the generated reference offers them as fields an author writes", () =>
     const page = renderItemFieldReference();
 
     it("lists each one in its type's table", () => {
-        expect(page).toContain("`onsetDurationFormula`");
-        expect(page).toContain("`bloodLossAdvanceDurationBase`");
+        expect(page).toContain("`data.onsetDurationFormula`");
+        expect(page).toContain("`data.bloodLossAdvanceDurationBase`");
     });
 
     it("shows no default, because leaving it out omits the key", () => {

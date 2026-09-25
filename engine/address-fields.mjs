@@ -88,7 +88,7 @@ import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
-import { setPath } from "./system-block.mjs";
+import { authoredKey, setPath } from "./system-block.mjs";
 
 /**
  * How many values a position holds.
@@ -213,7 +213,7 @@ function reduceOne(value, field, vocabulary, findings) {
  *   emitted for this value.
  */
 function readOne(written, field, defaults, seen, findings, shape) {
-    const key = String(field.name ?? field.to);
+    const key = findingKey(field);
     const value = typeof written === "string" ? written : String(written ?? "");
     const report = (message) => void findings.push({ key, written: value, message });
 
@@ -273,6 +273,23 @@ function positionDefaults(position, vocabulary) {
 /** Whether a value is an authored map rather than a list or a scalar. */
 function isMapping(value) {
     return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+/**
+ * The key a finding names, as the note's own line spells it.
+ *
+ * A declaration's shared source is a path into the `data:` container —
+ * `data.seat` — and the note writes `seat:` one level inside it. The finding
+ * names that key for two reasons at once: it is the word on the line the
+ * diagnostic opens, and it is what {@link
+ * module:engine/retired-fields.locateFrontmatterKey} matches when the authored
+ * value cannot be found in the fence, which a dotted path never would.
+ *
+ * @param {object} field - The declaration.
+ * @returns {string} The key, without the container holding it.
+ */
+function findingKey(field) {
+    return authoredKey(field.name ?? field.to);
 }
 
 /**

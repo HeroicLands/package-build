@@ -420,6 +420,27 @@ export function retiredTopLevelKey(field) {
 }
 
 /**
+ * A shared source as the key an author writes, without the container holding it.
+ *
+ * `data.weight` is authored as `weight:` one level inside `data:`, so every
+ * question about the *note* rather than about the resolution order asks it under
+ * that spelling: which presentation overlay a row takes, which key a finding
+ * names, and whether two statements of one fact are the same fact. The
+ * specification's mapping tables write the whole path and a `data:` vocabulary
+ * writes the key, and this is what makes the two comparable.
+ *
+ * It takes a **name** rather than a declaration because both sides of that
+ * comparison reach it: one holds a field, the other a row of a table.
+ *
+ * @param {string|undefined} name - The shared source, as either side spells it.
+ * @returns {string} The key, without the container.
+ */
+export function authoredKey(name) {
+    const path = String(name ?? "");
+    return path.startsWith(DATA_PREFIX) ? path.slice(DATA_PREFIX.length) : path;
+}
+
+/**
  * Where a declared field's value came from.
  *
  * Reported alongside the value so a caller — a linter, a migration, a test —
