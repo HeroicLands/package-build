@@ -91,6 +91,30 @@ function mappedRows(): MappedRow[] {
     return rows;
 }
 
+/**
+ * Every per-type `data.` row that reaches **no** declaration, as `source →
+ * target`.
+ *
+ * The comparison above can say nothing about these, and neither can
+ * `checkDeclaredFields`, which counts an unmatched row as coverage. Two shapes
+ * reach here: a row whose declaration names the *destination* spelling instead of
+ * the source (`data.level` against a field declared `levelBase`), and a row whose
+ * type declares no authored field at all (`data.quantity` on a `*gear`, whose
+ * quantity is a constant). Which of the two spellings an author should write is a
+ * decision per row, so they are pinned rather than fixed here.
+ */
+function skippedRows(): string[] {
+    const out = new Set<string>();
+    for (const claim of FORMAT.claims) {
+        if (claim.shared || !String(claim.source).startsWith("data.")) continue;
+        const declared = REGISTRIES[claim.system]?.[claim.noteType];
+        if (!declared) continue;
+        if (declarationFor(claim.source, authoredFields(declared))) continue;
+        out.add(`${claim.system} ${claim.noteType} ${claim.source} → ${claim.target}`);
+    }
+    return [...out].sort();
+}
+
 /** Every declaration in both registries, once, with the types that carry it. */
 function everyDeclaration(): { system: string; noteType: string; field: any }[] {
     const out: { system: string; noteType: string; field: any }[] = [];
@@ -129,6 +153,21 @@ describe("a mapping row's `data.` source is read", () => {
             }),
         );
         expect(bare).toEqual([]);
+    });
+
+    it("names the rows it cannot answer for, so none of them is skipped in silence", () => {
+        expect(skippedRows()).toEqual([
+            "sohl affliction data.healingRate → system.healingRateBase",
+            "sohl affliction data.outcomeTraumas → system.outcomeTraumas",
+            "sohl concoctiongear data.quantity → system.quantity",
+            "sohl containergear data.capacity → system.maxCapacityBase",
+            "sohl miscgear data.quantity → system.quantity",
+            "sohl mystery data.level → system.levelBase",
+            "sohl mysticalability data.level → system.levelBase",
+            "sohl mysticalability data.masteryLevel → system.masteryLevelBase",
+            "sohl projectilegear data.quantity → system.quantity",
+            "sohl skill data.masteryLevel → system.masteryLevelBase",
+        ]);
     });
 
     it("keeps the in-block key a note authors reachable beneath it", () => {
