@@ -121,7 +121,12 @@ describe("a stub's index record", () => {
     it("withholds the address, which is the whole signal", () => {
         expect(record(fm, "A manor village.").address).toEqual({
             slug: "place-weyshott",
-            canonical: "thalorna-none-place-weyshott",
+            canonical: {
+                package: "thalorna",
+                system: "none",
+                type: "place",
+                shortcode: "weyshott",
+            },
         });
         expect(record(fm, "").address).toBeNull();
     });
@@ -133,7 +138,15 @@ describe("a stub's index record", () => {
                 name: "Overview",
                 level: 2,
                 line: 1,
-                link: "place-weyshott#overview",
+                link: {
+                    target: {
+                        package: "thalorna",
+                        system: "none",
+                        type: "place",
+                        shortcode: "weyshott",
+                    },
+                    anchor: "overview",
+                },
             },
         ]);
         expect(record(fm, "").anchors).toBeNull();
@@ -151,7 +164,12 @@ describe("a stub's index record", () => {
         const folder = record({ type: "folder", shortcode: "aelwyth" }, "");
         expect(folder.address).toEqual({
             slug: "folder-aelwyth",
-            canonical: "thalorna-none-folder-aelwyth",
+            canonical: {
+                package: "thalorna",
+                system: "none",
+                type: "folder",
+                shortcode: "aelwyth",
+            },
         });
         const homepage = record({ type: "homepage", shortcode: "root" }, "");
         expect(homepage.address).not.toBeNull();
@@ -689,8 +707,10 @@ describe("the state ladder", () => {
             `SELECT address.slug AS _ref, name.full AS "Name", state AS "State"
              FROM entries WHERE type = 'place' ORDER BY "Name"`,
         );
-        const markdown = renderSqlTable(result);
-        expect(markdown).toContain("[[place-ashford\\|Ashford]]");
+        const markdown = renderSqlTable(result, {
+            addressContext: { package: "thalorna", system: "none", types: new Set(["place"]) },
+        });
+        expect(markdown).toContain("[[thalorna-none-place-ashford\\|Ashford]]");
         expect(markdown).not.toContain("[[place-weyshott");
         expect(markdown).toMatch(/\| Weyshott \| stub \|/);
     });

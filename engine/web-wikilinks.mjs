@@ -41,6 +41,7 @@
 // cannot drift apart on it: they disagreed once over the unlabelled hyphen
 // form, which the packs showed as a raw shortcode and the knowledgebase as a
 // name.
+import { readWikilink } from "./wikilink-syntax.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The canonical `package-system-type-shortcode` key, so a package-qualified
@@ -390,8 +391,14 @@ export function resolveWebWikilinks(body, ctx) {
     // Code is verbatim: a `[[…]]` inside a code fence, an indented block or an
     // inline span is source text, not a link.
     return replaceOutsideCode(embedded.markdown, WIKILINK, (all, rawInner) => {
-        const parsed = parseWikilink(rawInner);
-        const { target, anchor, display } = parsed;
+        const parsed = readWikilink(rawInner, {
+            package: ctx.contentPackage,
+            system: "none",
+            types: ctx.contentTypes ?? new Set(),
+            packages: ctx.packages,
+            noIndexPackages: ctx.noIndexPackages,
+        });
+        const { rawTarget: target, anchor, display } = parsed;
         // An empty label is not a label: `[[x|]]` addresses the target and
         // shows its name, so `""` falls through to the same place `null` does.
         // One reading, from {@link authoredLabel}.
@@ -415,12 +422,7 @@ export function resolveWebWikilinks(body, ctx) {
         // The canonical separator has to be resolved, not merely
         // recognised. `null` here means the target is not an address at all,
         // which is a defect: there is no other namespace to try.
-        const read = readQualifier(
-            target,
-            ctx.contentTypes ?? new Set(),
-            ctx.packages,
-            ctx.noIndexPackages,
-        );
+        const read = parsed.problem ?? parsed.target;
         const rawKey = target.toLowerCase();
         const hit =
             lookupRead(ctx.index, read, ctx.contentPackage) ??
@@ -475,7 +477,7 @@ export function resolveWebWikilinks(body, ctx) {
         // names its package. A qualified target that matched more than one
         // document is reported by the matcher instead, not by this set.
         const collideKey =
-            read && !read.reason && !read.package ?
+            read && !read.reason && read.package === ctx.contentPackage ?
                 `${read.type}/${read.shortcode}`.toLowerCase()
             :   rawKey;
         const reason =

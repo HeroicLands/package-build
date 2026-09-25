@@ -16,6 +16,23 @@ It ships a command line as well as a library — see
 npm install -D @heroiclands/package-build
 ```
 
+## Content references
+
+Notes may abbreviate Addresses according to the defaults of their field and
+system block. Builds preserve the authored files and write full Addresses to
+generated content under `build/`. A reference under `data:` or in body prose
+uses `none` as its system; a system-bearing target at `none` names its
+documentation. A reference to an Item or Actor states its system explicitly.
+
+Published SQL records use these complete identities too. Compare Address fields
+with full Addresses, not a target's bare Shortcode. A stub's identity remains
+available from its package, type and Shortcode even though it has no page address.
+See the [content format](docs/content-format.md#addresses) for defaults, accepted
+forms and examples.
+
+Shared `data.species` names species lore. HârnMaster's native `hm3.system.species`
+is independent character-sheet text; a shared lore reference does not populate it.
+
 ## Configure
 
 A consuming repository declares one `package-build.config.yaml` at its root:

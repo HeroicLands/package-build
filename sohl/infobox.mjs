@@ -51,6 +51,8 @@
  * @module
  */
 
+import { parseAddress, isAddressTuple } from "../engine/address.mjs";
+import { contentPackage } from "../engine/content-package.mjs";
 import {
     DURATION_LABELS,
     GEAR_UNITS,
@@ -199,15 +201,12 @@ const MODEL_TYPES = new Set(Object.keys(NOTE_SCHEMAS));
  * @returns {{type: string, shortcode: string}|undefined} What it names.
  */
 function modelAddress(model) {
-    if (typeof model !== "string" || !model) return undefined;
-    // A fully qualified form first: `readCanonicalKey` reads the four segments
-    // structurally, with no type or package to validate against, because
-    // this decode never uses either segment — matching {@link readQualifier}
-    // would otherwise refuse a dependency this build has not declared.
-    const qualified = readCanonicalKey(model) ?? readQualifier(model, MODEL_TYPES, new Set());
-    return qualified && !qualified.reason ?
-            { type: qualified.type, shortcode: qualified.shortcode }
-        :   undefined;
+    const target = parseAddress(
+        model,
+        { package: contentPackage(), system: "sohl", types: MODEL_TYPES },
+        { declared: true, legacyShortcodeCase: true },
+    );
+    return target.reason ? undefined : target;
 }
 
 /**
@@ -225,10 +224,11 @@ function modelAddress(model) {
  */
 export function decodeItem(entry) {
     if (!isMapping(entry)) return undefined;
+    const address = entry.model ? modelAddress(entry.model) : undefined;
     let type = typeof entry.type === "string" ? entry.type : "";
     let shortcode = typeof entry.shortcode === "string" ? entry.shortcode : "";
     if (!type) {
-        const named = modelAddress(entry.model);
+        const named = address;
         if (named) {
             type = named.type;
             if (!shortcode) shortcode = named.shortcode;
@@ -238,6 +238,7 @@ export function decodeItem(entry) {
     if (!shortcode && typeof system.shortcode === "string") shortcode = system.shortcode;
     if (!type) return undefined;
     return {
+        ...(address ? { address } : {}),
         type: currentType(type),
         shortcode,
         name: typeof entry.name === "string" ? entry.name : "",
@@ -264,10 +265,19 @@ function itemsOf(fm, block) {
  * @param {object} item - A decoded item.
  * @param {(ref: unknown, hint?: object) => object|undefined} resolve - The
  *   medium's resolver.
- * @returns {{text: string, url?: string, uuid?: string, address?: string}} The value.
+ * @param {string} block - The native system.
+ * @returns {{text: string, url?: string, uuid?: string, address?: import("../engine/address.mjs").AddressTuple}} The value.
  */
-function itemValue(item, resolve) {
-    const found = item.shortcode ? resolve?.(item.shortcode, { type: item.type }) : undefined;
+function itemValue(item, resolve, block) {
+    const found =
+        item.shortcode ?
+            resolve?.(
+                item.address ?? item.shortcode,
+                item.address ?
+                    { type: item.type }
+                :   { kind: "shortcode", type: item.type, system: block },
+            )
+        :   undefined;
     const value = { text: item.name || found?.name || humanizeValue(item.shortcode) };
     if (found?.url) value.url = found.url;
     if (found?.uuid) value.uuid = found.uuid;
@@ -312,9 +322,17 @@ export function beingSections(fm, { block, resolve }) {
         if (item.type !== "skill") continue;
         const mastery = item.system.masteryLevelBase;
         if (!hasValue(mastery)) continue;
-        const found = item.shortcode ? resolve?.(item.shortcode, { type: "skill" }) : undefined;
+        const found =
+            item.shortcode ?
+                resolve?.(
+                    item.address ?? item.shortcode,
+                    item.address ?
+                        { type: "skill" }
+                    :   { kind: "shortcode", type: "skill", system: block },
+                )
+            :   undefined;
         const family = item.system.subType ?? found?.subType;
-        const value = itemValue(item, resolve);
+        const value = itemValue(item, resolve, block);
         const entry = { ...value, text: `${value.text} ${mastery}` };
         if (family && families.has(family)) families.get(family).push(entry);
         else unplaced.push(entry);
@@ -333,7 +351,7 @@ export function beingSections(fm, { block, resolve }) {
     const mystical = [];
     for (const item of items) {
         if (item.type !== "mysticalability") continue;
-        mystical.push(itemValue(item, resolve));
+        mystical.push(itemValue(item, resolve, block));
     }
     if (mystical.length) {
         sections.push({
@@ -348,7 +366,7 @@ export function beingSections(fm, { block, resolve }) {
     for (const item of items) {
         const key = GEAR_TYPE_TO_KEY[item.type];
         if (!key) continue;
-        gear.get(key).push(itemValue(item, resolve));
+        gear.get(key).push(itemValue(item, resolve, block));
     }
     const gearGroups = [];
     for (const [key, entries] of gear) {

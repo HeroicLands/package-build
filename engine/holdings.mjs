@@ -43,6 +43,7 @@
  * @module
  */
 
+import { isAddressTuple } from "./address.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { parseAddress } from "./address.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
@@ -140,6 +141,7 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
  * @returns {string} Its shortcode, or `""` for an entry that names nothing.
  */
 function namedShortcode(value) {
+    if (isAddressTuple(value)) return value.shortcode.toLowerCase();
     const text = String(value ?? "").trim();
     if (!text) return "";
     const qualified = readCanonicalKey(text);

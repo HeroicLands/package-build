@@ -112,6 +112,7 @@
  * @module
  */
 
+import { isAddressTuple, renderAddress } from "./address.mjs";
 import { getFrontmatter } from "./frontmatter.mjs";
 import { currentType } from "./ids.mjs";
 import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
@@ -426,6 +427,7 @@ export function isUnsetSentinel(value) {
  * @returns {boolean} Whether to emit it.
  */
 export function hasValue(value) {
+    if (isAddressTuple(value)) return true;
     if (value == null) return false;
     if (typeof value === "string") return value.trim() !== "" && !isUnsetSentinel(value);
     if (Array.isArray(value)) return value.some((entry) => hasValue(entry));
@@ -462,6 +464,7 @@ export function humanizeFieldName(name) {
  * @returns {string} The text.
  */
 export function humanizeValue(value) {
+    if (isAddressTuple(value)) value = value.shortcode;
     return String(value ?? "")
         .replace(/[_-]+/g, " ")
         .trim();
@@ -480,6 +483,7 @@ export function humanizeValue(value) {
  * @returns {string} The text.
  */
 export function presentValue(value) {
+    if (isAddressTuple(value)) value = value.shortcode;
     const text = humanizeValue(value);
     if (!/^[a-z][a-z0-9_-]*$/.test(String(value ?? ""))) return text;
     return text.replace(/\b[a-z]/g, (letter) => letter.toUpperCase());
@@ -842,7 +846,7 @@ export function systemRowsSection(
             declaredKind,
             raw,
             resolve,
-            field.code ? { type: field.code } : undefined,
+            field.code ? { kind: "shortcode", type: field.code, system: block } : undefined,
         );
         if (!hasRenderableValue(declaredKind, built)) continue;
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);

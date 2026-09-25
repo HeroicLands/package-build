@@ -287,11 +287,11 @@ describe("resolveInfoboxRef", () => {
         const built = shared();
         expect(resolveInfoboxRef(built, "north", { type: "place" })).toMatchObject({
             name: "The North",
-            address: "place-north",
+            address: { package: "sohl", system: "none", type: "place", shortcode: "north" },
         });
     });
 
-    it("sweeps every known type in sorted order when there is no hint", () => {
+    it("requires an explicit type or a declared default", () => {
         // Neither `place` nor `scenario` carries a `doc<type>` entry, so the
         // sweep order is exactly the two types themselves — `place` sorts
         // before `scenario`, a stable wrong answer rather than an unstable one.
@@ -299,14 +299,14 @@ describe("resolveInfoboxRef", () => {
             entry({ fm: { type: "place", shortcode: "north" }, name: "The North" }),
             entry({ fm: { type: "scenario", shortcode: "north" }, name: "The Northern Raid" }),
         ]);
-        expect(resolveInfoboxRef(built, "north")).toMatchObject({ name: "The North" });
+        expect(resolveInfoboxRef(built, "north")).toBeUndefined();
     });
 
     it("reads a short address, which names its own type before any sweep", () => {
         const built = shared();
         expect(resolveInfoboxRef(built, "skill-north")).toMatchObject({
             name: "Northern Style",
-            address: "skill-north",
+            address: { package: "sohl", system: "none", type: "docskill", shortcode: "north" },
         });
     });
 
@@ -319,9 +319,9 @@ describe("resolveInfoboxRef", () => {
         });
     });
 
-    it("is case-insensitive on every form", () => {
+    it("rejects uppercase type segments", () => {
         const built = shared();
-        expect(resolveInfoboxRef(built, "Skill-North")).toMatchObject({ name: "Northern Style" });
+        expect(resolveInfoboxRef(built, "Skill-North")).toBeUndefined();
     });
 
     it("finds nothing for a shortcode no page declares", () => {

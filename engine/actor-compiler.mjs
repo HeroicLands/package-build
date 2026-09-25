@@ -50,6 +50,7 @@ import fs from "fs";
 import path from "path";
 import log from "loglevel";
 
+import { isAddressTuple, parseAddress, renderAddress } from "./address.mjs";
 import { makeId } from "./helpers.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 // The `{#appearance}` / `{#dossier}` convention is the note format's, so the
@@ -96,6 +97,7 @@ export function stripCompendiumFields(item) {
  */
 export function isPlainObject(v) {
     return (
+        !isAddressTuple(v) &&
         v !== null &&
         typeof v === "object" &&
         !Array.isArray(v) &&
@@ -705,7 +707,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         const key = `${this.documentSubtypes.block}.items`;
         const where = () =>
             locateFrontmatterKey(this.currentNote?.absPath, "items", String(model ?? ""));
-        if (typeof model !== "string" || !model.trim()) {
+        if (!isAddressTuple(model) && (typeof model !== "string" || !model.trim())) {
             this.noteError(`${ctx}: ${key}[${index}] \`model\` must be an address`, where());
             this.errorCount++;
             return null;
@@ -715,7 +717,11 @@ export class SystemActorCompiler extends BasePackCompiler {
         // dependency whose item catalogue was loaded.
         const types = new Set(Object.keys(this.documentSubtypes.types));
         const packages = new Set([contentPackage(), ...this.foreignPackages]);
-        const read = readQualifier(model.trim(), types, packages);
+        const read = parseAddress(
+            model,
+            { types, packages, package: contentPackage(), system: this.system },
+            { declared: true, legacyShortcodeCase: true },
+        );
         if (!read || read.reason) {
             const why =
                 read?.reason === "not-lowercase" ?
@@ -728,7 +734,15 @@ export class SystemActorCompiler extends BasePackCompiler {
             this.errorCount++;
             return null;
         }
-        return { type: read.type, shortcode: read.shortcode, package: read.package ?? null };
+        if (read.system !== this.system || !types.has(read.type)) {
+            this.noteError(
+                `${ctx}: ${key}[${index}] model must name a ${this.system} item, but names ${renderAddress(read)}`,
+                where(),
+            );
+            this.errorCount++;
+            return null;
+        }
+        return read;
     }
 
     /**
@@ -789,10 +803,8 @@ export class SystemActorCompiler extends BasePackCompiler {
             this.errorCount++;
             return null;
         }
-        // A `model:` may name the package its template comes from. Where
-        // it does, the packaged address is used and nothing local can shadow
-        // it; where it does not, the unqualified one is, and a local definition
-        // still wins over a dependency's as it always has.
+        // A model names one package. Omitted packages are completed at the
+        // read boundary; native embedded identities use the local catalogue.
         const address = catalogueKey(
             /** @type {string} */ (subType),
             shortcode ?? "",
@@ -854,6 +866,7 @@ export class SystemActorCompiler extends BasePackCompiler {
         const { data: _authored, ...fields } = overlay ?? {};
         const merged = overlay ? deepMerge(base, fields) : base;
         merged.type = subType;
+        if (this.reduceEmittedAddresses(merged.system, itemFields(type, this.system))) return null;
         // The two art rules an item note compiles under, applied to an entry
         // that is one in every respect but where it is written: the address it
         // names wins, the template it copies answers next, and the type's own

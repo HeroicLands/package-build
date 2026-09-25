@@ -35,9 +35,12 @@ import { resolveNoteId } from "../engine/note-ids.mjs";
 
 const CATALOGUE = () =>
     new Map<string, any>([
-        ["skill:clmb", { type: "skill", name: "Climbing", system: { shortcode: "clmb" } }],
-        ["skill:swim", { type: "skill", name: "Swimming", system: { shortcode: "swim" } }],
-        ["weapongear:dgr", { type: "weapongear", name: "Dagger", system: { shortcode: "dgr" } }],
+        ["sohl:skill:clmb", { type: "skill", name: "Climbing", system: { shortcode: "clmb" } }],
+        ["sohl:skill:swim", { type: "skill", name: "Swimming", system: { shortcode: "swim" } }],
+        [
+            "sohl:weapongear:dgr",
+            { type: "weapongear", name: "Dagger", system: { shortcode: "dgr" } },
+        ],
     ]);
 
 describe("an actor's embedded item ids do not move when the list is reordered", () => {

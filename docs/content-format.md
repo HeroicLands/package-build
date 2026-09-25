@@ -446,17 +446,11 @@ it _there_, and a system that disagrees is not in error. A weapon weighs what
 This is the same rule as `hm3.type` overriding a derived document type, applied
 to fields: derive from the shared source, and let the system state the exception.
 
-**A shared source and the key a system block still carries are two
-declarations.** The mapping tables name the shared source — `data.species` — and
-the corpus writes the same fact inside the block it has always written it in —
-`hm3.species`. Those are two positions for one field, and both are read while
-the corpus moves, with the block winning. A field says so by naming each: its
-shared source, and the legacy in-block key it is being swept off. Reading it
-from the legacy position is _reported_, so the sweep has a progress signal, and
-the note compiles to the identical document either way — the same read-both,
-report-one shape every other retirement in this format uses. As one
-declaration the two would let a field name only one of them, and a row this
-table states would be reachable only by a note that had already moved.
+**A shared source and an in-block key are separate declarations.**
+`data.gender` is the shared source for HM3 gender; `hm3.gender` is its
+in-block spelling, and `hm3.system.gender` is the native destination.
+The native destination wins, followed by the in-block value and the shared
+source. Field declarations name both source and destination explicitly.
 
 **A field whose spelling means something else at the note level has no shared
 source.** The fallback assumes the two vocabularies agree about what a name
@@ -465,9 +459,8 @@ publishes under, while an `affiliation` item's `system.title` is the style of
 address an office carries. Where they diverge, the field declares what the
 top-level key means instead, and the top level stops being read for it — leaving
 `<system>.system.<field>` and the legacy in-block position, which describe the
-document rather than the note. `title` is the one field this applies to; `subType`
-is the other declared item field spelled like a note-level key, and there the two
-levels mean the same thing by design.
+document rather than the note. Native species is independent of the shared lore Address in `data.species`.
+`subType` has the same meaning at both levels.
 
 **Some of a system's fields are runtime state, and a note may not write any of
 them.** A data model declares everything a document stores, and part of that is
@@ -880,7 +873,7 @@ documents in different packs and different folders:
 ```yaml
 sohl:
   pack: characteristics
-  packFolder: miscgear
+  packFolder: none-folder-miscgear
 ```
 
 **`pack: none` compiles the note into no document.** The note is walked,
@@ -1289,6 +1282,26 @@ the canonical address, so naming another package means naming its system too.
 `kethira-place-tashal` is three segments, which reads as system `kethira`, and
 fails.
 
+#### Authored references and generated references
+
+Authored notes may use any permitted suffix. Builds leave those source bytes
+unchanged. Generated content indexes, SQL records, site frontmatter and generated
+Wikilinks contain full `package-system-type-shortcode` Addresses. For example,
+`data.parents: [north]` in the `thalorna` package emits
+`data.parents: [thalorna-none-place-north]`.
+
+SQL queries compare Address-valued fields to full Addresses. A note's `shortcode`
+is a distinct identity component, so it is not equal to an Address stored in
+`data.parents`, `data.domains` or a governance rank's `lore`. Use the target's
+complete identity for that comparison, including its package, system and type.
+A stub has no published page address; its note identity still contains those
+components and its Shortcode.
+
+The toolchain holds parsed Address properties as complete tuples internally.
+Address-keyed relation maps hold typed targets and standing values. Only generated
+output serializes these properties to Address strings. Runtime Shortcodes,
+Foundry UUIDs, file paths and URLs keep their own representations.
+
 #### An omitted segment defaults from where the link is written
 
 It is **not** a wildcard and resolution is not a search. Every short form expands
@@ -1316,15 +1329,11 @@ Only a type whose own document carries a system is redirected this way. A
 documents are core ones already at `none`, so `macro-autoattack` names the Macro
 and `docmacro-autoattack` its journal — two live addresses.
 
-**An address is lowercase throughout**. Every segment — package,
-system, type and shortcode alike — is `^[a-z0-9]+$`, so a capital anywhere in an
-address is an error naming the lowercase form.
-
-The shortcode is the one that would otherwise be case-sensitive and routinely
-mixed (`Clb`, `LtShoe`, `HsTunic`) while the address built from it was lowercased
-wholesale, so the authored name and its address disagreed. Two names differing
-only in case are two names nobody can tell apart, and they collapsed onto one
-address, one `_id` and one URL with nothing to report it.
+**A complete Address is lowercase throughout.** Every segment — package,
+system, type and shortcode alike — contains only lowercase ASCII letters and
+digits (`^[a-z0-9]+$`). Declared Address fields reject uppercase segments.
+A model reference accepts mixed-case Shortcodes and resolves their lowercase
+Address identity; this does not change a native embedded item's Shortcode.
 
 **Parsing is positional counting from the right, and nothing else.** Every
 segment is lowercase alphanumeric — shortcodes, **types** and **subTypes** are
@@ -2681,9 +2690,14 @@ A SoHL "being" document will be created, as will an "HM3" document.
 
 | shared source     | → sohl | → hm3               |
 | ----------------- | ------ | ------------------- |
-| `data.species`    | NA     | `system.species`    |
+| `data.species`    | NA     | NA                  |
 | `data.gender`     | NA     | `system.gender`     |
 | `data.occupation` | NA     | `system.occupation` |
+
+`data.species` is a lore Address describing the being's species. HM3's
+`hm3.system.species` is independent native text; it does not inherit from
+`data.species`. The in-block `hm3.species` spelling is also accepted, with
+`hm3.system.species` taking precedence.
 
 ### type: homepage
 

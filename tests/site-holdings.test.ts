@@ -456,10 +456,12 @@ describe("a dependency's places and affiliations take part", () => {
         try {
             const { index } = loadForeignIndexes(config as never, ["demo"]);
             expect(index.get("thalorna-sohl-affiliation-empire")?.domains).toEqual([
-                "mill",
-                "abroad",
+                { package: "demo", system: "none", type: "place", shortcode: "mill" },
+                { package: "demo", system: "none", type: "place", shortcode: "abroad" },
             ]);
-            expect(index.get("thalorna-none-place-abroad")?.parents).toEqual(["rgn"]);
+            expect(index.get("thalorna-none-place-abroad")?.parents).toEqual([
+                { package: "demo", system: "none", type: "place", shortcode: "rgn" },
+            ]);
         } finally {
             fs.rmSync(cache, { recursive: true, force: true });
         }

@@ -51,6 +51,8 @@
  * @module
  */
 
+import { positionOfYamlPath } from "./diagnostics.mjs";
+import { decodeNoteAddresses, noteAddressContext, encodeAddresses } from "./note-addresses.mjs";
 import fs from "node:fs";
 import path from "node:path";
 import { createRequire } from "node:module";
@@ -136,12 +138,27 @@ function siteCorpusFiles(contentBase, ctx) {
  * @param {string} file - Absolute path.
  * @returns {{fm: object, body: string}|null}
  */
-function readNote(file) {
+function readNote(file, ctx) {
+    let parsed;
     try {
-        const { data, content } = matter(fs.readFileSync(file, "utf8"));
-        return { fm: data, body: content };
+        parsed = matter(fs.readFileSync(file, "utf8"));
     } catch {
         return null;
+    }
+    const context = {
+        ...noteAddressContext(ctx.config ?? {}),
+        package: ctx.contentPackage ?? ctx.config?.contentPackage,
+    };
+    try {
+        return { fm: decodeNoteAddresses(parsed.data, context), body: parsed.content };
+    } catch (error) {
+        const position = positionOfYamlPath(parsed.matter, error.keyPath ?? [], {
+            key: error.addressKey,
+        });
+        if (position.line) position.line++;
+        error.file = file;
+        error.position = position;
+        throw error;
     }
 }
 
@@ -182,7 +199,7 @@ export function collectContentPages(contentBase, ctx) {
     );
 
     for (const file of siteCorpusFiles(contentBase, ctx)) {
-        const note = readNote(file);
+        const note = readNote(file, ctx);
         if (!note) continue;
         applyComputedBeingAge(note.fm, present);
         const { fm, body } = note;
@@ -288,7 +305,7 @@ export function collectHomepages(contentBase, ctx) {
     const pages = [];
     const addressFindings = [];
     for (const file of siteCorpusFiles(contentBase, ctx)) {
-        const note = readNote(file);
+        const note = readNote(file, ctx);
         if (!note || !isHomepage(note.fm)) continue;
         try {
             addressSlug(note.fm);
@@ -347,7 +364,7 @@ export function writeHomepages(outRoot, pages, config, { related } = {}) {
         });
         const dest = path.join(outRoot, HOMEPAGE_DESTINATION);
         fs.mkdirSync(path.dirname(dest), { recursive: true });
-        fs.writeFileSync(dest, matter.stringify(page.body, data));
+        fs.writeFileSync(dest, matter.stringify(page.body, encodeAddresses(data)));
     }
     return pages.length;
 }
@@ -377,7 +394,7 @@ export function writeHomepages(outRoot, pages, config, { related } = {}) {
  * @param {object} options.config - The resolved build configuration.
  * @returns {object} The gate results and, when they pass, the built index.
  */
-export function siteGates(pages, findings, { config }) {
+export function siteGates(pages, findings, { config, records }) {
     const out = {
         // Always empty here: the homepage count is decided in `buildSite`
         // before the content walk, and a failing count returns without ever
@@ -410,7 +427,10 @@ export function siteGates(pages, findings, { config }) {
     if (out.unaddressable.length) return out;
 
     out.index = buildSiteIndex(pages, {
+        package: config.contentPackage,
         foreignIndex: foreign.index,
+        foreignReferences: foreign.references,
+        records,
         noIndexPackages: noContentIndexPackages(config),
     });
     return out;
@@ -857,7 +877,7 @@ export function renderPages(pages, options) {
             data.map = map.name;
             withMap += 1;
         }
-        fs.writeFileSync(dest, matter.stringify(body, data));
+        fs.writeFileSync(dest, matter.stringify(body, encodeAddresses(data)));
         byKind[page.kind] = (byKind[page.kind] ?? 0) + 1;
     }
 
@@ -1079,7 +1099,10 @@ export function buildSite({ config, sqlTables, locate } = {}) {
         url: base,
     }));
 
-    const gates = siteGates([...pages, ...homepageEntries], content, { config: resolved });
+    const gates = siteGates([...pages, ...homepageEntries], content, {
+        config: resolved,
+        records: ctx.records,
+    });
     if (gatesFailed(gates)) {
         return {
             gates,

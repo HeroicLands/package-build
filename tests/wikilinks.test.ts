@@ -983,23 +983,32 @@ describe("resolveReference", () => {
 
     it("takes a bare shortcode against the hinted type", () => {
         const found = resolveReference(shared(), "north", { type: "being" });
-        expect(found).toMatchObject({ name: "The North", address: "being-north" });
+        expect(found).toMatchObject({
+            name: "The North",
+            address: { package: "sohl", system: "none", type: "docbeing", shortcode: "north" },
+        });
     });
 
-    it("sweeps every known type in sorted order when there is no hint", () => {
+    it("requires an explicit type or a declared default", () => {
         // `being` sorts before `skill`.
         const found = resolveReference(shared(), "north");
-        expect(found).toMatchObject({ name: "The North" });
+        expect(found).toBeUndefined();
     });
 
     it("reads a short address, which names its own type before any sweep", () => {
         const found = resolveReference(shared(), "skill-north");
-        expect(found).toMatchObject({ name: "Northern Style", address: "skill-north" });
+        expect(found).toMatchObject({
+            name: "Northern Style",
+            address: { package: "sohl", system: "none", type: "docskill", shortcode: "north" },
+        });
     });
 
     it("reads the canonical address, package and system both stated", () => {
         const found = resolveReference(shared(), "sohl-none-being-north");
-        expect(found).toMatchObject({ name: "The North" });
+        expect(found).toMatchObject({
+            name: "The North",
+            address: { package: "sohl", system: "none", type: "docbeing", shortcode: "north" },
+        });
     });
 
     it("finds nothing for a type-qualified reference no page declares", () => {

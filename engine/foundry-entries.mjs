@@ -58,6 +58,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import { noteAddressContext } from "./note-addresses.mjs";
 import { canonicalKey, packageAddress } from "./content-address.mjs";
 import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
 import {
@@ -320,6 +321,7 @@ export function collectFoundryEntries(contentBase, ctx) {
     let notes = 0;
     for (const { frontmatter: fm, body, absPath } of walkMarkdownTree(contentBase, {
         skipDirectories: ctx.skipDirectories,
+        addressContext: ctx.addressContext ?? { package: ctx.contentPackage },
     })) {
         if (!fm) continue;
         // Its authored pin, or the id derived from its canonical address.
@@ -376,6 +378,7 @@ export function collectFoundryEntries(contentBase, ctx) {
 export function foundryIdentities(config = loadPackConfig()) {
     return {
         contentPackage: config.contentPackage,
+        addressContext: noteAddressContext(config),
         foundryPackageId: config.foundryPackage,
         packRouter: routerFor(config),
         // Carried in the context rather than read from the global config at the

@@ -11,6 +11,8 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { isAddressTuple } from "./address.mjs";
+
 /**
  * Bundles, as notes — the Foundry `Adventure` a `type: bundle` note compiles
  * into.
@@ -124,6 +126,7 @@ export function stripAdventureKeys(value) {
  * @returns {string|null} The bare address, or `null` for a blank entry.
  */
 export function bareAddress(value) {
+    if (isAddressTuple(value)) return value;
     if (value == null) return null;
     const text = String(value).trim();
     if (!text) return null;

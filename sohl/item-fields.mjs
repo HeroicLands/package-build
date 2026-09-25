@@ -35,6 +35,7 @@
  * @module
  */
 
+import { isAddressTuple } from "../engine/address.mjs";
 import {
     AS_AUTHORED,
     BLANK_IS_DEFAULT,
@@ -200,7 +201,7 @@ const ADDRESS_LIST = Object.freeze({
         : raw == null || raw === "" ? []
         : [raw]
         )
-            .map((entry) => String(entry ?? "").trim())
+            .map((entry) => (isAddressTuple(entry) ? entry : String(entry ?? "").trim()))
             .filter((entry) => entry !== ""),
 });
 

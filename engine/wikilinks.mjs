@@ -82,6 +82,9 @@
  * Plain ESM with no Foundry and no filesystem access, so it is unit-testable.
  */
 
+import { resolveShortcodeReference } from "./shortcode-references.mjs";
+
+import { readWikilink } from "./wikilink-syntax.mjs";
 import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
@@ -89,7 +92,15 @@ import { readCanonicalKey } from "./content-address.mjs";
 // The address grammar. A wikilink *contains* an Address, so what counts as one
 // is stated there and read here — the anchor and the label are this module's,
 // and the tuple inside them is not.
-import { ITEM_DOC_PREFIX, readQualifier, resolveItemDocType } from "./address.mjs";
+import {
+    ITEM_DOC_PREFIX,
+    readQualifier,
+    resolveItemDocType,
+    parseAddress,
+    renderAddress,
+    isAddressTuple,
+    completeAddress,
+} from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
@@ -175,7 +186,7 @@ export function buildWikilinkIndex(
     packageId,
     foreign,
     contentPackage,
-    { assets, noIndexPackages } = {},
+    { assets, noIndexPackages, referenceTargets, foreignReferences } = {},
 ) {
     if (!packageId) {
         throw new Error(
@@ -270,6 +281,8 @@ export function buildWikilinkIndex(
 
     return {
         byShortcode,
+        referenceTargets,
+        foreignReferences,
         types,
         uuidByDoc,
         packageId,
@@ -445,8 +458,14 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     // one capture group. It is what makes two identical unresolved links on
     // one note tellable apart, and a position reportable at all.
     const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
-        const parsed = parseWikilink(rawInner);
-        const target = parsed.target;
+        const parsed = readWikilink(rawInner, {
+            package: index.contentPackage,
+            system: "none",
+            types: index.types,
+            packages: index.packages,
+            noIndexPackages: index.noIndexPackages,
+        });
+        const target = parsed.rawTarget;
         const slug = parsed.anchor || null;
 
         // **Every link carries a label**. Without one there is nothing
@@ -483,12 +502,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         if (target === "" && slug) {
             doc = { type, id, pack, docPack };
         } else {
-            const qualified = readQualifier(
-                target,
-                index.types,
-                index.packages,
-                index.noIndexPackages,
-            );
+            const qualified = parsed.problem ?? parsed.target;
             qualifiedRead = qualified;
             // A target that does not parse as an address is a defect: there is
             // no second namespace left to fall through to.
@@ -514,11 +528,10 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
             // their own documents are core ones already at `none`, so
             // `macro-autoattack` names the Macro and `docmacro-autoattack` its
             // journal — two live addresses the redirect would collapse.
-            itemDoc =
-                qualified.itemDoc ||
-                ((qualified.system ?? NO_SYSTEM) === NO_SYSTEM &&
-                    systemOf(qualified.type, KNOWN_DOCUMENT_SUBTYPE_MAPS) !== NO_SYSTEM);
-            doc = index.byShortcode.get(`${qualified.type}/${qualified.shortcode}`);
+            const baseType = resolveItemDocType(qualified.type, index.types);
+            itemDoc = Boolean(baseType);
+            if (qualified.package === index.contentPackage)
+                doc = index.byShortcode.get(`${baseType ?? qualified.type}/${qualified.shortcode}`);
         }
         if (!doc) {
             // Nothing local answers. A foreign package may publish this
@@ -635,42 +648,6 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
 }
 
 /**
- * The short `type/shortcode` view of an index's foreign entries.
- *
- * Derived once per index and memoised: a compile resolves references on every
- * one of thousands of notes, and rebuilding the view per note would rescan a
- * dependency's whole published index each time. Keyed on the index object, so
- * it is discarded with it.
- *
- * An address two foreign packages both claim is left out rather than resolved
- * to whichever loaded first — the same rule the wikilink resolver follows.
- *
- * @type {WeakMap<object, Map<string, object>>}
- */
-const FOREIGN_BY_SHORTCODE = new WeakMap();
-
-/** The memoised short view of `index.foreign`. */
-function foreignByShortcode(index) {
-    const cached = FOREIGN_BY_SHORTCODE.get(index);
-    if (cached) return cached;
-    const short = new Map();
-    const ambiguous = new Set();
-    for (const [key, value] of index?.foreign ?? []) {
-        const parts = readCanonicalKey(key);
-        if (!parts) continue;
-        const shortKey = `${norm(parts.type)}/${norm(parts.shortcode)}`;
-        if (short.has(shortKey) && short.get(shortKey).package !== value.package) {
-            ambiguous.add(shortKey);
-        } else {
-            short.set(shortKey, value);
-        }
-    }
-    for (const key of ambiguous) short.delete(key);
-    FOREIGN_BY_SHORTCODE.set(index, short);
-    return short;
-}
-
-/**
  * Resolve one reference against a compile's address index.
  *
  * The compile-time counterpart of
@@ -683,42 +660,64 @@ function foreignByShortcode(index) {
  * @param {object} index - From {@link buildWikilinkIndex}.
  * @param {unknown} ref - The reference, as authored.
  * @param {object} [hint] - `{type}`, where the caller knows what it expects.
- * @returns {{name?: string, uuid?: string, address?: string, subType?: string}|undefined}
+ * @returns {{name?: string, uuid?: string, address?: import("./address.mjs").AddressTuple, subType?: string}|undefined}
  *   The target, or `undefined` where nothing answers.
  */
 export function resolveReference(index, ref, hint) {
-    if (typeof ref !== "string" || !ref) return undefined;
-    const wanted = norm(ref);
-    const keys = [];
-    if (hint?.type) keys.push(`${norm(hint.type)}/${wanted}`);
-    const qualifier = readQualifier(wanted, index?.types ?? new Set(), index?.packages);
-    if (qualifier) keys.push(`${qualifier.type}/${qualifier.shortcode}`);
-    if (!hint?.type) {
-        for (const type of [...(index?.types ?? [])].sort()) keys.push(`${type}/${wanted}`);
-    }
-
-    const foreign = foreignByShortcode(index);
-    for (const key of keys) {
-        const local = index?.byShortcode?.get(key);
-        if (local) {
-            return {
-                ...(local.name ? { name: local.name } : {}),
-                ...(local.subType ? { subType: local.subType } : {}),
-                ...(index.uuidByDoc?.get(local)?.uuid ?
-                    { uuid: index.uuidByDoc.get(local).uuid }
-                :   {}),
-                address: key.replace("/", "-"),
-            };
+    if (hint?.kind === "shortcode")
+        return resolveShortcodeReference(
+            [index.referenceTargets, index.foreignReferences ?? index.foreign],
+            ref,
+            hint,
+        );
+    const tuple = parseAddress(ref, {
+        package: index.contentPackage,
+        system: "none",
+        types: index.types,
+        packages: index.packages,
+        noIndexPackages: index.noIndexPackages,
+        type: hint?.type,
+    });
+    if (tuple.reason) return undefined;
+    const key = renderAddress(tuple);
+    const published =
+        index.referenceTargets?.get(key) ??
+        index.foreignReferences?.get(key) ??
+        index.foreign?.get(key);
+    if (published)
+        return {
+            name: published.name,
+            subType: published.subType,
+            ...(published.uuid ? { uuid: published.uuid } : {}),
+            address: tuple,
+        };
+    if (index.referenceTargets) return undefined;
+    {
+        const key = renderAddress(tuple);
+        if (tuple.package !== index.contentPackage) {
+            const foreign = index.foreign?.get(key);
+            if (foreign) return { ...foreign, address: tuple };
+            return undefined;
         }
-        const away = foreign.get(key);
-        if (away) {
-            return {
-                ...(away.name ? { name: away.name } : {}),
-                ...(away.uuid ? { uuid: away.uuid } : {}),
-                ...(away.subType ? { subType: away.subType } : {}),
-                address: key.replace("/", "-"),
-            };
-        }
+        const base = resolveItemDocType(tuple.type, index.types);
+        const type = base ?? tuple.type;
+        if (tuple.system !== (base ? NO_SYSTEM : systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS)))
+            return undefined;
+        const local = index.byShortcode?.get(`${type}/${tuple.shortcode}`);
+        if (!local) return undefined;
+        const addresses = index.uuidByDoc?.get(local);
+        const uuid =
+            base ?
+                Object.hasOwn(local, "documentationUuid") ?
+                    local.documentationUuid
+                :   addresses?.docUuid
+            :   addresses?.uuid;
+        return {
+            name: local.name,
+            subType: local.subType,
+            ...(uuid ? { uuid } : {}),
+            address: tuple,
+        };
     }
     return undefined;
 }

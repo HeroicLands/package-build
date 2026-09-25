@@ -26,13 +26,9 @@
  * the note says which, by writing `hm3.type`. An absent one is an error naming
  * the note, never a default.
  *
- * **What is emitted, and what is deliberately not.** Four rows of the content
- * format's `being` mapping table give HM3 a destination — `data.portrait` →
- * `system.bioImage`, `data.species`, `data.gender`, `data.occupation`, and
- * `data.templatePriority` → `flags.hm3.templatePriority` — and every one of
- * them is *declared as that source* rather than as the bare key the corpus
- * writes, so the specification's mapping is executable rather than
- * aspirational. Plus the two anchored prose sections: `{#appearance}` is HM3's
+ * Shared gender, occupation and template priority map to HM3's native fields.
+ * Native species text is independent of the lore Address in `data.species`.
+ * The anchored prose section `{#appearance}` supplies HM3's
  * `description` and `{#dossier}` its
  * `biography`. Everything else an HM3 actor carries — the thirteen abilities,
  * the sunsign, `move`, `fatigue`, `shockIndex`, a creature's `loadRating` — has
@@ -70,31 +66,19 @@ import {
 import { blockField, blockProperty, mergeSystemData } from "../engine/system-block.mjs";
 
 /**
- * The shared `data:` facts every HM3 actor takes, whatever its subtype.
+ * Native HM3 facts shared by its actor subtypes.
  *
- * Declared rather than read by hand, so a value resolves by the same order
- * every other declared field does — `hm3.system.<to>` first, then the in-block
- * position, then the shared source, then the default — and so the
- * author-facing reference can be generated from the same statement the compiler
- * obeys.
- *
- * **Both positions, named separately.** The specification maps
- * `data.species` onto `system.species`, and every HM3 note in the corpus writes
- * `hm3.species`. Until the sweep those are two live positions for one
- * field, so the declaration names both: `name` is the shared source, `legacyKey`
- * the key the block still carries, and the block wins while it is there. Naming
- * only one of them is what made the row unreadable — a plain `species` could
- * not see `data.species`, and a dotted `data.species` could not see the 2,512
- * notes that carry `hm3.species`, each yielding `""` in silence.
+ * Species is native text. The note's lore Address in `data.species` is
+ * independent and supplies no native value.
  *
  * @type {readonly import("../engine/field-spec.mjs").FieldSpec[]}
  */
 const ACTOR_FIELDS = Object.freeze([
     {
-        name: "data.species",
-        legacyKey: "species",
+        name: "species",
         to: "species",
         ...STRING,
+        topLevelMeans: "The shared species is a lore Address, independent of native species text.",
         default: "",
         describe: "The kind of creature this is.",
     },

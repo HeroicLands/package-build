@@ -61,6 +61,8 @@
  * @module
  */
 
+import { authoredFrontmatter } from "./index-records.mjs";
+import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
 import path from "path";
 import log from "loglevel";
@@ -1064,7 +1066,8 @@ export class BasePackCompiler {
         for (const record of this.corpus.records) {
             if (!isNoteRecord(record)) continue;
             const absPath = noteFile(this.contentBase, record);
-            const { frontmatter: fm, body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
+            const { body, bodyLine, bodyColumn } = parseMarkdownFile(absPath);
+            const fm = cloneAddressState(authoredFrontmatter(record));
             // Which note this pass is on, so anything it calls can report a
             // position without every method having to be handed one.
             this.currentNote = { absPath, bodyLine, bodyColumn };

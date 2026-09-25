@@ -55,6 +55,9 @@
  * @module
  */
 
+import { isAddressTuple, resolveItemDocType } from "./address.mjs";
+import { encodeAddresses } from "./address-values.mjs";
+
 import fs from "node:fs";
 import path from "node:path";
 
@@ -214,7 +217,7 @@ export class Bundles extends BasePackCompiler {
         const read = readQualifier(address, index.types, index.packages);
         if (!read || read.reason) {
             throw new Error(
-                `bundle "${bundleName}" lists "${address}", which is not an ` +
+                `bundle "${bundleName}" lists "${encodeAddresses(address)}", which is not an ` +
                     `address — a member is named "<type>-<shortcode>", the ` +
                     `same form a wikilink uses`,
             );
@@ -224,7 +227,7 @@ export class Bundles extends BasePackCompiler {
         // is a different fact from a typo and is worth its own sentence.
         if (read.package && read.package !== contentPackage()) {
             throw new Error(
-                `bundle "${bundleName}" lists "${address}", which belongs to ` +
+                `bundle "${bundleName}" lists "${encodeAddresses(address)}", which belongs to ` +
                     `package "${read.package}" — an Adventure carries copies ` +
                     `of compiled documents, so a bundle can only hold this ` +
                     `package's own`,
@@ -232,7 +235,7 @@ export class Bundles extends BasePackCompiler {
         }
         if (read.type === FOLDER_TYPE) {
             throw new Error(
-                `bundle "${bundleName}" lists the folder "${address}". A ` +
+                `bundle "${bundleName}" lists the folder "${encodeAddresses(address)}". A ` +
                     `folder is not a member: it materialises in every pack ` +
                     `holding something filed in it, so it belongs to no ` +
                     `one pack and there is no single copy to bundle. List the ` +
@@ -241,15 +244,19 @@ export class Bundles extends BasePackCompiler {
         }
         if (read.type === HOMEPAGE_TYPE || read.type === BUNDLE_TYPE) {
             throw new Error(
-                `bundle "${bundleName}" lists "${address}", a ${read.type} — ` +
+                `bundle "${bundleName}" lists "${encodeAddresses(address)}", a ${read.type} — ` +
                     `which compiles into no document an Adventure can hold`,
             );
         }
 
-        const note = index.byShortcode.get(`${read.type}/${read.shortcode}`);
+        const baseType =
+            isAddressTuple(read) ? resolveItemDocType(read.type, index.types) : undefined;
+        const itemDoc = read.itemDoc || Boolean(baseType);
+        const type = baseType ?? read.type;
+        const note = index.byShortcode.get(`${type}/${read.shortcode}`);
         if (!note) {
             throw new Error(
-                `bundle "${bundleName}" lists "${address}", which no note in ` +
+                `bundle "${bundleName}" lists "${encodeAddresses(address)}", which no note in ` +
                     `this tree publishes`,
             );
         }
@@ -257,8 +264,8 @@ export class Bundles extends BasePackCompiler {
         // The note's own document, which is the router's rule for `pack:` too.
         // Its documentation journal is a second document with a second address,
         // and is bundled only when the note names that one.
-        const docType = read.itemDoc ? "JournalEntry" : packForType(read.type).docType;
-        const id = read.itemDoc ? itemDocEntryId(note.id) : note.id;
+        const docType = itemDoc ? "JournalEntry" : packForType(type).docType;
+        const id = itemDoc ? itemDocEntryId(note.id) : note.id;
 
         return { docType, id, name: note.name ?? address };
     }
@@ -286,7 +293,7 @@ export class Bundles extends BasePackCompiler {
                 // away. See `missingMemberVerdict`.
                 if (missingMemberVerdict(this.packSystem) === "omit") {
                     this.noteWarn(
-                        `bundle "${name}" leaves out "${address}": it publishes ` +
+                        `bundle "${name}" leaves out "${encodeAddresses(address)}": it publishes ` +
                             `no ${this.packSystem} ${member.docType}, and pack ` +
                             `"${this.packName}" declares ` +
                             `\`system: ${this.packSystem}\``,
@@ -294,7 +301,7 @@ export class Bundles extends BasePackCompiler {
                     continue;
                 }
                 throw new Error(
-                    `bundle "${name}" lists "${address}", which resolves to ` +
+                    `bundle "${name}" lists "${encodeAddresses(address)}", which resolves to ` +
                         `${member.docType} ${member.id} — and no compiled ` +
                         `${member.docType} pack holds it. The note publishes ` +
                         `nothing into a pack this bundle can read`,

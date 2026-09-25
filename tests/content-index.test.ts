@@ -314,7 +314,7 @@ describe("buildIndexRecord", () => {
         });
         expect(record.address).toEqual({
             slug: "being-aurochs",
-            canonical: "sohl-sohl-being-aurochs",
+            canonical: { package: "sohl", system: "sohl", type: "being", shortcode: "aurochs" },
         });
     });
 
@@ -460,7 +460,7 @@ describe("buildIndexRecord", () => {
             relPath: "A.md",
             contentPackage: "sohl",
         });
-        expect(JSON.stringify(a)).toBe(JSON.stringify(b));
+        expect(serializeContentIndex([a])).toBe(serializeContentIndex([b]));
     });
 });
 

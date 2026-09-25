@@ -182,12 +182,13 @@ describe("the pack build marks a link to a draft note", () => {
 describe("the site build marks a link to a draft note", () => {
     const ctx = () => ({
         index: new Map<string, object>([
-            ["doc/shock", { url: "/rules/shock/", name: "Shock" }],
-            ["doc/coma", { url: "/rules/coma/", name: "Coma", draft: true }],
+            ["sohl-none-doc-shock", { url: "/rules/shock/", name: "Shock" }],
+            ["sohl-none-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
         ]),
         typeAlias: new Map<string, object>(),
         collide: new Set<string>(),
         typeCollide: new Set<string>(),
+        contentPackage: "sohl",
         contentTypes: new Set<string>(["doc"]),
         packages: new Set<string>(["sohl"]),
         type: "doc",
@@ -286,7 +287,7 @@ name:
                 mount: "/demo/kb/",
                 scheme: { prefix: "kb/" },
             });
-            const built = buildSiteIndex(pages);
+            const built = buildSiteIndex(pages, { package: pages[0]?.pkg });
             const citing = pages.find((p: any) => p.fm.shortcode === "shock");
             const errors: object[] = [];
             const out = resolveWebWikilinks(
@@ -320,11 +321,12 @@ describe("the two builds emit the same markup", () => {
         }).markdown;
         const web = resolveWebWikilinks("[[doc-coma|Coma]]", {
             index: new Map<string, object>([
-                ["doc/coma", { url: "/rules/coma/", name: "Coma", draft: true }],
+                ["sohl-none-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
             ]),
             typeAlias: new Map<string, object>(),
             collide: new Set<string>(),
             typeCollide: new Set<string>(),
+            contentPackage: "sohl",
             contentTypes: new Set<string>(["doc"]),
             packages: new Set<string>(["sohl"]),
             type: "doc",

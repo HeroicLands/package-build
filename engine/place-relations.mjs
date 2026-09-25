@@ -63,6 +63,8 @@
  * @module
  */
 
+import { encodeAddresses } from "./address-values.mjs";
+
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
 import { NO_SYSTEM } from "./document-subtypes.mjs";
@@ -248,7 +250,7 @@ function addressDefaults(index) {
  * @returns {string|undefined} The canonical `package-none-place-shortcode`.
  */
 function placeAddress(written, defaults) {
-    if (typeof written !== "string" || !defaults.package) return undefined;
+    if (!defaults.package) return undefined;
     const read = parseAddress(written, defaults);
     if (read.reason || !acceptsType(read, [RELATION_TYPE])) return undefined;
     return renderAddress(read);
@@ -403,10 +405,13 @@ function checkRelation(note, { field, index }) {
         let toIsValid = false;
         /** The one canonical Address `to` names, once it parses. */
         let toAddress;
-        const read = typeof to === "string" ? parseAddress(to, here) : { reason: "not-an-address" };
+        const read = parseAddress(to, here);
         if (to === undefined || to === null || to === "") {
             error(i, undefined, `${label(i)} must name the other place in \`to\``);
-        } else if (read.reason === "no-content-index") {
+        } else if (
+            read.reason === "no-content-index" ||
+            (!read.reason && here.noIndexPackages?.has(read.package))
+        ) {
             error(
                 i,
                 "to",
@@ -421,7 +426,7 @@ function checkRelation(note, { field, index }) {
                 `${label(i, "to")} must name a place — the other place's \`shortcode\`, or ` +
                     `its address as \`${RELATION_TYPE}-<shortcode>\` or ` +
                     `\`<package>-${NO_SYSTEM}-${RELATION_TYPE}-<shortcode>\` for a place in ` +
-                    `another package — but reads ${JSON.stringify(to)}`,
+                    `another package — but reads ${JSON.stringify(encodeAddresses(to))}`,
             );
         } else if (!acceptsType(read, [RELATION_TYPE])) {
             error(
@@ -429,7 +434,7 @@ function checkRelation(note, { field, index }) {
                 "to",
                 `${label(i, "to")} names a \`${read.type}\`, and a ` +
                     `${isRoute ? "route" : "border"} is between places, so it names a ` +
-                    `\`${RELATION_TYPE}\` — but reads ${JSON.stringify(to)}`,
+                    `\`${RELATION_TYPE}\` — but reads ${JSON.stringify(encodeAddresses(to))}`,
             );
         } else if (index) {
             toAddress = renderAddress(read);
@@ -449,7 +454,7 @@ function checkRelation(note, { field, index }) {
                 error(
                     i,
                     "to",
-                    `${label(i, "to")} names "${to}", and no place at ${toAddress} is ` +
+                    `${label(i, "to")} names "${encodeAddresses(to)}", and no place at ${toAddress} is ` +
                         `declared by this package or by a fetched index` +
                         (other ?
                             `; the ${other.type} note "${read.shortcode}" is not a place`
@@ -573,9 +578,9 @@ function checkRelation(note, { field, index }) {
                 i,
                 undefined,
                 isRoute ?
-                    `${label(i)} lists "${to}" by ${mode} twice; a pair appears in \`routes\` ` +
+                    `${label(i)} lists "${encodeAddresses(to)}" by ${mode} twice; a pair appears in \`routes\` ` +
                         `once per mode`
-                :   `${label(i)} lists "${to}" twice; a pair appears in \`borders\` once`,
+                :   `${label(i)} lists "${encodeAddresses(to)}" twice; a pair appears in \`borders\` once`,
             );
             return;
         }
@@ -588,7 +593,7 @@ function checkRelation(note, { field, index }) {
             error(
                 i,
                 "to",
-                `${label(i, "to")} names "${to}", which is a ${target.type} note; a ` +
+                `${label(i, "to")} names "${encodeAddresses(to)}", which is a ${target.type} note; a ` +
                     `${field === "borders" ? "border" : "route"} is between places`,
             );
             return;
@@ -601,7 +606,7 @@ function checkRelation(note, { field, index }) {
                 error(
                     i,
                     undefined,
-                    `${label(i)} borders "${to}", which is this place's parent; ` +
+                    `${label(i)} borders "${encodeAddresses(to)}", which is this place's parent; ` +
                         `containment is \`parents\`, and a place never borders its parent`,
                 );
                 return;
@@ -610,7 +615,7 @@ function checkRelation(note, { field, index }) {
                 error(
                     i,
                     undefined,
-                    `${label(i)} borders "${to}", which is this place's child; ` +
+                    `${label(i)} borders "${encodeAddresses(to)}", which is this place's child; ` +
                         `containment is \`parents\`, and a place never borders its child`,
                 );
                 return;
@@ -633,7 +638,7 @@ function checkRelation(note, { field, index }) {
                         i,
                         undefined,
                         "warning",
-                        `"${self}" borders "${to}" at ${bearing}, but "${to}" states no ` +
+                        `"${self}" borders "${encodeAddresses(to)}" at ${bearing}, but "${encodeAddresses(to)}" states no ` +
                             `border to "${self}"; it should carry ` +
                             `\`{ to: ${selfThere}, bearing: ${expected} }\``,
                     ),
@@ -645,7 +650,7 @@ function checkRelation(note, { field, index }) {
                 error(
                     i,
                     "bearing",
-                    `"${self}" borders "${to}" at ${bearing}, so "${to}" should state the ` +
+                    `"${self}" borders "${encodeAddresses(to)}" at ${bearing}, so "${encodeAddresses(to)}" should state the ` +
                         `border back at bearing ${expected}, but states ${theirs}`,
                 );
             }
@@ -659,7 +664,7 @@ function checkRelation(note, { field, index }) {
                     i,
                     undefined,
                     "warning",
-                    `"${self}" reaches "${to}" by ${mode} in ${days} days, but "${to}" ` +
+                    `"${self}" reaches "${encodeAddresses(to)}" by ${mode} in ${days} days, but "${encodeAddresses(to)}" ` +
                         `states no route to "${self}"; it should carry ` +
                         `\`{ to: ${selfThere}, bearing: ${expected}, mode: ${mode}, days: ${days} }\``,
                 ),
@@ -678,7 +683,7 @@ function checkRelation(note, { field, index }) {
             error(
                 i,
                 "mode",
-                `"${self}" reaches "${to}" by ${mode}, but "${to}" states the route back ` +
+                `"${self}" reaches "${encodeAddresses(to)}" by ${mode}, but "${encodeAddresses(to)}" states the route back ` +
                     `by ${oneOf(theirs)} only; a pair is stated by the same mode at ` +
                     `both ends`,
             );
@@ -689,7 +694,7 @@ function checkRelation(note, { field, index }) {
             error(
                 i,
                 "bearing",
-                `"${self}" reaches "${to}" at ${bearing}, so "${to}" should state the route ` +
+                `"${self}" reaches "${encodeAddresses(to)}" at ${bearing}, so "${encodeAddresses(to)}" should state the route ` +
                     `back at bearing ${expected}, but states ${theirBearing}`,
             );
         }
@@ -698,7 +703,7 @@ function checkRelation(note, { field, index }) {
             error(
                 i,
                 "days",
-                `"${self}" reaches "${to}" by ${mode} in ${days} days, but "${to}" states ` +
+                `"${self}" reaches "${encodeAddresses(to)}" by ${mode} in ${days} days, but "${encodeAddresses(to)}" states ` +
                     `the route back as ${theirDays}; both ends state the same days`,
             );
         }

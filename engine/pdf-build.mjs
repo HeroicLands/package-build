@@ -379,7 +379,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         scheme,
     };
     const collected = collectContentPages(contentBase, ctx);
-    const gates = siteGates(collected.pages, collected, { config: resolved });
+    const gates = siteGates(collected.pages, collected, { config: resolved, records });
     if (gatesFailed(gates)) {
         for (const [name, list] of Object.entries(gates)) {
             if (!Array.isArray(list)) continue;

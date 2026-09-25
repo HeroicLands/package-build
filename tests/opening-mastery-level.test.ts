@@ -182,7 +182,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
                 },
             ],
             [
-                "skill:clmb",
+                "sohl:skill:clmb",
                 {
                     type: "skill",
                     name: "Climbing",
@@ -195,7 +195,7 @@ describe("the actors pass bakes an unopened skill's mastery level", () => {
                 },
             ],
             [
-                "skill:peoni",
+                "sohl:skill:peoni",
                 {
                     type: "skill",
                     name: "Peoni",

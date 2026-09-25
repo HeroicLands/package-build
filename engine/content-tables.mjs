@@ -11,6 +11,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
+import { completeAddress, renderAddress, isAddressTuple } from "./address.mjs";
+import { contentPackage } from "./content-package.mjs";
+
 /**
  * Generated content tables — Obsidian **Dataview** `TABLE` queries.
  *
@@ -702,6 +705,7 @@ export function resolveField(doc, path) {
 
 /** Render a value as the plain text a comparison or a cell works with. */
 function asText(value) {
+    if (isAddressTuple(value)) return renderAddress(value);
     if (value == null) return "";
     if (isLink(value)) return value.display;
     if (Array.isArray(value)) return value.map(asText).join(", ");
@@ -1035,7 +1039,11 @@ export function renderContentTable(spec, rows, linkable, self) {
             // table cell; the resolvers unescape it before splitting, so the
             // display text itself must not carry one.
             const label = text.replace(/\\?\|/g, "/");
-            return `[[${doc.fm.type}/${doc.fm.shortcode}\\|${label}]]`;
+            const target = completeAddress(
+                { type: doc.fm.type, shortcode: doc.fm.shortcode },
+                { package: doc.fm.package ?? contentPackage(), system: "none" },
+            );
+            return `[[${renderAddress(target)}\\|${label}]]`;
         }),
     );
 
