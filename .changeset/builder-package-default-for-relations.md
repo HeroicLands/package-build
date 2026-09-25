@@ -4,7 +4,5 @@
 
 **Places**
 
-- A border or a route reads a short `to` as naming a place in the package being
-  built, wherever the value was written — so a frontier that crosses a package
-  boundary is stated with the _full address_ at both ends, and two packages using
-  one shortcode never answer for each other.
+- A border or a route naming a place in another package is written as a _full
+  address_; a bare shortcode names a place in the package being built.
