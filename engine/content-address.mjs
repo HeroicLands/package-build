@@ -218,7 +218,7 @@ export function canonicalKey(pkg, system, type, shortcode) {
  * top-level frontmatter, the shared `data:` container, and body prose, which has
  * no key path at all and passes `undefined`.
  *
- * It is the block rather than the field, so a `WikiLink` field needs no opinion
+ * It is the block rather than the field, so an `Address` field needs no opinion
  * about systems and no per-field table has to be kept in step with the schema.
  *
  * The first segment must **be** a declared system, not merely look like one:

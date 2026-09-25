@@ -15,7 +15,7 @@
  * The art slots a note declares, and turning one of them into a path.
  *
  * A note names the art a *document field* needs, and every other image in it is
- * inline. Each slot is an ordinary `WikiLink` field declaring a default type,
+ * inline. Each slot is an ordinary `Address` field declaring a default type,
  * exactly as `seat` declares `place`: a bare shortcode takes its type from the
  * declaration, and a value that qualifies itself climbs the same short-form
  * ladder every other link uses.

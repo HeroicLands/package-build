@@ -114,8 +114,8 @@ export function stripAdventureKeys(value) {
 /**
  * An authored address with any wikilink brackets and label stripped.
  *
- * The specification types `contents` as a `WikiLink[]`, and a frontmatter link
- * is written as a bare address — but `[[address]]` is what an author reaches
+ * The specification types `contents` as an `Address[]`, written bare — but
+ * `[[address]]` is what an author reaches
  * for, and it is what a folder note's `parent` already accepts. Accepting both
  * costs one regex and removes a failure whose message would have to explain the
  * difference.

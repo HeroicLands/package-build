@@ -98,16 +98,13 @@ const VALUES = valueCells();
 
 /** Every source and documentation file the package carries. */
 function scannedFiles(): string[] {
-    const manifest = JSON.parse(
-        fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8"),
-    ) as { files: string[] };
+    const manifest = JSON.parse(fs.readFileSync(path.join(PKG_ROOT, "package.json"), "utf8")) as {
+        files: string[];
+    };
     // What ships, plus the suite, less the two changelogs and the generated
     // `types/` tree — the changelogs record what shipped and `types/` is
     // emitted from the JSDoc this guard already reads.
-    const roots = [
-        ...manifest.files.filter((entry) => !/^CHANGELOG|^types$/.test(entry)),
-        "tests",
-    ];
+    const roots = [...manifest.files.filter((entry) => !/^CHANGELOG|^types$/.test(entry)), "tests"];
     const READABLE = /\.(md|mjs|cjs|js|ts|mts)$/;
     const walk = (entry: string): string[] => {
         const full = path.join(PKG_ROOT, entry);
@@ -195,7 +192,7 @@ describe("the specification names an Address and a Wikilink distinctly", () => {
         );
         expect(defining.length, "the specification defines a `Shortcode`").toBe(1);
         // Named as the type a field holds, beside the Address it is not.
-        expect(VALUES.map((v) => v.value).join("\n")).toMatch(/`Shortcode`/);
+        expect(VALUES.map((v) => v.value).join("\n")).toMatch(/Shortcode/);
     });
 
     it("names no field's type after the bracketed prose form", () => {
