@@ -610,12 +610,12 @@ exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
 
-| field       | default type | resolves into                | on                                        |
-| ----------- | ------------ | ---------------------------- | ----------------------------------------- |
-| `icon`      | `icon`       | `document.img`               | every Actor/Item type, and embedded items |
-| `tokenIcon` | `icon`       | `prototypeToken.texture.src` | Actor types                               |
-| `bgImage`   | `image`      | `background.src`             | map types                                 |
-| `banner`    | `image`      | the site hero image          | any note; not a Foundry field             |
+| field       | default type | accepts         | resolves into                | on                                        |
+| ----------- | ------------ | --------------- | ---------------------------- | ----------------------------------------- |
+| `icon`      | `icon`       | `icon`, `image` | `document.img`               | every Actor/Item type, and embedded items |
+| `tokenIcon` | `icon`       | `icon`, `image` | `prototypeToken.texture.src` | Actor types                               |
+| `bgImage`   | `image`      | `icon`, `image` | `background.src`             | map types                                 |
+| `banner`    | `image`      | `icon`, `image` | the site hero image          | any note; not a Foundry field             |
 
 All four are authored under `data:`:
 
@@ -624,6 +624,27 @@ data:
   icon: anvil
   banner: packagebuild-none-image-skillbnr
 ```
+
+**Every slot accepts a second type beyond the one it defaults to**, and the two
+defaults pair with the same accepted set: `icon` and `tokenIcon` default to
+`icon`, `bgImage` and `banner` default to `image`, and all four accept `icon`
+**and** `image` regardless of which one they default to. A bare shortcode still
+takes the slot's default — `icon: anvil` above names an `icon`, not an `image`
+— and it is a **qualified** value, one that states its own type, that the
+accepted set governs. `sohl-kethira-basic` writes an `icon` slot this way
+twenty times, once per faith tradition, because a deity's profile art is a full
+illustration rather than a game icon:
+
+```yaml
+data:
+  icon: image-kpagrik
+```
+
+That value is accepted because `image` is in the slot's accepted set, not
+because it matches the default — `icon` still defaults to `icon`. `audio` is
+refused at all four slots: a sound is not art, and a value naming one — `icon:
+audio-thunder`, say — is an error naming the set the slot accepts, never a
+silent fall back to the note's default art.
 
 **Two of them are legal on _every_ note**, whatever its type. `data:` is a
 closed container and the per-type vocabularies below are the only lists there
@@ -1459,6 +1480,20 @@ An `affiliation-` prefix there is an **error naming the field and both types** �
 never a silent widening of what the field accepts. Where a field permits more
 than one type, a bare shortcode must resolve to exactly one of them, and an
 ambiguity is an error naming the candidates rather than a first match.
+
+**A position's default and its accepted set are two different declarations,
+and most positions are not ambiguous at all.** The paragraph above is about a
+position that permits more than one type with no default among them; `seat` is
+the plainer case, permitting exactly one. Between those sits a third shape,
+and it is the common one: a position that nominates one of its accepted types
+as the default while accepting others besides. There a bare shortcode is never
+a candidate to weigh — it takes the default outright, every time — and the
+accepted set is what a value that states its own type is checked against
+instead: naming any member of the set is as valid as naming the default
+itself, and naming a type outside it is an error against the set, never
+against the default alone. [The four art slots](#the-four-art-slots) are
+declared exactly this way — each one accepts a second type beyond the one a
+bare shortcode takes.
 
 **Only the type segment defaults.** Package and system are not the field's to
 supply — it has no opinion about which package holds the target — so reaching
