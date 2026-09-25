@@ -337,6 +337,18 @@ describe("an Address is read and written in one place", () => {
         }
     });
 
+    it("carries no pending site — every remaining one is a shape the sweep does not touch", () => {
+        // The sweep is complete: nothing left builds an Address by hand, so
+        // nothing here is waiting on a packet number. A hand-built Address
+        // site the sweep missed, or one a regression reintroduces, is caught
+        // by the completeness test above and lands here with a `converts`
+        // packet number — which this fails on. The fix is to convert that
+        // site, not to loosen this assertion to admit it.
+        for (const site of EXEMPT) {
+            expect(site.converts, render(site)).toBeNull();
+        }
+    });
+
     it("lists no site twice", () => {
         // A tuple key, so the pair cannot be collapsed by a separator that
         // turns up in a path or in a code fragment.
