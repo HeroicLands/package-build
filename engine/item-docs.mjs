@@ -43,8 +43,6 @@
  */
 
 import { compendiumUuid, makeId, pageUuid } from "./ids.mjs";
-import { loadPackConfig } from "./pack-config.mjs";
-import { currentType } from "./ids.mjs";
 import { itemTypes } from "./item-registry.mjs";
 import { packRouter } from "./pack-router.mjs";
 
@@ -61,50 +59,15 @@ import { packRouter } from "./pack-router.mjs";
 export { itemTypes };
 
 /**
- * Every content type whose **prose compiles into a JournalEntry of its own**,
- * addressed by the virtual `doc<type>` qualifier.
+ * The doc-carrying types, under the names the compilers hold them by.
  *
- * Every item type, every actor type, every map type, plus `macro` — a macro
- * note's body documents the script the note also compiles into a Macro, which
- * is the same shape as an item and its description: one note, two documents,
- * the prose living in the journals pack.
- *
- * **One set, read by the compiler and the emitter alike.** The journals pass
- * decides what to compile from it, and the link manifest decides what to
- * publish a `doc<type>` entry for. Held apart, the two drift into a manifest
- * that asserts documentation nothing compiled — or a compiled entry no
- * consumer can address. It is composed exactly once, in `defineConfig`, and
- * read from there — never recomposed at a call site.
- *
- * `doc` notes are absent, for the reason that applies to them alone: a `doc`
- * note's single document *is* its prose, so there is no second document for a
- * `doc<type>` address to name.
- *
- * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration (#2).
- *
- * @returns {ReadonlySet<string>} The configured doc-carrying types.
+ * The set is what decides whether `doc<type>` is a legal type segment, so it is
+ * stated in `engine/address.mjs` beside the grammar that reads one and read from
+ * there by the journals pass and the link manifest — one set, so an authored
+ * `doc<type>` address and the entry it names cannot disagree about which types
+ * have one.
  */
-export function docEntryTypes() {
-    return loadPackConfig().docEntryTypes;
-}
-
-/**
- * Whether a content note's type is one whose prose becomes a JournalEntry of
- * its own.
- *
- * @param {string} type - The note's `type` frontmatter.
- * @returns {boolean} True for an item type, an actor type, a map type and
- *   `macro`; false for `doc`.
- */
-export function hasDocEntry(type) {
-    // Through {@link currentType}, because the set is derived from the item
-    // registry's keys and those are the *current* spelling of a note type. A
-    // note still on a renamed one carries its documentation journal exactly as
-    // before — this is the one lookup between an item compiling and its prose
-    // silently compiling into nothing.
-    return docEntryTypes().has(String(currentType(type)));
-}
+export { docEntryTypes, hasDocEntry } from "./address.mjs";
 
 /**
  * The id of the JournalEntry a note's prose compiles into — an item's, or a

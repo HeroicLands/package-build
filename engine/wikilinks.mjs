@@ -86,11 +86,15 @@ import crypto from "crypto";
 
 import { compendiumUuid, ITEM_PACK, packForType, pageUuid, PACK_BY_TYPE } from "./ids.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
+// The address grammar. A wikilink *contains* an Address, so what counts as one
+// is stated there and read here — the anchor and the label are this module's,
+// and the tuple inside them is not.
+import { ITEM_DOC_PREFIX, readQualifier, resolveItemDocType } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
-import { isSystemSegment, NO_SYSTEM } from "./systems.mjs";
+import { NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
-import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
+import { itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
 // one cannot disagree about what counts as a link.
@@ -104,227 +108,14 @@ import {
 export { ITEM_PACK, PACK_BY_TYPE, packForType };
 
 /**
- * The qualifier prefix that addresses an item's **documentation** rather than
- * the item: `docskill/wpnc` is the JournalEntry that `skill/wpnc`'s prose
- * compiled into. See {@link resolveItemDocType}.
+ * The address grammar, under the names the link resolvers hold it by.
+ *
+ * {@link readQualifier} reads a link target as the partial Address the matchers
+ * consume, and {@link resolveItemDocType} is the `doc<type>` reading it applies.
  */
-const ITEM_DOC_PREFIX = "doc";
+export { readQualifier, resolveItemDocType };
 
 const norm = (s) => String(s).toLowerCase().trim();
-
-/**
- * Reads a qualifier as the **virtual `doc<type>`** form, or reports that it is
- * not one.
- *
- * A document and its documentation are two documents in two packs, so they
- * need two addresses. `skill/wpnc` is the item; `docskill/wpnc` is the
- * JournalEntry its prose compiled into, and `docmacro/autoattack` is the same
- * arrangement for a macro.
- *
- * The virtual form exists for a type that carries separate documentation
- * ({@link sohl.utils.packs.docEntryTypes} — the set the journals compiler and
- * the link manifest read too), **or** for one that routes to the items pack.
- * The second clause is the older rule and stays: types that compile into items
- * are the open, unenumerated set, and a foreign package may publish an
- * item type this build has never heard of. Dropping it would silently unlink
- * every `doc<type>` address into such a package.
- *
- * A **real** type of the same name always wins: the virtual reading is only
- * consulted for a qualifier no authored note claims.
- *
- * @param {string} qualifier - The already-normalised text before the `/`.
- * @param {Set<string>} types - Every type the content tree contains.
- * @returns {string|null} The underlying document type, or `null` when the
- *   qualifier is not a virtual one.
- */
-export function resolveItemDocType(qualifier, types) {
-    if (types.has(qualifier)) return null; // a real type owns its own name
-    if (!qualifier.startsWith(ITEM_DOC_PREFIX)) return null;
-    const base = qualifier.slice(ITEM_DOC_PREFIX.length);
-    if (!base || !types.has(base)) return null;
-    if (hasDocEntry(base)) return base;
-    return packForType(base).docType === ITEM_PACK.docType ? base : null;
-}
-
-/**
- * Read a link target as a **qualified** `type-shortcode` reference, or report
- * that it does not parse as one.
- *
- * Two separators are accepted, and they are **not** interchangeable in how
- * confidently they mark a target as qualified:
- *
- * - **`type-shortcode`** and its qualified forms — the canonical spelling.
- * Obsidian reads `/` inside a wikilink as a *path* and resolves it
- *   against the vault's folders, so a slash-qualified link is a broken link in
- *   the editor where the content is now authored.
- * - **`type/shortcode`** — the legacy form, still resolved so that a link
- *   written before the vault migrated does not silently die. A slash is
- *   *unconditionally* a qualifier: nothing else uses one, so an unknown type
- *   before it is reported rather than guessed at. The split is at the **last**
- *   slash, as it always was.
- *
- * **The grammar is strict, and omission runs left to right**:
- *
- * ```text
- * [[[[<package>-]<system>-]<type>-]<shortcode>]
- * ```
- *
- * So the written forms are exactly the suffixes of the canonical address —
- * `type-shortcode`, `system-type-shortcode`, `package-system-type-shortcode` —
- * and **`package-type-shortcode` is not one of them**. A link into another
- * package must therefore be fully qualified, which is the price of the segment
- * being positional rather than tagged.
- *
- * **Parsing is plain positional counting**, the same rule
- * {@link readCanonicalKey} follows, and it is sound for the same reason: every
- * segment matches `ADDRESS_SEGMENT_PATTERN` (enforced on shortcodes by
- * `content-lint.mjs`), so the hyphen is purely a
- * separator and the count alone determines every field. Verified across the
- * four content trees: 138,204 authored shortcodes, none carrying a separator.
- *
- * That replaced a first-hyphen split which let a shortcode contain a hyphen
- * (`trauma-self-pro` → `trauma` + `self-pro`). The tolerance predates the
- * charset rule and
- * outlived it; no tree has used it, and keeping it would make a three-segment
- * target ambiguous between a system and a hyphenated shortcode.
- *
- * **`sohl` is both a package and a system**, and positional counting is what
- * makes that harmless: three segments is `<system>-<type>-<shortcode>` whatever
- * the first segment could also have named, and four is the full form. Nothing
- * has to guess which sense was meant.
- *
- * **A partial address states what it states, and the rest is not invented.** An
- * omitted **system** is a *wildcard* — most links target items, which belong to
- * a system — so the caller matches on the segments supplied and requires
- * exactly one hit. An omitted **package** is instead *defaulted* to the citing
- * note's own, so an unqualified link resolves locally and only locally.
- *
- * @param {string} target - The link target, anchor already removed.
- * @param {Set<string>} types - Every type the content tree contains.
- * @param {Set<string>} [packages] - Every package an address may name. Omitted
- *   by callers that resolve within one package, where the form cannot occur.
- * @param {Set<string>} [noIndexPackages] - Packages declared `contentIndex:
- *   false` — a Foundry dependency only, with no fetched index. A fully
- *   qualified target naming one is refused with `no-content-index` before its
- *   type is even considered, since there is no index to resolve it against.
- * @returns {{type: string, shortcode: string, itemDoc: boolean,
- *   package?: string, system?: string, reason?: undefined}
- *   | {reason: "unknown-type"|"no-content-index", package?: string} | null}
- *   The resolved qualifier; a `reason` when the target is definitely qualified
- *   but names no known type or no fetched index; or `null` when it is not an
- *   address at all.
- */
-export function readQualifier(target, types, packages, noIndexPackages) {
-    // **Package, system and type are lowercase; the shortcode is not.** A
-    // shortcode is case-sensitive and routinely mixed — `Clb`, `LtShoe`,
-    // `HsTunic` — so it is written as the note declares it. The three segments
-    // in front of it are closed vocabularies with one spelling each, and
-    // accepting `Skill` beside `skill` would bless two ways of writing one
-    // address. Reported rather than folded, so the corpus has one form.
-    //
-    // Tested only once the target *parses*: a note name is full of capitals
-    // (`[[Shock State]]`), and calling that a badly-cased address rather than
-    // not an address would name the wrong mistake. Neither tree carries a
-    // violation — 10,538 authored targets — so this pins a rule already kept.
-    const read = readQualifierCased(target, types, packages, noIndexPackages);
-    if (read && !read.reason && qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
-        return { reason: "not-lowercase" };
-    }
-    return read;
-}
-
-/**
- * The segments of a target that must be lowercase — everything but the
- * shortcode, which is case-sensitive and keeps whatever the note declares.
- *
- * @param {string} target - The link target, anchor already removed.
- * @returns {string[]} The package / system / type segments, as written.
- */
-function qualifyingSegments(target) {
-    const slash = target.lastIndexOf("/");
-    // The legacy `type/shortcode` form states only a type.
-    if (slash > 0) return [target.slice(0, slash)];
-    const parts = target.split("-");
-    return parts.slice(0, -1);
-}
-
-/**
- * {@link readQualifier} without the lowercase rule — the grammar alone.
- *
- * @param {string} target
- * @param {Set<string>} types
- * @param {Set<string>} [packages]
- * @param {Set<string>} [noIndexPackages]
- * @returns {object|null}
- */
-function readQualifierCased(target, types, packages, noIndexPackages) {
-    // The slash form is legacy and states neither package nor system, so it is
-    // read first and separately. A slash is unconditionally a qualifier —
-    // nothing else uses one — which is why an unknown type before it is
-    // *reported* rather than read as prose.
-    const slash = target.lastIndexOf("/");
-    if (slash > 0) {
-        const read = readTypeAndCode(target.slice(0, slash), target.slice(slash + 1), types);
-        return read ?? { reason: "unknown-type" };
-    }
-
-    const parts = target.split("-");
-    switch (parts.length) {
-        // `<type>-<shortcode>`
-        case 2:
-            return readTypeAndCode(parts[0], parts[1], types);
-
-        // `<system>-<type>-<shortcode>` — the package defaults to local.
-        case 3: {
-            const system = norm(parts[0]);
-            if (!isSystemSegment(system)) return null;
-            const read = readTypeAndCode(parts[1], parts[2], types);
-            return read && { ...read, system };
-        }
-
-        // `<package>-<system>-<type>-<shortcode>` — the only form that names
-        // another package, and the reason a cross-package link must be fully
-        // qualified.
-        case 4: {
-            const pkg = norm(parts[0]);
-            // Checked before the type: a package with no fetched index has no
-            // vocabulary to resolve the rest of the target against, and the
-            // fix is the config declaration, not the shortcode.
-            if (noIndexPackages?.has(pkg)) return { reason: "no-content-index", package: pkg };
-            if (!packages?.has(pkg)) return null;
-            const system = norm(parts[1]);
-            if (!isSystemSegment(system)) return null;
-            const read = readTypeAndCode(parts[2], parts[3], types);
-            return read && { ...read, system, package: pkg };
-        }
-
-        // One segment is a bare name, which is not an address; five or
-        // more is not a hyphenated shortcode but a name that happens to carry
-        // separators, since no segment may contain one.
-        default:
-            return null;
-    }
-}
-
-/**
- * Resolve a qualifier/shortcode pair, honouring the virtual `doc<type>` form.
- *
- * @param {string} rawType
- * @param {string} rawCode
- * @param {Set<string>} types
- * @returns {{type: string, shortcode: string, itemDoc: boolean} | null}
- *   `null` when the qualifier names no known type, or the shortcode is empty.
- */
-function readTypeAndCode(rawType, rawCode, types) {
-    const shortcode = norm(rawCode);
-    if (!shortcode) return null;
-
-    let type = norm(rawType);
-    const base = resolveItemDocType(type, types);
-    if (base) return { type: base, shortcode, itemDoc: true };
-    if (!types.has(type)) return null;
-    return { type, shortcode, itemDoc: false };
-}
 
 /**
  * The deterministic JournalEntryPage id for one anchor: SHA-256 of
