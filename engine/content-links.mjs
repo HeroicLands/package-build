@@ -35,7 +35,7 @@
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
  *    and copy frontmatter through verbatim, so a link written in a
  *    `description` is never resolved and publishes as literal `[[…]]` text.
- *    Frontmatter is data: a `WikiLink` field is parsed by the address grammar
+ *    Frontmatter is data: an `Address` field is parsed by the address grammar
  *    and a bracketed link there is a finding naming the note and the field.
  *
  * **This resolves links the way the builds do**, calling the same
