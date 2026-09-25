@@ -490,8 +490,14 @@ stores cross-references as shortcode strings, which is what the `Code` suffix
 marks: `data.assocSkill` is an address naming a skill note, and
 `system.assocSkillCode` holds that note's shortcode. The resolution happens at
 build time, and an address that resolves to nothing is an error naming the note —
-never a blank field. Where a target field has no `Code` suffix, the value is
-stored as the reference the field expects.
+never a blank field.
+
+**The suffix marks the case; it does not define it.** What decides is what the
+target field holds, so four affiliation fields are resolved the same way without
+carrying one: `data.seat` becomes `system.seat`, `data.parents` becomes
+`system.parents`, `data.domains` becomes `system.domain`, and each authored key
+of `data.relations` becomes a key of `system.relations`. Everywhere else the
+value is stored as the reference the field expects.
 
 ### The note vocabulary, and how it maps
 
@@ -1364,16 +1370,25 @@ three segments have nothing to say:
 | -------------------------------------------- | ----------------------------------------------------------------------------------- |
 | a note's own `shortcode:`                    | the note's identity — the name every address of it is built from                    |
 | a custom embedded entry's `system.shortcode` | that entry's identity within the actor that holds it                                |
-| an affiliation's `relations` keys            | the other body this one has a standing towards                                      |
+| an emitted `system.relations` key            | the other body this one has a standing towards                                      |
 | a mystery's `skillAptitudes` keys            | the skill an aptitude weighs, where the key is not a `subType:` selector            |
 | a `Code`-suffixed system field               | what the resolved address is stored as — see _The note vocabulary, and how it maps_ |
 
 **The test is whether the position can take the full four-tuple.** An `Address`
-accepts it by definition, and the positions above cannot: a `relations` key is
-persisted into `system.relations` and read back at runtime as
-`relations[shortcode]`, among the items one actor carries, where packages do not
-exist. So nothing defaults a `Shortcode` out to four segments, and a value
-written there as an address names no standing at all.
+accepts it by definition, and the positions above cannot: a `system.relations`
+key is read at runtime as `relations[shortcode]`, among the items one actor
+carries, where packages do not exist. So nothing defaults a `Shortcode` out to
+four segments, and a value persisted there as an address names no standing at
+all.
+
+**The two halves of `relations` are two types.** The key an author writes is an
+`Address` — a body in another package is named in full, and one in this package
+by its shortcode alone — and the key the compiled Item carries is the
+`Shortcode` that address names. The builder performs the reduction, exactly as
+it does for a `Code`-suffixed field, and two authored keys reducing to one
+emitted key is an error naming both addresses: a shortcode is unique within one
+package's address space, so two packages may each declare one, and the compiled
+field holds one of the two.
 
 **A bare shortcode in an `Address` field is not a `Shortcode`.** It is an
 Address written at its shortest, with the package, the system and the type all
@@ -1463,8 +1478,9 @@ the system and the fourth cannot omit it — see [Shorter forms](#shorter-forms)
 
 An `affiliation-` prefix there is an **error naming the field and both types** —
 never a silent widening of what the field accepts. Where a field permits more
-than one type, a bare shortcode must resolve to exactly one of them, and an
-ambiguity is an error naming the candidates rather than a first match.
+than one type with no default among them, a bare shortcode is refused
+outright — an error naming the field and the types it accepts, never a
+resolution across them.
 
 **A position's default and its accepted set are two different declarations,
 and most positions are not ambiguous at all.** The paragraph above is about a
@@ -2780,24 +2796,24 @@ rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
-| `data` property      | Values                     | Description                                                                                    |
-| -------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
-| `templatePriority`   | `number`                   | Template priority, _null_ = not a template                                                     |
-| `demonym`            | `string`                   | What a member of this affiliation is called (a Vylarian)                                       |
-| `epithet`            | `string`                   | The by-name it is known by — a god's, an order's, a company's                                  |
-| `symbol`             | `string`                   | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
-| `governance.model`   | `GovernanceModel`          | Type of government structure, if applicable                                                    |
-| `governance.summary` | `string`                   | summary of the governance situation                                                            |
-| `governance.ranks`   | `Rank[]`                   | The ranks available to members of the affiliation                                              |
-| `governance.offices` | `Map<name, description>`   | Official offices in the affiliation                                                            |
-| `commonSkills`       | `Address[]`                | Common skills among members (languages, etc.)                                                  |
-| `seat`               | `Address`                  | Where the affiliation's authority sits                                                         |
-| `domains`            | `Address[]`                | Places over which this affiliation holds sway                                                  |
-| `population`         | `number`                   | Number of people in the affiliation (precision 2 significant digits).                          |
-| `economy`            | `Address[]`                | What its economic life runs on — produced goods, currency systems and the like                 |
-| `lore`               | `Address[]`                | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
-| `parents`            | `Address[]`                | Affiliations that this affiliation is subordinate to                                           |
-| `relations`          | `Map<Shortcode, Standing>` | Standing with other affiliations, keyed by the other body's shortcode                          |
+| `data` property      | Values                   | Description                                                                                    |
+| -------------------- | ------------------------ | ---------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                 | Template priority, _null_ = not a template                                                     |
+| `demonym`            | `string`                 | What a member of this affiliation is called (a Vylarian)                                       |
+| `epithet`            | `string`                 | The by-name it is known by — a god's, an order's, a company's                                  |
+| `symbol`             | `string`                 | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
+| `governance.model`   | `GovernanceModel`        | Type of government structure, if applicable                                                    |
+| `governance.summary` | `string`                 | summary of the governance situation                                                            |
+| `governance.ranks`   | `Rank[]`                 | The ranks available to members of the affiliation                                              |
+| `governance.offices` | `Map<name, description>` | Official offices in the affiliation                                                            |
+| `commonSkills`       | `Address[]`              | Common skills among members (languages, etc.)                                                  |
+| `seat`               | `Address`                | Where the affiliation's authority sits                                                         |
+| `domains`            | `Address[]`              | Places over which this affiliation holds sway                                                  |
+| `population`         | `number`                 | Number of people in the affiliation (precision 2 significant digits).                          |
+| `economy`            | `Address[]`              | What its economic life runs on — produced goods, currency systems and the like                 |
+| `lore`               | `Address[]`              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
+| `parents`            | `Address[]`              | Affiliations that this affiliation is subordinate to                                           |
+| `relations`          | `Map<Address, Standing>` | Standing with other affiliations, keyed by the other body's Address                            |
 
 **A faith tradition is not its god.** An `affiliation` of subType
 `faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
