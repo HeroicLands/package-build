@@ -485,13 +485,13 @@ the field rather than a list of names, so it covers every such field a system
 adds later. The per-type tables below never list one — they are the vocabulary
 an author writes — and each type that has any names them under its table.
 
-**A `WikiLink` becomes a shortcode where the target field expects one.** SoHL
+**An `Address` becomes a `Shortcode` where the target field expects one.** SoHL
 stores cross-references as shortcode strings, which is what the `Code` suffix
-marks: `data.assocSkill` is a link to a skill note, and `system.assocSkillCode`
-holds that note's shortcode. The resolution happens at build time, and a link
-that resolves to nothing is an error naming the note — never a blank field. Where
-a target field has no `Code` suffix, the link is stored as the reference the
-field expects.
+marks: `data.assocSkill` is an address naming a skill note, and
+`system.assocSkillCode` holds that note's shortcode. The resolution happens at
+build time, and an address that resolves to nothing is an error naming the note —
+never a blank field. Where a target field has no `Code` suffix, the value is
+stored as the reference the field expects.
 
 ### The note vocabulary, and how it maps
 
@@ -575,7 +575,7 @@ destination, so the resolved value is simply dropped — the note validates, the
 tree compiles, and the value goes nowhere.
 
 **What a note writes is an address; what a document carries is a path.**
-`data.icon` is a `WikiLink` defaulting to type `icon`, so a being writes
+`data.icon` is an `Address` defaulting to type `icon`, so a being writes
 `icon: anvil` and never a file name. The compiler resolves that address to the
 file the owning package ships and writes the resulting path into `img`. The two
 sides of this row are therefore in two different currencies, which is why the
@@ -599,7 +599,7 @@ check.
 #### The four art slots
 
 A note declares the art its document needs, and every other image in it is
-inline. All four slots are ordinary `WikiLink` fields declaring a default type,
+inline. All four slots are ordinary `Address` fields declaring a default type,
 exactly as `seat` declares `place` — a bare shortcode takes its type from the
 declaration, and qualification climbs the same short-form ladder every other
 link uses.
@@ -625,10 +625,10 @@ are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values     | Description                                                          |
-| ---------------------- | ---------- | -------------------------------------------------------------------- |
-| `icon`                 | `WikiLink` | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `WikiLink` | The page's hero image — an `image` address.                          |
+| shared `data` property | Values    | Description                                                          |
+| ---------------------- | --------- | -------------------------------------------------------------------- |
+| `icon`                 | `Address` | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `Address` | The page's hero image — an `image` address.                          |
 
 `icon` is legal everywhere because most types compile into a document that
 carries one; where a type's passes emit none, the lint says so and the value is
@@ -660,7 +660,7 @@ Actor types (`being`, `vehicle`) therefore add one row:
 An actor's two pieces of art are two different questions. `data.icon` is the
 profile art — what a directory listing shows beside the name and what the sheet
 header carries. `data.tokenIcon` is what a token on the canvas wears. Both are
-wikilinks and both resolve the same way; only the destination differs. An Item
+addresses and both resolve the same way; only the destination differs. An Item
 has one piece of art, so this row applies to actor types alone.
 
 **A `data:` source is still read at the top level, for now.** `data:` did
@@ -798,7 +798,7 @@ Foundry destination: searching a built `packs-json` tree for it turns up
 nothing. It reaches the generated page and the book's section plates, and
 nothing else.
 
-It is a `WikiLink` all the same, defaulting to type `image`, so a section note
+It is an `Address` all the same, defaulting to type `image`, so a section note
 writes `banner: skillbnr` and a note borrowing another package's plate writes
 `banner: packagebuild-none-image-skillbnr`. The resolved record carries the
 owning package, and each surface joins the suffix onto its own root — the site
@@ -1199,10 +1199,30 @@ is where the question _which notes carry no `kbcat`?_ is answered.
 `sql` fence is the ordinary case of _Content tables_ below, and the same
 free-form value decides the headings there.
 
-### WikiLinks
+### Addresses
 
-Many fields in the tables below take a `WikiLink`, and a link is written
-`[[target]]` or `[[target|label]]`. The target is an **address**.
+Three types name one thing from another in a content tree, and they are not
+lengths of one another:
+
+| type        | written                                      | where it is met                                             |
+| ----------- | -------------------------------------------- | ----------------------------------------------------------- |
+| `Address`   | `<package>-<system>-<note_type>-<shortcode>` | a frontmatter field, a `model:`, an art slot, a link target |
+| `Shortcode` | `<shortcode>`                                | a note's own identity, and a key a runtime resolves by      |
+| `Wikilink`  | `[[<Address>[#<anchor>]\|<text>]]`           | body prose                                                  |
+
+An **`Address`** is the tuple below, and it is what every field typed `Address`
+in the tables that follow holds. It is equally what a `model:` names, what an art
+slot points at and what a wikilink resolves through — so an address is the thing
+being named, and the brackets around one in prose are a separate matter. Three
+rules govern it, and the first three subsections below state them in turn: the
+tuple is read by position, any suffix of it may be written, and each omitted
+segment is supplied by a default the position declares.
+
+A **`Shortcode`** is one segment, and nothing expands it — see _A shortcode is
+one segment, and nothing expands it_ below.
+
+A **`Wikilink`** is the prose form, which contains an Address — see _Wikilinks_
+below.
 
 #### The canonical address
 
@@ -1312,44 +1332,33 @@ before the vault migrated do not silently die. A slash is _unconditionally_ an
 address separator — pipe or no pipe — so an unknown type before one is an error
 rather than something to guess at.
 
-#### Every link is an address, and every link carries a label
+#### A shortcode is one segment, and nothing expands it
 
-There is one namespace, and the pipe is required:
+A **`Shortcode`** is a single segment of the same charset an address segment is
+held to, and it is a type of its own rather than the shortest `Address`. It
+names a thing's identity, or it is the key something resolves by where the other
+three segments have nothing to say:
 
-| written              | resolved as | displays                   |
-| -------------------- | ----------- | -------------------------- |
-| `[[WikiLink\|]]`     | an address  | the target note's own name |
-| `[[WikiLink\|Text]]` | an address  | `Text`                     |
-| `[[Name]]`           | nothing     | a finding                  |
+| where a `Shortcode` is written               | what it names                                                                       |
+| -------------------------------------------- | ----------------------------------------------------------------------------------- |
+| a note's own `shortcode:`                    | the note's identity — the name every address of it is built from                    |
+| a custom embedded entry's `system.shortcode` | that entry's identity within the actor that holds it                                |
+| an affiliation's `relations` keys            | the other body this one has a standing towards                                      |
+| a mystery's `skillAptitudes` keys            | the skill an aptitude weighs, where the key is not a `subType:` selector            |
+| a `Code`-suffixed system field               | what the resolved address is stored as — see _The note vocabulary, and how it maps_ |
 
-**A link written without a label addresses nothing**, and the correction
-is always the same: write `[[type-shortcode|Text]]`.
+**The test is whether the position can take the full four-tuple.** An `Address`
+accepts it by definition, and the positions above cannot: a `relations` key is
+persisted into `system.relations` and read back at runtime as
+`relations[shortcode]`, among the items one actor carries, where packages do not
+exist. So nothing defaults a `Shortcode` out to four segments, and a value
+written there as an address names no standing at all.
 
-The bare form does not name an **alias** — a note's own display name, or one of
-the names it listed in `aliases:` — looked up within the citing note's type. It
-was measured before it was retired, and the namespace was empty in practice:
-across 8,305 wikilinks in three content trees, **not one** bare link resolved to
-a note. What the index behind it did do was fold every note's `name.full` into
-itself, so two notes of one type could not share a display name — a rules page
-and a user guide page both called "Gear" were a build failure whose every
-available fix moved a published URL.
-
-The top-level `aliases:` that fed it is **retired** and refused. The nested
-`name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
-it is permitted and read by nothing — no index, no resolver, no lint rule, no
-derived address. A note carrying one behaves exactly as one without it.
-
-Requiring the label is also what makes positional parsing safe. Note names
-contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
-target that does not parse as an address is reported as one that does not, rather
-than split at an arbitrary place or quietly looked up somewhere else.
-
-The **empty** label is not a way of writing no label. It says _address this
-target, and show whatever it calls itself_ — so a note renamed later takes its new
-name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not.
-
-The link part may still be an anchor: `[[#slug|Text]]` addresses a section of the
-page it is written on. It is the label that is required, not a target.
+**A bare shortcode in an `Address` field is not a `Shortcode`.** It is an
+Address written at its shortest, with the package, the system and the type all
+supplied by the position — the same value as the full tuple, spelled shorter.
+Which of the two a field holds is the field's own declaration, stated in the
+`Values` column of the tables below and nowhere else.
 
 #### Every address resolves, and every build says so the same way
 
@@ -1388,9 +1397,9 @@ precisely because an author meets whichever build ran first. Three resolvers rea
 one authored link; they must not describe the same mistake in three ways, and
 they must never disagree about whether it is a mistake at all.
 
-#### In frontmatter, a link is a bare address
+#### In frontmatter, the address is written bare
 
-A `WikiLink` **field** takes the address with no brackets:
+An **`Address` field** takes the address with no brackets:
 
 ```yaml
 data:
@@ -1399,16 +1408,17 @@ data:
   seat: tashal
 ```
 
-not `[[hexhodai]]`. The field is declared as a `WikiLink`, so the schema already
-knows the value is an address and reads it as one; brackets would be punctuation
-the reader has to strip before it can do anything.
+not `[[hexhodai]]`. The field is declared as an `Address`, so the schema knows
+what the value is and reads it as one; brackets are a wikilink's punctuation,
+which the reader would have to strip before it could do anything.
 
 A frontmatter value is parsed by the address grammar above, so a single-segment
-value such as `hexhodai` is a _shortcode_. Frontmatter is structure rather than
+value such as `hexhodai` names the target by its shortcode alone, with every
+other segment supplied by the position. Frontmatter is structure rather than
 prose: a field value is a reference something else will compile against, and it
 should say exactly what it points at.
 
-**The field supplies the type.** Every `WikiLink` field declares the note type it
+**The field supplies the type.** Every `Address` field declares the note type it
 targets — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
 the type segment defaults from the declaration and a bare shortcode is the
 ordinary case, not an abbreviation of one. That is why the examples above read
@@ -1423,9 +1433,12 @@ in a `seat` field:
 ```yaml
 seat: tashal
 seat: place-tashal
-seat: kethira-place-tashal
+seat: none-place-tashal
 seat: kethira-none-place-tashal
 ```
+
+Each is a **suffix** of the canonical address, which is why the third one names
+the system and the fourth cannot omit it — see [Shorter forms](#shorter-forms).
 
 An `affiliation-` prefix there is an **error naming the field and both types** —
 never a silent widening of what the field accepts. Where a field permits more
@@ -1451,6 +1464,67 @@ frontmatter_ is part of what `content-build links` reports when it passes.
 Brackets belong in prose, where a link sits inside a sentence and needs marking
 off from the words around it. A frontmatter value has nothing to be marked off
 from.
+
+### Wikilinks
+
+A **`Wikilink`** is how body prose names something:
+
+```text
+[[<Address>[#<anchor>]|<text>]]
+```
+
+The brackets, the `#<anchor>` and the `|<text>` label are the Wikilink's own.
+What sits inside them is an `Address` like any other — read by the same grammar,
+written at any of its lengths, and taking each omitted segment from where the
+link is written, which for body prose is this package and system `none`. So
+nothing about resolution belongs to the bracketed form: a wikilink and a
+frontmatter field ask the same question of the same value, and the findings above
+are the answers either of them gets.
+
+The anchor is the Wikilink's, not the Address's. It names a section of the target
+by the slug that section's heading declares — `[[place-tashal#market|the
+market]]` — and one naming no section there is the `unknown-anchor` finding.
+Written alone, `[[#slug|Text]]` addresses a section of the page the link sits on,
+which is the one form carrying no address at all.
+
+#### Every wikilink carries a label
+
+There is one namespace, and the pipe is required:
+
+| written             | resolved as | displays                   |
+| ------------------- | ----------- | -------------------------- |
+| `[[Address\|]]`     | an address  | the target note's own name |
+| `[[Address\|Text]]` | an address  | `Text`                     |
+| `[[Name]]`          | nothing     | a finding                  |
+
+**A link written without a label addresses nothing**, and the correction
+is always the same: write `[[type-shortcode|Text]]`.
+
+The bare form does not name an **alias** — a note's own display name, or one of
+the names it listed in `aliases:` — looked up within the citing note's type. It
+was measured before it was retired, and the namespace was empty in practice:
+across 8,305 wikilinks in three content trees, **not one** bare link resolved to
+a note. What the index behind it did do was fold every note's `name.full` into
+itself, so two notes of one type could not share a display name — a rules page
+and a user guide page both called "Gear" were a build failure whose every
+available fix moved a published URL.
+
+The top-level `aliases:` that fed it is **retired** and refused. The nested
+`name.aliases:` is **not**: it is reserved for a use that does not exist yet, so
+it is permitted and read by nothing — no index, no resolver, no lint rule, no
+derived address. A note carrying one behaves exactly as one without it.
+
+Requiring the label is also what makes positional parsing safe. Note names
+contain hyphens — `Grukar-ahk` is a name, not a `Grukar` of type `ahk` — so a
+target that does not parse as an address is reported as one that does not, rather
+than split at an arbitrary place or quietly looked up somewhere else.
+
+The **empty** label is not a way of writing no label. It says _address this
+target, and show whatever it calls itself_ — so a note renamed later takes its new
+name at every citation with no link edited. `[[x|]]` is labelled; `[[x]]` is not.
+
+It is the label that is required, not a target: the anchor-only form above
+carries its pipe like every other link.
 
 ### Assets are types
 
@@ -1668,12 +1742,12 @@ type the way a field declaration does — `image`. The short-form ladder, the
 package and system defaults, the lowercase rule, the ambiguity reporting and the
 findings vocabulary all apply unchanged.
 
-| written                        | means                                    |
-| ------------------------------ | ---------------------------------------- |
-| `![[anvil\|]]`                 | decorative — the common case             |
-| `![[anvil\|An anvil]]`         | alt text where it carries meaning        |
-| `![[anvil]]`                   | unlabelled, and a finding like any other |
-| `![[sohl-image-anvil\|Anvil]]` | qualified, reaching another package      |
+| written                             | means                                    |
+| ----------------------------------- | ---------------------------------------- |
+| `![[anvil\|]]`                      | decorative — the common case             |
+| `![[anvil\|An anvil]]`              | alt text where it carries meaning        |
+| `![[anvil]]`                        | unlabelled, and a finding like any other |
+| `![[sohl-none-image-anvil\|Anvil]]` | qualified, reaching another package      |
 
 The parser distinguishes a missing label from an empty one, so _deliberately
 decorative_ and _not written_ differ without an exemption.
@@ -1806,7 +1880,7 @@ so adding a type means answering the question rather than inheriting a default.
 
 #### A stub is still referenceable as data
 
-`borders.to` and `routes.to` name a place by shortcode, and those are **index
+`borders.to` and `routes.to` name a place by `Address`, and those are **index
 relations rather than page links**: a border with a stub on the far side is a
 valid statement about the world and resolves. So does `parents` for the
 containment tree and `domains` for tenure — a stub appears in its region's
@@ -2291,16 +2365,16 @@ Generates a living (or undead, or spirit) being.
 
 | `data` property             | Values                                         | Description                                                                                      |
 | --------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| `tokenIcon`                 | `WikiLink`                                     | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
+| `tokenIcon`                 | `Address`                                      | What a token on the canvas wears — an `icon` address; defaults to `icon`                         |
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
 | `occupation`                | `string`                                       | Name of the character's occupation                                                               |
-| `stations`                  | `WikiLink[]`                                   | Name of the stations the character belongs to                                                    |
-| `lore`                      | `WikiLink[]`                                   | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
-| `homes`                     | `WikiLink[]`                                   | Place the being calls home                                                                       |
-| `affiliations`              | `WikiLink[]`                                   | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
+| `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                    |
+| `lore`                      | `Address[]`                                    | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
+| `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
+| `affiliations`              | `Address[]`                                    | Affilliations (e.g., arcane/divine traditions, polities, etc)                                    |
 | `gender`                    | `male \| female \| other`                      | Gender of the character                                                                          |
-| `species`                   | `WikiLink`                                     | Being's species (lore)                                                                           |
+| `species`                   | `Address`                                      | Being's species (lore)                                                                           |
 | `born`                      | `YYYY/MM/DD \| unknown`                        | When the being was born; absent, it was never born                                               |
 | `died`                      | `YYYY/MM/DD \| unknown`                        | When the being died; absent, it is alive                                                         |
 | `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
@@ -2570,10 +2644,10 @@ a card block — the homepage is a page with a body, rendered as one.
 
 Represents a conveyance able to hold goods and people moving from one place to another.
 
-| `data` property    | Values     | Description                                                              |
-| ------------------ | ---------- | ------------------------------------------------------------------------ |
-| `tokenIcon`        | `WikiLink` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                               |
+| `data` property    | Values    | Description                                                              |
+| ------------------ | --------- | ------------------------------------------------------------------------ |
+| `tokenIcon`        | `Address` | What a token on the canvas wears — an `icon` address; defaults to `icon` |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template                               |
 
 If `sohl` is present, this becomes a `vehicle` actor.
 
@@ -2650,12 +2724,12 @@ two is the commonest way to get a non-monarchy wrong.
 **Rank**
 Definition of a level within the organization (e.g., Priest, Layperson, Member, Gang Leader, Master, etc.)
 
-| Property      | Values     | Description                                                                                                                          |
-| ------------- | ---------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| `level`       | number     | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
-| `title`       | string     | Title associated with the Rank                                                                                                       |
-| `description` | string     | Description of the Rank                                                                                                              |
-| `lore`        | `WikiLink` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
+| Property      | Values    | Description                                                                                                                          |
+| ------------- | --------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| `level`       | number    | The ranking within the affiliation, increasing values starting with 1, 0 indicates intentional exclusion (expulsion/excommunication) |
+| `title`       | string    | Title associated with the Rank                                                                                                       |
+| `description` | string    | Description of the Rank                                                                                                              |
+| `lore`        | `Address` | The standing this rank _is_ — a `lore` note of subType `law`, shared with every other body that confers the same thing               |
 
 **A rank's `lore` is shared; its `title` is not.** A Normen kingdom calls it
 `Thrall` and a Vylarian province calls it `Slave`, and they mean one standing:
@@ -2671,24 +2745,24 @@ rank names the standing, and the standing says.
 
 **Standing**: aligned, unaligned, rival, nemesis
 
-| `data` property      | Values                    | Description                                                                                                |
-| -------------------- | ------------------------- | ---------------------------------------------------------------------------------------------------------- |
-| `templatePriority`   | `number`                  | Template priority, _null_ = not a template                                                                 |
-| `demonym`            | `string`                  | What a member of this affiliation is called (a Vylarian)                                                   |
-| `epithet`            | `string`                  | The by-name it is known by — a god's, an order's, a company's                                              |
-| `symbol`             | `string`                  | Its emblem in words: a feather atop a golden scale, a chisel carving a star                                |
-| `governance.model`   | `GovernanceModel`         | Type of government structure, if applicable                                                                |
-| `governance.summary` | `string`                  | summary of the governance situation                                                                        |
-| `governance.ranks`   | `Rank[]`                  | The ranks available to members of the affiliation                                                          |
-| `governance.offices` | `Map<name, description>`  | Official offices in the affiliation                                                                        |
-| `commonSkills`       | `WikiLink[]`              | Common skills among members (languages, etc.)                                                              |
-| `seat`               | `WikiLink`                | Where the affiliation's authority sits                                                                     |
-| `domains`            | `WikiLink[]`              | Places over which this affiliation holds sway                                                              |
-| `population`         | `number`                  | Number of people in the affiliation (precision 2 significant digits).                                      |
-| `economy`            | `WikiLink[]`              | Any wikilink referring to the economic activity of the affiliation (produced goods, currency systems, etc) |
-| `lore`               | `WikiLink[]`              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar             |
-| `parents`            | `WikiLink[]`              | Affiliations that this affiliation is subordinate to                                                       |
-| `relations`          | `Map<WikiLink, Standing>` | Relations with other affiliations                                                                          |
+| `data` property      | Values                     | Description                                                                                    |
+| -------------------- | -------------------------- | ---------------------------------------------------------------------------------------------- |
+| `templatePriority`   | `number`                   | Template priority, _null_ = not a template                                                     |
+| `demonym`            | `string`                   | What a member of this affiliation is called (a Vylarian)                                       |
+| `epithet`            | `string`                   | The by-name it is known by — a god's, an order's, a company's                                  |
+| `symbol`             | `string`                   | Its emblem in words: a feather atop a golden scale, a chisel carving a star                    |
+| `governance.model`   | `GovernanceModel`          | Type of government structure, if applicable                                                    |
+| `governance.summary` | `string`                   | summary of the governance situation                                                            |
+| `governance.ranks`   | `Rank[]`                   | The ranks available to members of the affiliation                                              |
+| `governance.offices` | `Map<name, description>`   | Official offices in the affiliation                                                            |
+| `commonSkills`       | `Address[]`                | Common skills among members (languages, etc.)                                                  |
+| `seat`               | `Address`                  | Where the affiliation's authority sits                                                         |
+| `domains`            | `Address[]`                | Places over which this affiliation holds sway                                                  |
+| `population`         | `number`                   | Number of people in the affiliation (precision 2 significant digits).                          |
+| `economy`            | `Address[]`                | What its economic life runs on — produced goods, currency systems and the like                 |
+| `lore`               | `Address[]`                | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
+| `parents`            | `Address[]`                | Affiliations that this affiliation is subordinate to                                           |
+| `relations`          | `Map<Shortcode, Standing>` | Standing with other affiliations, keyed by the other body's shortcode                          |
 
 **A faith tradition is not its god.** An `affiliation` of subType
 `faithtradition` is a _religion_ — a practice, with an ordained priesthood, a
@@ -3004,15 +3078,15 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 
 **SkillAptitude**: either a single skill
 
-| `data` property    | Values                                  | Description                                                    |
-| ------------------ | --------------------------------------- | -------------------------------------------------------------- |
-| `templatePriority` | `number`                                | Template priority, _null_ = not a template                     |
-| `assocSkill`       | `WikiLink`                              | Associated skill                                               |
-| `assocAffiliation` | `WikiLink`                              | Associated affiliation                                         |
-| `skillAptitudes`   | `WikiLink` or `subType:<skill-subtype>` | Bonuses/penalties to skills (or types of skills)               |
-| `level`            | `number`                                | Magnitude of the mystery                                       |
-| `charges.value`    | `number`                                | Current number of charges available, _null_ = charges not used |
-| `charges.max`      | `number`                                | Maximum number of charges, _null_ = no maximum                 |
+| `data` property    | Values                                                                             | Description                                                    |
+| ------------------ | ---------------------------------------------------------------------------------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`                                                                           | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `Address`                                                                          | Associated skill                                               |
+| `assocAffiliation` | `Address`                                                                          | Associated affiliation                                         |
+| `skillAptitudes`   | `Map<Shortcode, number>`, the key a skill's shortcode or `subType:<skill-subtype>` | Bonuses and penalties, per skill or per kind of skill          |
+| `level`            | `number`                                                                           | Magnitude of the mystery                                       |
+| `charges.value`    | `number`                                                                           | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`                                                                           | Maximum number of charges, _null_ = no maximum                 |
 
 if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 
@@ -3041,15 +3115,15 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 - alchemy: The preparation of substances imbued with mystical potency.
 - divination: The practice of obtaining hidden knowledge or foreknowledge by mystical means.
 
-| `data` property    | Values     | Description                                                    |
-| ------------------ | ---------- | -------------------------------------------------------------- |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template                     |
-| `assocSkill`       | `WikiLink` | Associated skill                                               |
-| `assocAffiliation` | `WikiLink` | Associated affiliation                                         |
-| `masteryLevel`     | `number`   | Mastery Level                                                  |
-| `level`            | `number`   | Magnitude of the mystery                                       |
-| `charges.value`    | `number`   | Current number of charges available, _null_ = charges not used |
-| `charges.max`      | `number`   | Maximum number of charges, _null_ = no maximum                 |
+| `data` property    | Values    | Description                                                    |
+| ------------------ | --------- | -------------------------------------------------------------- |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template                     |
+| `assocSkill`       | `Address` | Associated skill                                               |
+| `assocAffiliation` | `Address` | Associated affiliation                                         |
+| `masteryLevel`     | `number`  | Mastery Level                                                  |
+| `level`            | `number`  | Magnitude of the mystery                                       |
+| `charges.value`    | `number`  | Current number of charges available, _null_ = charges not used |
+| `charges.max`      | `number`  | Maximum number of charges, _null_ = no maximum                 |
 
 if a `sohl` property is present, a SoHL item of type "mysticalability" will be created.
 
@@ -3117,11 +3191,11 @@ HM3 side while remaining distinct on the SoHL side.
 - combat
 - combattechnique
 
-| `data` property    | Values     | Description                                |
-| ------------------ | ---------- | ------------------------------------------ |
-| `templatePriority` | `number`   | Template priority, _null_ = not a template |
-| `masteryLevel`     | `number`   | Mastery Level                              |
-| `parentSkill`      | `WikiLink` | Parent skill this skill specializes        |
+| `data` property    | Values    | Description                                |
+| ------------------ | --------- | ------------------------------------------ |
+| `templatePriority` | `number`  | Template priority, _null_ = not a template |
+| `masteryLevel`     | `number`  | Mastery Level                              |
+| `parentSkill`      | `Address` | Parent skill this skill specializes        |
 
 if a `sohl` property is present, a SoHL item of type "skill" will be created.
 
@@ -3344,7 +3418,7 @@ The `data:` fields, of which three are required:
 
 | `data` property   | Values           | Description                                                                                                                                                  |
 | ----------------- | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `bgImage`         | `WikiLink`       | **Required.** The map art — an `image` address. Becomes the level's `background.src`, what tokens stand on                                                   |
+| `bgImage`         | `Address`        | **Required.** The map art — an `image` address. Becomes the level's `background.src`, what tokens stand on                                                   |
 | `dimensions`      | `[int, int]`     | **Required.** `[width, height]` in whole pixels, the art's own size                                                                                          |
 | `pxPerGrid`       | `integer`        | **Required.** Whole pixels per grid square; must match the art                                                                                               |
 | `navName`         | `string`         | Short name for Foundry's scene navigation bar                                                                                                                |
@@ -3357,7 +3431,7 @@ The `data:` fields, of which three are required:
 | `tiles`           | `Tile[]`         | List of tiles, each naming its art in `image`                                                                                                                |
 | `sounds`          | `Sound[]`        | List of sounds, each naming its clip in `audio`                                                                                                              |
 | `regions`         | `SceneRegion[]`  | List of scene regions                                                                                                                                        |
-| `place`           | `WikiLink`       | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere |
+| `place`           | `Address`        | The place this map depicts. Optional, because an encounter map depicts no named place — but that is the exception, and a map without one is a map of nowhere |
 | `notes`           | `NoteLocation[]` | grid coordinates of note markers mapped to anchors in this document                                                                                          |
 
 Everything else a Scene holds is **derived**, not authored: padding, grid type,
@@ -3374,7 +3448,7 @@ compilation, and the server-side migration shim is version-gated on
 single Level is synthesised from `bgImage`, `overlay`, `levelName` and
 `backgroundColor`.
 
-> **`bgImage` is a `WikiLink` under `data:`, as every other type's artwork is.**
+> **`bgImage` is an `Address` under `data:`, as every other type's artwork is.**
 > Art is not system-specific — a Scene is a core Foundry document, and a second
 > system would want the identical art — so the field sits under `data:` rather
 > than inside a system block.
@@ -3455,8 +3529,8 @@ three maps, and none of those maps needs to know it is a keep.
 | `data` property                   | Values                                              | Description                                                                  |
 | --------------------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------- |
 | `demonym`                         | `string`                                            | What a person from this place is called — a Vylarian                         |
-| `lore`                            | `WikiLink[]`                                        | Lore concerning this place — its peoples, its law, its calendar, its history |
-| `parents`                         | `WikiLink[]`                                        | Enclosing places within which this place is located                          |
+| `lore`                            | `Address[]`                                         | Lore concerning this place — its peoples, its law, its calendar, its history |
+| `parents`                         | `Address[]`                                         | Enclosing places within which this place is located                          |
 | `population`                      | `number`                                            | Approximate population (precision 2 significant digits)                      |
 | `market`                          | `number`                                            | Market class, 1 to 6 — what trade a settlement supports                      |
 | `borders`                         | `{ to, bearing }[]`                                 | Places sharing a frontier with this one, and where each lies from here       |
@@ -3563,8 +3637,13 @@ data:
     - { to: kethramir, bearing: E, mode: land, days: 30, terrain: [dunes], leagues: 90 }
 ```
 
-- `to` — required; the `shortcode` of a `place` note in this package or in a
-  declared dependency's index. A shortcode, not an address.
+- `to` — required; an `Address` naming the other place. Its type segment defaults
+  to `place` and `place` is the whole of its accepted set, so `vylar`,
+  `place-vylar` and `thalorna-none-place-vylar` name one place and a `to` naming
+  anything else is an error. **A bare shortcode names a place in this package**,
+  which is what the fully qualified form is for: naming a place in a declared
+  dependency's index, so two packages using one shortcode never answer for each
+  other.
 - `bearing` — required; where the neighbour or the destination lies from here.
 - `mode` — required on a route; how the journey is travelled.
 - `days` — required on a route; a marker meaning "about this, under normal
@@ -3749,11 +3828,11 @@ Content prepared to be played — a situation with its cast, places, and possibl
 
 | `data` property    | Values                                       | Description                                                                    |
 | ------------------ | -------------------------------------------- | ------------------------------------------------------------------------------ |
-| `parents`          | `WikiLink[]`                                 | List of parent scenarios of this scenario (campaigns, etc.)                    |
-| `locations`        | `WikiLink[]`                                 | List of locations associated with this scenario                                |
-| `cast`             | `WikiLink[]`                                 | individuals associated with this scenario                                      |
-| `factions`         | `WikiLink[]`                                 | Affiliations associated with this scenario                                     |
-| `follows`          | `WikiLink[]`                                 | Prerequisite scenarios that should be completed before beginning this scenario |
+| `parents`          | `Address[]`                                  | List of parent scenarios of this scenario (campaigns, etc.)                    |
+| `locations`        | `Address[]`                                  | List of locations associated with this scenario                                |
+| `cast`             | `Address[]`                                  | individuals associated with this scenario                                      |
+| `factions`         | `Address[]`                                  | Affiliations associated with this scenario                                     |
+| `follows`          | `Address[]`                                  | Prerequisite scenarios that should be completed before beginning this scenario |
 | `status`           | `draft \| playtested \| published`           | Playability status of this scenario                                            |
 | `party.size`       | `solo \| small \| standard \| large \| host` | Suggested party size (solo=1, small=2-3, standard=4-6, large=6-7, host=7+)     |
 | `party.archetypes` | `Archetype`                                  | Archetypes of characters suitable for completion                               |
@@ -3859,9 +3938,9 @@ authors none takes Foundry's own `icons/svg/dice-target.svg`.
 
 A bundle of notes to be taken as a single unit — an `Adventure` in Foundry VTT.
 
-| `data` property | Values       | Description                                            |
-| --------------- | ------------ | ------------------------------------------------------ |
-| `contents`      | `WikiLink[]` | The documents the Adventure holds; `[]` when unstated. |
+| `data` property | Values      | Description                                            |
+| --------------- | ----------- | ------------------------------------------------------ |
+| `contents`      | `Address[]` | The documents the Adventure holds; `[]` when unstated. |
 
 ```yaml
 ---
@@ -3944,10 +4023,10 @@ data:
 ---
 ```
 
-| `data` property | Values                                     | Description                                                                    |
-| --------------- | ------------------------------------------ | ------------------------------------------------------------------------------ |
-| `parent`        | `WikiLink`, or a map of them keyed by pack | The folder this one sits in — one address, or one per pack. Unset at the root. |
-| `color`         | `"#RRGGBB"`, a string                      | The folder's colour. Unset for Foundry's default.                              |
+| `data` property | Values                                    | Description                                                                    |
+| --------------- | ----------------------------------------- | ------------------------------------------------------------------------------ |
+| `parent`        | `Address`, or a map of them keyed by pack | The folder this one sits in — one address, or one per pack. Unset at the root. |
+| `color`         | `"#RRGGBB"`, a string                     | The folder's colour. Unset for Foundry's default.                              |
 
 A folder is addressed `<package>-none-folder-<shortcode>` — **`none`**, because a
 `Folder` is a core Foundry document like a `JournalEntry` or a `Scene`, not a
