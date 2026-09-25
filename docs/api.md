@@ -459,6 +459,7 @@ What a place is next to (`data.borders`) and reachable from (`data.routes`): the
 
 | Export            | Signature                       | Returns             | Use it when                                                                                                          |
 | ----------------- | ------------------------------- | ------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| `RELATION_TYPE`   | `const RELATION_TYPE`           | `string`            | the type a `to` names — the default its `<type>` segment takes and the whole of its accepted set                     |
 | `BEARINGS`        | `const BEARINGS`                | `readonly string[]` | the eight compass bearings, clockwise from `N`                                                                       |
 | `ROUTE_MODES`     | `const ROUTE_MODES`             | `readonly string[]` | the modes a route is travelled by — `land`, `boat`, `ship`                                                           |
 | `TRAVEL_DAYS`     | `const TRAVEL_DAYS`             | `readonly number[]` | the days markers a route may state, each meaning "about this, under normal conditions"                               |

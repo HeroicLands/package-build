@@ -271,20 +271,6 @@ const EXEMPT: readonly Exemption[] = [
         why: "a pin's target read segment by segment",
     },
     {
-        file: "engine/place-relations.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
-        why: "a `parents` entry, which may be a bare shortcode or an Address",
-    },
-    {
-        file: "engine/place-relations.mjs",
-        snippet: "`place-${to}`",
-        count: 1,
-        converts: 689,
-        why: "a border's far side, which the packet lets an author write as an Address",
-    },
-    {
         file: "engine/populations.mjs",
         snippet: '.split("-")',
         count: 1,
