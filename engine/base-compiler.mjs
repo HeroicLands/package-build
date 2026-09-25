@@ -77,7 +77,7 @@ import {
 // The record accessors only — see `engine/index-records.mjs` for why they live
 // apart from the index that builds them.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
-import { artPathname, artSlot, unresolvedArtMessage } from "./art-fields.mjs";
+import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
 import { assertNoDeclaredFolder } from "./folder-notes.mjs";
@@ -660,18 +660,31 @@ export class BasePackCompiler {
      *
      * An address nothing answers is reported against the note and treated as
      * unnamed, so the document takes its default rather than shipping a path
-     * that installs nowhere.
+     * that installs nowhere. **A type this slot does not accept is different**:
+     * the address is real, so no default repairs it, and it is an error rather
+     * than a fallback.
      *
      * @param {unknown} value - The value as authored.
      * @param {string} key - The key it was authored at, for the message.
      * @param {string} type - The asset type a bare value takes.
+     * @param {Iterable<string>} [accepts] - The types this slot accepts.
      * @returns {string|null} The Foundry-relative path, `""` for a deliberate
      *   blank, or `null` where the note names none.
      */
-    artPathOf(value, key, type) {
-        const { pathname, resolved } = artPathname(this.linkIndex, value, type);
+    artPathOf(value, key, type, accepts) {
+        const {
+            pathname,
+            resolved,
+            reason,
+            type: named,
+        } = artPathname(this.linkIndex, value, type, accepts);
         if (!resolved) {
-            this.noteWarn(unresolvedArtMessage(key, value, type));
+            if (reason === "not-accepted") {
+                this.errorCount++;
+                this.noteError(unacceptedArtMessage(key, value, named, accepts));
+            } else {
+                this.noteWarn(unresolvedArtMessage(key, value));
+            }
             return null;
         }
         return resolveImg(pathname);
@@ -690,7 +703,7 @@ export class BasePackCompiler {
         const data = fm?.data;
         const value =
             data && typeof data === "object" && !Array.isArray(data) ? data[key] : undefined;
-        return this.artPathOf(value, key, slot.type);
+        return this.artPathOf(value, key, slot.type, slot.accepts);
     }
 
     /**
