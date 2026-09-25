@@ -44,7 +44,17 @@
  */
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { parseAddress } from "./address.mjs";
 import { readCanonicalKey } from "./content-address.mjs";
+
+/**
+ * The one type a `parents` or `domains` entry may name — the default
+ * {@link module:engine/address.parseAddress} fills in when the segment is
+ * omitted, and the whole of what this position accepts.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const PLACE_TYPES = Object.freeze(new Set(["place"]));
 
 /**
  * The keys this module writes, and which a note cannot author: `contains`
@@ -104,25 +114,38 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
 /**
  * The shortcode a `parents` or `domains` entry names, lower case.
  *
- * **A `parents` or `domains` entry is a Shortcode, not an Address**: it is
- * matched against `places`/`affiliations` by shortcode alone, with no type or
- * package asked of it, the way an affiliation's `system.relations` key is. An
- * entry is written as a bare shortcode, as an address, or as a wikilink
- * carrying either; the shortcode is the last segment in every case, because a
- * segment carries no separator.
+ * **A `parents` or `domains` entry is an Address** — the specification types
+ * both `Address[]`, targeting `place` — read at whatever length says what it
+ * means, `place` the default and the whole of the accepted set. Frontmatter
+ * never holds a Wikilink, so no bracket, `|` or `#` is stripped here; a
+ * qualified form is read structurally by {@link readCanonicalKey} for its
+ * literal four segments, since this position asks neither its package nor its
+ * system, only the shortcode {@link module:engine/address} would resolve it
+ * to anyway.
+ *
+ * **The match this shortcode feeds is deliberately package-blind.** `places`
+ * and `affiliations` merge this package's own notes with every fetched
+ * dependency's into one shortcode space, first declaration wins — the way a
+ * dependency's generic geography attaches to whatever a consumer calls the
+ * same shortcode, which is the point of _A dependency's places and
+ * affiliations take part_ above. Comparing the full Address instead would
+ * ask an entry's package to agree with the citing note's, and a fetched
+ * entry's own `parents` or `domains` is written in *its* package while the
+ * blend it takes part in is *this* one's — see
+ * `tests/site-holdings.test.ts`'s `empire.domains: ["mill", "abroad"]`, where
+ * `mill` is local and `abroad` is the dependency's own, both bare, both
+ * correct only because neither package is asked.
  *
  * @param {unknown} value - One entry.
  * @returns {string} Its shortcode, or `""` for an entry that names nothing.
  */
 function namedShortcode(value) {
-    const text = String(value ?? "")
-        .trim()
-        .replace(/^\[\[/, "")
-        .replace(/\]\]$/, "")
-        .split("|")[0]
-        .split("#")[0]
-        .trim();
-    return text.split("-").pop()?.toLowerCase() ?? "";
+    const text = String(value ?? "").trim();
+    if (!text) return "";
+    const qualified = readCanonicalKey(text);
+    if (qualified) return qualified.shortcode.toLowerCase();
+    const read = parseAddress(text, { type: "place", types: PLACE_TYPES });
+    return read.reason ? "" : read.shortcode.toLowerCase();
 }
 
 /**

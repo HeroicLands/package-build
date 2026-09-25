@@ -247,27 +247,6 @@ const EXEMPT: readonly Exemption[] = [
             "this line",
     },
     {
-        file: "engine/holdings.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: null,
-        why:
-            "a `parents` or `domains` entry is a Shortcode, not an Address — " +
-            "matched against the corpus by shortcode alone, with no type or " +
-            "package asked of it, the way an affiliation's `system.relations` " +
-            "key is",
-    },
-    {
-        file: "engine/map-places.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: null,
-        why:
-            "a `parents` entry is a Shortcode, not an Address — matched " +
-            "against the world's places by shortcode alone, with no type or " +
-            "package asked of it",
-    },
-    {
         file: "engine/scenes.mjs",
         snippet: "`${fm.type}-${fm.shortcode}`",
         count: 1,
