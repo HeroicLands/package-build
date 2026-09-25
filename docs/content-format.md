@@ -1433,9 +1433,12 @@ in a `seat` field:
 ```yaml
 seat: tashal
 seat: place-tashal
-seat: kethira-place-tashal
+seat: none-place-tashal
 seat: kethira-none-place-tashal
 ```
+
+Each is a **suffix** of the canonical address, which is why the third one names
+the system and the fourth cannot omit it — see [Shorter forms](#shorter-forms).
 
 An `affiliation-` prefix there is an **error naming the field and both types** —
 never a silent widening of what the field accepts. Where a field permits more
@@ -1739,12 +1742,12 @@ type the way a field declaration does — `image`. The short-form ladder, the
 package and system defaults, the lowercase rule, the ambiguity reporting and the
 findings vocabulary all apply unchanged.
 
-| written                        | means                                    |
-| ------------------------------ | ---------------------------------------- |
-| `![[anvil\|]]`                 | decorative — the common case             |
-| `![[anvil\|An anvil]]`         | alt text where it carries meaning        |
-| `![[anvil]]`                   | unlabelled, and a finding like any other |
-| `![[sohl-image-anvil\|Anvil]]` | qualified, reaching another package      |
+| written                             | means                                    |
+| ----------------------------------- | ---------------------------------------- |
+| `![[anvil\|]]`                      | decorative — the common case             |
+| `![[anvil\|An anvil]]`              | alt text where it carries meaning        |
+| `![[anvil]]`                        | unlabelled, and a finding like any other |
+| `![[sohl-none-image-anvil\|Anvil]]` | qualified, reaching another package      |
 
 The parser distinguishes a missing label from an empty one, so _deliberately
 decorative_ and _not written_ differ without an exemption.
@@ -1877,7 +1880,7 @@ so adding a type means answering the question rather than inheriting a default.
 
 #### A stub is still referenceable as data
 
-`borders.to` and `routes.to` name a place by shortcode, and those are **index
+`borders.to` and `routes.to` name a place by `Address`, and those are **index
 relations rather than page links**: a border with a stub on the far side is a
 valid statement about the world and resolves. So does `parents` for the
 containment tree and `domains` for tenure — a stub appears in its region's
@@ -3634,8 +3637,13 @@ data:
     - { to: kethramir, bearing: E, mode: land, days: 30, terrain: [dunes], leagues: 90 }
 ```
 
-- `to` — required; the `shortcode` of a `place` note in this package or in a
-  declared dependency's index. A shortcode, not an address.
+- `to` — required; an `Address` naming the other place. Its type segment defaults
+  to `place` and `place` is the whole of its accepted set, so `vylar`,
+  `place-vylar` and `thalorna-none-place-vylar` name one place and a `to` naming
+  anything else is an error. **A bare shortcode names a place in this package**,
+  which is what the fully qualified form is for: naming a place in a declared
+  dependency's index, so two packages using one shortcode never answer for each
+  other.
 - `bearing` — required; where the neighbour or the destination lies from here.
 - `mode` — required on a route; how the journey is travelled.
 - `days` — required on a route; a marker meaning "about this, under normal
