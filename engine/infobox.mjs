@@ -821,12 +821,12 @@ export function systemRowsSection(
         if (from === "default" || from === "value") continue;
         if (isDeclaredDefault(field, raw)) continue;
         if (!hasValue(raw)) continue;
-        const declaredKind = field.ref ? "link" : valueKindOf(field, raw);
+        const declaredKind = field.code ? "link" : valueKindOf(field, raw);
         const built = rowValue(
             declaredKind,
             raw,
             resolve,
-            field.ref ? { type: field.ref } : undefined,
+            field.code ? { type: field.code } : undefined,
         );
         if (!hasRenderableValue(declaredKind, built)) continue;
         const { kind, value } = applyUnit(declaredKind, built, overlay.unit);

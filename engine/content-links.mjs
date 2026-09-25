@@ -580,7 +580,7 @@ export function buildLinkIndex(
     /**
      * The note or foreign entry a **frontmatter reference** names, or null.
      *
-     * A `ref:` field holds a shortcode, not an address. The system persists it
+     * A `code:` field holds a shortcode, not an address. The system persists it
      * verbatim and resolves it at runtime against the items embedded on one
      * actor, where packages do not exist: an actor assembled from several
      * packages carries their items side by side. So a reference resolves when
