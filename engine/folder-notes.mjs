@@ -53,7 +53,8 @@ import path from "node:path";
 
 import log from "loglevel";
 
-import { NO_SYSTEM, canonicalKey } from "./content-address.mjs";
+import { NO_SYSTEM, canonicalKey, readCanonicalKey } from "./content-address.mjs";
+import { parseAddress, renderAddress } from "./address.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 import { makeId } from "./ids.mjs";
 import { locateFrontmatterKey } from "./retired-fields.mjs";
@@ -64,6 +65,14 @@ import { locateFrontmatterKey } from "./retired-fields.mjs";
  * @type {string}
  */
 export const FOLDER_TYPE = "folder";
+
+/**
+ * The one type a folder reference may name — {@link parseAddress}'s
+ * vocabulary for a position that accepts exactly one.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const FOLDER_TYPES = Object.freeze(new Set([FOLDER_TYPE]));
 
 /**
  * The id namespace a derived folder id is hashed under.
@@ -280,14 +289,15 @@ export function collectFolderNotes(notes, pkg) {
 }
 
 /**
- * Index folder notes by every form an author may address one by, and check the
- * invariants that make the index sound.
+ * Index folder notes by their canonical address, and check the invariants
+ * that make the index sound.
  *
- * Three keys per folder, and no more: the canonical address, the
- * `folder-<shortcode>` short form, and the bare shortcode. They are the
- * suffixes of the canonical address the grammar admits — a `packFolder`
- * or `parent` field supplies the type itself, so a bare shortcode is a complete
- * address there.
+ * A folder reference is resolved by {@link parseAddress}, taking `folder` as
+ * the type an omitted segment fills in — the same suffix ladder every other
+ * position climbs, so `cooking`, `folder-cooking` and the full address all
+ * expand to the one key this index holds. A `packFolder` or `parent` field
+ * supplies no type of its own; the position's default is what makes a bare
+ * shortcode a complete address there.
  *
  * @param {FolderNote[]} folders - From {@link collectFolderNotes}.
  * @returns {{byKey: Map<string, FolderNote>, folders: FolderNote[],
@@ -303,6 +313,12 @@ export function buildFolderNoteIndex(folders) {
     const byShortcode = new Map();
     /** @type {Map<string, FolderNote>} */
     const byId = new Map();
+    // Every folder in one content tree shares one package — a `Folder` is
+    // filed inside the module this build compiles, and nothing addresses one
+    // in another package. Read from the first folder's own canonical address
+    // rather than threaded through as a parameter, so a caller holding
+    // `FolderNote[]` never has to carry the package alongside it.
+    const pkg = folders.length ? readCanonicalKey(folders[0].address)?.package : undefined;
 
     for (const folder of folders) {
         const key = folder.shortcode.toLowerCase();
@@ -339,8 +355,6 @@ export function buildFolderNoteIndex(folders) {
         byId.set(folder.id, folder);
 
         byKey.set(folder.address.toLowerCase(), folder);
-        byKey.set(`${FOLDER_TYPE}-${folder.shortcode}`.toLowerCase(), folder);
-        byKey.set(key, folder);
     }
 
     /**
@@ -355,7 +369,14 @@ export function buildFolderNoteIndex(folders) {
         if (!address) {
             throw new Error("a folder reference is blank");
         }
-        const hit = byKey.get(address.toLowerCase());
+        const tuple = parseAddress(address, {
+            package: pkg,
+            system: NO_SYSTEM,
+            type: FOLDER_TYPE,
+            types: FOLDER_TYPES,
+            packages: pkg ? new Set([pkg]) : undefined,
+        });
+        const hit = tuple.reason ? undefined : byKey.get(renderAddress(tuple).toLowerCase());
         if (!hit) {
             const known = [...byShortcode.values()].map((f) => f.shortcode).sort();
             throw new Error(

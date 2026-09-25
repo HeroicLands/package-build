@@ -63,6 +63,8 @@ import {
 import { currentType } from "../engine/ids.mjs";
 import { subTypes } from "../engine/note-vocabulary.mjs";
 import { systemBlock, systemData } from "../engine/system-block.mjs";
+import { readCanonicalKey } from "../engine/content-address.mjs";
+import { readQualifier } from "../engine/address.mjs";
 import { NOTE_SCHEMAS } from "./note-schemas.mjs";
 import { GEAR_TYPE_TO_KEY } from "./being-info.mjs";
 
@@ -175,14 +177,47 @@ function isMapping(value) {
 }
 
 /**
+ * Every content type `model:` may name — the note vocabulary this system
+ * declares, engine types included.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const MODEL_TYPES = new Set(Object.keys(NOTE_SCHEMAS));
+
+/**
+ * The `(type, shortcode)` an entry's `model:` names, or `undefined`.
+ *
+ * `model` is an Address, read by the same grammar every wikilink is —
+ * `type-shortcode` within this package, `package-system-type-shortcode` to
+ * name a dependency's catalogue. This decode answers neither of the two
+ * questions {@link module:engine/address} asks about the package: a runtime
+ * lookup among one actor's embedded items resolves by `(type, shortcode)`
+ * alone, where packages do not exist, so a fully qualified `model` is read for
+ * its last two segments exactly as a bare one is.
+ *
+ * @param {unknown} model - The authored value.
+ * @returns {{type: string, shortcode: string}|undefined} What it names.
+ */
+function modelAddress(model) {
+    if (typeof model !== "string" || !model) return undefined;
+    // A fully qualified form first: `readCanonicalKey` reads the four segments
+    // structurally, with no type or package to validate against, because
+    // this decode never uses either segment — matching {@link readQualifier}
+    // would otherwise refuse a dependency this build has not declared.
+    const qualified = readCanonicalKey(model) ?? readQualifier(model, MODEL_TYPES, new Set());
+    return qualified && !qualified.reason ?
+            { type: qualified.type, shortcode: qualified.shortcode }
+        :   undefined;
+}
+
+/**
  * What one entry of `sohl.items` names.
  *
  * An entry addresses its item three ways and every tree uses all three: a
- * `model` address whose last two hyphen-separated segments are always
- * `<type>-<shortcode>`, explicit `type` / `shortcode` keys, or a locally
- * authored item stating its type with the shortcode inside its own `system`
- * block. One decode covers all of them, so nothing downstream has to know
- * which form a note happened to use.
+ * `model` address, explicit `type` / `shortcode` keys, or a locally authored
+ * item stating its type with the shortcode inside its own `system` block. One
+ * decode covers all of them, so nothing downstream has to know which form a
+ * note happened to use.
  *
  * @param {object} entry - One `sohl.items` entry.
  * @returns {{type: string, shortcode: string, name: string, system: object}|undefined}
@@ -192,11 +227,11 @@ export function decodeItem(entry) {
     if (!isMapping(entry)) return undefined;
     let type = typeof entry.type === "string" ? entry.type : "";
     let shortcode = typeof entry.shortcode === "string" ? entry.shortcode : "";
-    if (!type && typeof entry.model === "string") {
-        const segments = entry.model.split("-");
-        if (segments.length >= 2) {
-            type = segments[segments.length - 2];
-            if (!shortcode) shortcode = segments[segments.length - 1];
+    if (!type) {
+        const named = modelAddress(entry.model);
+        if (named) {
+            type = named.type;
+            if (!shortcode) shortcode = named.shortcode;
         }
     }
     const system = isMapping(entry.system) ? entry.system : {};

@@ -39,7 +39,17 @@ import { indexRecordsFor, isNoteRecord } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
 import { cachedIndexPath, loadForeignIndexes } from "./metadata-index.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { resolvePackageUrl } from "./content-address.mjs";
+import { parseAddress } from "./address.mjs";
+import { readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
+
+/**
+ * The one type a `parents` entry may name — the default
+ * {@link module:engine/address.parseAddress} fills in when the segment is
+ * omitted, and the whole of what this position accepts.
+ *
+ * @type {ReadonlySet<string>}
+ */
+const PLACE_TYPES = Object.freeze(new Set(["place"]));
 
 /**
  * A place as the map reads it, from either source.
@@ -89,17 +99,35 @@ import { resolvePackageUrl } from "./content-address.mjs";
  */
 
 /**
- * The shortcode a `parents` entry names, lower case: the last segment of
- * either a bare shortcode or an address.
+ * The shortcode a `parents` entry names, lower case.
+ *
+ * **A `parents` entry is an Address** — the specification types it
+ * `Address[]`, and the description ("enclosing places") is what makes `place`
+ * its default and its only accepted type. A qualified form is read
+ * structurally by {@link readCanonicalKey} for its literal four segments,
+ * since this position asks neither its package nor its system, only the
+ * shortcode {@link module:engine/address} would resolve it to anyway.
+ *
+ * **The match this shortcode feeds is deliberately package-blind.**
+ * `world.places` merges this package's own places with every fetched
+ * dependency's into one shortcode space, the way a dependency's place
+ * attaches to the local containment tree it is drawn beside — see
+ * `tests/map.test.ts`'s _loads a dependency's places beside the package's
+ * own_, where a fetched place's bare `parents: ["world"]` reaches this
+ * package's own root. Comparing the full Address instead would ask the
+ * dependency's own package to agree with this one's, which the feature is
+ * built to cross.
  *
  * @param {unknown} parent - One `parents` entry.
- * @returns {string} Its shortcode.
+ * @returns {string} Its shortcode, or `""` for an entry that names nothing.
  */
 function parentShortcode(parent) {
-    return String(parent ?? "")
-        .split("-")
-        .pop()
-        .toLowerCase();
+    const text = String(parent ?? "").trim();
+    if (!text) return "";
+    const qualified = readCanonicalKey(text);
+    if (qualified) return qualified.shortcode.toLowerCase();
+    const read = parseAddress(text, { type: "place", types: PLACE_TYPES });
+    return read.reason ? "" : read.shortcode.toLowerCase();
 }
 
 /**
@@ -209,7 +237,7 @@ export function placesFromRecords(records, { contentBase, base }) {
 function addForeignPlaces(world, foreignIndex) {
     for (const [canonical, entry] of foreignIndex) {
         if (entry?.type !== "place") continue;
-        const shortcode = canonical.split("-").pop()?.toLowerCase() ?? "";
+        const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
         if (!shortcode || world.places.has(shortcode)) continue;
         world.places.set(shortcode, {
             shortcode,

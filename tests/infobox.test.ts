@@ -49,7 +49,7 @@ import {
     presentValue,
     requiredInfoboxIds,
 } from "../engine/infobox.mjs";
-import { SOHL_FIELD_PRESENTATION, UNSTATED, strikeModes } from "../sohl/infobox.mjs";
+import { SOHL_FIELD_PRESENTATION, UNSTATED, decodeItem, strikeModes } from "../sohl/infobox.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
 import { infoboxesToHtml, infoboxesToTypst, sectionHasContent } from "../engine/infobox-render.mjs";
 import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registry.mjs";
@@ -903,5 +903,47 @@ describe("a sentinel is an absence, not a value", () => {
             },
         ]);
         expect(flat.groups[0].entries[1]).toEqual({ text: "Impact +3 blunt" });
+    });
+});
+
+describe("decodeItem — what one `sohl.items` entry names", () => {
+    it("prefers the explicit `type` and `shortcode` over `model`", () => {
+        expect(
+            decodeItem({
+                type: "skill",
+                shortcode: "clmb",
+                model: "weapongear-dgr",
+                name: "Climbing",
+            }),
+        ).toMatchObject({ type: "skill", shortcode: "clmb" });
+    });
+
+    it("reads `model` written as `type-shortcode`, within this package", () => {
+        expect(decodeItem({ model: "weapongear-dgr" })).toMatchObject({
+            type: "weapongear",
+            shortcode: "dgr",
+        });
+    });
+
+    it("reads `model` written fully qualified, naming another package", () => {
+        // The package and system are not part of what this decode answers — a
+        // runtime lookup among one actor's embedded items resolves by
+        // `(type, shortcode)` alone, where packages do not exist.
+        expect(decodeItem({ model: "kethira-sohl-weapongear-dgr" })).toMatchObject({
+            type: "weapongear",
+            shortcode: "dgr",
+        });
+    });
+
+    it("names nothing for a `model` naming no known content type", () => {
+        expect(decodeItem({ model: "nosuchtype-dgr" })).toBeUndefined();
+    });
+
+    it("names nothing for a `model` that is not an address", () => {
+        expect(decodeItem({ model: "Shove" })).toBeUndefined();
+    });
+
+    it("names nothing for an entry with neither an explicit type nor a `model`", () => {
+        expect(decodeItem({ shortcode: "dgr" })).toBeUndefined();
     });
 });

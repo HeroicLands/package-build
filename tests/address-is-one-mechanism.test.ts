@@ -221,15 +221,14 @@ const EXEMPT: readonly Exemption[] = [
         file: "engine/content-address.mjs",
         snippet: "`${type}-${shortcode}`",
         count: 1,
-        converts: 690,
-        why: "the page slug, an Address's last two segments with no system segment at all",
-    },
-    {
-        file: "engine/folder-notes.mjs",
-        snippet: "`${FOLDER_TYPE}-${folder.shortcode}`",
-        count: 1,
-        converts: 690,
-        why: "a folder's own address, keyed beside the one it publishes under",
+        converts: null,
+        why:
+            "the page slug: a `(type, shortcode)` identity with no package and " +
+            "no system, built straight from a note's own fields rather than " +
+            "parsed from a written short form. Neither `parseAddress` (which " +
+            "always resolves a package and a system) nor `renderAddress` " +
+            "(which always renders all four) describes a two-segment value, " +
+            "so this is not the Address this module owns",
     },
     {
         file: "engine/frontmatter-lint.mjs",
@@ -248,76 +247,15 @@ const EXEMPT: readonly Exemption[] = [
             "this line",
     },
     {
-        file: "engine/holdings.mjs",
-        snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "the last segment is the shortcode, twice",
-    },
-    {
-        file: "engine/map-places.mjs",
-        snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "a pin's target read segment by segment",
-    },
-    {
-        file: "engine/populations.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
-        why: "the last segment is the shortcode",
-    },
-    {
-        file: "engine/populations.mjs",
-        snippet: "`${node.type}-${node.shortcode}`",
-        count: 1,
-        converts: 690,
-        why: "a settlement's address rebuilt to key a lookup",
-    },
-    {
         file: "engine/scenes.mjs",
         snippet: "`${fm.type}-${fm.shortcode}`",
         count: 1,
-        converts: 690,
-        why: "a scene's address rebuilt to key a lookup",
-    },
-    {
-        file: "engine/site-index.mjs",
-        snippet: '.includes("-")',
-        count: 1,
-        converts: 690,
-        why: "an infobox reference decides whether it is already qualified",
-    },
-    {
-        file: "engine/site-index.mjs",
-        snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "an infobox reference and a published key, each read segment by segment",
-    },
-    {
-        file: "engine/wikilinks.mjs",
-        snippet: '.includes("-")',
-        count: 1,
-        converts: 690,
-        why: "a reference hint decides whether it is already qualified",
-    },
-    {
-        file: "engine/wikilinks.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
-        why: "a reference hint read segment by segment",
-    },
-    {
-        file: "sohl/infobox.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
+        converts: null,
         why:
-            "an embedded item's `model`, which is an Address, read here for the " +
-            "type and shortcode a runtime lookup takes",
+            "an item's Active-Effects lookup key: a `(type, shortcode)` " +
+            "identity with no package and no system, built from the item " +
+            "note's own fields. The same shape as the page slug above, so " +
+            "the same reason it is not the Address this module owns",
     },
 ];
 
@@ -367,16 +305,27 @@ describe("an Address is read and written in one place", () => {
     });
 
     it("says of every listed site either what converts it or that it is finished", () => {
+        // The list can be all finished, all pending, or a mix of both — the
+        // sweep that converts a hand-rolled site is what empties it, never a
+        // change to what a surviving entry claims about itself. So the check
+        // is per site: a `why`, and where the site is pending, a real packet
+        // number rather than a placeholder.
         for (const site of EXEMPT) {
             expect(site.why.length, render(site)).toBeGreaterThan(10);
             if (site.converts !== null) expect(site.converts, render(site)).toBeGreaterThan(0);
         }
-        // Both kinds of entry are live in the list, so a site that goes quiet
-        // cannot silently drift from one reading to the other: a pending site
-        // that never gets its packet number filled in would still pass a loop
-        // that only checked the shape of whichever kind happens to remain.
-        expect(EXEMPT.some((site) => site.converts === null)).toBe(true);
-        expect(EXEMPT.some((site) => site.converts !== null)).toBe(true);
+    });
+
+    it("carries no pending site — every remaining one is a shape the sweep does not touch", () => {
+        // The sweep is complete: nothing left builds an Address by hand, so
+        // nothing here is waiting on a packet number. A hand-built Address
+        // site the sweep missed, or one a regression reintroduces, is caught
+        // by the completeness test above and lands here with a `converts`
+        // packet number — which this fails on. The fix is to convert that
+        // site, not to loosen this assertion to admit it.
+        for (const site of EXEMPT) {
+            expect(site.converts, render(site)).toBeNull();
+        }
     });
 
     it("lists no site twice", () => {

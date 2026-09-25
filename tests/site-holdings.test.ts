@@ -290,13 +290,13 @@ describe("holdingsPages", () => {
         ]);
     });
 
-    it("reads a parent or a domain written as a bare shortcode, an address or a wikilink", () => {
+    it("reads a parent or a domain written as a bare shortcode or an address", () => {
         const pages = holdingsPages([
             node("r", "place", "region"),
             node("a", "place", "settlement", { parents: ["r"] }),
             node("b", "place", "settlement", { parents: ["place-r"] }),
-            node("c", "place", "settlement", { parents: ["[[place-r|The Region]]"] }),
-            node("x", "affiliation", "polity", { domains: ["R", "[[place-a]]", "place-b"] }),
+            node("c", "place", "settlement", { parents: ["none-place-r"] }),
+            node("x", "affiliation", "polity", { domains: ["R", "place-a", "place-b"] }),
         ]);
         expect(pages.get("/demo/place-r/")?.contains.map((e) => e.title)).toEqual(["a", "b", "c"]);
         expect(pages.get("/demo/affiliation-x/")?.holdings.map((e) => e.title)).toEqual([
@@ -304,6 +304,15 @@ describe("holdingsPages", () => {
             "a",
             "b",
         ]);
+    });
+
+    it("names nothing for a Wikilink or a value naming a type other than `place` — frontmatter holds neither", () => {
+        const pages = holdingsPages([
+            node("r", "place", "region"),
+            node("c", "place", "settlement", { parents: ["[[place-r|The Region]]"] }),
+            node("d", "place", "settlement", { parents: ["affiliation-r"] }),
+        ]);
+        expect(pages.get("/demo/place-r/")).toBeUndefined();
     });
 
     it("lists a place once however many times one note names it, and a name nothing declares not at all", () => {
