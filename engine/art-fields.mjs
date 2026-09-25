@@ -18,13 +18,19 @@
  * inline. Each slot is an ordinary `WikiLink` field declaring a default type,
  * exactly as `seat` declares `place`: a bare shortcode takes its type from the
  * declaration, and a value that qualifies itself climbs the same short-form
- * ladder every other link uses.
+ * ladder every other link uses. {@link module:engine/address.parseAddress}
+ * reads it, taking the slot's `type` as the default an omitted segment fills
+ * in — this module states no separator rule of its own.
  *
- * **A bare shortcode is told from a written address by the separator alone.** A
- * shortcode is lowercase letters and digits (`ADDRESS_SEGMENT_PATTERN`), so a
- * hyphen can only be a segment boundary — which makes `anvil` the bare form and
- * `icon-anvil`, `none-icon-anvil` and `sohl-none-icon-anvil` the written ones,
- * with nothing to guess and no vocabulary to match against.
+ * **The accepted set is a slot's second declaration, and it is not the
+ * default.** A slot's `type` says what a bare shortcode names; its `accepts`
+ * says what a qualified one may name, and {@link module:engine/address.acceptsType}
+ * checks a parsed value against it. `icon` defaults to `icon` and accepts
+ * `image` too, because a faith tradition's profile art is a full illustration
+ * rather than a game icon — twenty notes in `sohl-kethira-basic` author exactly
+ * that. A type outside the set is an error naming the set, never a silent fall
+ * back to the default art: the parser never refuses on type grounds, only the
+ * slot does.
  *
  * **Resolution is one step, because the record carries the path.** The address
  * names a record, the record names the file's path inside its own package, and
@@ -38,13 +44,12 @@
  * @module
  */
 
-import { expandAddress } from "./content-address.mjs";
 import { hasTag } from "./note-vocabulary.mjs";
 import { ASSET_SYSTEM, isAssetType } from "./asset-types.mjs";
 import { ASSETS_SEGMENT } from "./pathnames.mjs";
 import { isAssetRecord } from "./index-records.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
-import { readQualifier } from "./wikilinks.mjs";
+import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
 
 /**
  * One art slot: the key a note authors, and the type a bare value takes.
@@ -52,9 +57,27 @@ import { readQualifier } from "./wikilinks.mjs";
  * @typedef {object} ArtSlot
  * @property {string} key - The key under `data:`.
  * @property {string} type - The asset type a bare shortcode defaults to.
+ * @property {readonly string[]} accepts - The types an authored value may
+ *   name. **Not the default** — a faith tradition's profile art is a full
+ *   illustration rather than a game icon, so an `icon` slot's default stays
+ *   `icon` while its accepted set also takes `image`. A value naming a type
+ *   outside it is an error, against this set rather than against `type`.
  * @property {boolean} document - Whether the slot reaches a compiled document.
  * @property {string} describe - One line, for the author-facing reference.
  */
+
+/**
+ * What every art slot accepts, whichever type it defaults to.
+ *
+ * A sound is not art: `audio` is refused at all four slots, and every slot
+ * that defaults to `icon` or to `image` accepts either — the corpus is why:
+ * `sohl-kethira-basic` writes a deity's profile art as `icon: image-…` twenty
+ * times, one full illustration per faith tradition, and a slot refusing the
+ * type it did not default to would refuse that content.
+ *
+ * @type {readonly string[]}
+ */
+const ART_TYPES = Object.freeze(["icon", "image"]);
 
 /**
  * The four art slots, in the order the specification tabulates them.
@@ -70,24 +93,28 @@ export const ART_SLOTS = Object.freeze([
     Object.freeze({
         key: "icon",
         type: "icon",
+        accepts: ART_TYPES,
         document: true,
         describe: "The document's profile art, resolved into `img`.",
     }),
     Object.freeze({
         key: "tokenIcon",
         type: "icon",
+        accepts: ART_TYPES,
         document: true,
         describe: "What a token on the canvas wears; unset, it follows `icon`.",
     }),
     Object.freeze({
         key: "bgImage",
         type: "image",
+        accepts: ART_TYPES,
         document: true,
         describe: "A map's background art, resolved into `background.src`.",
     }),
     Object.freeze({
         key: "banner",
         type: "image",
+        accepts: ART_TYPES,
         document: false,
         describe: "The page's hero image. Reaches no compiled document.",
     }),
@@ -104,15 +131,34 @@ export function artSlot(key) {
 }
 
 /**
- * The address an authored art value names.
+ * The Address an authored art value names, checked against what this position
+ * accepts.
  *
- * @param {string} value - The value as authored.
- * @param {string} defaultType - The type the field declares.
- * @returns {string} A written address, which may be partial.
+ * The two questions {@link module:engine/address} keeps separate: does the
+ * value parse, and is what it names acceptable *here*. {@link parseAddress}
+ * answers the first, taking the slot's own `type` as the default an omitted
+ * segment fills in; {@link acceptsType} answers the second, against the set
+ * the position declares rather than against that same default.
+ *
+ * @param {unknown} value - The value as authored.
+ * @param {string} defaultType - The type a bare value takes.
+ * @param {Iterable<string>|undefined} accepts - The types this position
+ *   accepts, or `undefined` to accept whatever parses.
+ * @param {import("./address.mjs").AddressDefaults} [vocabulary] - The
+ *   position's remaining defaults and the tree's vocabularies.
+ * @returns {import("./address.mjs").AddressTuple
+ *   |import("./address.mjs").AddressProblem
+ *   |{reason: "not-accepted", type: string}} The Address; a reason it does
+ *   not parse; or `not-accepted` when it parses to a type outside `accepts`.
  */
-export function artTarget(value, defaultType) {
-    const written = String(value);
-    return written.includes("-") ? written : `${defaultType}-${written}`;
+export function artTarget(value, defaultType, accepts, vocabulary = {}) {
+    const written = typeof value === "string" ? value : String(value ?? "");
+    const tuple = parseAddress(written, { ...vocabulary, type: defaultType });
+    if (tuple.reason) return tuple;
+    if (accepts && !acceptsType(tuple, accepts)) {
+        return { reason: "not-accepted", type: tuple.type };
+    }
+    return tuple;
 }
 
 /**
@@ -169,33 +215,39 @@ export function assetAddressIndex(records = [], { config, foreign, types = [] } 
  *   or the equivalent the site and the book build.
  * @param {unknown} value - The value as authored.
  * @param {string} defaultType - The type a bare value takes.
+ * @param {Iterable<string>} [accepts] - The types this position accepts, for a
+ *   position that declares a set narrower than "every asset type" — an art
+ *   slot's. Omitted, any asset type is taken, which is an embed's rule: it
+ *   draws a file, and every asset type is a file.
  * @returns {{record: {package: string, asset: {path: string}}, pathname: string}
  *   |{record: null, reason: string, type?: string}} The asset and the pathname
  *   it is at, or a reason from
- *   {@link module:engine/wikilink-syntax.LINK_FINDING_REASONS}.
+ *   {@link module:engine/wikilink-syntax.LINK_FINDING_REASONS}, or `not-accepted`
+ *   when `accepts` is given and the parsed type falls outside it.
  */
-export function readAssetAddress(index, value, defaultType) {
+export function readAssetAddress(index, value, defaultType, accepts) {
     if (typeof value !== "string" || !value) {
         return { record: null, reason: "not-an-address" };
     }
-    const target = artTarget(value, defaultType);
-    const read = readQualifier(target, index?.types, index?.packages);
-    if (!read) return { record: null, reason: "not-an-address" };
-    if (read.reason) return { record: null, reason: read.reason };
-    // **Asset types only.** An address may name any type the vocabulary holds,
-    // and most of them name a note — which has no file to draw. Refused by its
-    // own reason rather than left to resolve to nothing, because the fix is a
-    // different one: an ordinary link, not a corrected shortcode.
-    if (!isAssetType(read.type)) {
+    const read = artTarget(value, defaultType, accepts, {
+        system: ASSET_SYSTEM,
+        package: index?.contentPackage ?? index?.packageId,
+        types: index?.types,
+        packages: index?.packages,
+    });
+    if (read.reason === "not-accepted") {
+        return { record: null, reason: "not-accepted", type: read.type };
+    }
+    if (read.reason) return { record: null, reason: read.reason, type: read.type };
+    // **Asset types only**, where the position declares no narrower set. An
+    // address may name any type the vocabulary holds, and most of them name a
+    // note — which has no file to draw. Refused by its own reason rather than
+    // left to resolve to nothing, because the fix is a different one: an
+    // ordinary link, not a corrected shortcode.
+    if (!accepts && !isAssetType(read.type)) {
         return { record: null, reason: "not-an-asset", type: String(read.type) };
     }
-    // The system segment is fixed at `none` for an asset type, so where the
-    // value was written does not enter into it — an embedded item's art is
-    // authored inside a system block and still names the same file.
-    const canonical = expandAddress(read, {
-        package: index?.contentPackage ?? index?.packageId,
-        system: ASSET_SYSTEM,
-    });
+    const canonical = renderAddress(read);
     const hit = index?.assets?.get(canonical) ?? index?.foreign?.get(canonical) ?? null;
     if (!hit?.asset?.path || !hit.package) return { record: null, reason: "unresolved" };
     return { record: hit, pathname: `${hit.package}/${ASSETS_SEGMENT}/${hit.asset.path}` };
@@ -207,10 +259,11 @@ export function readAssetAddress(index, value, defaultType) {
  * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex}.
  * @param {unknown} value - The value as authored.
  * @param {string} defaultType - The type the field declares.
+ * @param {Iterable<string>} [accepts] - The types this position accepts.
  * @returns {{package: string, asset: {path: string}}|null} The record.
  */
-export function resolveArtRecord(index, value, defaultType) {
-    return readAssetAddress(index, value, defaultType).record;
+export function resolveArtRecord(index, value, defaultType, accepts) {
+    return readAssetAddress(index, value, defaultType, accepts).record;
 }
 
 /**
@@ -224,15 +277,21 @@ export function resolveArtRecord(index, value, defaultType) {
  * @param {object} index - From {@link module:engine/wikilinks.buildWikilinkIndex}.
  * @param {unknown} value - The value as authored.
  * @param {string} defaultType - The type the field declares.
- * @returns {{pathname: string|null, resolved: boolean}} The pathname, and
- *   whether an address was actually answered — which tells a caller applying a
- *   default apart from one whose address named nothing.
+ * @param {Iterable<string>} [accepts] - The types this position accepts.
+ * @returns {{pathname: string|null, resolved: boolean, reason?: string,
+ *   type?: string}} The pathname, and whether an address was actually
+ *   answered — which tells a caller applying a default apart from one whose
+ *   address named nothing. `reason` and `type` carry why, unresolved — in
+ *   particular `not-accepted`, which the caller reports as an error rather
+ *   than falling back silently.
  */
-export function artPathname(index, value, defaultType) {
+export function artPathname(index, value, defaultType, accepts) {
     if (value == null) return { pathname: null, resolved: true };
     if (value === "") return { pathname: "", resolved: true };
-    const read = readAssetAddress(index, value, defaultType);
-    if (!read.record) return { pathname: null, resolved: false };
+    const read = readAssetAddress(index, value, defaultType, accepts);
+    if (!read.record) {
+        return { pathname: null, resolved: false, reason: read.reason, type: read.type };
+    }
     return { pathname: read.pathname, resolved: true };
 }
 
@@ -276,17 +335,38 @@ export function beingDefaultArt(fm) {
  * What an unresolved art address is reported as.
  *
  * One wording, so the four compilers that can meet the case do not each invent
- * their own.
+ * their own. A **warning**: nothing in this package or a fetched index answers
+ * the address, so the document falls back to its default art rather than
+ * shipping a path that installs nowhere.
  *
  * @param {string} key - The key that was authored.
- * @param {unknown} value - The value it carried.
- * @param {string} defaultType - The type the field declares.
+ * @param {unknown} value - The value it carried, named exactly as written.
  * @returns {string} The message.
  */
-export function unresolvedArtMessage(key, value, defaultType) {
+export function unresolvedArtMessage(key, value) {
     return (
-        `\`data.${key}\` names \`${artTarget(String(value), defaultType)}\`, and no ` +
-        `asset in this package or in a fetched index carries that address — the ` +
-        `document takes its default art instead`
+        `\`data.${key}\` names \`${String(value)}\`, and no asset in this package or in ` +
+        `a fetched index carries that address — the document takes its default art ` +
+        `instead`
+    );
+}
+
+/**
+ * What an art address naming a type this slot does not accept is reported as.
+ *
+ * An **error**, not a warning: unlike an address nothing answers, this one
+ * names a real type, and no default art repairs an author asking for a sound
+ * where the slot takes an icon or an image.
+ *
+ * @param {string} key - The key that was authored.
+ * @param {unknown} value - The value it carried, named exactly as written.
+ * @param {string} type - The type the address named.
+ * @param {Iterable<string>} accepts - The types this slot accepts.
+ * @returns {string} The message.
+ */
+export function unacceptedArtMessage(key, value, type, accepts) {
+    return (
+        `\`data.${key}\` names \`${String(value)}\`, whose type \`${type}\` this slot does ` +
+        `not accept — it accepts ${[...accepts].join(" or ")}`
     );
 }

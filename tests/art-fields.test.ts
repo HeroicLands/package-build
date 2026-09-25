@@ -31,6 +31,8 @@ import {
     artPathname,
     beingDefaultArt,
     resolveArtRecord,
+    unacceptedArtMessage,
+    unresolvedArtMessage,
     BEING_DEFAULT_ART,
 } from "../engine/art-fields.mjs";
 import { ASSET_TYPE_NAMES } from "../engine/asset-types.mjs";
@@ -57,6 +59,40 @@ describe("the art slots are declared once", () => {
     it("gives every slot a type an address can actually name", () => {
         const wrong = ART_SLOTS.filter((slot) => !ASSET_TYPE_NAMES.has(slot.type));
         expect(wrong.map((slot) => `${slot.key} → ${slot.type}`)).toEqual([]);
+    });
+
+    it("declares a non-empty accepted set for every slot, of real asset types", () => {
+        // Derived from ART_SLOTS itself, so a fifth slot omitting `accepts` — or
+        // naming something that is not an asset type — is reported here rather
+        // than silently accepting nothing, or accepting a type no address can
+        // name.
+        const missing = ART_SLOTS.filter(
+            (slot) => !Array.isArray(slot.accepts) || slot.accepts.length === 0,
+        );
+        expect(missing.map((slot) => slot.key)).toEqual([]);
+        const wrong = ART_SLOTS.flatMap((slot) =>
+            slot.accepts
+                .filter((type: string) => !ASSET_TYPE_NAMES.has(type))
+                .map((type: string) => `${slot.key} → ${type}`),
+        );
+        expect(wrong).toEqual([]);
+    });
+
+    it("accepts a type beyond its own default — the deity-symbol case", () => {
+        // `sohl-kethira-basic` authors `icon: image-…` twenty times, one per
+        // faith tradition: the profile art is a full illustration rather than a
+        // game icon. The accepted set, not the default, is what makes that
+        // legal.
+        for (const slot of ART_SLOTS) {
+            expect(slot.accepts, slot.key).toContain(slot.type);
+            expect(slot.accepts, slot.key).not.toEqual([slot.type]);
+        }
+    });
+
+    it("refuses `audio` at every slot — a sound is not art", () => {
+        for (const slot of ART_SLOTS) {
+            expect(slot.accepts, slot.key).not.toContain("audio");
+        }
     });
 
     it("is the list the frontmatter lint checks, rather than a second one", () => {
@@ -122,17 +158,59 @@ describe("what a pass emits is a slot, and nothing else", () => {
     });
 });
 
-describe("an authored value names an address", () => {
+describe("an authored value names an Address, checked against what a slot accepts", () => {
+    const vocabulary = {
+        types: new Set(["icon", "image", "audio"]),
+        packages: new Set(["sohl"]),
+    };
+
     it("takes the slot's own type for a bare shortcode", () => {
-        expect(artTarget("anvil", "icon")).toBe("icon-anvil");
-        expect(artTarget("anvil", "image")).toBe("image-anvil");
+        expect(artTarget("anvil", "icon", undefined, vocabulary)).toMatchObject({
+            type: "icon",
+            shortcode: "anvil",
+        });
+        expect(artTarget("anvil", "image", undefined, vocabulary)).toMatchObject({
+            type: "image",
+            shortcode: "anvil",
+        });
     });
 
     it("leaves a written address alone, whatever its length", () => {
-        // A shortcode is lowercase letters and digits, so the separator can
-        // only be a segment boundary — which is the whole test.
-        expect(artTarget("icon-anvil", "icon")).toBe("icon-anvil");
-        expect(artTarget("sohl-none-icon-anvil", "icon")).toBe("sohl-none-icon-anvil");
+        expect(artTarget("icon-anvil", "icon", undefined, vocabulary)).toMatchObject({
+            type: "icon",
+            shortcode: "anvil",
+        });
+        expect(artTarget("sohl-none-icon-anvil", "icon", undefined, vocabulary)).toMatchObject({
+            package: "sohl",
+            type: "icon",
+            shortcode: "anvil",
+        });
+    });
+
+    it("accepts a type outside the default when the accepted set names it — the deity-symbol case", () => {
+        // `sohl-kethira-basic` writes `icon: image-kpagrik` on a deity's
+        // Affiliation and Skill notes. The default is `icon`; the accepted set
+        // is what lets `image` resolve instead of being refused.
+        expect(artTarget("image-kpagrik", "icon", ["icon", "image"], vocabulary)).toMatchObject({
+            type: "image",
+            shortcode: "kpagrik",
+        });
+    });
+
+    it("refuses a type the accepted set does not name, without resolving it", () => {
+        expect(artTarget("audio-boom", "icon", ["icon", "image"], vocabulary)).toEqual({
+            reason: "not-accepted",
+            type: "audio",
+        });
+    });
+
+    it("parses whatever the vocabulary knows when no accepted set is given", () => {
+        // The embed's rule, not an art slot's: a position takes any type that
+        // parses, and a narrower question is left to its own caller.
+        expect(artTarget("audio-boom", "icon", undefined, vocabulary)).toMatchObject({
+            type: "audio",
+            shortcode: "boom",
+        });
     });
 });
 
@@ -182,15 +260,57 @@ describe("resolving an art value", () => {
         // The distinction a caller applying a default needs: a note that named
         // nothing and a note whose address is wrong take the same art, and only
         // the second is worth reporting.
-        expect(artPathname(index, "nosuchthing", "icon")).toEqual({
+        expect(artPathname(index, "nosuchthing", "icon")).toMatchObject({
             pathname: null,
             resolved: false,
+            reason: "unresolved",
         });
     });
 
     it("reads a slot's own type, so one shortcode in two roots is two files", () => {
         expect(resolveArtRecord(index, "thorn", "icon")).toBeNull();
         expect(resolveArtRecord(index, "thorn", "image")).not.toBeNull();
+    });
+
+    it("resolves a type outside the default when the accepted set names it — the deity-symbol case", () => {
+        // `sohl-kethira-basic` authors `icon: image-…` on a deity's Affiliation
+        // and Skill notes, twenty times over: a full illustration rather than a
+        // game icon. Naming the accepted set is what lets it resolve.
+        const accepts = ["icon", "image"];
+        expect(artPathname(index, "thalorna-none-image-thorn", "icon", accepts)).toEqual({
+            pathname: "thalorna/assets/images/beings/thorn.webp",
+            resolved: true,
+        });
+    });
+
+    it("refuses a type the accepted set does not name, as an error rather than a fallback", () => {
+        const accepts = ["icon", "image"];
+        expect(artPathname(index, "audio-boom", "icon", accepts)).toEqual({
+            pathname: null,
+            resolved: false,
+            reason: "not-accepted",
+            type: "audio",
+        });
+        expect(resolveArtRecord(index, "audio-boom", "icon", accepts)).toBeNull();
+    });
+});
+
+describe("what an unresolved or unaccepted art address is reported as", () => {
+    it("names the value exactly as authored when nothing answers it", () => {
+        const message = unresolvedArtMessage("icon", "sohl-none-icon-nosuchfile");
+        expect(message).toContain("`data.icon`");
+        expect(message).toContain("`sohl-none-icon-nosuchfile`");
+        expect(message).toContain("default art");
+    });
+
+    it("names the accepted set when the type is refused", () => {
+        const message = unacceptedArtMessage("icon", "audio-boom", "audio", ["icon", "image"]);
+        expect(message).toContain("`data.icon`");
+        expect(message).toContain("`audio-boom`");
+        expect(message).toContain("`audio`");
+        expect(message).toContain("does not");
+        expect(message).toContain("icon");
+        expect(message).toContain("image");
     });
 });
 
