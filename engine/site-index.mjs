@@ -52,6 +52,7 @@
 import path from "node:path";
 
 import { canonicalKey, readCanonicalKey } from "./content-address.mjs";
+import { readQualifier } from "./address.mjs";
 import { NO_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
@@ -361,12 +362,14 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
     // An authored address already names its own type, so it is tried whole
     // before the type sweep — `affiliation-slntlncmpny` must not be read as a
     // shortcode of some other type that happens to spell it.
-    if (wanted.includes("-")) {
+    const qualifier = readQualifier(
+        wanted,
+        siteIndex?.contentTypes ?? new Set(),
+        siteIndex?.packages,
+    );
+    if (qualifier) {
         keys.push(wanted);
-        const segments = wanted.split("-");
-        if (segments.length >= 2) {
-            keys.push(`${segments[segments.length - 2]}/${segments[segments.length - 1]}`);
-        }
+        keys.push(`${qualifier.type}/${qualifier.shortcode}`);
     }
     if (!hint?.type) {
         for (const type of [...(siteIndex?.contentTypes ?? [])].sort()) {
@@ -402,6 +405,6 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
  * @returns {string} The slug.
  */
 function addressSlugOfKey(key) {
-    const segments = String(key).split("-");
-    return segments.length >= 2 ? segments.slice(-2).join("-") : key;
+    const parts = readCanonicalKey(key);
+    return parts ? [parts.type, parts.shortcode].join("-") : key;
 }
