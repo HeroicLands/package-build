@@ -1000,7 +1000,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  * @param {object} opts
  * @param {Record<string, readonly object[]>} opts.schemas - Type → declaration.
  * @param {object} [opts.index] - The link index, for the reference check, which
- *   runs through its `referenceHit`. Its absence skips that check rather than
+ *   runs through its `shortcodeHit`. Its absence skips that check rather than
  *   reporting every reference as dead.
  * @param {Record<string, object>} [opts.vocabulary] - Type → the closed regions
  *   it declares, as `engine/note-vocabulary.mjs` states them. Supplied
@@ -1611,8 +1611,8 @@ export function lintNote(
         // first, because a value carrying the separator cannot mean what this
         // position asks for, whatever the field supplies as the type — and the
         // message says so, rather than reporting a lookup failure for a value
-        // that was never going to resolve. Once it passes, the field's type is
-        // prepended to form the `type-shortcode` pair the resolver takes; it
+        // that was never going to resolve. Once it passes, the field's type and
+        // the value form the `(type, shortcode)` pair the resolver takes; it
         // resolves in any reachable package, because the value comes from
         // every package the actor draws on.
         const codeType = field.code;
@@ -1629,18 +1629,15 @@ export function lintNote(
                         `items, where packages do not exist, but reads ` +
                         `${JSON.stringify(value)}`,
                 });
-            } else {
-                const target = `${codeType}-${value}`;
-                if (!index.referenceHit(target)) {
-                    findings.push({
-                        file: note.file,
-                        ...at(head, value),
-                        severity: "error",
-                        message:
-                            `${label} names ${codeType} ` +
-                            `"${value}", and no note or fetched index declares it`,
-                    });
-                }
+            } else if (!index.shortcodeHit(codeType, value)) {
+                findings.push({
+                    file: note.file,
+                    ...at(head, value),
+                    severity: "error",
+                    message:
+                        `${label} names ${codeType} ` +
+                        `"${value}", and no note or fetched index declares it`,
+                });
             }
         }
     }

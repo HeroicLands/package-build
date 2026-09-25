@@ -433,7 +433,7 @@ function checkRelation(note, { field, index }) {
             );
         } else if (index) {
             toAddress = renderAddress(read);
-            const hit = index.referenceHit(toAddress);
+            const hit = index.addressHit(toAddress);
             if (hit) {
                 target = relationsOf(hit);
                 toIsValid = true;

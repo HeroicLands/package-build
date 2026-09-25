@@ -231,22 +231,6 @@ const EXEMPT: readonly Exemption[] = [
             "so this is not the Address this module owns",
     },
     {
-        file: "engine/frontmatter-lint.mjs",
-        snippet: "`${codeType}-${value}`",
-        count: 1,
-        converts: null,
-        why:
-            "the loop this line sits in runs over authoredFields(schema), a " +
-            "system block's fields — the only fields that reach it declaring a " +
-            "content type are the five code: fields in sohl/item-fields.mjs, " +
-            "each a Shortcode. Prepending the declared type is exactly how the " +
-            "(type, shortcode) pair a runtime lookup takes is formed, checked " +
-            "against the shortcode charset first. The four art fields' ref: is " +
-            "a data: declaration naming an Address, read instead by " +
-            "engine/infobox.mjs and engine/art-fields.mjs, so it never reaches " +
-            "this line",
-    },
-    {
         file: "engine/scenes.mjs",
         snippet: "`${fm.type}-${fm.shortcode}`",
         count: 1,
@@ -351,33 +335,20 @@ describe("an Address is read and written in one place", () => {
 const WILDCARDS = /\b\w+\.(package|system)\s*&&\s*\w+\.\1\s*!==[^\n]*return false/g;
 
 /**
- * Where an Address still resolves by searching candidates rather than by one
- * exact lookup.
+ * Where an Address resolves by searching candidates rather than by one exact
+ * lookup.
  *
- * `packet` is the packet that converts the site, and `null` means **no packet is
- * cut for it yet** — unlike the list above, where `null` means the site is
- * finished. Converting one of these removes a candidate search and therefore
- * changes what resolves, so it needs its own measurement and cannot ride along
- * with a mechanical conversion.
+ * `packet` names the packet that converts a listed site; `null` means the
+ * site is a Shortcode operation the epic carves out rather than pending
+ * conversion, the same distinction {@link EXEMPT}'s `converts` draws. The
+ * list is asserted empty: a resolver that skips a package or a system
+ * comparison this way lands here and fails the assertion below, which is the
+ * point — the one operation that is genuinely package- and system-blind, a
+ * `(type, shortcode)` Shortcode lookup, is written as a search over a plain
+ * pair with no `package` or `system` field to compare, so it never matches
+ * this shape at all.
  */
-const CANDIDATE_SEARCH: readonly (Site & { packet: number | null; why: string })[] = [
-    {
-        file: "engine/content-links.mjs",
-        snippet: "q.package && parts.package !==",
-        count: 1,
-        packet: null,
-        why:
-            "the package comparison is skipped for a short form, so a reference " +
-            "resolves in any reachable package and the first key walked wins",
-    },
-    {
-        file: "engine/content-links.mjs",
-        snippet: "q.system && parts.system !==",
-        count: 1,
-        packet: null,
-        why: "the system comparison is skipped for a form that states no system",
-    },
-];
+const CANDIDATE_SEARCH: readonly (Site & { packet: number | null; why: string })[] = [];
 
 describe("an Address resolves by one exact lookup", () => {
     it("detects a segment comparison a resolver skips", () => {
@@ -408,6 +379,13 @@ describe("an Address resolves by one exact lookup", () => {
         for (const site of CANDIDATE_SEARCH) {
             expect(site.why.length, render(site)).toBeGreaterThan(10);
         }
+    });
+
+    it("carries no candidate search — every Address resolves by one exact lookup", () => {
+        // The measurable outcome: nothing left wildcards a package or a system
+        // out of a filter, so the list this module inventories is empty rather
+        // than merely equal to what the scan finds.
+        expect(CANDIDATE_SEARCH).toEqual([]);
     });
 
     it("expands every part from the defaults, leaving nothing unconstrained", () => {

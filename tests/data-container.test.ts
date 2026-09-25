@@ -256,7 +256,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
     it("reports the container's findings over a whole index", () => {
         const index = {
             notes: [note("weapongear", { data: { wieght: 4 } })],
-            referenceHit: () => ({}),
+            shortcodeHit: () => ({}),
         } as any;
         const r = lintFrontmatter(index, { schemas: NOTE_SCHEMAS, vocabulary: NOTE_VOCABULARY });
         expect(messages(r.findings)).toContain('Did you mean "weight"?');

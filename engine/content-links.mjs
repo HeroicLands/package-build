@@ -24,10 +24,9 @@
  *    dead-ends for the reader.
  * 2. **A dead address.** Every link is an address, and one resolving to no note
  *    is a typo. So is a target that does not parse as an address at all. A
- *    written target is a *partial* address — the segments it omits are
- *    wildcards, and the package it omits is this one — so a target resolving to
- *    *several* notes is an ambiguity rather than a first match, and is reported
- *    naming every candidate.
+ *    written target expands to exactly one canonical address, from the
+ *    position's own defaults — the package it omits is always this one — so a
+ *    lookup finds one entry or none. There is no candidate set to disambiguate.
  * 3. **An unlabelled link.** `[[x]]` addresses nothing: the alias namespace it
  *    once named is retired, and a shortcode is an address rather than
  *    prose, so the link has neither a resolvable target nor text to show. The
@@ -438,45 +437,6 @@ export function buildLinkIndex(
     }
 
     /**
-     * Every indexed entry an address names, matching only the segments it
-     * supplies.
-     *
-     * This is the whole resolution rule in one place: a written
-     * address is a *partial* one, unsupplied segments are wildcards, and the
-     * caller requires exactly one hit. Nothing here decides an ambiguity — zero
-     * and many are different findings with different fixes, so the count is
-     * returned rather than collapsed.
-     *
-     * The **system** is wildcarded unless stated. Defaulting it to `none` would
-     * exclude every link to an item, which is most of them.
-     *
-     * @param {Array<[string, any]>} pairs - Indexed `[canonicalKey, value]`.
-     * @param {object} q - The parsed qualifier.
-     * @returns {Array<[string, any]>} The matching pairs.
-     */
-    function matchAddress(pairs, q) {
-        const type = String(q.type).toLowerCase();
-        const shortcode = String(q.shortcode).toLowerCase();
-        return pairs.filter(([k]) => {
-            const parts = readCanonicalKey(k);
-            if (!parts) return false;
-            if (q.package && parts.package !== String(q.package).toLowerCase()) return false;
-            if (q.system && parts.system !== String(q.system).toLowerCase()) return false;
-            return parts.type === type && parts.shortcode === shortcode;
-        });
-    }
-
-    /**
-     * The local notes an address names, by the same rule.
-     *
-     * @param {object} q - The parsed qualifier.
-     * @returns {object[]} The notes.
-     */
-    function matchLocal(q) {
-        return matchAddress([...byKey], q).map(([, v]) => v);
-    }
-
-    /**
      * The note an **address** names, or `undefined`.
      *
      * The qualifier is read with {@link readQualifier} rather than a second
@@ -578,38 +538,71 @@ export function buildLinkIndex(
     }
 
     /**
-     * The note or foreign entry a **frontmatter reference** names, or null.
+     * The note, asset, stub or foreign entry an **address** names, or
+     * `undefined`.
      *
-     * A `code:` field holds a shortcode, not an address. The system persists it
-     * verbatim and resolves it at runtime against the items embedded on one
-     * actor, where packages do not exist: an actor assembled from several
-     * packages carries their items side by side. So a reference resolves when
-     * *any* reachable package declares the `(type, shortcode)` pair — package
-     * and system wildcarded, local notes first, then the fetched indexes.
+     * The same rule as {@link resolveAddress} — read with {@link readQualifier},
+     * expanded with {@link expandAddress} against this index's own package and
+     * the citing block's system — consulted against every source this index
+     * holds rather than only the notes a page link may reach: a stub the tree
+     * holds and a fetched foreign package both answer here, where neither
+     * answers a page link. A caller with its own position-specific default
+     * type — a place's `to`, whose default is `place` rather than anything
+     * this index states — parses and expands the value itself and hands this
+     * the canonical string it already computed; every segment that string
+     * states overrides the default that would otherwise apply, so it round-trips
+     * to itself and this is a plain keyed lookup either way.
      *
-     * Distinct from {@link resolveAddress}, which defaults an omitted package
-     * to this one. That is the rule for a link, whose target is a document to
-     * point at; a reference names an item to stand beside.
-     *
-     * The files this package ships answer here too, and by the same rule: an
-     * asset's address is a `(type, shortcode)` pair like any other, so a field
-     * naming `icon-anvil` resolves to the record that carries the file's path.
-     *
-     * @param {string} target - The reference as `type-shortcode`.
-     * @returns {object|null} The note, asset record or foreign entry declaring it.
+     * @param {string} target - The address, or a short form read against this
+     *   index's own defaults.
+     * @param {string} [keyPath] - The dotted frontmatter key path the value
+     *   sits under; body prose has none. Ignored once `target` is already
+     *   canonical.
+     * @returns {object|undefined} The entry.
      */
-    function referenceHit(target) {
-        const q = readQualifier(target, types, packages, noIndexPackages);
-        if (!q || q.reason) return null;
-        // Stubs last, and deliberately included: a reference names an item to
-        // stand beside rather than a document to point at, so a border with a
-        // stub on the far side is a valid statement about the world. Resolving
-        // these against the addressed rows alone would report every one of
-        // them dead.
-        const local = matchAddress([...byKey, ...byAssetKey, ...byStub], q);
-        if (local.length) return local[0][1];
-        const abroad = matchAddress([...foreign.index], q);
-        return abroad.length ? abroad[0][1] : null;
+    function addressHit(target, keyPath) {
+        const qualified = readQualifier(target, types, packages, noIndexPackages);
+        if (!qualified || qualified.reason) return undefined;
+        const canonical = expandAddress(qualified, { package: pkg, system: blockSystem(keyPath) });
+        // Stubs and foreign entries answer here and nowhere else in this
+        // index: a reference names an item to stand beside rather than a
+        // document to point at, so a border with a stub — or a place in a
+        // dependency — on the far side is a valid statement about the world.
+        return (
+            byKey.get(canonical) ??
+            byAssetKey.get(canonical) ??
+            byStub.get(canonical) ??
+            foreign.index.get(canonical)
+        );
+    }
+
+    /**
+     * The note, asset, stub or foreign entry a **Shortcode** names, or `null`.
+     *
+     * A `code:` field's value is a Shortcode, not an address — one segment,
+     * persisted verbatim and resolved at runtime against the items embedded on
+     * one actor, where packages do not exist. So `type` and `shortcode` are
+     * searched for directly rather than assembled into a written form and read
+     * back through the address grammar: a Shortcode never reaches that grammar,
+     * by {@link module:engine/address}'s own contract. It resolves in any
+     * reachable package, because the value comes from every package the actor
+     * draws on — package and system are never part of the search, not defaulted
+     * out of it.
+     *
+     * @param {string} type - The field's declared `code:`.
+     * @param {string} shortcode - The value as authored, already checked
+     *   against the shortcode charset.
+     * @returns {object|null} The first entry naming the pair, from local notes,
+     *   local assets, local stubs, or a fetched foreign index, in that order.
+     */
+    function shortcodeHit(type, shortcode) {
+        const wantType = String(type).toLowerCase();
+        const wantCode = String(shortcode).toLowerCase();
+        for (const [key, value] of [...byKey, ...byAssetKey, ...byStub, ...foreign.index]) {
+            const parts = readCanonicalKey(key);
+            if (parts && parts.type === wantType && parts.shortcode === wantCode) return value;
+        }
+        return null;
     }
 
     return {
@@ -651,7 +644,8 @@ export function buildLinkIndex(
         stubAt,
         manifestHit,
         foreignHits,
-        referenceHit,
+        addressHit,
+        shortcodeHit,
         /** Whether a target reads as a qualified address at all. */
         isAddress: (target) => Boolean(readQualifier(target, types, packages, noIndexPackages)),
     };
@@ -941,11 +935,12 @@ export function auditHomepageLinks(index) {
  *   unlabelledLinks: object[], frontmatterLinks: object[],
  *   homepageLinks: object[], usedManifest: Set<string>}} The findings, and
  *   which addresses a foreign manifest answered. Each `deadAddresses` entry
- *   carries a `reason` from {@link LINK_FINDING_REASONS} —
- *   `"not-an-address"`, `"unknown-type"`, `"ambiguous"` (with the claiming
- *   `packages`), `"no-content-index"`, `"stub"` (with the stub's path) or
- *   `"unresolved"` — and every one of them is an **error**: the three
- *   resolvers agree on severity for every class.
+ *   carries a `reason` from {@link LINK_FINDING_REASONS} — `"not-an-address"`,
+ *   `"unknown-type"`, `"no-content-index"`, `"stub"` (with the stub's path) or
+ *   `"unresolved"`, never `"ambiguous"`: every target here expands to one
+ *   canonical address before anything is looked up, so there is no candidate
+ *   set for two packages to claim — and every reason is an **error**: the
+ *   three resolvers agree on severity for every class.
  */
 export function auditLinks(index) {
     const { notes, anchors, linksOf, embedsOf, resolve, manifestHit, isAddress } = index;
@@ -1017,22 +1012,12 @@ export function auditLinks(index) {
                 continue;
             }
             // A manifest answers with the target package's own build output
-            // rather than a reviewed guess.
-            const hits = index.foreignHits(target);
-            if (hits.length === 1) {
+            // rather than a reviewed guess. `manifestHit` is a keyed lookup —
+            // a fully qualified target names one package, so there is nothing
+            // left to disambiguate, and no ambiguity finding this resolver can
+            // report.
+            if (manifestHit(target)) {
                 usedManifest.add(target.toLowerCase());
-                continue;
-            }
-            if (hits.length > 1) {
-                // Two packages publish the short address, so it names neither.
-                // Reported as its own class: "no document has that identity" is
-                // false here — two do — and the fix is the qualified form
-                // rather than a corrected shortcode.
-                deadAddresses.push({
-                    ...at,
-                    reason: "ambiguous",
-                    packages: hits.map((h) => h.package).filter(Boolean),
-                });
                 continue;
             }
             const read = readQualifier(target, index.types, index.packages, index.noIndexPackages);
