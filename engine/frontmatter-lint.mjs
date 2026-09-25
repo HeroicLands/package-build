@@ -66,6 +66,8 @@ import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
+import { parseAddress, acceptsType } from "./address.mjs";
+import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
 // than repeated, because a linter holding its own copy of what the compiler
@@ -337,10 +339,15 @@ function nearest(key, candidates) {
  *
  * @param {unknown} value - The authored value.
  * @param {string} kind - The declared kind.
+ * @param {object} [context] - Complete Address defaults and known type vocabulary.
  * @returns {boolean} Whether it is acceptable.
  */
-export function matchesKind(value, kind) {
+export function matchesKind(value, kind, context = {}) {
     switch (kind) {
+        case "address":
+            return !parseAddress(value, context, { declared: true }).reason;
+        case "shortcode":
+            return isAddressSegment(value);
         case "number":
             return typeof value === "number" ?
                     Number.isFinite(value)
@@ -427,6 +434,7 @@ function dataBlock(fm) {
  * @param {object} opts
  * @param {string} opts.type - The note's type, for the message.
  * @param {readonly object[]} opts.fields - The type's `data:` declaration.
+ * @param {object} [opts.addressContext] - Builder package and Address type vocabulary.
  * @param {readonly string[]} [opts.packs] - The pack names this package
  *   declares, against which a `keys: "pack"` map's keys are checked. Absent,
  *   no claim is made about them: a caller that cannot see the configuration
@@ -434,7 +442,7 @@ function dataBlock(fm) {
  *   was loaded to recognise it would be worse than not checking.
  * @returns {object[]} Findings.
  */
-function checkDataContainer(note, { type, fields, packs }) {
+function checkDataContainer(note, { type, fields, packs, addressContext }) {
     const findings = [];
     const { present, entries, malformed } = dataBlock(note.fm ?? {});
     if (!present) return findings;
@@ -504,7 +512,7 @@ function checkDataContainer(note, { type, fields, packs }) {
             value = value && typeof value === "object" ? value[segment] : undefined;
         }
         if (value === undefined || value === null) continue;
-        if (!matchesKind(value, field.kind)) {
+        if (!matchesKind(value, field.kind, { ...addressContext, type: field.ref })) {
             findings.push({
                 file: note.file,
                 ...positionOfFrontmatterPath(raw, ["data", ...segments]),
@@ -515,6 +523,7 @@ function checkDataContainer(note, { type, fields, packs }) {
             });
             continue;
         }
+        findings.push(...checkDataReferences(note, field, value, segments, addressContext));
         // A `scalar-or-map` written in its map form is checked entry by entry,
         // because that is the correction an author has to make: one key's
         // value, not the whole map. Quoting the map back would name every
@@ -527,6 +536,67 @@ function checkDataContainer(note, { type, fields, packs }) {
         }
     }
 
+    return findings;
+}
+
+/**
+ * Validate typed entries without resolving their targets.
+ * @param {object} note - The authored note.
+ * @param {object} field - Its data field declaration.
+ * @param {unknown} value - The field value.
+ * @param {string[]} segments - The field's path under `data`.
+ * @param {object} context - The builder's Address context.
+ * @returns {object[]} Located findings.
+ */
+function checkDataReferences(note, field, value, segments, context) {
+    const checks = [];
+    if (field.kind === "address") checks.push({ value, path: [], kind: "address" });
+    if (field.entryKind) {
+        if (Array.isArray(value)) {
+            value.forEach((entry, i) =>
+                checks.push({ value: entry, path: [i], kind: field.entryKind }),
+            );
+        } else if (value && typeof value === "object") {
+            Object.entries(value).forEach(([key, entry]) => {
+                if (entry != null)
+                    checks.push({ value: entry, path: [key], kind: field.entryKind, atKey: true });
+            });
+        } else checks.push({ value, path: [], kind: field.entryKind });
+    }
+    if (field.keyKind) {
+        Object.keys(value).forEach((key) =>
+            checks.push({ value: key, path: [key], kind: field.keyKind, key: true }),
+        );
+    }
+    const findings = [];
+    const defaults = { ...context, type: field.ref };
+    const accepted = field.accepts;
+    for (const check of checks) {
+        if (
+            check.key &&
+            field.keySelector === "subType" &&
+            typeof check.value === "string" &&
+            check.value.startsWith("subType:") &&
+            isAddressSegment(check.value.slice("subType:".length))
+        )
+            continue;
+        let reason;
+        if (!matchesKind(check.value, check.kind, defaults))
+            reason = `should be ${check.kind === "address" ? "an Address" : "a Shortcode"}`;
+        else if (check.kind === "address" && accepted) {
+            const tuple = parseAddress(check.value, defaults, { declared: true });
+            if (!acceptsType(tuple, accepted))
+                reason = `accepts ${accepted.join(" or ")}, not ${tuple.type}`;
+        }
+        if (!reason) continue;
+        const path = ["data", ...segments, ...check.path];
+        findings.push({
+            file: note.file,
+            ...positionOfFrontmatterPath(note.raw ?? "", path, { key: check.key || check.atKey }),
+            severity: "error",
+            message: `\`${path.join(".")}\` ${reason}, but reads ${JSON.stringify(check.value)}`,
+        });
+    }
     return findings;
 }
 
@@ -578,7 +648,7 @@ function checkKeyedMap(note, { field, segments, entries, raw, packs }) {
         // An explicit `~` under a key is a statement, not an omission: it says
         // "at the root there", which is different from saying nothing.
         if (value === undefined || value === null) continue;
-        if (matchesKind(value, "string")) continue;
+        if (field.entryKind || matchesKind(value, "string")) continue;
         findings.push({
             file: note.file,
             // On the key, not the value: an entry whose value is itself a map
@@ -1019,6 +1089,7 @@ function checkEmbeddedShortcodes(note, blockName) {
  *   for the same reason `schemas` is — a build derives them from its
  *   configuration through {@link systemBlocksFor}, and this module states no
  *   system name of its own. See {@link DEFAULT_SYSTEM_BLOCKS} for the fallback.
+ * @param {object} [opts.addressContext] - Builder package and Address type vocabulary.
  * @param {readonly string[]} [opts.packs] - The pack names this package
  *   declares, for a `data:` field whose map is keyed by pack. Supplied by the
  *   caller like `schemas` and `vocabulary`, and absent it no claim is made
@@ -1027,10 +1098,29 @@ function checkEmbeddedShortcodes(note, blockName) {
  */
 export function lintNote(
     note,
-    { schemas, index, vocabulary, packs, emittedArt, systems = DEFAULT_SYSTEM_BLOCKS },
+    {
+        schemas,
+        index,
+        vocabulary,
+        packs,
+        emittedArt,
+        addressContext,
+        systems = DEFAULT_SYSTEM_BLOCKS,
+    },
 ) {
     const findings = [];
     const fm = note.fm ?? {};
+    const referenceContext = {
+        package: index?.contentPackage,
+        system: "none",
+        ...addressContext,
+        types: new Set([
+            ...Object.keys(vocabulary ?? {}),
+            ...ASSET_TYPE_NAMES,
+            ...(index?.types ?? []),
+            ...(addressContext?.types ?? []),
+        ]),
+    };
     const type = String(fm.type ?? "");
     const raw = () => note.raw ?? "";
     const at = (key, literal) => positionInFrontmatter(raw(), key, literal ?? undefined);
@@ -1438,6 +1528,7 @@ export function lintNote(
                 // the container check would have to be told about.
                 fields,
                 packs,
+                addressContext: referenceContext,
             }),
         );
         findings.push(...checkSubType(note, { type, entry }));
@@ -1616,7 +1707,7 @@ export function lintNote(
         // resolves in any reachable package, because the value comes from
         // every package the actor draws on.
         const codeType = field.code;
-        if (codeType && index && typeof value === "string" && value) {
+        if (codeType && typeof value === "string" && value) {
             if (!isAddressSegment(value)) {
                 findings.push({
                     file: note.file,
@@ -1629,7 +1720,7 @@ export function lintNote(
                         `items, where packages do not exist, but reads ` +
                         `${JSON.stringify(value)}`,
                 });
-            } else if (!index.shortcodeHit(codeType, value)) {
+            } else if (index && !index.shortcodeHit(codeType, value)) {
                 findings.push({
                     file: note.file,
                     ...at(head, value),
@@ -1682,6 +1773,11 @@ export function lintFrontmatter(
                 packs,
                 emittedArt,
                 index: references ? index : undefined,
+                addressContext: {
+                    package: index.contentPackage,
+                    system: "none",
+                    types: index.types,
+                },
                 ...(systems ? { systems } : {}),
             }),
         );

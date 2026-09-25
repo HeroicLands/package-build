@@ -133,23 +133,11 @@ function documentedSharedValues(): Map<string, string> {
     return out;
 }
 
-/**
- * The shape category a `DataFieldSpec.kind` promises, and the pattern its
- * documented Values cell must keep to.
- *
- * The four checkable kinds sort into four shapes a Values cell can be read
- * for without parsing it as a type expression: a bare `number` or `integer`,
- * a bare `boolean`, something ending `]` — a list, plain (`Address[]`) or a
- * tuple (`{ to, bearing }[]`, `[int, int]`) — and something naming `map`,
- * which is the one word every documented map-or-scalar cell uses
- * (`` `Address`, or a map of them keyed by pack ``). `string` is checked only
- * negatively: a cell that is none of the other three shapes, because the
- * bucket holds everything from `` `string` `` to a named type alias
- * (`` `RollFormula` ``) to an enumerated union (`` `male \| female \| other` ``)
- * to `` `Address` `` itself — see the note below on what this cannot tell
- * apart.
- */
+/** Container shapes and scalar identities stated by the specification. */
 const KIND_MATCHES: Record<string, (bare: string) => boolean> = {
+    address: (bare) => bare === "Address",
+    shortcode: (bare) => bare === "Shortcode",
+    map: (bare) => /^Map</.test(bare),
     number: (bare) => bare === "number" || bare === "integer",
     boolean: (bare) => bare === "boolean",
     list: (bare) => bare.endsWith("]"),
@@ -159,7 +147,9 @@ const KIND_MATCHES: Record<string, (bare: string) => boolean> = {
         !/\bmap\b/i.test(bare) &&
         bare !== "number" &&
         bare !== "integer" &&
-        bare !== "boolean",
+        bare !== "boolean" &&
+        bare !== "Address" &&
+        bare !== "Shortcode",
 };
 
 /** Whether a documented Values cell keeps to the shape a declared `kind` promises. */
@@ -171,28 +161,9 @@ function agreesWithKind(kind: string, cell: string): boolean {
     return matches ? matches(bare) : false;
 }
 
-/**
- * The `data:` keys declared with no `kind` at all — the vocabulary's honest
- * "as authored", named here rather than left to be discovered by absence.
- *
- * A field reaches this list for one of two reasons, and both are read here as
- * data rather than judged: geometry (`map.walls` and its five neighbours) is
- * authored as a map keyed by name today while the specification lists it as a
- * sequence, and a lint has no business picking the winner of a disagreement
- * the format has not settled; `relations` and `skillAptitudes` are keyed by a
- * **Shortcode**, and nothing in `DataFieldSpec` can say so — `kind` has no
- * value for it, so the honest declaration is no claim at all.
- *
- * That second reason is the Shortcode-versus-Address gap this guard exists
- * for, and it is exactly why this list is asserted below rather than merely
- * implied: a field moving off `ANY` stops being exempt only if something
- * notices the move, and a field the vocabulary starts describing with a real
- * Shortcode `kind` belongs off this list the same day.
- */
+/** Geometry and governance structures whose declared shape is open. */
 const ANY_KIND_FIELDS = [
     "affiliation.governance.offices",
-    "affiliation.relations",
-    "mystery.skillAptitudes",
     "map.walls",
     "map.doors",
     "map.lights",
@@ -273,44 +244,38 @@ describe("the specification and the implementation agree", () => {
     });
 });
 
-/**
- * The type column, which the block above never reads.
- *
- * The comparison above harvests only the first cell of every `data` property
- * row — the name — and discards the rest, so a table's **Values** column is
- * free to say anything a reader cannot check against `note-vocabulary.mjs`.
- * This is the part that keeps it true, as far as it can be kept true from
- * `DataFieldSpec.kind` alone.
- *
- * **What this checks.** Wherever the vocabulary declares a `kind`, the
- * documented Values cell is held to the shape that `kind` promises: a
- * `kind: "list"` field may not be documented as a scalar, a `kind: "number"`
- * field may not be documented as a list, and so on for every checkable kind —
- * see {@link KIND_MATCHES}.
- *
- * **What this cannot check.** A field declared with no `kind` — `ANY`,
- * "as authored" — makes no claim for this guard to hold the column to, and
- * {@link ANY_KIND_FIELDS} names exactly those fields so the exemption is
- * visible rather than silent.
- *
- * **Address versus Shortcode, honestly.** That distinction is why this issue
- * exists, and this guard cannot make it. Every field whose value is a single
- * Address — `tokenIcon`, `species`, `seat`, `icon` itself — is declared
- * `kind: "string"`, the identical value `TEXT` gives a plain string field like
- * `occupation`; `DataFieldSpec` has no shape that means "an Address" as
- * opposed to "a string that is not one". And the two fields that are
- * genuinely keyed by **Shortcode** — `relations`, `skillAptitudes` — are
- * declared `ANY`, so there is no `kind` on either side of that distinction to
- * compare. Telling the two apart from the registry would need a `kind` value
- * of its own — `"address"` and `"shortcode"` distinct from `"string"` — which
- * does not exist today; until it does, `relations` and `skillAptitudes` stay
- * on {@link ANY_KIND_FIELDS} and this guard is silent about whether their
- * documented `Map<Shortcode, …>` is right, the same way it would be silent
- * about a `Map<Address, …>` in the same position.
- */
+/** Hold each documented container and entry identity to its declaration. */
 describe("the specification and the vocabulary agree about a field's type", () => {
     const FIELD_VALUES = documentedFieldValues();
     const SHARED_VALUES = documentedSharedValues();
+
+    it("types every target-bearing declaration as an Address position", () => {
+        const missing: string[] = [];
+        for (const type of Object.keys(NOTE_VOCABULARY))
+            for (const field of dataFields(type)) {
+                if (field.ref && ![field.kind, field.entryKind, field.keyKind].includes("address"))
+                    missing.push(`${type}.${field.name}`);
+            }
+        expect(missing).toEqual([]);
+    });
+
+    it("declares the Address and Shortcode positions the specification names", () => {
+        const missing: string[] = [];
+        for (const type of Object.keys(NOTE_VOCABULARY)) {
+            for (const field of dataFields(type)) {
+                const cell =
+                    FIELD_VALUES.get(type)?.get(field.name) ?? SHARED_VALUES.get(field.name) ?? "";
+                const named = /\b(Address|Shortcode)\b/.exec(cell)?.[1]?.toLowerCase();
+                if (!named) continue;
+                const actual =
+                    cell.includes("Map<") ? field.keyKind
+                    : cell.includes("[]") || cell.includes("map") ? field.entryKind
+                    : field.kind;
+                if (actual !== named) missing.push(`${type}.${field.name}: ${named}`);
+            }
+        }
+        expect(missing).toEqual([]);
+    });
 
     it("reads a field's documented type, so the comparison below is not vacuous", () => {
         // Guards the guard: were either table's header to change shape, every

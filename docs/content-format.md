@@ -1459,12 +1459,24 @@ other segment supplied by the position. Frontmatter is structure rather than
 prose: a field value is a reference something else will compile against, and it
 should say exactly what it points at.
 
-**The field supplies the type.** Every `Address` field declares the note type it
-targets — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
+**A field can supply the type.** A field naming one kind of note declares its
+default — `seat` a `place`, `parents` an `affiliation`, `stations` a `lore` — so
 the type segment defaults from the declaration and a bare shortcode is the
 ordinary case, not an abbreviation of one. That is why the examples above read
 `tashal` rather than `place-tashal`: the shorter form carries the same
 information, because the field already said what kind of thing it points at.
+
+The frontmatter lint checks scalar Addresses, entries in Address lists, and
+Address map keys at the entry's own location. Segments contain lowercase ASCII
+letters and digits; wikilink brackets, labels, anchors, and spaces do not belong
+in these fields. Optional null values and empty lists or maps express no
+reference. Grammar and accepted types are checked independently of whether a
+target exists.
+
+An affiliation's `economy` accepts only `affiliation` and `lore` Addresses.
+Each entry states its type: `affiliation-merchants` or `lore-tanvrcrncy`.
+There is no default type; a bare shortcode is an error.
+Bundle `contents` likewise requires a type for each document.
 
 **The declaration constrains the type; it does not shorten the address.** A field
 value may be written at any length, and every length is equally correct so long
@@ -2815,7 +2827,7 @@ rank names the standing, and the standing says.
 | `seat`               | `Address`                | Where the affiliation's authority sits                                                         |
 | `domains`            | `Address[]`              | Places over which this affiliation holds sway                                                  |
 | `population`         | `number`                 | Number of people in the affiliation (precision 2 significant digits).                          |
-| `economy`            | `Address[]`              | What its economic life runs on — produced goods, currency systems and the like                 |
+| `economy`            | `Address[]`              | Economic life: `affiliation` or `lore` Addresses, with an explicit type and no default         |
 | `lore`               | `Address[]`              | Lore concerning it — the peoples it draws on, the god a faith venerates, its law, its calendar |
 | `parents`            | `Address[]`              | Affiliations that this affiliation is subordinate to                                           |
 | `relations`          | `Map<Address, Standing>` | Standing with other affiliations, keyed by the other body's Address                            |

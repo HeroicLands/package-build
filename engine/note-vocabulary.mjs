@@ -77,6 +77,7 @@
 
 // The one charset, read rather than restated. A second spelling of the pattern
 // is how a disagreement between the three arises.
+import { ART_SLOTS } from "./art-slots.mjs";
 import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs";
 // The retirement window for a renamed type, read rather than restated: a
 // vocabulary that answered only to the current spelling would report every key
@@ -114,10 +115,14 @@ import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
  * @typedef {object} DataFieldSpec
  * @property {string} name - The key under `data:`, dotted for a nested one
  *   (`charges.value`).
- * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"} [kind] -
+ * @property {"string"|"number"|"boolean"|"list"|"map"|"scalar-or-map"|"address"|"shortcode"} [kind] -
  *   The value's shape, for the lint. Absent means no claim is made about the
  *   value — which is the honest answer wherever the specification's stated
  *   shape and the shape notes are authored in today disagree.
+ * @property {"address"|"shortcode"} [entryKind] - Type of each list or pack-map value.
+ * @property {"address"|"shortcode"} [keyKind] - Type of each map key.
+ * @property {"subType"} [keySelector] - An alternative `subType:<skill-subtype>` key.
+ * @property {readonly string[]} [accepts] - Allowed Address types, separate from `ref`.
  * @property {string} [shape] - Human-readable shape, for a finding and for
  *   documentation.
  * @property {string} [entryShape] - For a `scalar-or-map` field, what one
@@ -190,14 +195,14 @@ const TEXT = Object.freeze({ shape: "string", kind: "string" });
 /** A list. */
 const LIST = Object.freeze({ shape: "list", kind: "list" });
 
-/** A single wikilink, which is a string until it is resolved. */
-const LINK = Object.freeze({ shape: "a wikilink", kind: "string" });
+/** A single Address. */
+const LINK = Object.freeze({ shape: "an Address", kind: "address" });
 
-/** A list of wikilinks. */
-const LINKS = Object.freeze({ shape: "list of wikilinks", kind: "list" });
+/** A list of Addresses. */
+const LINKS = Object.freeze({ shape: "list of Addresses", kind: "list", entryKind: "address" });
 
 /**
- * A single wikilink, or one per pack.
+ * A single Address, or one per pack.
  *
  * The map form is not a convenience spelling of the scalar: it says something
  * the scalar cannot, that the answer *differs by pack*. A folder's `parent` is
@@ -210,9 +215,10 @@ const LINKS = Object.freeze({ shape: "list of wikilinks", kind: "list" });
  * specification prescribes was a finding and no note using it was not.
  */
 const LINK_BY_PACK = Object.freeze({
-    shape: "a wikilink, or a map of wikilinks keyed by pack",
+    shape: "an Address, or a map of Addresses keyed by pack",
+    entryKind: "address",
     kind: "scalar-or-map",
-    entryShape: "a wikilink",
+    entryShape: "an Address",
     keys: "pack",
 });
 
@@ -247,6 +253,7 @@ const TOKEN_ICON = Object.freeze({
     name: "tokenIcon",
     ...LINK,
     ref: "icon",
+    accepts: ART_SLOTS.find((slot) => slot.key === "tokenIcon").accepts,
     describe: "What a token on the canvas wears — an `icon` address; unset, it follows `icon`.",
 });
 
@@ -274,12 +281,14 @@ export const SHARED_DATA_FIELDS = Object.freeze([
         name: "icon",
         ...LINK,
         ref: "icon",
+        accepts: ART_SLOTS.find((slot) => slot.key === "icon").accepts,
         describe: "The document's profile art — an `icon` address, resolved into `img`.",
     }),
     Object.freeze({
         name: "banner",
         ...LINK,
         ref: "image",
+        accepts: ART_SLOTS.find((slot) => slot.key === "banner").accepts,
         describe: "The page's hero image — an `image` address. Reaches no compiled document.",
     }),
 ]);
@@ -600,22 +609,44 @@ export const NOTE_VOCABULARY = Object.freeze({
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },
             { name: "occupation", ...TEXT, describe: "What the being does for a living." },
-            { name: "stations", ...LINKS, describe: "Stations the being holds." },
+            {
+                name: "stations",
+                ...LINKS,
+                ref: "lore",
+                accepts: ["lore"],
+                describe: "Stations the being holds.",
+            },
             {
                 name: "lore",
                 ...LINKS,
+                ref: "lore",
+                accepts: ["lore"],
                 describe:
                     "Lore concerning this being — the people it is of, the standing it " +
                     "holds, the law it lives under.",
             },
-            { name: "homes", ...LINKS, describe: "Places the being calls home." },
+            {
+                name: "homes",
+                ...LINKS,
+                ref: "place",
+                accepts: ["place"],
+                describe: "Places the being calls home.",
+            },
             {
                 name: "affiliations",
                 ...LINKS,
+                ref: "affiliation",
+                accepts: ["affiliation"],
                 describe: "Affiliations the being belongs to — traditions, polities, and the rest.",
             },
             { name: "gender", ...TEXT, describe: "`male`, `female` or `other`." },
-            { name: "species", ...LINK, describe: "The being's species, as a lore note." },
+            {
+                name: "species",
+                ...LINK,
+                ref: "lore",
+                accepts: ["lore"],
+                describe: "The being's species, as a lore note.",
+            },
             {
                 name: "born",
                 ...TEXT,
@@ -733,27 +764,54 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "commonSkills",
                 ...LINKS,
+                ref: "skill",
+                accepts: ["skill"],
                 describe: "Skills common among members — languages first among them.",
             },
-            { name: "seat", ...LINK, describe: "Where the affiliation's authority sits." },
-            { name: "domains", ...LINKS, describe: "Places over which it holds sway." },
+            {
+                name: "seat",
+                ...LINK,
+                ref: "place",
+                accepts: ["place"],
+                describe: "Where the affiliation's authority sits.",
+            },
+            {
+                name: "domains",
+                ...LINKS,
+                ref: "place",
+                accepts: ["place"],
+                describe: "Places over which it holds sway.",
+            },
             { name: "population", ...NUM, describe: "How many people it counts." },
             {
                 name: "economy",
                 ...LINKS,
+                accepts: ["affiliation", "lore"],
                 describe: "What its economic life runs on — currencies, banking bodies, goods.",
             },
             {
                 name: "lore",
                 ...LINKS,
+                ref: "lore",
+                accepts: ["lore"],
                 describe:
                     "Lore concerning it — the peoples it draws on, the god a faith " +
                     "venerates, its law, its calendar.",
             },
-            { name: "parents", ...LINKS, describe: "Affiliations it is subordinate to." },
+            {
+                name: "parents",
+                ...LINKS,
+                ref: "affiliation",
+                accepts: ["affiliation"],
+                describe: "Affiliations it is subordinate to.",
+            },
             {
                 name: "relations",
-                ...ANY,
+                kind: "map",
+                keyKind: "address",
+                ref: "affiliation",
+                accepts: ["affiliation"],
+                shape: "a map keyed by Address",
                 describe: "Standing with other affiliations — aligned, unaligned, rival, nemesis.",
             },
         ]),
@@ -863,15 +921,26 @@ export const NOTE_VOCABULARY = Object.freeze({
         subTypes: Object.freeze(["boon", "boost", "fate", "grace", "birthsign", "other", "piety"]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
-            { name: "assocSkill", ...LINK, describe: "The skill it is associated with." },
+            {
+                name: "assocSkill",
+                ...LINK,
+                ref: "skill",
+                accepts: ["skill"],
+                describe: "The skill it is associated with.",
+            },
             {
                 name: "assocAffiliation",
                 ...LINK,
+                ref: "affiliation",
+                accepts: ["affiliation"],
                 describe: "The affiliation it is associated with.",
             },
             {
                 name: "skillAptitudes",
-                ...ANY,
+                kind: "map",
+                keyKind: "shortcode",
+                keySelector: "subType",
+                shape: "a map keyed by Shortcode or subType selector",
                 describe:
                     "Bonuses and penalties, each naming a skill or a `subType:<skill-subtype>`.",
             },
@@ -896,10 +965,18 @@ export const NOTE_VOCABULARY = Object.freeze({
         ]),
         data: Object.freeze([
             TEMPLATE_PRIORITY,
-            { name: "assocSkill", ...LINK, describe: "The skill it is associated with." },
+            {
+                name: "assocSkill",
+                ...LINK,
+                ref: "skill",
+                accepts: ["skill"],
+                describe: "The skill it is associated with.",
+            },
             {
                 name: "assocAffiliation",
                 ...LINK,
+                ref: "affiliation",
+                accepts: ["affiliation"],
                 describe: "The affiliation it is associated with.",
             },
             { name: "masteryLevel", ...NUM, describe: "Mastery before any modifier." },
@@ -931,7 +1008,13 @@ export const NOTE_VOCABULARY = Object.freeze({
         data: Object.freeze([
             TEMPLATE_PRIORITY,
             { name: "masteryLevel", ...NUM, describe: "Mastery before any modifier." },
-            { name: "parentSkill", ...LINK, describe: "The skill this one specialises." },
+            {
+                name: "parentSkill",
+                ...LINK,
+                ref: "skill",
+                accepts: ["skill"],
+                describe: "The skill this one specialises.",
+            },
         ]),
     }),
 
@@ -1025,6 +1108,8 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "parent",
                 ...LINK_BY_PACK,
+                ref: "folder",
+                accepts: ["folder"],
                 describe:
                     "The folder this one sits in, as an address — or one " +
                     "address per pack, keyed by pack name with `default` for " +
@@ -1111,6 +1196,8 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "lore",
                 ...LINKS,
+                ref: "lore",
+                accepts: ["lore"],
                 describe:
                     "Lore concerning this place — its peoples, its law, its calendar, " +
                     "its history.",
@@ -1118,6 +1205,8 @@ export const NOTE_VOCABULARY = Object.freeze({
             {
                 name: "parents",
                 ...LINKS,
+                ref: "place",
+                accepts: ["place"],
                 describe: "Enclosing places this one sits within.",
             },
             {
@@ -1163,13 +1252,39 @@ export const NOTE_VOCABULARY = Object.freeze({
         stubbable: true,
         subTypes: Object.freeze(["campaign", "adventure", "encounter"]),
         data: Object.freeze([
-            { name: "parents", ...LINKS, describe: "Scenarios this one sits within." },
-            { name: "locations", ...LINKS, describe: "Places the scenario takes place in." },
-            { name: "cast", ...LINKS, describe: "Beings who appear in it." },
-            { name: "factions", ...LINKS, describe: "Affiliations with a stake in it." },
+            {
+                name: "parents",
+                ...LINKS,
+                ref: "scenario",
+                accepts: ["scenario"],
+                describe: "Scenarios this one sits within.",
+            },
+            {
+                name: "locations",
+                ...LINKS,
+                ref: "place",
+                accepts: ["place"],
+                describe: "Places the scenario takes place in.",
+            },
+            {
+                name: "cast",
+                ...LINKS,
+                ref: "being",
+                accepts: ["being"],
+                describe: "Beings who appear in it.",
+            },
+            {
+                name: "factions",
+                ...LINKS,
+                ref: "affiliation",
+                accepts: ["affiliation"],
+                describe: "Affiliations with a stake in it.",
+            },
             {
                 name: "follows",
                 ...LINKS,
+                ref: "scenario",
+                accepts: ["scenario"],
                 describe: "Scenarios that should be played before this one.",
             },
             {
@@ -1204,6 +1319,7 @@ export const NOTE_VOCABULARY = Object.freeze({
                 name: "bgImage",
                 ...LINK,
                 ref: "image",
+                accepts: ART_SLOTS.find((slot) => slot.key === "bgImage").accepts,
                 describe: "The map's background art — an `image` address.",
             },
             {
@@ -1241,7 +1357,9 @@ export const NOTE_VOCABULARY = Object.freeze({
             },
             {
                 name: "place",
-                ...TEXT,
+                ...LINK,
+                ref: "place",
+                accepts: ["place"],
                 describe:
                     "The place this map depicts. Named here and not on the place, " +
                     "because a place has several maps and a map depicts one place.",
