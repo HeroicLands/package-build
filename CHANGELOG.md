@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.11.0
+
+### Minor Changes
+
+- **Affiliations:** SoHL common skills link to their exact native Items; authors declare them in the SoHL block, and shared declarations receive an error.
+
 ## 22.10.0
 
 ### Minor Changes
