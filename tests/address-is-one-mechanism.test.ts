@@ -233,17 +233,19 @@ const EXEMPT: readonly Exemption[] = [
     },
     {
         file: "engine/frontmatter-lint.mjs",
-        snippet: "`${field.ref}-${value}`",
+        snippet: "`${codeType}-${value}`",
         count: 1,
         converts: null,
         why:
             "the loop this line sits in runs over authoredFields(schema), a " +
-            "system block's fields — the only ref: declarations that reach it " +
-            "are the shortcode fields, for which prepending the declared type " +
-            "is exactly how the (type, shortcode) pair a runtime lookup takes " +
-            "is formed. The art fields' ref: is a data: declaration, read " +
-            "instead by engine/infobox.mjs and engine/art-fields.mjs, so it " +
-            "never reaches this line",
+            "system block's fields — the only fields that reach it declaring a " +
+            "content type are the five code: fields in sohl/item-fields.mjs, " +
+            "each a Shortcode. Prepending the declared type is exactly how the " +
+            "(type, shortcode) pair a runtime lookup takes is formed, checked " +
+            "against the shortcode charset first. The four art fields' ref: is " +
+            "a data: declaration naming an Address, read instead by " +
+            "engine/infobox.mjs and engine/art-fields.mjs, so it never reaches " +
+            "this line",
     },
     {
         file: "engine/holdings.mjs",

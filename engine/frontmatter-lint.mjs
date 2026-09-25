@@ -1605,22 +1605,42 @@ export function lintNote(
             continue;
         }
 
-        // A reference names another note by shortcode, and the field supplies
-        // the type, so the resolver is handed the whole `type-shortcode` pair.
-        // It resolves in any reachable package: the value is persisted as
-        // written and looked up at runtime among one actor's embedded items,
-        // which come from every package the actor draws on.
-        if (field.ref && index && typeof value === "string" && value) {
-            const target = `${field.ref}-${value}`;
-            if (!index.referenceHit(target)) {
+        // A `code:` field's value is a Shortcode, not an Address: one segment,
+        // persisted verbatim and resolved at runtime among the items embedded
+        // on one actor, where packages do not exist. The charset is checked
+        // first, because a value carrying the separator cannot mean what this
+        // position asks for, whatever the field supplies as the type — and the
+        // message says so, rather than reporting a lookup failure for a value
+        // that was never going to resolve. Once it passes, the field's type is
+        // prepended to form the `type-shortcode` pair the resolver takes; it
+        // resolves in any reachable package, because the value comes from
+        // every package the actor draws on.
+        const codeType = field.code;
+        if (codeType && index && typeof value === "string" && value) {
+            if (!isAddressSegment(value)) {
                 findings.push({
                     file: note.file,
                     ...at(head, value),
                     severity: "error",
                     message:
-                        `${label} names ${field.ref} ` +
-                        `"${value}", and no note or fetched index declares it`,
+                        `${label} must be a shortcode — the ${codeType}'s ` +
+                        `\`shortcode\`, not an address — because this position ` +
+                        `resolves it at runtime among one actor's embedded ` +
+                        `items, where packages do not exist, but reads ` +
+                        `${JSON.stringify(value)}`,
                 });
+            } else {
+                const target = `${codeType}-${value}`;
+                if (!index.referenceHit(target)) {
+                    findings.push({
+                        file: note.file,
+                        ...at(head, value),
+                        severity: "error",
+                        message:
+                            `${label} names ${codeType} ` +
+                            `"${value}", and no note or fetched index declares it`,
+                    });
+                }
             }
         }
     }

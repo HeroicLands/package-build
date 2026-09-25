@@ -124,10 +124,11 @@ import { MARKET_CLASSES, checkMarket } from "./market-class.mjs";
  *   entry of the map is. A finding names the entry at fault rather than
  *   quoting the whole map back, so the string an author has to correct is the
  *   one the message holds.
- * @property {string} [ref] - The type a bare value takes. An art slot declares
+ * @property {string} [ref] - The Address's default type, an art slot declares
  *   one — `icon` for `icon` and `tokenIcon`, `image` for `bgImage` and
  *   `banner` — so `icon: anvil` names `icon-anvil` while a value carrying the
- *   separator states its own address.
+ *   separator states its own address. Distinct from a `FieldSpec`'s `code`
+ *   ({@link module:engine/field-spec}), which names a **Shortcode** instead.
  * @property {"pack"} [keys] - For a `scalar-or-map` field, what its keys name.
  *   `"pack"` means each is a pack this package declares, so a key naming none
  *   is a finding of its own: it addresses a hierarchy nothing will ever read.

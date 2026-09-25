@@ -711,7 +711,7 @@ export const ITEM_FIELDS = Object.freeze({
         {
             name: "assocSkillCode",
             to: "assocSkillCode",
-            ref: "skill",
+            code: "skill",
             ...BLANK_IS_NULL,
             default: null,
             describe: "Shortcode of the skill the mystery is tested against.",
@@ -719,7 +719,7 @@ export const ITEM_FIELDS = Object.freeze({
         {
             name: "assocAffiliationCode",
             to: "assocAffiliationCode",
-            ref: "affiliation",
+            code: "affiliation",
             ...BLANK_IS_NULL,
             default: null,
             describe:
@@ -760,7 +760,7 @@ export const ITEM_FIELDS = Object.freeze({
         {
             name: "assocSkillCode",
             to: "assocSkillCode",
-            ref: "skill",
+            code: "skill",
             ...AS_AUTHORED,
             default: "",
             describe: "Shortcode of the skill the ability is tested against.",
@@ -768,7 +768,7 @@ export const ITEM_FIELDS = Object.freeze({
         {
             name: "assocAffiliationCode",
             to: "assocAffiliationCode",
-            ref: "affiliation",
+            code: "affiliation",
             ...BLANK_IS_NULL,
             default: null,
             describe:
@@ -884,7 +884,7 @@ export const ITEM_FIELDS = Object.freeze({
         {
             name: "parentSkillCode",
             to: "parentSkillCode",
-            ref: "skill",
+            code: "skill",
             ...AS_AUTHORED,
             default: "",
             describe: "Shortcode of the skill this one specialises, for a specialisation.",
