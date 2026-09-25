@@ -35,7 +35,7 @@
  * 4. **A wikilink authored in frontmatter.** Both builds walk a note's *body*
  *    and copy frontmatter through verbatim, so a link written in a
  *    `description` is never resolved and publishes as literal `[[…]]` text.
- *    Frontmatter is data: a `WikiLink` field is parsed by the address grammar
+ *    Frontmatter is data: an `Address` field is parsed by the address grammar
  *    and a bracketed link there is a finding naming the note and the field.
  *
  * **This resolves links the way the builds do**, calling the same
@@ -285,7 +285,12 @@ export function buildLinkIndex(
         :   { index: new Map(), packages: new Set(), stale: [] };
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
-    const packages = new Set([...(byKey.size ? [pkg] : []), ...foreign.packages]);
+    // A stub counts. It publishes no page, so nothing may *link* to one, but its
+    // address is a name the tree holds and a reference reaches it — a border's
+    // far side is the case that matters. Leaving this package out of the set
+    // whenever every note it holds is a stub would make a fully qualified local
+    // address unreadable in precisely the tree whose relations need it.
+    const packages = new Set([...(byKey.size || byStub.size ? [pkg] : []), ...foreign.packages]);
     // Packages declared `contentIndex: false` — a Foundry dependency only, with
     // no fetched index. A link naming one is refused with a diagnostic that
     // names the key, rather than reading as an undeclared package or a typo.

@@ -55,7 +55,7 @@ const MINI = [
     "",
     "| `data` property | Values       | Description |",
     "| --------------- | ------------ | ----------- |",
-    "| `parents`       | `WikiLink[]` | Enclosing   |",
+    "| `parents`       | `Address[]`  | Enclosing   |",
     "",
 ].join("\n");
 
