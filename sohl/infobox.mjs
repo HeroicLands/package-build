@@ -51,7 +51,7 @@
  * @module
  */
 
-import { parseAddress, isAddressTuple } from "../engine/address.mjs";
+import { parseAddress, isAddressTuple, completeAddress } from "../engine/address.mjs";
 import { contentPackage } from "../engine/content-package.mjs";
 import {
     DURATION_LABELS,
@@ -259,6 +259,32 @@ function itemsOf(fm, block) {
 }
 
 /**
+ * A model's documentation presentation, with its native name as plain text
+ * when no documentation is published. The model keeps its native identity.
+ * @param {object} item - Decoded native item.
+ * @param {Function} resolve - The medium's reference resolver.
+ * @param {string} block - The native system.
+ * @returns {object|undefined} Documentation links and display metadata.
+ */
+function itemPresentation(item, resolve, block) {
+    if (!item.shortcode) return undefined;
+    if (!item.address)
+        return resolve?.(item.shortcode, { kind: "shortcode", type: item.type, system: block });
+    const documentation = completeAddress({ ...item.address, system: "none" });
+    const found = resolve?.(documentation, { type: documentation.type });
+    const native =
+        !found?.name || !found?.subType ? resolve?.(item.address, { type: item.type }) : undefined;
+    if (!found && !native) return undefined;
+    return {
+        name: found?.name ?? native?.name,
+        subType: found?.subType ?? native?.subType,
+        address: documentation,
+        ...(found?.url ? { url: found.url } : {}),
+        ...(found?.uuid ? { uuid: found.uuid } : {}),
+    };
+}
+
+/**
  * One item as a value a renderer can draw: its name, and a link where the
  * index reached it.
  *
@@ -269,15 +295,7 @@ function itemsOf(fm, block) {
  * @returns {{text: string, url?: string, uuid?: string, address?: import("../engine/address.mjs").AddressTuple}} The value.
  */
 function itemValue(item, resolve, block) {
-    const found =
-        item.shortcode ?
-            resolve?.(
-                item.address ?? item.shortcode,
-                item.address ?
-                    { type: item.type }
-                :   { kind: "shortcode", type: item.type, system: block },
-            )
-        :   undefined;
+    const found = itemPresentation(item, resolve, block);
     const value = { text: item.name || found?.name || humanizeValue(item.shortcode) };
     if (found?.url) value.url = found.url;
     if (found?.uuid) value.uuid = found.uuid;
@@ -322,15 +340,7 @@ export function beingSections(fm, { block, resolve }) {
         if (item.type !== "skill") continue;
         const mastery = item.system.masteryLevelBase;
         if (!hasValue(mastery)) continue;
-        const found =
-            item.shortcode ?
-                resolve?.(
-                    item.address ?? item.shortcode,
-                    item.address ?
-                        { type: "skill" }
-                    :   { kind: "shortcode", type: "skill", system: block },
-                )
-            :   undefined;
+        const found = itemPresentation(item, resolve, block);
         const family = item.system.subType ?? found?.subType;
         const value = itemValue(item, resolve, block);
         const entry = { ...value, text: `${value.text} ${mastery}` };

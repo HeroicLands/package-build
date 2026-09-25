@@ -15,6 +15,8 @@ import { cloneAddressState } from "../engine/address-values.mjs";
 import { lintNote } from "../engine/frontmatter-lint.mjs";
 import { resolveShortcodeReference } from "../engine/shortcode-references.mjs";
 import { resolveInfoboxRef } from "../engine/site-index.mjs";
+import { SystemActorCompiler } from "../engine/actor-compiler.mjs";
+import { resolveReference } from "../engine/wikilinks.mjs";
 import { beingSections } from "../sohl/infobox.mjs";
 import { presentValue } from "../engine/infobox.mjs";
 import { buildReferenceTargets } from "../engine/reference-targets.mjs";
@@ -498,5 +500,99 @@ describe("Address read and write boundaries", () => {
             }
         }
         expect(count).toBeGreaterThan(0);
+    });
+    it.each([true, false, "absent"])(
+        "presents a native model through its documentation (%s)",
+        (published) => {
+            const fm = decodeNoteAddresses(
+                { type: "being", sohl: { items: [{ model: "mysticalability-eblt" }] } },
+                { ...context, package: "thalorna" },
+            );
+            const model = fm.sohl.items[0].model;
+            const records: any[] = [
+                {
+                    package: "thalorna",
+                    type: "mysticalability",
+                    shortcode: "eblt",
+                    name: { full: "Elemental Bolt" },
+                    foundry: { sohl: { uuid: "Item.bolt" } },
+                },
+            ];
+            if (published !== "absent")
+                records.push({
+                    package: "thalorna",
+                    type: "docmysticalability",
+                    shortcode: "eblt",
+                    name: { full: "Elemental Bolt" },
+                    foundry: published ? { none: { uuid: "Journal.bolt" } } : null,
+                });
+            const index = {
+                contentPackage: "thalorna",
+                referenceTargets: buildReferenceTargets(records),
+            };
+            const sections = beingSections(fm, {
+                block: "sohl",
+                resolve: (ref, hint) => resolveReference(index, ref, hint),
+            });
+            const value = sections[0].entries[0];
+            expect(value.text).toBe("Elemental Bolt");
+            expect(value.uuid).toBe(published === true ? "Journal.bolt" : undefined);
+            expect(value.address).toMatchObject({
+                package: "thalorna",
+                system: "none",
+                type: "docmysticalability",
+                shortcode: "eblt",
+            });
+            expect(fm.sohl.items[0].model).toBe(model);
+            const compiler = {
+                documentSubtypes: { block: "sohl", types: { mysticalability: "mysticalability" } },
+                system: "sohl",
+                foreignPackages: new Set(),
+                noteError: () => {},
+                errorCount: 0,
+            };
+            expect(SystemActorCompiler.prototype.readModel.call(compiler, model, 0, "Being")).toBe(
+                model,
+            );
+            expect(model).toMatchObject({
+                package: "thalorna",
+                system: "sohl",
+                type: "mysticalability",
+                shortcode: "eblt",
+            });
+        },
+    );
+    it("uses the model documentation identity for skill-family presentation", () => {
+        const fm = decodeNoteAddresses(
+            {
+                type: "being",
+                sohl: {
+                    items: [{ model: "foreign-sohl-skill-lang", system: { masteryLevelBase: 42 } }],
+                },
+            },
+            context,
+        );
+        const seen: any[] = [];
+        const sections = beingSections(fm, {
+            block: "sohl",
+            resolve: (ref) => {
+                seen.push(ref);
+                return {
+                    name: "Language",
+                    subType: "language",
+                    uuid: ref.system === "none" ? "Journal.language" : "Item.language",
+                };
+            },
+        });
+        expect(sections[0].groups[0].entries[0]).toMatchObject({
+            text: "Language 42",
+            uuid: "Journal.language",
+        });
+        expect(
+            seen.every(
+                (ref) =>
+                    ref.package === "foreign" && ref.system === "none" && ref.type === "docskill",
+            ),
+        ).toBe(true);
     });
 });

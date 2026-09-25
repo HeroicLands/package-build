@@ -94,6 +94,13 @@ column regardless.
 6. **Order is the toolchain's.** A medium renders boxes, sections and rows in
    the order given.
 
+**Embedded models link to documentation in an infobox.** The model Address
+continues to identify the native Item used for compilation. Its displayed link
+uses that same package, type and Shortcode under `none`, which names the
+corresponding documentation journal. A model with no published documentation
+keeps its known name as plain text; the infobox does not substitute an Actor or
+Item link.
+
 #### What the note box holds
 
 **The note box's fields are the type's own `data:` vocabulary, in its declared
