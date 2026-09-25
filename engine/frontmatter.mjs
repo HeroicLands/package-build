@@ -87,19 +87,47 @@ export function sohlField(fm, key, defaultValue = undefined) {
  * has to be told both. It is the same split `FieldSpec.name`/`legacyKey` makes,
  * for the same reason — one name cannot key two positions.
  *
+ * `shared` is the field's declared shared source, and it completes the order the
+ * three other positions are two thirds of. A field whose source is a path into
+ * `data:` is authored there by the specification's own mapping tables, and a
+ * reader that knew the destination, the block and the top level alone skipped
+ * straight past the container: every authored value read as unset, and the
+ * document shipped the field's default with nothing said. It sits **between**
+ * the block and the top level, exactly where
+ * {@link module:engine/system-block.resolveFieldValue} puts it — the block is the
+ * position a tree still writes and wins while it does, and the bare top-level
+ * key is the spelling `data:` gathered the fact off.
+ *
  * @param {object} fm - The note's frontmatter.
  * @param {string} to - The key at the destination, dotted for a nested one.
  * @param {any} [defaultValue] - What an unauthored field reads as.
  * @param {object} [options] - Options.
  * @param {string} [options.legacyKey] - The key the block still carries, when
  *   it is not spelled `to`. Defaults to `to`.
+ * @param {string} [options.shared] - The field's declared shared source, when it
+ *   is a path into a container (`data.relations`). Omitted by a field whose
+ *   shared position is the note's top level, which `sohlField` already reads.
  * @returns {any} The value.
  */
-export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = to } = {}) {
+export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = to, shared } = {}) {
     const system = fm?.sohl?.system;
     if (system && typeof system === "object" && !Array.isArray(system)) {
         const found = getFrontmatter(system, to, undefined);
         if (found !== undefined) return found;
+    }
+    if (shared !== undefined) {
+        const block = fm?.sohl;
+        const inBlock =
+            block && typeof block === "object" ?
+                getFrontmatter(block, legacyKey, undefined)
+            :   undefined;
+        // Consulted only where the block does not carry the key, so step 2 keeps
+        // winning; `sohlField` below then reads the block and the retiring
+        // top-level spelling exactly as it always has.
+        if (inBlock === undefined) {
+            const container = getFrontmatter(fm, shared, undefined);
+            if (container !== undefined) return container;
+        }
     }
     return sohlField(fm, legacyKey, defaultValue);
 }
@@ -122,11 +150,14 @@ export function sohlSystemField(fm, to, defaultValue = undefined, { legacyKey = 
  *
  * @param {object} fm - The item frontmatter.
  * @param {string} key - The property name, read via {@link sohlSystemField}.
+ * @param {object} [options] - Forwarded to {@link sohlSystemField}.
+ * @param {string} [options.shared] - The field's declared shared source, when it
+ *   is a path into a container.
  * @returns {[string, unknown][] | null} The property's entries — empty when the
  *   note authors none — or `null` when the value is not a map.
  */
-function readMapEntries(fm, key) {
-    const raw = sohlSystemField(fm, key, undefined);
+function readMapEntries(fm, key, { shared } = {}) {
+    const raw = sohlSystemField(fm, key, undefined, { shared });
     if (raw == null) return [];
     if (Array.isArray(raw)) return raw.length === 0 ? [] : null;
     if (typeof raw !== "object") return null;
@@ -155,11 +186,16 @@ export function resolveCharges(fm) {
         const num = Number(raw);
         return Number.isFinite(num) ? Math.trunc(num) : null;
     };
-    const max = toCount(sohlSystemField(fm, "charges.max", null));
+    const max = toCount(sohlSystemField(fm, "charges.max", null, { shared: "data.charges.max" }));
     // A blank maximum means "does not use charges" — a stray current count
     // cannot outlive it, since the logic layer disables both modifiers.
     return {
-        value: max === null ? null : toCount(sohlSystemField(fm, "charges.value", null)),
+        value:
+            max === null ? null : (
+                toCount(
+                    sohlSystemField(fm, "charges.value", null, { shared: "data.charges.value" }),
+                )
+            ),
         max,
     };
 }
@@ -186,7 +222,7 @@ export function resolveCharges(fm) {
  * @throws {Error} When the value is not a map, or a value is not an integer.
  */
 export function resolveSkillAptitudes(fm, ctx = "item") {
-    const entries = readMapEntries(fm, "skillAptitudes");
+    const entries = readMapEntries(fm, "skillAptitudes", { shared: "data.skillAptitudes" });
     if (entries === null) {
         throw new Error(`${ctx}: skillAptitudes must be a map of selector → number`);
     }
@@ -229,8 +265,12 @@ export function resolveRelation(fm, ctx = "item") {
     // Probed at the destination too: a note that has moved to
     // `sohl.system.relations` carries the current spelling, and a probe that
     // could not see it would fall through to the retired one and read `{}`.
-    const key = sohlSystemField(fm, "relations", undefined) == null ? "relation" : "relations";
-    const entries = readMapEntries(fm, key);
+    // Each spelling is probed at all four of its positions, the `data:` source
+    // the specification names included, so a retirement and a container move are
+    // independent of each other.
+    const current = sohlSystemField(fm, "relations", undefined, { shared: "data.relations" });
+    const key = current == null ? "relation" : "relations";
+    const entries = readMapEntries(fm, key, { shared: `data.${key}` });
     if (entries === null) {
         throw new Error(`${ctx}: ${key} must be a map of shortcode → standing`);
     }

@@ -486,18 +486,23 @@ adds later. The per-type tables below never list one — they are the vocabulary
 an author writes — and each type that has any names them under its table.
 
 **An `Address` becomes a `Shortcode` where the target field expects one.** SoHL
-stores cross-references as shortcode strings, which is what the `Code` suffix
-marks: `data.assocSkill` is an address naming a skill note, and
-`system.assocSkillCode` holds that note's shortcode. The resolution happens at
-build time, and an address that resolves to nothing is an error naming the note —
-never a blank field.
+resolves a stored cross-reference among the items one actor holds, and packages do
+not exist there, so the field holds a `Shortcode`. Four `affiliation` fields are
+authored as Addresses and stored that way: `data.seat` becomes `system.seat`,
+`data.parents` becomes `system.parents`, `data.domains` becomes `system.domain`,
+and each authored key of `data.relations` becomes a key of `system.relations`. The
+reduction happens at build time, and two things are errors naming the note: an
+Address whose type the field does not accept, and two Addresses that reduce to one
+shortcode, which the field cannot hold both of.
 
-**The suffix marks the case; it does not define it.** What decides is what the
-target field holds, so four affiliation fields are resolved the same way without
-carrying one: `data.seat` becomes `system.seat`, `data.parents` becomes
-`system.parents`, `data.domains` becomes `system.domain`, and each authored key
-of `data.relations` becomes a key of `system.relations`. Everywhere else the
-value is stored as the reference the field expects.
+**A `Code` suffix marks a different thing.** `system.assocSkillCode`,
+`system.assocAffiliationCode` and `system.parentSkillCode` hold a `Shortcode` at
+both ends — each is authored as one, under `<system>.system`, and emitted verbatim
+— so no Address is reduced into them and none of them has a shared source. A value
+carrying a separator is refused there by the shortcode charset rather than read as
+an Address. `data.assocSkill`, `data.assocAffiliation` and `data.parentSkill` are
+properties of the **page**: each is an Address naming the note an infobox row
+links to, and none reaches a compiled document.
 
 ### The note vocabulary, and how it maps
 
@@ -3141,15 +3146,17 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 
 if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 
-| shared source           | → sohl                        | → hm3 |
-| ----------------------- | ----------------------------- | ----- |
-| `subType`               | `system.subType`              | NA    |
-| `data.assocSkill`       | `system.assocSkillCode`       | NA    |
-| `data.assocAffiliation` | `system.assocAffiliationCode` | NA    |
-| `data.skillAptitudes`   | `system.skillAptitudes`       | NA    |
-| `data.level`            | `system.levelBase`            | NA    |
-| `data.charges.value`    | `system.charges.value`        | NA    |
-| `data.charges.max`      | `system.charges.max`          | NA    |
+`system.assocSkillCode` and `system.assocAffiliationCode` are authored under
+`sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
+`data.assocAffiliation` name the same two notes as Addresses, for the page.
+
+| shared source         | → sohl                  | → hm3 |
+| --------------------- | ----------------------- | ----- |
+| `subType`             | `system.subType`        | NA    |
+| `data.skillAptitudes` | `system.skillAptitudes` | NA    |
+| `data.level`          | `system.levelBase`      | NA    |
+| `data.charges.value`  | `system.charges.value`  | NA    |
+| `data.charges.max`    | `system.charges.max`    | NA    |
 
 ### type: mysticalability
 
@@ -3180,15 +3187,17 @@ if a `sohl` property is present, a SoHL item of type "mysticalability" will be c
 
 If an `hm3` property is present, an HM3 item is created, and `hm3.type` states which — `psionic`, `spell` or `invocation`. It is **authored, not derived from `subType`**: the ten mystical-ability subtypes do not partition onto HM3's three documents (a `spiritrite`, an `alchemy` and a `divination` each answer to none of them), so a derivation would be a guess with a plausible shape. A note that omits it is an error naming the note.
 
-| shared source           | → sohl                        | → hm3         |
-| ----------------------- | ----------------------------- | ------------- |
-| `subType`               | `system.subType`              | **see above** |
-| `data.assocSkill`       | `system.assocSkillCode`       | NA            |
-| `data.assocAffiliation` | `system.assocAffiliationCode` | NA            |
-| `data.masteryLevel`     | `system.masteryLevelBase`     | NA            |
-| `data.level`            | `system.levelBase`            | NA            |
-| `data.charges.value`    | `system.charges.value`        | NA            |
-| `data.charges.max`      | `system.charges.max`          | NA            |
+`system.assocSkillCode` and `system.assocAffiliationCode` are authored under
+`sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
+`data.assocAffiliation` name the same two notes as Addresses, for the page.
+
+| shared source        | → sohl                    | → hm3         |
+| -------------------- | ------------------------- | ------------- |
+| `subType`            | `system.subType`          | **see above** |
+| `data.masteryLevel`  | `system.masteryLevelBase` | NA            |
+| `data.level`         | `system.levelBase`        | NA            |
+| `data.charges.value` | `system.charges.value`    | NA            |
+| `data.charges.max`   | `system.charges.max`      | NA            |
 
 ### type: projectilegear
 
@@ -3254,11 +3263,14 @@ If an `hm3` property is present, then an HM3 item of type "skill" will be create
 
 Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Communication", "Combat", "Magic", and "Ritual". These do not cleanly map to the `subType` values. Because of this, the `hm3.system.type` value must be specified with the appropriate value when defining HM3 skills.
 
+`system.parentSkillCode` is authored under `sohl.system` as the shortcode of the
+skill this one specializes, and has no shared source; `data.parentSkill` names that
+skill as an Address, for the page.
+
 | shared source       | → sohl                    | → hm3                 |
 | ------------------- | ------------------------- | --------------------- |
 | `subType`           | `system.subType`          | See notes above       |
 | `data.masteryLevel` | `system.masteryLevelBase` | `system.masteryLevel` |
-| `data.parentSkill`  | `system.parentSkillCode`  | NA                    |
 
 ### type: trauma
 
