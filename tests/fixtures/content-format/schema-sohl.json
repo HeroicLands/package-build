@@ -37,6 +37,7 @@
         "Item": {
             "affiliation": {
                 "own": [
+                    "commonSkills",
                     "domain",
                     "level",
                     "office",

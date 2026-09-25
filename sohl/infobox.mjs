@@ -543,6 +543,36 @@ function genericSections(fm, type, ctx) {
     return systemRowsSection(fm, NOTE_SCHEMAS[type], ctx);
 }
 
+/** An affiliation presents skill documentation while retaining native Item identity. */
+export function affiliationSections(fm, ctx) {
+    const field = NOTE_SCHEMAS.affiliation.find((entry) => entry.to === "commonSkills");
+    const sections = systemRowsSection(
+        fm,
+        NOTE_SCHEMAS.affiliation.filter((entry) => entry !== field),
+        ctx,
+    );
+    const { value } = ctx.resolveField(field, fm, { block: ctx.block });
+    if (!Array.isArray(value) || value.length === 0) return sections;
+    const entries = value.map((skill) => {
+        const native = ctx.resolve?.(skill, { type: "skill", system: "sohl" });
+        const docAddress =
+            isAddressTuple(skill) ? completeAddress({ ...skill, system: "none" }) : undefined;
+        const doc = docAddress ? ctx.resolve?.(docAddress, { type: docAddress.type }) : undefined;
+        return {
+            text: doc?.name || native?.name || humanizeValue(skill),
+            ...(doc?.url ? { url: doc.url } : {}),
+            ...(doc?.uuid ? { uuid: doc.uuid } : {}),
+            ...(docAddress && (doc?.url || doc?.uuid) ? { address: docAddress } : {}),
+        };
+    });
+    sections.push({
+        id: "commonskills",
+        layout: "rows",
+        rows: [{ label: "Common skills", kind: "links", value: entries }],
+    });
+    return sections;
+}
+
 /**
  * SoHL's infobox declaration.
  *
@@ -555,6 +585,7 @@ export const SOHL_INFOBOX = defineInfobox({
     presentation: SOHL_FIELD_PRESENTATION,
     sections: {
         being: beingSections,
+        affiliation: affiliationSections,
         armorgear: armorSections,
         weapongear: weaponSections,
         projectilegear: projectileSections,

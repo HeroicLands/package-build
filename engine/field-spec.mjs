@@ -148,8 +148,9 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   being's own body structure, not a note, so it declares none. Distinct
  *   from a `DataFieldSpec`'s `ref` ({@link module:engine/note-vocabulary}),
  *   which names an **Address** instead.
- * @property {import("./address-fields.mjs").AddressPosition} [address] - **The
- *   authored value is an Address and the emitted one is its Shortcode.** The
+ * @property {import("./address-fields.mjs").AddressPosition} [address] - The
+ *   authored value is an Address. The emitted value is its Shortcode, or the
+ *   exact published Item UUID when `emit: "uuid"` is declared. The
  *   statement carries the default type an omitted `<type>` segment takes, the
  *   set of types the position accepts — two separate things, which coincide at
  *   most positions — and where the Addresses sit: the value itself, every

@@ -12,16 +12,18 @@
  */
 
 /**
- * **An authored Address, an emitted Shortcode.**
+ * **An authored Address, an emitted native reference.**
  *
  * A declared field may hold an Address where the document it compiles into
- * holds a **Shortcode**. An affiliation's `seat` is the worked case: the note
+ * holds a **Shortcode** or a published Item UUID. An affiliation's `seat` is a Shortcode case: the note
  * names a place at whatever length says what it means — `tashal`,
  * `place-tashal`, `none-place-tashal`, `kethira-none-place-tashal` — and the
  * compiled Item carries `tashal`, which is what the runtime resolves among the
  * items one actor holds, where packages do not exist.
  *
- * So the builder resolves the one into the other, and this module is that step.
+ * The `emit: "uuid"` declaration resolves an exact native target from the
+ * local or declared dependency index. The target supplies its published UUID.
+ * This module performs both conversions at the Foundry output boundary.
  * Storing the written form instead would store a value plus a context that does
  * not travel with it: a four-segment string reaches a runtime that looks up one
  * segment and returns nothing, silently.
@@ -70,10 +72,8 @@
  *
  * ## What this module does not do
  *
- * It resolves nothing against the index: the shortcode is a segment of the
- * Address, so reducing one needs the grammar and the position's declarations
- * and nothing else. Whether the target exists is a separate question, asked
- * where the index is.
+ * Shortcode output needs only the Address grammar. UUID output requires the
+ * exact target in the published index and accepts only Item UUIDs.
  *
  * A failure is a **finding**, never a diagnostic: the caller owns the file and
  * the severity, and locates the finding at the value inside the note.
@@ -107,6 +107,7 @@ export const ADDRESS_FIELD_SHAPES = Object.freeze(["value", "items", "keys"]);
  * @property {readonly string[]} accepts - Every type the position accepts.
  * @property {"value"|"items"|"keys"} [holds] - Where the Addresses are.
  *   Defaults to `value`.
+ * @property {"uuid"} [emit] - Resolve each exact target to its published Item UUID.
  */
 
 /**
@@ -171,7 +172,7 @@ function reduceOne(value, field, vocabulary, findings) {
     // Two keys, or two list entries, reducing to one emitted shortcode: the
     // Address each of them named, by the shortcode all of them land on.
     const seen = new Map();
-    const read = (written) => readOne(written, field, defaults, seen, findings, shape);
+    const read = (written) => readOne(written, field, defaults, seen, findings, shape, vocabulary);
 
     if (shape === "keys") {
         if (!isMapping(value)) return undefined;
@@ -212,8 +213,15 @@ function reduceOne(value, field, vocabulary, findings) {
  * @returns {string|undefined} The shortcode, or `undefined` when nothing is
  *   emitted for this value.
  */
-function readOne(written, field, defaults, seen, findings, shape) {
+function readOne(written, field, defaults, seen, findings, shape, vocabulary) {
     const key = findingKey(field);
+    // An embedded Item may inherit an already compiled reference from its model.
+    if (
+        field.address.emit === "uuid" &&
+        typeof written === "string" &&
+        /^Compendium\.[^.]+\.[^.]+\.Item\.[^.]+$/.test(written)
+    )
+        return written;
     const value =
         isAddressTuple(written) ? renderAddress(written)
         : typeof written === "string" ? written
@@ -231,6 +239,20 @@ function readOne(written, field, defaults, seen, findings, shape) {
     }
 
     const address = renderAddress(tuple);
+    if (field.address.emit === "uuid") {
+        const target =
+            tuple.package === vocabulary.package ?
+                vocabulary.referenceTargets?.get(address)
+            :   vocabulary.foreignReferences?.get(address);
+        const uuid = target?.uuid;
+        if (!uuid || !/^Compendium\.[^.]+\.[^.]+\.Item\.[^.]+$/.test(uuid)) {
+            report(
+                `\`${key}\` names \`${address}\`, but its exact native Item has no published Item UUID`,
+            );
+            return undefined;
+        }
+        return uuid;
+    }
     const code = tuple.shortcode;
     const first = seen.get(code);
     if (first && first.address !== address) {

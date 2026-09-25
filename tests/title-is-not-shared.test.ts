@@ -173,7 +173,7 @@ describe("an affiliation's `system.title`", () => {
 /* --------------------------------------------------------------------- */
 
 describe("the fields that keep the shared top-level position", () => {
-    it("exempts `title` and nothing else", () => {
+    it("exempts distinct top-level meanings", () => {
         // A guard on the blast radius. `subType` is the other declared item
         // field spelled like a note-level key, and there the two levels mean the
         // same thing by design — every mapping table names it a shared source.
@@ -182,7 +182,7 @@ describe("the fields that keep the shared top-level position", () => {
                 .filter((field) => field.topLevelMeans !== undefined)
                 .map((f) => `${type}.${f.name}`),
         );
-        expect(exempted).toEqual(["affiliation.title"]);
+        expect(exempted).toEqual(["affiliation.title", "affiliation.commonSkills"]);
     });
 
     it("keeps `subType` reading the note's own", () => {

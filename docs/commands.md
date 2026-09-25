@@ -1445,7 +1445,7 @@ declaration that compiles it. Otherwise 0.
 $ content-build content-format fields --fields sohl --coverage
 […] 13 type(s) compared against sohl's declarations (56 field pair(s)).
 […] 12 type(s) the format declares are out of reach — no `itemBuilders` entry covers them: being, homepage, vehicle, armorlocation, lore, map, place, scenario, doc, macro, bundle, folder.
-[…] affiliation: format only [commonSkills, demonym, economy, epithet, governance, lore, population, symbol, templatePriority], declaration only [level, office, society, subType, title]
+[…] affiliation: format only [demonym, economy, epithet, governance, lore, population, symbol, templatePriority], declaration only [commonSkills, level, office, society, subType, title]
 ```
 
 **SEE ALSO**

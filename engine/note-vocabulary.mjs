@@ -762,13 +762,6 @@ export const NOTE_VOCABULARY = Object.freeze({
                 describe: "The named offices it appoints, each with what the office does.",
             },
             {
-                name: "commonSkills",
-                ...LINKS,
-                ref: "skill",
-                accepts: ["skill"],
-                describe: "Skills common among members — languages first among them.",
-            },
-            {
                 name: "seat",
                 ...LINK,
                 ref: "place",
