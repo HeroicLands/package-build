@@ -1411,6 +1411,22 @@ taken from the content-format specification. It is note-format knowledge rather
 than any system's: `data:` holds what is true of the thing, and what a system
 makes of that value is declared in that system's own half.
 
+An Address field declares `kind: "address"`; an Address list declares
+`kind: "list"` and `entryKind: "address"`. A keyed map keeps `kind: "map"`
+and declares `keyKind`: `"address"` for affiliation relations, `"shortcode"`
+for skill aptitudes. Aptitude keys also accept `subType:<skill-subtype>`.
+`ref` supplies an omitted type and `accepts` states the permitted types;
+these are independent declarations. Heterogeneous fields such as `economy`
+and bundle `contents` require an explicit type. `economy` accepts only
+`affiliation` and `lore` Addresses.
+
+The frontmatter lint checks these values and locates malformed entries without
+requiring their targets to exist. `parseAddress(value, defaults, { declared:
+true })` applies the shared grammar to a declared Address, validates every
+segment, and returns a complete tuple or a reason. This mode leaves package
+membership to resolution. The lint receives the builder's package separately
+from target lookup, including when reference resolution is disabled.
+
 **There is deliberately no third rule** requiring every note to repeat its own
 `type-shortcode` address in `aliases:`. It would serve one reader — Obsidian, so
 `[[type-shortcode]]` resolves in the editor — and no build reads it: both

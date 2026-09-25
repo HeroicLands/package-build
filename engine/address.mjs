@@ -131,6 +131,7 @@
 // The system vocabulary is the `<system>` segment's own registry, and
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so the
 // direction is toward the leaf and cannot close a cycle.
+import { isAddressSegment } from "./address-charset.mjs";
 import { NO_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
 // The asset vocabulary, for the one thing the address grammar asks of it:
 // whether a type's `<system>` segment is fixed. `engine/asset-types.mjs` is a
@@ -209,6 +210,9 @@ const norm = (s) => String(s).toLowerCase().trim();
  * - `no-content-index` — the package named publishes no content index, so there
  *   is nothing to resolve the rest of the target against.
  * - `not-lowercase` — a package, system or type segment carries a capital.
+ * - `invalid-segment` — a declared Address contains a malformed segment.
+ * - `no-package` — a declared Address cannot supply its package.
+ * - `invalid-system` — a declared Address cannot supply a registered system.
  *
  * @typedef {{reason: string, package?: string}} AddressProblem
  */
@@ -357,13 +361,25 @@ export function resolveItemDocType(qualifier, types) {
  *   label already removed.
  * @param {AddressDefaults} [defaults] - The position's defaults and the tree's
  *   vocabularies.
+ * @param {{declared?: boolean}} [options] - A declared Address validates every
+ *   segment and requires complete defaults. Package membership is a separate
+ *   resolution question in this mode; prose recognition keeps its vocabulary checks.
  * @returns {AddressTuple|AddressProblem} The complete Address, or why there is
  *   none.
  */
-export function parseAddress(written, defaults = {}) {
-    const read = readWritten(written, defaults);
+export function parseAddress(written, defaults = {}, { declared = false } = {}) {
+    if (declared) {
+        if (typeof written !== "string") return { reason: "not-an-address" };
+        const segments =
+            written.includes("/") ? written.split("/") : written.split(ADDRESS_SEPARATOR);
+        if (!segments.every(isAddressSegment)) return { reason: "invalid-segment" };
+    }
+    const read = readWritten(written, defaults, declared);
     if (read.reason) return read;
-    return completeAddress(read, defaults);
+    const tuple = completeAddress(read, defaults);
+    if (declared && !isAddressSegment(tuple.package)) return { reason: "no-package" };
+    if (declared && !isSystemSegment(tuple.system)) return { reason: "invalid-system" };
+    return tuple;
 }
 
 /**
@@ -588,12 +604,13 @@ export function readQualifier(target, types, packages, noIndexPackages) {
  * @param {unknown} written - The value as authored.
  * @param {AddressVocabulary & {type?: string}} vocabulary - The tree's
  *   vocabularies and the position's default type.
+ * @param {boolean} [declared] - Whether package membership is checked separately.
  * @returns {object|AddressProblem} The partial reading, or a reason.
  */
-function readWritten(written, vocabulary) {
+function readWritten(written, vocabulary, declared = false) {
     const target = typeof written === "string" ? written : String(written ?? "");
     if (!target) return { reason: "not-an-address" };
-    const read = readWrittenCased(target, vocabulary);
+    const read = readWrittenCased(target, vocabulary, declared);
     if (!read.reason && qualifyingSegments(target).some((s) => /[A-Z]/.test(s))) {
         return { reason: "not-lowercase" };
     }
@@ -621,9 +638,10 @@ function qualifyingSegments(target) {
  * @param {string} target - The value as authored.
  * @param {AddressVocabulary & {type?: string}} vocabulary - The vocabularies and
  *   the position's default type.
+ * @param {boolean} [declared] - Whether package membership is checked separately.
  * @returns {object|AddressProblem} The partial reading, or a reason.
  */
-function readWrittenCased(target, vocabulary) {
+function readWrittenCased(target, vocabulary, declared = false) {
     const { types = new Set(), packages, noIndexPackages, type: defaultType } = vocabulary;
 
     // The slash form states neither package nor system, so it is read first and
@@ -667,8 +685,9 @@ function readWrittenCased(target, vocabulary) {
             // Checked before the type: a package with no fetched index has no
             // vocabulary to resolve the rest of the target against, and the fix
             // is the config declaration, not the shortcode.
-            if (noIndexPackages?.has(pkg)) return { reason: "no-content-index", package: pkg };
-            if (!packages?.has(pkg)) return { reason: "not-an-address" };
+            if (!declared && noIndexPackages?.has(pkg))
+                return { reason: "no-content-index", package: pkg };
+            if (!declared && !packages?.has(pkg)) return { reason: "not-an-address" };
             const system = norm(parts[1]);
             if (!isSystemSegment(system)) return { reason: "not-an-address" };
             const read = readTypeAndCode(parts[2], parts[3], types);

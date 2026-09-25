@@ -70,9 +70,9 @@ import { authoredKey } from "../engine/system-block.mjs";
 const COMPILER_WORDS = /\b(base|code|flag|mult|desc)$/i;
 
 /** A value the vocabulary's declared shape will accept, so every field is filled. */
-function sampleFor(field: { shape?: string; kind?: string }): unknown {
-    if (field.shape === "a wikilink") return "someref";
-    if (field.shape === "list of wikilinks") return ["someref"];
+function sampleFor(field: { shape?: string; kind?: string; entryKind?: string }): unknown {
+    if (field.kind === "address") return "someref";
+    if (field.kind === "list" && field.entryKind === "address") return ["someref"];
     if (field.kind === "number") return 7;
     if (field.kind === "list") return ["one", "two"];
     return "something";

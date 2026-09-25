@@ -275,6 +275,7 @@ describe("lintFrontmatter carries the vocabulary through", () => {
  */
 describe("a folder's `parent` is a scalar or a map keyed by pack", () => {
     const folderOpts = {
+        addressContext: { package: "world", system: "none" },
         schemas: { ...ENGINE_NOTE_SCHEMAS, ...NOTE_SCHEMAS } as any,
         vocabulary: NOTE_VOCABULARY,
     };
@@ -303,7 +304,7 @@ describe("a folder's `parent` is a scalar or a map keyed by pack", () => {
             folderOpts,
         );
         expect(findings).toHaveLength(1);
-        expect(findings[0].message).toContain("`data.parent.journals` should be a wikilink");
+        expect(findings[0].message).toContain("`data.parent.journals` should be an Address");
         // The whole map is no longer quoted back at the author: the one entry
         // at fault is, which is the string they have to correct.
         expect(findings[0].message).not.toContain("possessions");

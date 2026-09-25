@@ -515,8 +515,12 @@ export function hasRenderableValue(kind, value) {
  * @returns {string} One of {@link INFOBOX_VALUE_KINDS}.
  */
 export function valueKindOf(field, value) {
-    if (field?.shape === "a wikilink") return "link";
-    if (field?.shape === "list of wikilinks") return "links";
+    if (field?.kind === "address" || field?.shape === "a wikilink") return "link";
+    if (
+        (field?.kind === "list" && field?.entryKind === "address") ||
+        field?.shape === "list of wikilinks"
+    )
+        return "links";
     if (field?.kind === "number") return "number";
     if (field?.kind === "list") return "list";
     if (field?.kind === "string") return "text";
