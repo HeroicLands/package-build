@@ -717,6 +717,8 @@ export class BasePackCompiler {
             types: this.linkIndex?.types,
             packages: this.linkIndex?.packages,
             noIndexPackages: this.linkIndex?.noIndexPackages,
+            referenceTargets: this.linkIndex?.referenceTargets,
+            foreignReferences: this.linkIndex?.foreignReferences,
         });
         for (const finding of findings) {
             this.errorCount++;

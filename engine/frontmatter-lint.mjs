@@ -476,10 +476,12 @@ function checkDataContainer(note, { type, fields, packs, addressContext }) {
             ...positionOfFrontmatterPath(raw, ["data", key], { key: true }),
             severity: "error",
             message:
-                `"${key}" is not a \`data:\` property declared by ${type}; ` +
-                `the container is closed, so unlike a top-level key it is ` +
-                `not passed through to the page` +
-                (guess ? `. Did you mean "${guess}"?` : ""),
+                type === "affiliation" && key === "commonSkills" ?
+                    "`data.commonSkills` is not an affiliation field; write skill Addresses at `sohl.system.commonSkills`"
+                :   `"${key}" is not a \`data:\` property declared by ${type}; ` +
+                    `the container is closed, so unlike a top-level key it is ` +
+                    `not passed through to the page` +
+                    (guess ? `. Did you mean "${guess}"?` : ""),
         });
     }
 

@@ -1369,6 +1369,7 @@ Which of SoHL's facts a note's summary panel carries, and how they group. Read o
 | `SOHL_FIELD_PRESENTATION` | `const SOHL_FIELD_PRESENTATION` | —                     | looking up what one of SoHL's fields is called, or why it carries no row            |
 | `PROTECTION_FIELDS`       | `const PROTECTION_FIELDS`       | —                     | reading the declarations of the aspects armour is rated against, in the order shown |
 | `UNSTATED`                | `const UNSTATED`                | —                     | naming what a strike mode shows where a value was not stated                        |
+| `affiliationSections`     | `affiliationSections(fm, ctx)`  | `object[]`            | building an affiliation's box with skill documentation links                        |
 | `armorSections`           | `armorSections(fm, ctx)`        | `object[]`            | building armour's box, protection included                                          |
 | `beingSections`           | `beingSections(fm, ctx)`        | `object[]`            | building a being's attributes, skills, mystical abilities and equipment             |
 | `decodeItem`              | `decodeItem(entry)`             | `object \| undefined` | reading what one `sohl.items` entry names, whichever form it was written in         |

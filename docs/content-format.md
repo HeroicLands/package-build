@@ -495,6 +495,12 @@ reduction happens at build time, and two things are errors naming the note: an
 Address whose type the field does not accept, and two Addresses that reduce to one
 shortcode, which the field cannot hold both of.
 
+**A SoHL skill Address becomes a native Item UUID.** An affiliation's
+`sohl.system.commonSkills` names skills in its own package or a declared
+dependency. Its `system.commonSkills` contains the exact published Item UUIDs,
+including each foreign module's own pack name. Native skill lookup uses those
+UUIDs; the journal, website and book use documentation links for presentation.
+
 **A `Code` suffix marks a different thing.** `system.assocSkillCode`,
 `system.assocAffiliationCode` and `system.parentSkillCode` hold a `Shortcode` at
 both ends — each is authored as one, under `<system>.system`, and emitted verbatim
@@ -2844,7 +2850,6 @@ rank names the standing, and the standing says.
 | `governance.summary` | `string`                 | summary of the governance situation                                                            |
 | `governance.ranks`   | `Rank[]`                 | The ranks available to members of the affiliation                                              |
 | `governance.offices` | `Map<name, description>` | Official offices in the affiliation                                                            |
-| `commonSkills`       | `Address[]`              | Common skills among members (languages, etc.)                                                  |
 | `seat`               | `Address`                | Where the affiliation's authority sits                                                         |
 | `domains`            | `Address[]`              | Places over which this affiliation holds sway                                                  |
 | `population`         | `number`                 | Number of people in the affiliation (precision 2 significant digits).                          |
@@ -2925,6 +2930,27 @@ If `sohl` is present, this becomes an `affiliation` item.
 | `data.domains`   | `system.domain`    | NA    |
 | `data.parents`   | `system.parents`   | NA    |
 | `data.relations` | `system.relations` | NA    |
+
+An affiliation writes SoHL common skills under `sohl.system.commonSkills` as a
+list of skill Addresses. An abbreviated value names a skill in the authoring
+package; a skill in the SoHL system package uses its complete Address:
+
+```yaml
+sohl:
+  system:
+    commonSkills:
+      - herb
+      - sohl-sohl-skill-law
+```
+
+The compiled SoHL Item stores the exact published Item UUIDs in
+`system.commonSkills`. An empty or absent list emits `[]`. A foreign target must
+come from a declared `relationships.systems` or `relationships.requires` content
+index. Each UUID uses the module and pack named by that target's published index;
+a missing skill Item or Item UUID is an error at the authored Address. The
+content index retains complete Addresses. Journal, web and book infoboxes link
+to a skill's published documentation journal when one exists and otherwise show
+its name as plain text.
 
 `governance` reaches no system field. Ranks and offices are the note's and the
 web page's — SoHL's affiliation item has nowhere to put them, and inventing a
@@ -3903,7 +3929,7 @@ because they were true of something else, and each removal has a home to go to.
 
 **`languages` is a fact about a polity.** A place's languages change when its
 ruler changes, which is what makes them the ruler's property — and
-`affiliation.commonSkills` already holds them. The authored corpus agrees: of 206
+`sohl.system.commonSkills` holds them. The authored corpus agrees: of 206
 places carrying `languages`, 190 were settlements and 16 were regions, and not one
 was a site, a structure or a feature. A ruin has no language.
 

@@ -68,11 +68,12 @@ function reduce(name: string, value: unknown) {
 }
 
 describe("the declarations that state an Address position", () => {
-    it("states one on exactly the four affiliation fields", () => {
+    it("states one on every affiliation Address field", () => {
         const stated = Object.entries(ITEM_FIELDS as Record<string, readonly any[]>).flatMap(
             ([type, fields]) => addressFields(fields).map((field: any) => `${type}.${field.name}`),
         );
         expect(stated.sort()).toEqual([
+            "affiliation.commonSkills",
             "affiliation.data.domains",
             "affiliation.data.parents",
             "affiliation.data.relations",

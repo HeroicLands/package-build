@@ -178,6 +178,14 @@ const AFFILIATION_ITEMS = Object.freeze({
 /** A map keyed by affiliation: this one's standing toward each. */
 const AFFILIATION_KEYS = Object.freeze({ ...AFFILIATION_ITEMS, holds: "keys" });
 
+/** Native skill references retain the published Item UUID. */
+const SKILL_UUID_ITEMS = Object.freeze({
+    type: "skill",
+    accepts: Object.freeze(["skill"]),
+    holds: "items",
+    emit: "uuid",
+});
+
 /** Standings toward other affiliations, validated against the closed list. */
 const RELATION = Object.freeze({
     shape: "map of affiliation address → standing",
@@ -384,6 +392,15 @@ export const ITEM_FIELDS = Object.freeze({
             ...NUMBER,
             default: 0,
             describe: "Standing within the society.",
+        },
+        {
+            name: "commonSkills",
+            to: "commonSkills",
+            ...ADDRESS_LIST,
+            address: SKILL_UUID_ITEMS,
+            default: [],
+            topLevelMeans: "Common skills belong to the SoHL affiliation item.",
+            describe: "Native SoHL skill Items common among members, by address.",
         },
         {
             // Plural because the field holds a map of many standings, one per

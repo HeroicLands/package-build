@@ -5,7 +5,7 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { systemBlocksFor } from "./system-vocabulary.mjs";
+import { declaredSystems, systemBlocksFor } from "./system-vocabulary.mjs";
 import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
 import {
     isAddressTuple,
@@ -260,10 +260,25 @@ export function decodeNoteAddresses(fm, context) {
  * @returns {object} Builder defaults and system declarations.
  */
 export function noteAddressContext(config) {
+    const systemBlocks = { ...systemBlocksFor(config) };
+    // A module with one declared system uses its flat Item registry for that
+    // system's Address positions, including fields stored in its content index.
+    const systems = new Set([
+        ...declaredSystems(config),
+        ...(config.relationships?.systems ?? []).map((relationship) => relationship.id),
+    ]);
+    if (
+        systems.size === 1 &&
+        config.itemFields &&
+        Object.keys(config.itemFieldsBySystem ?? {}).length === 0
+    ) {
+        const [system] = systems;
+        systemBlocks[system] = { ...systemBlocks[system], fields: config.itemFields };
+    }
     return {
         package: config.contentPackage,
         system: "none",
-        systemBlocks: systemBlocksFor(config),
+        systemBlocks,
     };
 }
 

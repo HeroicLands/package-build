@@ -1444,6 +1444,27 @@ segment, and returns a complete tuple or a reason. This mode leaves package
 membership to resolution. The lint receives the builder's package separately
 from target lookup, including when reference resolution is disabled.
 
+An affiliation authors native SoHL skill references at
+`sohl.system.commonSkills`:
+
+```yaml
+sohl:
+  system:
+    commonSkills:
+      - herb
+      - sohl-sohl-skill-law
+```
+
+The first Address names this content package's SoHL skill; the second names a
+skill in the declared SoHL dependency. The content index retains their complete
+Addresses. Foundry compilation resolves each exact native skill Item in the
+local or declared dependency index and writes its published Item UUID to the
+affiliation's `system.commonSkills` array. The producer's module ID and pack
+come from that index. An unresolved target or a target without a native Item
+UUID is a located error. The shared `data:` container has no `commonSkills`
+property. Infoboxes use a skill's published documentation journal when it has
+one and show its known name as plain text otherwise.
+
 **There is deliberately no third rule** requiring every note to repeat its own
 `type-shortcode` address in `aliases:`. It would serve one reader — Obsidian, so
 `[[type-shortcode]]` resolves in the editor — and no build reads it: both
