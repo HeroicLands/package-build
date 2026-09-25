@@ -3898,7 +3898,7 @@ Content prepared to be played — a situation with its cast, places, and possibl
 | `follows`          | `Address[]`                                  | Prerequisite scenarios that should be completed before beginning this scenario |
 | `status`           | `draft \| playtested \| published`           | Playability status of this scenario                                            |
 | `party.size`       | `solo \| small \| standard \| large \| host` | Suggested party size (solo=1, small=2-3, standard=4-6, large=6-7, host=7+)     |
-| `party.archetypes` | `Archetype`                                  | Archetypes of characters suitable for completion                               |
+| `party.archetypes` | `Archetype[]`                                | Archetypes of characters suitable for completion                               |
 
 ### type: doc
 
