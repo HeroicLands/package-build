@@ -103,6 +103,7 @@ import { SCHEMA_ARTIFACT_VERSION } from "./schema-check.mjs";
 import { authoredFields } from "./field-spec.mjs";
 import { positionInFrontmatter } from "./diagnostics.mjs";
 import { RETIRED_FIELD_ALIASES } from "./retired-fields.mjs";
+import { authoredKey } from "./system-block.mjs";
 
 /**
  * Every field path any subtype of a published schema declares.
@@ -493,11 +494,54 @@ export function fieldDriftMessage({ noteType, source, target, name, to }) {
  * A note-level source — the `subType` several tables name — carries no prefix
  * and is returned unchanged.
  *
+ * **What that normalization cannot see is whether the declaration reads the
+ * source at all.** Holding the two spellings equal is right for the question
+ * asked here — do the row and the declaration agree about where the value *goes*
+ * — and blind to whether the declaration can reach where it *is*. That is
+ * `tests/mapped-data-source-is-read.test.ts`, which compares the same pair on
+ * the source rather than the target.
+ *
  * @param {string} path - The source, as either side wrote it.
  * @returns {string} The source without its `data.` prefix.
  */
-function sharedSource(path) {
-    return String(path).replace(/^data\./, "");
+const sharedSource = authoredKey;
+
+/**
+ * The declaration that compiles one mapping row, and what is left over.
+ *
+ * The longest declared name the row's source sits under: a field declared
+ * `impact.die` claims `data.impact.die` ahead of any field declared `impact`,
+ * and a field declared `charges` claims `data.charges.max` with `.max` left
+ * over. Compared on the normalized spelling, so a field naming its source under
+ * `data:` matches at the same length a bare one does.
+ *
+ * Exported because two readers ask it and must agree: {@link
+ * checkDeclaredFields}, which holds the row's target to the declaration's, and
+ * the guard that holds the declaration's *source* to the row's — a second copy
+ * of the match would let the two disagree about which declaration a row is even
+ * about.
+ *
+ * @param {string} source - The row's shared source, as either side spells it.
+ * @param {readonly object[]} fields - The type's authored declarations.
+ * @returns {{field: object, rest: string}|undefined} The declaration and the
+ *   remainder of the source beneath its name, or nothing where no declaration
+ *   names it.
+ */
+export function declarationFor(source, fields) {
+    const path = sharedSource(source);
+    let field;
+    let rest;
+    let matched = "";
+    for (const candidate of fields ?? []) {
+        const name = sharedSource(candidate.name);
+        const remainder = under(path, name);
+        if (remainder === undefined) continue;
+        if (field && name.length <= matched.length) continue;
+        field = candidate;
+        matched = name;
+        rest = remainder;
+    }
+    return field === undefined ? undefined : { field, rest: /** @type {string} */ (rest) };
 }
 
 /**
@@ -550,32 +594,16 @@ export function checkDeclaredFields({ format, itemFields, system, severity = "er
 
         const authored = authoredFields(declared[noteType]);
         for (const claim of claimsFor(format, noteType, system)) {
-            const source = sharedSource(claim.source);
             const target = claim.target.replace(/^system\./, "");
-            // The longest declared name that the source sits under: a field
-            // declared `impact.die` claims `data.impact.die` ahead of any
-            // field declared `impact`. Compared on the normalized spelling, so
-            // a field that has moved its source under `data:` is the same
-            // length it was.
-            let match;
-            let rest;
-            let matched = "";
-            for (const field of authored) {
-                const name = sharedSource(field.name);
-                const remainder = under(source, name);
-                if (remainder === undefined) continue;
-                if (match && name.length <= matched.length) continue;
-                match = field;
-                matched = name;
-                rest = remainder;
-            }
+            const found = declarationFor(claim.source, authored);
             // No declaration names it. That is coverage, not a contradiction —
             // the specification maps fields no builder emits yet, which is the
             // ordinary mid-migration state and what `schema-check.mjs`
             // already reports as unemitted.
-            if (!match) continue;
+            if (!found) continue;
+            const match = found.field;
             fields += 1;
-            if (under(target, match.to) === rest) continue;
+            if (under(target, match.to) === found.rest) continue;
             findings.push({
                 file: format.file,
                 line: claim.line,

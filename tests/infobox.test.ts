@@ -56,6 +56,7 @@ import { compilesSystemDocument, noteInfoboxes } from "../engine/infobox-registr
 import { createPackRouter } from "../engine/pack-router.mjs";
 import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "../engine/subtype-registry.mjs";
+import { authoredKey } from "../engine/system-block.mjs";
 
 /**
  * The suffixes a declaration's own key carries into a label.
@@ -734,11 +735,18 @@ describe("a system box is never an empty panel", () => {
 
 describe("a system box's labels are a reader's words", () => {
     it("names no field the declaration does not declare", () => {
+        // Compared on the key an author writes, which is how `overlayFor` looks
+        // an entry up: a field whose shared source is a path into `data:` is
+        // declared `data.weight` and authored as `weight:`, and the overlay says
+        // what a reader is shown either way.
         const declared = new Set(
             Object.entries(NOTE_SCHEMAS).flatMap(([type, fields]) =>
                 fields
                     .filter((field: { name?: string }) => field.name)
-                    .flatMap((field: { name: string }) => [field.name, `${type}.${field.name}`]),
+                    .flatMap((field: { name: string }) => [
+                        authoredKey(field.name),
+                        `${type}.${authoredKey(field.name)}`,
+                    ]),
             ),
         );
         const stale = Object.keys(SOHL_FIELD_PRESENTATION).filter((name) => !declared.has(name));
