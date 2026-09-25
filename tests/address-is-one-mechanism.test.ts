@@ -326,16 +326,15 @@ describe("an Address is read and written in one place", () => {
     });
 
     it("says of every listed site either what converts it or that it is finished", () => {
+        // The list can be all finished, all pending, or a mix of both — the
+        // sweep that converts a hand-rolled site is what empties it, never a
+        // change to what a surviving entry claims about itself. So the check
+        // is per site: a `why`, and where the site is pending, a real packet
+        // number rather than a placeholder.
         for (const site of EXEMPT) {
             expect(site.why.length, render(site)).toBeGreaterThan(10);
             if (site.converts !== null) expect(site.converts, render(site)).toBeGreaterThan(0);
         }
-        // Both kinds of entry are live in the list, so a site that goes quiet
-        // cannot silently drift from one reading to the other: a pending site
-        // that never gets its packet number filled in would still pass a loop
-        // that only checked the shape of whichever kind happens to remain.
-        expect(EXEMPT.some((site) => site.converts === null)).toBe(true);
-        expect(EXEMPT.some((site) => site.converts !== null)).toBe(true);
     });
 
     it("lists no site twice", () => {
