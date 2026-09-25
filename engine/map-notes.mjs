@@ -59,6 +59,11 @@ import { CURATED_REGION_EVENTS, EXCLUDED_REGION_EVENTS } from "./region-events.m
 // A map's background art is `img`, as every other note type's art is. `image`,
 // the spelling a map alone once used, is retired and gone.
 import { sohlField } from "./frontmatter.mjs";
+// `bgImage` is one of the four declared art slots, so its accepted set comes
+// from there rather than being restated: the overlay, a tile's texture and an
+// ambient sound's `audio` are map-specific address fields, not slots, and take
+// no set beyond their own type.
+import { artSlot } from "./art-fields.mjs";
 
 /* -------------------------------------------------------------------- */
 /*  Note types and their canvas profiles                                */
@@ -908,7 +913,7 @@ export function buildScene(fm, ctx) {
     // A Scene has no `img`, so a map's background is its own slot, authored
     // under `data:` with the other art. It is an `image` address like every
     // other art reference, and the record it resolves to carries the path.
-    const img = ctx.art(fm.data?.bgImage, "bgImage", "image");
+    const img = ctx.art(fm.data?.bgImage, "bgImage", "image", artSlot("bgImage")?.accepts);
     if (!img) throw new Error("a map note needs a `bgImage`");
 
     const warn = (message) => {
@@ -984,7 +989,7 @@ export function buildScene(fm, ctx) {
  *   `bgImage` address by {@link buildScene}. Passed rather than resolved here,
  *   because an address is answered by the compile's index and this function
  *   takes none.
- * @param {(value: unknown, key: string, type: string) => string|null} [art] -
+ * @param {(value: unknown, key: string, type: string, accepts?: Iterable<string>) => string|null} [art] -
  *   The art resolver, for the foreground overlay. Omitted, a note naming one
  *   gets no overlay rather than a path nothing serves.
  * @returns {object} The Level document, keyed for the pack.

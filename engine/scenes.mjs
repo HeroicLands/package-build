@@ -427,8 +427,11 @@ export class Scenes extends BasePackCompiler {
         const scene = buildScene(fm, {
             packageId: foundryPackageId(),
             // The art resolver, so the map pass turns an address into the path
-            // each surface serves without holding an index of its own.
-            art: (value, key, type) => this.artPathOf(value, key, type),
+            // each surface serves without holding an index of its own. `accepts`
+            // is threaded through so `bgImage`, one of the four declared art
+            // slots, is held to its own accepted set here exactly as it is
+            // through `artPath`.
+            art: (value, key, type, accepts) => this.artPathOf(value, key, type, accepts),
             name,
             folder,
             stats: this.stats,
