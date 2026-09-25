@@ -27,9 +27,11 @@
  * `<type>` segment defaults to `place` and `place` is the whole of its accepted
  * set, so `vylar`, `place-vylar` and `thalorna-none-place-vylar` name one place
  * and a `to` naming anything else is an error. The `<package>` segment defaults
- * to the package the value is written in — it is not a wildcard — so naming a
- * dependency's place is what the fully qualified form is for, and two places
- * sharing a shortcode in different packages never answer for each other.
+ * to **the package doing the building** — wherever the value was written, and
+ * whether it was authored here or carried back by a fetched index — so a short
+ * `to` always names a place in the package being built, naming a dependency's
+ * place is what the fully qualified form is for, and two places sharing a
+ * shortcode in different packages never answer for each other.
  *
  * **The value sets are closed and stated once.** The eight bearings, the three
  * travel modes, the days markers and the terrain registry are the constants
@@ -53,6 +55,10 @@
  * through the same resolver a wikilink does and a dependency's places take
  * part: a fetched index entry carries the relation the record stated, and a
  * border across a package boundary is checked from both ends like any other.
+ * Across that boundary the far side states the frontier in the fully qualified
+ * form, which is the only form that names this package's place from over there —
+ * a short `to` in a dependency's record names the package being built, so the
+ * long form is not optional for a cross-package border.
  *
  * @module
  */
@@ -205,23 +211,25 @@ function relationsOf(hit) {
 /**
  * The Address defaults a place's relation values are read against.
  *
- * The vocabularies are the tree's, so every position reads one grammar. The
- * package is the one the values were **written** in, and that is the whole of
- * the cross-package rule: a note's own relations are read against its own
- * package, while the relations a fetched index carries back are read against the
- * package that wrote them. `place` is the type an omitted `<type>` segment
+ * The vocabularies are the tree's, so every position reads one grammar, and
+ * there is **one** set of defaults: the package is always the one being built.
+ * That is the whole of the cross-package rule, and it holds for both ends of a
+ * frontier — a note's own relations and the relations a fetched index carries
+ * back are read the same way, so a short value in a dependency's record names a
+ * place in the package being built and a dependency names a place of its own by
+ * writing the Address in full. `place` is the type an omitted `<type>` segment
  * takes, and a place is a core document, so the system is `none`.
  *
- * @param {object} [index] - The link index, for the tree's vocabularies.
- * @param {string} [pkg] - The package the values are written in.
+ * @param {object} [index] - The link index, for the tree's vocabularies and the
+ *   package being built.
  * @returns {object} The defaults {@link parseAddress} takes.
  */
-function addressDefaults(index, pkg) {
+function addressDefaults(index) {
     return {
         types: index?.types ?? new Set([RELATION_TYPE]),
         packages: index?.packages,
         noIndexPackages: index?.noIndexPackages,
-        package: pkg,
+        package: index?.contentPackage,
         system: NO_SYSTEM,
         type: RELATION_TYPE,
     };
@@ -251,7 +259,7 @@ function placeAddress(written, defaults) {
  *
  * @param {unknown} parents - The `parents` list.
  * @param {string|undefined} address - The place asked about, as its Address.
- * @param {object} defaults - The defaults the list's own package supplies.
+ * @param {object} defaults - What {@link addressDefaults} returns.
  * @returns {boolean} Whether it is named.
  */
 function hasParent(parents, address, defaults) {
@@ -264,7 +272,7 @@ function hasParent(parents, address, defaults) {
  *
  * @param {unknown} list - A `borders` or `routes` value.
  * @param {string|undefined} address - The place they name, as its Address.
- * @param {object} defaults - The defaults the list's own package supplies.
+ * @param {object} defaults - What {@link addressDefaults} returns.
  * @returns {Record<string, unknown>[]} The entries.
  */
 function entriesTo(list, address, defaults) {
@@ -338,9 +346,9 @@ function checkRelation(note, { field, index }) {
 
     const raw = note.raw ?? "";
     const self = String(fm.shortcode ?? "").toLowerCase();
-    // Every relation value on this note is written in this package, so this is
-    // what its omitted `<package>` segment means.
-    const here = addressDefaults(index, index?.contentPackage);
+    // One set of defaults, read by both ends: an omitted `<package>` segment is
+    // always the package being built.
+    const here = addressDefaults(index);
     /** This place, as the Address the far end has to name it by. */
     const selfAddress =
         here.package && self ?
@@ -395,8 +403,6 @@ function checkRelation(note, { field, index }) {
         let toIsValid = false;
         /** The one canonical Address `to` names, once it parses. */
         let toAddress;
-        /** The defaults the place on the far side reads its own relations by. */
-        let there = here;
         const read = typeof to === "string" ? parseAddress(to, here) : { reason: "not-an-address" };
         if (to === undefined || to === null || to === "") {
             error(i, undefined, `${label(i)} must name the other place in \`to\``);
@@ -427,7 +433,6 @@ function checkRelation(note, { field, index }) {
             );
         } else if (index) {
             toAddress = renderAddress(read);
-            there = addressDefaults(index, read.package);
             const hit = index.referenceHit(toAddress);
             if (hit) {
                 target = relationsOf(hit);
@@ -601,7 +606,7 @@ function checkRelation(note, { field, index }) {
                 );
                 return;
             }
-            if (hasParent(target.parents, selfAddress, there)) {
+            if (hasParent(target.parents, selfAddress, here)) {
                 error(
                     i,
                     undefined,
@@ -613,12 +618,13 @@ function checkRelation(note, { field, index }) {
         }
 
         if (!bearingIsValid) return;
-        const back = entriesTo(target[field], selfAddress, there);
+        const back = entriesTo(target[field], selfAddress, here);
         const expected = oppositeBearing(bearing);
-        // How the far end names this place: its bare `shortcode` within the same
-        // package, and the full Address across a package boundary, where a bare
-        // shortcode would name that package's own place instead.
-        const selfThere = there.package === here.package || !selfAddress ? self : selfAddress;
+        // How the far end writes this place: its bare `shortcode` within the same
+        // package, and the full Address across a package boundary, where the far
+        // note is authored in a package whose own short forms name its own
+        // places.
+        const selfThere = read.package === here.package || !selfAddress ? self : selfAddress;
 
         if (!isRoute) {
             if (back.length === 0) {

@@ -799,11 +799,42 @@ describe("the content index carries a place's borders and routes", () => {
         expect(errors(bad.findings)[0].message).toContain("E");
     });
 
-    it("tells two places apart that share a shortcode in different packages", () => {
-        // The dependency's `far` states a border to `near` — *its own* `near`,
-        // because a bare address names the package it is written in. So it says
-        // nothing about this package's `near`, and the pair is half-written.
+    it("reads a dependency's short `to` as naming the package being built", () => {
+        // The dependency's `far` states a border to `near`, and an omitted
+        // `<package>` segment is the package being built wherever the value was
+        // written — so the record names *this* package's `near` and the pair is
+        // stated from both ends.
         const config = abroadDeclaring({ to: "near", bearing: "E" });
+        const { findings } = lint(
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                }),
+            },
+            config,
+        );
+        expect(messages(findings)).toBe("");
+    });
+
+    it("reports a bearing a dependency's short `to` contradicts", () => {
+        const config = abroadDeclaring({ to: "near", bearing: "N" });
+        const { findings } = lint(
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                }),
+            },
+            config,
+        );
+        expect(errors(findings)).toHaveLength(1);
+        expect(errors(findings)[0].message).toContain("E");
+        expect(errors(findings)[0].message).toContain("N");
+    });
+
+    it("asks the far note for the full address where it states no border back", () => {
+        // The dependency's `far` borders `elsewhere`, which is this package's
+        // `elsewhere` and not its `near`, so nothing states the frontier back.
+        const config = abroadDeclaring({ to: "elsewhere", bearing: "E" });
         const { findings } = lint(
             {
                 "Near.md": place("near", {
@@ -814,8 +845,10 @@ describe("the content index carries a place's borders and routes", () => {
         );
         expect(errors(findings)).toHaveLength(0);
         expect(warnings(findings)).toHaveLength(1);
-        // The suggestion is the address the far note has to write, which across
-        // a package boundary is the full one.
+        // The suggestion is the address the far note has to write. It is
+        // authored in its own package, where a short form names its own places,
+        // so across a package boundary the long form is the only one that names
+        // this place.
         expect(warnings(findings)[0].message).toContain("mine-none-place-near");
     });
 

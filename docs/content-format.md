@@ -3721,6 +3721,15 @@ neighbour that states a different bearing, a different `days` or a different
 tell which. Every `to` must resolve to a place, every value must come from its
 closed set, and each finding is located at the entry that states it.
 
+**A relation that crosses a package boundary is written in full at both ends.**
+An omitted `<package>` segment is the package being built, in whatever note the
+value is read from — a note of this package's own, or a record a consumer fetched
+out of a dependency's index — so a short `to` names a different place in a
+different build. Only the fully qualified form names one place everywhere, which
+is why the long form is not optional for a border or a route between packages,
+and why a short `to` in a fetched record names the package being built rather
+than the package that wrote it.
+
 | `bearing` value | where the other place lies |
 | --------------- | -------------------------- |
 | `N`             | north                      |
