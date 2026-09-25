@@ -138,10 +138,16 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   several do — `weight` is coerced leniently but is still a number, and
  *   `weight: heavy` is an authoring mistake worth reporting where it was made.
  *   Absent means the lint makes no claim about the value.
- * @property {string} [ref] - The content type a value addresses by shortcode,
- *   for the linter's dead-reference check. Only for references to a **note**:
- *   `bodyLocationCode` names a part inside a being's own body structure, not a
- *   note, so it declares none.
+ * @property {string} [code] - The content type a value names by **Shortcode**,
+ *   for the linter's dead-reference check. The authored value is one segment —
+ *   held to {@link module:engine/address-charset.ADDRESS_SEGMENT_PATTERN} —
+ *   persisted verbatim into the emitted field and resolved at runtime among
+ *   the items embedded on one actor, where packages do not exist; the linter
+ *   still forms the `type-shortcode` pair to check it against the index. Only
+ *   for references to a **note**: `bodyLocationCode` names a part inside a
+ *   being's own body structure, not a note, so it declares none. Distinct
+ *   from a `DataFieldSpec`'s `ref` ({@link module:engine/note-vocabulary}),
+ *   which names an **Address** instead.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
  * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when

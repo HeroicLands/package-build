@@ -14,7 +14,7 @@ import {
     matchesKind,
 } from "../engine/frontmatter-lint.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
-import { NOTE_VOCABULARY } from "../engine/note-vocabulary.mjs";
+import { NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { ITEM_FIELDS } from "../sohl/item-fields.mjs";
 import { authoredFields, STRING } from "../engine/field-spec.mjs";
 import { MAP_TYPES, PACK_BY_TYPE, RETIRED_TYPES } from "../engine/ids.mjs";
@@ -75,7 +75,7 @@ describe("the five failure classes", () => {
             },
             {
                 name: "parentSkillCode",
-                ref: "skill",
+                code: "skill",
                 describe: "The skill this one specialises.",
             },
         ],
@@ -131,6 +131,21 @@ describe("the five failure classes", () => {
             index: indexOf("skill-swrd"),
         });
         expect(messages(dead)).toContain("no note or fetched index");
+    });
+
+    it("refuses a `code:` value carrying the address separator, explaining why", () => {
+        // A Shortcode is one segment: this position resolves it at runtime
+        // among one actor's embedded items, where packages do not exist, so a
+        // qualified value can never mean what it asks for — caught before the
+        // resolver is even asked, so the message never reads as a dead
+        // reference when it is a wrong data type instead.
+        const findings = lintNote(
+            note("skill", { subType: "craft", parentSkillCode: "sohl-sohl-skill-swrd" }),
+            { schemas, index: indexOf("skill-sohl-sohl-skill-swrd") },
+        );
+        expect(messages(findings)).toContain("must be a shortcode");
+        expect(messages(findings)).toContain("not an address");
+        expect(messages(findings)).toContain("packages do not exist");
     });
 
     it("asks the resolver for the field's full `type-shortcode` pair", () => {
@@ -262,8 +277,33 @@ describe("NOTE_SCHEMAS covers what the package compiles", () => {
     it("points every reference at a type the vocabulary declares", () => {
         for (const [type, fields] of Object.entries(NOTE_SCHEMAS as any)) {
             for (const field of fields as any[]) {
-                if (!field.ref) continue;
-                expect(NOTE_SCHEMAS, `${type}.${field.name}`).toHaveProperty(field.ref);
+                if (!field.code) continue;
+                expect(NOTE_SCHEMAS, `${type}.${field.name}`).toHaveProperty(field.code);
+            }
+        }
+    });
+
+    it("derives the classification from the declaration, so a tenth field cannot omit it", () => {
+        // A `system`-block field naming a content type declares a Shortcode —
+        // `code:` — never an Address, because an Address's `ref:` belongs to a
+        // `data:` field's own vocabulary. A field found here still carrying the
+        // old `ref:` key would silently mean an Address to nothing and a
+        // Shortcode to no one, so its absence is asserted rather than assumed.
+        for (const [type, fields] of Object.entries(NOTE_SCHEMAS as any)) {
+            for (const field of fields as any[]) {
+                expect(field.ref, `${type}.${field.name}`).toBeUndefined();
+            }
+        }
+    });
+
+    it("holds the converse for every `data:` field, so the two kinds cannot swap", () => {
+        // A `data:` field naming a content type declares an Address — `ref:` —
+        // never a Shortcode: `code:` at this position would mean nothing to
+        // any reader, since only a `system`-block field is ever resolved among
+        // one actor's embedded items.
+        for (const type of Object.keys(NOTE_VOCABULARY as any)) {
+            for (const field of dataFields(type) ?? []) {
+                expect((field as any).code, `${type}.${field.name}`).toBeUndefined();
             }
         }
     });

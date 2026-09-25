@@ -232,14 +232,19 @@ const EXEMPT: readonly Exemption[] = [
     },
     {
         file: "engine/frontmatter-lint.mjs",
-        snippet: "`${field.ref}-${value}`",
+        snippet: "`${codeType}-${value}`",
         count: 1,
-        converts: 687,
+        converts: null,
         why:
-            "one concatenation serves both kinds of reference — correct for the " +
-            "shortcode fields and wrong for the Address ones, which is why it " +
-            "looks reasonable. The packet splits the declaration, and whether a " +
-            "concatenation survives for the shortcode half is its call to make",
+            "the loop this line sits in runs over authoredFields(schema), a " +
+            "system block's fields — the only fields that reach it declaring a " +
+            "content type are the five code: fields in sohl/item-fields.mjs, " +
+            "each a Shortcode. Prepending the declared type is exactly how the " +
+            "(type, shortcode) pair a runtime lookup takes is formed, checked " +
+            "against the shortcode charset first. The four art fields' ref: is " +
+            "a data: declaration naming an Address, read instead by " +
+            "engine/infobox.mjs and engine/art-fields.mjs, so it never reaches " +
+            "this line",
     },
     {
         file: "engine/holdings.mjs",
@@ -325,6 +330,12 @@ describe("an Address is read and written in one place", () => {
             expect(site.why.length, render(site)).toBeGreaterThan(10);
             if (site.converts !== null) expect(site.converts, render(site)).toBeGreaterThan(0);
         }
+        // Both kinds of entry are live in the list, so a site that goes quiet
+        // cannot silently drift from one reading to the other: a pending site
+        // that never gets its packet number filled in would still pass a loop
+        // that only checked the shape of whichever kind happens to remain.
+        expect(EXEMPT.some((site) => site.converts === null)).toBe(true);
+        expect(EXEMPT.some((site) => site.converts !== null)).toBe(true);
     });
 
     it("lists no site twice", () => {
