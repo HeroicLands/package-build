@@ -285,7 +285,12 @@ export function buildLinkIndex(
         :   { index: new Map(), packages: new Set(), stale: [] };
     for (const v of foreign.index.values()) if (v.type) types.add(v.type);
 
-    const packages = new Set([...(byKey.size ? [pkg] : []), ...foreign.packages]);
+    // A stub counts. It publishes no page, so nothing may *link* to one, but its
+    // address is a name the tree holds and a reference reaches it — a border's
+    // far side is the case that matters. Leaving this package out of the set
+    // whenever every note it holds is a stub would make a fully qualified local
+    // address unreadable in precisely the tree whose relations need it.
+    const packages = new Set([...(byKey.size || byStub.size ? [pkg] : []), ...foreign.packages]);
     // Packages declared `contentIndex: false` — a Foundry dependency only, with
     // no fetched index. A link naming one is refused with a diagnostic that
     // names the key, rather than reading as an undeclared package or a typo.

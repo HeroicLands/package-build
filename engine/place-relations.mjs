@@ -18,10 +18,18 @@
  * two structural relations are stated here: `data.borders`, the places it
  * shares a frontier with, and `data.routes`, the journeys from its centre to
  * another place. Both are lists of entries naming the other place by
- * shortcode, and both are stated **from each end**: A at `NE` of B is the same
+ * **Address**, and both are stated **from each end**: A at `NE` of B is the same
  * fact as B at `SW` of A, so a note stating one side of it and a neighbour
  * stating a different side is a contradiction the lint reports rather than a
  * discovery made while writing a third note.
+ *
+ * **`to` is an Address, written at whatever length says what it means.** Its
+ * `<type>` segment defaults to `place` and `place` is the whole of its accepted
+ * set, so `vylar`, `place-vylar` and `thalorna-none-place-vylar` name one place
+ * and a `to` naming anything else is an error. The `<package>` segment defaults
+ * to the package the value is written in — it is not a wildcard — so naming a
+ * dependency's place is what the fully qualified form is for, and two places
+ * sharing a shortcode in different packages never answer for each other.
  *
  * **The value sets are closed and stated once.** The eight bearings, the three
  * travel modes, the days markers and the terrain registry are the constants
@@ -50,11 +58,24 @@
  */
 
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { isAddressSegment } from "./address-charset.mjs";
+import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
+import { NO_SYSTEM } from "./document-subtypes.mjs";
 
 /* --------------------------------------------------------------------- */
 /*  The closed sets                                                       */
 /* --------------------------------------------------------------------- */
+
+/**
+ * The type a border's or a route's `to` names.
+ *
+ * It is both the default its `<type>` segment takes when an author omits it and
+ * the whole of the set the position accepts, which is what makes `vylar` and
+ * `place-vylar` the same Address and a `to` naming a `lore` note an error rather
+ * than a lookup that quietly finds nothing.
+ *
+ * @type {string}
+ */
+export const RELATION_TYPE = "place";
 
 /**
  * The eight compass bearings, clockwise from north.
@@ -160,7 +181,7 @@ export function oppositeBearing(bearing) {
  * directly, copied from the record when the index was loaded.
  *
  * @param {object} hit - What the index resolved.
- * @returns {{type: string, borders: unknown, routes: unknown, parents: unknown, name: string}}
+ * @returns {{type: string, borders: unknown, routes: unknown, parents: unknown}}
  *   The relation it states.
  */
 function relationsOf(hit) {
@@ -171,7 +192,6 @@ function relationsOf(hit) {
             borders: data.borders,
             routes: data.routes,
             parents: data.parents,
-            name: String(hit.fm.shortcode ?? ""),
         };
     }
     return {
@@ -179,53 +199,82 @@ function relationsOf(hit) {
         borders: hit?.borders,
         routes: hit?.routes,
         parents: hit?.parents,
-        name: "",
     };
 }
 
 /**
- * The shortcode a `parents` entry names.
+ * The Address defaults a place's relation values are read against.
  *
- * A parent is written as a bare shortcode, and may be written as an address;
- * a shortcode is the last segment either way, because a segment carries no
- * separator.
+ * The vocabularies are the tree's, so every position reads one grammar. The
+ * package is the one the values were **written** in, and that is the whole of
+ * the cross-package rule: a note's own relations are read against its own
+ * package, while the relations a fetched index carries back are read against the
+ * package that wrote them. `place` is the type an omitted `<type>` segment
+ * takes, and a place is a core document, so the system is `none`.
  *
- * @param {unknown} parent - One `parents` entry.
- * @returns {string} Its shortcode.
+ * @param {object} [index] - The link index, for the tree's vocabularies.
+ * @param {string} [pkg] - The package the values are written in.
+ * @returns {object} The defaults {@link parseAddress} takes.
  */
-function parentShortcode(parent) {
-    return String(parent ?? "")
-        .split("-")
-        .pop()
-        .toLowerCase();
+function addressDefaults(index, pkg) {
+    return {
+        types: index?.types ?? new Set([RELATION_TYPE]),
+        packages: index?.packages,
+        noIndexPackages: index?.noIndexPackages,
+        package: pkg,
+        system: NO_SYSTEM,
+        type: RELATION_TYPE,
+    };
+}
+
+/**
+ * The canonical Address a written relation value names, or `undefined` where it
+ * names no place.
+ *
+ * Every comparison between two ends of a relation goes through this, so the two
+ * are compared as the Addresses they name rather than as the strings two authors
+ * happened to type.
+ *
+ * @param {unknown} written - The value as authored.
+ * @param {object} defaults - What {@link addressDefaults} returns.
+ * @returns {string|undefined} The canonical `package-none-place-shortcode`.
+ */
+function placeAddress(written, defaults) {
+    if (typeof written !== "string" || !defaults.package) return undefined;
+    const read = parseAddress(written, defaults);
+    if (read.reason || !acceptsType(read, [RELATION_TYPE])) return undefined;
+    return renderAddress(read);
 }
 
 /**
  * Whether one place's `parents` names another.
  *
  * @param {unknown} parents - The `parents` list.
- * @param {string} shortcode - The place asked about.
+ * @param {string|undefined} address - The place asked about, as its Address.
+ * @param {object} defaults - The defaults the list's own package supplies.
  * @returns {boolean} Whether it is named.
  */
-function hasParent(parents, shortcode) {
-    return Array.isArray(parents) && parents.some((p) => parentShortcode(p) === shortcode);
+function hasParent(parents, address, defaults) {
+    if (!address || !Array.isArray(parents)) return false;
+    return parents.some((p) => placeAddress(p, defaults) === address);
 }
 
 /**
  * The entries of a relation list that name one place.
  *
  * @param {unknown} list - A `borders` or `routes` value.
- * @param {string} shortcode - The place they name.
+ * @param {string|undefined} address - The place they name, as its Address.
+ * @param {object} defaults - The defaults the list's own package supplies.
  * @returns {Record<string, unknown>[]} The entries.
  */
-function entriesTo(list, shortcode) {
-    if (!Array.isArray(list)) return [];
+function entriesTo(list, address, defaults) {
+    if (!address || !Array.isArray(list)) return [];
     return list.filter(
         (e) =>
             e &&
             typeof e === "object" &&
             !Array.isArray(e) &&
-            String(e.to ?? "").toLowerCase() === shortcode,
+            placeAddress(e.to, defaults) === address,
     );
 }
 
@@ -289,6 +338,19 @@ function checkRelation(note, { field, index }) {
 
     const raw = note.raw ?? "";
     const self = String(fm.shortcode ?? "").toLowerCase();
+    // Every relation value on this note is written in this package, so this is
+    // what its omitted `<package>` segment means.
+    const here = addressDefaults(index, index?.contentPackage);
+    /** This place, as the Address the far end has to name it by. */
+    const selfAddress =
+        here.package && self ?
+            renderAddress({
+                package: here.package,
+                system: NO_SYSTEM,
+                type: RELATION_TYPE,
+                shortcode: self,
+            })
+        :   undefined;
     const isRoute = field === "routes";
     const keys = isRoute ? ROUTE_KEYS : BORDER_KEYS;
     const at = (i, key) =>
@@ -327,21 +389,46 @@ function checkRelation(note, { field, index }) {
             );
         }
 
-        // `to`: a shortcode, and one a place declares.
+        // `to`: an Address naming a place, and one a place declares.
         const to = entry.to;
         let target;
         let toIsValid = false;
+        /** The one canonical Address `to` names, once it parses. */
+        let toAddress;
+        /** The defaults the place on the far side reads its own relations by. */
+        let there = here;
+        const read = typeof to === "string" ? parseAddress(to, here) : { reason: "not-an-address" };
         if (to === undefined || to === null || to === "") {
             error(i, undefined, `${label(i)} must name the other place in \`to\``);
-        } else if (typeof to !== "string" || !isAddressSegment(to)) {
+        } else if (read.reason === "no-content-index") {
             error(
                 i,
                 "to",
-                `${label(i, "to")} must be a shortcode — the other place's ` +
-                    `\`shortcode\`, not an address — but reads ${JSON.stringify(to)}`,
+                `${label(i, "to")} names package "${read.package}", which is declared ` +
+                    `\`contentIndex: false\` — a Foundry dependency only, with no content ` +
+                    `index fetched for it, so nothing it publishes can be named here`,
+            );
+        } else if (read.reason) {
+            error(
+                i,
+                "to",
+                `${label(i, "to")} must name a place — the other place's \`shortcode\`, or ` +
+                    `its address as \`${RELATION_TYPE}-<shortcode>\` or ` +
+                    `\`<package>-${NO_SYSTEM}-${RELATION_TYPE}-<shortcode>\` for a place in ` +
+                    `another package — but reads ${JSON.stringify(to)}`,
+            );
+        } else if (!acceptsType(read, [RELATION_TYPE])) {
+            error(
+                i,
+                "to",
+                `${label(i, "to")} names a \`${read.type}\`, and a ` +
+                    `${isRoute ? "route" : "border"} is between places, so it names a ` +
+                    `\`${RELATION_TYPE}\` — but reads ${JSON.stringify(to)}`,
             );
         } else if (index) {
-            const hit = index.referenceHit(`place-${to}`);
+            toAddress = renderAddress(read);
+            there = addressDefaults(index, read.package);
+            const hit = index.referenceHit(toAddress);
             if (hit) {
                 target = relationsOf(hit);
                 toIsValid = true;
@@ -350,14 +437,18 @@ function checkRelation(note, { field, index }) {
                 // slip, and naming it says what was found rather than only
                 // what was not.
                 const other = (index.notes ?? []).find(
-                    (n) => String(n.fm?.shortcode ?? "").toLowerCase() === to.toLowerCase(),
+                    (n) =>
+                        String(n.fm?.shortcode ?? "").toLowerCase() === read.shortcode &&
+                        String(n.type ?? "") !== RELATION_TYPE,
                 );
                 error(
                     i,
                     "to",
-                    `${label(i, "to")} names "${to}", and no place in this package or a ` +
-                        `fetched index declares that shortcode` +
-                        (other ? `; the ${other.type} note "${to}" is not a place` : ""),
+                    `${label(i, "to")} names "${to}", and no place at ${toAddress} is ` +
+                        `declared by this package or by a fetched index` +
+                        (other ?
+                            `; the ${other.type} note "${read.shortcode}" is not a place`
+                        :   ""),
                 );
             }
         } else {
@@ -463,7 +554,11 @@ function checkRelation(note, { field, index }) {
         }
 
         if (!toIsValid) return;
-        const toKey = String(to).toLowerCase();
+        // The pair is keyed on the Address rather than on the written form, so
+        // one place named once bare and once qualified is the one pair it is.
+        // With no index there is no package to complete the Address with, and
+        // the shortcode is all the note itself states.
+        const toKey = toAddress ?? read.shortcode;
 
         // Once per pair — per mode, on a route.
         const modes = seen.get(toKey) ?? new Set();
@@ -497,7 +592,7 @@ function checkRelation(note, { field, index }) {
         // Containment is `parents`; a border to a parent or a child restates
         // it as adjacency, and the two cannot both be true.
         if (!isRoute) {
-            if (hasParent(data.parents, toKey)) {
+            if (hasParent(data.parents, toAddress, here)) {
                 error(
                     i,
                     undefined,
@@ -506,7 +601,7 @@ function checkRelation(note, { field, index }) {
                 );
                 return;
             }
-            if (hasParent(target.parents, self)) {
+            if (hasParent(target.parents, selfAddress, there)) {
                 error(
                     i,
                     undefined,
@@ -518,8 +613,12 @@ function checkRelation(note, { field, index }) {
         }
 
         if (!bearingIsValid) return;
-        const back = entriesTo(target[field], self);
+        const back = entriesTo(target[field], selfAddress, there);
         const expected = oppositeBearing(bearing);
+        // How the far end names this place: its bare `shortcode` within the same
+        // package, and the full Address across a package boundary, where a bare
+        // shortcode would name that package's own place instead.
+        const selfThere = there.package === here.package || !selfAddress ? self : selfAddress;
 
         if (!isRoute) {
             if (back.length === 0) {
@@ -530,7 +629,7 @@ function checkRelation(note, { field, index }) {
                         "warning",
                         `"${self}" borders "${to}" at ${bearing}, but "${to}" states no ` +
                             `border to "${self}"; it should carry ` +
-                            `\`{ to: ${self}, bearing: ${expected} }\``,
+                            `\`{ to: ${selfThere}, bearing: ${expected} }\``,
                     ),
                 );
                 return;
@@ -556,7 +655,7 @@ function checkRelation(note, { field, index }) {
                     "warning",
                     `"${self}" reaches "${to}" by ${mode} in ${days} days, but "${to}" ` +
                         `states no route to "${self}"; it should carry ` +
-                        `\`{ to: ${self}, bearing: ${expected}, mode: ${mode}, days: ${days} }\``,
+                        `\`{ to: ${selfThere}, bearing: ${expected}, mode: ${mode}, days: ${days} }\``,
                 ),
             );
             return;
@@ -605,7 +704,7 @@ function checkRelation(note, { field, index }) {
 /**
  * Check a place note's `data.borders`.
  *
- * Every `to` is a shortcode a place declares, every `bearing` is one of the
+ * Every `to` is an Address a place declares, every `bearing` is one of the
  * eight, no pair is listed twice, no target is the note's own parent or child,
  * and the other end states the pair back at the opposite bearing — a missing
  * reciprocal is a warning naming both notes, a wrong one an error.

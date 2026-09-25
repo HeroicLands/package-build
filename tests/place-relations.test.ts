@@ -21,12 +21,14 @@ import path from "node:path";
 
 import {
     BEARINGS,
+    RELATION_TYPE,
     ROUTE_MODES,
     TERRAINS,
     TERRAIN_MODES,
     TRAVEL_DAYS,
     oppositeBearing,
 } from "../engine/place-relations.mjs";
+import { contentPackage } from "../engine/content-package.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
 import { ENGINE_NOTE_SCHEMAS } from "../engine/note-schemas.mjs";
@@ -92,6 +94,13 @@ function place(
     lines.push("---", "", "Prose.", "");
     return lines.join("\n");
 }
+
+/**
+ * A place with no prose, which publishes no page. It is still the far side of a
+ * frontier, so a border naming it resolves.
+ */
+const stub = (shortcode: string, borders?: Entry[]) =>
+    place(shortcode, { borders }).replace("Prose.\n", "");
 
 /** A note of another type, to prove a border must name a *place*. */
 const lore = (shortcode: string) =>
@@ -278,16 +287,81 @@ describe("check 1 — every `to` resolves to a place", () => {
         expect(errors(findings)[0].message).toMatch(/"humanflk"/);
     });
 
-    it("refuses a `to` that is an address rather than a shortcode", () => {
+    it("accepts a `to` written as an address, at every length that names a place", () => {
+        const pkg = contentPackage();
         const { findings } = lint({
-            "A.md": place("aaa", { borders: [{ to: "place-bbb", bearing: "N" }] }),
+            "A.md": place("aaa", {
+                borders: [{ to: "place-bbb", bearing: "N" }],
+                routes: [
+                    { to: `none-${RELATION_TYPE}-bbb`, bearing: "N", mode: "land", days: 3 },
+                    {
+                        to: `${pkg}-none-${RELATION_TYPE}-bbb`,
+                        bearing: "N",
+                        mode: "ship",
+                        days: 5,
+                    },
+                ],
+            }),
+            "B.md": place("bbb", {
+                borders: [{ to: "aaa", bearing: "S" }],
+                routes: [
+                    { to: "aaa", bearing: "S", mode: "land", days: 3 },
+                    { to: "aaa", bearing: "S", mode: "ship", days: 5 },
+                ],
+            }),
+        });
+        expect(messages(findings)).toBe("");
+    });
+
+    it("reads a bare `to` and a qualified one as the same pair, so listing both is a duplicate", () => {
+        const { findings } = lint({
+            "A.md": place("aaa", {
+                borders: [
+                    { to: "bbb", bearing: "N" },
+                    { to: `${RELATION_TYPE}-bbb`, bearing: "N" },
+                ],
+            }),
             "B.md": place("bbb", { borders: [{ to: "aaa", bearing: "S" }] }),
         });
-        expect(
-            errors(findings)
-                .map((f) => f.message)
-                .join("\n"),
-        ).toMatch(/shortcode/);
+        expect(errors(findings)).toHaveLength(1);
+        expect(errors(findings)[0].message).toMatch(/twice/);
+    });
+
+    it("refuses a `to` naming a note of another type, naming the type it accepts", () => {
+        const { findings } = lint({
+            "A.md": place("aaa", { borders: [{ to: "lore-humanflk", bearing: "N" }] }),
+            "Folk.md": lore("humanflk"),
+        });
+        expect(errors(findings)).toHaveLength(1);
+        expect(errors(findings)[0].message).toContain("lore");
+        expect(errors(findings)[0].message).toContain(RELATION_TYPE);
+        expect(errors(findings)[0].line).toBe(10);
+    });
+
+    it("resolves a border whose far side is a place with no page", () => {
+        const { findings } = lint({
+            "A.md": place("aaa", { borders: [{ to: "bbb", bearing: "N" }] }),
+            "B.md": stub("bbb", [{ to: "aaa", bearing: "S" }]),
+        });
+        expect(messages(findings)).toBe("");
+    });
+
+    it("resolves a border in a tree whose places all wait for their prose", () => {
+        const { findings } = lint({
+            "A.md": stub("aaa", [{ to: "bbb", bearing: "N" }]),
+            "B.md": stub("bbb", [{ to: "aaa", bearing: "S" }]),
+        });
+        expect(messages(findings)).toBe("");
+    });
+
+    it("refuses a `to` that is no address at all, naming the forms it takes", () => {
+        const { findings } = lint({
+            "A.md": place("aaa", { borders: [{ to: "Place-bbb", bearing: "N" }] }),
+            "B.md": place("bbb", { borders: [{ to: "aaa", bearing: "S" }] }),
+        });
+        const mine = errors(findings).filter((f) => /must name a place/.test(f.message));
+        expect(mine).toHaveLength(1);
+        expect(mine[0].message).toContain("Place-bbb");
     });
 });
 
@@ -670,7 +744,13 @@ describe("the content index carries a place's borders and routes", () => {
         expect(entry?.parents).toEqual(frontmatter.data.parents);
     });
 
-    it("checks reciprocity against a dependency's place", () => {
+    /**
+     * A build in package `mine` with one dependency, `thalorna`, whose place
+     * `far` states the border handed in. The whole cross-package surface is the
+     * fetched index, so the fixture is that file and the configuration naming
+     * it.
+     */
+    function abroadDeclaring(border: Record<string, unknown>): Record<string, unknown> {
         const cache = fs.mkdtempSync(path.join(os.tmpdir(), "place-relations-cache-"));
         const dir = path.join(cache, "thalorna@0.1.0");
         fs.mkdirSync(dir, { recursive: true });
@@ -680,7 +760,7 @@ describe("the content index carries a place's borders and routes", () => {
             subType: "region",
             shortcode: "far",
             name: { full: "Far" },
-            data: { borders: [{ to: "near", bearing: "E" }] },
+            data: { borders: [border] },
             address: { slug: "place-far", canonical: "thalorna-none-place-far" },
             anchors: [],
             foundry: {},
@@ -688,22 +768,76 @@ describe("the content index carries a place's borders and routes", () => {
         };
         fs.writeFileSync(path.join(dir, "thalorna-metadata.jsonl"), JSON.stringify(abroad) + "\n");
         fs.writeFileSync(path.join(dir, ".complete"), "");
-        const config = {
+        return {
             contentPackage: "mine",
             paths: { metadataCache: cache },
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },
         };
+    }
+
+    it("checks a border written as a full address against a dependency's place, from both ends", () => {
+        const config = abroadDeclaring({ to: "mine-none-place-near", bearing: "E" });
         const good = lint(
-            { "Near.md": place("near", { borders: [{ to: "far", bearing: "W" }] }) },
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                }),
+            },
             config,
         );
         expect(messages(good.findings)).toBe("");
         const bad = lint(
-            { "Near.md": place("near", { borders: [{ to: "far", bearing: "N" }] }) },
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "thalorna-none-place-far", bearing: "N" }],
+                }),
+            },
             config,
         );
         expect(errors(bad.findings)).toHaveLength(1);
         expect(errors(bad.findings)[0].message).toContain("far");
+        expect(errors(bad.findings)[0].message).toContain("E");
+    });
+
+    it("tells two places apart that share a shortcode in different packages", () => {
+        // The dependency's `far` states a border to `near` — *its own* `near`,
+        // because a bare address names the package it is written in. So it says
+        // nothing about this package's `near`, and the pair is half-written.
+        const config = abroadDeclaring({ to: "near", bearing: "E" });
+        const { findings } = lint(
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                }),
+            },
+            config,
+        );
+        expect(errors(findings)).toHaveLength(0);
+        expect(warnings(findings)).toHaveLength(1);
+        // The suggestion is the address the far note has to write, which across
+        // a package boundary is the full one.
+        expect(warnings(findings)[0].message).toContain("mine-none-place-near");
+    });
+
+    it("names the package a full address may not reach, for a dependency publishing no index", () => {
+        const config = {
+            contentPackage: "mine",
+            paths: {
+                metadataCache: fs.mkdtempSync(path.join(os.tmpdir(), "place-relations-none-")),
+            },
+            relationships: { requires: [{ id: "kethira", contentIndex: false }] },
+        };
+        const { findings } = lint(
+            {
+                "Near.md": place("near", {
+                    borders: [{ to: "kethira-none-place-far", bearing: "W" }],
+                }),
+            },
+            config,
+        );
+        expect(errors(findings)).toHaveLength(1);
+        expect(errors(findings)[0].message).toContain("kethira");
+        expect(errors(findings)[0].message).toContain("contentIndex");
     });
 });
 
