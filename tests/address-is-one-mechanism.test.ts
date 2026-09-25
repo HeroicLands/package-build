@@ -218,20 +218,6 @@ type Exemption = Site & { converts: number | null; why: string };
 /** The sites that still read or write an Address by hand. */
 const EXEMPT: readonly Exemption[] = [
     {
-        file: "engine/art-fields.mjs",
-        snippet: '.includes("-")',
-        count: 1,
-        converts: 688,
-        why: "an art slot decides whether its value is already qualified",
-    },
-    {
-        file: "engine/art-fields.mjs",
-        snippet: "`${defaultType}-${written}`",
-        count: 1,
-        converts: 688,
-        why: "an art slot prepends its declared type instead of passing it as a default",
-    },
-    {
         file: "engine/content-address.mjs",
         snippet: "`${type}-${shortcode}`",
         count: 1,

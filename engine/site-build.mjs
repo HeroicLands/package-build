@@ -526,7 +526,7 @@ export function tableUniverse(pages) {
  * @param {object} options
  * @param {(data: object, page: object) => void} [options.decorate] - Called
  *   with each page's frontmatter, for whatever a consumer's own pass adds.
- * @param {(value: unknown, type: string) => string|null} [options.artSrc] -
+ * @param {(value: unknown, type: string, accepts?: Iterable<string>) => string|null} [options.artSrc] -
  *   Translates an art address into the pathname the website resolver takes, or
  *   `null` where nothing answers it.
  * @param {(src: string) => string} [options.webSrc] - Translates an authored
@@ -593,17 +593,17 @@ function pageTitle(page) {
  *
  * @param {object} data - The frontmatter being emitted, rewritten in place.
  * @param {(src: string) => string} webSrc - The website's pathname resolver.
- * @param {(value: unknown, type: string) => string|null} artSrc - The address
- *   resolver, yielding the pathname `webSrc` takes.
+ * @param {(value: unknown, type: string, accepts?: Iterable<string>) => string|null} artSrc -
+ *   The address resolver, yielding the pathname `webSrc` takes.
  * @returns {void}
  */
 function resolveArtFields(data, webSrc, artSrc) {
-    for (const { key, type } of ART_SLOTS) {
+    for (const { key, type, accepts } of ART_SLOTS) {
         const holder = isPlainObject(data.data) ? data.data : null;
         if (!holder) continue;
         const value = holder[key];
         if (typeof value !== "string" || value === "") continue;
-        const pathname = artSrc(value, type);
+        const pathname = artSrc(value, type, accepts);
         if (pathname === null) delete holder[key];
         else holder[key] = webSrc(pathname);
     }
@@ -798,7 +798,8 @@ export function renderPages(pages, options) {
         });
 
         const webSrc = webAddresses(page.file);
-        const artSrc = (value, type) => artPathname(artIndex, value, type).pathname;
+        const artSrc = (value, type, accepts) =>
+            artPathname(artIndex, value, type, accepts).pathname;
         const resolve = (text) => {
             let t = text;
             if (pass.beforeLinks) t = pass.beforeLinks(t, page);
