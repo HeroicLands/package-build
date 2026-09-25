@@ -29,6 +29,7 @@ import {
     POPULATION_TOLERANCE,
     checkCitedPopulations,
     checkPopulation,
+    foreignNode,
 } from "../engine/populations.mjs";
 import { buildLinkIndex } from "../engine/content-links.mjs";
 import { lintFrontmatter } from "../engine/frontmatter-lint.mjs";
@@ -474,6 +475,50 @@ describe("the rules read the corpus the way the notes are authored", () => {
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
         }
+    });
+});
+
+/* ---------------------------------------------------------------------- */
+/*  A fetched dependency's places and affiliations                        */
+/* ---------------------------------------------------------------------- */
+
+describe("foreignNode", () => {
+    it("reads the shortcode from the entry's canonical address", () => {
+        expect(
+            foreignNode("kethira-none-place-vylar", {
+                type: "place",
+                name: "Vylar",
+                parents: ["north"],
+            }),
+        ).toEqual({
+            shortcode: "vylar",
+            type: "place",
+            subType: "",
+            title: "Vylar",
+            parents: ["north"],
+            domains: [],
+        });
+    });
+
+    it("reads an affiliation's domains, and lower-cases a mixed-case shortcode", () => {
+        expect(
+            foreignNode("kethira-sohl-affiliation-Empire", {
+                type: "affiliation",
+                subType: "polity",
+                domains: ["north", "south"],
+            }),
+        ).toMatchObject({ shortcode: "empire", type: "affiliation", domains: ["north", "south"] });
+    });
+
+    it("takes no part where the entry names neither a place nor an affiliation", () => {
+        expect(foreignNode("kethira-none-doc-vylar", { type: "doc" })).toBeNull();
+    });
+
+    it("takes no part where the address is not a canonical key", () => {
+        // A shortcode this module could not derive is not a node this module
+        // silently mislabels — `readCanonicalKey` reports the malformed key as
+        // unreadable, and the entry is dropped rather than keyed on a guess.
+        expect(foreignNode("not-an-address", { type: "place" })).toBeNull();
     });
 });
 

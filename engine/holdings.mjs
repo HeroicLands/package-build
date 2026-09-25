@@ -44,6 +44,7 @@
  */
 
 import { positionInFrontmatter } from "./diagnostics.mjs";
+import { readCanonicalKey } from "./content-address.mjs";
 
 /**
  * The keys this module writes, and which a note cannot author: `contains`
@@ -103,9 +104,12 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
 /**
  * The shortcode a `parents` or `domains` entry names, lower case.
  *
- * An entry is written as a bare shortcode, as an address, or as a wikilink
- * carrying either; the shortcode is the last segment of the address in every
- * case, because a segment carries no separator.
+ * **A `parents` or `domains` entry is a Shortcode, not an Address**: it is
+ * matched against `places`/`affiliations` by shortcode alone, with no type or
+ * package asked of it, the way an affiliation's `system.relations` key is. An
+ * entry is written as a bare shortcode, as an address, or as a wikilink
+ * carrying either; the shortcode is the last segment in every case, because a
+ * segment carries no separator.
  *
  * @param {unknown} value - One entry.
  * @returns {string} Its shortcode, or `""` for an entry that names nothing.
@@ -244,7 +248,7 @@ export function foreignHoldingsNodes(foreignIndex) {
     for (const [canonical, entry] of foreignIndex) {
         const type = String(entry?.type ?? "");
         if (type !== "place" && type !== "affiliation") continue;
-        const shortcode = canonical.split("-").pop()?.toLowerCase() ?? "";
+        const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
         if (!shortcode) continue;
         out.push({
             shortcode,

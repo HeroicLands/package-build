@@ -20,7 +20,7 @@
 
 import { describe, it, expect } from "vitest";
 
-import { buildSiteIndex, wikiContext } from "../engine/site-index.mjs";
+import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "../engine/site-index.mjs";
 
 /** A content entry, with only what the index reads. */
 function entry(over: Record<string, unknown> = {}) {
@@ -256,5 +256,105 @@ describe("the reference index", () => {
             name: "Climbing",
             url: "/kb/skill/climbing/",
         });
+    });
+});
+
+describe("resolveInfoboxRef", () => {
+    /**
+     * An index with a `skill` and a `place` sharing the shortcode `north`.
+     *
+     * `place` carries no `doc<type>` entry ({@link hasDocEntry}) and `skill`
+     * does, so a naive alphabetical sweep that did not know the difference
+     * would land on `docskill/north` before `place/north` — the fixture uses
+     * `place` and `scenario` for the sweep case below precisely to avoid that
+     * confound, since neither carries a documentation journal of its own.
+     */
+    const shared = () =>
+        buildSiteIndex([
+            entry({
+                fm: { type: "skill", shortcode: "north" },
+                name: "Northern Style",
+                url: "/kb/skill/north/",
+            }),
+            entry({
+                fm: { type: "place", shortcode: "north" },
+                name: "The North",
+                url: "/kb/place/north/",
+            }),
+        ]);
+
+    it("takes a bare shortcode against the hinted type", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "north", { type: "place" })).toMatchObject({
+            name: "The North",
+            address: "place-north",
+        });
+    });
+
+    it("sweeps every known type in sorted order when there is no hint", () => {
+        // Neither `place` nor `scenario` carries a `doc<type>` entry, so the
+        // sweep order is exactly the two types themselves — `place` sorts
+        // before `scenario`, a stable wrong answer rather than an unstable one.
+        const built = buildSiteIndex([
+            entry({ fm: { type: "place", shortcode: "north" }, name: "The North" }),
+            entry({ fm: { type: "scenario", shortcode: "north" }, name: "The Northern Raid" }),
+        ]);
+        expect(resolveInfoboxRef(built, "north")).toMatchObject({ name: "The North" });
+    });
+
+    it("reads a short address, which names its own type before any sweep", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "skill-north")).toMatchObject({
+            name: "Northern Style",
+            address: "skill-north",
+        });
+    });
+
+    it("reads the canonical address, package and system both stated", () => {
+        const built = shared();
+        // The suite's ambient content package is `sohl`, and a `skill`'s system
+        // is `sohl` too — see `alpha.address` in the map tests.
+        expect(resolveInfoboxRef(built, "sohl-sohl-skill-north")).toMatchObject({
+            name: "Northern Style",
+        });
+    });
+
+    it("is case-insensitive on every form", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "Skill-North")).toMatchObject({ name: "Northern Style" });
+    });
+
+    it("finds nothing for a shortcode no page declares", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "nowhere")).toBeUndefined();
+    });
+
+    it("finds nothing for a type-qualified reference no page declares", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "skill-nowhere")).toBeUndefined();
+    });
+
+    it("does not read a hyphenated name as a type it does not declare", () => {
+        // `jean` names no type, so this is prose rather than a badly written
+        // address — and the sweep tries the whole hyphenated string, not just
+        // its tail, so it does not accidentally answer for a place named `paul`.
+        const built = shared();
+        expect(resolveInfoboxRef(built, "jean-paul")).toBeUndefined();
+    });
+
+    it("refuses a qualified address naming a package this build does not know", () => {
+        // The literal string is not a key the index holds — no page is filed
+        // under a bogus package — and a `type/shortcode` degraded to ignoring
+        // the stated package would let a mistyped package still resolve, which
+        // is exactly the silent wrong answer the grammar refuses everywhere else.
+        const built = shared();
+        expect(resolveInfoboxRef(built, "bogus-none-skill-north")).toBeUndefined();
+    });
+
+    it("returns undefined for a blank or non-string reference", () => {
+        const built = shared();
+        expect(resolveInfoboxRef(built, "")).toBeUndefined();
+        expect(resolveInfoboxRef(built, null)).toBeUndefined();
+        expect(resolveInfoboxRef(built, undefined)).toBeUndefined();
     });
 });

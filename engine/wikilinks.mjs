@@ -691,12 +691,8 @@ export function resolveReference(index, ref, hint) {
     const wanted = norm(ref);
     const keys = [];
     if (hint?.type) keys.push(`${norm(hint.type)}/${wanted}`);
-    if (wanted.includes("-")) {
-        const segments = wanted.split("-");
-        if (segments.length >= 2) {
-            keys.push(`${segments[segments.length - 2]}/${segments[segments.length - 1]}`);
-        }
-    }
+    const qualifier = readQualifier(wanted, index?.types ?? new Set(), index?.packages);
+    if (qualifier) keys.push(`${qualifier.type}/${qualifier.shortcode}`);
     if (!hint?.type) {
         for (const type of [...(index?.types ?? [])].sort()) keys.push(`${type}/${wanted}`);
     }

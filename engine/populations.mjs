@@ -54,6 +54,7 @@
  */
 
 import { positionOfFrontmatterPath, positionOfLiteral } from "./diagnostics.mjs";
+import { readCanonicalKey } from "./content-address.mjs";
 import { shortcodesOf } from "./holdings.mjs";
 
 /**
@@ -145,8 +146,12 @@ const CORPUS = new WeakMap();
  *                                                whose `parents` name it.
  * @property {Map<string, string[]>} holdersOf    Place shortcode → the polities
  *                                                whose `domains` name it.
- * @property {Map<string, PopulationNode>} byAddress `type-shortcode` → the node,
- *                                                for the citation rule.
+ * @property {Map<string, PopulationNode>} byAddress `type/shortcode` → the
+ *                                                node, for the citation rule.
+ *                                                Package-blind by design: a
+ *                                                local note shadows a
+ *                                                dependency's, so this is
+ *                                                never a canonical Address.
  */
 
 /**
@@ -219,10 +224,10 @@ function localNode(note) {
  * @param {object} entry - The entry.
  * @returns {PopulationNode|null} The node.
  */
-function foreignNode(canonical, entry) {
+export function foreignNode(canonical, entry) {
     const type = String(entry?.type ?? "");
     if (type !== "place" && type !== "affiliation") return null;
-    const shortcode = canonical.split("-").pop()?.toLowerCase() ?? "";
+    const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
     if (!shortcode) return null;
     return {
         shortcode,
@@ -259,8 +264,11 @@ function corpusOf(index) {
         const by = node.type === "place" ? places : affiliations;
         if (by.has(node.shortcode)) return;
         by.set(node.shortcode, node);
-        const address = `${node.type}-${node.shortcode}`;
-        if (!byAddress.has(address)) byAddress.set(address, node);
+        // Not a canonical Address: package-blind by design, so a local place
+        // shadows a foreign one of the same type and shortcode. `/` keeps that
+        // distinct from the `-`-joined form every canonical Address renders.
+        const key = `${node.type}/${node.shortcode}`;
+        if (!byAddress.has(key)) byAddress.set(key, node);
     };
 
     for (const note of index.notes ?? []) take(localNode(note));
@@ -499,7 +507,7 @@ export function checkPopulation(note, { index } = {}) {
  * @type {RegExp}
  */
 const CITED =
-    /\[\[((?:place|affiliation)-[a-z0-9.]+)(?:\\?\|[^\]]*)?\]\]([^[\n]{0,80}?)~([0-9](?:[0-9,]*[0-9])?)(?![\w%]|[.,]\d|[-–—])/g;
+    /\[\[(place|affiliation)-([a-z0-9.]+)(?:\\?\|[^\]]*)?\]\]([^[\n]{0,80}?)~([0-9](?:[0-9,]*[0-9])?)(?![\w%]|[.,]\d|[-–—])/g;
 
 /**
  * Check the populations a `doc` note cites against the notes they belong to.
@@ -531,8 +539,8 @@ export function checkCitedPopulations(note, { index } = {}) {
 
     CITED.lastIndex = 0;
     for (const match of body.matchAll(CITED)) {
-        const [, address, , figure] = match;
-        const target = corpus.byAddress.get(address.toLowerCase());
+        const [, type, shortcode, , figure] = match;
+        const target = corpus.byAddress.get(`${type}/${shortcode}`.toLowerCase());
         if (!target || target.population === undefined) continue;
         const claimed = Number(figure.replace(/,/g, ""));
         if (!Number.isFinite(claimed) || claimed === target.population) continue;

@@ -39,7 +39,7 @@ import { indexRecordsFor, isNoteRecord } from "./content-index.mjs";
 import { noteFile } from "./index-records.mjs";
 import { cachedIndexPath, loadForeignIndexes } from "./metadata-index.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
-import { resolvePackageUrl } from "./content-address.mjs";
+import { readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
 
 /**
  * A place as the map reads it, from either source.
@@ -91,6 +91,9 @@ import { resolvePackageUrl } from "./content-address.mjs";
 /**
  * The shortcode a `parents` entry names, lower case: the last segment of
  * either a bare shortcode or an address.
+ *
+ * **A Shortcode, not an Address** — matched against the world's places by
+ * shortcode alone, with no type or package asked of it.
  *
  * @param {unknown} parent - One `parents` entry.
  * @returns {string} Its shortcode.
@@ -209,7 +212,7 @@ export function placesFromRecords(records, { contentBase, base }) {
 function addForeignPlaces(world, foreignIndex) {
     for (const [canonical, entry] of foreignIndex) {
         if (entry?.type !== "place") continue;
-        const shortcode = canonical.split("-").pop()?.toLowerCase() ?? "";
+        const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
         if (!shortcode || world.places.has(shortcode)) continue;
         world.places.set(shortcode, {
             shortcode,

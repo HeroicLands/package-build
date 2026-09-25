@@ -221,15 +221,14 @@ const EXEMPT: readonly Exemption[] = [
         file: "engine/content-address.mjs",
         snippet: "`${type}-${shortcode}`",
         count: 1,
-        converts: 690,
-        why: "the page slug, an Address's last two segments with no system segment at all",
-    },
-    {
-        file: "engine/folder-notes.mjs",
-        snippet: "`${FOLDER_TYPE}-${folder.shortcode}`",
-        count: 1,
-        converts: 690,
-        why: "a folder's own address, keyed beside the one it publishes under",
+        converts: null,
+        why:
+            "the page slug: a `(type, shortcode)` identity with no package and " +
+            "no system, built straight from a note's own fields rather than " +
+            "parsed from a written short form. Neither `parseAddress` (which " +
+            "always resolves a package and a system) nor `renderAddress` " +
+            "(which always renders all four) describes a two-segment value, " +
+            "so this is not the Address this module owns",
     },
     {
         file: "engine/frontmatter-lint.mjs",
@@ -245,74 +244,34 @@ const EXEMPT: readonly Exemption[] = [
     {
         file: "engine/holdings.mjs",
         snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "the last segment is the shortcode, twice",
+        count: 1,
+        converts: null,
+        why:
+            "a `parents` or `domains` entry is a Shortcode, not an Address — " +
+            "matched against the corpus by shortcode alone, with no type or " +
+            "package asked of it, the way an affiliation's `system.relations` " +
+            "key is",
     },
     {
         file: "engine/map-places.mjs",
         snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "a pin's target read segment by segment",
-    },
-    {
-        file: "engine/populations.mjs",
-        snippet: '.split("-")',
         count: 1,
-        converts: 690,
-        why: "the last segment is the shortcode",
-    },
-    {
-        file: "engine/populations.mjs",
-        snippet: "`${node.type}-${node.shortcode}`",
-        count: 1,
-        converts: 690,
-        why: "a settlement's address rebuilt to key a lookup",
+        converts: null,
+        why:
+            "a `parents` entry is a Shortcode, not an Address — matched " +
+            "against the world's places by shortcode alone, with no type or " +
+            "package asked of it",
     },
     {
         file: "engine/scenes.mjs",
         snippet: "`${fm.type}-${fm.shortcode}`",
         count: 1,
-        converts: 690,
-        why: "a scene's address rebuilt to key a lookup",
-    },
-    {
-        file: "engine/site-index.mjs",
-        snippet: '.includes("-")',
-        count: 1,
-        converts: 690,
-        why: "an infobox reference decides whether it is already qualified",
-    },
-    {
-        file: "engine/site-index.mjs",
-        snippet: '.split("-")',
-        count: 2,
-        converts: 690,
-        why: "an infobox reference and a published key, each read segment by segment",
-    },
-    {
-        file: "engine/wikilinks.mjs",
-        snippet: '.includes("-")',
-        count: 1,
-        converts: 690,
-        why: "a reference hint decides whether it is already qualified",
-    },
-    {
-        file: "engine/wikilinks.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
-        why: "a reference hint read segment by segment",
-    },
-    {
-        file: "sohl/infobox.mjs",
-        snippet: '.split("-")',
-        count: 1,
-        converts: 690,
+        converts: null,
         why:
-            "an embedded item's `model`, which is an Address, read here for the " +
-            "type and shortcode a runtime lookup takes",
+            "an item's Active-Effects lookup key: a `(type, shortcode)` " +
+            "identity with no package and no system, built from the item " +
+            "note's own fields. The same shape as the page slug above, so " +
+            "the same reason it is not the Address this module owns",
     },
 ];
 

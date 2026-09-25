@@ -15,6 +15,7 @@ import {
     buildWikilinkIndex,
     convertWikilinks,
     readQualifier,
+    resolveReference,
 } from "../engine/wikilinks.mjs";
 import { itemDocEntryId } from "../engine/item-docs.mjs";
 
@@ -961,5 +962,62 @@ describe("convertWikilinks — a package declared `contentIndex: false`", () => 
 
     it("leaves a link into a package with no such declaration unaffected", () => {
         expect(run("[[doc-shock|Shock]]").markdown).toContain("@UUID[");
+    });
+});
+
+describe("resolveReference", () => {
+    /** A `skill` and a `being` sharing the shortcode `north`. */
+    const shared = () =>
+        buildWikilinkIndex(
+            [
+                { type: "being", id: "aaaaaaaaaaaaaaa9", shortcode: "north", name: "The North" },
+                {
+                    type: "skill",
+                    id: "aaaaaaaaaaaaaaa8",
+                    shortcode: "north",
+                    name: "Northern Style",
+                },
+            ],
+            "sohl",
+        );
+
+    it("takes a bare shortcode against the hinted type", () => {
+        const found = resolveReference(shared(), "north", { type: "being" });
+        expect(found).toMatchObject({ name: "The North", address: "being-north" });
+    });
+
+    it("sweeps every known type in sorted order when there is no hint", () => {
+        // `being` sorts before `skill`.
+        const found = resolveReference(shared(), "north");
+        expect(found).toMatchObject({ name: "The North" });
+    });
+
+    it("reads a short address, which names its own type before any sweep", () => {
+        const found = resolveReference(shared(), "skill-north");
+        expect(found).toMatchObject({ name: "Northern Style", address: "skill-north" });
+    });
+
+    it("reads the canonical address, package and system both stated", () => {
+        const found = resolveReference(shared(), "sohl-none-being-north");
+        expect(found).toMatchObject({ name: "The North" });
+    });
+
+    it("finds nothing for a type-qualified reference no page declares", () => {
+        expect(resolveReference(shared(), "skill-nowhere")).toBeUndefined();
+    });
+
+    it("does not read a hyphenated name as a type it does not declare", () => {
+        expect(resolveReference(shared(), "jean-paul")).toBeUndefined();
+    });
+
+    it("refuses a qualified address naming a package this build does not know", () => {
+        expect(resolveReference(shared(), "bogus-none-skill-north")).toBeUndefined();
+    });
+
+    it("returns undefined for a blank or non-string reference", () => {
+        const idx = shared();
+        expect(resolveReference(idx, "")).toBeUndefined();
+        expect(resolveReference(idx, null)).toBeUndefined();
+        expect(resolveReference(idx, undefined)).toBeUndefined();
     });
 });
