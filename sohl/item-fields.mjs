@@ -143,14 +143,48 @@ const SKILL_APTITUDES = Object.freeze({
     read: (_raw, { fm }) => resolveSkillAptitudes(fm, noteContext(fm, "mystery")),
 });
 
+/* --------------------------------------------------------------------- */
+/*  The Address positions                                                 */
+/* --------------------------------------------------------------------- */
+
+/*
+ * An affiliation names other notes in four of its fields, and each of those
+ * values is an **Address** — written at whatever length says what it means —
+ * while the compiled Item holds the **Shortcode** the runtime resolves among
+ * one actor's items. `engine/address-fields.mjs` is the step between them, and
+ * these are the positions it reads.
+ *
+ * Each states two things, and they are not the same statement: `type` is the
+ * default an omitted `<type>` segment takes, and `accepts` is the set of types
+ * the field takes at all. They coincide at all four, which is the common case
+ * rather than the rule — an art slot defaults to `icon` and accepts `icon` or
+ * `image` — so each is written out rather than derived from the other.
+ */
+
+/** One place: an affiliation's seat. */
+const PLACE_VALUE = Object.freeze({ type: "place", accepts: Object.freeze(["place"]) });
+
+/** A list of places: the ones an affiliation holds sway over. */
+const PLACE_ITEMS = Object.freeze({ ...PLACE_VALUE, holds: "items" });
+
+/** A list of affiliations: the ones this affiliation answers to. */
+const AFFILIATION_ITEMS = Object.freeze({
+    type: "affiliation",
+    accepts: Object.freeze(["affiliation"]),
+    holds: "items",
+});
+
+/** A map keyed by affiliation: this one's standing toward each. */
+const AFFILIATION_KEYS = Object.freeze({ ...AFFILIATION_ITEMS, holds: "keys" });
+
 /** Standings toward other affiliations, validated against the closed list. */
 const RELATION = Object.freeze({
-    shape: "map of affiliation shortcode → standing",
+    shape: "map of affiliation address → standing",
     read: (_raw, { fm }) => resolveRelation(fm, noteContext(fm, "affiliation")),
 });
 
 /**
- * A list of references, each a bare shortcode.
+ * A list of references, each an address.
  *
  * Blank entries are dropped rather than emitted: a list that has been edited
  * down in a property editor keeps its empty rows, and an empty string is not a
@@ -158,8 +192,8 @@ const RELATION = Object.freeze({
  * value here — a sovereign polity is subordinate to nobody — rather than an
  * unset one.
  */
-const SHORTCODE_LIST = Object.freeze({
-    shape: "list of shortcodes",
+const ADDRESS_LIST = Object.freeze({
+    shape: "list of addresses",
     kind: "list",
     read: (raw) =>
         (Array.isArray(raw) ? raw
@@ -344,6 +378,7 @@ export const ITEM_FIELDS = Object.freeze({
             name: "relations",
             to: "relations",
             ...RELATION,
+            address: AFFILIATION_KEYS,
             default: {},
             describe: "How this society regards others: aligned, unaligned, rival or nemesis.",
         },
@@ -353,9 +388,10 @@ export const ITEM_FIELDS = Object.freeze({
             // once — an arcane tradition within an order, say.
             name: "parents",
             to: "parents",
-            ...SHORTCODE_LIST,
+            ...ADDRESS_LIST,
+            address: AFFILIATION_ITEMS,
             default: [],
-            describe: "Affiliations this one is subordinate to, by shortcode.",
+            describe: "Affiliations this one is subordinate to, by address.",
         },
         {
             // Not `capital` or `headquarters`: each fits about half the eleven
@@ -364,8 +400,9 @@ export const ITEM_FIELDS = Object.freeze({
             name: "seat",
             to: "seat",
             ...BLANK_IS_NULL,
+            address: PLACE_VALUE,
             default: null,
-            describe: "Where the affiliation's authority sits, by place shortcode.",
+            describe: "Where the affiliation's authority sits, by place address.",
         },
         {
             // The geographic relation, kept apart from the organisational one
@@ -377,9 +414,10 @@ export const ITEM_FIELDS = Object.freeze({
             // carries both rather than either side guessing.
             name: "domains",
             to: "domain",
-            ...SHORTCODE_LIST,
+            ...ADDRESS_LIST,
+            address: PLACE_ITEMS,
             default: [],
-            describe: "Places this affiliation holds sway over, by shortcode.",
+            describe: "Places this affiliation holds sway over, by address.",
         },
     ]),
 

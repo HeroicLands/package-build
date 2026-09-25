@@ -355,6 +355,11 @@ export class SystemItemCompiler extends BasePackCompiler {
             block: system,
             claimed: claimedPaths(itemFields(type, system)),
         });
+        // Every field whose authored value is an Address and whose emitted value
+        // is a Shortcode, reduced once the block is whole — so a value the field
+        // read and one authored straight at the destination go through the same
+        // step.
+        this.reduceEmittedAddresses(built, itemFields(type, system));
         this.reportUndeclaredSystemData(fm, system, "Item", subType);
         // And what *this* pass wrote on its own initiative, which no field
         // declaration states and so no other check can see. Read off the

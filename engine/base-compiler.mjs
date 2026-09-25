@@ -77,6 +77,7 @@ import {
 // The record accessors only — see `engine/index-records.mjs` for why they live
 // apart from the index that builds them.
 import { isNoteRecord, noteFile } from "./index-records.mjs";
+import { reduceAddressFields } from "./address-fields.mjs";
 import { artPathname, artSlot, unacceptedArtMessage, unresolvedArtMessage } from "./art-fields.mjs";
 import { emitDiagnostic } from "./diagnostics.mjs";
 import { assertNoDeclaredPackage } from "./note-package.mjs";
@@ -688,6 +689,41 @@ export class BasePackCompiler {
             return null;
         }
         return resolveImg(pathname);
+    }
+
+    /**
+     * Reduce every Address an assembled `system` block holds to the Shortcode
+     * the document reads.
+     *
+     * The positions come from the type's own field declarations, so a system
+     * adding a field that names a note gets the reduction by declaring it; see
+     * {@link module:engine/address-fields}.
+     *
+     * Called **after** the builder and the authored merge have both written, so
+     * one step reduces a value the field read and a value authored straight at
+     * the destination alike. Each finding is located at the value inside the
+     * note, which for a list or a map is the entry that is wrong rather than the
+     * key that introduces it.
+     *
+     * @param {object} emitted - The `system` block, assembled.
+     * @param {readonly object[]} [fields] - The type's field declaration.
+     * @returns {number} How many findings were reported.
+     */
+    reduceEmittedAddresses(emitted, fields) {
+        const findings = reduceAddressFields(emitted, fields ?? [], {
+            package: this.linkIndex?.contentPackage,
+            types: this.linkIndex?.types,
+            packages: this.linkIndex?.packages,
+            noIndexPackages: this.linkIndex?.noIndexPackages,
+        });
+        for (const finding of findings) {
+            this.errorCount++;
+            this.noteError(
+                finding.message,
+                locateFrontmatterKey(this.currentNote?.absPath, finding.key, finding.written),
+            );
+        }
+        return findings.length;
     }
 
     /**

@@ -148,6 +148,16 @@ export { legacyKeyOf, retiredTopLevelKey, setPath };
  *   being's own body structure, not a note, so it declares none. Distinct
  *   from a `DataFieldSpec`'s `ref` ({@link module:engine/note-vocabulary}),
  *   which names an **Address** instead.
+ * @property {import("./address-fields.mjs").AddressPosition} [address] - **The
+ *   authored value is an Address and the emitted one is its Shortcode.** The
+ *   statement carries the default type an omitted `<type>` segment takes, the
+ *   set of types the position accepts — two separate things, which coincide at
+ *   most positions — and where the Addresses sit: the value itself, every
+ *   element of a list, or every key of a map.
+ *   {@link module:engine/address-fields.reduceAddressFields} performs the
+ *   reduction once the block is assembled, so a value authored at the
+ *   destination is reduced along with one this field read. Distinct from `code`,
+ *   which is a Shortcode at both ends and resolves nothing.
  * @property {any|((fm: object) => any)} [value] - For a field with no `name`:
  *   the constant, or a function deriving it from the frontmatter.
  * @property {boolean} [omitWhenAbsent] - **The key is left out entirely when
