@@ -223,7 +223,7 @@ function readOne(written, field, defaults, seen, findings, shape) {
         return undefined;
     }
     if (!acceptsType(tuple, defaults.accepts)) {
-        report(unacceptedMessage(key, value, tuple.type, defaults.accepts));
+        report(unacceptedMessage(key, value, defaults.accepts));
         return undefined;
     }
 
@@ -326,16 +326,22 @@ function unreadableMessage(key, written, problem, defaults) {
  * An **error**: the value is a real Address, so no default repairs it, and the
  * position cannot do anything with what it names.
  *
+ * **The value states its own type, and the message leaves it there.** A value
+ * omitting the `<type>` segment takes the position's default and is therefore
+ * acceptable, so this fires only where the author wrote a type — and naming the
+ * parsed one instead would name the `doc<type>` a system-bearing type is
+ * redirected to under `none`, sending a reader to look for a segment nobody
+ * wrote.
+ *
  * @param {string} key - The field, as an author writes it.
  * @param {string} written - The authored value.
- * @param {string} type - The type the Address names.
  * @param {readonly string[]} accepts - The types the position accepts.
  * @returns {string} The message.
  */
-function unacceptedMessage(key, written, type, accepts) {
+function unacceptedMessage(key, written, accepts) {
     return (
-        `\`${key}\` names \`${written}\`, whose type \`${type}\` this field does not ` +
-        `accept — it accepts ${oneOf(accepts)}`
+        `\`${key}\` names \`${written}\`, whose type this field does not accept — it ` +
+        `accepts ${oneOf(accepts)}`
     );
 }
 

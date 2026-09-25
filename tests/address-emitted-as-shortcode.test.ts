@@ -125,6 +125,10 @@ describe("a seat", () => {
         expect(messages[0]).toContain("`seat`");
         expect(messages[0]).toContain("being-foobar");
         expect(messages[0]).toContain("place");
+        // The message quotes the type the author wrote, never the `doc<type>`
+        // a system-bearing type is redirected to under `none` — that segment is
+        // in the tuple and nowhere in the note.
+        expect(messages[0]).not.toContain("docbeing");
     });
 
     it("leaves the two empties alone", () => {
