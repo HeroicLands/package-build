@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.13.1
+
+### Patch Changes
+
+Content authors can keep pinned document identities and compendium placement alongside shared note facts.
+
 ## 22.13.0
 
 ### Minor Changes
