@@ -301,6 +301,14 @@ page's front matter, so an unrecognised key is a Hugo or theme parameter this
 build has no standing to refuse. `description` is the everyday case: it is not a
 document field at all, it is the page's description.
 
+For a note with opening YAML frontmatter and nonempty `shortcode` and `type`,
+`content-build format --write` orders the known top-level keys as `shortcode`,
+`name`, `type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Other keys
+follow in their authored order. Arrays and objects use one-line YAML flow form
+when the complete line is under 100 characters; at 100 characters or more they
+use full block form. Multiline flow collections take one of those forms. The
+Markdown body stays unchanged.
+
 **`data:` is deliberately closed.** It holds the type-specific facts about the
 subject — a weapon's weight, an affliction's transmission, a being's species —
 and every note type declares which keys it may carry. A misspelled key there is a
