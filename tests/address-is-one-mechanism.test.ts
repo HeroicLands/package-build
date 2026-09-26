@@ -350,6 +350,28 @@ const WILDCARDS = /\b\w+\.(package|system)\s*&&\s*\w+\.\1\s*!==[^\n]*return fals
  */
 const CANDIDATE_SEARCH: readonly (Site & { packet: number | null; why: string })[] = [];
 
+describe("map and holdings use a deliberate Shortcode identity", () => {
+    it("marks every graph keyed by a place or affiliation shortcode", () => {
+        const sites = shippedModules().flatMap((file) => {
+            const source = fs.readFileSync(path.join(PKG_ROOT, file), "utf8");
+            const keys = [
+                ...source.matchAll(/(?:by|places|world\.places)\.set\((?:node\.)?shortcode\b/g),
+            ];
+            return keys.map((key) => ({
+                file,
+                context: source.slice(Math.max(0, key.index - 120), key.index),
+            }));
+        });
+        expect([...new Set(sites.map(({ file }) => file))].sort()).toEqual([
+            "engine/holdings.mjs",
+            "engine/map-places.mjs",
+            "engine/populations.mjs",
+        ]);
+        for (const { file, context } of sites)
+            expect(context, file).toContain("Shortcode identity:");
+    });
+});
+
 describe("an Address resolves by one exact lookup", () => {
     it("detects a segment comparison a resolver skips", () => {
         const sample = [

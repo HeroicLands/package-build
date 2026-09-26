@@ -3021,9 +3021,7 @@ If `sohl` is present, this becomes an `affliction` item.
 | `subType`                          | `system.subType`                     | NA    |
 | `data.transmission`                | `system.transmission`                | NA    |
 | `data.outcome`                     | `system.outcome`                     | NA    |
-| `data.healingRate`                 | `system.healingRateBase`             | NA    |
 | `data.contagionIndex`              | `system.contagionIndexBase`          | NA    |
-| `data.outcomeTraumas`              | `system.outcomeTraumas`              | NA    |
 | `data.onsetDurationFormula`        | `system.onsetDurationFormula`        | NA    |
 | `data.onsetDurationBase`           | `system.onsetDurationBase`           | NA    |
 | `data.healingCheckDurationFormula` | `system.healingCheckDurationFormula` | NA    |
@@ -3060,6 +3058,10 @@ only play can know, so `system.contractDate`, `system.onsetDate`,
 that writes one fails the build. They are world times, and `0` is a valid one,
 so there is no blank a note could write either; leave them out and the data
 model's `null` stands.
+
+`data.healingRate` and `data.outcomeTraumas` are page data. SoHL reads an
+affliction’s base healing rate from `sohl.healingRateBase`. Its item declaration
+does not read `data.outcomeTraumas`.
 
 ### type: armorgear
 
@@ -3135,7 +3137,9 @@ if a `sohl` property is present, a SoHL item of type "concoctiongear" will be cr
 | `data.value`      | `system.valueBase`      | NA    |
 | `data.quality`    | `system.qualityBase`    | NA    |
 | `data.durability` | `system.durabilityBase` | NA    |
-| `data.quantity`   | `system.quantity`       | NA    |
+
+`data.quantity` is page data for a concoction. SoHL sets `system.quantity` to
+`1` for each compendium item.
 
 ### type: containergear
 
@@ -3148,19 +3152,21 @@ Note: `data.quantity` may not be specified; quantity is always set to 1.
 | `value`            | `number` | Gear value                                 |
 | `quality`          | `number` | Gear quality                               |
 | `durability`       | `number` | Gear durability                            |
-| `capacity`         | `number` | Container capacity (in lbs)                |
+| `capacity`         | `number` | HM3 container capacity (in lbs)            |
 
 if a `sohl` property is present, a SoHL item of type "containergear" will be created.
 
 if a `hm3` property is present, an HM3 item of type "containergear" will be created.
 
-| shared source     | → sohl                   | → hm3                 |
-| ----------------- | ------------------------ | --------------------- |
-| `data.weight`     | `system.weightBase`      | `system.weight`       |
-| `data.value`      | `system.valueBase`       | `system.value`        |
-| `data.quality`    | `system.qualityBase`     | NA                    |
-| `data.durability` | `system.durabilityBase`  | NA                    |
-| `data.capacity`   | `system.maxCapacityBase` | `system.capacity.max` |
+| shared source     | → sohl                  | → hm3                 |
+| ----------------- | ----------------------- | --------------------- |
+| `data.weight`     | `system.weightBase`     | `system.weight`       |
+| `data.value`      | `system.valueBase`      | `system.value`        |
+| `data.quality`    | `system.qualityBase`    | NA                    |
+| `data.durability` | `system.durabilityBase` | NA                    |
+| `data.capacity`   | NA                      | `system.capacity.max` |
+
+SoHL reads a container’s capacity in pounds from `sohl.maxCapacity`.
 
 ### type: miscgear
 
@@ -3171,7 +3177,7 @@ if a `hm3` property is present, an HM3 item of type "containergear" will be crea
 | `value`            | `number` | Gear value                                 |
 | `quality`          | `number` | Gear quality                               |
 | `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | Gear quantity (default: 1)                 |
+| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
 
 if a `sohl` property is present, a SoHL item of type "miscgear" will be created.
 
@@ -3183,7 +3189,9 @@ if a `hm3` property is present, an HM3 item of type "miscgear" will be created.
 | `data.value`      | `system.valueBase`      | `system.value`    |
 | `data.quality`    | `system.qualityBase`    | NA                |
 | `data.durability` | `system.durabilityBase` | NA                |
-| `data.quantity`   | `system.quantity`       | `system.quantity` |
+| `data.quantity`   | NA                      | `system.quantity` |
+
+SoHL sets `system.quantity` to `1` for each compendium item.
 
 ### type: mystery
 
@@ -3219,9 +3227,11 @@ if a `sohl` property is present, a SoHL item of type "mystery" will be created.
 | --------------------- | ----------------------- | ----- |
 | `subType`             | `system.subType`        | NA    |
 | `data.skillAptitudes` | `system.skillAptitudes` | NA    |
-| `data.level`          | `system.levelBase`      | NA    |
 | `data.charges.value`  | `system.charges.value`  | NA    |
 | `data.charges.max`    | `system.charges.max`    | NA    |
+
+`data.level` is page data for a mystery. SoHL reads the item’s level from
+`sohl.levelBase`.
 
 ### type: mysticalability
 
@@ -3256,13 +3266,15 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 `sohl.system` as shortcodes and have no shared source; `data.assocSkill` and
 `data.assocAffiliation` name the same two notes as Addresses, for the page.
 
-| shared source        | → sohl                    | → hm3         |
-| -------------------- | ------------------------- | ------------- |
-| `subType`            | `system.subType`          | **see above** |
-| `data.masteryLevel`  | `system.masteryLevelBase` | NA            |
-| `data.level`         | `system.levelBase`        | NA            |
-| `data.charges.value` | `system.charges.value`    | NA            |
-| `data.charges.max`   | `system.charges.max`      | NA            |
+| shared source        | → sohl                 | → hm3         |
+| -------------------- | ---------------------- | ------------- |
+| `subType`            | `system.subType`       | **see above** |
+| `data.charges.value` | `system.charges.value` | NA            |
+| `data.charges.max`   | `system.charges.max`   | NA            |
+
+`data.masteryLevel` and `data.level` are page data for an ability. SoHL reads
+the item’s base mastery and level from `sohl.masteryLevelBase` and
+`sohl.levelBase`.
 
 ### type: projectilegear
 
@@ -3282,7 +3294,7 @@ If an `hm3` property is present, an HM3 item is created, and `hm3.type` states w
 | `value`            | `number` | Gear value                                 |
 | `quality`          | `number` | Gear quality                               |
 | `durability`       | `number` | Gear durability                            |
-| `quantity`         | `number` | Gear quantity (default: 1)                 |
+| `quantity`         | `number` | HM3 gear quantity (default: 1)             |
 
 if a `sohl` property is present, a SoHL item of type "projectilegear" will be created.
 
@@ -3299,7 +3311,9 @@ HM3 side while remaining distinct on the SoHL side.
 | `data.value`      | `system.valueBase`      | `system.value`    |
 | `data.quality`    | `system.qualityBase`    | NA                |
 | `data.durability` | `system.durabilityBase` | NA                |
-| `data.quantity`   | `system.quantity`       | `system.quantity` |
+| `data.quantity`   | NA                      | `system.quantity` |
+
+SoHL sets `system.quantity` to `1` for each compendium item.
 
 ### type: skill
 
@@ -3319,7 +3333,7 @@ HM3 side while remaining distinct on the SoHL side.
 | `data` property    | Values    | Description                                |
 | ------------------ | --------- | ------------------------------------------ |
 | `templatePriority` | `number`  | Template priority, _null_ = not a template |
-| `masteryLevel`     | `number`  | Mastery Level                              |
+| `masteryLevel`     | `number`  | HM3 mastery level                          |
 | `parentSkill`      | `Address` | Parent skill this skill specializes        |
 
 if a `sohl` property is present, a SoHL item of type "skill" will be created.
@@ -3332,10 +3346,12 @@ Note: `hm3.system.type` (skill types) use the values "Craft", "Physical", "Commu
 skill this one specializes, and has no shared source; `data.parentSkill` names that
 skill as an Address, for the page.
 
-| shared source       | → sohl                    | → hm3                 |
-| ------------------- | ------------------------- | --------------------- |
-| `subType`           | `system.subType`          | See notes above       |
-| `data.masteryLevel` | `system.masteryLevelBase` | `system.masteryLevel` |
+| shared source       | → sohl           | → hm3                 |
+| ------------------- | ---------------- | --------------------- |
+| `subType`           | `system.subType` | See notes above       |
+| `data.masteryLevel` | NA               | `system.masteryLevel` |
+
+SoHL reads a skill’s base mastery from `sohl.masteryLevelBase`.
 
 ### type: trauma
 
