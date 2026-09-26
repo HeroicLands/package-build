@@ -22,19 +22,19 @@ import { presentValue } from "../engine/infobox.mjs";
 import { buildReferenceTargets } from "../engine/reference-targets.mjs";
 const context = {
     package: "world",
-    system: "none",
+    system: "note",
     systemBlocks: { sohl: { fields: ITEM_FIELDS } },
 };
 describe("Address read and write boundaries", () => {
     it("stores equal complete tuples for alternate authored spellings", () => {
         const a = decodeNoteAddresses({ type: "place", data: { parents: ["north"] } }, context);
         const b = decodeNoteAddresses(
-            { type: "place", data: { parents: ["world-none-place-north"] } },
+            { type: "place", data: { parents: ["world-note-place-north"] } },
             context,
         );
         expect(a.data.parents).toEqual(b.data.parents);
         expect(isAddressTuple(a.data.parents[0])).toBe(true);
-        expect(encodeAddresses(a).data.parents).toEqual(["world-none-place-north"]);
+        expect(encodeAddresses(a).data.parents).toEqual(["world-note-place-north"]);
     });
     it("derives every vocabulary position instead of duplicating the field list", () => {
         for (const type of Object.keys(NOTE_VOCABULARY)) {
@@ -119,12 +119,12 @@ describe("Address read and write boundaries", () => {
         expect(fm.data.relations).toBeInstanceOf(AddressEntries);
         expect(fm.data.relations.entries[0].target).toEqual({
             package: "world",
-            system: "none",
-            type: "docaffiliation",
+            system: "note",
+            type: "affiliation",
             shortcode: "guild",
         });
         expect(encodeAddresses(fm).data.relations).toEqual({
-            "world-none-docaffiliation-guild": "rival",
+            "world-note-affiliation-guild": "rival",
         });
     });
     it("uses enclosing system context while preserving native species and Shortcodes", () => {
@@ -150,7 +150,7 @@ describe("Address read and write boundaries", () => {
             },
             context,
         );
-        expect(fm.data.parents[0].system).toBe("none");
+        expect(fm.data.parents[0].system).toBe("note");
         expect(fm.sohl.system.parents[0].system).toBe("sohl");
         const custom = {
             package: "world",
@@ -180,7 +180,7 @@ describe("Address read and write boundaries", () => {
             {
                 type: "affiliation",
                 data: {
-                    relations: { guild: "rival", "world-none-docaffiliation-guild": "aligned" },
+                    relations: { guild: "rival", "world-note-affiliation-guild": "aligned" },
                 },
             },
             context,
@@ -216,22 +216,22 @@ describe("Address read and write boundaries", () => {
         expect(isAddressTuple(fm.data.borders[0].to)).toBe(true);
         expect(isAddressTuple(fm.data.routes[0].to)).toBe(true);
         expect(encodeAddresses(fm).data).toEqual({
-            borders: [{ to: "world-none-place-north" }],
-            routes: [{ to: "world-none-place-south" }],
+            borders: [{ to: "world-note-place-north" }],
+            routes: [{ to: "world-note-place-south" }],
         });
     });
     it("completes every accepted suffix without retaining authored spellings", () => {
         for (const value of [
             "north",
             "place-north",
-            "none-place-north",
-            "world-none-place-north",
+            "note-place-north",
+            "world-note-place-north",
         ]) {
             expect(
                 encodeAddresses(
                     decodeNoteAddresses({ type: "place", data: { parents: [value] } }, context),
                 ).data.parents,
-            ).toEqual(["world-none-place-north"]);
+            ).toEqual(["world-note-place-north"]);
         }
     });
     it("rejects malformed declared containers before generated output", () => {
@@ -327,14 +327,14 @@ describe("Address read and write boundaries", () => {
     it("resolves native Shortcodes only within their declared system and type", () => {
         const index = new Map([
             ["foreign-sohl-skill-lang", { name: "Language", uuid: "Item.lang" }],
-            ["foreign-none-docskill-lang", { name: "Language", uuid: "Journal.lang" }],
+            ["foreign-note-skill-lang", { name: "Language", uuid: "Journal.lang" }],
             ["foreign-sohl-affiliation-lang", { name: "Unrelated" }],
         ]);
         const hint = { type: "skill", system: "sohl" };
         expect(resolveShortcodeReference([index, index], "lang", hint)).toMatchObject({
             name: "Language",
             uuid: "Journal.lang",
-            address: { package: "foreign", system: "none", type: "docskill", shortcode: "lang" },
+            address: { package: "foreign", system: "note", type: "skill", shortcode: "lang" },
         });
         expect(resolveShortcodeReference([index], "missing", hint)).toBeUndefined();
         expect(
@@ -390,7 +390,7 @@ describe("Address read and write boundaries", () => {
             ],
             published,
         );
-        expect(names.get("foreign-none-lore-culture")).toEqual({
+        expect(names.get("foreign-note-lore-culture")).toEqual({
             name: "Culture Name",
             subType: undefined,
         });
@@ -399,10 +399,7 @@ describe("Address read and write boundaries", () => {
     it("presents inline equipment through its native Shortcode namespace", () => {
         const index = new Map([
             ["foreign-sohl-miscgear-parchment", { name: "Parchment" }],
-            [
-                "foreign-none-docmiscgear-parchment",
-                { name: "Parchment", uuid: "Journal.parchment" },
-            ],
+            ["foreign-note-miscgear-parchment", { name: "Parchment", uuid: "Journal.parchment" }],
         ]);
         const sections = beingSections(
             {
@@ -433,7 +430,7 @@ describe("Address read and write boundaries", () => {
         }
         const index = new CountedIndex([
             ["foreign-sohl-skill-lang", { name: "Language" }],
-            ["foreign-none-docskill-lang", { name: "Language" }],
+            ["foreign-note-skill-lang", { name: "Language" }],
         ]);
         for (let i = 0; i < 20; i++)
             expect(
@@ -445,10 +442,10 @@ describe("Address read and write boundaries", () => {
         const records = [
             {
                 package: "world",
-                type: "docskill",
+                type: "skill",
                 shortcode: "language",
                 name: { full: "Language" },
-                foundry: { none: { uuid: "Journal.language" } },
+                foundry: { note: { uuid: "Journal.language" } },
             },
             {
                 package: "world",
@@ -460,7 +457,7 @@ describe("Address read and write boundaries", () => {
         ];
         for (const ordered of [records, [...records].reverse()]) {
             const targets = buildReferenceTargets(ordered);
-            expect(targets.get("world-none-docskill-language")?.uuid).toBe("Journal.language");
+            expect(targets.get("world-note-skill-language")?.uuid).toBe("Journal.language");
             expect(targets.get("world-sohl-skill-language")?.uuid).toBe("Item.language");
         }
     });
@@ -521,10 +518,10 @@ describe("Address read and write boundaries", () => {
             if (published !== "absent")
                 records.push({
                     package: "thalorna",
-                    type: "docmysticalability",
+                    type: "mysticalability",
                     shortcode: "eblt",
                     name: { full: "Elemental Bolt" },
-                    foundry: published ? { none: { uuid: "Journal.bolt" } } : null,
+                    foundry: published ? { note: { uuid: "Journal.bolt" } } : null,
                 });
             const index = {
                 contentPackage: "thalorna",
@@ -539,8 +536,8 @@ describe("Address read and write boundaries", () => {
             expect(value.uuid).toBe(published === true ? "Journal.bolt" : undefined);
             expect(value.address).toMatchObject({
                 package: "thalorna",
-                system: "none",
-                type: "docmysticalability",
+                system: "note",
+                type: "mysticalability",
                 shortcode: "eblt",
             });
             expect(fm.sohl.items[0].model).toBe(model);
@@ -580,7 +577,7 @@ describe("Address read and write boundaries", () => {
                 return {
                     name: "Language",
                     subType: "language",
-                    uuid: ref.system === "none" ? "Journal.language" : "Item.language",
+                    uuid: ref.system === "note" ? "Journal.language" : "Item.language",
                 };
             },
         });
@@ -590,8 +587,7 @@ describe("Address read and write boundaries", () => {
         });
         expect(
             seen.every(
-                (ref) =>
-                    ref.package === "foreign" && ref.system === "none" && ref.type === "docskill",
+                (ref) => ref.package === "foreign" && ref.system === "note" && ref.type === "skill",
             ),
         ).toBe(true);
     });

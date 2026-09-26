@@ -270,7 +270,7 @@ function itemPresentation(item, resolve, block) {
     if (!item.shortcode) return undefined;
     if (!item.address)
         return resolve?.(item.shortcode, { kind: "shortcode", type: item.type, system: block });
-    const documentation = completeAddress({ ...item.address, system: "none" });
+    const documentation = completeAddress({ ...item.address, system: "note" });
     const found = resolve?.(documentation, { type: documentation.type });
     const native =
         !found?.name || !found?.subType ? resolve?.(item.address, { type: item.type }) : undefined;
@@ -556,7 +556,7 @@ export function affiliationSections(fm, ctx) {
     const entries = value.map((skill) => {
         const native = ctx.resolve?.(skill, { type: "skill", system: "sohl" });
         const docAddress =
-            isAddressTuple(skill) ? completeAddress({ ...skill, system: "none" }) : undefined;
+            isAddressTuple(skill) ? completeAddress({ ...skill, system: "note" }) : undefined;
         const doc = docAddress ? ctx.resolve?.(docAddress, { type: docAddress.type }) : undefined;
         return {
             text: doc?.name || native?.name || humanizeValue(skill),

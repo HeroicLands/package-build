@@ -278,7 +278,7 @@ describe("check 1 — every `to` resolves to a place", () => {
         expect(f.file).toBe(path.join(root, "A.md"));
         expect(f.line).toBe(10);
         expect(f.column).toBeGreaterThan(1);
-        expect(f.message).toMatch(/"sohl-none-place-nowhere"/);
+        expect(f.message).toMatch(/"sohl-note-place-nowhere"/);
         expect(f.message).toMatch(/place/);
     });
 
@@ -300,9 +300,9 @@ describe("check 1 — every `to` resolves to a place", () => {
             "A.md": place("aaa", {
                 borders: [{ to: "place-bbb", bearing: "N" }],
                 routes: [
-                    { to: `none-${RELATION_TYPE}-bbb`, bearing: "N", mode: "land", days: 3 },
+                    { to: `note-${RELATION_TYPE}-bbb`, bearing: "N", mode: "land", days: 3 },
                     {
-                        to: `${pkg}-none-${RELATION_TYPE}-bbb`,
+                        to: `${pkg}-note-${RELATION_TYPE}-bbb`,
                         bearing: "N",
                         mode: "ship",
                         days: 5,
@@ -733,7 +733,7 @@ describe("the content index carries a place's borders and routes", () => {
         const record = {
             package: "thalorna",
             ...frontmatter,
-            address: { slug: "place-aaa", canonical: "thalorna-none-place-aaa" },
+            address: { slug: "place-aaa", canonical: "thalorna-note-place-aaa" },
             anchors: [],
             foundry: {},
             documentation: null,
@@ -748,7 +748,7 @@ describe("the content index carries a place's borders and routes", () => {
             relationships: { requires: [{ id: "thalorna", manifest: "https://x/y.json" }] },
         };
         const { index } = loadForeignIndexes(config as any, new Set(["mine"]));
-        const entry = index.get("thalorna-none-place-aaa");
+        const entry = index.get("thalorna-note-place-aaa");
         expect(entry?.borders).toEqual(frontmatter.data.borders);
         expect(entry?.routes).toEqual(frontmatter.data.routes);
         expect(entry?.parents).toEqual(frontmatter.data.parents);
@@ -771,7 +771,7 @@ describe("the content index carries a place's borders and routes", () => {
             shortcode: "far",
             name: { full: "Far" },
             data: { borders: [border] },
-            address: { slug: "place-far", canonical: "thalorna-none-place-far" },
+            address: { slug: "place-far", canonical: "thalorna-note-place-far" },
             anchors: [],
             foundry: {},
             documentation: null,
@@ -786,11 +786,11 @@ describe("the content index carries a place's borders and routes", () => {
     }
 
     it("checks a border written as a full address against a dependency's place, from both ends", () => {
-        const config = abroadDeclaring({ to: "mine-none-place-near", bearing: "E" });
+        const config = abroadDeclaring({ to: "mine-note-place-near", bearing: "E" });
         const good = lint(
             {
                 "Near.md": place("near", {
-                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                    borders: [{ to: "thalorna-note-place-far", bearing: "W" }],
                 }),
             },
             config,
@@ -799,7 +799,7 @@ describe("the content index carries a place's borders and routes", () => {
         const bad = lint(
             {
                 "Near.md": place("near", {
-                    borders: [{ to: "thalorna-none-place-far", bearing: "N" }],
+                    borders: [{ to: "thalorna-note-place-far", bearing: "N" }],
                 }),
             },
             config,
@@ -818,7 +818,7 @@ describe("the content index carries a place's borders and routes", () => {
         const { findings } = lint(
             {
                 "Near.md": place("near", {
-                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                    borders: [{ to: "thalorna-note-place-far", bearing: "W" }],
                 }),
             },
             config,
@@ -831,7 +831,7 @@ describe("the content index carries a place's borders and routes", () => {
         const { findings } = lint(
             {
                 "Near.md": place("near", {
-                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                    borders: [{ to: "thalorna-note-place-far", bearing: "W" }],
                 }),
             },
             config,
@@ -848,7 +848,7 @@ describe("the content index carries a place's borders and routes", () => {
         const { findings } = lint(
             {
                 "Near.md": place("near", {
-                    borders: [{ to: "thalorna-none-place-far", bearing: "W" }],
+                    borders: [{ to: "thalorna-note-place-far", bearing: "W" }],
                 }),
             },
             config,
@@ -859,7 +859,7 @@ describe("the content index carries a place's borders and routes", () => {
         // authored in its own package, where a short form names its own places,
         // so across a package boundary the long form is the only one that names
         // this place.
-        expect(warnings(findings)[0].message).toContain("mine-none-place-near");
+        expect(warnings(findings)[0].message).toContain("mine-note-place-near");
     });
 
     it("names the package a full address may not reach, for a dependency publishing no index", () => {

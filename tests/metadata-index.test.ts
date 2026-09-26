@@ -283,7 +283,7 @@ describe("resolving foreign addresses from cached indexes", () => {
         name: { full: "The Aerarium Imperii" },
         address: {
             slug: "affiliation-aerarimmpr",
-            canonical: "thalorna-none-affiliation-aerarimmpr",
+            canonical: "thalorna-note-affiliation-aerarimmpr",
         },
         anchors: [],
         foundry: null,
@@ -305,8 +305,7 @@ describe("resolving foreign addresses from cached indexes", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
         expect(fetched(index).map(([key]) => key)).toEqual([
-            "thalorna-none-affiliation-aerarimmpr",
-            "thalorna-none-docaffiliation-aerarimmpr",
+            "thalorna-note-affiliation-aerarimmpr",
         ]);
     });
 
@@ -318,7 +317,7 @@ describe("resolving foreign addresses from cached indexes", () => {
     it("derives the page URL from the address and the package base", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
-        expect(index.get("thalorna-none-affiliation-aerarimmpr")!.url).toBe(
+        expect(index.get("thalorna-note-affiliation-aerarimmpr")!.url).toBe(
             "/thalorna/affiliation-aerarimmpr/",
         );
     });
@@ -326,7 +325,7 @@ describe("resolving foreign addresses from cached indexes", () => {
     it("carries the name and the type a consumer renders with", () => {
         cacheIndex("thalorna", "0.1.0", [record()]);
         const entry = loadForeignIndexes(config(), ["sohl"]).index.get(
-            "thalorna-none-affiliation-aerarimmpr",
+            "thalorna-note-affiliation-aerarimmpr",
         )!;
         expect(entry.name).toBe("The Aerarium Imperii");
         expect(entry.type).toBe("affiliation");
@@ -345,14 +344,34 @@ describe("resolving foreign addresses from cached indexes", () => {
             }),
         ]);
         const { index } = loadForeignIndexes(config(), ["sohl"]);
-        expect(index.get("thalorna-none-docskill-sword")).toMatchObject({
+        expect(index.get("thalorna-note-skill-sword")).toMatchObject({
             url: "/thalorna/skill-sword/",
-            type: "docskill",
+            type: "skill",
         });
-        expect(index.get("thalorna-none-docskill-sword").uuid).toBeUndefined();
+        expect(index.get("thalorna-note-skill-sword").uuid).toBeUndefined();
         expect(index.get("thalorna-sohl-skill-sword").uuid).toBe(
             "Compendium.thalorna.items.Item.sword",
         );
+    });
+
+    it("reads a cached documentation record with a doc-prefixed type", () => {
+        cacheIndex("thalorna", "0.1.0", [
+            record({
+                type: "docskill",
+                shortcode: "sword",
+                address: { slug: "skill-sword", canonical: "thalorna-none-docskill-sword" },
+                documents: "thalorna-sohl-skill-sword",
+                foundry: {
+                    none: { uuid: "Compendium.thalorna.journals.JournalEntry.sword" },
+                },
+            }),
+        ]);
+        const { index } = loadForeignIndexes(config(), ["sohl"]);
+        expect(index.get("thalorna-note-skill-sword")).toMatchObject({
+            type: "skill",
+            url: "/thalorna/skill-sword/",
+            uuid: "Compendium.thalorna.journals.JournalEntry.sword",
+        });
     });
 
     it("takes the uuid of the system the address names", () => {
@@ -399,13 +418,15 @@ describe("resolving foreign addresses from cached indexes", () => {
     // than rendering the prose unlinked.
     it("still resolves a package it has no base for, without a URL", () => {
         cacheIndex("thalorna", "0.1.0", [
-            record({ foundry: { none: { uuid: "Compendium.x.items.Item.aaa" } } }),
+            record({ foundry: { sohl: { uuid: "Compendium.x.items.Item.aaa" } } }),
         ]);
         const { index, stale } = loadForeignIndexes(config(), ["sohl"], {});
-        const entry = index.get("thalorna-none-affiliation-aerarimmpr")!;
+        const entry = index.get("thalorna-note-affiliation-aerarimmpr")!;
         expect(stale).toEqual([]);
         expect(entry.url).toBeUndefined();
-        expect(entry.uuid).toBe("Compendium.x.items.Item.aaa");
+        expect(index.get("thalorna-sohl-affiliation-aerarimmpr")?.uuid).toBe(
+            "Compendium.x.items.Item.aaa",
+        );
     });
 
     it("skips a record with no address at all", () => {

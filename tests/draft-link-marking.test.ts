@@ -182,8 +182,8 @@ describe("the pack build marks a link to a draft note", () => {
 describe("the site build marks a link to a draft note", () => {
     const ctx = () => ({
         index: new Map<string, object>([
-            ["sohl-none-doc-shock", { url: "/rules/shock/", name: "Shock" }],
-            ["sohl-none-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
+            ["sohl-note-doc-shock", { url: "/rules/shock/", name: "Shock" }],
+            ["sohl-note-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
         ]),
         typeAlias: new Map<string, object>(),
         collide: new Set<string>(),
@@ -321,7 +321,7 @@ describe("the two builds emit the same markup", () => {
         }).markdown;
         const web = resolveWebWikilinks("[[doc-coma|Coma]]", {
             index: new Map<string, object>([
-                ["sohl-none-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
+                ["sohl-note-doc-coma", { url: "/rules/coma/", name: "Coma", draft: true }],
             ]),
             typeAlias: new Map<string, object>(),
             collide: new Set<string>(),

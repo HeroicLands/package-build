@@ -145,35 +145,29 @@ describe("address → key → address round-trips", () => {
     });
 });
 
-describe("an asset address carries no system", () => {
+describe("asset references supply their own system default", () => {
     it("declares `none` as the segment every asset type writes", () => {
         expect(ASSET_SYSTEM).toBe(NO_SYSTEM);
     });
 
-    it("expands to `none` wherever the reference is written", () => {
-        // The case this exists for: an embedded item's art is authored inside a
-        // system block, so the block's system would otherwise be written into
-        // the address and resolve to nothing.
-        const offenders: string[] = [];
+    it("uses the default supplied by each position", () => {
         for (const type of ASSET_TYPE_NAMES) {
             for (const system of SYSTEMS) {
                 const expanded = expandAddress(
                     { type, shortcode: "anvil", itemDoc: false },
                     { package: "sohl", system },
                 );
-                const read = readCanonicalKey(expanded);
-                if (read?.system !== NO_SYSTEM) offenders.push(`${system} → ${expanded}`);
+                expect(readCanonicalKey(expanded)?.system).toBe(system);
             }
         }
-        expect(offenders).toEqual([]);
     });
 
-    it("expands a stated system to `none` too, since the type decides", () => {
+    it("keeps an explicitly stated system", () => {
         const expanded = expandAddress(
             { type: "icon", shortcode: "anvil", itemDoc: false, system: "sohl" },
             { package: "sohl", system: "sohl" },
         );
-        expect(readCanonicalKey(expanded)?.system).toBe(NO_SYSTEM);
+        expect(readCanonicalKey(expanded)?.system).toBe("sohl");
     });
 
     it("leaves a note type's system alone", () => {

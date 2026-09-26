@@ -54,7 +54,12 @@ import { metadataFileName, PACKAGEBUILD_PACKAGE } from "./packages.mjs";
 import { packageBuildRecords } from "./packagebuild-index.mjs";
 
 export { metadataFileName };
-import { PACKAGE_BASE, readCanonicalKey, resolvePackageUrl } from "./content-address.mjs";
+import {
+    PACKAGE_BASE,
+    canonicalKey,
+    readCanonicalKey,
+    resolvePackageUrl,
+} from "./content-address.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 
 /**
@@ -369,11 +374,23 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
                 error.position = line >= 0 ? { line: line + 1 } : {};
                 throw error;
             }
-            referenceRecords.push(record);
-            const key = encodeAddresses(record?.address?.canonical);
+            let key = encodeAddresses(record?.address?.canonical);
             if (!key) continue;
-            const parts = readCanonicalKey(key);
+            let parts = readCanonicalKey(key);
             if (!parts) continue;
+            if (
+                parts.system === "none" &&
+                record.documents &&
+                parts.type.startsWith("doc") &&
+                record.type === parts.type
+            ) {
+                record.type = parts.type.slice(3);
+                key = canonicalKey(parts.package, "note", record.type, parts.shortcode);
+                parts = readCanonicalKey(key);
+                record.foundry = { note: record.foundry?.none };
+                record.address.canonical = key;
+            }
+            referenceRecords.push(record);
             // First writer wins, so two packages claiming one address cannot
             // make the build depend on the order the cache was read in.
             if (index.has(key)) continue;
@@ -436,11 +453,11 @@ export function loadForeignIndexes(config, localPackages, bases = PACKAGE_BASE) 
             if (entry.url) {
                 const identity = completeAddress({
                     package: record.package,
-                    system: "none",
+                    system: "note",
                     type: record.type,
                     shortcode: record.shortcode,
                 });
-                if (identity.type !== record.type)
+                if (key !== renderAddress(identity))
                     pageAliases.push([
                         renderAddress(identity),
                         {

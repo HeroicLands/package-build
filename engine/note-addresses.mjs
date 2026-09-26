@@ -24,7 +24,13 @@ export { AddressEntries, encodeAddresses, cloneAddressState } from "./address-va
 
 /** Structured positions whose Address is nested inside a declared container. */
 export const STRUCTURED_ADDRESSES = Object.freeze([
-    { path: ["packFolder"], shape: "scalar-or-map", type: "folder", accepts: ["folder"] },
+    {
+        path: ["packFolder"],
+        shape: "scalar-or-map",
+        type: "folder",
+        accepts: ["folder"],
+        system: "none",
+    },
     {
         noteType: "affiliation",
         path: ["data", "governance", "ranks", "*", "lore"],
@@ -67,6 +73,9 @@ export function addressPositions(fm, context = {}) {
                 shape,
                 type: field.ref,
                 accepts: field.accepts,
+                ...(ASSET_TYPE_NAMES.has(field.ref) || field.ref === "folder" ?
+                    { system: "none" }
+                :   {}),
             });
     }
     out.push(...STRUCTURED_ADDRESSES.filter((p) => !p.noteType || p.noteType === fm.type));
@@ -79,7 +88,7 @@ export function addressPositions(fm, context = {}) {
             shape: "scalar-or-map",
             type: "folder",
             accepts: ["folder"],
-            system,
+            system: "none",
         });
         out.push({
             path: [system, "items", "*", "model"],
@@ -93,7 +102,7 @@ export function addressPositions(fm, context = {}) {
                 shape: "value",
                 type: slot.type,
                 accepts: slot.accepts,
-                system,
+                system: "none",
             });
         const spec = context.systemBlocks?.[system];
         for (const [index, entry] of (Array.isArray(fm[system]?.items) ?
@@ -121,7 +130,13 @@ export function addressPositions(fm, context = {}) {
                         field.address.holds === "items" ? "list" : (field.address.holds ?? "value"),
                     type: field.address.type,
                     accepts: field.address.accepts,
-                    system,
+                    system:
+                        (
+                            ASSET_TYPE_NAMES.has(field.address.type) ||
+                            field.address.type === "folder"
+                        ) ?
+                            "none"
+                        :   system,
                 });
             }
         }
@@ -135,7 +150,10 @@ export function addressPositions(fm, context = {}) {
                 shape: field.address.holds === "items" ? "list" : (field.address.holds ?? "value"),
                 type: field.address.type,
                 accepts: field.address.accepts,
-                system,
+                system:
+                    ASSET_TYPE_NAMES.has(field.address.type) || field.address.type === "folder" ?
+                        "none"
+                    :   system,
             };
             out.push({ ...position, path: [system, "system", ...field.to.split(".")] });
             out.push({
@@ -143,7 +161,7 @@ export function addressPositions(fm, context = {}) {
                 path: [system, ...(field.legacyKey ?? field.name).split(".")],
             });
             if (field.name?.startsWith("data.") && field.topLevelMeans === undefined)
-                out.push({ ...position, system: "none", path: field.name.slice(5).split(".") });
+                out.push({ ...position, path: field.name.slice(5).split(".") });
         }
     }
     for (const position of [...out]) {
@@ -171,7 +189,7 @@ export function decodeNoteAddresses(fm, context) {
         const defaults = {
             ...context,
             types,
-            system: position.system ?? context.system ?? "none",
+            system: position.system ?? context.system ?? "note",
             type: position.type,
         };
         const fail = (value, path, description) => {
@@ -277,7 +295,7 @@ export function noteAddressContext(config) {
     }
     return {
         package: config.contentPackage,
-        system: "none",
+        system: "note",
         systemBlocks,
     };
 }
@@ -313,7 +331,7 @@ export function decodeIndexAddresses(record, context) {
             written,
             {
                 ...context,
-                system: "none",
+                system: "note",
                 types: new Set([...Object.keys(NOTE_VOCABULARY), ...ASSET_TYPE_NAMES]),
             },
             { declared: true },

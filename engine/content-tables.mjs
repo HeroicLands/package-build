@@ -1041,7 +1041,7 @@ export function renderContentTable(spec, rows, linkable, self) {
             const label = text.replace(/\\?\|/g, "/");
             const target = completeAddress(
                 { type: doc.fm.type, shortcode: doc.fm.shortcode },
-                { package: doc.fm.package ?? contentPackage(), system: "none" },
+                { package: doc.fm.package ?? contentPackage(), system: "note" },
             );
             return `[[${renderAddress(target)}\\|${label}]]`;
         }),

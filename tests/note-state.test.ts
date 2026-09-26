@@ -123,7 +123,7 @@ describe("a stub's index record", () => {
             slug: "place-weyshott",
             canonical: {
                 package: "thalorna",
-                system: "none",
+                system: "note",
                 type: "place",
                 shortcode: "weyshott",
             },
@@ -141,7 +141,7 @@ describe("a stub's index record", () => {
                 link: {
                     target: {
                         package: "thalorna",
-                        system: "none",
+                        system: "note",
                         type: "place",
                         shortcode: "weyshott",
                     },
@@ -223,7 +223,7 @@ describe("a stub of a document-compiling type still compiles its document", () =
             skipDirectories: [],
             manifest: MANIFEST,
         });
-        const note = records.find((r: any) => r.type === "mysticalability");
+        const note = records.find((r: any) => r.type === "mysticalability" && !r.documents);
         expect(note.id).toBe("04aee107d23aa3a8");
         expect(note.foundry).toBeTruthy();
         expect(note.address).toBeNull();
@@ -404,12 +404,12 @@ describe("a document that would be empty is not created, and nothing names one",
             { contentPackage: "thalorna", skipDirectories: [], manifest: IDENTITIES },
         );
         // The Item is derived from `data:`, so it is made and named.
-        const item = records.find((r: any) => r.type === "mysticalability");
+        const item = records.find((r: any) => r.type === "mysticalability" && !r.documents);
         expect(item.id).toBe("hex0000000000000");
         expect(item.foundry.sohl.uuid).toContain(".Item.hex0000000000000");
         // Its documentation journal is not, so the record that would name it
         // names nothing — and it is still a record.
-        const doc = records.find((r: any) => r.type === "docmysticalability");
+        const doc = records.find((r: any) => r.type === "mysticalability" && r.documents);
         expect(doc).toBeTruthy();
         expect({
             id: doc.id,
@@ -649,7 +649,7 @@ const ROWS = [
         subType: "settlement",
         shortcode: "ashford",
         name: { full: "Ashford" },
-        address: { slug: "place-ashford", canonical: "thalorna-none-place-ashford" },
+        address: { slug: "place-ashford", canonical: "thalorna-note-place-ashford" },
         tags: ["village"],
         file: { path: "Regions/Ashford.md", folder: "Regions", name: "Ashford" },
     },
@@ -658,7 +658,7 @@ const ROWS = [
         subType: "settlement",
         shortcode: "harnaby",
         name: { full: "Harnaby" },
-        address: { slug: "place-harnaby", canonical: "thalorna-none-place-harnaby" },
+        address: { slug: "place-harnaby", canonical: "thalorna-note-place-harnaby" },
         tags: ["village", "draft"],
         file: { path: "Regions/Harnaby.md", folder: "Regions", name: "Harnaby" },
     },

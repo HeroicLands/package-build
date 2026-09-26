@@ -118,7 +118,7 @@ describe("buildLinkIndex", () => {
         });
         const src = index.notes.find((n) => n.type === "doc");
         expect(index.linksOf(src).map((l) => [l.target, l.anchor])).toEqual([
-            [{ package: "sohl", system: "none", type: "docskill", shortcode: "clmb" }, ""],
+            [{ package: "sohl", system: "note", type: "skill", shortcode: "clmb" }, ""],
             ["", "here"],
         ]);
     });
@@ -135,7 +135,7 @@ describe("buildLinkIndex", () => {
         });
         const src = index.notes.find((n) => n.type === "doc");
         expect(index.linksOf(src).map((l) => l.target)).toEqual([
-            { package: "sohl", system: "none", type: "docskill", shortcode: "clmb" },
+            { package: "sohl", system: "note", type: "skill", shortcode: "clmb" },
         ]);
     });
 

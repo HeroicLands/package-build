@@ -187,7 +187,7 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
         // package-wide identity and takes no mount at all.
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         expect(doc.entries["demo-sohl-weapongear-dagger"].path).toBe("weapongear-dagger/");
-        expect(doc.entries["demo-none-doc-combat"].path).toBe("doc-combat/");
+        expect(doc.entries["demo-note-doc-combat"].path).toBe("doc-combat/");
     });
 
     it("addresses it identically when there is no prefix", () => {
@@ -199,8 +199,8 @@ describe("the address scheme is configuration, and a prefix is all of it", () =>
         const doc = emit({ ...WEB, address: { prefix: "kb/" } });
         // Read as its section's landing it is recorded at `kb/rules/`. There
         // is no section, so there is no landing and no second rule.
-        expect(doc.entries["demo-none-doc-rulesidx"].path).toBe("doc-rulesidx/");
-        expect(doc.entries["demo-none-doc-creatures"].path).toBe("doc-creatures/");
+        expect(doc.entries["demo-note-doc-rulesidx"].path).toBe("doc-rulesidx/");
+        expect(doc.entries["demo-note-doc-creatures"].path).toBe("doc-creatures/");
     });
 });
 
@@ -209,7 +209,7 @@ describe("what is published, and what is not", () => {
         // It was skipped for having no section to be filed under; a page is
         // filed nowhere now, so nothing is missing.
         const doc = emit({ ...WEB });
-        expect(doc.entries["demo-none-doc-homeless"].path).toBe("doc-homeless/");
+        expect(doc.entries["demo-note-doc-homeless"].path).toBe("doc-homeless/");
     });
 
     it("refuses a note declaring `package:`, rather than skipping it", () => {
@@ -287,11 +287,11 @@ name:
         // systems it compiles items for.
         const doc = emit({ ...WEB });
         const item = doc.entries["demo-sohl-weapongear-dagger"];
-        expect(item.doc).toBe("demo-none-docweapongear-dagger");
+        expect(item.doc).toBe("demo-note-weapongear-dagger");
         // The doc entry owns the documentation UUID; the item does not repeat
         // it.
         expect(item.uuid).toBe("Compendium.demo-module.items.Item.aaaaaaaaaaaaaaaa");
-        expect(doc.entries["demo-none-docweapongear-dagger"].uuid).toMatch(
+        expect(doc.entries["demo-note-weapongear-dagger"].uuid).toMatch(
             /^Compendium\.demo-module\.journals\.JournalEntry\./,
         );
     });
@@ -300,7 +300,7 @@ name:
 describe("anchors are computed, never approximated", () => {
     it("maps every named section to a whole page UUID", () => {
         const doc = emit({ ...WEB });
-        const anchors = doc.entries["demo-none-docweapongear-dagger"].anchors!;
+        const anchors = doc.entries["demo-note-weapongear-dagger"].anchors!;
         expect(Object.keys(anchors).sort()).toEqual([LEAD_ANCHOR, "crafting"]);
         // Whole UUIDs, so a consumer resolves a section link by lookup rather
         // than by reimplementing the page-id hash.
@@ -312,7 +312,7 @@ describe("anchors are computed, never approximated", () => {
 
     it("puts a `doc` note's anchors on its own entry", () => {
         const doc = emit({ ...WEB });
-        expect(Object.keys(doc.entries["demo-none-doc-combat"].anchors!)).toContain("melee");
+        expect(Object.keys(doc.entries["demo-note-doc-combat"].anchors!)).toContain("melee");
     });
 
     it("names the lead page, which carries no authored slug of its own", () => {
@@ -373,7 +373,7 @@ name:
         );
         // And its documentation journal, which is a second document keyed off
         // the first — so it moves with it rather than being derived twice.
-        expect(doc.entries["demo-none-docweapongear-idless"].uuid).toBeDefined();
+        expect(doc.entries["demo-note-weapongear-idless"].uuid).toBeDefined();
         fs.rmSync(path.join(root, "assets/content/Gear/Idless.md"));
     });
 
@@ -397,7 +397,7 @@ name:
             const entry = doc.entries["demo-sohl-weapongear-unstatted"];
             expect(entry.path).toBe("weapongear-unstatted/");
             expect(entry.uuid).toBeUndefined();
-            expect(doc.entries["demo-none-docweapongear-unstatted"].uuid).toBeDefined();
+            expect(doc.entries["demo-note-weapongear-unstatted"].uuid).toBeDefined();
         } finally {
             fs.rmSync(path.join(root, "assets/content/Gear/Unstatted.md"));
         }

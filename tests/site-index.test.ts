@@ -64,7 +64,7 @@ describe("keys that are unique by construction", () => {
         expect(index.get("skill/clmb")?.url).toBe("/kb/skill/climbing/");
     });
 
-    it("aliases the doc qualifier onto the same page for types that have one", () => {
+    it("indexes readable content without a generated type qualifier", () => {
         // In Foundry an item and its documentation are two documents; here the
         // note renders as one page which *is* its documentation.
         const { index, contentTypes } = buildSiteIndex([
@@ -73,8 +73,8 @@ describe("keys that are unique by construction", () => {
             }),
         ]);
 
-        expect(index.get("docskill/clmb")?.url).toBe("/kb/skill/climbing/");
-        expect(contentTypes.has("docskill")).toBe(true);
+        expect(index.get("sohl-note-skill-clmb")?.url).toBe("/kb/skill/climbing/");
+        expect(contentTypes.has("docskill")).toBe(false);
     });
 });
 
@@ -287,7 +287,7 @@ describe("resolveInfoboxRef", () => {
         const built = shared();
         expect(resolveInfoboxRef(built, "north", { type: "place" })).toMatchObject({
             name: "The North",
-            address: { package: "sohl", system: "none", type: "place", shortcode: "north" },
+            address: { package: "sohl", system: "note", type: "place", shortcode: "north" },
         });
     });
 
@@ -306,7 +306,7 @@ describe("resolveInfoboxRef", () => {
         const built = shared();
         expect(resolveInfoboxRef(built, "skill-north")).toMatchObject({
             name: "Northern Style",
-            address: { package: "sohl", system: "none", type: "docskill", shortcode: "north" },
+            address: { package: "sohl", system: "note", type: "skill", shortcode: "north" },
         });
     });
 

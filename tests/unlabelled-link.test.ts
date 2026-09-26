@@ -251,7 +251,7 @@ describe("the pack resolver requires a label", () => {
 describe("the web resolver requires a label", () => {
     const climbing = { url: "/kb/skill/climbing/", name: "Climbing" };
     const ctx = () => ({
-        index: new Map<string, object>([["sohl-none-docskill-clmb", climbing]]),
+        index: new Map<string, object>([["sohl-note-skill-clmb", climbing]]),
         sections: new Set<string>(["kb"]),
         contentPackage: "sohl",
         contentTypes: new Set<string>(["skill", "doc"]),

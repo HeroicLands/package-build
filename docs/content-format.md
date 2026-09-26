@@ -96,7 +96,7 @@ column regardless.
 
 **Embedded models link to documentation in an infobox.** The model Address
 continues to identify the native Item used for compilation. Its displayed link
-uses that same package, type and Shortcode under `none`, which names the
+uses that same package, type and Shortcode under `note`, which names the
 corresponding documentation journal. A model with no published documentation
 keeps its known name as plain text; the infobox does not substitute an Actor or
 Item link.
@@ -1268,85 +1268,78 @@ below.
 <package>-<system>-<note_type>-<shortcode>
 ```
 
-Read it from the right: the last segment is always the shortcode, the one before
-it always the note type, the one before that always the system, and the first the
-package. Nothing is positional-by-guess — a segment means what its position says
-it means.
+The final segment is the shortcode, preceded by the note type, the system and
+the package. Each segment has one position. The system says which kind of target
+is named:
 
-The `<system>` segment is `none` for a note that belongs to no system, which is
-most of them: `harnadventures-none-being-grod`. A note that exists only for one
-system names it.
+| system        | target                                                                      |
+| ------------- | --------------------------------------------------------------------------- |
+| `note`        | Readable note content: a web page, a book entry, or a Foundry JournalEntry. |
+| `none`        | A systemless target such as an asset, Folder, Macro or Scene.               |
+| `sohl`, `hm3` | A game system's Actor or Item document.                                     |
+
+A note can publish more than one Address. A `being` note, for example, publishes
+`thalorna-note-being-bctrncml` for its readable content and
+`thalorna-sohl-being-bctrncml` for its SoHL Actor. An item note follows the same
+pattern for its page and Item. The type segment remains the authored note type
+in each Address.
 
 #### Shorter forms
 
-The full address is the unambiguous form, and almost nothing uses it — 92 of
-12,056 links in the current trees. The rest rely on shorter forms, each dropping
-segments from the left:
+Authors may omit segments from the left. The complete Address states all four:
 
 | form                            | expands to                                               |
 | ------------------------------- | -------------------------------------------------------- |
 | `package-system-type-shortcode` | itself                                                   |
 | `system-type-shortcode`         | `<this package>-system-type-shortcode`                   |
-| `type-shortcode`                | `<this package>-<this block's system>-type-shortcode`    |
-| `shortcode`                     | as above, with the type from the field's own declaration |
+| `type-shortcode`                | `<this package>-<this position's system>-type-shortcode` |
+| `shortcode`                     | as above, with the type from the field's declaration     |
 
-There is no `package-type-shortcode`: the forms are exactly the **suffixes** of
-the canonical address, so naming another package means naming its system too.
-`kethira-place-tashal` is three segments, which reads as system `kethira`, and
-fails.
+There is no `package-type-shortcode` form. A reference to another package states
+its system as well as its package.
 
 #### Authored references and generated references
 
-Authored notes may use any permitted suffix. Builds leave those source bytes
-unchanged. Generated content indexes, SQL records, site frontmatter and generated
-Wikilinks contain full `package-system-type-shortcode` Addresses. For example,
-`data.parents: [north]` in the `thalorna` package emits
-`data.parents: [thalorna-none-place-north]`.
+Authored notes may use any permitted suffix. Builds leave source bytes unchanged.
+Generated content indexes, SQL records, site frontmatter and generated
+Wikilinks contain complete Addresses. For example, `data.parents: [north]` in
+`thalorna` emits `data.parents: [thalorna-note-place-north]`.
 
-SQL queries compare Address-valued fields to full Addresses. A note's `shortcode`
-is a distinct identity component, so it is not equal to an Address stored in
-`data.parents`, `data.domains` or a governance rank's `lore`. Use the target's
-complete identity for that comparison, including its package, system and type.
-A stub has no published page address; its note identity still contains those
-components and its Shortcode.
+SQL queries compare Address-valued fields to complete Addresses. A note's
+`shortcode` is a distinct identity component, so it is not equal to an Address
+stored in `data.parents`, `data.domains` or a governance rank's `lore`. Use the
+target's complete identity for that comparison. A stub has no published page
+address; its note identity still contains the package, system, type and shortcode.
 
-The toolchain holds parsed Address properties as complete tuples internally.
-Address-keyed relation maps hold typed targets and standing values. Only generated
-output serializes these properties to Address strings. Runtime Shortcodes,
-Foundry UUIDs, file paths and URLs keep their own representations.
+The toolchain holds parsed Addresses as complete tuples internally. Address-keyed
+relation maps hold typed targets and standing values. Only generated output
+serializes these properties to Address strings. Runtime Shortcodes, Foundry
+UUIDs, file paths and URLs keep their own representations.
 
 An Address-valued `data:` field must name a target in this package or a declared
-dependency index. `content-build lint` reports a missing target as an error at
-the value or map key that names it. A stub counts as a target for data even
-though it publishes no page. Art slots use their own missing-art warning and
-document fallback.
+dependency index. `content-build lint` reports a missing target at the value or
+map key that names it. A stub counts as a target for data even though it
+publishes no page. Art slots use their own missing-art warning and document
+fallback.
 
 #### An omitted segment defaults from where the link is written
 
-It is **not** a wildcard and resolution is not a search. Every short form expands
-to exactly one canonical address before anything is looked up, so a lookup either
-finds one entry or none — there is no candidate set, and a cross-package
-ambiguity is impossible by construction.
+An omitted segment is a default, not a wildcard. Every short form expands to one
+complete Address before lookup.
 
-- **package** omitted → the current package. A short address therefore names
-  _this_ package and never falls through to a dependency; reaching another one is
-  the fully qualified form's job.
-- **system** omitted → **the system block the link is written under**. Anywhere
-  under `sohl:` is `sohl`; anywhere under `hm3:` is `hm3`; **anywhere else** —
-  top-level frontmatter, `data:`, and body prose — is `none`. The enclosing block
-  decides at any depth, so `sohl.items[3].model` and `sohl.system.body.structure`
-  default alike; the field has no say.
+- **Package:** the current package. A short address never falls through to a
+  dependency.
+- **System in `[[link|text]]`:** `note`, for every note type. Use an explicit
+  game system to name its Actor or Item, or `none` to name a systemless target.
+- **System in `![[link|text]]`:** `none`. An embed names an image or icon asset;
+  it also supplies `image` as the type of a bare shortcode.
+- **System in frontmatter:** a system block such as `sohl:` or `hm3:` supplies
+  its game system. Other Address fields default to `note`, except fields
+  declared for images, icons or folders, which default to `none`.
 
-**Under `none`, a system-bearing type addresses its documentation.** A note's
-`none` address _is_ its `doc<type>` journal — the Item is the one with a system —
-so a prose `[[affiliation-sirvadar|Sirvadar]]` names the page, which is what
-prose almost always means. A prose link that means the **Item** states the
-system: `[[sohl-affiliation-sirvadar|…]]`.
-
-Only a type whose own document carries a system is redirected this way. A
-`macro` and the map types have documentation journals too, but their own
-documents are core ones already at `none`, so `macro-autoattack` names the Macro
-and `docmacro-autoattack` its journal — two live addresses.
+For example, `[[macro-autoattack|Automated Attack]]` names the readable macro
+note, while `[[none-macro-autoattack|Automated Attack]]` names the Foundry Macro.
+`![[icon-anvil|Anvil]]` names the systemless icon asset.
 
 **A complete Address is lowercase throughout.** Every segment — package,
 system, type and shortcode alike — contains only lowercase ASCII letters and
@@ -1572,7 +1565,7 @@ A **`Wikilink`** is how body prose names something:
 The brackets, the `#<anchor>` and the `|<text>` label are the Wikilink's own.
 What sits inside them is an `Address` like any other — read by the same grammar,
 written at any of its lengths, and taking each omitted segment from where the
-link is written, which for body prose is this package and system `none`. So
+link is written, which for body prose is this package and system `note`. So
 nothing about resolution belongs to the bracketed form: a wikilink and a
 frontmatter field ask the same question of the same value, and the findings above
 are the answers either of them gets.
@@ -2054,10 +2047,10 @@ system a note might write. A package shipping for a second system declares
 `system:` on a pack of each class it compiles.
 
 That includes actors. A being producing its Actor and nothing else would be
-the one system-bearing note with no address at `none`, leaving a prose link
+a system-bearing note with readable content, giving a prose link
 naming it nowhere to land. It carries a documentation journal like every other
 such note, addressed
-`<package>-none-docbeing-<shortcode>` beside the Actor's
+`<package>-note-being-<shortcode>` beside the Actor's
 `<package>-<system>-being-<shortcode>`.
 
 **A being keeps its prose inline as well.** `system.appearance` and
@@ -4065,7 +4058,7 @@ await CONFIG.SOHL.class.Utility.currentCombatantAttack();
 
 Three rules follow, and each is deliberate. The anchor names the **page**, not
 the heading text, so the heading may be worded freely and
-`[[docmacro-autoattack#script]]` still opens exactly this page. The fence must
+`[[macro-autoattack#script]]` still opens exactly this page. The fence must
 be **tagged** — an untagged fence is a code sample whose language nobody stated,
 and treating it as executable would make an illustrative snippet the macro. And
 only the **first** tagged fence counts, so a note may document its macro
@@ -4141,8 +4134,8 @@ persists in the pack.
 **Each address names the note's own document.** That is the same rule `pack:`
 follows, so there is one answer and not two. A note that compiles into _two_
 documents — an item and the JournalEntry its prose became — puts the second in a
-bundle only when the bundle names it by its own `doc…` address:
-`miscgear-bowlcer` is the item, `docmiscgear-bowlcer` its description page.
+bundle when the bundle names its `note` Address:
+`sohl-miscgear-bowlcer` is the Item, `miscgear-bowlcer` its description page.
 
 **An address that resolves to nothing fails the build.** A `folder` address is
 refused with a message of its own: a folder materialises in every pack holding

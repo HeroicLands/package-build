@@ -428,10 +428,10 @@ describe("the content index records a `pack: none` note with no Foundry address"
             .map((line) => JSON.parse(line));
         const none = records.find((r) => r.shortcode === "architecture");
         const some = records.find((r) => r.shortcode === "combat");
-        expect(none.address.canonical).toBe("sohl-none-doc-architecture");
+        expect(none.address.canonical).toBe("sohl-note-doc-architecture");
         expect(none.foundry).toBeNull();
         // The positive control: a `doc` that compiles publishes its UUID.
-        expect(some.foundry.none.uuid).toMatch(/^Compendium\.sohl\.journals\.JournalEntry\./);
+        expect(some.foundry.note.uuid).toMatch(/^Compendium\.sohl\.journals\.JournalEntry\./);
     });
 });
 

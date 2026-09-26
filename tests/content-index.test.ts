@@ -609,9 +609,9 @@ describe("emitContentIndex", () => {
         // Actor *and* one for the page — the same pair an item has always had,
         // and what lets a prose link name a being at all.
         expect(readIndex(result.file).map((r) => r.address.canonical)).toEqual([
-            "sohl-none-docbeing-aurochs",
+            "sohl-note-being-aurochs",
             "sohl-sohl-being-aurochs",
-            "sohl-none-docbeing-baboon",
+            "sohl-note-being-baboon",
             "sohl-sohl-being-baboon",
         ]);
         expect(readIndex(result.file).map((r) => r.shortcode)).toEqual([
@@ -828,8 +828,8 @@ describe("an item note is two records: the item, and its documentation", () => {
         const records = readIndex(file);
         expect(records).toHaveLength(2);
         return {
-            item: records.find((r: any) => r.type === "affliction"),
-            doc: records.find((r: any) => r.type === "docaffliction"),
+            item: records.find((r: any) => r.address?.canonical.includes("-sohl-")),
+            doc: records.find((r: any) => r.address?.canonical.includes("-note-")),
         };
     };
 
@@ -843,7 +843,7 @@ describe("an item note is two records: the item, and its documentation", () => {
         // do not share — and the journal's `none` sorts ahead of the
         // item's `sohl`. The order is arbitrary but it must be *stable*, which
         // is what the determinism case below is really about.
-        expect(records.map((r) => r.type)).toEqual(["docaffliction", "affliction"]);
+        expect(records.map((r) => r.type)).toEqual(["affliction", "affliction"]);
         // The counts are different numbers and are reported as such: an item
         // note is one note and two records.
         expect(result.notes).toBe(1);
@@ -858,7 +858,7 @@ describe("an item note is two records: the item, and its documentation", () => {
         // so it is keyed `none` — and stays `none` however many system blocks
         // the note grows, because there is only ever one of it.
         expect(item.address.canonical).toBe("sohl-sohl-affliction-blkdth");
-        expect(doc.address.canonical).toBe("sohl-none-docaffliction-blkdth");
+        expect(doc.address.canonical).toBe("sohl-note-affliction-blkdth");
         // On the web the note renders as one page which *is* its documentation.
         expect(doc.address.slug).toBe(item.address.slug);
     });
@@ -880,8 +880,8 @@ describe("an item note is two records: the item, and its documentation", () => {
         // documentation journal belongs to the note format, not to a system,
         // so it carries no system key.
         expect(item.foundry.sohl.uuid).toContain(".Item.");
-        expect(doc.foundry.none.uuid).toContain(".JournalEntry.");
-        expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.none.uuid);
+        expect(doc.foundry.note.uuid).toContain(".JournalEntry.");
+        expect(item.foundry.sohl.uuid).not.toBe(doc.foundry.note.uuid);
         expect(doc.foundry.sohl).toBeUndefined();
     });
 
@@ -901,7 +901,7 @@ describe("an item note is two records: the item, and its documentation", () => {
 
         expect(doc.id).toBe(itemDocEntryId(item.id));
         // The identity the UUID names, so the two agree by construction.
-        expect(doc.foundry.none.uuid.endsWith(`.${doc.id}`)).toBe(true);
+        expect(doc.foundry.note.uuid.endsWith(`.${doc.id}`)).toBe(true);
         // Two documents, two ids: the journal is not the item.
         expect(doc.id).not.toBe(item.id);
     });
@@ -960,8 +960,8 @@ describe("a note may declare more than one system", () => {
         // Asked for by type, not by position: an item note is two records and
         // the file is ordered by canonical address, where the journal's `none`
         // now sorts ahead of the item's `sohl`.
-        const item = readIndex(emitContentIndex({ config: cfg(tmp) }).file).find(
-            (r: any) => r.type === "affliction",
+        const item = readIndex(emitContentIndex({ config: cfg(tmp) }).file).find((r: any) =>
+            r.address?.canonical.includes("-sohl-"),
         )!;
         expect(Object.keys(item.foundry)).toEqual(["sohl"]);
         expect(item.foundry.sohl.uuid).toContain(".Item.");

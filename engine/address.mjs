@@ -79,41 +79,25 @@
  * to guess which sense was meant. The cost is that `<package>-<type>-<shortcode>`
  * is **not** a written form, so a link into another package states its system.
  *
- * ## The three rules a complete tuple applies
+ * ## Defaults belong to the citing position
  *
- * - **`system` is derived from the type, then defaulted.** An asset type and a
- *   documentation journal are {@link NO_SYSTEM} because a file and a
- *   JournalEntry belong to no game system, and the segment is therefore a
- *   property of the type rather than of where the reference was written.
- *   Everything else takes the written system, then the position's default.
- * - **`type` may not survive unchanged.** A system-bearing type reached at
- *   `none` is redirected to `doc<type>`, because a note's `none` address *is*
- *   its documentation journal — the Item is the one with a system.
- * - **Acceptability accepts a type's documentation form.** A position that
- *   accepts `weapongear` accepts `docweapongear`, so a target addressed by its
- *   documentation journal is acceptable wherever the note itself would be.
+ * Ordinary wikilinks default to `note`, embeds default to `none`, and typed
+ * frontmatter fields supply their declared system. The authored type stays
+ * the type in the complete tuple. A `doc<type>` qualifier is accepted as an
+ * input spelling for a readable note and resolves to `note-<type>`.
  *
  * ## The tuple keeps no memory of how it was written
  *
  * An abbreviation is a *rendering*, not a different value: `being-kaldor` in a
- * `thalorna` note and `thalorna-none-being-kaldor` are the same Address, and
- * they parse to the same four fields. So does the pair `weapongear-dgr` in prose
- * and `docweapongear-dgr` anywhere, because both name the one documentation
- * journal. Nothing here records what the author typed — a tuple that did would
- * make identity depend on a spelling, and two notes naming one document would
- * compare unequal.
+ * `thalorna` note and `thalorna-note-being-kaldor` are the same Address, and
+ * they parse to the same four fields. Nothing here records what the author
+ * typed — a tuple that did would make identity depend on a spelling.
  *
  * The converse matters just as much: **one written string is two Addresses at
  * two positions**, because the positions supply different defaults.
  * `skill-wpnc` under `sohl.items` defaults its system from the block and names
- * the **Item**; the same string in body prose defaults to `none`, is redirected,
- * and names the **page**. Only the resolved tuple can tell them apart.
- *
- * That is why {@link acceptsType} widens the accepted set rather than reading a
- * remembered pre-redirect type off the tuple. The redirect is not reversible
- * from the four segments alone: `docmacro-autoattack` addresses a `macro`'s
- * journal while `macro-autoattack` addresses the Macro, so `doc`-stripping is a
- * question about the type vocabulary, not about the tuple.
+ * the Item; the same string in body prose defaults to `note` and names the
+ * readable page. Only the resolved tuple can tell them apart.
  *
  * ## What this module does not do
  *
@@ -132,17 +116,15 @@
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so the
 // direction is toward the leaf and cannot close a cycle.
 import { isAddressSegment } from "./address-charset.mjs";
-import { NO_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
-// The asset vocabulary, for the one thing the address grammar asks of it:
-// whether a type's `<system>` segment is fixed. `engine/asset-types.mjs` is a
-// leaf, so the direction cannot close a cycle.
-import { isAssetType } from "./asset-types.mjs";
+import { NO_SYSTEM, NOTE_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
+// Document subtype maps identify the system of a note's own Actor or Item.
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
 // `ids.mjs` is a leaf with no local imports, and `pack-config.mjs` reaches only
 // the configuration loader and the diagnostics writer — neither reads an
 // address, so the grammar sits below everything that consumes it.
-import { currentType, ITEM_PACK, packForType } from "./ids.mjs";
+import { currentType, ITEM_PACK, JOURNAL_TYPES, packForType } from "./ids.mjs";
+import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
 export { NO_SYSTEM };
@@ -166,32 +148,18 @@ export const ADDRESS_SEPARATOR = "-";
  */
 export const CANONICAL_KEY_SEGMENTS = 4;
 
-/**
- * The qualifier prefix that addresses a note's **documentation** rather than
- * the note's own document: `docskill-wpnc` is the JournalEntry that
- * `skill-wpnc`'s prose compiled into.
- *
- * Every doc-carrying type has a `doc<type>` counterpart, formed by prefix and
- * never enumerated, so the prefix itself is the whole of that vocabulary.
- *
- * @type {string}
- */
+/** The accepted `doc<type>` input prefix for readable note links. */
 export const ITEM_DOC_PREFIX = "doc";
 
 /** Package, system and type are one spelling each, so they fold to lowercase. */
 const norm = (s) => String(s).toLowerCase().trim();
 
 /**
- * A complete Address: four segments, and nothing else.
- *
- * `type` is the segment the canonical string carries, after the `doc<type>`
- * redirect. There is no fifth field recording the written form, because the
- * written form is a rendering rather than part of the value.
+ * A complete Address: four segments, with no memory of the authored form.
  *
  * @typedef {object} AddressTuple
  * @property {string} package - The owning **content** package.
- * @property {string} system - The system whose document this addresses, or
- *   `none`.
+ * @property {string} system - `note`, `none`, or a game system id.
  * @property {string} type - The type segment of the canonical Address.
  * @property {string} shortcode - The note's `shortcode`.
  */
@@ -218,29 +186,8 @@ const norm = (s) => String(s).toLowerCase().trim();
  */
 
 /**
- * Every content type whose **prose compiles into a JournalEntry of its own**,
- * addressed by the virtual `doc<type>` qualifier.
- *
- * Every item type, every actor type, every map type, plus `macro` — a macro
- * note's body documents the script the note also compiles into a Macro, which
- * is the same shape as an item and its description: one note, two documents,
- * the prose living in the journals pack.
- *
- * **One set, read by the compilers and by the grammar alike.** The journals
- * pass decides what to compile from it, the link manifest decides what to
- * publish a `doc<type>` entry for, and the parser decides whether `doc<type>`
- * is a legal type segment. Held apart, the three drift into a manifest that
- * asserts documentation nothing compiled, a compiled entry no consumer can
- * address, or an authored `doc<type>` link that stops parsing. It is composed
- * exactly once, in `defineConfig`, and read from there — never recomposed at a
- * call site.
- *
- * `doc` notes are absent, for the reason that applies to them alone: a `doc`
- * note's single document *is* its prose, so there is no second document for a
- * `doc<type>` address to name.
- *
- * An accessor rather than a hoisted constant, so that importing this module
- * needs no configuration.
+ * The configured types whose prose compiles into a separate JournalEntry.
+ * The journal has a `note` Address with the authored type segment.
  *
  * @returns {ReadonlySet<string>} The configured doc-carrying types.
  */
@@ -265,50 +212,20 @@ export function hasDocEntry(type) {
     return docEntryTypes().has(String(currentType(type)));
 }
 
-/**
- * Whether a note type's **own** document carries a game system.
- *
- * True for the types some shipped map compiles into an Item or an Actor; false
- * for the core-document types — `doc`, `lore`, `place`, `scenario`, `macro` and
- * the map types — whose documents Foundry itself defines and which therefore
- * already live at `none`.
- *
- * It is what the `doc<type>` redirect tests rather than {@link hasDocEntry}: a
- * `macro` has a documentation journal *and* a `none` address of its own, so
- * redirecting on "has a doc entry" would collapse two live addresses into one
- * and a `[[macro-autoattack|]]` would stop naming the Macro.
- *
- * @param {string} type - The note type.
- * @returns {boolean} True when the type compiles into a system document.
- */
-function isSystemBearing(type) {
-    return systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS) !== NO_SYSTEM;
+/** The segment of a note's own document. */
+export function ownDocumentSystem(type) {
+    return JOURNAL_TYPES.has(String(type)) || type === HOMEPAGE_TYPE ?
+            NOTE_SYSTEM
+        :   systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS);
 }
 
 /**
- * Reads a qualifier as the **virtual `doc<type>`** form, or reports that it is
- * not one.
+ * Read a `doc<type>` input qualifier as the underlying authored type.
+ * A real type with that spelling takes precedence.
  *
- * A document and its documentation are two documents in two packs, so they need
- * two addresses. `skill-wpnc` is the item; `docskill-wpnc` is the JournalEntry
- * its prose compiled into, and `docmacro-autoattack` is the same arrangement
- * for a macro.
- *
- * The virtual form exists for a type that carries separate documentation
- * ({@link docEntryTypes} — the set the journals compiler and the link manifest
- * read too), **or** for one that routes to the items pack. The second clause
- * covers the open, unenumerated set: types that compile into items are not
- * enumerated anywhere, and a foreign package may publish an item type this
- * build has never heard of. Dropping it would silently unlink every `doc<type>`
- * address into such a package.
- *
- * A **real** type of the same name always wins: the virtual reading is only
- * consulted for a qualifier no authored note claims.
- *
- * @param {string} qualifier - The already-normalised type segment.
- * @param {Set<string>} types - Every type the content tree contains.
- * @returns {string|null} The underlying document type, or `null` when the
- *   qualifier is not a virtual one.
+ * @param {string} qualifier - The type segment from the input.
+ * @param {Set<string>} types - Types in the content tree.
+ * @returns {string|null} The underlying type, or `null`.
  */
 export function resolveItemDocType(qualifier, types) {
     if (types.has(qualifier)) return null; // a real type owns its own name
@@ -445,21 +362,11 @@ export function renderAddress(tuple) {
 }
 
 /**
- * Whether the type an Address names is one this position accepts.
+ * Whether the canonical type an Address names is accepted at this position.
  *
- * The second of the two questions, and separate from the first because the
- * accepted **set** is a property of the position while the grammar is not.
- *
- * **An accepted type carries its documentation form with it.** A position
- * accepting `weapongear` accepts `docweapongear`, because the journal that
- * documents a weapon is the same thing to a position that wanted a weapon — and
- * a prose address of one *is* the journal, so refusing it would refuse the form
- * an author most often writes. It is the widening `defineConfig` applies to the
- * types a package may claim, applied here to the types a position may take.
- *
- * @param {AddressTuple} tuple - A parsed Address.
- * @param {Iterable<string>} allowed - The types this position accepts.
- * @returns {boolean} True when the Address names one of them.
+ * @param {AddressTuple} tuple - A complete Address.
+ * @param {Iterable<string>} allowed - Accepted types.
+ * @returns {boolean} Whether the type is accepted.
  */
 export function acceptsType(tuple, allowed) {
     const type = norm(tuple?.type ?? "");
@@ -467,7 +374,7 @@ export function acceptsType(tuple, allowed) {
     for (const one of allowed ?? []) {
         const want = norm(one);
         if (!want) continue;
-        if (type === want || type === `${ITEM_DOC_PREFIX}${want}`) return true;
+        if (type === want) return true;
     }
     return false;
 }
@@ -475,9 +382,7 @@ export function acceptsType(tuple, allowed) {
 /**
  * Apply the defaults to a partial reading, giving a complete Address.
  *
- * The three rules of the module note, applied in the order they depend on each
- * other: the package, then the system the type may fix, then the redirect the
- * system may force.
+ * Complete a parsed Address using the citing position's package and system.
  *
  * @param {{type: string, shortcode: string, package?: string, system?: string,
  *   itemDoc?: boolean}} read - A partial reading, as {@link readQualifier}
@@ -490,27 +395,8 @@ export function completeAddress(read, where = {}) {
     if (isAddressTuple(read)) return read;
     const written = read.type;
     const pkg = read.package ?? where.package;
-    // A documentation journal is a core document, so it is `none` however it was
-    // reached, and an **asset** is `none` for a stronger reason: a file belongs
-    // to no game system, so the segment is a property of the type rather than of
-    // where the reference was written. Without that, a `sohl:` block naming
-    // `icon-anvil` would expand to `sohl-sohl-icon-anvil` and resolve to
-    // nothing, which is exactly where an embedded item's art is written.
-    // Otherwise the block's system, which body prose reports as `none`.
-    const system =
-        read.itemDoc || isAssetType(written) ?
-            NO_SYSTEM
-        :   (read.system ?? where.system ?? NO_SYSTEM);
-    // **Under `none`, a system-bearing type addresses its documentation
-    // journal.** A note's `none` address *is* its `doc<type>` entry — the Item
-    // is the one with a system — so a prose `[[affiliation-sirvadar|…]]` names
-    // the page, which is almost always what prose means. A value that means the
-    // Item states the system and gets it. A `doc<type>` written explicitly is
-    // `none` wherever it appears, even inside a system block: no game system
-    // defines a JournalEntry.
-    const redirected = system === NO_SYSTEM && isSystemBearing(written);
-    const type = read.itemDoc || redirected ? `${ITEM_DOC_PREFIX}${written}` : written;
-    return addressTuple({ package: pkg, system, type, shortcode: read.shortcode });
+    const system = read.itemDoc ? NOTE_SYSTEM : (read.system ?? where.system ?? NOTE_SYSTEM);
+    return addressTuple({ package: pkg, system, type: written, shortcode: read.shortcode });
 }
 
 /**

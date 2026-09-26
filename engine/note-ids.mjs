@@ -44,6 +44,9 @@ import { documentId } from "./content-address.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { contentPackage } from "./content-package.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
+import { JOURNAL_TYPES } from "./ids.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
+import { HOMEPAGE_TYPE } from "./homepage.mjs";
 // The folder id's derivation, taken from the pass that owns it rather than
 // restated here — see the `folder` branch below. `folder-notes.mjs` reaches
 // only `content-address`, `address-charset`, `ids` and `retired-fields`, none
@@ -112,7 +115,9 @@ export function noteDocId(fm, { pkg, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS } = {}) 
     // the two must answer alike about the same note or the divergence this
     // branch closes reopens under a capitalised `type: Folder`.
     if (type.toLowerCase() === FOLDER_TYPE) return folderDocId(owner, shortcode);
-    return documentId(owner, systemOf(type, maps), type, shortcode);
+    const system =
+        JOURNAL_TYPES.has(type) || type === HOMEPAGE_TYPE ? NOTE_SYSTEM : systemOf(type, maps);
+    return documentId(owner, system, type, shortcode);
 }
 
 /**

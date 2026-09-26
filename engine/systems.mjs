@@ -62,6 +62,9 @@ import { ADDRESS_SEGMENT_PATTERN, isAddressSegment } from "./address-charset.mjs
  */
 export const NO_SYSTEM = "none";
 
+/** The Address segment for a note's readable content. */
+export const NOTE_SYSTEM = "note";
+
 /**
  * Every game system this toolchain compiles for.
  *
@@ -86,7 +89,7 @@ export const SYSTEM_IDS = Object.freeze(new Set(["sohl", "hm3"]));
  *
  * @type {ReadonlySet<string>}
  */
-export const SYSTEM_SEGMENTS = Object.freeze(new Set([...SYSTEM_IDS, NO_SYSTEM]));
+export const SYSTEM_SEGMENTS = Object.freeze(new Set([...SYSTEM_IDS, NO_SYSTEM, NOTE_SYSTEM]));
 
 /**
  * Whether a value names a game system this toolchain knows.

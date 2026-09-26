@@ -132,8 +132,8 @@ describe("querying the index", () => {
         expect(result.columns).toEqual(["Name"]);
         expect(result.rows[0][RENDER_ALIASES.ref]).toEqual({
             package: "sohl",
-            system: "none",
-            type: "docskill",
+            system: "note",
+            type: "skill",
             shortcode: "clmb",
         });
     });
@@ -149,7 +149,7 @@ describe("rendering a result", () => {
              WHERE type = 'skill'`,
         );
 
-        expect(md).toContain("[[sohl-none-docskill-clmb\\|Climbing]]");
+        expect(md).toContain("[[sohl-note-skill-clmb\\|Climbing]]");
     });
 
     it("leaves the first column plain when nothing is linkable", async () => {

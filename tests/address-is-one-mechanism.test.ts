@@ -525,12 +525,12 @@ describe("every sub-format of one Address parses to one tuple", () => {
         });
         const inProse = parseAddress("skill-wpnc", {
             package: "thalorna",
-            system: NO_SYSTEM,
+            system: "note",
             ...vocabulary,
         });
         expect(inBlock).not.toEqual(inProse);
         expect(renderAddress(inBlock as never)).toBe("thalorna-sohl-skill-wpnc");
-        expect(renderAddress(inProse as never)).toBe("thalorna-none-docskill-wpnc");
+        expect(renderAddress(inProse as never)).toBe("thalorna-note-skill-wpnc");
         // Both name a skill, so a position accepting `skill` takes either.
         expect(acceptsType(inBlock as never, ["skill"])).toBe(true);
         expect(acceptsType(inProse as never, ["skill"])).toBe(true);
@@ -539,7 +539,7 @@ describe("every sub-format of one Address parses to one tuple", () => {
     it("gives a documentation journal one tuple however it is written", () => {
         const where = {
             package: "sohl",
-            system: NO_SYSTEM,
+            system: "note",
             types: new Set(["weapongear"]),
             packages: new Set(["sohl"]),
         };
@@ -550,11 +550,11 @@ describe("every sub-format of one Address parses to one tuple", () => {
         expect(named).toEqual(reached);
         expect(named).toEqual({
             package: "sohl",
-            system: NO_SYSTEM,
-            type: "docweapongear",
+            system: "note",
+            type: "weapongear",
             shortcode: "dgr",
         });
-        expect(renderAddress(named as never)).toBe("sohl-none-docweapongear-dgr");
+        expect(renderAddress(named as never)).toBe("sohl-note-weapongear-dgr");
         // A position accepting `weapongear` accepts the journal documenting one.
         expect(acceptsType(named as never, ["weapongear"])).toBe(true);
         expect(acceptsType(named as never, ["skill"])).toBe(false);

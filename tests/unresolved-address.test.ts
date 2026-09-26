@@ -384,7 +384,7 @@ describe("the pack build fails an address that resolves to no note", () => {
 describe("the site build fails an address that resolves to no note", () => {
     const climbing = { url: "/kb/skill/climbing/", name: "Climbing" };
     const ctx = (overrides: Record<string, unknown> = {}) => ({
-        index: new Map<string, object>([["sohl-none-docskill-clmb", climbing]]),
+        index: new Map<string, object>([["sohl-note-skill-clmb", climbing]]),
         collide: new Set<string>(),
         contentPackage: "sohl",
         contentTypes: new Set<string>(["skill", "creature"]),
@@ -534,7 +534,7 @@ describe("the three resolvers agree on severity", () => {
             const errors: Record<string, unknown>[] = [];
             resolveWebWikilinks(link, {
                 index: new Map<string, object>([
-                    ["sohl-none-docskill-clmb", { url: "/kb/skill/climbing/", name: "Climbing" }],
+                    ["sohl-note-skill-clmb", { url: "/kb/skill/climbing/", name: "Climbing" }],
                 ]),
                 collide: new Set<string>(),
                 sections: new Set<string>(["kb"]),
@@ -568,7 +568,7 @@ describe("the three resolvers agree on severity", () => {
         const errors: Record<string, unknown>[] = [];
         resolveWebWikilinks(link, {
             index: new Map<string, object>([
-                ["sohl-none-docskill-clmb", { url: "/kb/skill/climbing/", name: "Climbing" }],
+                ["sohl-note-skill-clmb", { url: "/kb/skill/climbing/", name: "Climbing" }],
             ]),
             collide: new Set<string>(),
             sections: new Set<string>(["kb"]),

@@ -60,7 +60,8 @@ import path from "node:path";
 
 import { noteAddressContext } from "./note-addresses.mjs";
 import { canonicalKey, packageAddress } from "./content-address.mjs";
-import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
+import { ownDocumentSystem } from "./address.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 import {
     KNOWN_DOCUMENT_SUBTYPE_MAPS,
     NEVER_PACKED_TYPES,
@@ -150,12 +151,7 @@ export function anchorsOf(entryUuid, entryId, body, name) {
  */
 export function entriesForNote(fm, name, address, body, ctx) {
     const { contentPackage, foundryPackageId, packRouter } = ctx;
-    const key = canonicalKey(
-        contentPackage,
-        systemOf(fm.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
-        fm.type,
-        fm.shortcode,
-    );
+    const key = canonicalKey(contentPackage, ownDocumentSystem(fm.type), fm.type, fm.shortcode);
     // `buildManifest` records `packageRelative(url, base)`, so the pair it is
     // given has to round-trip. The address is already package-relative, so the
     // honest pair is the address under a base of `"/"` — which strips straight
@@ -244,7 +240,7 @@ export function entriesForNote(fm, name, address, body, ctx) {
         // `NO_SYSTEM`, whatever the item is: a documentation journal is a
         // JournalEntry, which no game system defines, and there is one of them
         // however many system blocks the note carries.
-        const docKey = canonicalKey(contentPackage, NO_SYSTEM, `doc${fm.type}`, fm.shortcode);
+        const docKey = canonicalKey(contentPackage, NOTE_SYSTEM, fm.type, fm.shortcode);
         const docEntryId = fm.id ? itemDocEntryId(fm.id) : undefined;
         const docUuid = uuidFor("doc", docEntryId);
         return [

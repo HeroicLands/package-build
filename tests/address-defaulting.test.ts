@@ -14,7 +14,35 @@
 import { describe, it, expect } from "vitest";
 
 import { expandAddress, blockSystem } from "../engine/content-address.mjs";
-import { NO_SYSTEM } from "../engine/systems.mjs";
+import { NOTE_SYSTEM } from "../engine/systems.mjs";
+
+describe("readable and Foundry document Addresses", () => {
+    const prose = { package: "foo", system: NOTE_SYSTEM };
+
+    it("uses note for an Item or Actor's readable document", () => {
+        expect(expandAddress({ type: "being", shortcode: "camel" }, prose)).toBe(
+            "foo-note-being-camel",
+        );
+        expect(expandAddress({ type: "skill", shortcode: "climb" }, prose)).toBe(
+            "foo-note-skill-climb",
+        );
+    });
+
+    it("uses none for a Macro or Scene and note for its readable document", () => {
+        expect(expandAddress({ type: "macro", shortcode: "attack" }, prose)).toBe(
+            "foo-note-macro-attack",
+        );
+        expect(expandAddress({ type: "macro", shortcode: "attack", system: "none" }, prose)).toBe(
+            "foo-none-macro-attack",
+        );
+        expect(expandAddress({ type: "map", shortcode: "hearth" }, prose)).toBe(
+            "foo-note-map-hearth",
+        );
+        expect(expandAddress({ type: "map", shortcode: "hearth", system: "none" }, prose)).toBe(
+            "foo-none-map-hearth",
+        );
+    });
+});
 
 /**
  * An omitted address segment **defaults from where the link is written**.
@@ -60,32 +88,29 @@ describe("expandAddress", () => {
         );
     });
 
-    describe("under `none`, a system-bearing type addresses its documentation", () => {
-        const prose = { package: "thalorna", system: NO_SYSTEM };
+    describe("an omitted system names readable note content", () => {
+        const prose = { package: "thalorna", system: NOTE_SYSTEM };
 
         it("resolves a bare prose link to the note's page", () => {
-            // A note's `none` address IS its `doc<type>` journal, so this is the
-            // defaulting rule rather than an exception to it. From prose it is
-            // almost always the page a reader wants.
             expect(expandAddress({ type: "affiliation", shortcode: "sirvadar" }, prose)).toBe(
-                "thalorna-none-docaffiliation-sirvadar",
+                "thalorna-note-affiliation-sirvadar",
             );
             expect(expandAddress({ type: "being", shortcode: "elowyrnimavren" }, prose)).toBe(
-                "thalorna-none-docbeing-elowyrnimavren",
+                "thalorna-note-being-elowyrnimavren",
             );
         });
 
-        it("leaves a system-less type alone — it has no `doc` form", () => {
-            for (const type of ["lore", "place", "scenario", "doc", "folder"]) {
+        it("uses note for journal-only types", () => {
+            for (const type of ["lore", "place", "scenario", "doc"]) {
                 expect(expandAddress({ type, shortcode: "x" }, prose)).toBe(
-                    `thalorna-none-${type}-x`,
+                    `thalorna-note-${type}-x`,
                 );
             }
         });
 
-        it("does not double the prefix on an explicit `doc<type>`", () => {
+        it("reads a virtual documentation qualifier as the note Address", () => {
             expect(expandAddress({ type: "skill", shortcode: "melee", itemDoc: true }, prose)).toBe(
-                "thalorna-none-docskill-melee",
+                "thalorna-note-skill-melee",
             );
         });
 
@@ -101,12 +126,9 @@ describe("expandAddress", () => {
         });
     });
 
-    it("sends a `doc<type>` to `none` even from inside a system block", () => {
-        // A documentation journal is a core document; no game system defines
-        // one. So the explicit form means `none` wherever it is written, and
-        // cannot be dragged into a system by its surroundings.
+    it("sends an explicit virtual documentation qualifier to note in a system block", () => {
         expect(expandAddress({ type: "skill", shortcode: "melee", itemDoc: true }, here)).toBe(
-            "thalorna-none-docskill-melee",
+            "thalorna-note-skill-melee",
         );
     });
 });
@@ -123,19 +145,19 @@ describe("blockSystem", () => {
         expect(blockSystem("sohl")).toBe("sohl");
     });
 
-    it("is `none` everywhere else", () => {
+    it("is `note` everywhere else", () => {
         // Top-level frontmatter, the shared `data:` container, and body prose
         // (which has no key path at all) belong to no system block.
-        expect(blockSystem("data.affiliations.0")).toBe(NO_SYSTEM);
-        expect(blockSystem("name.full")).toBe(NO_SYSTEM);
-        expect(blockSystem("shortcode")).toBe(NO_SYSTEM);
-        expect(blockSystem("")).toBe(NO_SYSTEM);
-        expect(blockSystem(undefined)).toBe(NO_SYSTEM);
+        expect(blockSystem("data.affiliations.0")).toBe(NOTE_SYSTEM);
+        expect(blockSystem("name.full")).toBe(NOTE_SYSTEM);
+        expect(blockSystem("shortcode")).toBe(NOTE_SYSTEM);
+        expect(blockSystem("")).toBe(NOTE_SYSTEM);
+        expect(blockSystem(undefined)).toBe(NOTE_SYSTEM);
     });
 
     it("is not fooled by a key that merely looks like a system", () => {
         // The segment has to *be* a declared system, not just any first key.
-        expect(blockSystem("sohlish.items.0")).toBe(NO_SYSTEM);
-        expect(blockSystem("notes.sohl.thing")).toBe(NO_SYSTEM);
+        expect(blockSystem("sohlish.items.0")).toBe(NOTE_SYSTEM);
+        expect(blockSystem("notes.sohl.thing")).toBe(NOTE_SYSTEM);
     });
 });

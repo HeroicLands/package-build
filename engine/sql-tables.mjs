@@ -253,7 +253,7 @@ export async function openNotesDatabase(records, { dir, dependencies = [], addre
         addressContext: addressContext ?? {
             package: records.find((record) => record.package)?.package,
             types: new Set(Object.keys(NOTE_VOCABULARY)),
-            system: "none",
+            system: "note",
         },
         stubsExcluded,
         async query(sql) {

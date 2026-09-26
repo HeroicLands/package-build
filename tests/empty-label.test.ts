@@ -35,7 +35,7 @@ function ctx(overrides = {}) {
     return {
         index: new Map<string, object>([
             ["rules/sohl-shock", shock],
-            ["sohl-none-doc-shock", shock],
+            ["sohl-note-doc-shock", shock],
         ]),
         collide: new Set<string>(),
         sections: new Set<string>(["rules"]),
