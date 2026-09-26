@@ -37,6 +37,12 @@ describe("splitPages (a page per H1, and per anchored heading)", () => {
         expect(pages).toHaveLength(1);
         expect(pages[0].name).toBe("Real");
     });
+
+    it("keeps headings inside a secret block on their containing page", () => {
+        const pages = splitPages("# Public\n\n:::secret\n# GM heading\nA clue.\n:::\n\n# Next");
+        expect(pages.map((page) => page.name)).toEqual(["Public", "Next"]);
+        expect(pages[0].markdown).toContain("# GM heading");
+    });
 });
 
 describe("assertUniquePages", () => {

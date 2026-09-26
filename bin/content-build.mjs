@@ -1627,6 +1627,9 @@ function siteCommand() {
                         message: e.reason,
                     });
                 }
+                for (const e of result.secretErrors) {
+                    emitDiagnostic({ ...e, severity: "error" });
+                }
                 // Reported the way the pack build reports the very same
                 // finding: `file:line:column: error: message`, path first, and
                 // the message from the shared table, not a
@@ -1663,6 +1666,7 @@ function siteCommand() {
                 }
                 if (
                     result.tableErrors.length ||
+                    result.secretErrors.length ||
                     result.wikiErrors.length ||
                     result.imageErrors.length
                 ) {

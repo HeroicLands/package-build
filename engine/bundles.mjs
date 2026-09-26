@@ -72,7 +72,7 @@ import { contentPackage } from "./content-package.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { itemDocEntryId } from "./item-docs.mjs";
-import { folderField, md, resolveName } from "./helpers.mjs";
+import { folderField, renderFoundryMarkdown, resolveName } from "./helpers.mjs";
 import { packForType } from "./ids.mjs";
 import { readQualifier } from "./wikilinks.mjs";
 
@@ -322,7 +322,7 @@ export class Bundles extends BasePackCompiler {
             // Foundry renders on the import card. That is why a bundle earns no
             // separate documentation journal the way an item does: the document
             // it compiles into already has somewhere to put the prose.
-            description: markdown.trim() ? md.render(markdown) : "",
+            description: markdown.trim() ? renderFoundryMarkdown(markdown) : "",
             folder: this.folderResolver(authoredFolder, { isAddress: folderIsAddress }),
             flags: fm.flags,
             stats: this.stats,

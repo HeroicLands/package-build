@@ -62,6 +62,7 @@
  */
 
 import { authoredFrontmatter } from "./index-records.mjs";
+import { renderSecretBlocks } from "./content-secrets.mjs";
 import { cloneAddressState } from "./address-values.mjs";
 import fs from "fs";
 import path from "path";
@@ -620,6 +621,18 @@ export class BasePackCompiler {
      *   that does not convert.
      */
     convertBody(fm, body) {
+        const secretError = renderSecretBlocks(body, "book").errors[0];
+        if (secretError) {
+            const error = new Error(secretError.message);
+            error.position = {
+                line: (this.currentNote?.bodyLine ?? 1) + secretError.line - 1,
+                column:
+                    secretError.line === 1 ?
+                        (this.currentNote?.bodyColumn ?? 1)
+                    :   secretError.column,
+            };
+            throw error;
+        }
         if (!this.constructor.convertsWikilinks) return body;
         const name = resolveName(fm);
         const { absPath, bodyLine, bodyColumn } = this.currentNote ?? {};

@@ -102,6 +102,7 @@ import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderSecretBlocks } from "./content-secrets.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imageSourcesIn } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
@@ -523,8 +524,18 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
                 message: err.message ?? (err.reason ? linkFindingMessage(err) : String(err)),
             });
         }
-        stageImages(resolvedBody, page.file);
-        const prose = markdownToTypst(resolvedBody, {
+        const secrets = renderSecretBlocks(resolvedBody, "book");
+        for (const error of renderSecretBlocks(page.body, "book").errors) {
+            findings.push({
+                file: page.file,
+                line: (page.bodyLine ?? 1) + error.line - 1,
+                column: error.column,
+                severity: "error",
+                message: error.message,
+            });
+        }
+        stageImages(secrets.markdown, page.file);
+        const prose = markdownToTypst(secrets.markdown, {
             md,
             links: plan.links,
             glyphs,
