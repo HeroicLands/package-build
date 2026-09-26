@@ -1249,6 +1249,12 @@ somewhere other than where they were made, or not at all:
   reference answered by a vendored manifest lands exactly as it would in a
   wikilink. `--no-references` turns this one off for a tree whose cross-package
   references it cannot see.
+- **Dead Address reference** — an Address-valued `data:` field naming no local
+  note, asset or entry in a declared dependency index. The finding names the
+  field and the complete Address it names. A short form means this package;
+  another package requires the full Address. `--no-references` also turns off
+  this target check. Art slots report unresolved art through their own fallback
+  warning.
 
 **A schema says what a note may _write_, not what the compiler emits.** Those
 are different, and the difference is the whole calibration of the check: a note

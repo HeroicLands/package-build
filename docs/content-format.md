@@ -1315,6 +1315,12 @@ Address-keyed relation maps hold typed targets and standing values. Only generat
 output serializes these properties to Address strings. Runtime Shortcodes,
 Foundry UUIDs, file paths and URLs keep their own representations.
 
+An Address-valued `data:` field must name a target in this package or a declared
+dependency index. `content-build lint` reports a missing target as an error at
+the value or map key that names it. A stub counts as a target for data even
+though it publishes no page. Art slots use their own missing-art warning and
+document fallback.
+
 #### An omitted segment defaults from where the link is written
 
 It is **not** a wildcard and resolution is not a search. Every short form expands
