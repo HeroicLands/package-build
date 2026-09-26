@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.12.0
+
+### Minor Changes
+
+- **References:** An Address in note data that names no local or declared dependency target now reports an error; missing artwork keeps its fallback warning.
+
 ## 22.11.0
 
 ### Minor Changes
