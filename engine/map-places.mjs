@@ -207,7 +207,9 @@ export function placesFromRecords(records, { contentBase, base }) {
                 folder: record.file?.folder ?? "",
                 package: String(record.package ?? ""),
                 local: true,
-                hasPackFolder: Object.hasOwn(record, "packFolder"),
+                hasPackFolder:
+                    Object.hasOwn(record.data ?? {}, "packFolder") ||
+                    Object.hasOwn(record, "packFolder"),
             });
         } else if (record.type === "affiliation" && record.subType === "polity") {
             polities.push({

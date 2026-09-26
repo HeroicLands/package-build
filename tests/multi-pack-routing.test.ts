@@ -51,6 +51,9 @@ describe("createPackRouter — which pack a note's document lands in", () => {
 
     it("routes a note to the pack it declares", () => {
         expect(router().resolve({ type: "skill", pack: "mysteries" }, "Item")).toBe("mysteries");
+        expect(router().resolve({ type: "skill", data: { pack: "mysteries" } }, "Item")).toBe(
+            "mysteries",
+        );
     });
 
     it("routes a single pack of a type without any declaration", () => {

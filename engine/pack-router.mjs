@@ -82,7 +82,7 @@
 
 import { NO_PACK, packForType } from "./ids.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
-import { blockProperty, systemBlock } from "./system-block.mjs";
+import { blockDataProperty, systemBlock } from "./system-block.mjs";
 
 /**
  * A note that cannot be routed to a pack. Thrown rather than returned so no
@@ -131,7 +131,9 @@ export { NO_PACK };
  */
 export function declaresNoPack(fm, system) {
     const declared =
-        system === undefined ? fm?.[PACK_FIELD] : blockProperty(fm, system, PACK_FIELD);
+        system === undefined ?
+            (fm?.data?.[PACK_FIELD] ?? fm?.[PACK_FIELD])
+        :   blockDataProperty(fm, system, PACK_FIELD);
     return declared === NO_PACK;
 }
 
@@ -270,7 +272,9 @@ export function createPackRouter(packs) {
         const inBlock = system === undefined ? undefined : systemBlock(fm, system)?.[PACK_FIELD];
         const authoredInBlock = inBlock != null && inBlock !== "";
         let declared =
-            system === undefined ? fm?.[PACK_FIELD] : blockProperty(fm, system, PACK_FIELD);
+            system === undefined ?
+                (fm?.data?.[PACK_FIELD] ?? fm?.[PACK_FIELD])
+            :   blockDataProperty(fm, system, PACK_FIELD);
         // The declaration names where the note's *own* document goes. A pass
         // writing a document derived from it — an item's prose becoming a
         // JournalEntry — is not what the author was addressing.

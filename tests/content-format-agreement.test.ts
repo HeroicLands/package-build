@@ -200,7 +200,7 @@ describe("the specification and the implementation agree", () => {
         // Guards the guard: were the shared table's header to change shape, the
         // comparison below would report every type as declaring two keys the
         // specification does not.
-        expect(SHARED).toEqual(["icon", "banner"]);
+        expect(SHARED).toEqual(["id", "pack", "packFolder", "harnworld", "icon", "banner"]);
     });
 
     it("declares exactly the `data` properties the specification lists", () => {

@@ -157,6 +157,9 @@ describe("noteDocId, for a folder note", () => {
 
     it("still takes an authored id — a pin wins here as it does everywhere", () => {
         expect(noteDocId({ ...folderFm, id: "ONXsqZAIZr2qzxTb" }, at)).toBe("ONXsqZAIZr2qzxTb");
+        expect(noteDocId({ ...folderFm, data: { id: "ONXsqZAIZr2qzxTb" } }, at)).toBe(
+            "ONXsqZAIZr2qzxTb",
+        );
     });
 
     it("reads the type case-insensitively, as the folder pass does", () => {

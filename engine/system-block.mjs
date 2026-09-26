@@ -362,6 +362,25 @@ export function blockProperty(fm, block, key, defaultValue = undefined) {
 }
 
 /**
+ * A system override followed by a shared `data:` value. The top-level value
+ * remains readable while content repositories move their authored fields.
+ *
+ * @param {object} fm - The note's frontmatter.
+ * @param {string} block - The system block key.
+ * @param {string} key - The shared property.
+ * @param {any} [defaultValue] - Returned when no position declares it.
+ * @returns {any} The selected value.
+ */
+export function blockDataProperty(fm, block, key, defaultValue = undefined) {
+    const declared = systemBlock(fm, block)?.[key];
+    if (declared !== undefined && declared !== null) return declared;
+    const shared = isMapping(fm?.data) ? fm.data[key] : undefined;
+    if (shared !== undefined && shared !== null) return shared;
+    const legacy = isMapping(fm) ? fm[key] : undefined;
+    return legacy === undefined || legacy === null ? defaultValue : legacy;
+}
+
+/**
  * The key a field is authored at **inside** a system block — step 2.
  *
  * `legacyKey` when the field declares one, and `name` otherwise. The fallback

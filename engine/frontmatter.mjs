@@ -348,7 +348,7 @@ export function parseValueDesc(raw) {
 /**
  * The compendium folder a note names.
  *
- * **There is one spelling.** `packFolder:` is a folder note's **address**
+ * `data.packFolder` is a folder note's **address**
  * (`folder-poisonsandtoxins`), resolved through the address index the whole
  * build shares. The `folder:` Foundry-id spelling this function once read
  * beside it, and the per-pack `*-folders.yaml` that id was resolved against,
@@ -372,7 +372,7 @@ export function parseValueDesc(raw) {
  *   two spellings, and there is only one left to be.
  */
 export function folderField(fm) {
-    const asAddress = sohlField(fm, "packFolder", null);
+    const asAddress = fm?.sohl?.packFolder ?? fm?.data?.packFolder ?? fm?.packFolder ?? null;
     if (asAddress != null && asAddress !== "") return { value: asAddress, isAddress: true };
     return { value: null, isAddress: true };
 }

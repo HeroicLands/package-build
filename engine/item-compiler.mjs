@@ -64,7 +64,12 @@ import { documentSubtype, subtypeRow } from "./document-subtypes.mjs";
 // The note-level `<system>:` block: `<system>.system` onto the document's
 // `system` verbatim, and `<system>.img` / `.effects` / `.flags` overriding
 // their shared top-level forms for this system alone.
-import { blockField, blockProperty, claimedPaths, mergeSystemData } from "./system-block.mjs";
+import {
+    blockDataProperty,
+    blockProperty,
+    claimedPaths,
+    mergeSystemData,
+} from "./system-block.mjs";
 // The other direction of the same declaration: a field the *document* writes in
 // play, which a note may not author and the builder does not emit.
 import { assertNoDerivedFields } from "./derived-fields.mjs";
@@ -379,7 +384,7 @@ export class SystemItemCompiler extends BasePackCompiler {
         // one spelling: `packFolder` names a folder note by its address, the
         // `folder:` id spelling having been retired with the per-pack YAML it
         // resolved against.
-        const folder = this.folderResolver(blockField(fm, system, "packFolder", null), {
+        const folder = this.folderResolver(blockDataProperty(fm, system, "packFolder", null), {
             isAddress: true,
         });
 

@@ -48,6 +48,15 @@ describe("reading the field", () => {
 
     it("reads from the `sohl:` block, as every other field is read", () => {
         expect(folderField({ sohl: { packFolder: "cooking" } }).value).toBe("cooking");
+        expect(
+            folderField({ data: { packFolder: "shared" }, sohl: { packFolder: "cooking" } }).value,
+        ).toBe("cooking");
+    });
+
+    it("reads the shared folder from data", () => {
+        expect(folderField({ data: { packFolder: "folder-cooking" } }).value).toBe(
+            "folder-cooking",
+        );
     });
 
     it("treats a blank `packFolder` as naming no folder", () => {
