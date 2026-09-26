@@ -356,7 +356,7 @@ describe("a foreign package's homepage resolves to its root", () => {
                         title: "The World of Thalorna",
                         address: {
                             slug: "homepage-root",
-                            canonical: "thalorna-none-homepage-root",
+                            canonical: "thalorna-note-homepage-root",
                         },
                     },
                     {
@@ -388,7 +388,7 @@ describe("a foreign package's homepage resolves to its root", () => {
             } as never;
             const { index, stale } = loadForeignIndexes(config, ["demo"]);
             expect(stale).toEqual([]);
-            expect(index.get("thalorna-none-homepage-root")?.url).toBe("/thalorna/");
+            expect(index.get("thalorna-note-homepage-root")?.url).toBe("/thalorna/");
             expect(index.get("thalorna-sohl-being-aurochs")?.url).toBe("/thalorna/being-aurochs/");
         } finally {
             fs.rmSync(root, { recursive: true, force: true });
@@ -502,6 +502,7 @@ describe("a system-bearing note is one page under both of its addresses", () => 
         const { index, contentTypes } = buildSiteIndex([
             {
                 kind: "content",
+                pkg: "thalorna",
                 fm: { type: "affiliation", shortcode: "guild" },
                 name: "The Guild",
                 slug: "affiliation-guild",
@@ -510,8 +511,10 @@ describe("a system-bearing note is one page under both of its addresses", () => 
             },
         ]);
         expect(index.get("affiliation/guild")?.url).toBe("/thalorna/affiliation-guild/");
-        expect(index.get("docaffiliation/guild")?.url).toBe("/thalorna/affiliation-guild/");
-        expect(index.get("affiliation/guild")).toBe(index.get("docaffiliation/guild"));
-        expect(contentTypes.has("docaffiliation")).toBe(true);
+        expect(index.get("thalorna-note-affiliation-guild")?.url).toBe(
+            "/thalorna/affiliation-guild/",
+        );
+        expect(index.get("affiliation/guild")).toBe(index.get("thalorna-note-affiliation-guild"));
+        expect(contentTypes.has("docaffiliation")).toBe(false);
     });
 });

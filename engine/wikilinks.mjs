@@ -12,74 +12,17 @@
  */
 
 /**
- * Wikilink resolution for the pack compilers.
+ * Resolve body wikilinks for Foundry packs.
  *
- * Content notes link to one another with wikilinks rather than file paths:
+ * `[[type-shortcode|Text]]` defaults to the readable `note` Address. A stated
+ * game system names an Actor or Item; `none` names a systemless document.
+ * Journal links can carry a heading anchor. Actor, Item and Macro links open
+ * their sheets, so their anchors do not select a page.
  *
- *   `[[type-shortcode|Text]]`   a document of that type
- *   `[[type-shortcode|]]`       the same, showing the target's current name
- *   `[[type-shortcode#slug|T]]` a section (see below)
- *   `[[#slug|Text]]`            a section of the source note itself
- *   `[[doctype-shortcode|T]]`   an item's *documentation* (see below)
+ * `doc<type>` is accepted as an input alias for the readable note Address.
+ * A link with an empty label displays the target's current name.
  *
- * **Every link is an address, and every address carries a label**. A
- * link written without one addresses nothing and is reported — see
- * {@link unlabelledLinkMessage}, which states the rule for both builds. The
- * bare `[[Alias]]` form and the index it was looked up in are retired.
- *
- * The qualifier is the note's **type**, which with its shortcode is the system's
- * logical identity: `(type, shortcode)` is unique by rule (see the Shortcode
- * Integrity doc). It is deliberately not the note's directory — shortcodes are
- * unique per type, not per directory, so a directory qualifier would add nothing
- * to the address while breaking every inbound link the moment a note is refiled.
- *
- * Nothing narrower than `(type, shortcode)` is consulted — a note's directory
- * and its `category` play no part in resolution — and nothing wider: a note's
- * *name* is not an address, so two notes of a type may share a display name
- * ("Gear" as a rules page and as a user guide page) with nothing to disambiguate.
- *
- * At compile time each becomes a Foundry UUID enricher, routed to the pack that
- * the target's type compiles into (see {@link packForType}):
- *
- *   `@UUID[Compendium.sohl.items.Item.<id>]{Text}`
- *   `@UUID[Compendium.sohl.journals.JournalEntry.<id>.JournalEntryPage.<anchorId>]{Text}`
- *
- * **Every address is computed once, when the target is indexed** — see
- * {@link buildWikilinkIndex} — and a link is resolved by looking that value up.
- * Nothing here concatenates a prefix at the point of use.
- *
- * Section links address a **JournalEntryPage**, because Foundry UUIDs cannot
- * target a position inside a page. A heading carrying `{#slug}` therefore starts
- * its own page, whose id is {@link anchorPageId} — derived from the note id and
- * the slug so that the link and the page agree without any shared state.
- *
- * **An anchor on an Item, an Actor or a Macro is a no-op** and is dropped. What
- * such a link does is open that document's **sheet** — not its documentation —
- * and a sheet has no sections to address. Only a JournalEntry link opens a
- * journal, at its first page or at the page an anchor names. An item's pages are
- * reached through its `doc<type>` counterpart, below.
- *
- * **A document and its documentation are two documents.** An item note
- * compiles into an item — and, separately, its prose compiles into a
- * JournalEntry in the journals pack (see
- * {@link sohl.utils.packs.itemDocEntryId}); a macro note works the same way.
- * `skill/wpnc` addresses the skill; the **virtual qualifier**
- * `docskill/wpnc` addresses that skill's documentation, and
- * `docskill/wpnc#crafting` a page within it. `docmacro/autoattack#script`
- * reaches a macro's source. Every doc-carrying type has a `doc<type>`
- * counterpart, formed by prefix and never enumerated; see
- * {@link resolveItemDocType}. Without it a section link to an item note
- * produced a UUID against the *items* pack, which cannot hold a
- * JournalEntryPage, and dead-ended.
- *
- * **The two builds read the qualifier differently, by design.** In Foundry the
- * item and its documentation are separate documents in separate packs, so the
- * two qualifiers resolve to two different UUIDs. On the knowledgebase the item
- * note renders as a single page which *is* its documentation, so `doc<type>` and
- * `<type>` are aliases for the same URL and an anchor on either is an ordinary
- * in-page anchor. One authored link, correct in both.
- *
- * Plain ESM with no Foundry and no filesystem access, so it is unit-testable.
+ * @module
  */
 
 import { resolveShortcodeReference } from "./shortcode-references.mjs";
@@ -100,12 +43,13 @@ import {
     renderAddress,
     isAddressTuple,
     completeAddress,
+    ownDocumentSystem,
 } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
-import { NO_SYSTEM } from "./systems.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
-import { itemDocEntryId } from "./item-docs.mjs";
+import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { replaceOutsideCode } from "./code-fences.mjs";
 // The syntax lives in `./wikilink-syntax.mjs`, so the web resolver and this
 // one cannot disagree about what counts as a link.
@@ -228,10 +172,8 @@ export function buildWikilinkIndex(
                     // type and a UUID carries the pack name, so the address
                     // cannot be derived from the type alone.
                     uuid: compendiumUuid(packageId, d.type, d.id, d.pack),
-                    // An item's prose compiles into a separate JournalEntry,
-                    // addressed by the virtual `doc<type>` qualifier. Its id
-                    // is derived from the item's, so its address is knowable
-                    // here too.
+                    // The readable note has a separate JournalEntry whose id
+                    // is derived from the item's id.
                     docUuid: compendiumUuid(packageId, "doc", itemDocEntryId(d.id), d.docPack),
                 },
         );
@@ -249,19 +191,8 @@ export function buildWikilinkIndex(
     for (const v of foreignByKey.values()) {
         if (v.type) foreignTypes.push(norm(v.type));
     }
-    // A manifest publishes `doc<type>` addresses, but `doc<type>` is a
-    // *virtual* qualifier formed by prefix — never a real type. Admitting it
-    // here would make it one, and a real type owns its own name, so the
-    // virtual reading would stop firing and every `[[docskill-wpnc]]` would
-    // resolve nowhere. The virtual form still reaches a foreign documentation
-    // entry: it reads as `skill` + `itemDoc`, which the manifest lookup then
-    // asks for as `docskill`.
-    //
-    // Real types are admitted **first**, in a pass of their own, so the test
-    // below sees the complete set. Done in one pass it would depend on
-    // manifest iteration order wherever the base type is published only by a
-    // foreign package — `docmacro` admitted or not according to whether
-    // `macro` happened to come first.
+    // A legacy index may contain `doc<type>` records. Keep the authored type
+    // vocabulary separate so the input alias can resolve to its base type.
     for (const t of foreignTypes) {
         if (!t.startsWith(ITEM_DOC_PREFIX)) types.add(t);
     }
@@ -334,7 +265,8 @@ function findForeign(index, read) {
  */
 function foreignHits(index, read) {
     if (!read || read.reason || !index.foreign?.size) return [];
-    const wanted = norm(read.itemDoc ? `doc${read.type}` : read.type);
+    const tuple = completeAddress(read, { package: index.contentPackage, system: NOTE_SYSTEM });
+    const wanted = norm(tuple.type);
     const shortcode = norm(read.shortcode);
 
     // **An omitted package means this package**, so a short form
@@ -348,7 +280,7 @@ function foreignHits(index, read) {
     // than a filter. That is what makes a cross-package `ambiguous` impossible:
     // one key, one entry.
     if (!read.package) return [];
-    const wantedSystem = norm(read.system ?? NO_SYSTEM);
+    const wantedSystem = norm(tuple.system);
     const hits = [];
     for (const [key, entry] of index.foreign) {
         const parts = readCanonicalKey(key);
@@ -460,7 +392,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
     const out = replaceOutsideCode(markdown, WIKILINK, (all, rawInner, offset) => {
         const parsed = readWikilink(rawInner, {
             package: index.contentPackage,
-            system: "none",
+            system: "note",
             types: index.types,
             packages: index.packages,
             noIndexPackages: index.noIndexPackages,
@@ -516,20 +448,13 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
                 });
                 return unresolvedLink(text || target, target);
             }
-            // An omitted system defaults from where the link is written,
-            // and a body is under no system block, so it is `none`. Under
-            // `none` a system-bearing type addresses its *documentation* — a
-            // note's `none` address IS its `doc<type>` entry — which is what a
-            // prose link almost always means. Stating the system is how prose
-            // reaches the Item instead.
-            //
-            // Only a type whose *own* document carries a system is redirected.
-            // A `macro` and the map types have documentation journals too, but
-            // their own documents are core ones already at `none`, so
-            // `macro-autoattack` names the Macro and `docmacro-autoattack` its
-            // journal — two live addresses the redirect would collapse.
+            // Ordinary wikilinks default to readable note content.
             const baseType = resolveItemDocType(qualified.type, index.types);
-            itemDoc = Boolean(baseType);
+            const address = completeAddress(qualified, {
+                package: index.contentPackage,
+                system: NOTE_SYSTEM,
+            });
+            itemDoc = address.system === NOTE_SYSTEM && hasDocEntry(baseType ?? qualified.type);
             if (qualified.package === index.contentPackage)
                 doc = index.byShortcode.get(`${baseType ?? qualified.type}/${qualified.shortcode}`);
         }
@@ -615,7 +540,7 @@ export function convertWikilinks(markdown, { type, id, pack, docPack, index }) {
         // *sheet*, which has no sections, so the anchor has nothing to address
         // and is dropped. Forging a JournalEntryPage id onto a document that
         // can never hold one is what made such links dead-end; an
-        // item's pages are addressed through its `doc<type>` counterpart.
+        // an item's pages are addressed through its `note` Address.
         // A `#section` the target declares no heading for. Checked here, and
         // not only by `content-build links`, because this is the build that
         // *emits* the link: `anchorPageId` will hash any slug into a page id,
@@ -672,7 +597,7 @@ export function resolveReference(index, ref, hint) {
         );
     const tuple = parseAddress(ref, {
         package: index.contentPackage,
-        system: "none",
+        system: "note",
         types: index.types,
         packages: index.packages,
         noIndexPackages: index.noIndexPackages,
@@ -699,15 +624,15 @@ export function resolveReference(index, ref, hint) {
             if (foreign) return { ...foreign, address: tuple };
             return undefined;
         }
-        const base = resolveItemDocType(tuple.type, index.types);
-        const type = base ?? tuple.type;
-        if (tuple.system !== (base ? NO_SYSTEM : systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS)))
+        const type = tuple.type;
+        const documentation = tuple.system === NOTE_SYSTEM && hasDocEntry(type);
+        if (tuple.system !== (documentation ? NOTE_SYSTEM : ownDocumentSystem(type)))
             return undefined;
         const local = index.byShortcode?.get(`${type}/${tuple.shortcode}`);
         if (!local) return undefined;
         const addresses = index.uuidByDoc?.get(local);
         const uuid =
-            base ?
+            documentation ?
                 Object.hasOwn(local, "documentationUuid") ?
                     local.documentationUuid
                 :   addresses?.docUuid

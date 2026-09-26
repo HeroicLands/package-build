@@ -67,7 +67,7 @@ import { encodeAddresses } from "./address-values.mjs";
 
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { acceptsType, parseAddress, renderAddress } from "./address.mjs";
-import { NO_SYSTEM } from "./document-subtypes.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 
 /* --------------------------------------------------------------------- */
 /*  The closed sets                                                       */
@@ -232,7 +232,7 @@ function addressDefaults(index) {
         packages: index?.packages,
         noIndexPackages: index?.noIndexPackages,
         package: index?.contentPackage,
-        system: NO_SYSTEM,
+        system: NOTE_SYSTEM,
         type: RELATION_TYPE,
     };
 }
@@ -356,7 +356,7 @@ function checkRelation(note, { field, index }) {
         here.package && self ?
             renderAddress({
                 package: here.package,
-                system: NO_SYSTEM,
+                system: NOTE_SYSTEM,
                 type: RELATION_TYPE,
                 shortcode: self,
             })
@@ -425,7 +425,7 @@ function checkRelation(note, { field, index }) {
                 "to",
                 `${label(i, "to")} must name a place — the other place's \`shortcode\`, or ` +
                     `its address as \`${RELATION_TYPE}-<shortcode>\` or ` +
-                    `\`<package>-${NO_SYSTEM}-${RELATION_TYPE}-<shortcode>\` for a place in ` +
+                    `\`<package>-${NOTE_SYSTEM}-${RELATION_TYPE}-<shortcode>\` for a place in ` +
                     `another package — but reads ${JSON.stringify(encodeAddresses(to))}`,
             );
         } else if (!acceptsType(read, [RELATION_TYPE])) {

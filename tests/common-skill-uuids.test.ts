@@ -140,7 +140,7 @@ describe("native UUID field declarations", () => {
                 const key = `${address.package}-${address.system}-${address.type}-${address.shortcode}`;
                 if (key === "world-sohl-skill-herb") return { name: "Local Herb", uuid: item };
                 if (key === "sohl-sohl-skill-herb") return { name: "Foreign Herb", uuid: foreign };
-                if (key === "world-none-docskill-herb")
+                if (key === "world-note-skill-herb")
                     return {
                         name: "Local Herb",
                         uuid: "Compendium.world.journals.JournalEntry.cccccccccccccccc",

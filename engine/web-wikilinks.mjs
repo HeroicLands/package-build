@@ -48,7 +48,7 @@ import { replaceOutsideCode } from "./code-fences.mjs";
 // address is matched the way a vendored manifest publishes it — by the
 // segments the target supplies, with the system wildcarded unless stated.
 import { canonicalKey, expandAddress, readCanonicalKey } from "./content-address.mjs";
-import { NO_SYSTEM } from "./systems.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 // The one rule about a link's shape both builds share: it carries a label, and
 // {@link unlabelledLinkMessage} is the one place that says so.
 import { unlabelledLinkMessage } from "./wikilink-syntax.mjs";
@@ -102,7 +102,7 @@ function lookupRead(index, read, contentPackage) {
     // It replaced a system-blind short key for the unqualified form, which
     // could be silently overwritten by a second note of the same
     // `(type, shortcode)` under another system.
-    const key = expandAddress(read, { package: contentPackage, system: NO_SYSTEM });
+    const key = expandAddress(read, { package: contentPackage, system: NOTE_SYSTEM });
     const found = index.get(key);
     if (found || read.package) return found;
 
@@ -393,7 +393,7 @@ export function resolveWebWikilinks(body, ctx) {
     return replaceOutsideCode(embedded.markdown, WIKILINK, (all, rawInner) => {
         const parsed = readWikilink(rawInner, {
             package: ctx.contentPackage,
-            system: "none",
+            system: "note",
             types: ctx.contentTypes ?? new Set(),
             packages: ctx.packages,
             noIndexPackages: ctx.noIndexPackages,

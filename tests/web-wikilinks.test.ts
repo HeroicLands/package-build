@@ -29,14 +29,14 @@ function makeCtx(overrides: Record<string, unknown> = {}) {
             // and what a written target expands to before lookup. A
             // `doc` note is `none`; a skill's Item is `sohl` and its page is
             // the `none`-addressed `docskill`.
-            ["sohl-none-doc-shock", shock],
+            ["sohl-note-doc-shock", shock],
             ["sohl-sohl-skill-climb", climb],
-            ["sohl-none-docskill-climb", climb],
+            ["sohl-note-skill-climb", climb],
         ]),
         collide: new Set<string>(["doc/coma"]),
         // The build seeds this with the real types *and* the virtual
         // `doc<type>` qualifier of every item type (see build-kb-content.mjs).
-        contentTypes: new Set<string>(["doc", "skill", "creature", "docskill"]),
+        contentTypes: new Set<string>(["doc", "skill", "creature"]),
         // The package a link defaults to when it names none, and the
         // packages a fully qualified one may name — without the latter the
         // four-segment form does not parse as an address at all.

@@ -71,13 +71,13 @@ describe("noteDocId", () => {
     });
 
     it("reads the system from the type, so one note derives one id", () => {
-        // `systemOf` is what puts `sohl` in the address of an item note and
-        // `none` in a journal's. The id has to agree with the address the
+        // The document kind puts `sohl` in an item Address and `note` in a journal's.
+        // The id has to agree with the Address the
         // content index publishes, or a consumer cannot recompute the UUID.
         const item = { type: "skill", shortcode: "swim" };
         const journal = { type: "doc", shortcode: "swim" };
         expect(noteDocId(item, at)).toBe(documentId("sohl", "sohl", "skill", "swim"));
-        expect(noteDocId(journal, at)).toBe(documentId("sohl", "none", "doc", "swim"));
+        expect(noteDocId(journal, at)).toBe(documentId("sohl", "note", "doc", "swim"));
     });
 
     it("yields nothing for a file with no address to derive from", () => {

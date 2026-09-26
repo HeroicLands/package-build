@@ -420,7 +420,7 @@ function foreignCache(): { config: object; cache: string } {
             shortcode: "abroad",
             name: { full: "Abroad" },
             data: { parents: ["rgn"] },
-            address: { slug: "place-abroad", canonical: "thalorna-none-place-abroad" },
+            address: { slug: "place-abroad", canonical: "thalorna-note-place-abroad" },
         },
         {
             package: "thalorna",
@@ -456,11 +456,11 @@ describe("a dependency's places and affiliations take part", () => {
         try {
             const { index } = loadForeignIndexes(config as never, ["demo"]);
             expect(index.get("thalorna-sohl-affiliation-empire")?.domains).toEqual([
-                { package: "demo", system: "none", type: "place", shortcode: "mill" },
-                { package: "demo", system: "none", type: "place", shortcode: "abroad" },
+                { package: "demo", system: "note", type: "place", shortcode: "mill" },
+                { package: "demo", system: "note", type: "place", shortcode: "abroad" },
             ]);
-            expect(index.get("thalorna-none-place-abroad")?.parents).toEqual([
-                { package: "demo", system: "none", type: "place", shortcode: "rgn" },
+            expect(index.get("thalorna-note-place-abroad")?.parents).toEqual([
+                { package: "demo", system: "note", type: "place", shortcode: "rgn" },
             ]);
         } finally {
             fs.rmSync(cache, { recursive: true, force: true });

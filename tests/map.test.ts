@@ -280,7 +280,7 @@ describe("the places are read from the content index", () => {
         // The suite's ambient configuration names the package.
         expect(alpha.address).toEqual({
             package: "sohl",
-            system: "none",
+            system: "note",
             type: "place",
             shortcode: "alpha",
         });
@@ -309,7 +309,7 @@ describe("the places are read from the content index", () => {
             shortcode: "abroad",
             name: { full: "Abroad" },
             data: { parents: ["world"], borders: [{ to: "theta", bearing: "S" }] },
-            address: { slug: "place-abroad", canonical: "thalorna-none-place-abroad" },
+            address: { slug: "place-abroad", canonical: "thalorna-note-place-abroad" },
             anchors: [],
             foundry: {},
             documentation: null,
@@ -407,7 +407,7 @@ describe("the containment tree", () => {
         expect(dot).toMatch(/a_kingalpha -> p_alpha \[style=dashed/);
         expect(dot).not.toMatch(/a_kingnone/);
         // Labels are names, tooltips are addresses.
-        expect(dot).toMatch(/p_alpha \[label="Alpha".*tooltip="sohl-none-place-alpha"/);
+        expect(dot).toMatch(/p_alpha \[label="Alpha".*tooltip="sohl-note-place-alpha"/);
     });
 
     it("flags the anomalies in red and nothing else", () => {

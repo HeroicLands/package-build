@@ -323,7 +323,7 @@ const convert = (md: string) =>
 
 describe("wikilinks to a macro and to its documentation", () => {
     it("addresses the Macro itself through the macros pack", () => {
-        expect(convert("[[macro-autoattack|]]")).toBe(
+        expect(convert("[[none-macro-autoattack|]]")).toBe(
             `@UUID[Compendium.sohl.macros.Macro.${NOTE_ID}]{Automated Attack}`,
         );
     });
@@ -342,7 +342,7 @@ describe("wikilinks to a macro and to its documentation", () => {
     });
 
     it("drops an anchor on the Macro — a sheet has no sections", () => {
-        expect(convert("[[macro-autoattack#script|x]]")).toBe(
+        expect(convert("[[none-macro-autoattack#script|x]]")).toBe(
             `@UUID[Compendium.sohl.macros.Macro.${NOTE_ID}]{x}`,
         );
     });
@@ -368,7 +368,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
             },
         ],
         [
-            "thalorna-none-docmacro-summon",
+            "thalorna-note-macro-summon",
             {
                 name: "Summon",
                 type: "docmacro",
@@ -390,7 +390,7 @@ describe("`docmacro` is synthesized, never a real type", () => {
 
     it("still resolves a foreign macro's documentation through the prefix", () => {
         const idx = buildWikilinkIndex(localOnlyDocs, "sohl", foreign, "sohl");
-        const out = convertWikilinks("[[thalorna-none-docmacro-summon|S]]", {
+        const out = convertWikilinks("[[thalorna-note-macro-summon|S]]", {
             type: "doc",
             id: "src0000000000000",
             index: idx,

@@ -88,7 +88,7 @@ export function artSlot(key) {
  *   not parse; or `not-accepted` when it parses to a type outside `accepts`.
  */
 export function artTarget(value, defaultType, accepts, vocabulary = {}) {
-    const tuple = parseAddress(value, { ...vocabulary, type: defaultType });
+    const tuple = parseAddress(value, { ...vocabulary, system: ASSET_SYSTEM, type: defaultType });
     if (tuple.reason) return tuple;
     if (accepts && !acceptsType(tuple, accepts)) {
         return { reason: "not-accepted", type: tuple.type };

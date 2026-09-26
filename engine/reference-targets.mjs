@@ -4,9 +4,10 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { completeAddress, renderAddress } from "./address.mjs";
-import { systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
+import { completeAddress, ownDocumentSystem, renderAddress } from "./address.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
+import { JOURNAL_TYPES } from "./ids.mjs";
+import { hasDocEntry } from "./item-docs.mjs";
 
 /**
  * Names and published destinations for reference presentation.
@@ -21,10 +22,9 @@ export function buildReferenceTargets(records, published = new Map()) {
     for (const record of records) {
         if (!record.package || !record.type || !record.shortcode) continue;
         const value = { name: record.name?.full ?? record.name, subType: record.subType };
-        for (const system of new Set([
-            systemOf(record.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
-            "none",
-        ])) {
+        const systems = new Set([ownDocumentSystem(record.type)]);
+        if (JOURNAL_TYPES.has(record.type) || hasDocEntry(record.type)) systems.add(NOTE_SYSTEM);
+        for (const system of systems) {
             const address = completeAddress({
                 package: record.package,
                 system,

@@ -68,9 +68,9 @@ describe("declared data Address targets", () => {
         const lookedUp: string[] = [];
         const findings = check("being", field, "humanflk", (address) => {
             lookedUp.push(address);
-            return address === "local-none-lore-humanflk" ? {} : undefined;
+            return address === "local-note-lore-humanflk" ? {} : undefined;
         });
-        expect(lookedUp).toEqual(["local-none-lore-humanflk"]);
+        expect(lookedUp).toEqual(["local-note-lore-humanflk"]);
         expect(findings.some((finding: any) => finding.message.includes("does not resolve"))).toBe(
             false,
         );

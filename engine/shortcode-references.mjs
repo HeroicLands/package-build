@@ -52,7 +52,7 @@ export function resolveShortcodeReference(indexes, code, hint) {
     const { address: native, value } = matches.values().next().value;
     const address = completeAddress({
         package: native.package,
-        system: "none",
+        system: "note",
         type: native.type,
         shortcode: native.shortcode,
     });

@@ -413,7 +413,7 @@ describe("what the pipeline does with one", () => {
             .trim()
             .split("\n")
             .map((line) => JSON.parse(line).address?.canonical);
-        expect(addresses).toContain("toolkit-none-doc-commands");
+        expect(addresses).toContain("toolkit-note-doc-commands");
     });
 
     it("refuses to generate a Foundry manifest", () => {

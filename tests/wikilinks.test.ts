@@ -199,7 +199,7 @@ describe("convertWikilinks", () => {
         );
         // A macro's own document is a core one, already at `none`, so the bare
         // form still names the Macro and is not redirected to its journal.
-        expect(convert("[[macro/rollit|Roll It]]").markdown).toBe(
+        expect(convert("[[none-macro-rollit|Roll It]]").markdown).toBe(
             "@UUID[Compendium.sohl.macros.Macro.ddddddddddddddd1]{Roll It}",
         );
     });
@@ -457,7 +457,7 @@ describe("convertWikilinks — the `doc<type>` virtual qualifier", () => {
         expect(convert("[[sohl-being-condor#wings|Condor]]").markdown).toBe(
             "@UUID[Compendium.sohl.actors.Actor.ccccccccccccccc1]{Condor}",
         );
-        expect(convert("[[macro/rollit#step|Roll It]]").markdown).toBe(
+        expect(convert("[[none-macro-rollit#step|Roll It]]").markdown).toBe(
             "@UUID[Compendium.sohl.macros.Macro.ddddddddddddddd1]{Roll It}",
         );
     });
@@ -985,7 +985,7 @@ describe("resolveReference", () => {
         const found = resolveReference(shared(), "north", { type: "being" });
         expect(found).toMatchObject({
             name: "The North",
-            address: { package: "sohl", system: "none", type: "docbeing", shortcode: "north" },
+            address: { package: "sohl", system: "note", type: "being", shortcode: "north" },
         });
     });
 
@@ -999,15 +999,15 @@ describe("resolveReference", () => {
         const found = resolveReference(shared(), "skill-north");
         expect(found).toMatchObject({
             name: "Northern Style",
-            address: { package: "sohl", system: "none", type: "docskill", shortcode: "north" },
+            address: { package: "sohl", system: "note", type: "skill", shortcode: "north" },
         });
     });
 
     it("reads the canonical address, package and system both stated", () => {
-        const found = resolveReference(shared(), "sohl-none-being-north");
+        const found = resolveReference(shared(), "sohl-note-being-north");
         expect(found).toMatchObject({
             name: "The North",
-            address: { package: "sohl", system: "none", type: "docbeing", shortcode: "north" },
+            address: { package: "sohl", system: "note", type: "being", shortcode: "north" },
         });
     });
 

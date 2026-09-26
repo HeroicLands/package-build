@@ -61,12 +61,9 @@ import {
     parseAddress,
     renderAddress,
     isAddressTuple,
-    completeAddress,
+    ownDocumentSystem,
 } from "./address.mjs";
-import { NO_SYSTEM } from "./systems.mjs";
-import { systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
-import { hasDocEntry } from "./item-docs.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
@@ -241,42 +238,14 @@ export function buildSiteIndex(
             // resolves it and records it as `pkg`. Never read out of
             // frontmatter: `package:` is retired.
             index.set(
-                canonicalKey(
-                    e.pkg ?? ownPackage,
-                    systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
-                    type,
-                    shortcode,
-                ),
+                canonicalKey(e.pkg ?? ownPackage, ownDocumentSystem(type), type, shortcode),
                 value,
             );
             if (e.pkg) packages.add(e.pkg);
-            // In Foundry an item and its documentation are two documents, so
-            // `skill/wpnc` and `docskill/wpnc` are two UUIDs. Here the
-            // item note renders as one page which *is* its documentation, so
-            // the two qualifiers alias one URL and an anchor on either is an
-            // ordinary in-page anchor. One authored link, correct in both
-            // builds — restricted to the types that actually have an item doc,
-            // so a qualifier the packs would reject is reported broken here too.
-            const proseAddress = completeAddress({
-                package: e.pkg ?? ownPackage,
-                system: NO_SYSTEM,
-                type,
-                shortcode,
-            });
-            if (proseAddress.type !== type || hasDocEntry(type)) {
-                contentTypes.add(`doc${type}`);
-                index.set(`doc${type}/${shortcode}`.toLowerCase(), value);
-                // The canonical documentation address too, so the page answers
-                // to the address a bare prose link expands to: body
-                // prose is under no system block, so it defaults to `none`, and
-                // a system-bearing type's `none` address is its `doc<type>`
-                // one. In Foundry that names a second document; here it names
-                // this same page, which is what makes one authored link correct
-                // in both builds.
-                index.set(
-                    canonicalKey(e.pkg ?? ownPackage, NO_SYSTEM, `doc${type}`, shortcode),
-                    value,
-                );
+            // A web page is the readable `note` target for every type.
+            if (ownDocumentSystem(type) !== NOTE_SYSTEM) {
+                // The same page answers to its readable Address.
+                index.set(canonicalKey(e.pkg ?? ownPackage, NOTE_SYSTEM, type, shortcode), value);
             }
         }
     }
@@ -375,7 +344,7 @@ export function resolveInfoboxRef(siteIndex, ref, hint) {
     }
     const context = {
         package: siteIndex.contentPackage ?? contentPackage(),
-        system: "none",
+        system: "note",
         types: siteIndex.contentTypes,
         packages: siteIndex.packages,
     };

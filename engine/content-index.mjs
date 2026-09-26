@@ -102,12 +102,13 @@ import unidecode from "unidecode";
 import { metadataFileName } from "./metadata-index.mjs";
 import { collectAssetRecords } from "./asset-index.mjs";
 import { addressSlug, canonicalKey } from "./content-address.mjs";
+import { ownDocumentSystem } from "./address.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 // One reader for a note's anchors, shared with the link checker and with the
 // builds that emit a link. Re-exported because this is where callers
 // have always addressed it.
 import { collectAnchors } from "./anchors.mjs";
-import { subtypeRow, NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
+import { NO_SYSTEM } from "./document-subtypes.mjs";
 
 /**
  * The `<system>` a note belongs to when it belongs to none.
@@ -204,7 +205,7 @@ export function noteAddress(frontmatter, contentPackage) {
         slug,
         canonical: canonicalKey(
             contentPackage,
-            systemOf(frontmatter.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
+            ownDocumentSystem(frontmatter.type),
             frontmatter.type,
             frontmatter.shortcode,
         ),
@@ -504,10 +505,7 @@ export function buildIndexRecord({
                             link: address ? `${address.slug}#${a.slug}` : null,
                         }))
                     ),
-                foundry: foundryBlock(
-                    entries?.own,
-                    systemOf(frontmatter?.type, KNOWN_DOCUMENT_SUBTYPE_MAPS),
-                ),
+                foundry: foundryBlock(entries?.own, ownDocumentSystem(frontmatter?.type)),
                 // Forward link to the note's documentation journal, which is its
                 // own record. Named rather than nested, because the journal is a
                 // separate document with its own address — see `buildDocRecord`.
@@ -536,7 +534,7 @@ export function buildIndexRecord({
  *
  * An item note compiles into two documents — the item, and a JournalEntry
  * holding its prose — and the second is a document in its own right: its own
- * canonical address (`doc<type>/<shortcode>`), its own UUID, its own pages.
+ * canonical `note` address with the authored type, its own UUID and pages.
  * So it gets its own record, and resolving `docaffliction/blkdth` is the same
  * lookup as resolving anything else. Nested inside the item's record it would
  * be the one address in the index reachable only by knowing to look somewhere
@@ -572,7 +570,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
     return /** @type {Record<string, any>} */ (
         sortKeysDeep({
             package: contentPackage,
-            type: `doc${frontmatter.type}`,
+            type: frontmatter.type,
             shortcode: frontmatter.shortcode,
             name: frontmatter.name,
             // The journal's own `_id`, taken from the entry rather than
@@ -586,7 +584,7 @@ function buildDocRecord({ frontmatter, address, entry, file, contentPackage, anc
             // the forward link on that record, so either end reaches the other.
             documents: address.canonical,
             anchors: made ? anchors : null,
-            foundry: foundryBlock(entry), // a journal: no system key
+            foundry: foundryBlock(entry, NOTE_SYSTEM),
             file,
         })
     );

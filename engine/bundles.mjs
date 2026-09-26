@@ -71,7 +71,7 @@ import {
 import { contentPackage } from "./content-package.mjs";
 import { FOLDER_TYPE } from "./folder-notes.mjs";
 import { HOMEPAGE_TYPE } from "./homepage.mjs";
-import { itemDocEntryId } from "./item-docs.mjs";
+import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { folderField, renderFoundryMarkdown, resolveName } from "./helpers.mjs";
 import { packForType } from "./ids.mjs";
 import { readQualifier } from "./wikilinks.mjs";
@@ -251,8 +251,9 @@ export class Bundles extends BasePackCompiler {
 
         const baseType =
             isAddressTuple(read) ? resolveItemDocType(read.type, index.types) : undefined;
-        const itemDoc = read.itemDoc || Boolean(baseType);
         const type = baseType ?? read.type;
+        const itemDoc =
+            read.itemDoc || Boolean(baseType) || (read.system === "note" && hasDocEntry(type));
         const note = index.byShortcode.get(`${type}/${read.shortcode}`);
         if (!note) {
             throw new Error(

@@ -1109,7 +1109,7 @@ export function lintNote(
     const fm = note.fm ?? {};
     const referenceContext = {
         package: index?.contentPackage,
-        system: "none",
+        system: "note",
         ...addressContext,
         types: new Set([
             ...Object.keys(vocabulary ?? {}),
@@ -1773,7 +1773,7 @@ export function lintFrontmatter(
                 index: references ? index : undefined,
                 addressContext: {
                     package: index.contentPackage,
-                    system: "none",
+                    system: "note",
                     types: index.types,
                 },
                 ...(systems ? { systems } : {}),

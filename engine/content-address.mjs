@@ -45,7 +45,7 @@ import { DEFAULT_ADDRESS_SCHEME } from "../content-config.mjs";
 // The system vocabulary is the `<system>` segment's own registry, and
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so
 // the direction is toward the leaf and cannot close a cycle.
-import { NO_SYSTEM, isSystemSegment } from "./systems.mjs";
+import { NO_SYSTEM, NOTE_SYSTEM, isSystemId } from "./systems.mjs";
 
 // The address grammar, which sits below this module: a page URL is derived from
 // an address, so the rule for reading and writing one is stated there and
@@ -171,12 +171,9 @@ export function packageAddress(fm) {
  *
  * The **enclosing system block** decides, at any depth within it, and nothing
  * else does: `sohl.items[3].model` and `sohl.system.body.structure` are both
- * `sohl` because both sit under `sohl:`. Everywhere else is {@link NO_SYSTEM} —
- * top-level frontmatter, the shared `data:` container, and body prose, which has
- * no key path at all and passes `undefined`.
- *
- * It is the block rather than the field, so an `Address` field needs no opinion
- * about systems and no per-field table has to be kept in step with the schema.
+ * `sohl` because both sit under `sohl:`. Everywhere else takes
+ * {@link NOTE_SYSTEM}; fields declared for assets or folders supply their own
+ * `none` default at the field parser.
  *
  * The first segment must **be** a declared system, not merely look like one:
  * `sohlish.items` is a key called `sohlish`, and `notes.sohl.thing` names no
@@ -187,9 +184,9 @@ export function packageAddress(fm) {
  * @returns {string} The system id, or `none`.
  */
 export function blockSystem(keyPath) {
-    if (typeof keyPath !== "string" || !keyPath) return NO_SYSTEM;
+    if (typeof keyPath !== "string" || !keyPath) return NOTE_SYSTEM;
     const first = keyPath.split(".")[0].trim().toLowerCase();
-    return isSystemSegment(first) && first !== NO_SYSTEM ? first : NO_SYSTEM;
+    return isSystemId(first) ? first : NOTE_SYSTEM;
 }
 
 /**

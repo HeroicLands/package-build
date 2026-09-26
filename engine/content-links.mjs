@@ -76,8 +76,8 @@ import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { resolveEmbeds } from "./content-embeds.mjs";
 import { foundryAddressProblem, servesFoundry } from "./pathnames.mjs";
 import { hasDocEntry } from "./item-docs.mjs";
-import { NO_SYSTEM, systemOf } from "./document-subtypes.mjs";
-import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./note-claims.mjs";
+import { ownDocumentSystem } from "./address.mjs";
+import { NOTE_SYSTEM } from "./systems.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { searchableFrontmatter } from "./note-package.mjs";
 import {
@@ -138,12 +138,8 @@ export function anchorsOf(body) {
  * before, since the walk read the file and it then read it again for the raw
  * text.
  *
- * The index mirrors what both builds construct, including the two addresses a
- * doc-carrying note answers to: `type/shortcode` for the document, and
- * `doc<type>/shortcode` for the JournalEntry its prose compiles into. Once a
- * manifest publishes `doc<type>` entries that prefix is a *known type*, and the
- * virtual reading that used to answer for it no longer fires — a real type owns
- * its own name — so the note is indexed under both.
+ * The index holds each compiled document under its complete Address. Readable
+ * content uses `note`, and system documents use their declared system.
  *
  * @param {string} contentBase - Root of the content tree.
  * @param {object} [opts]
@@ -250,24 +246,20 @@ export function buildLinkIndex(
             // once for the whole build.
             const canonical =
                 encodeAddresses(record.address?.canonical) ??
-                canonicalKey(pkg, systemOf(type, KNOWN_DOCUMENT_SUBTYPE_MAPS), type, fm.shortcode);
+                canonicalKey(pkg, ownDocumentSystem(type), type, fm.shortcode);
             // A note with no address publishes no page, so its identity is
             // filed where a link cannot reach it and a reference still can.
             const into = record.address ? byKey : byStub;
             into.set(canonical, note);
             if (hasDocEntry(type)) {
-                // A documentation journal is `none`: no game system defines a
-                // JournalEntry, and one note has one of them however many
-                // system blocks it carries.
-                into.set(canonicalKey(pkg, NO_SYSTEM, `doc${type}`, fm.shortcode), note);
+                // The prose has one `note` Address across all system blocks.
+                into.set(canonicalKey(pkg, NOTE_SYSTEM, type, fm.shortcode), note);
             }
         }
     }
 
     // The types a link may name, which are the ones notes declare. A
-    // documentation journal's `doc<type>` is deliberately not among them: it is
-    // virtual, and `readQualifier` resolves it from the base type rather than
-    // from a type any tree declares.
+    // The `doc<type>` input spelling is an alias, not a published type.
     //
     // The **asset** types join unconditionally, whether or not this tree holds
     // a file of each. They are a closed vocabulary rather than a census of what
@@ -423,7 +415,7 @@ export function buildLinkIndex(
         for (const [all, rawInner] of matchAllOutsideCode(body, new RegExp(WIKILINK.source, "g"))) {
             const parsed = readWikilink(rawInner, {
                 package: pkg,
-                system: "none",
+                system: "note",
                 types,
                 packages,
                 noIndexPackages,
