@@ -139,8 +139,9 @@ describe("`content-build docs item-fields` with `--out` inside the content tree"
             expect(written).toMatch(/^type: doc$/m);
             expect(written).toMatch(/^subType: reference$/m);
             expect(written).toMatch(/^shortcode: itemfrontmatter$/m);
-            expect(written).toMatch(/^ {2}full: Item Note Frontmatter$/m);
-            expect(written).toMatch(/^pack: none$/m);
+            expect(written).toMatch(/^name: \{full: Item Note Frontmatter\}$/m);
+            expect(written).toMatch(/^data: \{pack: none\}$/m);
+            expect(written).not.toMatch(/^pack:/m);
             expect(written).toContain("# Item Note Frontmatter");
         } finally {
             fs.rmSync(destination, { force: true });

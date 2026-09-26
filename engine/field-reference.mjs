@@ -36,6 +36,7 @@
 
 import path from "node:path";
 import matter from "gray-matter";
+import { formatNoteFrontmatter } from "./note-format.mjs";
 
 import { authoredFields, runtimeOnlyFields } from "./field-spec.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
@@ -389,7 +390,7 @@ export function shortcodeFromBasename(destination) {
  * The universal keys every note in the format carries: `type: doc`,
  * `subType: reference` — this page is out-of-world lookup material, the same
  * genre as every other generated reference — a `shortcode`, `name.full` from
- * the page's title, and `pack: none`, since the page publishes to the website
+ * the page's title, and `data.pack: none`, since the page publishes to the website
  * and compiles into no compendium document. A consumer's own
  * `docs.itemFields.frontmatter` is deep-merged over it, so it may add keys or
  * override any of the derived ones, `shortcode` included.
@@ -409,7 +410,7 @@ export function itemFieldsEnvelope({ title, shortcode, frontmatter }) {
             subType: "reference",
             shortcode,
             name: { full: title },
-            pack: "none",
+            data: { pack: "none" },
         },
         frontmatter,
     );
@@ -448,5 +449,5 @@ export function renderItemFieldsPage(body, { title, destination, contentRoot, fr
     // between them, so a page written without one fails a consumer's
     // `lint:format` the moment it is committed. Insert it here rather than
     // let the generator and the formatter rewrite the file back and forth.
-    return page.replace(/^(---\n[\s\S]*?\n---\n)/, "$1\n");
+    return formatNoteFrontmatter(page.replace(/^(---\n[\s\S]*?\n---\n)/, "$1\n"));
 }
