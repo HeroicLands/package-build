@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.14.1
+
+### Patch Changes
+
+Item-field reference pages generated inside content packages pass note validation and formatting checks.
+
 ## 22.14.0
 
 ### Minor Changes
