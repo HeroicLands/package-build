@@ -68,7 +68,7 @@ import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.
 import { pathnameProblem } from "./pathnames.mjs";
 import { checkHomepageAddressFields } from "./homepage.mjs";
 import { RETIRED_TYPES, RENAMED_TYPES, currentType, renamedTypeMessage } from "./ids.mjs";
-import { parseAddress, acceptsType } from "./address.mjs";
+import { parseAddress, acceptsType, renderAddress } from "./address.mjs";
 import { ASSET_TYPE_NAMES } from "./asset-types.mjs";
 import { isAddressSegment } from "./address-charset.mjs";
 // The one place the "every pack not named" key is spelled. Imported rather
@@ -421,7 +421,7 @@ function dataBlock(fm) {
  *   was loaded to recognise it would be worse than not checking.
  * @returns {object[]} Findings.
  */
-function checkDataContainer(note, { type, fields, packs, addressContext }) {
+function checkDataContainer(note, { type, fields, packs, addressContext, index }) {
     const findings = [];
     const { present, entries, malformed } = dataBlock(note.fm ?? {});
     if (!present) return findings;
@@ -504,7 +504,7 @@ function checkDataContainer(note, { type, fields, packs, addressContext }) {
             });
             continue;
         }
-        findings.push(...checkDataReferences(note, field, value, segments, addressContext));
+        findings.push(...checkDataReferences(note, field, value, segments, addressContext, index));
         // A `scalar-or-map` written in its map form is checked entry by entry,
         // because that is the correction an author has to make: one key's
         // value, not the whole map. Quoting the map back would name every
@@ -521,15 +521,16 @@ function checkDataContainer(note, { type, fields, packs, addressContext }) {
 }
 
 /**
- * Validate typed entries without resolving their targets.
+ * Validate typed entries and resolve declared non-art Address targets.
  * @param {object} note - The authored note.
  * @param {object} field - Its data field declaration.
  * @param {unknown} value - The field value.
  * @param {string[]} segments - The field's path under `data`.
  * @param {object} context - The builder's Address context.
+ * @param {object} [index] - The local and declared dependency Address index.
  * @returns {object[]} Located findings.
  */
-function checkDataReferences(note, field, value, segments, context) {
+function checkDataReferences(note, field, value, segments, context, index) {
     const checks = [];
     if (field.kind === "address") checks.push({ value, path: [], kind: "address" });
     if (field.entryKind) {
@@ -573,10 +574,16 @@ function checkDataReferences(note, field, value, segments, context) {
         let reason;
         if (!matchesKind(check.value, check.kind, defaults))
             reason = `should be ${check.kind === "address" ? "an Address" : "a Shortcode"}`;
-        else if (check.kind === "address" && accepted) {
+        else if (check.kind === "address") {
             const tuple = parseAddress(check.value, defaults, { declared: true });
-            if (!acceptsType(tuple, accepted))
+            if (accepted && !acceptsType(tuple, accepted))
                 reason = `accepts ${accepted.join(" or ")}, not ${tuple.type}`;
+            else if (
+                index?.addressHit &&
+                !ART_SLOTS.some((slot) => slot.key === field.name) &&
+                !index.addressHit(renderAddress(tuple))
+            )
+                reason = `names ${renderAddress(tuple)}, which does not resolve in this package or its declared dependencies`;
         }
         if (!reason) continue;
         const path = ["data", ...segments, ...check.path];
@@ -1519,6 +1526,7 @@ export function lintNote(
                 fields,
                 packs,
                 addressContext: referenceContext,
+                index,
             }),
         );
         findings.push(...checkSubType(note, { type, entry }));
