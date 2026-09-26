@@ -1,5 +1,18 @@
 # @heroiclands/package-build
 
+## 22.13.0
+
+### Minor Changes
+
+**Content links**
+
+- Ordinary wikilinks open readable notes by default; image embeds and art fields resolve systemless assets.
+- Readable notes use `note` addresses, while explicit game systems select Actors and Items and `none` selects systemless targets.
+
+**Editor navigation**
+
+- Install `@heroiclands/content-language-server` for content note search and navigation in an editor.
+
 ## 22.12.3
 
 ### Patch Changes
