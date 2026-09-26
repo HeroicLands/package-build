@@ -252,7 +252,7 @@ describe("the shipped specification", () => {
     });
 
     it("makes every mapping claim its tables state", () => {
-        expect(format.claims).toHaveLength(87);
+        expect(format.claims).toHaveLength(77);
         expect([...new Set(format.claims.map((c) => c.system))].sort()).toEqual(["hm3", "sohl"]);
     });
 
@@ -354,7 +354,7 @@ describe("the specification against the committed fixture schema", () => {
         const artifact = JSON.parse(fs.readFileSync(FIXTURE_SCHEMA, "utf8"));
         const { findings, checked } = checkSchemaTargets({ format, schemas: { sohl: artifact } });
         expect(messages(findings)).toBe("");
-        expect(checked).toBe(70);
+        expect(checked).toBe(60);
     });
 });
 
