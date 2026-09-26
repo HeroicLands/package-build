@@ -16,16 +16,13 @@
  * code cannot perform. The value arrives at the field's `?? default` as an
  * ordinary absence, and the document ships the default.
  *
- * `checkDeclaredFields` cannot see it: it normalizes `data.seat` and `seat` to
- * one spelling before comparing targets, which is right for the question it asks
- * — do the two agree about where the value *goes* — and blind to this one, which
- * is whether the declaration can reach where the value *is*.
+ * `checkDeclaredFields` normalizes `data.seat` and `seat` before comparing
+ * targets. This guard checks whether the declaration reads the stated source.
  *
  * So this derives the comparison from the specification rather than listing it.
  * Every `| data.X | system.Y |` row is read out of the document, the declaration
  * that compiles it is found through the same matcher the target check uses, and
- * that declaration must name `data.X`. A row nothing declares is coverage, not a
- * finding — the specification maps fields no builder emits.
+ * that declaration must name `data.X`. Every unmatched row is a finding.
  *
  * The second assertion is the trap the first one walks into. `legacyKeyOf` falls
  * back to `name`, so renaming a source to `data.weight` and stopping there moves
@@ -92,21 +89,13 @@ function mappedRows(): MappedRow[] {
 }
 
 /**
- * Every per-type `data.` row that reaches **no** declaration, as `source →
- * target`.
- *
- * The comparison above can say nothing about these, and neither can
- * `checkDeclaredFields`, which counts an unmatched row as coverage. Two shapes
- * reach here: a row whose declaration names the *destination* spelling instead of
- * the source (`data.level` against a field declared `levelBase`), and a row whose
- * type declares no authored field at all (`data.quantity` on a `*gear`, whose
- * quantity is a constant). Which of the two spellings an author should write is a
- * decision per row, so they are pinned rather than fixed here.
+ * Every per-type mapping row that reaches no authored declaration, as
+ * `source → target`.
  */
 function skippedRows(): string[] {
     const out = new Set<string>();
     for (const claim of FORMAT.claims) {
-        if (claim.shared || !String(claim.source).startsWith("data.")) continue;
+        if (claim.shared) continue;
         const declared = REGISTRIES[claim.system]?.[claim.noteType];
         if (!declared) continue;
         if (declarationFor(claim.source, authoredFields(declared))) continue;
@@ -155,19 +144,8 @@ describe("a mapping row's `data.` source is read", () => {
         expect(bare).toEqual([]);
     });
 
-    it("names the rows it cannot answer for, so none of them is skipped in silence", () => {
-        expect(skippedRows()).toEqual([
-            "sohl affliction data.healingRate → system.healingRateBase",
-            "sohl affliction data.outcomeTraumas → system.outcomeTraumas",
-            "sohl concoctiongear data.quantity → system.quantity",
-            "sohl containergear data.capacity → system.maxCapacityBase",
-            "sohl miscgear data.quantity → system.quantity",
-            "sohl mystery data.level → system.levelBase",
-            "sohl mysticalability data.level → system.levelBase",
-            "sohl mysticalability data.masteryLevel → system.masteryLevelBase",
-            "sohl projectilegear data.quantity → system.quantity",
-            "sohl skill data.masteryLevel → system.masteryLevelBase",
-        ]);
+    it("has no mapping row whose source a declaration cannot read", () => {
+        expect(skippedRows()).toEqual([]);
     });
 
     it("keeps the in-block key a note authors reachable beneath it", () => {
