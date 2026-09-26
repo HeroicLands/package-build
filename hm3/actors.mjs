@@ -63,7 +63,12 @@ import {
 // The note-level `hm3:` block: `hm3.system` onto the document's `system`
 // verbatim, and `hm3.img` / `hm3.items` / `hm3.effects` / `hm3.flags`
 // overriding their shared top-level forms for this system alone.
-import { blockField, blockProperty, mergeSystemData } from "../engine/system-block.mjs";
+import {
+    blockDataProperty,
+    blockField,
+    blockProperty,
+    mergeSystemData,
+} from "../engine/system-block.mjs";
 
 /**
  * Native HM3 facts shared by its actor subtypes.
@@ -324,7 +329,7 @@ export class Hm3Actors extends SystemActorCompiler {
         // by its address. This pass once read only the Foundry id, so an HM3
         // tree could not file an actor by address at all — which its own sweep
         // needs; the id spelling is retired outright.
-        const folder = this.folderResolver(blockField(fm, block, "packFolder", null), {
+        const folder = this.folderResolver(blockDataProperty(fm, block, "packFolder", null), {
             isAddress: true,
         });
 

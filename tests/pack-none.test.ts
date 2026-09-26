@@ -276,6 +276,7 @@ describe("createPackRouter — `pack: none`", () => {
 describe("declaresNoPack — what a note says about its packs", () => {
     it("is true when the shared declaration is none", () => {
         expect(declaresNoPack({ type: "doc", pack: "none" })).toBe(true);
+        expect(declaresNoPack({ type: "doc", data: { pack: "none" } })).toBe(true);
     });
 
     it("is false when the note declares nothing, or a pack", () => {

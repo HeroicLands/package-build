@@ -278,6 +278,29 @@ const TOKEN_ICON = Object.freeze({
  */
 export const SHARED_DATA_FIELDS = Object.freeze([
     Object.freeze({
+        name: "id",
+        ...TEXT,
+        describe: "A fixed document identity when the derived identity is unsuitable.",
+    }),
+    Object.freeze({
+        name: "pack",
+        ...TEXT,
+        describe: "The shared compendium route, with a system block overriding it.",
+    }),
+    Object.freeze({
+        name: "packFolder",
+        ...LINK_BY_PACK,
+        ref: "folder",
+        accepts: ["folder"],
+        describe: "The shared compendium folder Address, with a system block overriding it.",
+    }),
+    Object.freeze({
+        name: "harnworld",
+        shape: "map",
+        kind: "map",
+        describe: "HârnWorld source details shared by every system.",
+    }),
+    Object.freeze({
         name: "icon",
         ...LINK,
         ref: "icon",
@@ -605,6 +628,7 @@ export const NOTE_VOCABULARY = Object.freeze({
         // package's declared present compute — see `engine/being-age.mjs`.
         check: checkBeingAge,
         data: Object.freeze([
+            { name: "social", shape: "map", kind: "map", describe: "The being's social profile." },
             TOKEN_ICON,
             TEMPLATE_PRIORITY,
             { name: "archetypes", ...LIST, describe: "Archetypal behaviours the being fits." },

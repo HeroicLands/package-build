@@ -308,6 +308,12 @@ finding that names the key you meant; the same misspelling at top level would
 silently become a theme parameter, which is exactly why these cannot live
 together.
 
+Every note type may put a pinned document id in `data.id`, a shared compendium
+route in `data.pack`, a shared folder Address in `data.packFolder`, and source
+details in `data.harnworld`. A system block's `pack` or `packFolder` overrides
+the shared value for that system. A `being` may also describe its social profile
+in `data.social`.
+
 **Tags are open, except the ones that classify.** `tags:` shares the top level's
 openness: a tag naming a theme or a region — `underworld`,
 `byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
@@ -569,8 +575,8 @@ type.
 | ----------------------- | ------------------------- | ---------------------------- |
 | `name.full`             | `name`                    | `name`                       |
 | `data.icon`             | `img`                     | `img`                        |
-| `id`                    | `_id`                     | `_id`                        |
-| `packFolder`            | `folder`                  | `folder`                     |
+| `data.id`               | `_id`                     | `_id`                        |
+| `data.packFolder`       | `folder`                  | `folder`                     |
 | `shortcode`             | `system.shortcode`        | NA                           |
 | `data.templatePriority` | `system.templatePriority` | `flags.hm3.templatePriority` |
 | `actionDefs`            | `system.actionDefs`       | NA                           |
@@ -657,16 +663,20 @@ refused at all four slots: a sound is not art, and a value naming one — `icon:
 audio-thunder`, say — is an error naming the set the slot accepts, never a
 silent fall back to the note's default art.
 
-**Two of them are legal on _every_ note**, whatever its type. `data:` is a
+**These properties are legal on _every_ note**, whatever its type. `data:` is a
 closed container and the per-type vocabularies below are the only lists there
 are, so a key legal everywhere is stated once here rather than repeated in
 twenty-five tables where the one that was mistyped would be the one nobody
 noticed:
 
-| shared `data` property | Values    | Description                                                          |
-| ---------------------- | --------- | -------------------------------------------------------------------- |
-| `icon`                 | `Address` | The document's profile art — an `icon` address, resolved into `img`. |
-| `banner`               | `Address` | The page's hero image — an `image` address.                          |
+| shared `data` property | Values                 | Description                                                          |
+| ---------------------- | ---------------------- | -------------------------------------------------------------------- |
+| `id`                   | `string`               | A pinned document identity.                                          |
+| `pack`                 | `string`               | The shared compendium route.                                         |
+| `packFolder`           | `Address` or pack map  | The shared compendium folder Address.                                |
+| `harnworld`            | `Map<string, unknown>` | HârnWorld source details.                                            |
+| `icon`                 | `Address`              | The document's profile art — an `icon` address, resolved into `img`. |
+| `banner`               | `Address`              | The page's hero image — an `image` address.                          |
 
 `icon` is legal everywhere because most types compile into a document that
 carries one; where a type's passes emit none, the lint says so and the value is
@@ -847,10 +857,11 @@ on any type, and the frontmatter lint never reports it.
 
 #### The pack a note compiles into
 
-`pack` names which configured compendium receives the note's document.
+`data.pack` names which configured compendium receives the note's document.
 
 ```yaml
-pack: items-hm3
+data:
+  pack: items-hm3
 ```
 
 It is deliberately close to the retired `package:` and deliberately not the same
@@ -867,7 +878,8 @@ system: each block the note carries sends its own document where that block
 says, and a note carrying two blocks may place them in two packs.
 
 ```yaml
-pack: items-sohl
+data:
+  pack: items-sohl
 hm3:
   pack: items-hm3
 ```
@@ -898,10 +910,11 @@ and in no compendium — a page of developer documentation, a page about the
 package itself:
 
 ```yaml
+shortcode: architecture
 type: doc
 subType: concept
-shortcode: architecture
-pack: none
+data:
+  pack: none
 ```
 
 A link to such a note resolves everywhere the note is addressable. On the web
@@ -1046,16 +1059,17 @@ none. It is the same principle that turned `folder: ONXsqZAIZr2qzxTb` into
 `packFolder: <address>` above: an opaque derived identity does not belong in
 authored content.
 
-**An authored `id` still wins**, and that is how a document's identity is
+**An authored `data.id` wins**, and that is how a document's identity is
 **pinned**:
 
 ```yaml
-type: miscgear
 shortcode: bowlcer
-id: plaiQQm2T5zVK5mO # pinned: this document keeps this id
+type: miscgear
+data:
+  id: plaiQQm2T5zVK5mO # pinned: this document keeps this id
 ```
 
-A blank `id:` is not a pin — it is a deleted value with the key left behind, and
+A blank `data.id:` is not a pin — it is a deleted value with the key left behind, and
 is treated as absent.
 
 **A rename moves the id, and that is the trade.** The address carries the
@@ -1144,7 +1158,8 @@ of the same entry is a warning; the declaration still works.
 A note says which folder of its pack it lands in:
 
 ```yaml
-packFolder: poisonsandtoxins # a folder note's address
+data:
+  packFolder: poisonsandtoxins # a folder note's address
 ```
 
 **`packFolder` is a folder note's address** — an ordinary address, resolved the
@@ -2481,6 +2496,7 @@ Generates a living (or undead, or spirit) being.
 | `templatePriority`          | `number`                                       | Template priority, _null_ = not a template                                                       |
 | `archetypes`                | `Archetype[]`                                  | What sort of character this is. **Always an array** — `[]` where none apply; `null` is an error. |
 | `occupation`                | `string`                                       | Name of the character's occupation                                                               |
+| `social`                    | `Map<string, unknown>`                         | The being's social profile                                                                       |
 | `stations`                  | `Address[]`                                    | Name of the stations the character belongs to                                                    |
 | `lore`                      | `Address[]`                                    | Lore concerning this being — the people it is of, the standing it holds, the law it lives under  |
 | `homes`                     | `Address[]`                                    | Place the being calls home                                                                       |
@@ -2743,7 +2759,8 @@ no Foundry document: it is a page and nothing else.
 It declares a `shortcode` — conventionally `root` — because that is what a
 link is written with: `[[homepage-root|Text]]` is an ordinary wikilink, and it
 resolves to `/<package>/`. The shortcode names the page in links; its address
-is the package root. `title` defaults to `packageBuild.manifest.title`; a
+is the package root. The page heading reads `name.full` and defaults to
+`packageBuild.manifest.title`; a
 `description` and a `banner` are read by the theme's hero; any other
 top-level key is passed through to the page as a theme parameter.
 

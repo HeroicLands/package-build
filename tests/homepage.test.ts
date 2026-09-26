@@ -155,6 +155,9 @@ describe("`type: homepage` is note format, so it lives in the engine", () => {
         const config = configFor();
         expect(homepageTitle({ type: HOMEPAGE_TYPE }, config)).toBe("The Demo Module");
         expect(homepageTitle({ type: HOMEPAGE_TYPE, title: "Kethira" }, config)).toBe("Kethira");
+        expect(homepageTitle({ type: HOMEPAGE_TYPE, name: { full: "Kethira" } }, config)).toBe(
+            "Kethira",
+        );
     });
 
     it("is collected by its own walk, not as a content page", () => {

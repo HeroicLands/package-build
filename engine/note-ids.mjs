@@ -105,7 +105,7 @@ function text(value) {
  */
 export function noteDocId(fm, { pkg, maps = KNOWN_DOCUMENT_SUBTYPE_MAPS } = {}) {
     if (!fm || typeof fm !== "object") return undefined;
-    const pinned = text(fm.id);
+    const pinned = text(fm.data?.id) ?? text(fm.id);
     if (pinned) return pinned;
     const type = text(fm.type);
     const shortcode = text(fm.shortcode);

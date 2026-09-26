@@ -274,7 +274,8 @@ export function collectFolderNotes(notes, pkg) {
 
         const { parent, color } = folderFields(fm);
         const address = folderAddress(pkg, shortcode);
-        const authoredId = fm.id == null ? "" : String(fm.id).trim();
+        const pinnedId = fm.data?.id ?? fm.id;
+        const authoredId = pinnedId == null ? "" : String(pinnedId).trim();
 
         folders.push({
             shortcode,
