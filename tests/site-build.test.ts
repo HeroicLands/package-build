@@ -402,7 +402,7 @@ describe("buildSite end to end", () => {
     it("publishes secret passages as expandable prose and locates malformed fences", () => {
         const file = note(
             "Rules/Secrets.md",
-            "type: doc\nsubType: concept\nshortcode: secrets\nname:\n    full: Secrets",
+            "type: doc\nsubType: settingguide\nshortcode: secrets\nname:\n    full: Secrets",
             "Before.\n\n:::secret\nA **hidden** clue.\n:::\n",
         );
         try {

@@ -1097,13 +1097,20 @@ export const NOTE_VOCABULARY = Object.freeze({
 
     doc: Object.freeze({
         stubbable: true,
-        // Five genres, and a genre is all this field carries: what kind of page
+        // A genre is all this field carries: what kind of page
         // it is, never who reads it. An audience term alongside them would give
         // a developer how-to two valid values and no rule for choosing.
         //
         // `userguide` and `howto`, not `user-guide` and `how-to`: a subType is
         // held to the address charset, and a segment carries no hyphen.
-        subTypes: Object.freeze(["rules", "userguide", "reference", "howto", "concept"]),
+        subTypes: Object.freeze([
+            "rules",
+            "userguide",
+            "reference",
+            "howto",
+            "concept",
+            "settingguide",
+        ]),
         check: checkCitedPopulations,
         data: Object.freeze([]),
     }),

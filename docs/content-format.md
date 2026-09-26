@@ -3994,8 +3994,33 @@ Content prepared to be played — a situation with its cast, places, and possibl
 - reference: Out-of-world lookup material about the setting or system — correspondences, conversions, glossaries.
 - howto: A task with an outcome, written as the steps that reach it.
 - concept: An explanation of how something works and why it is shaped that way, read to understand rather than to follow.
+- settingguide: An orientation to a setting or region, bringing its places, peoples, institutions, and daily life into one usable frame with links to detailed notes.
 
 A `doc` declares no properties of its own.
+
+Choose `settingguide` for an entry point that stands on its own while guiding
+players and GMs into a setting. A `concept` explains one subject, a `reference`
+supports lookup, and a `userguide` explains how to operate the Foundry
+implementation. The setting guide can use ordinary SQL content tables and
+`:::secret` passages; its genre does not change its Address, journal, or page
+rendering.
+
+```markdown
+---
+shortcode: reedflatsguide
+name: { full: The Reed Flats Guide }
+type: doc
+subType: settingguide
+description: A starting point for adventures in the Reed Flats.
+---
+
+The Reed Flats are a network of marsh settlements linked by river trade.
+Their routes, customs, and rival groups shape everyday journeys.
+
+:::secret
+The old ferry route is known to the local guides.
+:::
+```
 
 The field is a genre and only a genre: it says what kind of page this is, never
 who reads it. A page written for a developer is a `howto` or a `concept` like

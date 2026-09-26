@@ -270,9 +270,9 @@ requires it. It compiles to a page and to no Foundry document.
 
 ```markdown
 ---
-type: homepage
 shortcode: root
-title: The Acme Bestiary
+name: { full: The Acme Bestiary }
+type: homepage
 description: Creatures of the reed flats, their habits and their hides.
 ---
 
@@ -286,11 +286,10 @@ who hunt it.
 
 ```markdown
 ---
+shortcode: marshdrake
+name: { full: Marsh Drake }
 type: lore
 subType: bestiary
-name:
-  full: Marsh Drake
-shortcode: marshdrake
 description: A wingless drake of the reed flats, hunted for its hide and feared for its patience.
 ---
 
@@ -317,19 +316,44 @@ directory has no bearing on which pack it lands in. `subType:` narrows it —
 `(type, subType)` is what each game system maps onto its own document type.
 
 **`shortcode:` is the note's address.** Cross-references are written
-`[[lore-marshdrake]]` — the type and the shortcode — and resolve to whatever
+`[[lore-marshdrake|Marsh Drake]]` — the type, shortcode, and readable label — and resolve to whatever
 that note compiles into, in whatever system is being compiled. A shortcode is
 identity: renaming one breaks every link into it.
 
 **`name.full` is the document name and the published URL**, derived by one
 shared rule. There is no authored slug anywhere in this toolchain.
 
-**Frontmatter has three regions and only one of them is open.** Top-level keys
-(`type`, `shortcode`, `description`, `tags`, and anything else) are copied into
-the generated web page, so an unrecognised one is a theme parameter rather than
-an error. A `data:` block and a `sohl:` / `hm3:` block are closed: a misspelled
-key there is a finding that names the key you meant.
+**Frontmatter has three closed regions.** Top-level keys identify the note and
+describe its publication; `data:` holds shared facts; `sohl:` and `hm3:` hold
+system-specific facts. An unrecognised key is an error rather than a site
+parameter. The formatter keeps the allowed top-level keys in their required
+order.
 [`content-format.md`](content-format.md) is the specification.
+
+**A setting guide is a `doc` that orients a reader to a place or setting.** It
+gives a usable overview of areas, peoples, institutions, and daily life, then
+links to the detailed notes. Use `subType: settingguide` for that entry point;
+`concept` explains one subject, `reference` serves lookup, and `userguide`
+explains the Foundry controls. For example, a guide at
+`assets/content/Guides/Reed_Flats.md` can begin:
+
+```markdown
+---
+shortcode: reedflatsguide
+name: { full: The Reed Flats Guide }
+type: doc
+subType: settingguide
+description: A starting point for adventures in the Reed Flats.
+---
+
+The river trade links the settlements of the Reed Flats. Their routes and
+customs give visitors a way into the region. See [[lore-reedfolk|Reed Folk]]
+for the people who guide those journeys.
+```
+
+The guide can include SQL tables for lists drawn from indexed notes and
+`:::secret` blocks for GM passages. Its address is
+`doc-reedflatsguide`, following the same rule as every `doc` note.
 
 An image stands in its own paragraph. Its directive accepts a named size and a
 position together:
