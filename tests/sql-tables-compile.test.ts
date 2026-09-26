@@ -24,12 +24,12 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 const PKG_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
 const gear = (name: string, code: string, cat: string, weight: number, value: number) => `---
-name:
-  full: ${name}
-description: A ${name.toLowerCase()}.
-id: ${code.padEnd(16, "x")}
 shortcode: ${code}
+name: { full: ${name} }
 type: miscgear
+description: A ${name.toLowerCase()}.
+data:
+  id: ${code.padEnd(16, "x")}
 sohl:
   archetype: 0
   quality: 0
@@ -42,16 +42,16 @@ sohl:
 Prose for ${name}.
 `;
 
-const RULES = `---
-id: gearrulespage00
-type: doc
-subType: rules
-name:
-  full: Gear
+const GUIDE = `---
 shortcode: gearrules
+name: { full: Gear }
+type: doc
+subType: settingguide
+data:
+  id: gearrulespage00
 ---
 
-Gear a character carries.
+Gear of the Reed Flats.
 
 \`\`\`sql
 SELECT address.slug AS _ref,
@@ -64,6 +64,10 @@ ORDER BY sohl.kbcat, name.full
 \`\`\`
 
 After the table.
+
+:::secret
+The traders keep a hidden path through the reeds.
+:::
 `;
 
 /** A throwaway repository with one SoHL item pack and a journals pack. */
@@ -143,7 +147,7 @@ beforeAll(() => {
         "Misc_Gear/Bowl.md": gear("Bowl", "bowlcer", "cooking", 3, 6),
         "Misc_Gear/Cauldron.md": gear("Cauldron", "cauldron", "cooking", 8, 10),
         "Misc_Gear/Pence.md": gear("Pence", "pence", "cash", 1, 1),
-        "Rules/Gear.md": RULES,
+        "Guides/Gear.md": GUIDE,
     });
     roots.push(root);
     result = compile(root);
@@ -168,8 +172,14 @@ describe("a `sql` content table, compiled", () => {
     });
 
     it("keeps the prose on either side of it", () => {
-        expect(page).toContain("Gear a character carries.");
+        expect(page).toContain("Gear of the Reed Flats.");
         expect(page).toContain("After the table.");
+    });
+
+    it("compiles the guide's GM passage into a Foundry secret section", () => {
+        expect(page).toContain('<section class="secret"');
+        expect(page).toContain("hidden path through the reeds");
+        expect(page).not.toContain(":::secret");
     });
 
     it("emits one heading per `_section`, in the query's order", () => {

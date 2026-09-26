@@ -35,9 +35,16 @@ const messages = (findings: Array<{ message: string }>) =>
 
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
-describe("a `doc` declares five genres", () => {
+describe("a `doc` declares page genres", () => {
     it("is exactly the closed set, in the order the specification lists", () => {
-        expect(subTypes("doc")).toEqual(["rules", "userguide", "reference", "howto", "concept"]);
+        expect(subTypes("doc")).toEqual([
+            "rules",
+            "userguide",
+            "reference",
+            "howto",
+            "concept",
+            "settingguide",
+        ]);
     });
 
     it("accepts `howto` — a procedure a reader follows to an outcome", () => {
@@ -46,6 +53,10 @@ describe("a `doc` declares five genres", () => {
 
     it("accepts `concept` — an explanation of how something works", () => {
         expect(lintNote(note("doc", { subType: "concept" }), opts)).toEqual([]);
+    });
+
+    it("accepts `settingguide` — an orientation to a setting", () => {
+        expect(lintNote(note("doc", { subType: "settingguide" }), opts)).toEqual([]);
     });
 
     it("keeps the genres already declared", () => {
@@ -69,7 +80,7 @@ describe("a `doc` declares five genres", () => {
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({ severity: "error" });
         expect(messages(findings)).toContain(
-            "is not one of the subtypes doc declares (rules, userguide, reference, howto, concept)",
+            "is not one of the subtypes doc declares (rules, userguide, reference, howto, concept, settingguide)",
         );
     });
 });

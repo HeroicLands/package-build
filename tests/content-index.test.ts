@@ -920,11 +920,18 @@ describe("an item note is two records: the item, and its documentation", () => {
     });
 
     it("leaves a note that compiles to one document as one record", () => {
-        note("Guide.md", "type: doc\nsubType: rules\nid: g1\nshortcode: guide");
+        note(
+            "Guide.md",
+            "shortcode: guide\nname: { full: Guide }\ntype: doc\nsubType: settingguide\ndata:\n  id: g1",
+        );
         const records = readIndex(emitContentIndex({ config: foundryConfig(tmp) }).file);
 
         expect(records).toHaveLength(1);
         expect(records[0].documentation).toBeNull();
+        expect(records[0]).toMatchObject({
+            subType: "settingguide",
+            address: { slug: "doc-guide" },
+        });
     });
 
     it("orders an item's two records deterministically", () => {
