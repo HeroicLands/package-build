@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.14.0
+
+### Minor Changes
+
+Content notes accept the documented top-level fields, with clear errors for other keys. Formatting keeps those fields in order and writes YAML collections as short lines or full blocks.
+
 ## 22.13.1
 
 ### Patch Changes
