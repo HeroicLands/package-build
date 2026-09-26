@@ -6,9 +6,6 @@ container, drive the end-to-end suite. `content-build` is the content half —
 compile a note tree into compendium packs, check it, publish it as a site or a
 book, and manage the caches a build resolves other packages through.
 
-The package also ships `heroiclands-content-language-server`, a stdio editor
-service described in the [content language server guide](content-language-server.md).
-
 Both read `package-build.config.yaml` from the repository root — see
 [Configuration](configuration.md) for every key. Neither reads it for
 `--version` or `--help`: those two answer in a directory with no

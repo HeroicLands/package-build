@@ -14,8 +14,8 @@ The content half is documented separately in **[CONTENT.md](CONTENT.md)** — th
 note format, the pack pipeline, and the configuration contract a content tree
 declares itself with.
 
-Editor navigation through the content index is described in the
-[content language server guide](docs/content-language-server.md).
+Editor navigation for content projects is provided by
+[`@heroiclands/content-language-server`](https://github.com/HeroicLands/content-language-server).
 
 ## Install
 
