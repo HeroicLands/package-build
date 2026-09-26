@@ -124,15 +124,12 @@ export const HELD_SUBTYPES = Object.freeze(["settlement", "site", "structure"]);
  * system, only the shortcode {@link module:engine/address} would resolve it
  * to anyway.
  *
- * **The match this shortcode feeds is deliberately package-blind.** `places`
- * and `affiliations` merge this package's own notes with every fetched
- * dependency's into one shortcode space, first declaration wins — the way a
- * dependency's generic geography attaches to whatever a consumer calls the
- * same shortcode, which is the point of _A dependency's places and
- * affiliations take part_ above. Comparing the full Address instead would
- * ask an entry's package to agree with the citing note's, and a fetched
- * entry's own `parents` or `domains` is written in *its* package while the
- * blend it takes part in is *this* one's — see
+ * **The holdings graph has package-blind Shortcode identity.** `places` and
+ * `affiliations` merge local and fetched notes into one shortcode space; the
+ * first declaration wins. A fetched place attaches to a local parent with
+ * the same shortcode, and a fetched affiliation can name both local and
+ * fetched domains. The authored entries remain Addresses; this graph uses
+ * their shortcode projection for containment and tenure. See
  * `tests/site-holdings.test.ts`'s `empire.domains: ["mill", "abroad"]`, where
  * `mill` is local and `abroad` is the dependency's own, both bare, both
  * correct only because neither package is asked.
@@ -321,6 +318,7 @@ export function holdingsPages(nodes) {
         // Read through the one reader, so a caller handing in what a note
         // wrote — an address, a wikilink, a repeat — is read as `holdingsNode`
         // reads it.
+        // Shortcode identity: the first node of each type owns this graph key.
         by.set(shortcode, {
             ...node,
             shortcode,

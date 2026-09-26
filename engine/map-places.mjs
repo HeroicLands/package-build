@@ -108,15 +108,14 @@ const PLACE_TYPES = Object.freeze(new Set(["place"]));
  * since this position asks neither its package nor its system, only the
  * shortcode {@link module:engine/address} would resolve it to anyway.
  *
- * **The match this shortcode feeds is deliberately package-blind.**
- * `world.places` merges this package's own places with every fetched
- * dependency's into one shortcode space, the way a dependency's place
- * attaches to the local containment tree it is drawn beside — see
+ * **The map graph has package-blind Shortcode identity.** `world.places`
+ * merges local and fetched places by shortcode, with local declarations
+ * taking precedence. A fetched place attaches to the local containment tree
+ * by its parent's shortcode. The authored parent remains an Address; the map
+ * uses its shortcode projection for containment, layout, and DOT nodes. See
  * `tests/map.test.ts`'s _loads a dependency's places beside the package's
  * own_, where a fetched place's bare `parents: ["world"]` reaches this
- * package's own root. Comparing the full Address instead would ask the
- * dependency's own package to agree with this one's, which the feature is
- * built to cross.
+ * package's own root.
  *
  * @param {unknown} parent - One `parents` entry.
  * @returns {string} Its shortcode, or `""` for an entry that names nothing.
@@ -193,6 +192,7 @@ export function placesFromRecords(records, { contentBase, base }) {
             // lint's finding.
             if (places.has(shortcode)) continue;
             const data = record.data && typeof record.data === "object" ? record.data : {};
+            // Shortcode identity: local places claim the map node first.
             places.set(shortcode, {
                 shortcode,
                 name,
@@ -243,6 +243,7 @@ function addForeignPlaces(world, foreignIndex) {
         if (entry?.type !== "place") continue;
         const shortcode = readCanonicalKey(canonical)?.shortcode?.toLowerCase() ?? "";
         if (!shortcode || world.places.has(shortcode)) continue;
+        // Shortcode identity: fetched places fill only unclaimed map nodes.
         world.places.set(shortcode, {
             shortcode,
             name: String(entry.name ?? shortcode),
