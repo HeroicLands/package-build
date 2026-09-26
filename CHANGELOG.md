@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 22.12.2
+
+### Patch Changes
+
+**Content**
+
+- GM passages in notes appear as secret sections in Foundry journals, expandable spoilers on the web, and labelled notes in books.
+
 ## 22.12.1
 
 ### Patch Changes
