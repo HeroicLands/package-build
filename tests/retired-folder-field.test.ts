@@ -194,11 +194,11 @@ describe("the specification states the address model", () => {
         expect(sources).toContain("`name.full`");
     });
 
-    it("names `packFolder` alone as the compendium-folder source", () => {
+    it("names `data.packFolder` alone as the compendium-folder source", () => {
         // `folder:` is refused at compile and reported by the lint, so offering
         // it here tells an author to write a value the build rejects.
         const named = sharedMappingSources().filter((s) => /folder/i.test(s));
-        expect(named).toEqual(["`packFolder`"]);
+        expect(named).toEqual(["`data.packFolder`"]);
     });
 
     it("never presents `packFolder` as holding a path", () => {
