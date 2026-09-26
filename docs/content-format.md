@@ -1860,15 +1860,16 @@ immediately after the closing `]]`, with no space:
 
 ```markdown
 ![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
 ![[thalornamap|Map of Thalorna]]{.full-width}
 ![[thalornamap|Map of Thalorna]]{.full-width, float: top-left}
 ![[thalornamap|Map of Thalorna]]{float: top-left, .full-width}
 ```
 
-**The same parser reads both**, so an embed takes a width class, a `float:`, or
-both together in either order, comma-separated — everything
+**The same parser reads both**, so an embed takes a width class, a `size:`, a
+`float:`, or a combination in any order, comma-separated — everything
 [an image's directive](#width-is-a-class-and-the-ordinary-width-carries-no-marker)
-takes and nothing beyond it. The width and position vocabularies are the ones
+takes and nothing beyond it. The width, size, and position vocabularies are the ones
 above, and they are closed here for the same reason: a directive that is quietly
 ignored looks exactly like one that worked, and a directive holding a problem is
 not honoured in part either.
@@ -2123,6 +2124,7 @@ part of this format follows.
 
 ```markdown
 ![[branwldrgr|Brànwâal Dôrgaar]]{float: top-left}
+![[branwldrgr|Brànwâal Dôrgaar]]{size: medium, float: top-left}
 
 ![Map of Thalorna](images/maps/thalorna.webp){.full-width}
 ```
@@ -2146,12 +2148,29 @@ place for those words and this is it.
 | `.full-width` | the full page | full content width | full page width  |
 
 The simple case needs no spelling, which is why the ordinary width has no name.
-A third width joins this table as a name.
 
 **No pixel values, ever.** A number means something in a browser and nothing
 coherent in print, and a directive carrying a class and a dimension at once
 gives one question two answers with no rule for which wins. `{width=800}` is
 refused.
+
+##### Named size is `size:`
+
+| `size` value | display                  |
+| ------------ | ------------------------ |
+| `auto`       | same as omitting `size:` |
+| `small`      | same as omitting `size:` |
+| `medium`     | same as omitting `size:` |
+| `large`      | same as omitting `size:` |
+| `xlarge`     | same as omitting `size:` |
+| `full-width` | same as omitting `size:` |
+
+The parser accepts and records these names for Markdown images and embedded
+assets. **A `size:` value does not change the displayed dimensions** on the
+website, in Foundry, or in the book. With no `size:`, the parser records `auto`;
+the existing rendering rules apply. In particular, book images occupy a column
+unless they carry `.full-width`. A `size:` may sit before or after `float:` in
+the same directive, and neither changes the other's behavior.
 
 ##### Position is `float:`
 
@@ -2182,7 +2201,7 @@ A `.full-width` image that **also states a `float:`** is asking for a float and
 gets one, with no break before it. A float is placed where it fits, which may be
 the next page.
 
-##### Both vocabularies are closed
+##### All three vocabularies are closed
 
 `{.fullwidth}`, `{.full_width}`, `{width=800}` and `{float: middle}` are
 refused, located by file, line and column, and the build fails. An unrecognised
@@ -2194,8 +2213,8 @@ even in the part that parsed: a half-honoured directive is the same silent
 failure in a smaller costume. The image keeps its braces and renders them as
 literal text, so the mistake is visible on the page as well as in the log.
 
-**Nothing else reaches emitted markup.** The two vocabularies and the address
-are all that leave a note; there is no `style`, no `id` and no arbitrary
+**Nothing else reaches emitted markup.** The width and position classes and the
+address are all that leave a note; there is no `style`, no `id` and no arbitrary
 attribute, because data is never compiled into markup here. An address carries
 a scheme of `http:` or `https:`, or none at all.
 
