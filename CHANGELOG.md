@@ -1,5 +1,12 @@
 # @heroiclands/package-build
 
+## 22.12.3
+
+### Patch Changes
+
+- Content authors can find notes by name, alias, tag, shortcode, or Address and follow references from an LSP-capable editor.
+- Editor reference search works without ripgrep installed.
+
 ## 22.12.2
 
 ### Patch Changes
