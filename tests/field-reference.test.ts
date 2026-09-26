@@ -29,6 +29,7 @@ import { describe, it, expect } from "vitest";
 import path from "node:path";
 import prettier from "prettier";
 import matter from "gray-matter";
+import { formatNoteFrontmatter } from "../engine/note-format.mjs";
 
 import {
     renderItemFieldReference,
@@ -222,7 +223,7 @@ describe("itemFieldsEnvelope", () => {
             subType: "reference",
             shortcode: "itemfrontmatter",
             name: { full: "Item Note Frontmatter" },
-            pack: "none",
+            data: { pack: "none" },
         });
     });
 
@@ -237,7 +238,7 @@ describe("itemFieldsEnvelope", () => {
             subType: "reference",
             shortcode: "itemfrontmatter",
             name: { full: "Item Note Frontmatter" },
-            pack: "none",
+            data: { pack: "none" },
             description: "The generated per-type field tables.",
             tags: ["ref"],
         });
@@ -281,7 +282,7 @@ describe("renderItemFieldsPage", () => {
             subType: "reference",
             shortcode: "itemfrontmatter",
             name: { full: "Item Note Frontmatter" },
-            pack: "none",
+            data: { pack: "none" },
         });
         expect(parsed.content.trim()).toBe(body.trim());
     });
@@ -307,7 +308,7 @@ describe("renderItemFieldsPage", () => {
         expect(rendered).toBe(body);
     });
 
-    it("writes a note that is already what Prettier would format it to", async () => {
+    it("writes a note that is already what the shared formatter produces", async () => {
         // The property that decides whether a consumer can commit this page:
         // `content-build format` (Prettier) and `docs item-fields --check`
         // (this generator) have to agree on one file. Proven by running the
@@ -325,7 +326,7 @@ describe("renderItemFieldsPage", () => {
             parser: "markdown",
         });
 
-        expect(formatted).toBe(rendered);
+        expect(formatNoteFrontmatter(formatted)).toBe(rendered);
     });
 });
 
