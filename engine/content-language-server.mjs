@@ -4,7 +4,6 @@
 
 import fs from "node:fs";
 import path from "node:path";
-import { spawnSync } from "node:child_process";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import YAML from "yaml";
 import { parseAddress, renderAddress } from "./address.mjs";
@@ -296,7 +295,7 @@ export class ContentWorkspace {
             found.set(file, {
                 name: String(noteName(record)),
                 kind: 1,
-                containerName: `${record.address?.slug ?? `${record.type}-${record.shortcode ?? ""}`} · ${tag ? `tag: ${match}` : match}`,
+                containerName: `${record.address?.slug ?? [record.type, record.shortcode].filter(Boolean).join(" ")} · ${tag ? `tag: ${match}` : match}`,
                 location: { uri: pathToFileURL(file).href, range: EMPTY_RANGE },
             });
         }
@@ -307,24 +306,26 @@ export class ContentWorkspace {
         this.requireIndex();
         const target = this.targetAt(uri, position)?.record;
         if (!target?.address?.canonical) return [];
-        const result = spawnSync(
-            "rg",
-            ["-l", "-i", "-F", "--", target.shortcode, this.contentRoot],
-            {
-                encoding: "utf8",
-                maxBuffer: 16 * 1024 * 1024,
-            },
-        );
-        if (result.error || result.status > 1) throw result.error ?? new Error(result.stderr);
         const locations = [];
-        for (const file of result.stdout.split("\n").filter(Boolean)) {
-            const text = this.text(pathToFileURL(file).href);
-            if (text == null) continue;
-            for (const reference of this.referencesInText(text, file)) {
-                if (reference.record.address?.canonical === target.address.canonical)
-                    locations.push(reference.location);
+        const needle = target.shortcode.toLowerCase();
+        const visit = (directory) => {
+            for (const entry of fs.readdirSync(directory, { withFileTypes: true })) {
+                if (entry.name.startsWith(".")) continue;
+                const file = path.join(directory, entry.name);
+                if (entry.isDirectory()) {
+                    visit(file);
+                } else if (entry.isFile() && entry.name.toLowerCase().endsWith(".md")) {
+                    const savedText = fs.readFileSync(file, "utf8");
+                    if (!savedText.toLowerCase().includes(needle)) continue;
+                    const text = this.documents.get(pathToFileURL(file).href) ?? savedText;
+                    for (const reference of this.referencesInText(text, file)) {
+                        if (reference.record.address?.canonical === target.address.canonical)
+                            locations.push(reference.location);
+                    }
+                }
             }
-        }
+        };
+        visit(this.contentRoot);
         return locations;
     }
 }
