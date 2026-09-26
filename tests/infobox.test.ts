@@ -94,6 +94,17 @@ function fullyStated(type: string): Record<string, unknown> {
 }
 
 describe("the note box's fields are the type's own vocabulary", () => {
+    it("keeps lore event metadata out of the infobox", () => {
+        const box = noteInfobox({
+            type: "lore",
+            name: { full: "The Founding" },
+            data: { event: { kind: "founding", when: { year: 1 } } },
+        });
+        expect(box.sections[0].rows).toEqual([
+            { label: "Name", kind: "text", value: "The Founding" },
+        ]);
+    });
+
     it("gives every declared type a box, and every box a name", () => {
         for (const type of Object.keys(NOTE_VOCABULARY)) {
             const box = noteInfobox({ type, name: { full: "A Note" } });
