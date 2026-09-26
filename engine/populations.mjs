@@ -242,8 +242,10 @@ export function foreignNode(canonical, entry) {
 /**
  * The corpus a link index describes.
  *
- * A shortcode is declared once per type and the first declaration wins, so a
- * local note shadows a dependency's the way the link resolver answers.
+ * Population containment and tenure use the same package-blind Shortcode
+ * identity as holdings and maps. Each type has one node per shortcode, with
+ * local notes taking precedence over fetched entries. A fetched place can
+ * attach to local geography, while its authored `parents` remains an Address.
  *
  * @param {object} index - The link index.
  * @returns {Corpus} The corpus.
@@ -263,6 +265,7 @@ function corpusOf(index) {
         if (!node) return;
         const by = node.type === "place" ? places : affiliations;
         if (by.has(node.shortcode)) return;
+        // Shortcode identity: the first node of each type owns this graph key.
         by.set(node.shortcode, node);
         // Not a canonical Address: package-blind by design, so a local place
         // shadows a foreign one of the same type and shortcode. `/` keeps that
