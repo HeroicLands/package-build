@@ -16,7 +16,7 @@ The generated JSONL file under the configured `paths.contentIndex` is the source
 | `workspace/symbol`        | Finds notes by name, alias, ASCII name, shortcode, or Address. `tag:myth` searches tags. One result appears per source note. |
 | `textDocument/references` | Finds authored wikilinks, embeds, and declared frontmatter Address values or keys. Ordinary prose is excluded.               |
 
-The server reports a missing index with the `content-build content-index` command. Reference search requires `rg` on `PATH`. The server writes only LSP messages to stdout, and it uses UTF-16 positions as required by the default LSP position encoding.
+The server reports a missing index with the `content-build content-index` command. Reference search scans Markdown notes in the configured content tree. The server writes only LSP messages to stdout, and it uses UTF-16 positions as required by the default LSP position encoding.
 
 ## Editor integration
 
