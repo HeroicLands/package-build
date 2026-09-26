@@ -96,7 +96,8 @@
     },
     "bin": {
         "package-build": "./bin/package-build.mjs",
-        "content-build": "./bin/content-build.mjs"
+        "content-build": "./bin/content-build.mjs",
+        "heroiclands-content-language-server": "./bin/heroiclands-content-language-server.mjs"
     },
     "files": [
         "CHANGELOG-content-build.md",

@@ -132,9 +132,10 @@ repository.
 npm install --save-dev @heroiclands/package-build
 ```
 
-That installs two binaries into `node_modules/.bin`: `package-build`, the
-packaging half, and `content-build`, the content half. Every command below is
-one of those two. Run them through `npx`, or wire them into npm scripts as
+That installs `package-build`, the packaging half, and `content-build`, the
+content half, into `node_modules/.bin`. It also installs the optional
+`heroiclands-content-language-server` for editor navigation. Every build command
+below uses one of the first two binaries. Run them through `npx`, or wire them into npm scripts as
 [`project-setup.md`](project-setup.md) describes.
 
 **How it worked:** `npx package-build --version` prints the installed version.

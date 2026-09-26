@@ -1,10 +1,13 @@
 # Command reference
 
-`@heroiclands/package-build` ships two binaries. `package-build` is the
+`@heroiclands/package-build` ships two build binaries. `package-build` is the
 packaging half — clean, stage, check, package, deploy, run a Foundry
 container, drive the end-to-end suite. `content-build` is the content half —
 compile a note tree into compendium packs, check it, publish it as a site or a
 book, and manage the caches a build resolves other packages through.
+
+The package also ships `heroiclands-content-language-server`, a stdio editor
+service described in the [content language server guide](content-language-server.md).
 
 Both read `package-build.config.yaml` from the repository root — see
 [Configuration](configuration.md) for every key. Neither reads it for
@@ -21,7 +24,7 @@ says so under **OPTIONS** rather than omitting the section.
 
 **Every finding is `file:line:column: severity: message`**, the path starting
 the line — the diagnostic contract this package's own build tooling emits and
-that both binaries' content-side commands use for anything found in a
+that both build binaries' content-side commands use for anything found in a
 specific file. A field that cannot be known is dropped rather than guessed:
 `file:line:` when the column means nothing, `file:` when only the file is
 known. See [Diagnostics](diagnostics.md) for the full contract.
