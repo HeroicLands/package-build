@@ -274,6 +274,7 @@ export const NOTE_FIELD_PRESENTATION = Object.freeze({
     bgImage: Object.freeze({ withheld: "an image, which the box never carries" }),
     banner: Object.freeze({ withheld: "an image, which the box never carries" }),
     overlay: Object.freeze({ withheld: "an image, which the box never carries" }),
+    "lore.event": Object.freeze({ withheld: "chronology machinery, not a summary row" }),
 
     assocSkill: Object.freeze({ label: "Skill" }),
     assocAffiliation: Object.freeze({ label: "Affiliation" }),

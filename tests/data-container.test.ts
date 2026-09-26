@@ -47,6 +47,25 @@ const messages = (findings: Array<{ message: string }>) =>
 const opts = { schemas: NOTE_SCHEMAS as any, vocabulary: NOTE_VOCABULARY };
 
 describe("the `data:` container is closed", () => {
+    it("accepts event metadata on every lore subtype", () => {
+        for (const subType of subTypes("lore") ?? []) {
+            const findings = lintNote(
+                note("lore", { subType, data: { event: { kind: "founding", when: { year: 1 } } } }),
+                opts,
+            );
+            expect(messages(findings), subType).not.toContain("data.event");
+        }
+    });
+
+    it("rejects event metadata outside lore and requires a map", () => {
+        expect(
+            messages(lintNote(note("place", { data: { event: { kind: "founding" } } }), opts)),
+        ).toContain("`data:` property declared by place");
+        expect(messages(lintNote(note("lore", { data: { event: "founding" } }), opts))).toContain(
+            "`data.event` should",
+        );
+    });
+
     it("accepts every key the type declares", () => {
         const findings = lintNote(
             note("weapongear", {

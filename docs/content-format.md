@@ -3453,6 +3453,13 @@ In-world information about people, places, or concepts.
 | `weekdays`      | `{ name, abbreviation? }[]`                                             | The days of the week it names, in order; a calendar with no week writes none      |
 | `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]` | The seasons it marks, bounded by month or by day of year                          |
 | `eras`          | `{ shortcode, name, abbreviation?, proclaimedBy?, start, end? }[]`      | The year-counts kept in it, each addressed `<calendar shortcode>.<era shortcode>` |
+| `event`         | `Map<field, value>`                                                     | A dated occurrence, with its sources, locations, reach, and relationships         |
+
+`data.event` is available on every `lore` subType. It holds structured
+chronology metadata, including the event's kind, date, sources, and the places
+it affects. The shared format checks that it is a map; a content package may
+check the details and relationships within that map. It is metadata for
+chronology tools and does not appear as an infobox row.
 
 #### What a calendar note declares
 

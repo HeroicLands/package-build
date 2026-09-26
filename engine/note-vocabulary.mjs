@@ -1189,7 +1189,15 @@ export const NOTE_VOCABULARY = Object.freeze({
         // because `DataFieldSpec` declares the keys a type accepts and not the
         // subType that may write them.
         check: checkCalendarNote,
-        data: CALENDAR_FIELDS,
+        data: Object.freeze([
+            ...CALENDAR_FIELDS,
+            {
+                name: "event",
+                kind: "map",
+                shape: "event metadata map",
+                describe: "A dated occurrence and its relationships to other events and places.",
+            },
+        ]),
     }),
 
     place: Object.freeze({
