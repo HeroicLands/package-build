@@ -287,26 +287,49 @@ infoboxes:
 
 ### Frontmatter has three regions
 
-A note's frontmatter divides into three parts, and the difference matters because
-only one of them is open:
+A HeroicLands note has opening YAML frontmatter with nonempty `shortcode` and
+`type` values. Other Markdown files are ordinary Markdown. A note's frontmatter
+has three regions:
 
-| region               | describes                                                                                      | unknown keys               |
-| -------------------- | ---------------------------------------------------------------------------------------------- | -------------------------- |
-| **top level**        | the note as a published artefact — `id`, `type`, `subType`, `shortcode`, `description`, `tags` | **passed through to Hugo** |
-| **`data:`**          | the subject itself — system-agnostic, specific to the note type                                | **an error**               |
-| **`sohl:` / `hm3:`** | the subject as one system's documents                                                          | **an error**               |
+| Region               | Describes                                               | Unknown keys |
+| -------------------- | ------------------------------------------------------- | ------------ |
+| **Top level**        | The note's identity, name, description, and publication | An error     |
+| **`data:`**          | The subject itself, shared by systems                   | An error     |
+| **`hm3:` / `sohl:`** | The subject as one system's documents                   | An error     |
 
-**Top level is deliberately open.** Every key is copied into the generated web
-page's front matter, so an unrecognised key is a Hugo or theme parameter this
-build has no standing to refuse. `description` is the everyday case: it is not a
-document field at all, it is the page's description.
+The complete top-level allowlist, in its required order, is `shortcode`, `name`,
+`type`, `subType`, `description`, `tags`, `data`, `hm3`, `sohl`. Omit fields that
+do not apply. The first fields of a typical note look like this:
 
-**`data:` is deliberately closed.** It holds the type-specific facts about the
+```yaml
+---
+shortcode: example
+name: { full: Example }
+type: lore
+subType: concept
+description: A short page description.
+tags: [draft]
+data: {}
+sohl: {}
+---
+```
+
+Any other top-level key is an error. To keep an author-only note beside the
+content, comment out its YAML lines with `#`. Comments remain valid YAML text
+and do not become data in the JSONL index, generated pages, or Foundry documents.
+There is no custom site metadata. `description` supplies the page's short
+description; `tags` carries publication and classification tags.
+
+Arrays and objects use one-line YAML flow form when the complete line is under
+100 characters. At 100 characters or more, they use full block form. A multiline
+flow collection is formatted into one of those forms; folded collections are
+not used. `content-build format --write` applies this rule and the top-level
+order without changing the Markdown body.
+
+**`data:` is closed.** It holds the type-specific facts about the
 subject — a weapon's weight, an affliction's transmission, a being's species —
-and every note type declares which keys it may carry. A misspelled key there is a
-finding that names the key you meant; the same misspelling at top level would
-silently become a theme parameter, which is exactly why these cannot live
-together.
+and every note type declares which keys it may carry. A misspelled key is a
+finding in either region.
 
 Every note type may put a pinned document id in `data.id`, a shared compendium
 route in `data.pack`, a shared folder Address in `data.packFolder`, and source
@@ -314,8 +337,7 @@ details in `data.harnworld`. A system block's `pack` or `packFolder` overrides
 the shared value for that system. A `being` may also describe its social profile
 in `data.social`.
 
-**Tags are open, except the ones that classify.** `tags:` shares the top level's
-openness: a tag naming a theme or a region — `underworld`,
+**Tags are open, except the ones that classify.** A tag naming a theme or a region — `underworld`,
 `byzaria`, `riverlands` — is the author's own and this build has no opinion about it.
 A tag that classifies the subject is different, because something queries it. A
 settlement tagged `village` appears in the list of villages and an untagged one
@@ -465,14 +487,11 @@ in-block spelling, and `hm3.system.gender` is the native destination.
 The native destination wins, followed by the in-block value and the shared
 source. Field declarations name both source and destination explicitly.
 
-**A field whose spelling means something else at the note level has no shared
-source.** The fallback assumes the two vocabularies agree about what a name
-means, and they do not always: a note's top-level `title` is the heading its page
-publishes under, while an `affiliation` item's `system.title` is the style of
-address an office carries. Where they diverge, the field declares what the
-top-level key means instead, and the top level stops being read for it — leaving
-`<system>.system.<field>` and the legacy in-block position, which describe the
-document rather than the note. Native species is independent of the shared lore Address in `data.species`.
+**A field without a shared source reads its system declaration.** An
+`affiliation` item's `system.title` is the style of address an office carries;
+the note's heading reads `name.full`. The field reads
+`<system>.system.<field>` and the in-block position, which describe the
+document. Native species is independent of the shared lore Address in `data.species`.
 `subType` has the same meaning at both levels.
 
 **Some of a system's fields are runtime state, and a note may not write any of
@@ -1080,78 +1099,20 @@ identity across one pins its `id`, which is what the pin is for. One diagnostic
 narrows — `content-build` tells a **rename** from a **withdrawal** by matching
 document ids across releases, and for an unpinned note both sides now move
 together. It never reports a _wrong_ successor, and it stays exact for a pinned
-note; for the rest, the note **declares** the rename (below).
+note; for the rest, the diff reports the vacated address.
 
 **A note with no address gets no id, and no document.** `type` and `shortcode`
 are what a note is addressed by, so a note missing either cannot be filed and
 the build refuses it by that name rather than by a missing `id:`.
 
-#### Declaring a rename
+#### Address changes
 
-A note names the shortcode it used to be published under:
-
-```yaml
-type: weapongear
-shortcode: Taburi
-renamedFrom: Tabri
-```
-
-`(type, shortcode)` is a **published interface** — every satellite that declares
-`itemCatalog: true` assembles its beings out of those addresses — so renaming a
-shortcode breaks other repositories, and `content-build addresses diff` exists to
-say so before a release does. To be useful it has to name where the address
-_went_, and since ids are derived it can no longer work that out for an unpinned
-note: both sides of the match move together, and the rename reads as a
-withdrawal.
-
-**Pinning an `id` needs foresight; a declaration needs only hindsight.** A pin
-has to be written _before_ the rename, by an author who does not yet know they
-will make one. An author who has just renamed a shortcode knows exactly what the
-old one was, and that is the only moment anyone does — so this is the key to
-reach for, and `id:` stays what it is for: keeping a document's identity across
-the rename, which is a different question from explaining it.
-
-**It takes one shortcode or a list**, because renames chain: the diff runs
-against a released baseline, and a shortcode may have been renamed more than once
-since. List every name the baseline might still know it by.
-
-```yaml
-shortcode: Taburin
-renamedFrom:
-  - Tabri
-  - Taburi
-```
-
-**It is transient.** Once every baseline a build is compared against post-dates
-the rename, the declaration has nothing left to say and should be deleted. That
-is what separates it from an `id:` pin, which is permanent.
-
-**One key per note, at the top level**, however many systems the note compiles
-into: a shortcode is the note's rather than a system block's, so a note carrying
-`sohl:` and `hm3:` blocks compiles two documents that share one shortcode, and
-one declaration covers both.
-
-**What a declaration changes is what the diagnostic can say, not what it says
-about you.** A finding reports which of the two joins it had, because they are
-not equally checkable — a matched id is a fact a reader can verify in both
-artefacts, while a declaration is the author's word:
-
-```text
-since sohl@0.8.2, weapongear:Tabri is no longer published; the note now
-published as weapongear:Taburi declares it was renamed from Tabri. Every
-package that resolves weapongear:Tabri breaks when it moves past sohl@0.8.2
-```
-
-A rename that is neither pinned nor declared is still reported as a
-**withdrawal**. Nothing infers a successor from a similar-looking string: a wrong
-one sends the reader to the wrong fix, which is worse than saying nothing.
-
-`content-lint` holds a declaration to the same rules a current address is held
-to. An entry must be a well-formed shortcode, must not be the note's own, and
-must name an address the package actually **vacated** — an entry naming an
-address some note still publishes is refused, as are two notes claiming one
-predecessor, since an address had one holder and so has one successor. A repeat
-of the same entry is a warning; the declaration still works.
+`(type, shortcode)` is a published interface. Other packages can link to it or
+use it as an Item model, so changing either part requires those references to
+change too. `content-build addresses diff` compares the package with a released
+baseline and reports addresses whose published documents are absent. A pinned
+`data.id` preserves document identity across a shortcode change; it does not
+keep the old address available for links.
 
 #### The compendium folder
 
@@ -2760,9 +2721,8 @@ It declares a `shortcode` — conventionally `root` — because that is what a
 link is written with: `[[homepage-root|Text]]` is an ordinary wikilink, and it
 resolves to `/<package>/`. The shortcode names the page in links; its address
 is the package root. The page heading reads `name.full` and defaults to
-`packageBuild.manifest.title`; a
-`description` and a `banner` are read by the theme's hero; any other
-top-level key is passed through to the page as a theme parameter.
+`packageBuild.manifest.title`. `description` supplies the page's short
+description.
 
 The page is its body, published verbatim: no wikilink is resolved on it and
 no table expanded, so its links are markdown links, package-relative
@@ -2770,9 +2730,8 @@ no table expanded, so its links are markdown links, package-relative
 written here and is not generated anywhere — it is a `doc` note carrying a
 content table, linked from this page like any other.
 
-Two top-level keys are refused, because neither decides anything on a page:
-`id`, the Foundry document id a compendium UUID is built from, and `landing`,
-a card block — the homepage is a page with a body, rendered as one.
+The homepage uses the same top-level allowlist as every addressed note. It has
+no Foundry document id; a pinned `data.id` has no role on this type.
 
 ### type: vehicle
 
@@ -2998,14 +2957,10 @@ mapping for a field no schema declares is the drift these tables exist to catch.
 likewise absent here: they are filled on an embedded membership, never from a
 catalogue note's `data:`.
 
-**`system.title` is not the note's `title`.** The two are unrelated quantities
-that share a spelling. A note's top-level `title` is _the title of the note_ —
-the heading its page is published under; an affiliation's `system.title` is _the
-style of address the office carries_, Ajaw or Warden, which a being holds by
-virtue of its rank. So the top-level key is **not** a shared source for this
-field, and a note that writes one is stating its own heading and nothing else
-. Author the style of address on the membership — the `system.title` of the
-entry in a being's `sohl.items` — or, on a catalogue note that genuinely carries
+**`system.title` is the style of address the office carries**, Ajaw or Warden,
+which a being holds by virtue of its rank. The note's page heading reads
+`name.full`. Author the style of address on the membership — the `system.title`
+of the entry in a being's `sohl.items` — or, on a catalogue note that carries
 one, at `sohl.system.title`.
 
 ### type: affliction

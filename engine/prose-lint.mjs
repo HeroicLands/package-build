@@ -33,6 +33,7 @@
 
 import fs from "node:fs";
 import path from "node:path";
+import { formatNoteFrontmatter } from "./note-format.mjs";
 
 import {
     MARKDOWNLINT_CONFIG,
@@ -202,7 +203,7 @@ export async function checkFormatting(root, opts = {}) {
                 let formatted = source;
                 let converged = false;
                 for (let pass = 0; pass < MAX_FORMAT_PASSES; pass += 1) {
-                    const next = await prettier.format(formatted, options);
+                    const next = formatNoteFrontmatter(await prettier.format(formatted, options));
                     if (next === formatted) {
                         converged = true;
                         break;
@@ -236,7 +237,7 @@ export async function checkFormatting(root, opts = {}) {
                 continue;
             }
 
-            if (!(await prettier.check(source, options))) {
+            if (formatNoteFrontmatter(await prettier.format(source, options)) !== source) {
                 findings.push({
                     file,
                     severity: "error",

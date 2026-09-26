@@ -92,6 +92,22 @@ describe("content-build format", () => {
         expect((await checkFormatting(root)).findings).toEqual([]);
     });
 
+    it("orders addressed frontmatter and reaches a fixpoint with Prettier", async () => {
+        const file = write(
+            "note.md",
+            "---\ntags:\n  - draft\ntype: lore\nname:\n  full: Example\n" +
+                "shortcode: example\n---\n\nBody.\n",
+        );
+        expect(files((await checkFormatting(root)).findings)).toEqual(["note.md"]);
+        const first = await checkFormatting(root, { write: true });
+        expect(first.findings).toEqual([]);
+        expect(fs.readFileSync(file, "utf8")).toContain(
+            "shortcode: example\nname: {full: Example}\ntype: lore\ntags: [draft]",
+        );
+        expect((await checkFormatting(root)).findings).toEqual([]);
+        expect((await checkFormatting(root, { write: true })).written).toEqual([]);
+    });
+
     it("honours .prettierignore and .gitignore, and never walks node_modules", async () => {
         write("a.md", "Some   *bad*   formatting.\n");
         write("skipped.md", "Some   *bad*   formatting.\n");
