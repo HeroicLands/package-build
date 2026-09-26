@@ -12,7 +12,11 @@ import { parseWikilink, WIKILINK } from "./wikilink-syntax.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 import { noteFile } from "./index-records.mjs";
 import { NOTE_VOCABULARY } from "./note-vocabulary.mjs";
-import { metadataFileName } from "./packages.mjs";
+import {
+    languageIndexDirectory,
+    readLanguageIndex,
+    rebuildLanguageIndex,
+} from "./content-language-index.mjs";
 import { matchAllOutsideCode } from "./code-fences.mjs";
 import { embedsIn, EMBED_DEFAULT_TYPE } from "./content-embeds.mjs";
 
@@ -48,14 +52,15 @@ function noteName(record) {
 
 /** An index read from the package's configured content tree. */
 export class ContentWorkspace {
-    constructor(config = loadPackConfig()) {
+    constructor(config = loadPackConfig(), { cacheBase, onStatus = () => {} } = {}) {
         this.config = config;
         this.contentRoot = config.paths.content;
-        this.indexFile = path.join(
-            config.paths.contentIndex,
-            metadataFileName(config.contentPackage),
-        );
+        this.cacheDirectory = languageIndexDirectory(config, cacheBase);
+        this.indexFile = path.join(this.cacheDirectory, "metadata.jsonl");
         this.indexState = "";
+        this.started = false;
+        this.rebuildTimer = null;
+        this.onStatus = onStatus;
         this.records = [];
         this.byAddress = new Map();
         this.byFile = new Map();
@@ -66,21 +71,19 @@ export class ContentWorkspace {
     refresh() {
         let stat;
         try {
-            stat = fs.statSync(this.indexFile);
+            stat = fs.statSync(path.join(this.cacheDirectory, "metadata.json"));
         } catch {
-            this.indexState = "";
-            this.records = [];
-            this.byAddress.clear();
-            this.byFile.clear();
             return false;
         }
         const state = `${stat.mtimeMs}:${stat.size}`;
         if (state === this.indexState) return true;
-        const records = fs
-            .readFileSync(this.indexFile, "utf8")
-            .split("\n")
-            .filter(Boolean)
-            .map((line) => JSON.parse(line));
+        const records = readLanguageIndex(this.cacheDirectory, this.config.contentPackage);
+        this.loadRecords(records);
+        this.indexState = state;
+        return true;
+    }
+
+    loadRecords(records) {
         const byAddress = new Map();
         const byFile = new Map();
         const types = new Set(Object.keys(NOTE_VOCABULARY));
@@ -97,15 +100,62 @@ export class ContentWorkspace {
         this.byAddress = byAddress;
         this.byFile = byFile;
         this.types = types;
-        this.indexState = state;
-        return true;
+    }
+
+    rebuild() {
+        try {
+            const records = rebuildLanguageIndex(this.config, this.cacheDirectory);
+            this.loadRecords(records);
+            const stat = fs.statSync(path.join(this.cacheDirectory, "metadata.json"));
+            this.indexState = `${stat.mtimeMs}:${stat.size}`;
+            this.onStatus(null);
+            return true;
+        } catch (error) {
+            let stale = this.records.length > 0;
+            if (!stale) {
+                try {
+                    stale = this.refresh();
+                } catch {
+                    stale = false;
+                }
+            }
+            this.onStatus(
+                `Editor index rebuild failed: ${error.message}. ${stale ? "Results use the last complete snapshot." : "No index is available."}`,
+            );
+            return false;
+        }
+    }
+
+    start() {
+        if (this.started) return;
+        this.started = true;
+        this.rebuild();
+    }
+
+    scheduleRebuild() {
+        if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
+        this.rebuildTimer = setTimeout(() => {
+            this.rebuildTimer = null;
+            this.rebuild();
+        }, 300);
+    }
+
+    close() {
+        if (this.rebuildTimer) clearTimeout(this.rebuildTimer);
+        this.rebuildTimer = null;
     }
 
     requireIndex() {
-        if (!this.refresh())
-            throw new Error(
-                `No content index at ${this.indexFile}; run content-build content-index`,
+        if (!this.started) this.start();
+        try {
+            this.refresh();
+        } catch (error) {
+            this.onStatus(
+                `Editor index could not be read: ${error.message}. Results use the last complete snapshot.`,
             );
+        }
+        if (this.records.length === 0)
+            throw new Error(`No editor index at ${this.indexFile}; save a note to retry`);
     }
 
     fileFor(record) {
@@ -335,13 +385,21 @@ export function respond(workspace, message) {
     const { method, params = {} } = message;
     switch (method) {
         case "initialize":
+            workspace.start();
             return {
                 capabilities: {
                     positionEncoding: "utf-16",
-                    textDocumentSync: 2,
+                    textDocumentSync: { openClose: true, change: 2, save: true },
                     definitionProvider: true,
                     referencesProvider: true,
                     workspaceSymbolProvider: true,
+                    workspace: {
+                        fileOperations: {
+                            didCreate: [{ scheme: "file", pattern: { glob: "**/*.md" } }],
+                            didRename: [{ scheme: "file", pattern: { glob: "**/*.md" } }],
+                            didDelete: [{ scheme: "file", pattern: { glob: "**/*.md" } }],
+                        },
+                    },
                 },
                 serverInfo: { name: "heroiclands-content" },
             };
@@ -367,6 +425,13 @@ export function respond(workspace, message) {
         case "textDocument/didClose":
             workspace.documents.delete(params.textDocument.uri);
             return undefined;
+        case "textDocument/didSave":
+        case "workspace/didChangeWatchedFiles":
+        case "workspace/didCreateFiles":
+        case "workspace/didRenameFiles":
+        case "workspace/didDeleteFiles":
+            workspace.scheduleRebuild();
+            return undefined;
         case "textDocument/definition":
             return workspace.definition(params.textDocument.uri, params.position);
         case "textDocument/references":
@@ -390,6 +455,14 @@ export function runLanguageServer(
         output.write(`Content-Length: ${body.length}\r\n\r\n`);
         output.write(body);
     };
+    workspace.onStatus = (status) => {
+        if (status)
+            send({
+                jsonrpc: "2.0",
+                method: "window/showMessage",
+                params: { type: 1, message: status },
+            });
+    };
     input.on("data", (chunk) => {
         pending = Buffer.concat([pending, chunk]);
         while (true) {
@@ -411,6 +484,7 @@ export function runLanguageServer(
             }
             if (message.method === "exit") {
                 process.exitCode = 0;
+                workspace.close();
                 input.pause();
                 return;
             }

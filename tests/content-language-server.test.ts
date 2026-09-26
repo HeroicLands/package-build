@@ -2,8 +2,9 @@
  * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import fs from "node:fs";
+import crypto from "node:crypto";
 import os from "node:os";
 import path from "node:path";
 import { PassThrough } from "node:stream";
@@ -13,6 +14,7 @@ import {
     respond,
     runLanguageServer,
 } from "../engine/content-language-server.mjs";
+import { generatorVersion } from "../engine/content-language-index.mjs";
 
 let root: string;
 let workspace: ContentWorkspace;
@@ -24,10 +26,19 @@ function note(file: string, text: string): string {
 }
 
 function index(records: object[]): void {
+    fs.mkdirSync(workspace.cacheDirectory, { recursive: true });
+    const text = records.map((record) => JSON.stringify(record)).join("\n") + "\n";
+    fs.writeFileSync(workspace.indexFile, text);
     fs.writeFileSync(
-        path.join(root, "build/content-index/test-metadata.jsonl"),
-        records.map((record) => JSON.stringify(record)).join("\n") + "\n",
+        path.join(workspace.cacheDirectory, "metadata.json"),
+        JSON.stringify({
+            package: "test",
+            generatorVersion,
+            sha256: crypto.createHash("sha256").update(text).digest("hex"),
+        }),
     );
+    workspace.started = true;
+    workspace.indexState = "";
 }
 
 const alpha = {
@@ -47,19 +58,178 @@ beforeEach(() => {
     root = fs.mkdtempSync(path.join(os.tmpdir(), "heroiclands-lsp-"));
     fs.mkdirSync(path.join(root, "assets/content"), { recursive: true });
     fs.mkdirSync(path.join(root, "build/content-index"), { recursive: true });
-    workspace = new ContentWorkspace({
-        contentPackage: "test",
-        paths: {
-            content: path.join(root, "assets/content"),
-            assets: path.join(root, "assets"),
-            contentIndex: path.join(root, "build/content-index"),
-        },
-    } as any);
+    workspace = new ContentWorkspace(
+        {
+            rootDir: root,
+            contentPackage: "test",
+            packs: [],
+            skipDirectories: [],
+            paths: {
+                content: path.join(root, "assets/content"),
+                assets: path.join(root, "assets"),
+                contentIndex: path.join(root, "build/content-index"),
+            },
+        } as any,
+        { cacheBase: path.join(root, "cache") },
+    );
 });
 
-afterEach(() => fs.rmSync(root, { recursive: true, force: true }));
+afterEach(() => {
+    workspace.close();
+    vi.useRealTimers();
+    fs.rmSync(root, { recursive: true, force: true });
+});
+
+function savedLore(file: string, shortcode: string, name: string): string {
+    return note(
+        file,
+        `---\ntype: lore\nshortcode: ${shortcode}\nname:\n  full: ${name}\n---\nBody.\n`,
+    );
+}
 
 describe("content language server", () => {
+    it("builds its private index from saved notes on initialization", () => {
+        savedLore("Alpha.md", "alpha", "Alpha");
+        const result = respond(workspace, { method: "initialize" });
+        expect(result?.capabilities.workspaceSymbolProvider).toBe(true);
+        expect(workspace.indexFile).not.toContain("build/content-index");
+        expect(fs.existsSync(workspace.indexFile)).toBe(true);
+        expect(workspace.symbols("Alpha")).toHaveLength(1);
+    });
+
+    it("regenerates stale, corrupt, and wrong-version caches before answering", () => {
+        savedLore("Alpha.md", "alpha", "Fresh");
+        for (const corrupt of ["stale", "corrupt", "wrong-version"]) {
+            index([{ ...alpha, name: { full: "Stale" } }]);
+            if (corrupt === "corrupt") fs.writeFileSync(workspace.indexFile, "partial");
+            if (corrupt === "wrong-version") {
+                const file = path.join(workspace.cacheDirectory, "metadata.json");
+                const metadata = JSON.parse(fs.readFileSync(file, "utf8"));
+                metadata.generatorVersion = "0.0.0";
+                fs.writeFileSync(file, JSON.stringify(metadata));
+            }
+            workspace.started = false;
+            respond(workspace, { method: "initialize" });
+            expect(workspace.symbols("Fresh")).toHaveLength(1);
+            expect(workspace.symbols("Stale")).toHaveLength(0);
+        }
+    });
+
+    it("coalesces saves and reflects additions, changes, moves, and deletions", () => {
+        vi.useFakeTimers();
+        const first = savedLore("Alpha.md", "alpha", "First");
+        respond(workspace, { method: "initialize" });
+        const rebuild = vi.spyOn(workspace, "rebuild");
+        savedLore("Beta.md", "beta", "Second");
+        for (let i = 0; i < 3; i++) {
+            respond(workspace, {
+                method: "textDocument/didSave",
+                params: { textDocument: { uri: first } },
+            });
+            vi.advanceTimersByTime(100);
+        }
+        expect(rebuild).not.toHaveBeenCalled();
+        vi.advanceTimersByTime(300);
+        expect(rebuild).toHaveBeenCalledTimes(1);
+        expect(workspace.symbols("Second")).toHaveLength(1);
+        fs.renameSync(
+            path.join(root, "assets/content/Beta.md"),
+            path.join(root, "assets/content/Gamma.md"),
+        );
+        fs.rmSync(path.join(root, "assets/content/Alpha.md"));
+        respond(workspace, { method: "workspace/didRenameFiles" });
+        vi.advanceTimersByTime(300);
+        expect(workspace.symbols("First")).toHaveLength(0);
+        expect(workspace.symbols("Second")[0].location.uri).toContain("Gamma.md");
+    });
+
+    it("updates indexed names, aliases, tags, shortcodes, and addresses after save", () => {
+        vi.useFakeTimers();
+        const target = savedLore("Alpha.md", "alpha", "First");
+        const source = note("Source.md", "See [[lore-beta|Second]].\n");
+        respond(workspace, { method: "initialize" });
+        note(
+            "Alpha.md",
+            "---\ntype: lore\nshortcode: beta\nname:\n  full: Second\n  aliases:\n    - Other Name\ntags:\n  - myth\n---\nBody.\n",
+        );
+        respond(workspace, {
+            method: "textDocument/didSave",
+            params: { textDocument: { uri: target } },
+        });
+        vi.advanceTimersByTime(300);
+        expect(workspace.symbols("First")).toHaveLength(0);
+        expect(workspace.symbols("Second")).toHaveLength(1);
+        expect(workspace.symbols("Other Name")).toHaveLength(1);
+        expect(workspace.symbols("tag:myth")).toHaveLength(1);
+        expect(workspace.symbols("lore-beta")).toHaveLength(1);
+        expect(workspace.symbols("lore-alpha")).toHaveLength(0);
+        expect(workspace.definition(source, { line: 0, character: 8 })?.uri).toBe(target);
+    });
+
+    it("keeps the last complete snapshot on failure and recovers after a save", () => {
+        savedLore("Alpha.md", "alpha", "First");
+        const status: string[] = [];
+        workspace.onStatus = (message: string | null) => {
+            if (message) status.push(message);
+        };
+        respond(workspace, { method: "initialize" });
+        const old = fs.readFileSync(workspace.indexFile, "utf8");
+        fs.rmSync(path.join(root, "assets/content/Alpha.md"));
+        expect(workspace.rebuild()).toBe(false);
+        expect(fs.readFileSync(workspace.indexFile, "utf8")).toBe(old);
+        expect(workspace.symbols("First")).toHaveLength(1);
+        expect(status.at(-1)).toContain("last complete snapshot");
+        savedLore("Beta.md", "beta", "Second");
+        expect(workspace.rebuild()).toBe(true);
+        expect(workspace.symbols("Second")).toHaveLength(1);
+        expect(workspace.symbols("First")).toHaveLength(0);
+    });
+
+    it("refuses to replace a snapshot from a newer generator", () => {
+        savedLore("Alpha.md", "alpha", "First");
+        respond(workspace, { method: "initialize" });
+        const file = path.join(workspace.cacheDirectory, "metadata.json");
+        const metadata = JSON.parse(fs.readFileSync(file, "utf8"));
+        metadata.generatorVersion = "999.0.0";
+        fs.writeFileSync(file, JSON.stringify(metadata));
+        const old = fs.readFileSync(workspace.indexFile, "utf8");
+        savedLore("Beta.md", "beta", "Second");
+        const status: string[] = [];
+        workspace.onStatus = (message: string | null) => {
+            if (message) status.push(message);
+        };
+        expect(workspace.rebuild()).toBe(false);
+        expect(fs.readFileSync(workspace.indexFile, "utf8")).toBe(old);
+        expect(status.at(-1)).toContain("newer generator");
+    });
+
+    it("recovers the last complete pair after interrupted publication", () => {
+        savedLore("Alpha.md", "alpha", "First");
+        respond(workspace, { method: "initialize" });
+        const manifest = path.join(workspace.cacheDirectory, "metadata.json");
+        fs.copyFileSync(workspace.indexFile, `${workspace.indexFile}.previous`);
+        fs.copyFileSync(manifest, `${manifest}.previous`);
+        fs.writeFileSync(workspace.indexFile, "incomplete\n");
+        workspace.records = [];
+        workspace.indexState = "";
+        expect(workspace.refresh()).toBe(true);
+        expect(workspace.symbols("First")).toHaveLength(1);
+    });
+
+    it("does not read or replace the project's build index", () => {
+        savedLore("Alpha.md", "alpha", "Private");
+        index([{ ...alpha, name: { full: "Build Output" } }]);
+        const buildFile = path.join(root, "build/content-index/test-metadata.jsonl");
+        fs.writeFileSync(buildFile, "build-only\n");
+        workspace.started = false;
+        respond(workspace, { method: "initialize" });
+        expect(workspace.symbols("Private")).toHaveLength(1);
+        expect(workspace.symbols("Build Output")).toHaveLength(0);
+        expect(fs.readFileSync(buildFile, "utf8")).toBe("build-only\n");
+        fs.rmSync(path.join(root, "build"), { recursive: true });
+        expect(workspace.symbols("Private")).toHaveLength(1);
+    });
+
     it("searches indexed names, aliases, shortcodes, and tags once per note", () => {
         note("Alpha.md", "---\ntype: lore\nshortcode: alpha\n---\nÁlyra\n");
         index([alpha, { ...alpha, type: "doclore" }]);
@@ -197,8 +367,8 @@ describe("content language server", () => {
         expect(workspace.symbols("changed")).toHaveLength(1);
     });
 
-    it("reports a missing index with the rebuild command", () => {
-        expect(() => workspace.symbols("alpha")).toThrow("content-build content-index");
+    it("reports a missing index and a save recovery action", () => {
+        expect(() => workspace.symbols("alpha")).toThrow("save a note to retry");
     });
 
     it("accepts framed JSON-RPC requests split across input chunks", () => {
