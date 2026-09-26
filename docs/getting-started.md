@@ -332,6 +332,18 @@ an error. A `data:` block and a `sohl:` / `hm3:` block are closed: a misspelled
 key there is a finding that names the key you meant.
 [`content-format.md`](content-format.md) is the specification.
 
+An image stands in its own paragraph. Its directive accepts a named size and a
+position together:
+
+```markdown
+![[icon-anubis|Anubis]]{size: medium, float: top-left}
+```
+
+The accepted sizes are `auto`, `small`, `medium`, `large`, `xlarge`, and
+`full-width`. Omitting `size:` means `auto`. The build checks the name, but
+`size:` does not change the displayed dimensions on the website, in Foundry, or
+in the book. See [Images](content-format.md#images) for the rendering rules.
+
 ## Step 6 — check the tree
 
 Four checks, and they are quick enough to run continuously while authoring.

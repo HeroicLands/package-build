@@ -136,6 +136,20 @@ describe("an embed reaches asset types only", () => {
 });
 
 describe("the directive is the image directive, whole", () => {
+    it("accepts a named size alongside a float", () => {
+        const source = "![[thorn|Thorn]]{size: medium, float: top-left}\n";
+        expect(checkEmbeds(source, "x.md", { index })).toEqual([]);
+        expect(rewrite(source)).toBe(
+            "![Thorn](thalorna/assets/images/beings/thorn.webp){size: medium, float: top-left}\n",
+        );
+    });
+
+    it("locates an invalid size", () => {
+        expect(checkEmbeds("![[thorn|Thorn]]{size: huge}\n", "x.md", { index })).toEqual([
+            expect.objectContaining({ file: "x.md", line: 1, column: 17, severity: "error" }),
+        ]);
+    });
+
     it("honours a float", () => {
         expect(rewrite("![[thorn|Thorn]]{float: top-left}\n")).toBe(
             "![Thorn](thalorna/assets/images/beings/thorn.webp){float: top-left}\n",

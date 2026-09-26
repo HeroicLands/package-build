@@ -38,7 +38,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it, expect } from "vitest";
 import { loadContentFormat } from "../engine/content-format.mjs";
-import { IMAGE_CLASSES, IMAGE_FLOATS } from "../engine/content-images.mjs";
+import { IMAGE_CLASSES, IMAGE_FLOATS, IMAGE_SIZES } from "../engine/content-images.mjs";
 import { DECLARED_TAGS, NOTE_VOCABULARY, dataFields } from "../engine/note-vocabulary.mjs";
 import { MARKET_CLASSES } from "../engine/market-class.mjs";
 import { NOTE_SCHEMAS } from "../sohl/note-schemas.mjs";
@@ -380,10 +380,11 @@ describe("the specification and the vocabulary agree about subTypes", () => {
 /**
  * The closed vocabularies a body directive admits.
  *
- * An image states its width as a class and its position as `float:`, and both
- * are closed: an unrecognised value is refused rather than rendered as the
- * default, because a page that silently looks like the author asked for
- * nothing is the failure worth preventing. Two places say which values exist —
+ * An image states its width as a class, its named size as `size:`, and its
+ * position as `float:`. Each vocabulary is closed: an unrecognised value is
+ * refused rather than rendered as the default, because a page that silently
+ * looks like the author asked for nothing is the failure worth preventing. Two
+ * places say which values exist —
  * the specification's tables and `engine/content-images.mjs` — and a reader of
  * either has to be able to trust it.
  *
@@ -399,11 +400,13 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("reads vocabulary tables out of the specification, so the comparison is not vacuous", () => {
         // Guards the guard: were the table's header to change shape, every
-        // comparison below would be between two empty lists. The two this
+        // comparison below would be between empty lists. The ones this
         // suite compares are named, rather than every vocabulary the
         // specification declares, so a vocabulary added elsewhere does not
         // fail an assertion about images.
-        expect([...FORMAT.vocabularies.keys()]).toEqual(expect.arrayContaining(["class", "float"]));
+        expect([...FORMAT.vocabularies.keys()]).toEqual(
+            expect.arrayContaining(["class", "float", "size"]),
+        );
     });
 
     it("declares exactly the width classes the specification lists, in its order", () => {
@@ -414,6 +417,10 @@ describe("the specification and the renderers agree about an image's vocabularie
 
     it("declares exactly the float positions the specification lists, in its order", () => {
         expect(Object.keys(IMAGE_FLOATS)).toEqual(FORMAT.vocabularies.get("float")?.values);
+    });
+
+    it("declares exactly the size values the specification lists, in its order", () => {
+        expect(IMAGE_SIZES).toEqual(FORMAT.vocabularies.get("size")?.values);
     });
 });
 

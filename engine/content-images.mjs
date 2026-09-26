@@ -19,14 +19,15 @@
  *     ![Brànwâal Dôrgaar](images/beings/branwldrgr-portrait.webp){float: top-left}
  *     ![Map of Thalorna](images/map.webp){.full-width}
  *
- * ## Two closed vocabularies, and closed is the point
+ * ## Three closed vocabularies, and closed is the point
  *
  * **Width is a class**, and the ordinary width carries no marker at all — the
  * simple case needs no spelling. {@link IMAGE_CLASSES} holds the one class
  * there is. **Position is `float:`**, and {@link IMAGE_FLOATS} holds the five
- * values it takes.
+ * values it takes. **Named size is `size:`**, and {@link IMAGE_SIZES} holds its
+ * values. Size is parsed but does not change the figure's current presentation.
  *
- * Both are closed, and an unrecognised value is **refused with a located
+ * All three are closed, and an unrecognised value is **refused with a located
  * diagnostic** rather than ignored. Ignoring is the failure worth preventing:
  * `{.fullwidth}` rendering as an ordinary image looks exactly like a directive
  * that worked, so the author publishes a page that is not the one they asked
@@ -36,8 +37,7 @@
  *
  * **No pixel values.** A number means something in a browser and nothing
  * coherent in print, and a directive carrying both a class and a dimension
- * gives one question two answers with no rule for which wins. A third width
- * joins the vocabulary as a name.
+ * gives one question two answers with no rule for which wins.
  *
  * **Not `markdown-it-attrs`.** It is a general attribute injector: it will set
  * `style`, `id` or `onclick`, and those reach emitted markup on the website and
@@ -104,6 +104,16 @@ export const IMAGE_CLASSES = Object.freeze({
         describe: "the full page in the book, and the full content width elsewhere",
     },
 });
+
+/** The named sizes an image directive accepts without applying a display size. */
+export const IMAGE_SIZES = Object.freeze([
+    "auto",
+    "small",
+    "medium",
+    "large",
+    "xlarge",
+    "full-width",
+]);
 
 /**
  * The `float:` positions an image may take, and where each puts it.
@@ -213,16 +223,18 @@ export function imageSourceProblem(src) {
  *
  * Values are validated here rather than at the point of rendering, so a mistake
  * is one finding with a position rather than three surfaces quietly drawing
- * something else. A directive that holds a problem yields **no** class and no
+ * something else. A directive that holds a problem yields **no** class, size or
  * float: a half-honoured directive is the silent failure in a smaller costume.
  *
  * @param {string} [raw] - The text between the braces, braces included or not.
- * @returns {{classes: string[], float: string, problems: string[]}} What was
+ * @returns {{classes: string[], size: string, float: string, problems: string[]}} What was
  *   written, and what cannot be honoured.
  */
 export function parseImageDirective(raw) {
     /** @type {string[]} */
     const classes = [];
+    let size = "auto";
+    let sizeSeen = false;
     let float = "";
     /** @type {string[]} */
     const problems = [];
@@ -230,7 +242,7 @@ export function parseImageDirective(raw) {
     const inner = String(raw ?? "")
         .replace(/^\{/, "")
         .replace(/\}$/, "");
-    if (!inner.trim()) return { classes, float, problems };
+    if (!inner.trim()) return { classes, size, float, problems };
 
     // Split on commas, not whitespace: `float: top-left` is one pair with a
     // space in it, and the space after the colon is the spelling people write.
@@ -259,17 +271,32 @@ export function parseImageDirective(raw) {
         const colon = part.indexOf(":");
         if (colon === -1) {
             problems.push(
-                `\`${part}\` is neither a width class nor \`float: <position>\` — an ` +
-                    "image states its width as a class and its position as `float:`, " +
+                `\`${part}\` is neither a width class nor \`size: <name>\` or ` +
+                    "`float: <position>` — an image states its width as a class and its position as `float:`, " +
                     "and it states no dimensions at all",
             );
             continue;
         }
         const key = part.slice(0, colon).trim();
         const value = part.slice(colon + 1).trim();
+        if (key === "size") {
+            if (!IMAGE_SIZES.includes(value)) {
+                problems.push(
+                    `\`size: ${value}\` is not a size — the ones there are: ${IMAGE_SIZES.join(", ")}`,
+                );
+                continue;
+            }
+            if (sizeSeen) {
+                problems.push("`size:` is written twice, and an image has one named size");
+                continue;
+            }
+            size = value;
+            sizeSeen = true;
+            continue;
+        }
         if (key !== "float") {
             problems.push(
-                `\`${key}\` is not an image attribute — \`float\` is the only one, ` +
+                `\`${key}\` is not an image attribute — use \`size\` or \`float\`, ` +
                     "and width is a class rather than an attribute",
             );
             continue;
@@ -292,8 +319,8 @@ export function parseImageDirective(raw) {
         problems.push("an image states one width, and this states more than one");
     }
     // Nothing partial: a directive with a problem in it is not honoured at all.
-    if (problems.length) return { classes: [], float: "", problems };
-    return { classes, float, problems };
+    if (problems.length) return { classes: [], size: "auto", float: "", problems };
+    return { classes, size, float, problems };
 }
 
 /**
@@ -594,7 +621,7 @@ export function lintContentImages(contentBase, { skipDirectories = [], config } 
  * **Hugo is handed markdown, not a rendered page.** The site emitter writes a
  * note's body through verbatim, so a `{…}` directive left in it reaches the
  * page as its own literal braces: Goldmark's block-attribute parser is off, and
- * turning it on would accept `style` and `id` alongside the two vocabularies,
+ * turning it on would accept `style` and `id` alongside the closed vocabularies,
  * which is the injection surface this rule exists to avoid. So the directive is
  * resolved here, into markup Goldmark passes through.
  *

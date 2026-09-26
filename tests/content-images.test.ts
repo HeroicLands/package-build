@@ -25,6 +25,7 @@ import MarkdownIt from "markdown-it";
 import {
     IMAGE_CLASSES,
     IMAGE_FLOATS,
+    IMAGE_SIZES,
     checkImages,
     figureClasses,
     imageFigureHtml,
@@ -40,23 +41,57 @@ import { markdownToTypst } from "../engine/pdf-render.mjs";
 const render = (markdown: string) =>
     new MarkdownIt({ html: true }).use(imagePlugin()).render(markdown);
 
-describe("the two vocabularies parse and are closed", () => {
+describe("the three vocabularies parse and are closed", () => {
+    it("accepts every declared size and records it", () => {
+        expect(parseImageDirective("").size).toBe("auto");
+        for (const value of IMAGE_SIZES) {
+            expect(parseImageDirective(`{size: ${value}}`)).toMatchObject({
+                size: value,
+                problems: [],
+            });
+        }
+    });
     it("reads a width class and a float, together or apart", () => {
         expect(parseImageDirective("{.full-width}")).toEqual({
             classes: ["full-width"],
+            size: "auto",
             float: "",
             problems: [],
         });
         expect(parseImageDirective("{float: top-left}")).toEqual({
             classes: [],
+            size: "auto",
             float: "top-left",
             problems: [],
         });
         expect(parseImageDirective("{.full-width, float: bottom-right}")).toEqual({
             classes: ["full-width"],
+            size: "auto",
             float: "bottom-right",
             problems: [],
         });
+    });
+
+    it("accepts size and float in either order", () => {
+        for (const directive of [
+            "{size: medium, float: top-left}",
+            "{float: top-left, size: medium}",
+        ]) {
+            expect(parseImageDirective(directive)).toEqual({
+                classes: [],
+                size: "medium",
+                float: "top-left",
+                problems: [],
+            });
+        }
+    });
+
+    it("refuses an empty, unknown, or repeated size", () => {
+        for (const directive of ["{size: }", "{size: huge}", "{size: auto, size: large}"]) {
+            const parsed = parseImageDirective(directive);
+            expect(parsed.problems, directive).toHaveLength(1);
+            expect(parsed.size, directive).toBe("auto");
+        }
     });
 
     it("takes every float the specification lists", () => {
@@ -89,9 +124,12 @@ describe("the two vocabularies parse and are closed", () => {
         // The half-honoured case is the silent failure in a smaller costume: an
         // author who wrote both and got one would have to compare two outputs
         // to notice.
-        const { classes, float, problems } = parseImageDirective("{.full-width, float: middle}");
+        const { classes, size, float, problems } = parseImageDirective(
+            "{.full-width, size: small, float: middle}",
+        );
         expect(problems.length).toBe(1);
         expect(classes).toEqual([]);
+        expect(size).toBe("auto");
         expect(float).toBe("");
     });
 
@@ -184,7 +222,16 @@ describe("a refusal is located and fatal", () => {
 
     it("says nothing about an image written correctly", () => {
         expect(checkImages("![A map](images/m.webp){float: center}\n", "x.md")).toEqual([]);
+        expect(
+            checkImages("![A map](images/m.webp){size: medium, float: center}\n", "x.md"),
+        ).toEqual([]);
         expect(checkImages("![A map](images/m.webp)\n", "x.md")).toEqual([]);
+    });
+
+    it("locates an invalid size at the directive", () => {
+        expect(checkImages("![A map](images/m.webp){size: huge}\n", "x.md")).toEqual([
+            expect.objectContaining({ file: "x.md", line: 1, column: 24, severity: "error" }),
+        ]);
     });
 
     it("says nothing about an image inside a fence", () => {
@@ -301,5 +348,41 @@ describe("the book prints the picture at the measure the class names", () => {
         const out = markdownToTypst("![A map](https://example.org/m.webp)\n");
         expect(out).not.toContain("#image(");
         expect(out).toContain("[A map]");
+    });
+});
+
+describe("named sizes are accepted without changing presentation", () => {
+    const plain = "![A map](images/m.webp){float: top-left}\n";
+    const images = new Map([["images/m.webp", "assets/images/m.webp"]]);
+    const withSize = (size: string) => `![A map](images/m.webp){size: ${size}, float: top-left}\n`;
+
+    it("keeps the website figure identical and consumes the directive", () => {
+        for (const size of IMAGE_SIZES) {
+            expect(renderImageFigures(withSize(size))).toBe(renderImageFigures(plain));
+            expect(renderImageFigures(withSize(size))).not.toContain("size:");
+        }
+    });
+
+    it("keeps the Foundry figure identical and consumes the directive", () => {
+        for (const size of IMAGE_SIZES) {
+            expect(render(withSize(size))).toBe(render(plain));
+            expect(render(withSize(size))).not.toContain("size:");
+        }
+    });
+
+    it("keeps the book figure identical", () => {
+        for (const size of IMAGE_SIZES) {
+            expect(markdownToTypst(withSize(size), { images })).toBe(
+                markdownToTypst(plain, { images }),
+            );
+        }
+    });
+
+    it("keeps the full-width class behavior intact", () => {
+        const baseline = "![A map](images/m.webp){.full-width}\n";
+        const withSize = "![A map](images/m.webp){.full-width, size: medium}\n";
+        expect(renderImageFigures(withSize)).toBe(renderImageFigures(baseline));
+        expect(render(withSize)).toBe(render(baseline));
+        expect(markdownToTypst(withSize, { images })).toBe(markdownToTypst(baseline, { images }));
     });
 });
