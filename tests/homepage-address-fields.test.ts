@@ -49,14 +49,13 @@ describe("a homepage is addressed, so `shortcode` is required", () => {
         // There is no `shortcode:` line to point at, so the locator is the
         // `homepage` value that makes one required — a real position, rather
         // than a 1:1 invented for a key that is not there.
-        const findings = lint(["title: Repro", `type: ${HOMEPAGE_TYPE}`], {
-            title: "Repro",
+        const findings = lint([`type: ${HOMEPAGE_TYPE}`], {
             type: HOMEPAGE_TYPE,
         });
         expect(findings).toHaveLength(1);
         expect(findings[0]).toMatchObject({
             file: "assets/content/homepage.md",
-            line: 3,
+            line: 2,
             column: 7,
             severity: "error",
         });
@@ -64,7 +63,7 @@ describe("a homepage is addressed, so `shortcode` is required", () => {
         // Names the address it would publish at, and the convention to write.
         expect(findings[0].message).toContain("homepage-root");
         expect(formatDiagnostic(findings[0])).toMatch(
-            /^assets\/content\/homepage\.md:3:7: error: /,
+            /^assets\/content\/homepage\.md:2:7: error: /,
         );
     });
 
@@ -163,43 +162,40 @@ describe("what a homepage may still write", () => {
                 [
                     `type: ${HOMEPAGE_TYPE}`,
                     `shortcode: ${HOMEPAGE_SHORTCODE}`,
-                    "title: Repro Demo",
+                    "name:",
+                    "    full: Repro Demo",
                     "description: A module.",
-                    "banner: brand/banner.webp",
                 ],
                 {
                     type: HOMEPAGE_TYPE,
                     shortcode: HOMEPAGE_SHORTCODE,
-                    title: "Repro Demo",
+                    name: { full: "Repro Demo" },
                     description: "A module.",
-                    banner: "brand/banner.webp",
                 },
             ),
         ).toEqual([]);
     });
 
-    it("passes a top-level key this build has never heard of", () => {
-        // The deliberate boundary, and the reason the refusal is a named class
-        // rather than an allow-list: a homepage's frontmatter is emitted into
-        // the published page, so an unrecognised key is a theme parameter, and
-        // a closed list would make every new one a package-build release.
-        expect(
-            lint(
-                [
-                    `type: ${HOMEPAGE_TYPE}`,
-                    `shortcode: ${HOMEPAGE_SHORTCODE}`,
-                    "weight: 30",
-                    "cascade:",
-                    "    noindex: true",
-                ],
-                {
-                    type: HOMEPAGE_TYPE,
-                    shortcode: HOMEPAGE_SHORTCODE,
-                    weight: 30,
-                    cascade: { noindex: true },
-                },
-            ),
-        ).toEqual([]);
+    it("reports unknown top-level keys", () => {
+        const result = lint(
+            [
+                `type: ${HOMEPAGE_TYPE}`,
+                `shortcode: ${HOMEPAGE_SHORTCODE}`,
+                "weight: 30",
+                "cascade:",
+                "    noindex: true",
+            ],
+            {
+                type: HOMEPAGE_TYPE,
+                shortcode: HOMEPAGE_SHORTCODE,
+                weight: 30,
+                cascade: { noindex: true },
+            },
+        );
+        expect(result.map((finding) => finding.message)).toEqual([
+            expect.stringContaining('"weight"'),
+            expect.stringContaining('"cascade"'),
+        ]);
     });
 });
 

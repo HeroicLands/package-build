@@ -55,6 +55,7 @@
  */
 
 import { isAddressTuple } from "./address.mjs";
+import { authoredNoteKeys, NOTE_TOP_LEVEL_KEY_SET } from "./note-frontmatter.mjs";
 import { AddressEntries } from "./address-values.mjs";
 import { authoredFields, readsLegacyKey } from "./field-spec.mjs";
 import {
@@ -1440,6 +1441,24 @@ export function lintNote(
             ...at(locator.key, locator.literal),
             severity: "error",
             message,
+        });
+    }
+
+    for (const key of authoredNoteKeys(raw())) {
+        if (NOTE_TOP_LEVEL_KEY_SET.has(key)) continue;
+        const position = positionInFrontmatter(raw(), key, undefined, { topLevel: true });
+        if (
+            findings.some(
+                (finding) => finding.severity === "error" && finding.line === position.line,
+            )
+        ) {
+            continue;
+        }
+        findings.push({
+            file: note.file,
+            ...position,
+            severity: "error",
+            message: `unknown top-level frontmatter key ${JSON.stringify(key)}; use shortcode, name, type, subType, description, tags, data, hm3, or sohl`,
         });
     }
 

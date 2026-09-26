@@ -126,24 +126,23 @@ describe("the `data:` container is closed", () => {
     });
 });
 
-describe("the top level stays open", () => {
+describe("the top level is closed", () => {
     const stray = note("weapongear", {
         description: "A blade of no particular distinction",
         heroImage: "banners/sword.webp",
     });
 
-    it("reports nothing for an unknown top-level key", () => {
-        // This is the property that makes the container worth having: the same
-        // misspelling is a finding under `data:` and a theme parameter here.
-        expect(lintNote(stray, opts)).toEqual([]);
+    it("reports an unknown top-level key", () => {
+        expect(messages(lintNote(stray, opts))).toContain(
+            'unknown top-level frontmatter key "heroImage"',
+        );
     });
 
-    it("still carries that key onto the published page", () => {
+    it("carries allowed page metadata onto the published page", () => {
         const emitted = pageFrontmatter(
             { kind: "content", fm: stray.fm, name: "Sword", slug: "sword", sec: "weapons" } as any,
             {} as any,
         );
-        expect(emitted.heroImage).toBe("banners/sword.webp");
         expect(emitted.description).toBe("A blade of no particular distinction");
     });
 });
