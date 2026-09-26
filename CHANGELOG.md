@@ -1,5 +1,11 @@
 # @heroiclands/package-build
 
+## 22.14.2
+
+### Patch Changes
+
+Lore notes can carry structured event metadata for chronologies.
+
 ## 22.14.1
 
 ### Patch Changes
