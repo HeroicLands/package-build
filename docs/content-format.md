@@ -2418,15 +2418,17 @@ This is secret text
 :::
 ```
 
-A fenced off area of text may be marked as secret, indicating that the text will be treated as secret text. In FoundryVTT, this will be achieved with
+Use a whole-line `:::secret` opener and a whole-line `:::` closer to mark a GM passage. Markdown inside the block, including links and emphasis, renders normally. Keep the fences outside code blocks and close each one before starting another. An unclosed or nested block is a build error at the source line.
+
+In FoundryVTT, the passage is a secret section visible to the GM and owners of the journal:
 
 ```html
-<section class="secret">
+<section class="secret" id="secret-example">
   <p>This is secret text</p>
 </section>
 ```
 
-On webpages, this will be achieved with the use of
+On webpages, the passage appears as a collapsed spoiler that any reader can open:
 
 ```html
 <details>
@@ -2434,6 +2436,8 @@ On webpages, this will be achieved with the use of
   <p>This is secret text</p>
 </details>
 ```
+
+In books, the passage is visible under a **GM note** label. A printed page has no reader permissions or interactive disclosure control.
 
 #### Actors
 

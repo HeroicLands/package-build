@@ -61,6 +61,7 @@ import matter from "gray-matter";
 import { addressSlug } from "./content-address.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderSecretBlocks } from "./content-secrets.mjs";
 import { renderImageFigures } from "./content-images.mjs";
 import { pathnameProblem, resolvePathname } from "./pathnames.mjs";
 import { buildSiteIndex, resolveInfoboxRef, wikiContext } from "./site-index.mjs";
@@ -140,8 +141,10 @@ function siteCorpusFiles(contentBase, ctx) {
  */
 function readNote(file, ctx) {
     let parsed;
+    let source;
     try {
-        parsed = matter(fs.readFileSync(file, "utf8"));
+        source = fs.readFileSync(file, "utf8");
+        parsed = matter(source);
     } catch {
         return null;
     }
@@ -150,7 +153,11 @@ function readNote(file, ctx) {
         package: ctx.contentPackage ?? ctx.config?.contentPackage,
     };
     try {
-        return { fm: decodeNoteAddresses(parsed.data, context), body: parsed.content };
+        return {
+            fm: decodeNoteAddresses(parsed.data, context),
+            body: parsed.content,
+            bodyLine: source.slice(0, source.length - parsed.content.length).split("\n").length,
+        };
     } catch (error) {
         const position = positionOfYamlPath(parsed.matter, error.keyPath ?? [], {
             key: error.addressKey,
@@ -202,7 +209,7 @@ export function collectContentPages(contentBase, ctx) {
         const note = readNote(file, ctx);
         if (!note) continue;
         applyComputedBeingAge(note.fm, present);
-        const { fm, body } = note;
+        const { fm, body, bodyLine } = note;
         // The configuration's, never a note's: `package:` is retired, so every
         // note in the tree belongs to the package this repository compiles.
         const pkg = ctx.contentPackage;
@@ -249,6 +256,7 @@ export function collectContentPages(contentBase, ctx) {
             // — reads one configured value and never frontmatter.
             pkg,
             body,
+            bodyLine,
             name,
             slug,
             base,
@@ -734,6 +742,7 @@ export function renderPages(pages, options) {
     });
 
     const tableErrors = [];
+    const secretErrors = [];
     const wikiErrors = [];
     const imageErrors = [];
     const byKind = {};
@@ -847,7 +856,17 @@ export function renderPages(pages, options) {
         tableErrors.push(...errors);
 
         const data = pageFrontmatter(page, { decorate, webSrc, artSrc });
-        rendered.push({ page, body: protectCode(body, resolve), data });
+        const resolvedBody = protectCode(body, resolve);
+        const secrets = renderSecretBlocks(resolvedBody, "web");
+        for (const error of renderSecretBlocks(page.body, "book").errors) {
+            secretErrors.push({
+                file: page.file,
+                line: (page.bodyLine ?? 1) + error.line - 1,
+                column: error.column,
+                message: error.message,
+            });
+        }
+        rendered.push({ page, body: secrets.markdown, data });
         // A resolved target with no URL is a pack-only package's address:
         // real, and nowhere on the web, so not an edge.
         for (const hit of resolved) {
@@ -885,6 +904,7 @@ export function renderPages(pages, options) {
         written: pages.length,
         byKind,
         tableErrors,
+        secretErrors,
         wikiErrors,
         imageErrors,
         related,
@@ -1044,6 +1064,7 @@ export function buildSite({ config, sqlTables, locate } = {}) {
             gates: { ...emptyGates(), homepages: homepageFindings },
             manifests: null,
             tableErrors: [],
+            secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1063,6 +1084,7 @@ export function buildSite({ config, sqlTables, locate } = {}) {
             gates: emptyGates(),
             manifests: null,
             tableErrors: [],
+            secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1108,6 +1130,7 @@ export function buildSite({ config, sqlTables, locate } = {}) {
             gates,
             stats: null,
             tableErrors: [],
+            secretErrors: [],
             wikiErrors: [],
             imageErrors: [],
             mapFindings: [],
@@ -1175,6 +1198,7 @@ export function buildSite({ config, sqlTables, locate } = {}) {
     return {
         gates,
         tableErrors: rendered.tableErrors,
+        secretErrors: rendered.secretErrors,
         wikiErrors: rendered.wikiErrors,
         imageErrors: rendered.imageErrors,
         mapFindings: drawn.findings,

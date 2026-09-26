@@ -51,7 +51,14 @@
 
 import log from "loglevel";
 
-import { sohlField, makeId, resolveName, defaultStats, md, folderField } from "./helpers.mjs";
+import {
+    sohlField,
+    makeId,
+    resolveName,
+    defaultStats,
+    renderFoundryMarkdown,
+    folderField,
+} from "./helpers.mjs";
 import { BasePackCompiler } from "./base-compiler.mjs";
 import { anchorPageId, resolveReference } from "./wikilinks.mjs";
 import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
@@ -83,6 +90,7 @@ export function splitPages(body, leadName = "Introduction") {
     const beforeFirstH1 = [];
     let current = null;
     let inCodeBlock = false;
+    let inSecret = false;
 
     const closeCurrent = () => {
         if (!current) return;
@@ -99,11 +107,14 @@ export function splitPages(body, leadName = "Introduction") {
         if (line.trim().startsWith("```")) {
             inCodeBlock = !inCodeBlock;
         }
+        if (!inCodeBlock && /^:::secret[ \t]*$/.test(line)) inSecret = true;
+        else if (!inCodeBlock && /^:::[ \t]*$/.test(line)) inSecret = false;
 
         // An H1 starts a page, as does any heading carrying an `{#slug}`
         // anchor: a Foundry UUID can only address a page, so a linkable
         // section has to be one.
-        const headingMatch = !inCodeBlock ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
+        const headingMatch =
+            !inCodeBlock && !inSecret ? line.match(/^\s*(#{1,6})\s+(.+?)\s*#*\s*$/) : null;
         const rawHeading = headingMatch?.[2]?.trim();
         const anchorMatch = rawHeading?.match(/^(.*?)\s*\{#([^}]+)\}\s*$/);
         const startsPage = headingMatch && (headingMatch[1].length === 1 || anchorMatch);
@@ -255,7 +266,7 @@ export function buildPages(rawPages, entryId, noteName) {
             title: { show: true, level: page.level ?? 1 },
             text: {
                 format: 1,
-                content: page.markdown ? md.render(page.markdown) : "",
+                content: page.markdown ? renderFoundryMarkdown(page.markdown) : "",
             },
             _key: `!journal.pages!${entryId}.${pageId}`,
         };

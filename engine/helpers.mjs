@@ -62,6 +62,7 @@ import { linkFindingMessage } from "./wikilink-syntax.mjs";
 // from there rather than respelt, so the tag and its one reader cannot drift.
 import { isDraftNote } from "./note-vocabulary.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderSecretBlocks } from "./content-secrets.mjs";
 import { positionInBody } from "./diagnostics.mjs";
 // The pure `sohl:` frontmatter readers live in a leaf module so the item-type
 // registry can import them without reaching back through this one.
@@ -125,6 +126,12 @@ export const md = markdownit({ html: true })
         }),
     );
 
+/** Render a note body with Foundry's secret section markup. */
+export function renderFoundryMarkdown(body) {
+    const { markdown } = renderSecretBlocks(body, "foundry", (inner) => md.render(inner));
+    return md.render(markdown);
+}
+
 /**
  * Parses a markdown file with YAML frontmatter.
  *
@@ -165,7 +172,7 @@ export function parseMarkdownFile(filePath, { addressContext } = {}) {
     }
     const raw = fmMatch[2];
     const body = raw.trim();
-    const description = body ? md.render(body) : "";
+    const description = body ? renderFoundryMarkdown(body) : "";
     // Where the trimmed body starts in the *file*, so an offset within it can
     // be reported as a file position. The frontmatter's lines and the
     // blank lines `trim()` removes both sit in between, and the trim can take

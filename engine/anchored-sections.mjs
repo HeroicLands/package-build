@@ -29,7 +29,7 @@
  * @module
  */
 
-import { md } from "./helpers.mjs";
+import { renderFoundryMarkdown } from "./helpers.mjs";
 
 /**
  * Extract the body of an H1 section whose heading carries the explicit
@@ -79,5 +79,5 @@ export function extractAnchorSection(body, anchorId) {
  */
 export function renderSection(body, anchorId) {
     const slice = extractAnchorSection(body, anchorId);
-    return slice ? md.render(slice) : "";
+    return slice ? renderFoundryMarkdown(slice) : "";
 }

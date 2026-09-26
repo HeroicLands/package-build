@@ -399,6 +399,32 @@ describe("the consumer's own passes are named, not imported", () => {
 });
 
 describe("buildSite end to end", () => {
+    it("publishes secret passages as expandable prose and locates malformed fences", () => {
+        const file = note(
+            "Rules/Secrets.md",
+            "type: doc\nsubType: concept\nshortcode: secrets\nname:\n    full: Secrets",
+            "Before.\n\n:::secret\nA **hidden** clue.\n:::\n",
+        );
+        try {
+            const result = buildSite({ config: configFor() });
+            const page = fs.readFileSync(
+                path.join(root, "build/hugo/content/kb/doc-secrets.md"),
+                "utf8",
+            );
+            expect(result.secretErrors).toEqual([]);
+            expect(page).toContain("<details><summary>Spoiler</summary>");
+            expect(page).toContain("A <strong>hidden</strong> clue.");
+
+            fs.writeFileSync(file, fs.readFileSync(file, "utf8").replace("\n:::\n", "\n"));
+            const malformed = buildSite({ config: configFor() });
+            expect(malformed.secretErrors).toEqual([
+                expect.objectContaining({ file, line: 11, column: 1 }),
+            ]);
+        } finally {
+            fs.rmSync(file, { force: true });
+        }
+    });
+
     it("writes the tree and reports its counts", () => {
         const result = buildSite({ config: configFor() });
         expect(gatesFailed(result.gates)).toBe(false);
