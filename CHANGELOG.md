@@ -1,5 +1,13 @@
 # @heroiclands/package-build
 
+## 22.12.1
+
+### Patch Changes
+
+**Content authoring**
+
+- Image embeds and Markdown images accept named size hints, so notes can carry the intended size while their displayed appearance stays the same.
+
 ## 22.12.0
 
 ### Minor Changes
