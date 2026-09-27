@@ -341,14 +341,19 @@ describe("the generated configuration", () => {
         );
     });
 
-    it("requires the manifest title the site's title reads from", () => {
+    it("requires a site or manifest title", () => {
         expect(() =>
             hugoConfig({
                 config: configFor({ packageBuild: {} }),
                 navigation: NAVIGATION,
                 themesDir: "x",
             }),
-        ).toThrow(/`packageBuild\.manifest\.title` is not declared/);
+        ).toThrow(/declare `site\.title` or `packageBuild\.manifest\.title`/);
+    });
+
+    it("uses the site's own title for a documentation package", () => {
+        const out = generated({ title: "A Documentation Site" }, { packageBuild: {} });
+        expect(out.title).toBe("A Documentation Site");
     });
 
     // `site.description` writes the site's `<meta name="description">` — every
