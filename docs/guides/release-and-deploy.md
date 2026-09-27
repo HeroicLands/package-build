@@ -56,23 +56,35 @@ loads that bundle once and in the right module form.
 
 ## Deploy a staged build to Foundry
 
-Set the stage's data root and deploy the build already under
-`packageBuild.stageDir`:
+Create `.env.local` at the repository root for machine-specific stage paths
+and credentials. Keep it ignored by git:
+
+```dotenv
+FOUNDRYVTT_DEV_DATA=/path/to/foundry-data
+FOUNDRYVTT_QA_DATA=yourhost:/srv/docker/data/foundryvtt-qa
+FOUNDRYVTT_PROD_DATA=yourhost:/srv/docker/data/foundryvtt-prod
+```
+
+The CLI loads `.env.local` before `.env`. A variable already in the shell takes
+precedence over either file; `.env.local` takes precedence over `.env`. A
+separate git worktree needs its own copy of this ignored file. Deploy the
+build already under `packageBuild.stageDir`:
 
 ```bash
-export FOUNDRYVTT_DEV_DATA=/path/to/foundry-data
 package-build deploy dev
 package-build container dev status
 package-build container dev restart
 ```
 
-The data root can be a local path or a `[user@]host:/path` SFTP destination.
+The data root can be an absolute local path or a `[user@]host:/absolute/path`
+SFTP destination. The CLI appends `Data/systems/<id>` or `Data/modules/<id>`
+for the package. Paths in `.env.local` are literal: `~` and shell variables
+are not expanded. Keep stage paths pointed at distinct Foundry data roots.
 The deploy command stages a complete copy beside the installed package and
 swaps it into place, so it does not rewrite open LevelDB files one by one.
 For a remote destination it uses the SSH agent unless the stage names an
-explicit key. `.env.local` and `.env` are loaded by the command, so a local
-stage can keep its destination outside committed configuration. The
-`container` command manages the Foundry Docker instance for the same stage;
+explicit key. The `container` command manages the Foundry Docker instance for
+the same stage;
 `restart` stops it, clears a stale lock, then starts it. See the
 [container command](../commands.md#package-build-container-stage-action) for
 the other actions and environment variables.
