@@ -18,7 +18,7 @@ The generated project includes a homepage, website and book targets, npm scripts
 
 ## Documentation
 
-[Read the published documentation](https://www.heroiclands.org/packagebuild/) or use the Markdown files in this repository.
+The documentation lives in the Markdown files in this repository. Start with [the documentation home](docs/index.md).
 
 | Topic                                             | Guide                                                        |
 | ------------------------------------------------- | ------------------------------------------------------------ |
