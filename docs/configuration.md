@@ -1529,10 +1529,13 @@ repository has to compute. Neither declares anything, both default to
 
 ### `packageBuild.manifest`
 
+`packageBuild.manifest.title` is a required, non-empty string for a Foundry
+system or module. It is the package name Foundry displays during installation;
+`package-build manifest` refuses to write a manifest without it.
+
 Everything declared here is emitted into the generated manifest unchanged —
 **deliberately not key-checked**, so a key Foundry adds in a later version
-can be declared without waiting on a release of this package. The one rule
-that has a wrong answer rather than an unknown one: a key the build
+can be declared without waiting on a release of this package. A key the build
 **derives** must not also be authored, since the authored value would be
 silently overwritten and the two would be free to disagree with nothing to
 say so.
