@@ -136,6 +136,9 @@ export * as reckoningMarkers from "./reckoning-markers.mjs";
 /** Calendars as notes: what one may declare, and the definition emitted from it. */
 export * as calendarNotes from "./calendar-notes.mjs";
 
+/** Compiled calendar definitions and import files from the content index. */
+export * as calendarArtifacts from "./calendar-artifacts.mjs";
+
 /** A being's `age`, absent beside a dated `born`: the age the date computes to. */
 export * as beingAge from "./being-age.mjs";
 
