@@ -25,6 +25,8 @@ import { describe, it, expect } from "vitest";
 import {
     CANONICAL_EPOCH,
     calendarStructure,
+    canonicalDateFromOffset,
+    canonicalDayOffset,
     canonicalYear,
     dateSortKey,
     dayOfYear,
@@ -32,6 +34,8 @@ import {
     daysInYear,
     lunarPhase,
     monthStarts,
+    formatCanonicalDate,
+    parseCanonicalDate,
 } from "../engine/calendars.mjs";
 
 describe("the axis", () => {
@@ -95,6 +99,46 @@ describe("the sort key", () => {
     it("runs months and days forward inside a year before the epoch", () => {
         expect(dateSortKey(-983, 6, null)).toBe(-982.94);
         expect(dateSortKey(-983, null, null)).toBeLessThan(dateSortKey(-983, 1, null));
+    });
+});
+
+describe("the canonical day", () => {
+    const yearDays = 365;
+    const originYear = 720;
+
+    it("round trips through the origin in both directions", () => {
+        for (const offset of [-366, -365, -1, 0, 1, 364, 365, 366]) {
+            const date = canonicalDateFromOffset(offset, originYear, yearDays);
+            expect(canonicalDayOffset(date.year, date.day, originYear, yearDays)).toBe(offset);
+        }
+        expect(canonicalDateFromOffset(-1, originYear, yearDays)).toEqual({
+            year: 719,
+            day: 365,
+        });
+        expect(canonicalDateFromOffset(365, originYear, yearDays)).toEqual({
+            year: 721,
+            day: 1,
+        });
+    });
+
+    it("prints a neutral day and optional time without naming months", () => {
+        expect(formatCanonicalDate({ year: 720, day: 1 }, yearDays)).toBe("720.1");
+        expect(formatCanonicalDate({ year: 720, day: 365, seconds: 86399 }, yearDays)).toBe(
+            "720.365:235959",
+        );
+        expect(parseCanonicalDate("720.1", yearDays)).toEqual({ year: 720, day: 1 });
+        expect(parseCanonicalDate("720.365:235959", yearDays)).toEqual({
+            year: 720,
+            day: 365,
+            seconds: 86399,
+        });
+        expect(parseCanonicalDate("720/6", yearDays)).toBeNull();
+        expect(parseCanonicalDate("720.366", yearDays)).toBeNull();
+        expect(parseCanonicalDate("720.1:240000", yearDays)).toBeNull();
+        expect(() => formatCanonicalDate({ year: 720, day: 366 }, yearDays)).toThrow();
+        expect(() =>
+            formatCanonicalDate({ year: 720, day: 1, seconds: 86400 }, yearDays),
+        ).toThrow();
     });
 });
 

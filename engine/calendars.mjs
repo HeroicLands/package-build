@@ -127,6 +127,116 @@ export function dateSortKey(year, month, day) {
 }
 
 /**
+ * Days from an arbitrary canonical origin to a canonical year and day.
+ *
+ * Canonical years form a continuous integer line. Day one opens each year;
+ * calendar month divisions play no part in this count.
+ *
+ * @param {number} year - Canonical year.
+ * @param {number} day - Day of that year, starting at one.
+ * @param {number} originYear - Canonical year whose first day is offset zero.
+ * @param {number} daysPerYear - The world's authored year length.
+ * @returns {number} Signed whole-day offset.
+ */
+export function canonicalDayOffset(year, day, originYear, daysPerYear) {
+    if (
+        !Number.isSafeInteger(year) ||
+        !Number.isSafeInteger(originYear) ||
+        !Number.isSafeInteger(daysPerYear) ||
+        daysPerYear < 1 ||
+        !Number.isSafeInteger(day) ||
+        day < 1 ||
+        day > daysPerYear
+    ) {
+        throw new RangeError(
+            "a canonical date needs an integer year and a day in the world's year",
+        );
+    }
+    const offset = (year - originYear) * daysPerYear + day - 1;
+    if (!Number.isSafeInteger(offset))
+        throw new RangeError("canonical day offset exceeds integer range");
+    return offset;
+}
+
+/**
+ * The canonical year and day at a signed offset from an arbitrary origin.
+ * Flooring the division keeps the day within the year before the origin.
+ *
+ * @param {number} offset - Whole days from the origin.
+ * @param {number} originYear - Canonical year whose first day is offset zero.
+ * @param {number} daysPerYear - The world's authored year length.
+ * @returns {{year: number, day: number}} Canonical year and day.
+ */
+export function canonicalDateFromOffset(offset, originYear, daysPerYear) {
+    if (
+        !Number.isSafeInteger(offset) ||
+        !Number.isSafeInteger(originYear) ||
+        !Number.isSafeInteger(daysPerYear) ||
+        daysPerYear < 1
+    ) {
+        throw new RangeError("a canonical offset needs integer days, origin year, and year length");
+    }
+    const years = Math.floor(offset / daysPerYear);
+    const year = originYear + years;
+    if (!Number.isSafeInteger(year)) throw new RangeError("canonical year exceeds integer range");
+    return { year, day: offset - years * daysPerYear + 1 };
+}
+
+/**
+ * Print a calendar-neutral date as `<year>.<day>[:HHMMSS]`.
+ *
+ * @param {{year: number, day: number, seconds?: number}} date - Canonical date.
+ * @param {number} daysPerYear - The world's authored year length.
+ * @returns {string} The canonical spelling.
+ */
+export function formatCanonicalDate(date, daysPerYear) {
+    canonicalDayOffset(date?.year, date?.day, date?.year, daysPerYear);
+    if (date.seconds === undefined) return `${date.year}.${date.day}`;
+    if (!Number.isSafeInteger(date.seconds) || date.seconds < 0 || date.seconds >= 86400) {
+        throw new RangeError("canonical time is a whole second within one day");
+    }
+    const hour = String(Math.floor(date.seconds / 3600)).padStart(2, "0");
+    const minute = String(Math.floor((date.seconds % 3600) / 60)).padStart(2, "0");
+    const second = String(date.seconds % 60).padStart(2, "0");
+    return `${date.year}.${date.day}:${hour}${minute}${second}`;
+}
+
+/**
+ * Read the calendar-neutral `<year>.<day>[:HHMMSS]` spelling.
+ *
+ * This is distinct from an authored month date such as `720/6`; no calendar
+ * month list is consulted to read a canonical day of year.
+ *
+ * @param {unknown} value - Canonical date text.
+ * @param {number} daysPerYear - The world's authored year length.
+ * @returns {{year: number, day: number, seconds?: number}|null} The date, or
+ *   `null` when the spelling or a component is invalid.
+ */
+export function parseCanonicalDate(value, daysPerYear) {
+    if (typeof value !== "string") return null;
+    const match = /^(-?\d+)\.(\d+)(?::(\d{2})(\d{2})(\d{2}))?$/.exec(value);
+    if (!match) return null;
+    const year = Number(match[1]);
+    const day = Number(match[2]);
+    if (
+        !Number.isSafeInteger(year) ||
+        !Number.isSafeInteger(day) ||
+        !Number.isSafeInteger(daysPerYear) ||
+        daysPerYear < 1 ||
+        day < 1 ||
+        day > daysPerYear
+    ) {
+        return null;
+    }
+    if (match[3] === undefined) return { year, day };
+    const hour = Number(match[3]);
+    const minute = Number(match[4]);
+    const second = Number(match[5]);
+    if (hour > 23 || minute > 59 || second > 59) return null;
+    return { year, day, seconds: hour * 3600 + minute * 60 + second };
+}
+
+/**
  * One month of a calendar, as the note declares it.
  *
  * @typedef {object} CalendarMonth
