@@ -52,7 +52,7 @@ import fs from "node:fs/promises";
 import fsSync from "node:fs";
 import path from "node:path";
 
-import { emitDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
+import { emitDiagnostic, formatDiagnostic, positionOfYamlPath } from "./engine/diagnostics.mjs";
 import { metadataFileName } from "./engine/metadata-index.mjs";
 
 /**
@@ -455,6 +455,13 @@ function withoutBuildKeys(entry) {
     );
 }
 
+/** Require the displayed identity Foundry needs to install the package. */
+function requireManifestTitle(config) {
+    const title = config.packageBuild?.manifest?.title;
+    if (typeof title !== "string" || title.trim() === "")
+        throw new Error("`packageBuild.manifest.title` must be a non-empty string.");
+}
+
 /**
  * Build a Foundry package manifest from the resolved configuration.
  *
@@ -483,6 +490,7 @@ function withoutBuildKeys(entry) {
  * @returns {object} The manifest, ready to serialise.
  */
 export function buildManifest({ config, packageJson, artifact, flags }) {
+    requireManifestTitle(config);
     // `descriptionHtml` is the authored source of `description` — pulled out
     // so it never survives the spread below under its own name.
     const { descriptionHtml, ...declared } = config.packageBuild?.manifest ?? {};
@@ -641,6 +649,25 @@ function reportPackFolders(findings, configFile) {
  *   ship. Nothing is written in that case.
  */
 export async function writeManifest({ config, packageJson, artifact, outDir, flags, configFile }) {
+    try {
+        requireManifestTitle(config);
+    } catch (error) {
+        let text;
+        if (configFile) {
+            try {
+                text = fsSync.readFileSync(configFile, "utf8");
+            } catch {
+                text = undefined;
+            }
+        }
+        const message = formatDiagnostic({
+            ...(configFile ? { file: configFile } : {}),
+            ...(text ? positionOfYamlPath(text, ["packageBuild", "manifest"]) : {}),
+            severity: "error",
+            message: error.message,
+        });
+        throw Object.assign(new Error(message), { located: true });
+    }
     const manifest = buildManifest({ config, packageJson, artifact, flags });
 
     const errors = reportPackFolders(

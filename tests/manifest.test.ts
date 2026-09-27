@@ -378,7 +378,10 @@ describe("buildManifest", () => {
         const manifest = buildManifest({
             config: config({
                 packageBuild: {
-                    manifest: { descriptionHtml: "<p>The SoHL Foundry VTT system.</p>" },
+                    manifest: {
+                        title: "Song of Heroic Lands",
+                        descriptionHtml: "<p>The SoHL Foundry VTT system.</p>",
+                    },
                 },
             }) as never,
             packageJson,
@@ -457,6 +460,7 @@ describe("buildManifest", () => {
             {
                 packageBuild: {
                     manifest: {
+                        title: "Song of Heroic Lands",
                         flags: {
                             allowBugReporter: true,
                             sohl: { keep: "me" },
@@ -476,7 +480,9 @@ describe("buildManifest", () => {
 
     it("leaves declared flags alone when nothing is computed", () => {
         const manifest = build({
-            packageBuild: { manifest: { flags: { allowBugReporter: true } } },
+            packageBuild: {
+                manifest: { title: "Song of Heroic Lands", flags: { allowBugReporter: true } },
+            },
         });
 
         // The index URL is always written, so it stands beside the declared
@@ -512,6 +518,37 @@ describe("buildManifest", () => {
 });
 
 describe("writeManifest", () => {
+    it("refuses a missing or blank Foundry title before writing the manifest", async () => {
+        for (const title of [undefined, "", "  "]) {
+            const root = fs.mkdtempSync(path.join(os.tmpdir(), "pb-manifest-title-"));
+            const configFile = path.join(root, "package-build.config.yaml");
+            fs.writeFileSync(configFile, "packageBuild:\n  manifest: {}\n", "utf8");
+            const outDir = path.join(root, "stage");
+            await expect(
+                writeManifest({
+                    config: {
+                        foundryPackage: "bestiary",
+                        contentPackage: "bestiary",
+                        compatibility: { minimum: "14.359" },
+                        relationships: {},
+                        packs: [],
+                        packageBuild: { manifest: title === undefined ? {} : { title } },
+                    } as never,
+                    packageJson: {
+                        version: "0.1.0",
+                        repository: "https://github.com/HeroicLands/bestiary",
+                    },
+                    artifact: "module",
+                    outDir,
+                    configFile,
+                }),
+            ).rejects.toThrow(
+                /package-build\.config\.yaml:\d+:\d+: error: `packageBuild\.manifest\.title` must be a non-empty string/,
+            );
+            expect(fs.existsSync(path.join(outDir, "module.json"))).toBe(false);
+        }
+    });
+
     it("writes <artifact>.json into the stage, creating it", async () => {
         const outDir = path.join(fs.mkdtempSync(path.join(os.tmpdir(), "pb-manifest-")), "stage");
         const { path: written, manifest } = await writeManifest({

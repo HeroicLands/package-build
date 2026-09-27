@@ -175,7 +175,7 @@ describe("writeManifest reporting", () => {
             type: "Item",
             private: false,
         })),
-        packageBuild: { manifest: { packFolders } },
+        packageBuild: { manifest: { title: "X", packFolders } },
     });
 
     it("refuses to write a manifest whose folder names a missing pack", async () => {
