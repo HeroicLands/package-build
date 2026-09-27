@@ -11,6 +11,7 @@
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { canonicalDayOffset, daysInMonth } from "./calendars.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
+import { renderAddress } from "./address-render.mjs";
 
 /**
  * Resolve every declared reckoning marker against its calendar and era start.
@@ -18,126 +19,176 @@ import { parseNoteDate } from "./note-dates.mjs";
  *
  * @param {{notes?: readonly object[]}} index - The corpus link index.
  * @param {number} daysPerYear - The world's year length.
- * @returns {{markers: Map<string, object>, findings: object[]}} Resolved markers and errors.
+ * @returns {{eras: Map<string, object>, markers: Map<string, object>, findings: object[]}} Resolved eras, markers, and errors.
  */
 export function resolveReckoningMarkers(index, daysPerYear) {
     const declared = new Map();
+    const qualifiers = new Map();
+    const markerKeys = new Map();
+    const eras = new Map();
     const markers = new Map();
     const findings = [];
+    const failed = new Set();
+    const visiting = [];
+
+    const location = (row, key) => ({
+        ...(row.note.file === undefined ? {} : { file: row.note.file }),
+        ...(row.note.raw === undefined ?
+            {}
+        :   positionOfFrontmatterPath(row.note.raw, ["data", "eras", row.position, key])),
+    });
+    const finding = (row, key, message) =>
+        findings.push({
+            ...location(row, key),
+            severity: "error",
+            message,
+        });
+    const alias = (qualifier, key) => {
+        if (qualifiers.has(qualifier) && qualifiers.get(qualifier) !== key)
+            qualifiers.set(qualifier, null);
+        else qualifiers.set(qualifier, key);
+    };
 
     for (const note of index?.notes ?? []) {
         const fm = note?.fm ?? note?.frontmatter ?? note;
         if (fm?.type !== "lore" || fm?.subType !== "calendar") continue;
-        const eras = fm.data?.eras;
-        if (!Array.isArray(eras)) continue;
-        eras.forEach((row, position) => {
-            if (row?.marker === undefined) return;
-            const marker = row.marker;
-            const at = {
-                ...(note.file === undefined ? {} : { file: note.file }),
-                ...(note.raw === undefined ?
-                    {}
-                :   positionOfFrontmatterPath(note.raw, ["data", "eras", position, "marker"])),
-            };
-            if (typeof marker !== "string" || !/^[A-Z][A-Z0-9]*$/.test(marker)) {
-                findings.push({
-                    ...at,
-                    severity: "error",
-                    message:
-                        "an era marker is uppercase letters and digits, starting with a letter",
-                });
+        const rows = fm.data?.eras;
+        if (!Array.isArray(rows)) continue;
+        rows.forEach((era, position) => {
+            if (
+                !era ||
+                typeof era.shortcode !== "string" ||
+                !era.shortcode ||
+                typeof fm.shortcode !== "string" ||
+                !fm.shortcode
+            )
                 return;
-            }
-            if (declared.has(marker)) {
-                findings.push({
-                    ...at,
-                    severity: "error",
-                    message: `reckoning marker ${marker} is declared more than once`,
-                });
-                return;
-            }
-            declared.set(marker, {
-                marker,
-                era: `${fm.shortcode}.${row.shortcode}`,
+            const pkg = fm.package ?? note.package ?? index?.contentPackage;
+            const short = `${fm.shortcode}.${era.shortcode}`;
+            const key =
+                pkg ?
+                    renderAddress({ package: pkg, system: "note", type: "lore", shortcode: short })
+                :   short;
+            const row = {
+                key,
+                era: short,
                 calendar: fm.data,
-                start: row.start,
-                end: row.end,
+                marker: era.marker,
+                calendarShortcode: fm.shortcode,
+                label: era.label,
+                start: era.start,
+                end: era.end,
                 note,
                 position,
-            });
+            };
+            if (declared.has(key)) {
+                return;
+            }
+            declared.set(key, row);
+            alias(short, key);
+            if (pkg) {
+                alias(
+                    renderAddress({ package: pkg, system: "note", type: "lore", shortcode: short }),
+                    key,
+                );
+                alias(`note-lore-${short}`, key);
+                alias(`lore-${short}`, key);
+            }
+            if (era.marker === undefined) return;
+            if (typeof era.marker !== "string" || !/^[A-Z][A-Z0-9]*$/.test(era.marker)) {
+                finding(
+                    row,
+                    "marker",
+                    "an era marker is uppercase letters and digits, starting with a letter",
+                );
+                return;
+            }
+            if (markerKeys.has(era.marker)) {
+                finding(row, "marker", `reckoning marker ${era.marker} is declared more than once`);
+                return;
+            }
+            markerKeys.set(era.marker, key);
         });
     }
 
-    const visiting = new Set();
-    const failed = new Set();
-    function resolve(marker) {
-        if (markers.has(marker)) return markers.get(marker);
-        if (failed.has(marker)) return null;
-        const row = declared.get(marker);
-        if (!row) return null;
-        if (visiting.has(marker)) {
-            findings.push({
-                ...(row.note.file === undefined ? {} : { file: row.note.file }),
-                severity: "error",
-                message: `reckoning marker cycle includes ${[...visiting, marker].join(" → ")}`,
-            });
-            failed.add(marker);
+    for (const [qualifier, key] of qualifiers)
+        if (key === null) eras.set(qualifier, { ambiguous: true });
+
+    function resolve(key) {
+        if (key === null || !declared.has(key) || failed.has(key)) return null;
+        const row = declared.get(key);
+        if (eras.has(key)) return eras.get(key);
+        if (visiting.includes(key)) {
+            const members = [...visiting.slice(visiting.indexOf(key)), key].map(
+                (member) => declared.get(member).era,
+            );
+            finding(row, "start", `calendar era cycle includes ${members.join(" → ")}`);
+            for (const member of visiting.slice(visiting.indexOf(key))) failed.add(member);
             return null;
         }
-        visiting.add(marker);
+        visiting.push(key);
         if (row.start === undefined || row.start === null) {
-            findings.push({
-                ...(row.note.file === undefined ? {} : { file: row.note.file }),
-                severity: "error",
-                message: `reckoning marker ${marker} needs an era start`,
-            });
-            failed.add(marker);
+            finding(row, "start", `calendar era ${row.era} needs a start`);
+            failed.add(key);
         }
+        const source = typeof row.start === "string" ? row.start.trim() : "";
+        const marker = /^([A-Z][A-Z0-9]*)\(/.exec(source)?.[1];
+        const qualifier = /\s+([^\s]+\.[^\s]+)$/.exec(source)?.[1];
         const dependency =
-            typeof row.start === "string" ? /^([A-Z][A-Z0-9]*)\(/.exec(row.start)?.[1] : null;
-        if (dependency && !failed.has(marker)) resolve(dependency);
-        if (!failed.has(marker)) {
+            marker ? markerKeys.get(marker)
+            : qualifier ? qualifiers.get(qualifier)
+            : null;
+        if (dependency && !failed.has(key)) resolve(dependency);
+        if (!failed.has(key)) {
             const parsed = parseNoteDate(row.start, {
                 markers,
+                eras,
                 daysPerYear,
                 field: "data.eras.start",
                 allowUnknown: false,
-                file: row.note.file,
+                ...location(row, "start"),
                 raw: row.note.raw,
                 keyPath: ["data", "eras", row.position, "start"],
             });
             findings.push(...parsed.findings);
             if (
-                parsed.date?.known &&
-                Number.isSafeInteger(parsed.date.canonicalYear) &&
-                parsed.findings.every((f) => f.severity !== "error")
+                Number.isSafeInteger(parsed.date?.canonicalYear) &&
+                parsed.findings.every((item) => item.severity !== "error")
             ) {
                 const entry = {
                     era: row.era,
+                    qualifier: row.key,
+                    marker: row.marker,
+                    firstEra: row.position === 0,
                     calendar: row.calendar,
+                    calendarShortcode: row.calendarShortcode,
+                    label: row.label,
                     epochYear: parsed.date.canonicalYear,
                     epochDay: parsed.date.canonicalDay ?? 1,
                 };
-                markers.set(marker, entry);
-            } else {
-                if (parsed.date && parsed.findings.length === 0)
-                    findings.push({
-                        ...(row.note.file === undefined ? {} : { file: row.note.file }),
-                        severity: "error",
-                        message: `reckoning marker ${marker} needs a canonically resolved era start`,
-                    });
-                failed.add(marker);
-            }
+                if (Number.isSafeInteger(daysPerYear) && daysPerYear > 0)
+                    entry.startOffset = canonicalDayOffset(
+                        entry.epochYear,
+                        entry.epochDay,
+                        1,
+                        daysPerYear,
+                    );
+                eras.set(key, entry);
+                for (const [name, owner] of qualifiers) if (owner === key) eras.set(name, entry);
+                if (row.marker && markerKeys.get(row.marker) === key)
+                    markers.set(row.marker, entry);
+            } else failed.add(key);
         }
-        visiting.delete(marker);
-        return markers.get(marker) ?? null;
+        visiting.pop();
+        return eras.get(key) ?? null;
     }
-    for (const marker of declared.keys()) resolve(marker);
-    for (const [marker, row] of declared) {
-        const entry = markers.get(marker);
+    for (const key of declared.keys()) resolve(key);
+    for (const row of declared.values()) {
+        const entry = eras.get(row.key);
         if (!entry || row.end === undefined || row.end === null) continue;
         const parsed = parseNoteDate(row.end, {
             markers,
+            eras,
             daysPerYear,
             field: "data.eras.end",
             allowUnknown: false,
@@ -146,13 +197,13 @@ export function resolveReckoningMarkers(index, daysPerYear) {
             keyPath: ["data", "eras", row.position, "end"],
         });
         findings.push(...parsed.findings);
-        if (!Number.isSafeInteger(parsed.date?.canonicalYear)) {
-            if (parsed.date && parsed.findings.length === 0)
-                findings.push({
-                    ...(row.note.file === undefined ? {} : { file: row.note.file }),
-                    severity: "error",
-                    message: `reckoning marker ${marker} needs a canonically resolved era end`,
-                });
+        if (!Number.isSafeInteger(parsed.date?.canonicalYear)) continue;
+        if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1) {
+            finding(
+                row,
+                "end",
+                `calendar era ${row.era} needs the world's year length to bound its end`,
+            );
             continue;
         }
         const firstEndDay = canonicalDayOffset(
@@ -164,21 +215,52 @@ export function resolveReckoningMarkers(index, daysPerYear) {
         const extraDays =
             parsed.date.precision === "year" ? daysPerYear - 1
             : parsed.date.precision === "month" ?
-                (daysInMonth(markers.get(parsed.date.marker)?.calendar, parsed.date.month) ?? 1) - 1
+                (daysInMonth(
+                    markers.get(parsed.date.marker)?.calendar ??
+                        eras.get(parsed.date.qualifier)?.calendar,
+                    parsed.date.month,
+                ) ?? 1) - 1
             :   0;
         const endOffset = firstEndDay + extraDays;
         const startOffset = canonicalDayOffset(entry.epochYear, entry.epochDay, 1, daysPerYear);
         if (endOffset < startOffset) {
-            findings.push({
-                ...(row.note.file === undefined ? {} : { file: row.note.file }),
-                severity: "error",
-                message: `reckoning marker ${marker} ends before its era starts`,
-            });
+            finding(row, "end", `calendar era ${row.era} ends before its start`);
             continue;
         }
         entry.endOffset = endOffset;
     }
-    return { markers, findings };
+    const calendars = new Map();
+    for (const row of declared.values()) {
+        const rows = calendars.get(row.note) ?? [];
+        rows.push(row);
+        calendars.set(row.note, rows);
+    }
+    for (const rows of calendars.values()) {
+        for (let position = 0; position < rows.length; position++) {
+            const row = rows[position];
+            const entry = eras.get(row.key);
+            if (!entry || !Number.isSafeInteger(entry.startOffset)) continue;
+            entry.firstEra = position === 0;
+            const next = rows[position + 1];
+            if (!next) continue;
+            const following = eras.get(next.key);
+            if (!following || !Number.isSafeInteger(following.startOffset)) continue;
+            if (following.startOffset <= entry.startOffset) {
+                finding(
+                    next,
+                    "start",
+                    `calendar eras ${row.era} and ${next.era} must begin in increasing order`,
+                );
+                continue;
+            }
+            if (entry.endOffset !== undefined && entry.endOffset >= following.startOffset) {
+                finding(next, "start", `calendar eras ${row.era} and ${next.era} overlap`);
+                continue;
+            }
+            if (entry.endOffset === undefined) entry.endOffset = following.startOffset - 1;
+        }
+    }
+    return { eras, markers, findings };
 }
 
 /** One resolved date context per corpus index, shared by its note checks. */
@@ -188,11 +270,11 @@ const contexts = new WeakMap();
  * Read the world's year length and its era markers from one corpus index.
  *
  * @param {{notes?: readonly object[]}|undefined} index - The corpus index.
- * @returns {{markers: Map<string, object>, daysPerYear: number|undefined, findings: object[]}}
+ * @returns {{eras: Map<string, object>, markers: Map<string, object>, daysPerYear: number|undefined, findings: object[]}}
  */
 export function reckoningContext(index) {
     if (!index || typeof index !== "object")
-        return { markers: new Map(), daysPerYear: undefined, findings: [] };
+        return { eras: new Map(), markers: new Map(), daysPerYear: undefined, findings: [] };
     const cached = contexts.get(index);
     if (cached) return cached;
     const world = (index.notes ?? []).find((note) => {

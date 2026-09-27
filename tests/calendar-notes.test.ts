@@ -278,6 +278,30 @@ describe("the family belongs to a calendar note and to no other lore note", () =
         const findings = checkCalendarNote(unnamed, { index: index(worldNote(), unnamed) });
         expect(findings[0].message).toContain("`<calendar shortcode>.<era shortcode>`");
     });
+
+    it("checks an era's optional printable label", () => {
+        const valid = calendarNote({
+            eras: [
+                {
+                    shortcode: "founding",
+                    start: 1,
+                    label: { after: "{date} AF", before: "{date} BF" },
+                },
+            ],
+        });
+        expect(checkCalendarNote(valid, { index: index(worldNote(), valid) })).toEqual([]);
+        const invalid = calendarNote({
+            eras: [{ shortcode: "founding", start: 1, label: { after: "AF", other: "{date}" } }],
+        });
+        expect(
+            checkCalendarNote(invalid, { index: index(worldNote(), invalid) }).map(
+                (f) => f.message,
+            ),
+        ).toEqual([
+            expect.stringContaining("exactly one {date}"),
+            expect.stringContaining("after or before"),
+        ]);
+    });
 });
 
 describe("a world fact is written on a body", () => {

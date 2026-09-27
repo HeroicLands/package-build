@@ -119,6 +119,7 @@ import { NOTE_VOCABULARY, dataFields } from "./note-vocabulary.mjs";
 import { readAliasedField } from "./retired-fields.mjs";
 import { subtypeRow } from "./document-subtypes.mjs";
 import { authoredKey } from "./system-block.mjs";
+import { formatDateInCalendar, formatNoteDate, parseNoteDate } from "./note-dates.mjs";
 
 /**
  * How a section arranges what it holds.
@@ -701,7 +702,7 @@ export function noteInfobox(fm, options = {}) {
  */
 function noteBox(
     fm,
-    { resolve, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
+    { resolve, dates, vocabulary = NOTE_VOCABULARY, presentation = NOTE_FIELD_PRESENTATION } = {},
 ) {
     const rows = [];
     /** @type {Set<string>} */
@@ -721,7 +722,34 @@ function noteBox(
         // The current name wins, which is the whole of the retirement window's
         // behaviour and is `readAliasedField`'s answer, not a second one.
         const own = getFrontmatter(data, field.name, undefined);
-        const raw = own !== undefined ? own : readAliasedField(fm, field.name, { inData: true });
+        let raw = own !== undefined ? own : readAliasedField(fm, field.name, { inData: true });
+        if (
+            ((fm?.type === "being" && ["born", "died"].includes(field.name)) ||
+                (fm?.type === "place" && field.name === "present")) &&
+            dates
+        ) {
+            const parsed = parseNoteDate(raw, dates).date;
+            const era =
+                parsed?.marker ? dates.markers?.get(parsed.marker)
+                : parsed?.qualifier ? dates.eras?.get(parsed.qualifier)
+                : null;
+            let printable = null;
+            if (parsed?.known && data.calendar) {
+                try {
+                    printable = formatDateInCalendar(
+                        parsed,
+                        isAddressTuple(data.calendar) ?
+                            renderAddress(data.calendar)
+                        :   data.calendar,
+                        dates,
+                    );
+                } catch {
+                    // The calendar reference is checked at the authored field.
+                }
+            }
+            printable ??= formatNoteDate(parsed, era, dates.daysPerYear);
+            if (printable) raw = printable.prose ?? printable.text;
+        }
         const structured = structuredRows(
             field,
             raw,
@@ -956,9 +984,10 @@ export function buildInfoboxes(fm, options) {
         resolveField,
         resolve,
         vocabulary = NOTE_VOCABULARY,
+        dates,
     } = options;
 
-    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary });
+    const { box: note, shown: taken } = noteBox(fm, { resolve, vocabulary, dates });
     const boxes = [note];
 
     for (const map of maps ?? []) {

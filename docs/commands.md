@@ -201,6 +201,85 @@ $ package-build calendars --calendaria-version 1.4.2
 
 `content-build content-index`, [Getting started](getting-started.md).
 
+### `package-build datefrom`
+
+**NAME**
+
+Convert a day in an authored calendar to a canonical date.
+
+**SYNOPSIS**
+
+```
+package-build datefrom <calendar> <date>
+```
+
+**DESCRIPTION**
+
+Reads the current content tree, resolves its world year and calendar eras, and
+prints `<year>.<day>[:HHMMSS]` to standard output. `<calendar>` is a calendar
+shortcode, full Address, or addressed era. A date in a calendar with multiple
+eras must identify its era with a marker or addressed qualifier. A calendar
+with one era also accepts a bare calendar day. A date must specify a day;
+year-only and month-only dates do not identify one canonical day.
+
+**OPTIONS**
+
+None.
+
+**EXIT STATUS**
+
+1 if the content tree or calendar is invalid, the era is missing or mismatched,
+or the date cannot be resolved to one day. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build datefrom vrcal 'VR(720/5/14)'
+720.134
+```
+
+**SEE ALSO**
+
+`package-build dateto`, [Content format](content-format.md).
+
+### `package-build dateto`
+
+**NAME**
+
+Express a canonical day in an authored calendar.
+
+**SYNOPSIS**
+
+```
+package-build dateto <calendar> <canonical-date>
+```
+
+**DESCRIPTION**
+
+Reads the current content tree, selects the era covering the canonical day, and
+prints the calendar date with its era marker or addressed qualifier. The input
+is `<year>.<day>[:HHMMSS]`. A date in a gap between eras has no conversion.
+
+**OPTIONS**
+
+None.
+
+**EXIT STATUS**
+
+1 if the content tree or calendar is invalid, the canonical date is invalid,
+or no era covers that day. Otherwise 0.
+
+**EXAMPLES**
+
+```
+$ package-build dateto vrcal 720.134
+VR(720/5/14)
+```
+
+**SEE ALSO**
+
+`package-build datefrom`, [Content format](content-format.md).
+
 ### `package-build schema`
 
 **NAME**

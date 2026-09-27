@@ -63,6 +63,7 @@ import { BasePackCompiler } from "./base-compiler.mjs";
 import { anchorPageId, resolveReference } from "./wikilinks.mjs";
 import { infoboxesToHtml, linkToUuid } from "./infobox-render.mjs";
 import { noteInfoboxes } from "./infobox-registry.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 import { hasDocEntry, itemDocEntryId } from "./item-docs.mjs";
 import { JOURNAL_TYPES } from "./ids.mjs";
 import { journalHasContent } from "./note-state.mjs";
@@ -475,6 +476,7 @@ export class Journals extends BasePackCompiler {
             // This compile's own router, so the panel's `available` is decided
             // by the pack list this build is being driven by.
             router: this.router,
+            dates: reckoningContext(this.linkIndex),
         });
 
         return buildJournalEntry({

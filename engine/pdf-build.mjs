@@ -102,6 +102,7 @@ import { resolveWebWikilinks } from "./web-wikilinks.mjs";
 import { linkFindingMessage } from "./wikilink-syntax.mjs";
 import { artPathname, assetAddressIndex } from "./art-fields.mjs";
 import { expandContentTables } from "./content-tables.mjs";
+import { renderMarkdownExpressions } from "./markdown-expressions.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { protectCode } from "./code-fences.mjs";
 import { imageSourcesIn } from "./content-images.mjs";
@@ -515,7 +516,17 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         // Code fences are protected for the same reason every other pass
         // protects them: a wikilink shown as an example is prose about a
         // wikilink, and resolving it would make the example impossible to write.
-        const resolvedBody = protectCode(markdown, (text) => resolveWebWikilinks(text, linkCtx));
+        const expressions = renderMarkdownExpressions(markdown, {
+            fm: page.fm,
+            dates: gates.index.dateContext,
+            sqlResults: sqlTables?.inline?.get(page.file),
+            file: page.file,
+            bodyLine: page.bodyLine,
+        });
+        findings.push(...expressions.findings);
+        const resolvedBody = protectCode(expressions.markdown, (text) =>
+            resolveWebWikilinks(text, linkCtx),
+        );
         for (const err of wikiErrors) {
             findings.push({
                 file: page.file,
@@ -551,6 +562,7 @@ export async function buildPdf({ config, out, version = "", compile = true } = {
         const boxes = noteInfoboxes(page.fm, {
             resolve: (ref, hint) => resolveInfoboxRef(gates.index, ref, hint),
             router: routerFor(resolved),
+            dates: gates.index.dateContext,
         });
         const panel = infoboxesToTypst(boxes, {
             link: (value) => linkToTypst(value, plan.links, labelFor),

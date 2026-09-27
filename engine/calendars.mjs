@@ -104,6 +104,13 @@ export function canonicalYear(year, epoch = CANONICAL_EPOCH) {
     return epoch + (year > 0 ? year - 1 : year);
 }
 
+/** The signed year a reckoning counts at a canonical year, without year zero. */
+export function eraYear(canonical, epoch = CANONICAL_EPOCH) {
+    if (!Number.isSafeInteger(canonical) || !Number.isSafeInteger(epoch))
+        throw new RangeError("era conversion needs whole canonical and epoch years");
+    return canonical >= epoch ? canonical - epoch + 1 : canonical - epoch;
+}
+
 /**
  * The total-order key a date sorts on.
  *

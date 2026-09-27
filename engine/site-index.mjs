@@ -65,6 +65,7 @@ import {
 } from "./address.mjs";
 import { NOTE_SYSTEM } from "./systems.mjs";
 import { contentPackage } from "./content-package.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 // The declared tag vocabulary, which is where `draft` is stated.
 import { isDraftNote } from "./note-vocabulary.mjs";
 
@@ -252,6 +253,7 @@ export function buildSiteIndex(
 
     return {
         contentPackage: ownPackage,
+        dateContext: reckoningContext({ notes: records }),
         referenceTargets: buildReferenceTargets(records, new Map([...foreignReferences, ...index])),
         index,
         ambiguous,

@@ -36,6 +36,7 @@ import path from "node:path";
 import { FENCE_LINE, parseHeaderArgs } from "./code-fences.mjs";
 import { MARKET_CLASSES } from "./market-class.mjs";
 import { parseMarkdownFile } from "./helpers.mjs";
+import { sqlQueriesInMarkdown } from "./markdown-expressions.mjs";
 // The record accessors only — see `engine/index-records.mjs`.
 import { isNoteRecord, noteFile, sortKeysDeep } from "./index-records.mjs";
 
@@ -589,6 +590,40 @@ export async function prepareSqlTables(db, sources, { linkable } = {}) {
     return prepared;
 }
 
+/** Evaluate scalar SQL calls before synchronous Markdown renderers run. */
+export async function prepareInlineSqlExpressions(db, sources) {
+    const byNote = new Map();
+    const cache = new Map();
+    for (const { source, markdown, frontmatter } of sources) {
+        const queries = sqlQueriesInMarkdown(markdown, frontmatter);
+        if (!queries.length) continue;
+        const values = new Map();
+        byNote.set(source, values);
+        for (const query of queries) {
+            if (!cache.has(query)) {
+                try {
+                    const result = await db.query(query);
+                    if (result.columnNames.length !== 1 || result.rows.length !== 1)
+                        throw new RangeError("scalar SQL needs exactly one column and one row");
+                    const value = result.rows[0][result.columnNames[0]];
+                    if (
+                        value !== null &&
+                        !["string", "number", "boolean", "bigint"].includes(typeof value)
+                    )
+                        throw new TypeError(
+                            "scalar SQL result must be a number, string, Boolean, or null",
+                        );
+                    cache.set(query, { value });
+                } catch (error) {
+                    cache.set(query, { error: String(error?.message ?? error).split("\n")[0] });
+                }
+            }
+            values.set(query, cache.get(query));
+        }
+    }
+    return byNote;
+}
+
 /**
  * Answer every `sql` directive in a content tree.
  *
@@ -633,8 +668,9 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     for (const record of indexRecords) {
         if (!isNoteRecord(record)) continue;
         const absPath = noteFile(contentBase, record);
-        const { body } = parseMarkdownFile(absPath);
-        if (body && findSqlBlocks(body).length) sources.push({ source: absPath, markdown: body });
+        const { body, frontmatter } = parseMarkdownFile(absPath);
+        if (body && (findSqlBlocks(body).length || sqlQueriesInMarkdown(body, frontmatter).length))
+            sources.push({ source: absPath, markdown: body, frontmatter });
     }
     if (!sources.length) return undefined;
     // A cell links only where the address it would emit resolves, so a table
@@ -666,9 +702,11 @@ export async function prepareTreeSqlTables(contentBase, { config, skipDirectorie
     }
     const db = await openNotesDatabase(indexRecords, { dependencies });
     try {
-        return await prepareSqlTables(db, sources, {
+        const prepared = await prepareSqlTables(db, sources, {
             linkable: (ref) => addresses.has(renderAddress(ref)),
         });
+        prepared.inline = await prepareInlineSqlExpressions(db, sources);
+        return prepared;
     } finally {
         await db.close();
     }

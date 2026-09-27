@@ -116,7 +116,8 @@
 // `engine/systems.mjs` imports nothing but `engine/address-charset.mjs`, so the
 // direction is toward the leaf and cannot close a cycle.
 import { isAddressSegment } from "./address-charset.mjs";
-import { NO_SYSTEM, NOTE_SYSTEM, assertSystemSegment, isSystemSegment } from "./systems.mjs";
+import { NO_SYSTEM, NOTE_SYSTEM, isSystemSegment } from "./systems.mjs";
+import { renderAddress } from "./address-render.mjs";
 // Document subtype maps identify the system of a note's own Actor or Item.
 import { systemOf } from "./document-subtypes.mjs";
 import { KNOWN_DOCUMENT_SUBTYPE_MAPS } from "./subtype-registry.mjs";
@@ -128,6 +129,7 @@ import { HOMEPAGE_TYPE } from "./homepage.mjs";
 import { loadPackConfig } from "./pack-config.mjs";
 
 export { NO_SYSTEM };
+export { renderAddress };
 
 /**
  * The one character that separates an Address's segments.
@@ -340,25 +342,6 @@ function addressTuple(value) {
         return value;
     TUPLES.add(value);
     return Object.freeze(value);
-}
-
-/**
- * Render a complete Address as its canonical string.
- *
- * Lowercased, because an Address has one spelling: two names differing only in
- * case are two names nobody can tell apart.
- *
- * @param {AddressTuple} tuple - The complete Address.
- * @returns {string} `package-system-type-shortcode`.
- */
-export function renderAddress(tuple) {
-    const { package: pkg, system, type, shortcode } = tuple;
-    // Checked where an address is *written*, not where one is read: a fetched
-    // index naming a system this build has never heard of is data to report,
-    // while emitting one is a defect in this build. The registry is closed, so
-    // an unknown value here can only be a typo or a system nobody declared.
-    assertSystemSegment(system, `the address of ${type}-${shortcode}`);
-    return `${pkg}-${system}-${type}-${shortcode}`.toLowerCase();
 }
 
 /**

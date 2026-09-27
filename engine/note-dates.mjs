@@ -38,6 +38,8 @@ import {
     dateSortKey,
     dayOfYear,
     daysInMonth,
+    eraYear,
+    monthDayOfYear,
     parseCanonicalDate,
 } from "./calendars.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
@@ -78,7 +80,7 @@ export const ERA_QUALIFIER_PATTERN = new RegExp(`^${ERA}$`);
  * @type {RegExp}
  */
 export const NOTE_DATE_PATTERN = new RegExp(
-    `^(~)?\\s*(-?\\d+)(?:/(\\d+)(?:/(\\d+))?)?(?:\\s+(${ERA}))?$`,
+    `^(~)?\\s*(-?\\d+)(?:/(\\d+)(?:/(\\d+)(?::(\\d{6}))?)?)?(?:\\s+(${ERA}))?$`,
 );
 
 /** A day written with no month — ungrammatical, and worth its own sentence. */
@@ -129,6 +131,10 @@ function unknownRecord() {
  *   the month it names. A calendar that declares no list bounds nothing.
  * @param {Map<string, object>} [options.markers] - Resolved era markers from
  *   the corpus, each carrying its calendar and canonical start.
+ * @param {Map<string, object>} [options.eras] - Resolved calendar eras, keyed
+ *   by their addressed qualifier.
+ * @param {boolean} [options.ignoreEraBounds=false] - Parse a calendar row's
+ *   own boundary in a referenced era without applying that era's note span.
  * @param {number} [options.daysPerYear] - The world's year length, required for
  *   canonical days and marked dates.
  * @param {string} [options.field] - The key that carried it, named in every
@@ -147,6 +153,8 @@ export function parseNoteDate(value, options) {
     const {
         calendar,
         markers,
+        eras,
+        ignoreEraBounds = false,
         daysPerYear,
         field,
         allowUnknown = true,
@@ -178,6 +186,59 @@ export function parseNoteDate(value, options) {
         return { date: null, findings };
     };
 
+    const resolveEra = (parsed, reckoning, label, marker) => {
+        if (!ignoreEraBounds && parsed.year < 0 && reckoning.firstEra === false)
+            return refuse(
+                `${subject} counts backward from ${label}, but only the first era of a calendar may do so`,
+            );
+        if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1)
+            return refuse(`${subject} needs the world's year length to resolve ${label}`);
+        const { months } = calendarStructure(reckoning.calendar);
+        if (!months) return refuse(`${subject} names ${label}, whose calendar declares no months`);
+        if (parsed.month !== null && parsed.month > months.length)
+            return refuse(
+                `${subject} writes month ${parsed.month}, and ${label} keeps ${months.length} months`,
+            );
+        const length = parsed.month === null ? null : daysInMonth(reckoning.calendar, parsed.month);
+        if (parsed.day !== null && length !== null && parsed.day > length)
+            return refuse(
+                `${subject} writes day ${parsed.day}, and month ${parsed.month} is ${length} days long`,
+            );
+        const ordinal = dayOfYear(months, parsed.month ?? 1, parsed.day ?? 1);
+        const start = canonicalDayOffset(reckoning.epochYear, reckoning.epochDay, 1, daysPerYear);
+        const yearOffset = parsed.year > 0 ? parsed.year - 1 : parsed.year;
+        const offset = start + yearOffset * daysPerYear + ordinal - 1;
+        if (!Number.isSafeInteger(offset))
+            return refuse(`${subject} lies outside the supported canonical day range`);
+        const spanDays =
+            parsed.precision === "year" ? daysPerYear
+            : parsed.precision === "month" ? length
+            : 1;
+        if (
+            !ignoreEraBounds &&
+            reckoning.endOffset !== undefined &&
+            offset + spanDays - 1 > reckoning.endOffset
+        )
+            return refuse(`${subject} lies after the end of ${label}`);
+        const canonical = canonicalDateFromOffset(offset, 1, daysPerYear);
+        return {
+            date: {
+                ...parsed,
+                text,
+                era: reckoning.era,
+                qualifier: reckoning.qualifier,
+                ...(marker ? { marker } : {}),
+                canonicalYear: canonical.year,
+                canonicalDay: canonical.day,
+                spanDays,
+                sort:
+                    canonical.year +
+                    (canonical.day - 1 + (parsed.seconds ?? 0) / 86400) / daysPerYear,
+            },
+            findings,
+        };
+    };
+
     if (text.trim() === UNKNOWN_DATE) {
         if (allowUnknown) return { date: unknownRecord(), findings };
         return refuse(
@@ -194,8 +255,6 @@ export function parseNoteDate(value, options) {
         const [, marker, payload] = marked;
         const reckoning = markers?.get(marker);
         if (!reckoning) return refuse(`${subject} names unknown reckoning marker ${marker}`);
-        if (!Number.isSafeInteger(daysPerYear) || daysPerYear < 1)
-            return refuse(`${subject} needs the world's year length to resolve ${marker}`);
         const parsed = parseNoteDate(payload, {
             calendar: reckoning.calendar,
             field,
@@ -206,6 +265,7 @@ export function parseNoteDate(value, options) {
         });
         if (parsed.findings.some((finding) => finding.severity === "error") || !parsed.date)
             return { date: null, findings: parsed.findings };
+        findings.push(...parsed.findings);
         if (!parsed.date.known)
             return refuse(`${subject} wraps an unknown date; write \`unknown\` by itself`);
         if (parsed.date.era !== null)
@@ -216,29 +276,7 @@ export function parseNoteDate(value, options) {
             return refuse(
                 `${subject} puts a canonical day inside ${marker}; write its calendar month and day`,
             );
-        const { months } = calendarStructure(reckoning.calendar);
-        if (!months) return refuse(`${subject} names ${marker}, whose calendar declares no months`);
-        const ordinal = dayOfYear(months, parsed.date.month ?? 1, parsed.date.day ?? 1);
-        const start = canonicalDayOffset(reckoning.epochYear, reckoning.epochDay, 1, daysPerYear);
-        const yearOffset = parsed.date.year > 0 ? parsed.date.year - 1 : parsed.date.year;
-        const offset = start + yearOffset * daysPerYear + ordinal - 1;
-        if (!Number.isSafeInteger(offset))
-            return refuse(`${subject} lies outside the supported canonical day range`);
-        if (reckoning.endOffset !== undefined && offset > reckoning.endOffset)
-            return refuse(`${subject} lies after the end of reckoning marker ${marker}`);
-        const canonical = canonicalDateFromOffset(offset, 1, daysPerYear);
-        return {
-            date: {
-                ...parsed.date,
-                text,
-                era: reckoning.era,
-                marker,
-                canonicalYear: canonical.year,
-                canonicalDay: canonical.day,
-                sort: canonical.year + (canonical.day - 1) / daysPerYear,
-            },
-            findings: parsed.findings,
-        };
+        return resolveEra(parsed.date, reckoning, `reckoning marker ${marker}`, marker);
     }
 
     if (trimmed.includes(".")) {
@@ -256,6 +294,7 @@ export function parseNoteDate(value, options) {
                     precision: "day",
                     canonicalYear: canonical.year,
                     canonicalDay: canonical.day,
+                    spanDays: 1,
                     ...(canonical.seconds === undefined ? {} : { seconds: canonical.seconds }),
                     sort:
                         canonical.year +
@@ -303,11 +342,17 @@ export function parseNoteDate(value, options) {
         );
     }
 
-    const [, tilde, yearText, monthText, dayText, era] = match;
+    const [, tilde, yearText, monthText, dayText, timeText, era] = match;
     const approximate = tilde === "~";
     const year = Number(yearText);
     const month = monthText === undefined ? null : Number(monthText);
     const day = dayText === undefined ? null : Number(dayText);
+    const seconds =
+        timeText === undefined ? undefined : (
+            Number(timeText.slice(0, 2)) * 3600 +
+            Number(timeText.slice(2, 4)) * 60 +
+            Number(timeText.slice(4, 6))
+        );
     if (
         !Number.isSafeInteger(year) ||
         (month !== null && !Number.isSafeInteger(month)) ||
@@ -325,6 +370,13 @@ export function parseNoteDate(value, options) {
                 `side of an epoch are -1 and 1`,
         );
     }
+    if (
+        timeText !== undefined &&
+        (Number(timeText.slice(0, 2)) > 23 ||
+            Number(timeText.slice(2, 4)) > 59 ||
+            Number(timeText.slice(4, 6)) > 59)
+    )
+        return refuse(`${subject} needs a 24-hour time in HHMMSS form`);
 
     const { months } = calendarStructure(calendar);
     if (month !== null && month < 1) {
@@ -376,15 +428,175 @@ export function parseNoteDate(value, options) {
         year,
         month,
         day,
+        ...(seconds === undefined ? {} : { seconds }),
         approximate,
         precision,
     };
     // A named era's epoch is a fact the corpus states, so the numbers derived
     // from it are written by the pass that resolves it and are absent until
     // then. A bare value is already on the axis.
+    if (era !== undefined && eras) {
+        const reckoning = eras.get(era);
+        if (reckoning?.ambiguous)
+            return refuse(
+                `${subject} names ambiguous calendar era ${era}; qualify its package and system`,
+            );
+        if (!reckoning) return refuse(`${subject} names unknown calendar era ${era}`);
+        return resolveEra(date, reckoning, `calendar era ${era}`);
+    }
     if (era === undefined) {
         date.canonicalYear = canonicalYear(year);
-        date.sort = dateSortKey(date.canonicalYear, month, day);
+        if (precision === "year" && Number.isSafeInteger(daysPerYear)) date.spanDays = daysPerYear;
+        date.sort =
+            dateSortKey(date.canonicalYear, month, day) +
+            (seconds ?? 0) / 86400 / (daysPerYear ?? 1);
     }
     return { date, findings };
+}
+
+/** Select the single era covering the full precision of a resolved date. */
+export function eraCovering(date, eraRows, daysPerYear) {
+    if (
+        !date?.known ||
+        !Number.isSafeInteger(date.canonicalYear) ||
+        !Number.isSafeInteger(daysPerYear) ||
+        !Number.isSafeInteger(date.spanDays)
+    )
+        return null;
+    const start = canonicalDayOffset(date.canonicalYear, date.canonicalDay ?? 1, 1, daysPerYear);
+    const end = start + date.spanDays - 1;
+    const matches = [...new Set(eraRows ?? [])].filter(
+        (era) =>
+            Number.isSafeInteger(era?.startOffset) &&
+            (era.firstEra === true || era.startOffset <= start) &&
+            (era.endOffset === undefined || end <= era.endOffset),
+    );
+    if (matches.length > 1)
+        throw new RangeError(
+            `date is covered by overlapping eras ${matches.map((era) => era.era).join(", ")}`,
+        );
+    return matches[0] ?? null;
+}
+
+/** Resolve a calendar or one of its eras from an Address or shortcode. */
+export function calendarEras(reference, context) {
+    const name = String(reference ?? "");
+    const rows = [...new Set(context?.eras?.values() ?? [])].filter(
+        (era) => era && !era.ambiguous && era.era,
+    );
+    const explicit = context?.eras?.get(name);
+    if (explicit?.ambiguous) throw new RangeError(`calendar era ${name} is ambiguous`);
+    if (explicit?.era) return [explicit];
+    const calendars = new Map();
+    for (const era of rows) {
+        const full = era.qualifier.slice(0, -(era.era.split(".").at(-1).length + 1));
+        const short = era.calendarShortcode;
+        if ([full, short, `lore-${short}`, `note-lore-${short}`].includes(name)) {
+            const list = calendars.get(full) ?? [];
+            list.push(era);
+            calendars.set(full, list);
+        }
+    }
+    if (calendars.size === 0) throw new RangeError(`calendar ${name} does not resolve`);
+    if (calendars.size > 1)
+        throw new RangeError(`calendar ${name} is ambiguous; use its full Address`);
+    return [...calendars.values()][0];
+}
+
+/** Print a resolved date using the era active in one addressed calendar. */
+export function formatDateInCalendar(date, reference, context) {
+    const eras = calendarEras(reference, context);
+    const chosen = eraCovering(date, eras, context?.daysPerYear);
+    const name = String(reference ?? "");
+    if (context?.eras?.get(name)?.era && chosen === null)
+        throw new RangeError(`date falls outside calendar era ${name}`);
+    return formatNoteDate(date, chosen, context?.daysPerYear);
+}
+
+/** Print a resolved date in one era, retaining its authored precision. */
+export function formatNoteDate(date, era, daysPerYear) {
+    if (!date?.known || !Number.isSafeInteger(date.canonicalYear)) return null;
+    if (!era) return { era: null, year: eraYear(date.canonicalYear), text: date.text, prose: null };
+    if (!Number.isSafeInteger(daysPerYear) || !Number.isSafeInteger(date.spanDays)) return null;
+    const target = era;
+    const start = canonicalDayOffset(date.canonicalYear, date.canonicalDay ?? 1, 1, daysPerYear);
+    if (start < target.startOffset && target.firstEra !== true) return null;
+    if (target.endOffset !== undefined && start + date.spanDays - 1 > target.endOffset) return null;
+    const epoch =
+        target.startOffset ??
+        canonicalDayOffset(target.epochYear, target.epochDay ?? 1, 1, daysPerYear);
+    const delta = start - epoch;
+    const cycle = Math.floor(delta / daysPerYear);
+    const year = cycle >= 0 ? cycle + 1 : cycle;
+    if (Math.floor((delta + date.spanDays - 1) / daysPerYear) !== cycle) return null;
+
+    let month = null;
+    let day = null;
+    if (date.precision !== "year") {
+        const months = calendarStructure(target.calendar).months;
+        if (!months) return null;
+        const ordinal = (((delta % daysPerYear) + daysPerYear) % daysPerYear) + 1;
+        const named = monthDayOfYear(months, ordinal);
+        if (!named) return null;
+        month = named.month;
+        if (date.precision === "month") {
+            if (named.day !== 1 || date.spanDays !== daysInMonth(target.calendar, month))
+                return null;
+        } else day = named.day;
+    }
+    const sign = year < 0 ? "-" : "";
+    const clock =
+        date.seconds === undefined ?
+            ""
+        :   `:${String(Math.floor(date.seconds / 3600)).padStart(2, "0")}` +
+            `${String(Math.floor(date.seconds / 60) % 60).padStart(2, "0")}` +
+            `${String(date.seconds % 60).padStart(2, "0")}`;
+    const digits = `${Math.abs(year)}${month === null ? "" : `/${month}`}${day === null ? "" : `/${day}${clock}`}`;
+    const numeric = `${date.approximate ? "~" : ""}${sign}${digits}`;
+    const text =
+        target.marker ? `${target.marker}(${numeric})`
+        : target.qualifier ? `${numeric} ${target.qualifier}`
+        : numeric;
+    const label =
+        typeof target.label === "string" ?
+            target.label
+        :   target.label?.[year < 0 ? "before" : "after"];
+    const prose =
+        typeof label === "string" && label.includes("{date}") ?
+            label.replace("{date}", `${date.approximate ? "~" : ""}${digits}`)
+        :   null;
+    return { era, year, text, prose };
+}
+
+/** Normalize a note's declared dates for indexes and generated pages. */
+export function resolvedDateFields(fm, context) {
+    const fields =
+        fm?.type === "being" ?
+            [
+                ["born", fm.data?.born],
+                ["died", fm.data?.died],
+            ]
+        : fm?.type === "lore" ?
+            [
+                ["when", fm.data?.event?.when],
+                ["until", fm.data?.event?.until],
+            ]
+        :   [];
+    const out = {};
+    for (const [key, value] of fields) {
+        if (value === undefined || value === null) continue;
+        const parsed = parseNoteDate(value, {
+            ...context,
+            allowUnknown: key === "born" || key === "died",
+        });
+        if (parsed.date && !parsed.findings.some((finding) => finding.severity === "error")) {
+            const era =
+                parsed.date.marker ? context?.markers?.get(parsed.date.marker)
+                : parsed.date.qualifier ? context?.eras?.get(parsed.date.qualifier)
+                : null;
+            const printable = formatNoteDate(parsed.date, era, context?.daysPerYear);
+            out[key] = { ...parsed.date, prose: printable?.prose ?? null };
+        }
+    }
+    return out;
 }

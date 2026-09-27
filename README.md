@@ -332,6 +332,8 @@ package's build is `content-build`. See
 ```
 npx package-build clean [--distclean]
 npx package-build assets
+npx package-build datefrom <calendar> <date>
+npx package-build dateto <calendar> <canonical-date>
 npx package-build manifest
 npx package-build lang check
 npx package-build lang coverage [--unused]

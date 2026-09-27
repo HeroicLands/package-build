@@ -130,6 +130,15 @@ export * as calendars from "./calendars.mjs";
 /** A note's dates: one authored string, one grammar, one record shape. */
 export * as noteDates from "./note-dates.mjs";
 
+/** Exact day conversion between an authored calendar and the canonical axis. */
+export * as dateConversion from "./date-conversion.mjs";
+
+/** Inline frontmatter and date expressions in Markdown prose. */
+export * as markdownExpressions from "./markdown-expressions.mjs";
+
+/** A being's or place's chosen calendar note. */
+export * as calendarChoice from "./calendar-choice.mjs";
+
 /** Era markers resolved from calendar notes in a corpus. */
 export * as reckoningMarkers from "./reckoning-markers.mjs";
 

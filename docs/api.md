@@ -612,6 +612,7 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 | ------------------------- | ---------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
 | `CANONICAL_EPOCH`         | `const CANONICAL_EPOCH`                                    | —                                      | naming where the canonical axis's own year 1 sits                               |
 | `canonicalYear`           | `canonicalYear(year, epoch?)`                              | `number` — the signed year on the axis | converting a year written in one reckoning to the number everything compares on |
+| `eraYear`                 | `eraYear(canonical, epoch?)`                               | signed era year without zero           | printing a canonical year in a chosen reckoning                                 |
 | `dateSortKey`             | `dateSortKey(year, month, day)`                            | `number`                               | ordering mixed-precision dates against a single number                          |
 | `calendarStructure`       | `calendarStructure(calendar)`                              | `{months}` — `null` where unstated     | reading the months a calendar keeps, before phrasing a finding                  |
 | `daysInMonth`             | `daysInMonth(calendar, month)`                             | `number` — `null` where unstated       | bounding a written day against the month it names                               |
@@ -627,23 +628,54 @@ The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functio
 
 ### `engine.noteDates`
 
-A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `VR(720/5/14)` names an era marker and a date in that era's calendar. A marker is resolved from calendar notes in the corpus and contributes a canonical year, day, and sort key. Print `text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. Unmarked slash dates and the addressed era qualifier are also accepted by the parser; a caller supplies the corpus marker map and world year length when it needs a marker resolved.
+A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `VR(720/5/14)` names an era marker and a date in that era's calendar. A marker or addressed era is resolved from calendar notes in the corpus and contributes a canonical year, day, span and sort key. Print `prose ?? text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. Unmarked slash dates and addressed era qualifiers are accepted by the parser; a caller supplies the corpus maps and world year length when it needs an era resolved. `resolvedDateFields` supplies identical derived records to JSONL and generated page frontmatter.
 
-| Export                  | Signature                       | Returns                                            | Use it when                                                   |
-| ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
-| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`            | —                                                  | naming the literal that says a date is not recorded           |
-| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
-| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
-| `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
+| Export                  | Signature                                        | Returns                                            | Use it when                                                    |
+| ----------------------- | ------------------------------------------------ | -------------------------------------------------- | -------------------------------------------------------------- |
+| `UNKNOWN_DATE`          | `const UNKNOWN_DATE`                             | —                                                  | naming the literal that says a date is not recorded            |
+| `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`                        | —                                                  | matching the date grammar directly                             |
+| `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`                    | —                                                  | checking that a string is an era qualifier a date could carry  |
+| `parseNoteDate`         | `parseNoteDate(value, options)`                  | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned   |
+| `eraCovering`           | `eraCovering(date, eras, daysPerYear)`           | one era or `null`; throws on overlap               | selecting the era covering a resolved date's full precision    |
+| `formatNoteDate`        | `formatNoteDate(date, era, daysPerYear)`         | `{era, year, text, prose}` or `null`               | printing a resolved date in a chosen era or its authored form  |
+| `formatDateInCalendar`  | `formatDateInCalendar(date, reference, context)` | printable record or `null`                         | selecting a calendar's era and printing a resolved date in it  |
+| `calendarEras`          | `calendarEras(reference, context)`               | ordered era records                                | resolving an addressed calendar or one of its eras             |
+| `resolvedDateFields`    | `resolvedDateFields(fm, context)`                | map of normalized dates                            | deriving being and lore event date records for index and pages |
+
+### `engine.dateConversion`
+
+The exact-day conversion functions use the corpus reckoning context. A calendar with several eras requires an era in the authored date. They reject dates outside the selected calendar and gaps between its eras.
+
+| Export             | Signature                                           | Returns               | Use it when                                   |
+| ------------------ | --------------------------------------------------- | --------------------- | --------------------------------------------- |
+| `dateFromCalendar` | `dateFromCalendar(reference, value, context)`       | canonical date string | converting one calendar day to the world axis |
+| `dateToCalendar`   | `dateToCalendar(reference, canonicalDate, context)` | calendar date string  | expressing one canonical day in a calendar    |
+
+### `engine.calendarChoice`
+
+`checkCalendarChoice(note, { index })` checks that an explicitly selected calendar Address on a being or place resolves to a calendar note.
+
+| Export                | Signature                            | Returns  | Use it when                                     |
+| --------------------- | ------------------------------------ | -------- | ----------------------------------------------- |
+| `checkCalendarChoice` | `checkCalendarChoice(note, options)` | findings | validating a being's or place's chosen calendar |
+
+### `engine.markdownExpressions`
+
+`renderMarkdownExpressions(body, { fm, dates, sqlResults, file, bodyLine })` expands scalar frontmatter references and registered Handlebars helpers outside Markdown code. The `dateformat` helper uses `formatDateInCalendar`; `gt`, `gte`, `lt`, `lte`, `eq`, `and`, `or`, and `not` evaluate explicit comparisons. The `sql` helper reads a prepared scalar result, which must contain one row and one column. `sqlQueriesInMarkdown` discovers SQL calls, including nested calls; `prepareInlineSqlExpressions` evaluates them through the same DuckDB connection as SQL tables. The renderer returns `{ markdown, findings }`, with source positions for invalid expressions. Site, Foundry and PDF passes invoke it after generated tables expand and before links resolve. Hugo shortcodes remain literal for the site renderer.
+
+| Export                      | Signature                                  | Returns                | Use it when                                     |
+| --------------------------- | ------------------------------------------ | ---------------------- | ----------------------------------------------- |
+| `renderMarkdownExpressions` | `renderMarkdownExpressions(body, options)` | `{markdown, findings}` | expanding authored expressions in prose         |
+| `sqlQueriesInMarkdown`      | `sqlQueriesInMarkdown(body)`               | query strings          | preparing inline SQL alongside generated tables |
 
 ### `engine.reckoningMarkers`
 
-The corpus registry maps each declared marker to exactly one era and its calendar. An era start may use the canonical axis or a marker already resolvable from the corpus; duplicate markers and cycles are findings.
+The corpus registry maps every declared era to its calendar and each marker to exactly one era. Era starts may use the canonical axis or another declared era. Within one calendar, starts increase; the next start bounds the preceding era unless an explicit end leaves a gap. The first era also covers dates before its start and counts them with negative years. Later eras accept only forward year counts. Unknown eras, duplicate markers, invalid bounds, overlapping eras and dependency cycles are findings. Short qualifiers are ambiguous when they name eras in several packages; a full address selects one. This registry governs note dates; calendar definitions emitted for Foundry retain their consumer format.
 
-| Export                    | Signature                                     | Returns                            | Use it when                                                 |
-| ------------------------- | --------------------------------------------- | ---------------------------------- | ----------------------------------------------------------- |
-| `resolveReckoningMarkers` | `resolveReckoningMarkers(index, daysPerYear)` | `{markers, findings}`              | resolving authored era markers and their starts             |
-| `reckoningContext`        | `reckoningContext(index)`                     | `{markers, daysPerYear, findings}` | sharing one resolved date context across checks on a corpus |
+| Export                    | Signature                                     | Returns                                  | Use it when                                                 |
+| ------------------------- | --------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------- |
+| `resolveReckoningMarkers` | `resolveReckoningMarkers(index, daysPerYear)` | `{eras, markers, findings}`              | resolving authored eras, their markers, and their bounds    |
+| `reckoningContext`        | `reckoningContext(index)`                     | `{eras, markers, daysPerYear, findings}` | sharing one resolved date context across checks on a corpus |
 
 ### `engine.calendarNotes`
 
