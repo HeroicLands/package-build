@@ -61,6 +61,86 @@ behaviour where they appear below; read the command, not the name.
 
 ## Package and release operations
 
+### `package-build init [directory]`
+
+**NAME**
+
+Create a HeroicLands content package or check an existing one.
+
+**SYNOPSIS**
+
+```text
+package-build init [directory] [--kind <kind>] [--name <name>] [--title <title>] [--description <description>] [--author <author>] [--license <license>] [--core-minimum <version>] [--core-verified <version>]
+package-build init --check [directory]
+```
+
+**DESCRIPTION**
+
+The directory defaults to the current directory. If it does not exist, `init`
+creates it. The directory needs no Git repository, `package.json`, or local
+installation of package-build. It may contain unrelated files, but `init`
+refuses a package-build configuration or any file it would overwrite. It
+generates a homepage, introduction, package metadata, content configuration,
+book document tree, website and book scripts, formatting rules, changeset
+configuration, label registry, and build workflow. It does not install
+dependencies, initialize Git, or deploy a site.
+
+`--check` reads the named directory and reports missing or invalid project
+requirements without writing anything. It accepts existing files with valid
+custom content and scripts; they need not be identical to the scaffold.
+
+Without a terminal, the identity and license arguments must be supplied. At a
+terminal, missing values are prompted. The package name defaults to the target
+directory's basename and determines the content package id by removing hyphens.
+The package kind defaults to `modules`; the license template defaults to
+`original`. `systems` and `modules` receive a journal pack and Foundry
+manifest configuration. `documentation` receives no Foundry pack or manifest.
+Every kind includes site and book targets. Hugo Extended and Typst are needed
+to render them locally; deployment needs separate hosting configuration.
+
+**OPTIONS**
+
+| Option            | Type                                     | Default                   | Description                                               |
+| ----------------- | ---------------------------------------- | ------------------------- | --------------------------------------------------------- |
+| `directory`       | path                                     | current directory         | New or existing target directory.                         |
+| `--check`         | boolean                                  | `false`                   | Inspect an existing package without writing.              |
+| `--kind`          | `systems`, `modules`, or `documentation` | `modules`                 | Package kind.                                             |
+| `--name`          | string                                   | target directory basename | npm and Foundry package name.                             |
+| `--title`         | string                                   | words of the package name | Reader-facing title.                                      |
+| `--description`   | string                                   | —                         | Package and website description.                          |
+| `--author`        | string                                   | —                         | Author credited in the package.                           |
+| `--license`       | `original` or `fan`                      | `original`                | License template for original or unofficial fan material. |
+| `--core-minimum`  | string                                   | `14.359`                  | Minimum Foundry core version for a Foundry package.       |
+| `--core-verified` | string                                   | `14.364`                  | Verified Foundry core version for a Foundry package.      |
+
+**EXIT STATUS**
+
+0 when the package is created or passes `--check`. 1 when required answers are
+missing, the target conflicts with an existing project file, a generated file
+cannot be written, or `--check` finds an unmet requirement. A failed write
+removes the files created by that invocation.
+
+**EXAMPLES**
+
+```bash
+npm exec --package=@heroiclands/package-build -- package-build init acme-bestiary --kind modules --name acme-bestiary --title "Acme Bestiary" --description "Creatures of the reed flats." --author "Acme" --license original
+cd acme-bestiary
+npm install
+npm run lint
+npm run build:site
+npm run serve:site
+npm run build:book
+package-build init --check
+```
+
+For a global installation, run `npm install --global
+@heroiclands/package-build` once and then `package-build init [directory]`.
+
+**SEE ALSO**
+
+[Getting started](getting-started.md), [Project setup](project-setup.md),
+[Configuration](configuration.md).
+
 ### `package-build clean`
 
 **NAME**

@@ -764,6 +764,7 @@ const DOCS_KEYS = ["itemFields"];
 const CHANGELOG_KEYS = ["labels"];
 const SITE_KEYS = [
     "base",
+    "title",
     "assets",
     "description",
     "packages",
@@ -1567,7 +1568,7 @@ function normalizeSiteDescription(value) {
  */
 export const DERIVED_HUGO_KEYS = Object.freeze({
     baseURL: "package.json `homepage`",
-    title: "`packageBuild.manifest.title`",
+    title: "`site.title` or `packageBuild.manifest.title`",
     locale: "the organisation's locale, in `engine/site-config.mjs`",
     publishDir: "`contentPackage`, under the deployment root `build/site`",
     contentDir: "the fixed content mount, `build/hugo/content`",
@@ -1734,6 +1735,7 @@ const SITE_INDEX_MESSAGE =
 function normalizeSite(value) {
     const empty = Object.freeze({
         base: "",
+        title: "",
         assets: "",
         description: "",
         packages: Object.freeze([]),
@@ -1788,6 +1790,7 @@ function normalizeSite(value) {
 
     return Object.freeze({
         base: input.base === undefined ? "" : requireNonEmptyString(input.base, "site.base"),
+        title: input.title === undefined ? "" : requireNonEmptyString(input.title, "site.title"),
         assets: normalizeSiteAssets(input.assets),
         description: normalizeSiteDescription(input.description),
         packages: Object.freeze(packages),

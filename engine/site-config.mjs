@@ -364,17 +364,17 @@ function deepMerge(base, overrides) {
  * @param {string} options.themesDir - From {@link resolveThemesDir}.
  * @returns {Record<string, any>} The configuration Hugo reads.
  * @throws {TypeError} When `homepage` fails `checkHomepage`, or the
- *   configuration declares no `packageBuild.manifest.title`, no
+ *   configuration declares no `site.title` or `packageBuild.manifest.title`, no
  *   `site.description`, or no `site.assets`.
  */
 export function hugoConfig({ config, navigation, themesDir }) {
     checkHomepage(config.homepage, config.contentPackage);
 
-    const title = config.packageBuild?.manifest?.title;
+    const title = config.site.title || config.packageBuild?.manifest?.title;
     if (typeof title !== "string" || !title.trim()) {
         throw new TypeError(
-            "package-build config: `packageBuild.manifest.title` is not declared, " +
-                "and the site's `title` reads from it.",
+            "package-build config: declare `site.title` or " +
+                "`packageBuild.manifest.title` for the site's title.",
         );
     }
     if (!config.site.description) {

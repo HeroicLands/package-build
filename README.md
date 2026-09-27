@@ -23,6 +23,16 @@ Editor navigation for content projects is provided by
 npm install -D @heroiclands/package-build
 ```
 
+To create a project before it has a `package.json`, run:
+
+```bash
+npm exec --package=@heroiclands/package-build -- package-build init my-package --kind modules --name my-package --title "My Package" --description "A content package." --author "Your Name" --license original
+```
+
+The new project includes website and book targets. The
+[getting started guide](docs/getting-started.md) explains installation, local
+serving, and each generated file.
+
 ## What it covers
 
 The whole of assemble → validate → ship, one subpath each:
