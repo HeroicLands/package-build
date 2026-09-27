@@ -36,17 +36,10 @@
  *
  * A year subtracted from a year is wrong whenever the birthday has not yet
  * happened in the present's year — the common shape, not the exception. So
- * {@link computeAge} compares `born`'s month and day against `present`'s,
- * **ordinally**, and drops a year where born's has not yet arrived. That
- * ordinal comparison needs no month-length table: two dates written in one
- * calendar order the same way whether the comparison counts days-of-year
- * through the calendar's month lengths or simply reads `(month, day)` as a
- * pair, because a calendar's months keep the same lengths every year — this
- * package's calendars carry no leap rule (`calendar-notes.mjs`'s
- * `years.leapYear` is always `null`). So the comparison is calendar-agnostic
- * by construction, and correct for a twelve-month calendar of thirty-day
- * months, a ten-month calendar, or none at all — a bare `born` with no era
- * names no calendar to consult in the first place.
+ * {@link computeAge} compares the two dates' canonical day ordinals where an
+ * era marker supplies them. The birthday that still lies ahead in the current
+ * year does not count as a completed year. An unmarked slash date has no
+ * calendar to convert, so it uses its written month and day as its ordinal.
  *
  * ## `~` follows the convention {@link module:engine/note-dates} sets
  *
@@ -65,6 +58,7 @@
 import { worldInvariants } from "./calendar-notes.mjs";
 import { positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 // `born`'s retired spelling is still read during its retirement window — see
 // `docs/content-format.md`'s "`birthday:` is the retired spelling of `born:`"
 // — so a being on the old spelling still computes an age rather than reading
@@ -124,23 +118,21 @@ export function parseAgeMagnitude(raw) {
  * @returns {number|null} The age, or `null` where `born` is `unknown` or
  *   absent, where no present is declared, or where either date fails to parse.
  */
-export function computeAge(bornRaw, presentRaw) {
+export function computeAge(bornRaw, presentRaw, dateContext = {}) {
     if (bornRaw === undefined || bornRaw === null) return null;
     if (presentRaw === undefined || presentRaw === null) return null;
 
-    const born = parseNoteDate(bornRaw, { allowUnknown: true }).date;
+    const born = parseNoteDate(bornRaw, { ...dateContext, allowUnknown: true }).date;
     if (!born || !born.known || born.canonicalYear == null) return null;
 
-    const present = parseNoteDate(presentRaw, { allowUnknown: false }).date;
+    const present = parseNoteDate(presentRaw, { ...dateContext, allowUnknown: false }).date;
     if (!present || !present.known || present.canonicalYear == null) return null;
 
-    // Ordinal position within the year, day of year or not: see the module
-    // doc for why `(month, day)` alone orders correctly here. Missing month or
-    // day reads as the year's first day — the earliest a birthday could fall —
-    // so a `born` written to less precision than `present` never counts as
-    // "not yet happened".
-    const bornOrdinal = (born.month ?? 1) * 100 + (born.day ?? 1);
-    const presentOrdinal = (present.month ?? 1) * 100 + (present.day ?? 1);
+    // A resolved marker supplies a canonical day. An unmarked slash date uses
+    // its written month and day. Missing parts read as the first day that the
+    // value can name.
+    const bornOrdinal = born.canonicalDay ?? (born.month ?? 1) * 100 + (born.day ?? 1);
+    const presentOrdinal = present.canonicalDay ?? (present.month ?? 1) * 100 + (present.day ?? 1);
     const notYetHappened = bornOrdinal > presentOrdinal;
 
     return present.canonicalYear - born.canonicalYear - (notYetHappened ? 1 : 0);
@@ -163,7 +155,7 @@ export function computeAge(bornRaw, presentRaw) {
  *   `undefined`/`null` where it states none.
  * @returns {void}
  */
-export function applyComputedBeingAge(fm, presentRaw) {
+export function applyComputedBeingAge(fm, presentRaw, dateContext = {}) {
     if (!isBeingType(fm?.type)) return;
     const data = dataOf(fm);
     if (!data) return;
@@ -179,7 +171,7 @@ export function applyComputedBeingAge(fm, presentRaw) {
     }
 
     const born = readAliasedField(fm, "born", { inData: true });
-    const computed = computeAge(born, presentRaw);
+    const computed = computeAge(born, presentRaw, dateContext);
     if (computed !== null) data.age = computed;
 }
 
@@ -251,7 +243,7 @@ export function checkBeingAge(note, { index } = {}) {
     if (!index) return [];
 
     const present = worldInvariants(index).present;
-    const computed = computeAge(bornRaw, present);
+    const computed = computeAge(bornRaw, present, reckoningContext(index));
     if (computed === null) return [];
 
     const authored = parseAgeMagnitude(ageRaw);

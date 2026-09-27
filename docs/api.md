@@ -609,21 +609,28 @@ The closed registry of system ids, and the `none` that stands for no system at a
 
 The axis every date normalises onto, the arithmetic over a calendar's month list, and the moon. A reckoning is an **era** declared on the note about the calendar that counts those years, and its epoch is the `start` written on that row — nothing is registered in configuration. The year conversion is piecewise on the sign, because the authored numbering has no year zero while the normalised value does: authored `-1` is `0`, and `-1` and `1` are adjacent. `lunarPhase` takes a floored modulo for the same reason the conversion branches: a truncated one is right on one side of an epoch and wrong on the other.
 
-| Export              | Signature                          | Returns                                | Use it when                                                                     |
-| ------------------- | ---------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
-| `CANONICAL_EPOCH`   | `const CANONICAL_EPOCH`            | —                                      | naming where the canonical axis's own year 1 sits                               |
-| `canonicalYear`     | `canonicalYear(year, epoch?)`      | `number` — the signed year on the axis | converting a year written in one reckoning to the number everything compares on |
-| `dateSortKey`       | `dateSortKey(year, month, day)`    | `number`                               | ordering mixed-precision dates against a single number                          |
-| `calendarStructure` | `calendarStructure(calendar)`      | `{months}` — `null` where unstated     | reading the months a calendar keeps, before phrasing a finding                  |
-| `daysInMonth`       | `daysInMonth(calendar, month)`     | `number` — `null` where unstated       | bounding a written day against the month it names                               |
-| `daysInYear`        | `daysInYear(months)`               | `number`                               | asking what a month list claims the year is                                     |
-| `monthStarts`       | `monthStarts(months)`              | `number[]`                             | reading the same sum as a sequence, which is what an ordering error moves       |
-| `dayOfYear`         | `dayOfYear(months, month, day)`    | `number`                               | placing a written month and day in the year                                     |
-| `lunarPhase`        | `lunarPhase(day, epochDay, cycle)` | `number` — `0` to `cycle - 1`          | asking how far into its cycle a moon is, on either side of the epoch            |
+The neutral day spelling is `<year>.<day>[:HHMMSS]`. The pure conversion functions take the world's year length and an explicit origin year, so their arithmetic names no month or era. A caller supplies those values from its content; no setting year is baked into the toolchain.
+
+| Export                    | Signature                                                  | Returns                                | Use it when                                                                     |
+| ------------------------- | ---------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------------------------------- |
+| `CANONICAL_EPOCH`         | `const CANONICAL_EPOCH`                                    | —                                      | naming where the canonical axis's own year 1 sits                               |
+| `canonicalYear`           | `canonicalYear(year, epoch?)`                              | `number` — the signed year on the axis | converting a year written in one reckoning to the number everything compares on |
+| `dateSortKey`             | `dateSortKey(year, month, day)`                            | `number`                               | ordering mixed-precision dates against a single number                          |
+| `calendarStructure`       | `calendarStructure(calendar)`                              | `{months}` — `null` where unstated     | reading the months a calendar keeps, before phrasing a finding                  |
+| `daysInMonth`             | `daysInMonth(calendar, month)`                             | `number` — `null` where unstated       | bounding a written day against the month it names                               |
+| `daysInYear`              | `daysInYear(months)`                                       | `number`                               | asking what a month list claims the year is                                     |
+| `monthStarts`             | `monthStarts(months)`                                      | `number[]`                             | reading the same sum as a sequence, which is what an ordering error moves       |
+| `dayOfYear`               | `dayOfYear(months, month, day)`                            | `number`                               | placing a written month and day in the year                                     |
+| `monthDayOfYear`          | `monthDayOfYear(months, ordinal)`                          | `{month, day}` or `null`               | reading an ordinal day in a calendar's month layout                             |
+| `lunarPhase`              | `lunarPhase(day, epochDay, cycle)`                         | `number` — `0` to `cycle - 1`          | asking how far into its cycle a moon is, on either side of the epoch            |
+| `canonicalDayOffset`      | `canonicalDayOffset(year, day, originYear, daysPerYear)`   | signed whole-day offset                | placing a canonical date against a chosen origin                                |
+| `canonicalDateFromOffset` | `canonicalDateFromOffset(offset, originYear, daysPerYear)` | `{year, day}`                          | recovering a canonical date, including days before the origin                   |
+| `formatCanonicalDate`     | `formatCanonicalDate(date, daysPerYear)`                   | canonical date string                  | printing a day and optional 24-hour time without calendar months                |
+| `parseCanonicalDate`      | `parseCanonicalDate(value, daysPerYear)`                   | `{year, day, seconds?}` or `null`      | reading that spelling without accepting a month date                            |
 
 ### `engine.noteDates`
 
-A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar shortcode>.<era shortcode>]` — and every field holding one parses through a single grammar into a single record. Print `text`, order on `sort`, do arithmetic on `canonicalYear`. A bare value sits on the canonical axis and carries `era: null`; one naming an era carries the qualifier and no `canonicalYear` or `sort` keys at all until the era is resolved against the corpus. The literal `unknown` parses to the same record with the year half empty, carrying a null `sort` and a null `canonicalYear`, so nothing can order it to one end of a list.
+A date on a note is one authored string. `<year>.<day>[:HHMMSS]` names a calendar-neutral day; `VR(720/5/14)` names an era marker and a date in that era's calendar. A marker is resolved from calendar notes in the corpus and contributes a canonical year, day, and sort key. Print `text`, order on `sort`, and do arithmetic on `canonicalYear`. The literal `unknown` has no sort key or canonical year. Unmarked slash dates and the addressed era qualifier are also accepted by the parser; a caller supplies the corpus marker map and world year length when it needs a marker resolved.
 
 | Export                  | Signature                       | Returns                                            | Use it when                                                   |
 | ----------------------- | ------------------------------- | -------------------------------------------------- | ------------------------------------------------------------- |
@@ -631,6 +638,15 @@ A date on a note is one authored string — `[~][-]YYYY[/MM[/DD]] [<calendar sho
 | `NOTE_DATE_PATTERN`     | `const NOTE_DATE_PATTERN`       | —                                                  | matching the date grammar directly                            |
 | `ERA_QUALIFIER_PATTERN` | `const ERA_QUALIFIER_PATTERN`   | —                                                  | checking that a string is an era qualifier a date could carry |
 | `parseNoteDate`         | `parseNoteDate(value, options)` | `{date, findings}` — `date` is `null` when refused | reading a note's authored date, with every finding it earned  |
+
+### `engine.reckoningMarkers`
+
+The corpus registry maps each declared marker to exactly one era and its calendar. An era start may use the canonical axis or a marker already resolvable from the corpus; duplicate markers and cycles are findings.
+
+| Export                    | Signature                                     | Returns                            | Use it when                                                 |
+| ------------------------- | --------------------------------------------- | ---------------------------------- | ----------------------------------------------------------- |
+| `resolveReckoningMarkers` | `resolveReckoningMarkers(index, daysPerYear)` | `{markers, findings}`              | resolving authored era markers and their starts             |
+| `reckoningContext`        | `reckoningContext(index)`                     | `{markers, daysPerYear, findings}` | sharing one resolved date context across checks on a corpus |
 
 ### `engine.calendarNotes`
 

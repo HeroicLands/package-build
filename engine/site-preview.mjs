@@ -14,6 +14,7 @@ import { noteAddressContext, decodeNoteAddresses, encodeAddresses } from "./note
 import { noteFile } from "./index-records.mjs";
 import { foundryIdentities } from "./foundry-entries.mjs";
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 import { cachedMetadataIndexes, noContentIndexPackages } from "./metadata-index.mjs";
 import { buildSiteIndex } from "./site-index.mjs";
 import { openNotesDatabase, prepareSqlTables, findSqlBlocks } from "./sql-tables.mjs";
@@ -133,7 +134,11 @@ export async function prepareSitePreview({ config = loadPackConfig() } = {}) {
                     ...noteAddressContext(config),
                     package: config.contentPackage,
                 });
-                applyComputedBeingAge(fm, presentAmongRecords(snapshot.records));
+                applyComputedBeingAge(
+                    fm,
+                    presentAmongRecords(snapshot.records),
+                    reckoningContext({ notes: snapshot.records }),
+                );
             } catch (error) {
                 return {
                     ok: false,

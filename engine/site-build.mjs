@@ -78,6 +78,7 @@ import { indexRecordsFor } from "./content-index.mjs";
 // A being's computed `age` — see `engine/being-age.mjs`. `pdf-build.mjs`
 // reuses `collectContentPages`'s pages, so wiring it here reaches the book too.
 import { applyComputedBeingAge, presentAmongRecords } from "./being-age.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 import { isNoteRecord, noteFile } from "./index-records.mjs";
 // The one statement of what an empty body means, shared with the index.
 import { isStubNote } from "./note-state.mjs";
@@ -196,19 +197,20 @@ export function collectContentPages(contentBase, ctx) {
     // The package's declared present, read once from the same corpus the site
     // and the PDF share — see `engine/being-age.mjs`. `pdf-build.mjs` reaches
     // this through the pages this function returns, so one call covers both.
-    const present = presentAmongRecords(
+    const records =
         ctx.records ??
-            indexRecordsFor({
-                contentBase,
-                config: ctx.config,
-                skipDirectories: ctx.skipDirectories,
-            }),
-    );
+        indexRecordsFor({
+            contentBase,
+            config: ctx.config,
+            skipDirectories: ctx.skipDirectories,
+        });
+    const present = presentAmongRecords(records);
+    const dates = reckoningContext({ notes: records });
 
     for (const file of siteCorpusFiles(contentBase, ctx)) {
         const note = readNote(file, ctx);
         if (!note) continue;
-        applyComputedBeingAge(note.fm, present);
+        applyComputedBeingAge(note.fm, present, dates);
         const { fm, body, bodyLine } = note;
         // The configuration's, never a note's: `package:` is retired, so every
         // note in the tree belongs to the package this repository compiles.

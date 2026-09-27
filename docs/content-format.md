@@ -326,6 +326,42 @@ flow collection is formatted into one of those forms; folded collections are
 not used. `content-build format --write` applies this rule and the top-level
 order without changing the Markdown body.
 
+#### Dates and reckoning markers
+
+A calendar names and orders the days within a year. An **era** states where its
+year count begins. Several eras may use one calendar; each has its own origin.
+An era may declare a short, uppercase `marker` for authored dates. The marker
+selects that era and the calendar whose months interpret the date inside it:
+
+```yaml
+data:
+  born: VR(676/12/5)
+```
+
+`VR` is a marker declared on an era row of the Common Calendar. `VR(720/5/14)`
+means its year 720, fifth month, fourteenth day. `VR(720/5)` states month
+precision, and `VR(720)` states year precision. The parser retains that
+precision; it does not invent a first day when the author only knows a year.
+`VR(~-480)` keeps an approximate year. A date whose occurrence is known but
+whose value is not recorded is `unknown`, with no marker.
+
+The calendar-neutral spelling is `<year>.<day>[:HHMMSS]`: `720.136` names day
+136 of canonical year 720, and `720.136:143005` adds 14:30:05. The dot means
+**day of year**, not a month. Its day must fit the world's `data.year.days`,
+and its time must fit a 24-hour day. A bare year is also accepted. Unmarked
+slash dates are accepted as calendar-neutral numeric month/day values; their
+month division has no named calendar, so use a marker when the month is part
+of a people's reckoning.
+
+An era's `start` locates its first year on the canonical timeline. The marker's
+own start is written canonically, such as `start: 1`, so its definition has no
+circular reference. Another era may place its start using a marker already
+defined in the corpus. A year-precision start anchors the reckoning at the
+first day of that canonical year for conversion; it does not date the event
+that gave the era its name. A marker must be unique across the corpus and contain
+uppercase letters or digits, beginning with a letter. An optional `end` bounds
+dates in that era; a year-precision end includes the whole named year.
+
 **`data:` is closed.** It holds the type-specific facts about the
 subject — a weapon's weight, an affliction's transmission, a being's species —
 and every note type declares which keys it may carry. A misspelled key is a
@@ -3425,15 +3461,15 @@ In-world information about people, places, or concepts.
   tournament is not a matter of time-reckoning at all — and from `culture`, which is a grouping
   of people rather than an occasion they attend.
 
-| `data` property | Values                                                                  | Description                                                                       |
-| --------------- | ----------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| `epoch`         | `date`                                                                  | Which in-world day the world's clock reads zero on                                |
-| `months`        | `{ name, abbreviation?, days }[]`                                       | The months this calendar keeps, in order — the list sums to the world's year      |
-| `weekdays`      | `{ name, abbreviation? }[]`                                             | The days of the week it names, in order; a calendar with no week writes none      |
-| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]` | The seasons it marks, bounded by month or by day of year                          |
-| `eras`          | `{ shortcode, name, abbreviation?, proclaimedBy?, start, end? }[]`      | The year-counts kept in it, each addressed `<calendar shortcode>.<era shortcode>` |
-| `dateFormats`   | `Map<slot, format>`                                                     | Calendaria display formats for this calendar                                      |
-| `event`         | `Map<field, value>`                                                     | A dated occurrence, with its sources, locations, reach, and relationships         |
+| `data` property | Values                                                                      | Description                                                                        |
+| --------------- | --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
+| `epoch`         | `date`                                                                      | Which in-world day the world's clock reads zero on                                 |
+| `months`        | `{ name, abbreviation?, days }[]`                                           | The months this calendar keeps, in order — the list sums to the world's year       |
+| `weekdays`      | `{ name, abbreviation? }[]`                                                 | The days of the week it names, in order; a calendar with no week writes none       |
+| `seasons`       | `{ name, abbreviation?, monthStart?, monthEnd?, dayStart?, dayEnd? }[]`     | The seasons it marks, bounded by month or by day of year                           |
+| `eras`          | `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end? }[]` | The year-counts kept in it; a marker names one era and uses this calendar's months |
+| `dateFormats`   | `Map<slot, format>`                                                         | Calendaria display formats for this calendar                                       |
+| `event`         | `Map<field, value>`                                                         | A dated occurrence, with its sources, locations, reach, and relationships          |
 
 `data.event` is available on every `lore` subType. It holds structured
 chronology metadata, including the event's kind, date, sources, and the places
@@ -3450,13 +3486,13 @@ the year and says where the count begins, and one that does neither is prose
 about time rather than a calendar.
 
 ```yaml
-type: lore
-subType: calendar
 shortcode: commoncal
 name:
   full: The Common Calendar
+type: lore
+subType: calendar
 data:
-  epoch: 720/1/1
+  epoch: VR(720/1/1)
   months:
     - { name: Floralis, abbreviation: Flor, days: 30 }
     - { name: Lusenar, abbreviation: Luse, days: 31 }
@@ -3466,6 +3502,7 @@ data:
   eras:
     - shortcode: founding
       name: After the Founding
+      marker: VR
       abbreviation: AF
       proclaimedBy: vylarinmpr
       start: 1
@@ -3492,8 +3529,10 @@ that: `months` must sum to `year.days`, and a list that does not describes a
 different world rather than a different calendar.
 
 **An era is a way of counting years within a calendar**, so its rows sit beside
-the months. Each states its own `shortcode`, unique within the note, and a date
-names one by writing it after the calendar's address — `3 commoncal.founding`.
+the months. Each states its own `shortcode`, unique within the note. A date
+names an era with its marker, such as `VR(720/5/14)`. A calendar may contain
+several era rows, each with its own marker and year origin. The marker is an
+authoring identifier; the `abbreviation` is its printed label.
 `proclaimedBy` is optional: a reckoning whose proclaiming body is unknown, or
 whose body has no note, says so by leaving it out.
 

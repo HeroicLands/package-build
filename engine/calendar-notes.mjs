@@ -64,9 +64,10 @@
  * @module
  */
 
-import { dayOfYear, daysInYear } from "./calendars.mjs";
+import { dayOfYear, daysInYear, monthDayOfYear } from "./calendars.mjs";
 import { positionInFrontmatter, positionOfFrontmatterPath } from "./diagnostics.mjs";
 import { parseNoteDate } from "./note-dates.mjs";
+import { reckoningContext } from "./reckoning-markers.mjs";
 
 /** The `lore` subType whose notes are calendars. */
 export const CALENDAR_SUBTYPE = "calendar";
@@ -144,11 +145,10 @@ export const CALENDAR_FIELDS = Object.freeze([
     },
     {
         name: "eras",
-        shape: "list of `{ shortcode, name, abbreviation?, proclaimedBy?, start, end? }`",
+        shape: "list of `{ shortcode, name, marker?, abbreviation?, proclaimedBy?, start, end? }`",
         kind: "list",
         describe:
-            "The year-counts kept in this calendar. A date names one by writing " +
-            "`<calendar shortcode>.<era shortcode>`.",
+            "The year-counts kept in this calendar. A marker names one era and uses these months.",
     },
     {
         name: "dateFormats",
@@ -456,6 +456,7 @@ export function checkWorldFacts(note, { index } = {}) {
 
     if (written.includes("present")) {
         const { findings: dated } = parseNoteDate(dataOf(note).present, {
+            ...reckoningContext(index),
             field: "data.present",
             allowUnknown: false,
             file: note.file,
@@ -463,6 +464,18 @@ export function checkWorldFacts(note, { index } = {}) {
             keyPath: ["data", "present"],
         });
         findings.push(...dated);
+    }
+    if (written.includes("moon") && dataOf(note).moon?.newOn !== undefined) {
+        findings.push(
+            ...parseNoteDate(dataOf(note).moon.newOn, {
+                ...reckoningContext(index),
+                field: "data.moon.newOn",
+                allowUnknown: false,
+                file: note.file,
+                raw: note.raw,
+                keyPath: ["data", "moon", "newOn"],
+            }).findings,
+        );
     }
 
     // The corpus questions, which need every note and so are asked only where
@@ -558,8 +571,24 @@ export function checkCalendarNote(note, { index } = {}) {
         });
     }
 
+    if (written.includes("epoch")) {
+        findings.push(
+            ...parseNoteDate(dataOf(note).epoch, {
+                ...reckoningContext(index),
+                field: "data.epoch",
+                allowUnknown: false,
+                file: note.file,
+                raw: note.raw,
+                keyPath: ["data", "epoch"],
+            }).findings,
+        );
+    }
+
     findings.push(...checkMonthSum(note, index));
     findings.push(...checkEraShortcodes(note));
+    findings.push(
+        ...reckoningContext(index).findings.filter((finding) => finding.file === note.file),
+    );
     findings.push(...checkCalendarDateFormats(note));
     return findings;
 }
@@ -718,16 +747,18 @@ function seasonValues(seasons) {
 }
 
 /** The era rows, keyed by shortcode, with the addressing segments dropped. */
-function eraEntries(eras) {
+function eraEntries(eras, dateContext = {}) {
     const entries = {};
     for (const era of Array.isArray(eras) ? eras : []) {
         const shortcode = String(era?.shortcode ?? "");
         if (!shortcode) continue;
+        const start = parseNoteDate(era?.start, { ...dateContext, allowUnknown: false }).date;
+        const end = parseNoteDate(era?.end, { ...dateContext, allowUnknown: false }).date;
         entries[shortcode] = written({
             name: String(era?.name ?? ""),
             abbreviation: era?.abbreviation === undefined ? undefined : String(era.abbreviation),
-            start: era?.start === undefined ? undefined : String(era.start),
-            end: era?.end === undefined ? undefined : String(era.end),
+            start: era?.start === undefined ? undefined : String(start?.year ?? era.start),
+            end: era?.end === undefined ? undefined : String(end?.year ?? era.end),
         });
     }
     return entries;
@@ -746,15 +777,23 @@ function eraEntries(eras) {
  * @param {string} name - What the body is called.
  * @returns {object|null} The entry, keyed by the body's name, or `null`.
  */
-function moonEntries(moon, body, name) {
+function moonEntries(moon, body, name, months, dateContext = {}) {
     if (!moon || !name) return null;
-    const date = parseNoteDate(moon.newOn, { allowUnknown: false }).date;
+    const date = parseNoteDate(moon.newOn, { ...dateContext, allowUnknown: false }).date;
+    const calendarDay =
+        date?.canonicalDay && months.length ? monthDayOfYear(months, date.canonicalDay) : null;
     return {
         [name]: written({
             name,
             cycleLength: Number(moon.cycle),
             referenceDate:
-                date ? written({ year: date.year, month: date.month, day: date.day }) : undefined,
+                date ?
+                    written({
+                        year: date.canonicalYear ?? date.year,
+                        month: calendarDay?.month ?? date.month,
+                        day: calendarDay?.day ?? date.day,
+                    })
+                :   undefined,
             // A circular orbit is a cycle of exactly its length, every time.
             cycleVariance: String(body?.orbit ?? "") === "circular" ? 0 : undefined,
             phaseMode: "fixed",
@@ -781,15 +820,21 @@ function moonEntries(moon, body, name) {
  *   its own package.
  * @returns {object} The definition.
  */
-export function compileCalendar({ note, invariants, contentPackage }) {
+export function compileCalendar({ note, invariants, contentPackage, dateContext = {} }) {
     const data = dataOf(note);
     const year = invariants?.year ?? {};
     const months = Array.isArray(data.months) ? data.months : [];
-    const epoch = parseNoteDate(data.epoch, { allowUnknown: false }).date;
+    const epoch = parseNoteDate(data.epoch, { ...dateContext, allowUnknown: false }).date;
     const shortcode = String(note.fm?.shortcode ?? "");
     const name = String(note.fm?.name?.full ?? "");
     const description = String(note.fm?.description ?? "");
-    const moons = moonEntries(invariants?.moon, invariants?.body ?? null, invariants?.moonName);
+    const moons = moonEntries(
+        invariants?.moon,
+        invariants?.body ?? null,
+        invariants?.moonName,
+        months,
+        dateContext,
+    );
     const author = contentPackage ? String(contentPackage) : undefined;
 
     return written({
@@ -818,8 +863,10 @@ export function compileCalendar({ note, invariants, contentPackage }) {
         seasons: { values: seasonValues(data.seasons) },
         // How far into the year the world's zero falls. `1/1` is none.
         epochDayOffset:
-            epoch && months.length ? dayOfYear(months, epoch.month ?? 1, epoch.day ?? 1) - 1 : 0,
-        eras: eraEntries(data.eras),
+            epoch && months.length ?
+                (epoch.canonicalDay ?? dayOfYear(months, epoch.month ?? 1, epoch.day ?? 1)) - 1
+            :   0,
+        eras: eraEntries(data.eras, dateContext),
         dateFormats: data.dateFormats,
         moons: moons ?? undefined,
         metadata: written({
@@ -871,9 +918,10 @@ export function compileCalendars(index, { contentPackage } = {}) {
     const invariants = worldInvariants(index);
     if (!invariants.year) return { calendars: [], invariants };
     const calendars = [];
+    const dateContext = reckoningContext(index);
     for (const note of index?.notes ?? []) {
         if (typeOf(note) !== "lore" || subTypeOf(note) !== CALENDAR_SUBTYPE) continue;
-        calendars.push(compileCalendar({ note, invariants, contentPackage }));
+        calendars.push(compileCalendar({ note, invariants, contentPackage, dateContext }));
     }
     return { calendars, invariants };
 }
