@@ -471,7 +471,13 @@ export function emptyGates() {
     };
 }
 
-/** Whether any gate produced a finding. */
+/**
+ * Whether any gate produced a finding.
+ * @param {{homepages: unknown[], frontmatterLinks: unknown[],
+ *   addressErrors: unknown[], staleManifests: unknown[],
+ *   unaddressable: unknown[]}} gates - Results of the site checks.
+ * @returns {boolean} Whether at least one check found an error.
+ */
 export function gatesFailed(gates) {
     return Boolean(
         gates.homepages.length ||
@@ -670,7 +676,7 @@ function isPlainObject(value) {
  * `_index.md`, and the page's stated `url` keeps its address exactly where the
  * flat file's was.
  *
- * @param {object} page - The page.
+ * @param {{slug: string}} page - The page.
  * @param {object} [opts]
  * @param {boolean} [opts.bundle=false] - Whether the page carries a resource.
  * @returns {string} The file, relative to the mount.
