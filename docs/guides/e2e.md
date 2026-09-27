@@ -49,6 +49,8 @@ this harness and a Foundry license available to the test container:
 ```dotenv
 FOUNDRYVTT_TEST_DATA=/path/to/isolated-foundry-test-data
 FOUNDRYVTT_TEST_LICENSE_KEY=replace-with-test-license-key
+FOUNDRYVTT_TEST_PORT=30003
+# FOUNDRYVTT_TEST_VERSION=14.367
 ```
 
 Keep `.env.local` ignored by git; it holds machine-specific paths and real
@@ -67,12 +69,14 @@ node_modules
 `/.env*` covers `.env.local`, `.env`, and other local environment files.
 `/build/` keeps generated indexes, packs, site files, and books out of commits;
 `/nogit/` reserves local scratch. The CLI reads `.env.local` from the
-configured repository root before
-`.env`. Values already set in the shell take precedence over both files, and
+configured repository root before `.env`. Values already set in the shell take precedence over both files, and
 `.env.local` takes precedence over `.env`. A separate git worktree needs its
 own `.env.local` because that ignored file is not copied with the branch.
-`FOUNDRYVTT_TEST_VERSION` can also be set here to select a Foundry build for
-routine runs. With the local settings in place, seed the world:
+The test data path is a Foundry data root, beneath which the harness creates
+`Data/worlds/` and installs the package. Use an absolute path; `~` and shell
+variables are not expanded in `.env.local`. Set `FOUNDRYVTT_TEST_VERSION` to
+select a specific Foundry build for routine runs. With the local settings in
+place, seed the world:
 
 ```bash
 package-build e2e seed
