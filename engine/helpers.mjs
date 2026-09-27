@@ -61,6 +61,7 @@ import { linkFindingMessage } from "./wikilink-syntax.mjs";
 // The declared tag vocabulary, which is where `draft` is stated. Read
 // from there rather than respelt, so the tag and its one reader cannot drift.
 import { isDraftNote } from "./note-vocabulary.mjs";
+import { DERIVED_PACKED_TYPES, NEVER_PACKED_TYPES } from "./note-claims.mjs";
 import { expandContentTables } from "./content-tables.mjs";
 import { renderSecretBlocks } from "./content-secrets.mjs";
 import { positionInBody } from "./diagnostics.mjs";
@@ -764,17 +765,21 @@ export function buildContentLinkIndex(
         assertTypeNotRetired(fm.type, absPath);
         const base = String(record.file.name).replace(/_/g, " ");
         const documentation = recordsByAddress.get(encodeAddresses(record.documentation));
+        const noOwnDocument =
+            declaresNoPack(fm) ||
+            NEVER_PACKED_TYPES.has(fm.type) ||
+            DERIVED_PACKED_TYPES.has(fm.type);
         docs.push({
             documentationUuid: documentation?.foundry?.none?.uuid ?? null,
             type: fm.type,
             id: fm.id,
             // Where this note's own document lands, and where the JournalEntry
             // its prose compiles into lands — two documents, two packs.
-            pack: router.resolveOrNull(fm, packForType(fm.type).docType),
-            docPack: router.resolveOrNull(fm, "JournalEntry"),
-            // Whether the note declares `pack: none` and so has no document
-            // at all: a link to it names a page, never a compendium entry.
-            none: declaresNoPack(fm),
+            pack: noOwnDocument ? null : router.resolveOrNull(fm, packForType(fm.type).docType),
+            docPack: noOwnDocument ? null : router.resolveOrNull(fm, "JournalEntry"),
+            // A note with no single document still has an address, but no
+            // compendium UUID for a wikilink to open.
+            none: noOwnDocument,
             shortcode: fm.shortcode ?? null,
             // What the note *is*, carried so a caller resolving a reference
             // can group by the family its target declares rather than only by
