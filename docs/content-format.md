@@ -2542,14 +2542,23 @@ Generates a living (or undead, or spirit) being.
 | `died`                      | `date \| unknown`                              | When the being died; absent, it is alive                                                         |
 | `age`                       | `34 \| ~34`                                    | Age in years, stated only to override what `born` says; `~` marks an estimate                    |
 | `ageYears`                  | `number`                                       | Written by the compiler beside an `age` estimate — the `~` stripped; a note never authors this   |
-| `height`                    | `number`                                       | Height in meters                                                                                 |
-| `weight`                    | `number`                                       | Weight in kilograms                                                                              |
+| `height`                    | `1.91m \| 6' 3"`                               | Height in metres or feet and inches                                                              |
+| `weight`                    | `85kg \| 187 lbs`                              | Body weight in kilograms or pounds                                                               |
 | `frame`                     | `scant \| light \| medium \| large \| massive` | Relative frame size                                                                              |
 | `appearance.eye_color`      | `string`                                       | Eye color                                                                                        |
 | `appearance.hair_color`     | `string`                                       | Hair color                                                                                       |
 | `appearance.skin_color`     | `string`                                       | Skin color                                                                                       |
 | `appearance.complexion`     | `string`                                       | Complexion                                                                                       |
 | `appearance.extra_features` | `string[]`                                     | Extra features                                                                                   |
+
+Author `data.height` as a string of decimal metres (`1.91m` or `1.91 m`) or
+whole feet with optional inches (`6'`, `6'3"`, or `6' 3"`). Inches must be
+between 0 and 11. Author `data.weight` as a string of decimal kilograms (`85kg`
+or `85 kg`) or whole pounds (`187lbs` or `187 lbs`). The infobox prints both in
+feet and inches and whole pounds, rounding metric input to the nearest inch or
+pound. Numeric values are also accepted as metres and kilograms during content
+conversion; explicit units make an authored value unambiguous. These fields
+describe a being's body. Item gear weight remains a numeric `data.weight`.
 
 #### The people who matter to a being
 
