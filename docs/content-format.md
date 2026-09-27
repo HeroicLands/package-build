@@ -2832,6 +2832,9 @@ is the package root. The page heading reads `name.full` and defaults to
 `packageBuild.manifest.title`. `description` supplies the page's short
 description.
 
+In a compiled Foundry journal, a wikilink to the homepage prints its label
+as text. The homepage has no compendium document to open.
+
 The page is its body, published verbatim: no wikilink is resolved on it and
 no table expanded, so its links are markdown links, package-relative
 (`kb/rules/`) or external. An index of what the package publishes is not
@@ -4356,6 +4359,8 @@ such key, so a mistyped `journal:` files the folder wherever the default puts it
 
 **A folder note carries no prose.** It is structure, not content, so it produces
 no documentation journal and takes no part in `docEntryTypes`.
+In a compiled Foundry journal, a wikilink to a folder prints its label as text:
+the folder can materialise in several packs and has no single compendium UUID.
 
 **It declares no pack.** Which packs a folder materialises in is derived from
 [what references it](#the-compendium-folder), and its ancestors materialise with
